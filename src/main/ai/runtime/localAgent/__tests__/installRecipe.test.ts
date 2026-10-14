@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveInstallRecipe } from '../installRecipe'
+import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE } from '@shared/data/presets/codeCliTools'
+
+import { resolveInstallRecipe, resolveCliInstallRecipe } from '../installRecipe'
 
 const registry = (id: string, distribution: unknown) => ({ agents: [{ id, distribution }] })
 
 describe('system agent install recipes', () => {
+  it('installs Kimi Code instead of the retired Kimi package in the ACP registry', () => {
+    const expected = { manager: 'npm', package: '@moonshot-ai/kimi-code' }
+    expect(resolveInstallRecipe('kimi', registry('kimi', { uvx: { package: 'kimi-cli' } }))).toMatchObject(expected)
+    expect(resolveInstallRecipe('kimi', undefined)).toMatchObject(expected)
+    expect(resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.kimi!)).toMatchObject(expected)
+  })
+
   it('rejects retired Gemini CLI installation even when it remains in the registry', () => {
     expect(() =>
       resolveInstallRecipe('gemini', registry('gemini', { npx: { package: '@google/gemini-cli' } }))
@@ -30,6 +39,20 @@ describe('system agent install recipes', () => {
   it('uses native CLIs for native drivers, not incompatible ACP adapters', () => {
     expect(resolveInstallRecipe('claude', undefined)).toMatchObject({ package: '@anthropic-ai/claude-code' })
     expect(resolveInstallRecipe('codex', undefined)).toMatchObject({ package: '@openai/codex' })
+  })
+
+  it('keeps native Python extras and uses platform-specific official Antigravity installers', () => {
+    expect(resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.hermes!, '0.19.0')).toMatchObject({
+      manager: 'uv',
+      args: ['tool', 'install', '--upgrade', 'hermes-agent[web]==0.19.0']
+    })
+    const unix = resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.agy!, undefined, 'darwin')
+    const windows = resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.agy!, undefined, 'win32')
+    expect(unix).toMatchObject({ manager: 'script', command: 'bash' })
+    expect(unix.args.join(' ')).toContain('https://antigravity.google/cli/install.sh')
+    expect(windows).toMatchObject({ manager: 'script', command: 'powershell.exe' })
+    expect(windows.args.join(' ')).toContain('https://antigravity.google/cli/install.ps1')
+    expect(() => resolveCliInstallRecipe(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.agy!, '1.0.0')).toThrow()
   })
 
   it('maps preset identities to registry identities', () => {

@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
-import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_TOOL_PRESETS, type CodeCliToolPreset } from '@shared/data/presets/codeCliTools'
 
 const packageDistribution = z.object({ package: z.string().min(1) })
 const binaryDistribution = z.object({
@@ -56,9 +56,9 @@ export function resolveInstallRecipe(
 ): LocalAgentInstallRecipe | LocalAgentBinaryRecipe | undefined {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
   if (!preset) throw new Error('Unknown local agent preset')
-  // Native drivers need the original CLI, not the registry's ACP adapter.
+  // Native drivers need the original CLI; the registry still ships the retired Kimi CLI.
   const native =
-    preset.protocol !== 'acp'
+    preset.protocol !== 'acp' || presetId === 'kimi'
       ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
       : undefined
   const entry = native
@@ -82,4 +82,44 @@ export function resolveInstallRecipe(
   const binary = entry?.distribution.binary?.[platformKey]
   if (binary && entry?.version) return { manager: 'binary', version: entry.version, ...binary }
   return undefined
+}
+
+export interface CliScriptRecipe {
+  manager: 'script'
+  command: string
+  args: string[]
+}
+
+export function resolveCliInstallRecipe(
+  preset: CodeCliToolPreset,
+  targetVersion?: string,
+  platform = process.platform
+): LocalAgentInstallRecipe | CliScriptRecipe {
+  if (targetVersion && !/^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$/.test(targetVersion)) throw new Error('Invalid CLI version')
+  if (preset.install === 'aqua') {
+    if (targetVersion) throw new Error('Antigravity manages its own updates')
+    return platform === 'win32'
+      ? {
+          manager: 'script',
+          command: 'powershell.exe',
+          args: [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            "$ErrorActionPreference = 'Stop'; irm https://antigravity.google/cli/install.ps1 | iex"
+          ]
+        }
+      : {
+          manager: 'script',
+          command: 'bash',
+          args: ['-o', 'pipefail', '-c', 'curl -fsSL https://antigravity.google/cli/install.sh | bash']
+        }
+  }
+  const python = preset.install === 'pipx'
+  const packageName =
+    python && preset.pipxExtras?.length ? `${preset.packageName}[${preset.pipxExtras.join(',')}]` : preset.packageName
+  const packageSpec = targetVersion ? `${packageName}${python ? '==' : '@'}${targetVersion}` : packageName
+  return python
+    ? { manager: 'uv', package: packageSpec, args: ['tool', 'install', '--upgrade', packageSpec] }
+    : { manager: 'npm', package: packageSpec, args: ['install', '--global', packageSpec] }
 }

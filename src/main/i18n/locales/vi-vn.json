@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Phóng to",
   "appMenu.zoomOut": "Thu nhỏ",
   "chat.conversation.new": "Cuộc trò chuyện mới",
+  "code_cli.config_changed": "Cấu hình CLI đã thay đổi. Hãy mở lại trình chỉnh sửa trước khi lưu.",
   "common.channel_available_commands": "Các lệnh có sẵn:",
   "common.channel_command_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý lệnh. Vui lòng thử lại sau.",
   "common.channel_error": "Lỗi: {{error}}",

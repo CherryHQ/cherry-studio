@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "ズームイン",
   "appMenu.zoomOut": "ズームアウト",
   "chat.conversation.new": "新しいチャット",
+  "code_cli.config_changed": "CLI の設定が変更されました。エディターを開き直してから保存してください。",
   "common.channel_available_commands": "利用可能なコマンド：",
   "common.channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
   "common.channel_error": "エラー: {{error}}",

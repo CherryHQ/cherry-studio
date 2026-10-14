@@ -19,13 +19,13 @@ import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelectorRow } from '@renderer/components/ModelSelector'
 import { ModelTag } from '@renderer/components/tags/Model'
+import type { LocalAgentModelOption } from '@renderer/hooks/agent/useLocalAgentModelSelection'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import { cn } from '@renderer/utils/style'
-import type { LocalAgentModelCatalog } from '@shared/ai/localAgent'
 
 interface LocalAgentModelSelectorProps {
   trigger: ReactElement
-  models: LocalAgentModelCatalog['models']
+  models: LocalAgentModelOption[]
   value?: string
   disabled?: boolean
   loading?: boolean
@@ -70,7 +70,7 @@ export function LocalAgentModelSelector({
     value && !models.some((model) => model.id === value) ? [{ id: value, name: value }, ...models] : models
   const select = async (next?: string) => {
     if (disabled) return
-    if (next === value || (await onSelect(next))) setOpen(false)
+    if (await onSelect(next)) setOpen(false)
   }
   return (
     <Popover
@@ -134,6 +134,7 @@ export function LocalAgentModelSelector({
                         }>
                         <span className="min-w-0 flex-1 truncate" title={model ? label : undefined}>
                           {label}
+                          {model?.group && <span className="ml-2 text-xs text-muted-foreground">{model.group}</span>}
                         </span>
                       </ModelSelectorRow>
                     </CommandItem>
@@ -169,7 +170,7 @@ export function LocalAgentModelSelector({
                   setOpen(false)
                   onOpenSettings()
                 }}>
-                {t('local_agents.open_login_settings')}
+                {t('local_agents.manage_in_code_mate')}
               </Button>
             )}
             <Button variant="ghost" size="sm" disabled={loading || disabled} onClick={() => void onLoad()}>

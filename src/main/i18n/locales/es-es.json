@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Acercar",
   "appMenu.zoomOut": "Alejar",
   "chat.conversation.new": "Nuevo chat",
+  "code_cli.config_changed": "La configuración de CLI ha cambiado. Vuelve a abrir el editor antes de guardar.",
   "common.channel_available_commands": "Comandos disponibles:",
   "common.channel_command_processing_error": "⚠️ Se produjo un error al procesar el comando. Inténtalo de nuevo más tarde.",
   "common.channel_error": "Error: {{error}}",

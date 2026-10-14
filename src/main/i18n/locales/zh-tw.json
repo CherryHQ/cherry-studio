@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "放大",
   "appMenu.zoomOut": "縮小",
   "chat.conversation.new": "新對話",
+  "code_cli.config_changed": "CLI 設定已被修改，請重新開啟編輯器後再儲存。",
   "common.channel_available_commands": "可用指令：",
   "common.channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",
   "common.channel_error": "錯誤：{{error}}",

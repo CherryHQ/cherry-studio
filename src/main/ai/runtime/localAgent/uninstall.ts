@@ -9,27 +9,33 @@ import { isPathWithin } from '@main/utils/binaryEnv'
 
 import { systemAgentEntry, systemAgentWrapper } from './launch'
 
-export async function uninstallBinaryAgent(executable: string, detectedPath: string): Promise<boolean> {
+export async function getBinaryAgentInstallation(executable: string, detectedPath: string) {
   const entry = systemAgentEntry(executable)
-  if (path.resolve(detectedPath) !== entry || !(await fs.lstat(entry)).isFile()) return false
+  if (path.resolve(detectedPath) !== entry || !(await fs.lstat(entry)).isFile()) return undefined
   const wrapper = await fs.readFile(entry, 'utf8')
   const match =
     process.platform === 'win32'
       ? /^@echo off\r\n"([^\r\n]+)" %\*\r\n$/.exec(wrapper)
       : /^#!\/bin\/sh\nexec '([^\n]+)' "\$@"\n$/.exec(wrapper)
-  if (!match) return false
+  if (!match) return undefined
   const command = process.platform === 'win32' ? match[1].replace(/%%/g, '%') : match[1].replace(/'\\''/g, "'")
-  if (wrapper !== systemAgentWrapper(command)) return false
+  if (wrapper !== systemAgentWrapper(command)) return undefined
   const installationRoot = application.getPath('external.acp.agents')
   const root = await fs.realpath(installationRoot)
   const resolvedCommand = await fs.realpath(command)
   const relative = path.relative(installationRoot, command).split(path.sep)
-  if (relative.length < 3 || !relative[0].startsWith(`${executable}-`) || relative[1] !== 'files') return false
+  if (relative.length < 3 || !relative[0].startsWith(`${executable}-`) || relative[1] !== 'files') return undefined
   const bundle = path.join(root, relative[0])
-  if (!isPathWithin(root, bundle) || (await fs.realpath(bundle)) !== bundle) return false
-  if (!isPathWithin(path.join(bundle, 'files'), resolvedCommand)) return false
-  await fs.unlink(entry)
-  await fs.rm(bundle, { recursive: true })
+  if (!isPathWithin(root, bundle) || (await fs.realpath(bundle)) !== bundle) return undefined
+  if (!isPathWithin(path.join(bundle, 'files'), resolvedCommand)) return undefined
+  return { entry, bundle, wrapper }
+}
+
+export async function uninstallBinaryAgent(executable: string, detectedPath: string): Promise<boolean> {
+  const installed = await getBinaryAgentInstallation(executable, detectedPath)
+  if (!installed) return false
+  await fs.unlink(installed.entry)
+  await fs.rm(installed.bundle, { recursive: true })
   return true
 }
 

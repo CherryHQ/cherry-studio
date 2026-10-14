@@ -7,7 +7,7 @@ import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { isNonChatModel } from '@shared/utils/model'
@@ -65,7 +65,7 @@ export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDia
       setOpen(false)
       // Navigation hides this host and cancels its delayed dialog cleanup.
       onOpenChange(false)
-      openSettingsTab(`/settings/local-agents?id=${encodeURIComponent(id)}`)
+      openRoute('/app/code', { id })
     },
     [clearCloseTimer, onOpenChange]
   )

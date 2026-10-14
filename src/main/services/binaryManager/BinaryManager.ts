@@ -33,7 +33,7 @@ import {
   TOOL_KEY_RE,
   validateBinaryToolDefinition
 } from '@shared/data/presets/binaryTools'
-import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_TOOL_PRESETS, CODE_CLI_TOOL_PRESET_BY_EXECUTABLE } from '@shared/data/presets/codeCliTools'
 import type {
   BinaryApplication,
   BinaryAvailability,
@@ -258,6 +258,16 @@ function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): st
   return tool.endsWith(']') ? `${tool.slice(0, -1)},${option}]` : `${tool}[${option}]`
 }
 
+const hasExecutableCandidateShim = async (shimPath: string): Promise<boolean> => {
+  if (!fs.existsSync(shimPath)) return false
+  try {
+    await fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
 const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, FixedToolDefinition>([
   ...PRESETS_BINARY_TOOLS.map((preset): [string, FixedToolDefinition] => [
     preset.name,
@@ -435,9 +445,13 @@ export class BinaryManager extends BaseService {
 
     const entries = await Promise.all(
       names.map(async (name): Promise<[string, string] | null> => {
-        const resolved = isWin
+        let resolved = isWin
           ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env: shellEnv })
           : await findCommandInShellEnv(name, shellEnv)
+        if (!resolved && name === 'agy') {
+          const installed = application.getPath('external.antigravity.cli.file')
+          if (await hasExecutableCandidateShim(installed)) resolved = installed
+        }
         if (!resolved || cherryDirs.some((dir) => isPathWithin(dir, resolved))) return null
         return [name, resolved]
       })
@@ -539,16 +553,6 @@ export class BinaryManager extends BaseService {
 
     type DerivedTool = { application?: BinaryApplication; mise?: { path: string; version?: string } }
 
-    const hasExecutableCandidateShim = async (shimPath: string): Promise<boolean> => {
-      if (!fs.existsSync(shimPath)) return false
-      try {
-        await fsp.access(shimPath, isWin ? fs.constants.F_OK : fs.constants.X_OK)
-        return true
-      } catch {
-        return false
-      }
-    }
-
     // The batched listing proves backend application identity; `mise which`
     // additionally proves every exposed shim still resolves a runnable target.
     const derive = async (name: string): Promise<DerivedTool> => {
@@ -611,26 +615,33 @@ export class BinaryManager extends BaseService {
     }
 
     const derived = new Map(await Promise.all([...names].map(async (name) => [name, await derive(name)] as const)))
-    const system = await this.probeSystem([...names].filter((name) => !derived.get(name)?.mise && !(name in bundled)))
+    const system = await this.probeSystem(
+      [...names].filter(
+        (name) => CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name] || (!derived.get(name)?.mise && !(name in bundled))
+      )
+    )
     const snapshots: Record<string, BinaryToolSnapshot> = {}
     for (const name of names) {
       const derivedTool = derived.get(name)!
       const mise = derivedTool.mise
-      const availability: BinaryAvailability = mise
-        ? {
-            source: 'mise',
-            path: mise.path,
-            ...(mise.version ? { version: mise.version } : {})
-          }
-        : name in bundled
-          ? {
-              source: 'bundled',
-              path: application.getPath('cherry.bin', getBinaryName(name)),
-              ...(bundled[name] ? { version: bundled[name] } : {})
-            }
-          : system[name]
-            ? { source: 'system', path: system[name] }
-            : { source: 'none' }
+      const availability: BinaryAvailability =
+        CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name] && system[name]
+          ? { source: 'system', path: system[name] }
+          : mise
+            ? {
+                source: 'mise',
+                path: mise.path,
+                ...(mise.version ? { version: mise.version } : {})
+              }
+            : name in bundled
+              ? {
+                  source: 'bundled',
+                  path: application.getPath('cherry.bin', getBinaryName(name)),
+                  ...(bundled[name] ? { version: bundled[name] } : {})
+                }
+              : system[name]
+                ? { source: 'system', path: system[name] }
+                : { source: 'none' }
       const operation = operations[name]
       // A failed install is stale only when the exact recipe is proven absent
       // and an out-of-band executable now satisfies the tool. Unknown/broken
@@ -1606,6 +1617,9 @@ export class BinaryManager extends BaseService {
    */
   installByName(request: BinaryInstallByNameRequest): Promise<void> {
     const { name, targetVersion } = request
+    if (CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name]) {
+      return Promise.reject(new Error('Code Mate CLIs must use the system installer'))
+    }
     if (targetVersion && !TOOL_KEY_RE.test(targetVersion)) {
       return Promise.reject(new Error(`Invalid tool version: ${targetVersion}`))
     }

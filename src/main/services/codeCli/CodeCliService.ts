@@ -35,7 +35,6 @@ import {
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
-import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
 
@@ -63,7 +62,7 @@ const MACOS_APPLICATION_LOOKUP_SCRIPT = [
 
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
-@DependsOn(['BinaryManager'])
+@DependsOn(['BinaryManager', 'LocalAgentInstallService'])
 export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
@@ -90,7 +89,8 @@ export class CodeCliService extends BaseService {
 
   async installCli(request: BinaryInstallByNameRequest): Promise<void> {
     const preset = this.requirePreset(request.name)
-    await application.get('BinaryManager').installByName(request)
+    const result = await application.get('LocalAgentInstallService').installCli(request)
+    if (!result.ok) throw new Error(result.detail ?? `${result.reason}${result.manager ? `: ${result.manager}` : ''}`)
     const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
     if (!snapshot || snapshot.availability.source === 'none') {
       throw new Error(`${preset.executable} is unavailable after installation`)
@@ -100,15 +100,26 @@ export class CodeCliService extends BaseService {
 
   async removeCli(request: BinaryRemoveRequest): Promise<BinaryRemoveResult> {
     const preset = this.requirePreset(request.name)
-    const result = await application.get('BinaryManager').removeTool(request)
-    if (result.status === 'cleanup_blocked') return result
+    const manager = application.get('BinaryManager')
+    const available = (await manager.getToolSnapshots([preset.executable]))[preset.executable]?.availability
+    if (available?.source === 'system') {
+      const removed = await application.get('LocalAgentInstallService').uninstallCli(preset.executable, available.path)
+      if (!removed.ok)
+        return { status: 'cleanup_blocked', reason: 'cleanup_failed', message: removed.detail ?? removed.reason }
+    } else {
+      const result = await manager.removeTool(request)
+      if (result.status === 'cleanup_blocked') return result
+    }
 
     const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
     if (snapshot) await this.reconcileCliSkill(preset, snapshot)
-    return result
+    return { status: 'removed' }
   }
 
   async reconcileCliSkills(): Promise<void> {
+    await skillService.uninstallBuiltinSkill('code-mate-gemini', 'code-cli:gemini-cli').catch((error) => {
+      logger.warn('Failed to remove retired Gemini CLI skill', error as Error)
+    })
     const snapshots = await application
       .get('BinaryManager')
       .getToolSnapshots(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
@@ -228,6 +239,7 @@ export class CodeCliService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.loginQuery?.controller.abort()
+    await this.configWriteQueue.catch(() => {})
     this.terminalsCache = null
   }
 
@@ -451,12 +463,37 @@ export class CodeCliService extends BaseService {
     return []
   }
 
+  private configWriteQueue: Promise<unknown> = Promise.resolve()
+
+  public async updateConfigFiles<T>(
+    cliTool: FileConfiguredCli,
+    targets: readonly CliConfigTarget[],
+    update: (files: CliConfigReadFile[]) => CliConfigWriteFile[],
+    commit: () => T
+  ): Promise<T> {
+    const operation = this.configWriteQueue
+      .catch(() => {})
+      .then(async () => {
+        const apply = async () =>
+          (await writeCliConfigFiles(cliTool, update(await readCliConfigFiles(targets)), commit)) as T
+        return cliTool === CodeCli.HERMES ? application.get('HermesDashboardService').writeConfigFiles(apply) : apply()
+      })
+    this.configWriteQueue = operation
+    return operation
+  }
+
   /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
-  public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
-    if (cliTool === CodeCli.HERMES) {
-      return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
-    }
-    return writeCliConfigFiles(cliTool, files)
+  public async writeConfigFiles(
+    cliTool: FileConfiguredCli,
+    files: CliConfigWriteFile[],
+    commit?: () => void
+  ): Promise<void> {
+    await this.updateConfigFiles(
+      cliTool,
+      [],
+      () => files,
+      () => commit?.()
+    )
   }
 
   /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
@@ -515,23 +552,16 @@ export class CodeCliService extends BaseService {
 
     const preset = CODE_CLI_TOOL_PRESET_MAP[cliTool]
     const executableName = preset.executable
-    const spec = { name: executableName, tool: preset.miseTool }
-
     logger.debug(`Executable name: ${executableName}`)
-    logger.debug(`Tool install spec: ${spec.tool}`)
 
-    // Prefer mise/bundled binaries, then the user's login-shell PATH. Only
-    // install when no currently available source can execute the CLI.
+    // Reuse existing installations; missing CLIs install into the user's system environment.
     const binaryManager = application.get('BinaryManager')
     let snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
     let { availability } = snapshot
 
     if (availability.source === 'none') {
-      logger.info(`${cliTool} not installed, installing via BinaryManager...`)
+      logger.info(`${cliTool} not installed, installing globally...`)
       try {
-        // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
-        // recipe itself and writes no Preference — the CLI is a code-owned tool,
-        // not a user-added custom one.
         await this.installCli({ name: executableName })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
@@ -594,37 +624,6 @@ export class CodeCliService extends BaseService {
     // carries no model argument; we only disable its own auto-update.
     if (cliTool === CodeCli.OPEN_CODE) {
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
-    }
-
-    // gemini-cli only loads ~/.gemini/.env (where GEMINI_API_KEY lives) when it
-    // considers the launch directory "trusted"; a fresh directory otherwise falls
-    // through to an interactive "Enter Gemini API Key" prompt even though
-    // selectedType is already configured. This env var is gemini-cli's own
-    // documented bypass, scoped to this one launched session only.
-    if (cliTool === CodeCli.GEMINI_CLI) {
-      env.GEMINI_CLI_TRUST_WORKSPACE = 'true'
-
-      // gemini-cli resolves its model with precedence `--model` → GEMINI_MODEL →
-      // settings.model.name, and its `resolveModel` rewrites any name ending in "flash" to a
-      // default Gemini model. Pass the model on the command line (highest precedence, honored
-      // verbatim) so the launched session hits the intended model. In gateway mode it needs the
-      // `providerId:modelId` address the gateway parses from the URL path, carrying the sentinel
-      // suffix so that rewrite can't corrupt a name ending in "flash" (see
-      // GEMINI_GATEWAY_MODEL_SUFFIX); direct mode passes the bare model id.
-      if (normal) {
-        // The gateway serves only `/v1beta`; force the SDK's API version at launch so a stale
-        // `GOOGLE_GENAI_API_VERSION=v1` exported in the user's shell can't redirect it to `/v1`.
-        if (normal.gateway) env.GOOGLE_GENAI_API_VERSION = 'v1beta'
-        const modelArg = normal.gateway ? formatGeminiGatewayModelId(normal.providerId, normal.model) : normal.model
-        // Bare-concatenated into the launch command like OpenCode's model above, so reject a
-        // model id carrying shell metacharacters rather than launch.
-        if (!isShellSafeModelId(modelArg)) {
-          const message = `Unsupported model id for ${cliTool}: ${modelArg}`
-          logger.error(message)
-          return { success: false, message }
-        }
-        baseCommand = `${baseCommand} --model ${modelArg}`
-      }
     }
 
     if (cliTool === CodeCli.ANTIGRAVITY_CLI && normal) {
@@ -754,12 +753,17 @@ export class CodeCliService extends BaseService {
       }
     }
 
+    const command = [
+      buildEnvPrefix(platform === 'win32'),
+      platform === 'win32' ? 'set "NO_COLOR="' : 'unset NO_COLOR',
+      baseCommand
+    ]
+      .filter(Boolean)
+      .join(' && ')
+
     switch (platform) {
       case 'darwin': {
         // macOS - Support multiple terminals
-        const envPrefix = buildEnvPrefix(false)
-
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Combine directory change with the main command to ensure they execute in the same shell session.
         // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
@@ -776,8 +780,6 @@ export class CodeCliService extends BaseService {
       }
       case 'win32': {
         // Windows - Use temp bat file for debugging
-        const envPrefix = buildEnvPrefix(true)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Create temp bat file for debugging and avoid complex command line escaping issues
         const tempDir = application.getPath('feature.cli.temp')
@@ -902,8 +904,6 @@ export class CodeCliService extends BaseService {
       }
       case 'linux': {
         // Linux - Prefer the XDG-configured default terminal, then try common emulators.
-        const envPrefix = buildEnvPrefix(false)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         const linuxTerminals = [
           'xdg-terminal-exec',

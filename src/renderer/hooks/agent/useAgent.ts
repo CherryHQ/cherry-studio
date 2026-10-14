@@ -10,6 +10,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import { toast } from '@renderer/services/toast'
@@ -21,6 +22,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 type UpdateAgentModelInput = {
@@ -126,6 +128,7 @@ export const useAgents = (options: { enabled?: boolean; includeDisabledLocal?: b
  */
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
+  const invalidate = useInvalidateCache()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agents/:agentId', {
     refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
   })
@@ -165,5 +168,28 @@ export const useUpdateAgent = () => {
     [updateAgent]
   )
 
-  return { updateAgent, updateModel }
+  const updateNativeModel = async (
+    agentId: string,
+    nativeModel?: string,
+    selection?: {
+      sourceModelId?: UniqueModelId
+      expectedFiles?: {
+        target: CliConfigTarget
+        path: string
+        content: string | null
+      }[]
+      files?: CliConfigWriteFile[]
+    }
+  ) => {
+    try {
+      const updated = await ipcApi.request('ai.local_agents.select_model', { agentId, nativeModel, ...selection })
+      await invalidate(['/agents', `/agents/${agentId}`])
+      return updated
+    } catch (error) {
+      toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
+      return undefined
+    }
+  }
+
+  return { updateAgent, updateModel, updateNativeModel }
 }

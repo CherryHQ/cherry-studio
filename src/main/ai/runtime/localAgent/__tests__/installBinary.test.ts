@@ -55,6 +55,27 @@ describe('system binary installation', () => {
     if (process.platform !== 'win32') expect((await exec(command)).stdout).toBe('installed agent')
   })
 
+  it('keeps the old binary usable when upgrade fails, then atomically replaces its launcher', async () => {
+    const recipe = {
+      manager: 'binary' as const,
+      version: '1.0.0',
+      archive: 'https://example.com/agent',
+      cmd: './agent'
+    }
+    const signal = new AbortController().signal
+    serve(Buffer.from('#!/bin/sh\necho old\n'))
+    const entry = await installBinaryAgent('example-agent', recipe, signal)
+    const original = await fs.readFile(entry, 'utf8')
+    serve(Buffer.from('#!/bin/sh\necho new\n'))
+    await expect(
+      installBinaryAgent('example-agent', { ...recipe, version: '2.0.0', sha256: '0'.repeat(64) }, signal, entry)
+    ).rejects.toThrow('SHA-256')
+    expect(await fs.readFile(entry, 'utf8')).toBe(original)
+    await installBinaryAgent('example-agent', { ...recipe, version: '2.0.0' }, signal, entry)
+    if (process.platform !== 'win32') expect((await exec(entry)).stdout).toBe('new\n')
+    expect(await fs.readdir(path.dirname(entry))).toEqual([path.basename(entry)])
+  })
+
   it('never publishes an executable for a checksum mismatch', async () => {
     serve(Buffer.from('wrong archive'))
     await expect(

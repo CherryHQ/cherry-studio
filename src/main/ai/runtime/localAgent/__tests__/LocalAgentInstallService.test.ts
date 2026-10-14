@@ -12,6 +12,7 @@ import { LocalAgentInstallService } from '../LocalAgentInstallService'
 
 const state = vi.hoisted(() => ({
   root: '',
+  name: 'kilo',
   manager: '',
   target: '',
   existing: '',
@@ -31,12 +32,12 @@ vi.mock('@application', async () => {
         return { status: 'removed' }
       },
       getToolSnapshots: async () => ({
-        kilo: {
-          name: 'kilo',
-          availability: state.existing
-            ? { source: 'mise', path: state.existing }
-            : fs.existsSync(`${state.root}/kilo`)
-              ? { source: 'system', path: `${state.root}/kilo` }
+        [state.name]: {
+          name: state.name,
+          availability: fs.existsSync(`${state.root}/${state.name}`)
+            ? { source: 'system', path: `${state.root}/${state.name}` }
+            : state.existing
+              ? { source: 'mise', path: state.existing }
               : { source: 'none' }
         }
       })
@@ -50,6 +51,7 @@ vi.mock('@main/utils/shellEnv', () => ({
   getRawShellEnv: async () => ({
     PATH: process.env.PATH!,
     INSTALL_ROOT: state.root,
+    INSTALL_NAME: state.name,
     INSTALL_TARGET: state.target,
     INSTALL_EXIT: state.exit
   })
@@ -59,6 +61,7 @@ vi.mock('@main/utils/commandResolver', () => ({ findExecutableInEnv: async () =>
 describe('local agent system installation', () => {
   beforeEach(async () => {
     BaseService.resetInstances()
+    state.name = 'kilo'
     state.root = await mkdtemp(path.join(os.tmpdir(), 'agent system install '))
     state.manager = path.join(state.root, 'npm')
     state.target = state.root
@@ -75,8 +78,8 @@ describe('local agent system installation', () => {
 const fs = require('fs'); const root = process.env.INSTALL_ROOT;
 if (process.argv[2] === 'root' || process.argv[2] === 'prefix') { process.stdout.write(process.env.INSTALL_TARGET); }
 else { fs.appendFileSync(root + '/calls', JSON.stringify(process.argv.slice(2)) + '\\n');
-if (process.argv[2] === 'uninstall') { fs.unlinkSync(root + '/kilo'); fs.rmSync(root + '/@kilocode/cli', {recursive:true}); }
-else if (process.env.INSTALL_EXIT === '0') fs.writeFileSync(root + '/kilo', 'installed');
+if (process.argv[2] === 'uninstall') { fs.unlinkSync(root + '/' + process.env.INSTALL_NAME); fs.rmSync(root + '/' + process.argv[4], {recursive:true}); }
+else if (process.env.INSTALL_EXIT === '0') fs.writeFileSync(root + '/' + process.env.INSTALL_NAME, 'installed');
 else process.stderr.write('installation failed');
 process.exit(Number(process.env.INSTALL_EXIT)); }
 `
@@ -97,6 +100,50 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     await rm(state.root, { recursive: true, force: true })
   })
 
+  it('reads a system package version without launching the agent and finds a newer release', async () => {
+    const directory = path.join(state.root, '@kilocode', 'cli')
+    await mkdir(directory, { recursive: true })
+    await writeFile(
+      path.join(directory, 'package.json'),
+      JSON.stringify({ name: '@kilocode/cli', version: '7.7.0', bin: { kilo: 'cli.js' } })
+    )
+    await writeFile(path.join(directory, 'cli.js'), 'throw new Error("must not execute")')
+    await symlink(path.join(directory, 'cli.js'), path.join(state.root, 'kilo'))
+    const service = new LocalAgentInstallService()
+    expect(await service.getVersion('kilo', false)).toEqual({ current: '7.7.0', canUpgrade: false })
+    vi.mocked(fetch).mockImplementation(
+      async (url) =>
+        ({
+          ok: true,
+          json: async () =>
+            String(url).includes('registry.npmjs.org')
+              ? { version: '7.8.1' }
+              : {
+                  agents: [{ id: 'kilo', distribution: { npx: { package: '@kilocode/cli@7.8.1' } } }]
+                }
+        }) as Response
+    )
+    expect(await service.getVersion('kilo', true)).toEqual({ current: '7.7.0', latest: '7.8.1', canUpgrade: true })
+    vi.mocked(fetch).mockRejectedValue(new Error('offline'))
+    expect(await service.getVersion('kilo', true)).toEqual({ current: '7.7.0', canUpgrade: false })
+  })
+
+  it('upgrades an installed ACP package to the selected version instead of reusing it', async () => {
+    const directory = path.join(state.root, '@kilocode', 'cli')
+    await mkdir(directory, { recursive: true })
+    await writeFile(
+      path.join(directory, 'package.json'),
+      JSON.stringify({ name: '@kilocode/cli', version: '7.7.0', bin: { kilo: 'cli.js' } })
+    )
+    await writeFile(path.join(directory, 'cli.js'), 'installed')
+    await symlink(path.join(directory, 'cli.js'), path.join(state.root, 'kilo'))
+    const service = new LocalAgentInstallService()
+    expect(await service.install('kilo', '7.8.1')).toMatchObject({ ok: true, reused: false })
+    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe(
+      '["install","--global","@kilocode/cli@7.8.1"]\n'
+    )
+  })
+
   it('reuses a managed installation without downloading or invoking an installer', async () => {
     state.existing = '/managed/kilo'
     expect(await new LocalAgentInstallService().install('kilo')).toEqual({
@@ -114,6 +161,32 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe(
       '["install","--global","@kilocode/cli@7.8.1"]\n'
     )
+  })
+
+  it('installs and upgrades native Code Mate CLIs globally without the ACP registry or mise', async () => {
+    state.name = 'codex'
+    const service = new LocalAgentInstallService()
+    expect(await service.installCli({ name: 'codex' })).toEqual({
+      ok: true,
+      reused: false,
+      path: path.join(state.root, 'codex')
+    })
+    expect(await service.installCli({ name: 'codex', targetVersion: '1.2.3' })).toMatchObject({
+      ok: true,
+      reused: false
+    })
+    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe(
+      '["install","--global","@openai/codex"]\n["install","--global","@openai/codex@1.2.3"]\n'
+    )
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects unsafe version input before executing a package manager', async () => {
+    state.name = 'codex'
+    expect(
+      await new LocalAgentInstallService().installCli({ name: 'codex', targetVersion: '--prefix=/tmp' })
+    ).toMatchObject({ ok: false })
+    expect(fs.existsSync(path.join(state.root, 'calls'))).toBe(false)
   })
 
   it('blocks package managers configured to write to Cherry-managed directories', async () => {
@@ -154,6 +227,26 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(fs.existsSync(path.join(state.root, 'kilo'))).toBe(false)
     expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toContain('["uninstall","--global","@kilocode/cli"]')
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'removes the globally installed native CLI using its package owner',
+    async () => {
+      state.name = 'codex'
+      const directory = path.join(state.root, '@openai/codex')
+      await mkdir(directory, { recursive: true })
+      await writeFile(
+        path.join(directory, 'package.json'),
+        JSON.stringify({ name: '@openai/codex', bin: { codex: 'cli.js' } })
+      )
+      await writeFile(path.join(directory, 'cli.js'), 'installed')
+      const executable = path.join(state.root, 'codex')
+      await symlink(path.join(directory, 'cli.js'), executable)
+      expect(await new LocalAgentInstallService().uninstallCli('codex', executable)).toEqual({ ok: true })
+      expect(fs.existsSync(directory)).toBe(false)
+      expect(fs.existsSync(executable)).toBe(false)
+      expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toBe('["uninstall","--global","@openai/codex"]\n')
+    }
+  )
 
   it('preserves commands whose installation owner cannot be verified', async () => {
     await writeFile(path.join(state.root, 'kilo'), 'manual installation')

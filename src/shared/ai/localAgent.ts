@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import { UniqueModelIdSchema } from '@shared/data/types/model'
+
 export const LocalAgentConfigurationSchema = z.strictObject({
   presetId: z.string().min(1).optional(),
   protocol: z.enum(['acp', 'claude', 'codex']),
@@ -7,7 +9,8 @@ export const LocalAgentConfigurationSchema = z.strictObject({
   executableOverride: z.string().trim().min(1).optional(),
   args: z.array(z.string()).default([]),
   env: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).default({}),
-  nativeModel: z.string().min(1).optional()
+  nativeModel: z.string().min(1).optional(),
+  sourceModelId: UniqueModelIdSchema.optional()
 })
 export type LocalAgentConfiguration = z.infer<typeof LocalAgentConfigurationSchema>
 
@@ -18,6 +21,7 @@ export interface LocalAgentPreset {
   executable: string
   aliases?: readonly string[]
   terminalArgs?: readonly string[]
+  terminalExecutable?: string
   args: readonly string[]
   platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
   env?: Readonly<Record<string, string>>
@@ -54,6 +58,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'minimax',
+    terminalArgs: [],
     name: 'MiniMax Code',
     protocol: 'acp',
     executable: 'mcode',
@@ -77,7 +82,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     protocol: 'acp',
     executable: 'kimi',
     args: ['acp'],
-    helpUrl: 'https://moonshotai.github.io/kimi-cli/'
+    helpUrl: 'https://moonshotai.github.io/kimi-code/'
   },
   {
     id: 'qwen',
@@ -99,6 +104,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'kiro',
+    terminalArgs: ['chat'],
     name: 'Kiro',
     protocol: 'acp',
     executable: 'kiro-cli',
@@ -134,6 +140,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'cline',
+    terminalArgs: [],
     name: 'Cline',
     protocol: 'acp',
     executable: 'cline',
@@ -151,6 +158,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'goose',
+    terminalArgs: ['session'],
     name: 'goose',
     protocol: 'acp',
     executable: 'goose',
@@ -169,6 +177,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'auggie',
+    terminalArgs: [],
     name: 'Auggie CLI',
     protocol: 'acp',
     executable: 'auggie',
@@ -188,6 +197,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'factory-droid',
+    terminalArgs: [],
     name: 'Factory Droid',
     protocol: 'acp',
     executable: 'droid',
@@ -200,6 +210,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'devin',
+    terminalArgs: [],
     name: 'Devin',
     protocol: 'acp',
     executable: 'devin',
@@ -208,6 +219,8 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'antigravity-acp',
+    terminalArgs: [],
+    terminalExecutable: 'agy',
     name: 'Google Antigravity',
     protocol: 'acp',
     executable: 'agy_acp_server.par',
@@ -236,6 +249,8 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'pi-acp',
+    terminalArgs: [],
+    terminalExecutable: 'pi',
     name: 'Pi',
     protocol: 'acp',
     executable: 'pi-acp',
@@ -317,6 +332,7 @@ export interface LocalAgentDetection {
   source: string
   path?: string
   version?: string
+  terminalPath?: string
 }
 
 export const LocalAgentAuthMethodSchema = z.object({

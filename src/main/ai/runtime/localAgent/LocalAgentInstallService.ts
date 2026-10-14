@@ -2,6 +2,8 @@ import type { ChildProcess } from 'node:child_process'
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 
+import { valid, gt } from 'semver'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -11,24 +13,34 @@ import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@m
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import {
   LOCAL_AGENT_PRESETS,
+  type LocalAgentPreset,
   type LocalAgentInstallResult,
   type LocalAgentUninstallResult
 } from '@shared/ai/localAgent'
+import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE, type CodeCliToolPreset } from '@shared/data/presets/codeCliTools'
+import type { BinaryInstallByNameRequest } from '@shared/types/binary'
+import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 import { redactSecretText } from '@shared/utils/redaction'
 
 import { installBinaryAgent } from './installBinary'
-import { resolveInstallRecipe } from './installRecipe'
-import { detectLocalAgents } from './launch'
-import { ownsNpmExecutable, ownsUvExecutable, uninstallBinaryAgent } from './uninstall'
+import { readInstalledPackageVersion } from './installedVersion'
+import { resolveInstallRecipe, resolveCliInstallRecipe } from './installRecipe'
+import { selectAvailableInstallation } from './launch'
+import { getBinaryAgentInstallation, ownsNpmExecutable, ownsUvExecutable, uninstallBinaryAgent } from './uninstall'
 
 const logger = loggerService.withContext('LocalAgentInstallService')
+type InstallTarget = Pick<LocalAgentPreset, 'id' | 'executable' | 'aliases'> & {
+  protocol?: LocalAgentPreset['protocol']
+  cli?: CodeCliToolPreset
+}
+
 const REGISTRY_URL = 'https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json'
 
 @Injectable('LocalAgentInstallService')
 @ServicePhase(Phase.Background)
 @DependsOn(['BinaryManager'])
 export class LocalAgentInstallService extends BaseService {
-  private readonly operations = new Map<string, Promise<LocalAgentInstallResult>>()
+  private readonly operations = new Map<string, { version?: string; promise: Promise<LocalAgentInstallResult> }>()
   private readonly removals = new Map<string, Promise<LocalAgentUninstallResult>>()
   private readonly children = new Set<ChildProcess>()
   private abort = new AbortController()
@@ -37,36 +49,174 @@ export class LocalAgentInstallService extends BaseService {
     this.abort = new AbortController()
   }
 
-  install(presetId: string): Promise<LocalAgentInstallResult> {
+  install(presetId: string, targetVersion?: string): Promise<LocalAgentInstallResult> {
+    const target = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    return target ? this.installTarget(target, targetVersion) : Promise.resolve({ ok: false, reason: 'unsupported' })
+  }
+
+  installCli({ name, targetVersion }: BinaryInstallByNameRequest): Promise<LocalAgentInstallResult> {
+    const cli = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name]
+    return cli
+      ? this.installTarget({ id: cli.id, executable: name, cli }, targetVersion)
+      : Promise.resolve({ ok: false, reason: 'unsupported' })
+  }
+
+  private installTarget(target: InstallTarget, targetVersion?: string): Promise<LocalAgentInstallResult> {
     if (this.removals.size) return Promise.resolve({ ok: false, reason: 'failed' })
-    const pending = this.operations.get(presetId)
-    if (pending) return pending
-    const operation = this.performInstall(presetId).finally(() => this.operations.delete(presetId))
-    this.operations.set(presetId, operation)
+    const pending = this.operations.get(target.executable)
+    if (pending)
+      return pending.version === targetVersion ? pending.promise : Promise.resolve({ ok: false, reason: 'failed' })
+    const operation = this.performInstall(target, targetVersion).finally(() =>
+      this.operations.delete(target.executable)
+    )
+    this.operations.set(target.executable, { version: targetVersion, promise: operation })
     return operation
   }
 
   isUninstalling(presetId: string): boolean {
-    return this.removals.has(presetId)
+    const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    return !!preset && this.removals.has(preset.executable)
   }
 
   uninstall(presetId: string, expectedPath: string): Promise<LocalAgentUninstallResult> {
+    const target = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    return target ? this.uninstallTarget(target, expectedPath) : Promise.resolve({ ok: false, reason: 'unsupported' })
+  }
+
+  uninstallCli(name: string, expectedPath: string): Promise<LocalAgentUninstallResult> {
+    const cli = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[name]
+    return cli
+      ? this.uninstallTarget({ id: cli.id, executable: name, cli }, expectedPath)
+      : Promise.resolve({ ok: false, reason: 'unsupported' })
+  }
+
+  private uninstallTarget(target: InstallTarget, expectedPath: string): Promise<LocalAgentUninstallResult> {
     if (this.operations.size || this.removals.size) return Promise.resolve({ ok: false, reason: 'busy' })
-    const operation = this.performUninstall(presetId, expectedPath).finally(() => this.removals.delete(presetId))
-    this.removals.set(presetId, operation)
+    const operation = this.performUninstall(target, expectedPath).finally(() => this.removals.delete(target.executable))
+    this.removals.set(target.executable, operation)
     return operation
   }
 
-  private async performUninstall(presetId: string, expectedPath: string): Promise<LocalAgentUninstallResult> {
-    const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
-    if (!preset) return { ok: false, reason: 'unsupported' }
+  private async detect(target: InstallTarget) {
+    const snapshots = await application
+      .get('BinaryManager')
+      .getToolSnapshots([target.executable, ...(target.aliases ?? [])])
+    return selectAvailableInstallation(target, snapshots)
+  }
+
+  async getVersion(presetId: string, latest: boolean) {
+    const cli = presetId.startsWith('cli:') ? CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[presetId.slice(4)] : undefined
+    const target = cli
+      ? { id: cli.id, executable: cli.executable, cli }
+      : LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+    if (!target) return { canUpgrade: false }
+    const detected = await this.detect(target)
+    if (detected.source === 'none') return { canUpgrade: false }
+    let current = 'version' in detected ? detected.version : await readInstalledPackageVersion(detected.path)
+    if (!current) {
+      const bundle = await getBinaryAgentInstallation(target.executable, detected.path).catch(() => undefined)
+      const release = bundle && path.basename(bundle.bundle).slice(target.executable.length + 1, -7)
+      current = valid(release) ?? undefined
+    }
+    if (!current) {
+      try {
+        const output = await this.run(detected.path, ['--version'], await getRawShellEnv(this.abort.signal), 8000)
+        current = valid(output.trim()) ?? valid(output.match(/\b\d+\.\d+\.\d+(?:-[\w.-]+)?/)?.[0]) ?? undefined
+      } catch {
+        return { canUpgrade: false }
+      }
+    }
+    if (!latest || !current) return { current, canUpgrade: false }
+    try {
+      const recipe = await this.recipe(target)
+      let available: string | undefined
+      if (recipe?.manager === 'binary' && (await getBinaryAgentInstallation(target.executable, detected.path)))
+        available = recipe.version
+      else if (recipe?.manager === 'npm' || recipe?.manager === 'uv') {
+        const name = recipe.package.replace(recipe.manager === 'npm' ? /@[^@/]+$/ : /[=[].*$/, '')
+        const url =
+          recipe.manager === 'npm'
+            ? `https://registry.npmjs.org/${encodeURIComponent(name)}/latest`
+            : `https://pypi.org/pypi/${encodeURIComponent(name)}/json`
+        const response = await fetch(url, { signal: AbortSignal.any([this.abort.signal, AbortSignal.timeout(10_000)]) })
+        if (!response.ok) throw new Error(`Version lookup failed: HTTP ${response.status}`)
+        const data = await response.json()
+        available = valid(recipe.manager === 'npm' ? data.version : data.info?.version) ?? undefined
+      }
+      const newer = !!available && !!valid(current) && gt(available, current)
+      return {
+        current,
+        latest: available,
+        canUpgrade: newer && !!recipe && (await this.canUpgradeInstallation(recipe, target.executable, detected.path))
+      }
+    } catch (error) {
+      logger.debug('Agent update lookup unavailable', { presetId, error })
+      return { current, canUpgrade: false }
+    }
+  }
+
+  private async recipe(target: InstallTarget, targetVersion?: string) {
+    const recipe = target.cli
+      ? resolveCliInstallRecipe(target.cli, targetVersion)
+      : resolveInstallRecipe(
+          target.id,
+          target.protocol === 'acp' && target.id !== 'kimi' ? await this.fetchRegistry() : undefined
+        )
+    if (!recipe || !targetVersion || target.cli || recipe.manager === 'script') return recipe
+    if (!valid(targetVersion)) throw new Error('Invalid agent version')
+    if (recipe.manager === 'binary') {
+      if (recipe.version !== targetVersion) throw new Error('Agent release changed; check for updates again')
+      return recipe
+    }
+    const packageName = recipe.package.replace(recipe.manager === 'npm' ? /@[^@/]+$/ : /==.*$/, '')
+    const spec = `${packageName}${recipe.manager === 'npm' ? '@' : '=='}${targetVersion}`
+    return {
+      ...recipe,
+      package: spec,
+      args: recipe.manager === 'npm' ? ['install', '--global', spec] : ['tool', 'install', '--upgrade', spec]
+    }
+  }
+
+  private async canUpgradeInstallation(
+    recipe: NonNullable<Awaited<ReturnType<LocalAgentInstallService['recipe']>>>,
+    executable: string,
+    installedPath: string
+  ) {
+    if (recipe.manager === 'script') return false
+    if (recipe.manager === 'binary') return !!(await getBinaryAgentInstallation(executable, installedPath))
+    const env = await getRawShellEnv(this.abort.signal)
+    const command = await findExecutableInEnv(recipe.manager, { env })
+    if (!command || (await this.isManagedPath(command))) return false
+    const root = (
+      await this.run(command, recipe.manager === 'npm' ? ['root', '--global'] : ['tool', 'dir'], env, 8000)
+    ).trim()
+    if (await this.isManagedPath(root)) return false
+    const name = recipe.package.replace(recipe.manager === 'npm' ? /@[^@/]+$/ : /[=[].*$/, '')
+    return recipe.manager === 'npm'
+      ? ownsNpmExecutable(root, name, installedPath)
+      : ownsUvExecutable(root, name.toLowerCase().replace(/[-_.]+/g, '-'), installedPath)
+  }
+
+  private async performUninstall(preset: InstallTarget, expectedPath: string): Promise<LocalAgentUninstallResult> {
+    const presetId = preset.id
     try {
       this.abort.signal.throwIfAborted()
       await refreshShellEnv()
-      const detected = (await detectLocalAgents()).find((entry) => entry.presetId === presetId)
-      if (!detected?.path || detected.path !== expectedPath) return { ok: false, reason: 'changed' }
-      if (!(await application.get('AgentSessionRuntimeService').closeLocalAgentForUninstall(presetId)))
-        return { ok: false, reason: 'busy' }
+      const detected = await this.detect(preset)
+      if (detected.source === 'none' || detected.path !== expectedPath) return { ok: false, reason: 'changed' }
+      const agents = preset.cli
+        ? LOCAL_AGENT_PRESETS.filter(
+            (entry) => entry.executable === preset.executable || entry.terminalExecutable === preset.executable
+          )
+        : [preset]
+      for (const agent of agents) {
+        if (!(await application.get('AgentSessionRuntimeService').closeLocalAgentForUninstall(agent.id)))
+          return { ok: false, reason: 'busy' }
+        const webUiId = LOCAL_AGENT_WEB_UI_IDS.find((id) => id === agent.id)
+        if (webUiId) await application.getOptional('LocalAgentWebUiService')?.stop(webUiId)
+        if (agent.id === 'codebuddy-code') await application.getOptional('CodeBuddyWebUiService')?.stop()
+        if (agent.id === 'hermes') await application.getOptional('HermesDashboardService')?.stop()
+      }
       if (detected.source === 'mise') {
         const manager = application.get('BinaryManager')
         const names = [preset.executable, ...(preset.aliases ?? [])]
@@ -81,11 +231,9 @@ export class LocalAgentInstallService extends BaseService {
       } else if (detected.source !== 'system') {
         return { ok: false, reason: 'unsupported' }
       } else if (!(await uninstallBinaryAgent(preset.executable, expectedPath))) {
-        const recipe = resolveInstallRecipe(
-          presetId,
-          preset.protocol === 'acp' ? await this.fetchRegistry() : undefined
-        )
-        if (!recipe || recipe.manager === 'binary') return { ok: false, reason: 'unsupported' }
+        const recipe = await this.recipe(preset)
+        if (!recipe || recipe.manager === 'binary' || recipe.manager === 'script')
+          return { ok: false, reason: 'unsupported' }
         const env = await getRawShellEnv(this.abort.signal)
         const command = await findExecutableInEnv(recipe.manager, { env })
         if (!command || (await this.isManagedPath(command))) return { ok: false, reason: 'unsupported' }
@@ -126,39 +274,66 @@ export class LocalAgentInstallService extends BaseService {
           await terminateProcessTree(child, true, 'local agent installation')
       })
     )
-    await Promise.allSettled([...this.operations.values(), ...this.removals.values()])
+    await Promise.allSettled([
+      ...[...this.operations.values()].map(({ promise }) => promise),
+      ...this.removals.values()
+    ])
   }
 
-  private async performInstall(presetId: string): Promise<LocalAgentInstallResult> {
-    const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
-    if (!preset) return { ok: false, reason: 'unsupported' }
+  private async performInstall(preset: InstallTarget, targetVersion?: string): Promise<LocalAgentInstallResult> {
+    const presetId = preset.id
     try {
       this.abort.signal.throwIfAborted()
       await refreshShellEnv()
-      const existing = (await detectLocalAgents()).find((entry) => entry.presetId === presetId)
-      if (existing?.path) {
+      const existing = await this.detect(preset)
+      if (existing.source !== 'none' && !targetVersion) {
         application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
         return { ok: true, reused: true, path: existing.path }
       }
-      let recipe: ReturnType<typeof resolveInstallRecipe>
+      let recipe: Awaited<ReturnType<LocalAgentInstallService['recipe']>>
       try {
-        const registry = preset.protocol === 'acp' ? await this.fetchRegistry() : undefined
-        recipe = resolveInstallRecipe(presetId, registry)
-      } catch {
+        recipe = await this.recipe(preset, targetVersion)
+      } catch (error) {
+        if (preset.cli) throw error
         return { ok: false, reason: 'registry' }
       }
       if (!recipe) return { ok: false, reason: 'unsupported' }
+      if (
+        targetVersion &&
+        !preset.cli &&
+        existing.source !== 'none' &&
+        !(await this.canUpgradeInstallation(recipe, preset.executable, existing.path))
+      )
+        return { ok: false, reason: 'unsupported' }
+      if (
+        targetVersion &&
+        preset.protocol &&
+        !(await application.get('AgentSessionRuntimeService').closeLocalAgentForUninstall(preset.id))
+      )
+        return { ok: false, reason: 'failed' }
       this.abort.signal.throwIfAborted()
       if (recipe.manager === 'binary') {
         const installedPath = await installBinaryAgent(
           preset.executable,
           recipe,
-          AbortSignal.any([this.abort.signal, AbortSignal.timeout(10 * 60_000)])
+          AbortSignal.any([this.abort.signal, AbortSignal.timeout(10 * 60_000)]),
+          targetVersion && existing.source !== 'none' ? existing.path : undefined
         )
         application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
         return { ok: true, reused: false, path: installedPath }
       }
       const env = await getRawShellEnv(this.abort.signal)
+      if (recipe.manager === 'script') {
+        const command = await findExecutableInEnv(recipe.command, { env })
+        if (!command) return { ok: false, reason: 'unsupported' }
+        await this.run(command, recipe.args, env)
+        await refreshShellEnv()
+        const installed = await this.detect(preset)
+        application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
+        return installed.source === 'none'
+          ? { ok: false, reason: 'not_detected' }
+          : { ok: true, reused: false, path: installed.path }
+      }
       const command = await findExecutableInEnv(recipe.manager, { env })
       if (!command) return { ok: false, reason: 'missing_runtime', manager: recipe.manager }
       if (await this.isManagedPath(command)) return { ok: false, reason: 'managed_runtime', manager: recipe.manager }
@@ -174,9 +349,9 @@ export class LocalAgentInstallService extends BaseService {
       })
       await this.run(command, recipe.args, env)
       await refreshShellEnv()
-      const detected = (await detectLocalAgents()).find((entry) => entry.presetId === presetId)
+      const detected = await this.detect(preset)
       application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
-      if (!detected?.path) return { ok: false, reason: 'not_detected', manager: recipe.manager }
+      if (detected.source === 'none') return { ok: false, reason: 'not_detected', manager: recipe.manager }
       return { ok: true, reused: false, path: detected.path }
     } catch (error) {
       if (this.abort.signal.aborted) return { ok: false, reason: 'stopping' }
@@ -202,7 +377,7 @@ export class LocalAgentInstallService extends BaseService {
     )
   }
 
-  private run(command: string, args: string[], env: Record<string, string>): Promise<string> {
+  private run(command: string, args: string[], env: Record<string, string>, timeout = 15 * 60_000): Promise<string> {
     this.abort.signal.throwIfAborted()
     return new Promise((resolve, reject) => {
       const child = crossPlatformSpawn(command, args, {
@@ -214,7 +389,7 @@ export class LocalAgentInstallService extends BaseService {
       this.children.add(child)
       let stdout = ''
       let stderr = ''
-      const timer = setTimeout(() => void terminateProcessTree(child, true, 'local agent installation'), 15 * 60_000)
+      const timer = setTimeout(() => void terminateProcessTree(child, true, 'local agent installation'), timeout)
       child.stdout?.on('data', (data: Buffer) => {
         stdout = (stdout + data.toString()).slice(-16_384)
       })

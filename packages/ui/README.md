@@ -330,6 +330,26 @@ A button component with multiple variants and sizes.
 - `asChild`: render through Radix `Slot`
 - all standard React button props
 
+#### Icon colors
+
+[`Button`](./src/components/primitives/button.tsx) makes Lucide descendants without `lucide-custom` inherit the
+button text color through `[&_.lucide:not(.lucide-custom)]:text-current`. This selector can override a foreground
+utility placed directly on the icon.
+
+For an intentionally different icon color, put **both** `lucide-custom` and the semantic foreground utility on the
+icon. For the built-in loading spinner, pass both through `loadingIconClassName`:
+
+```tsx
+<Button variant="outline" loading={loading} loadingIconClassName="lucide-custom text-muted-foreground">
+  <Play className="lucide-custom size-3.5 text-muted-foreground" />
+  {label}
+</Button>
+```
+
+Use the same classes for conditional replacement icons and custom `loadingIcon` elements. Leave the marker off
+when the icon should inherit the button variant's text color, such as a primary or destructive action. Avoid
+hard-coded colors, `!important`, or page-level SVG overrides to bypass this contract.
+
 ### Input
 
 The Shadcn-compatible native input primitive.

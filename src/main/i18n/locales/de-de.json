@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Heranzoomen",
   "appMenu.zoomOut": "Herauszoomen",
   "chat.conversation.new": "Neuer Chat",
+  "code_cli.config_changed": "Die CLI-Konfiguration wurde geändert. Öffnen Sie den Editor vor dem Speichern erneut.",
   "common.channel_available_commands": "Verfügbare Befehle:",
   "common.channel_command_processing_error": "⚠️ Beim Verarbeiten des Befehls ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
   "common.channel_error": "Fehler: {{error}}",

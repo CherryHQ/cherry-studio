@@ -3,7 +3,8 @@ import { useCallback, useMemo } from 'react'
 import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
-import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
+import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/services/codeCliConfig'
+import { modelSupportsCliTool } from '@renderer/services/codeCliConfig'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
@@ -13,7 +14,6 @@ import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageM
 import { isAgentOnlyProvider, isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
-import { modelSupportsCliTool } from '../utils/modelSupport'
 
 /**
  * Provider/model resolution for the code-CLI page: builds the per-tool enabled
@@ -21,7 +21,7 @@ import { modelSupportsCliTool } from '../utils/modelSupport'
  * and a display-name resolver for the provider list.
  */
 export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[], isProvidersLoading = false) {
-  const { models: allModels, isLoading: isModelsLoading } = useModels({ enabled: true })
+  const { models: allModels, isLoading: isModelsLoading, refetch: refreshModels } = useModels({ enabled: true })
   const [defaultModelId] = usePreference('chat.default_model_id')
   // `gatewayModelsById` is built from both queries, and each yields an empty list while in flight —
   // indistinguishable from "no routable model exists". Expose the combined flag so callers that
@@ -114,6 +114,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   )
 
   return {
+    refreshModels,
     filterProviders,
     filterProvidersForTool,
     makeModelFilter,

@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CodeCliConfig from '@renderer/services/codeCliConfig'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
@@ -36,9 +37,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 // Relative to THIS file (hooks/__tests__/), so two levels up — the hook's own
-// '../cliConfig' resolves to the same barrel. A '../cliConfig' here would point
+// '@renderer/services/codeCliConfig' resolves to the same barrel. A '@renderer/services/codeCliConfig' here would point
 // at the non-existent hooks/cliConfig and silently mock nothing.
-vi.mock('../../cliConfig', () => ({
+vi.mock('@renderer/services/codeCliConfig', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeCliConfig>()),
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext,
   writeCliConfigDraft: mocks.writeCliConfigDraft,
   readCliConfigFiles: mocks.readCliConfigFiles,
@@ -140,49 +142,6 @@ describe('useLaunchDialogController', () => {
     expect(mocks.requestMock).toHaveBeenCalledWith(
       'code_cli.run',
       expect.objectContaining({ mode: 'normal', terminal: 'iterm2' })
-    )
-  })
-
-  // The run payload's `gateway` flag is derived from the enabled provider: a CLI (here gemini-cli)
-  // launched against the synthetic gateway provider must send gateway: true so the main process
-  // addresses the model as providerId:apiModelId (+ sentinel); a regular provider sends false.
-  it('sends gateway: true when launching against the API gateway provider', async () => {
-    mocks.resolveCliConfigApplyContext.mockReturnValue({
-      modelId: `${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat`,
-      providerId: CLI_API_GATEWAY_PROVIDER_ID,
-      rawModelId: 'deepseek:deepseek-chat',
-      writePrimaryModel: true
-    })
-    const { result } = renderHook(() =>
-      useLaunchDialogController({
-        selectedCliTool: CodeCli.GEMINI_CLI,
-        toolName: 'Gemini CLI',
-        directory: '/tmp/project',
-        enabledProvider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: '统一网关' } as Provider,
-        isOwnLoginSelected: false,
-        currentProviderConfig: { modelId: `${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat` },
-        selectedTerminal: 'terminal',
-        gatewayModelsById: new Map<UniqueModelId, Model>([
-          [`${CLI_API_GATEWAY_PROVIDER_ID}::deepseek:deepseek-chat`, { apiModelId: 'deepseek:deepseek-chat' } as Model]
-        ]),
-        modelById: new Map<UniqueModelId, Model>([
-          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
-        ]),
-        isModelsLoading: false,
-        upsertProviderConfig: vi.fn(),
-        setCurrentProvider: vi.fn(),
-        setTerminal: vi.fn(),
-        selectFolder: vi.fn()
-      })
-    )
-
-    await act(async () => {
-      result.current.launchDialogProps.onLaunch()
-    })
-
-    expect(mocks.requestMock).toHaveBeenCalledWith(
-      'code_cli.run',
-      expect.objectContaining({ mode: 'normal', gateway: true, providerId: CLI_API_GATEWAY_PROVIDER_ID })
     )
   })
 

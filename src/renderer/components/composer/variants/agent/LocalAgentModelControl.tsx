@@ -6,11 +6,13 @@ import { Button } from '@cherrystudio/ui'
 import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { LocalAgentModelSelector } from '@renderer/components/LocalAgentModelSelector'
-import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useLocalAgentModelCatalog } from '@renderer/hooks/agent/useLocalAgentModelCatalog'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { useLocalAgentModelSelection } from '@renderer/hooks/agent/useLocalAgentModelSelection'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import type { AgentEntity } from '@shared/data/types/agent'
 
 import {
@@ -34,7 +36,6 @@ export function LocalAgentModelControl({
   iconOnly?: boolean
 }) {
   const { t } = useTranslation()
-  const { updateAgent } = useUpdateAgent()
   const [saving, setSaving] = useState(false)
   const config = agent.configuration?.localRuntime
   const { catalog, freshCatalog, loading, refreshError, refresh } = useLocalAgentModelCatalog(
@@ -42,24 +43,22 @@ export function LocalAgentModelControl({
     config,
     false
   )
-  const models = freshCatalog?.models ?? info?.models ?? catalog?.models ?? []
-  const label = config?.nativeModel
-    ? models.find((model) => model.id === config.nativeModel)?.name || config.nativeModel
-    : t('local_agents.follow_cli')
+  const selection = useLocalAgentModelSelection(config, freshCatalog?.models ?? info?.models ?? catalog?.models ?? [])
+  const { models, value } = selection
+  const label = value ? models.find((model) => model.id === value)?.name || value : t('local_agents.follow_cli')
 
-  const selectedModel = config?.nativeModel ? { id: config.nativeModel, name: label } : undefined
+  const selectedModel = value ? { id: value, name: label } : undefined
 
   const loadModels = () => refresh().catch(() => {})
   const selectModel = async (nativeModel?: string) => {
     if (!config || disabled || saving) return false
-    if (nativeModel === config.nativeModel) return true
     setSaving(true)
     try {
-      const updated = await updateAgent(
-        { id: agent.id, configuration: { localRuntime: { ...config, nativeModel } } },
-        { showSuccessToast: false }
-      )
+      const updated = await selection.select(agent, nativeModel)
       return !!updated
+    } catch (error) {
+      toast.error(String(error))
+      return false
     } finally {
       setSaving(false)
     }
@@ -68,19 +67,19 @@ export function LocalAgentModelControl({
   return (
     <LocalAgentModelSelector
       models={models}
-      value={config.nativeModel}
-      disabled={disabled || saving}
+      value={value}
+      disabled={disabled || saving || !LOCAL_AGENT_MODEL_CONFIG[config.presetId ?? '']}
       loading={loading}
       loaded={!!freshCatalog || !!info?.models?.length}
       error={refreshError}
-      onOpenSettings={() =>
-        openSettingsTab(`/settings/local-agents?id=${encodeURIComponent(config.presetId ?? agent.id)}`)
-      }
+      onOpenSettings={() => openRoute('/app/code', { id: config.presetId ?? agent.id })}
       side={side}
       onLoad={loadModels}
       onSelect={selectModel}
       footer={
-        info?.resume === false ? (
+        !LOCAL_AGENT_MODEL_CONFIG[config.presetId ?? ''] ? (
+          <p className="text-xs text-muted-foreground">{t('local_agents.global_model_unavailable')}</p>
+        ) : info?.resume === false ? (
           <p className="text-xs text-muted-foreground">{t('local_agents.no_resume')}</p>
         ) : undefined
       }

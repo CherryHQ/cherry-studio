@@ -5,13 +5,25 @@ sources:
   - src/shared/ai/executionIdentity.ts
   - src/main/ai/runtime/localAgent
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
-  - src/renderer/pages/settings/LocalAgentSettings/LocalAgentSettingsPage.tsx
+  - src/renderer/components/localAgent/LocalAgentDirectory.tsx
+  - src/renderer/pages/code/CodeCliPage.tsx
 ---
 
 # Local Agent Runtime
 
-Settings → Agent Services discovers installed CLIs and enables them as persistent
-agents. Each preset has one stable agent ID; custom ACP configurations have
+Code Mate manages local Agent installation, authentication, models and advanced
+configuration. One model list combines native Agent models with compatible Cherry
+provider models. Selecting a model applies its connection and native default for
+both chat and terminal use; there is no separate provider configuration panel.
+Settings → Agent Services reuses the complete Code Mate page, including installation,
+authentication, model selection and CLI configuration. Both entrances share the same
+Agent list and configuration; selecting an Agent stays within the current entrance.
+CLI-only tools (OpenClaw and DeepSeek Harness) use the same grouped model list and
+program layout. Selecting a model saves its provider and model for the next managed
+launch; their existing web launch, stop and configuration actions remain available.
+They do not expose a Cherry chat toggle or an unsupported terminal action.
+
+Enabling a local CLI creates a persistent agent. Each preset has one stable agent ID; custom ACP configurations have
 independent IDs. Disabling preserves conversations and ordering. No Cherry model
 provider is required. “Local” refers to the CLI process, not an offline model.
 
@@ -25,19 +37,41 @@ provider is required. “Local” refers to the CLI process, not an offline mode
 - `AgentSessionRuntimeService` owns turn scheduling, approvals, persistence and
   connection disposal. The local driver maps ACP, Claude Agent SDK, and Codex
   App Server into the existing runtime event contract.
-- The CLI owns authentication, model selection, project settings, MCP and Skills.
-  Cherry does not inject its own providers, prompts, knowledge bases or tools.
+- The CLI owns authentication, project settings, MCP and Skills. Selecting a native
+  model writes its default configuration and the Agent record together; failure
+  restores the file. Code Mate provider changes also update the chat Agent.
+  Provider selections retain their Cherry model identity separately from the native
+  model identifier. Switching back removes injected provider credentials while
+  preserving tool settings. Stale drafts are rejected before writing any files.
+  No Cherry prompts, knowledge bases or tools are injected.
+- Native default persistence currently supports Claude, Codex, OpenCode, Qwen,
+  Kimi, Pi, Hermes and MiniMax. Other presets and custom ACP agents show an explicit
+  limitation instead of claiming a session-only change is global. Defaults apply
+  to newly started CLI sessions, including manual terminal launches. Explicit
+  model arguments, environment overrides and project settings can take precedence.
+  Existing interactive CLI sessions are not forcibly switched.
 - A new local task defaults to its own managed directory. An empty task can select
   an existing project; sending its first message locks the agent and directory.
   Missing user directories are reported rather than created.
 
 ## Installation and connection
 
-Resolution order is explicit executable, CodeMate-managed installation, then
-system installation. Explicit paths fail without fallback. Every connection
+Explicit executable overrides take precedence. Code Mate CLIs prefer a system
+installation over an existing managed copy; other ACP presets retain their
+existing installation discovery order. Explicit paths fail without fallback. Every connection
 resolves installation facts again, so upgrades do not pin an old version path.
 Managed installations use the shared binary execution environment; system CLIs
 retain the user's shell environment. Explicit environment overrides apply last.
+
+New Code Mate installations, upgrades and lazy terminal installations use the
+system installer shared with Agent Services: global npm packages, `uv tool install`
+for Python tools, and the official system installer for the Antigravity CLI.
+ACP-only distributions still use registry recipes and user-directory binary
+installation. Package managers redirected into Cherry-managed directories are
+rejected. Existing mise installations remain discoverable and removable; no
+new Code Mate CLI is installed through mise. Uninstallation verifies package
+ownership; externally installed binaries without a supported ownership check
+must be removed through their original installer.
 
 Passive discovery queries BinaryManager without starting an agent. Check/enable
 starts a bounded protocol handshake with no model prompt or automatic login.
@@ -157,7 +191,7 @@ entries, not a claim that every installed version implements the protocol.
 | GitHub Copilot | `copilot --acp` | 1.0.89 | Real text, mode/reasoning changes and restoration, generic permission configuration round-trip, read/write tools, diff, approval, process release/resume, stop and continuation passed (2026-09-30) |
 | MiniMax Code | `mcode acp` | — | Not installed locally; launch contract and shared ACP fixture tests passed |
 | Cursor | `cursor-agent acp` (`agent` alias) | 2026.01.28-fd13201 | Real text, agent → plan → agent, read/write tools and diff, process release/resume, stop and continuation passed; custom question/plan extensions not exercised (2026-09-30) |
-| Kimi | `kimi acp` | — | Not tested |
+| Kimi Code CLI | `kimi acp` | 2.1.1 | Real ACP initialization and Web UI start/open/stop passed; session creation requires a fresh login (2026-10-13) |
 | Qwen Code | `qwen --acp` | — | Not tested |
 | OpenCode | `opencode acp` | 1.18.33 | Real text, build → plan → build, file read/write, process release/resume, stop and continuation passed; first edit attempt stalled without output, stopped and explicit retry passed (2026-09-30) |
 | Kiro | `kiro-cli acp` | — | Not tested |
@@ -186,7 +220,7 @@ entries, not a claim that every installed version implements the protocol.
 | Poolside | `pool acp` | — | Registry launch definition checked (1.0.16); real CLI acceptance pending |
 | Custom ACP | Explicit executable and arguments | User selected | Controlled fixture processes tested |
 
-Gemini CLI is no longer offered as an Agent Service preset. Existing session history is retained; retired presets are excluded from the active Agent picker. This does not remove Gemini model providers or uninstall the CLI.
+Gemini CLI is no longer offered in Code Mate or as an Agent Service preset. Its installation, launch and configuration entry points and bundled Code Mate skill have been removed. Existing session history is retained; retired presets are excluded from the active Agent picker. This does not remove Gemini model providers or uninstall the CLI.
 
 Antigravity advertises session loading/resuming, images, audio, embedded context, and HTTP/SSE MCP in its handshake. Text, tools, cancellation and recovery passed with the configured credentials on 2026-09-30. The earlier personal Google OAuth location/eligibility rejection remains an authentication-method finding, not a current conversation failure. Image/audio semantics and MCP integration are still unverified; advertised capabilities alone do not certify them.
 

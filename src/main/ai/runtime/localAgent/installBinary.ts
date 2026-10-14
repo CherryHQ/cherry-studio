@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -16,6 +16,7 @@ import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 
 import type { LocalAgentBinaryRecipe } from './installRecipe'
 import { systemAgentEntry, systemAgentWrapper } from './launch'
+import { getBinaryAgentInstallation } from './uninstall'
 
 const MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 
@@ -30,8 +31,11 @@ function inside(root: string, name: string): string {
 export async function installBinaryAgent(
   executable: string,
   recipe: LocalAgentBinaryRecipe,
-  signal: AbortSignal
+  signal: AbortSignal,
+  expectedPath?: string
 ): Promise<string> {
+  const previous = expectedPath ? await getBinaryAgentInstallation(executable, expectedPath) : undefined
+  if (expectedPath && !previous) throw new Error('This binary installation cannot be upgraded automatically')
   const root = application.getPath('external.acp.agents')
   const bin = application.getPath('external.acp.bin')
   await fs.mkdir(root, { recursive: true })
@@ -122,7 +126,19 @@ export async function installBinaryAgent(
     await fs.rm(archive)
     await fs.mkdir(bin, { recursive: true })
     const entry = systemAgentEntry(executable)
-    await fs.writeFile(entry, systemAgentWrapper(command), { flag: 'wx', mode: 0o755 })
+    if (previous) {
+      const temporary = `${entry}.${randomUUID()}.tmp`
+      try {
+        await fs.writeFile(temporary, systemAgentWrapper(command), { flag: 'wx', mode: 0o755 })
+        if ((await fs.readFile(entry, 'utf8')) !== previous.wrapper)
+          throw new Error('Agent installation changed during upgrade')
+        await fs.rename(temporary, entry)
+      } finally {
+        await fs.rm(temporary, { force: true })
+      }
+    } else {
+      await fs.writeFile(entry, systemAgentWrapper(command), { flag: 'wx', mode: 0o755 })
+    }
     published = true
     return entry
   } finally {

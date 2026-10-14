@@ -65,8 +65,39 @@ describe('local agent installation resolution', () => {
     )
   })
 
+  it.each([
+    ['goose', 'goose', ['session']],
+    ['kiro', 'kiro-cli', ['chat']],
+    ['cline', 'cline', []]
+  ] as const)('opens %s interactively without ACP or custom protocol arguments', async (presetId, executable, args) => {
+    inventory.snapshots[executable] = {
+      name: executable,
+      availability: { source: 'system', path: `/user/bin/${executable}` }
+    }
+    await openLocalAgentTerminal({ ...config, protocol: 'acp', presetId, enabled: false, args: ['--acp'] })
+    expect(inventory.openTerminal).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        executable: `/user/bin/${executable}`,
+        args
+      })
+    )
+  })
+
+  it('opens the native Pi binary rather than the ACP wrapper', async () => {
+    inventory.snapshots.pi = { name: 'pi', availability: { source: 'system', path: '/user/bin/pi' } }
+    await openLocalAgentTerminal({
+      ...config,
+      presetId: 'pi-acp',
+      protocol: 'acp',
+      executableOverride: '/wrapper/pi-acp'
+    })
+    expect(inventory.openTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ executable: '/user/bin/pi', args: [] })
+    )
+  })
+
   it('does not open unsupported ACP adapters or silently replace a missing explicit program', async () => {
-    await expect(openLocalAgentTerminal({ ...config, presetId: 'pi-acp', protocol: 'acp' })).rejects.toThrow(
+    await expect(openLocalAgentTerminal({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })).rejects.toThrow(
       'supported interactive CLI'
     )
     inventory.snapshots.codex = { name: 'codex', availability: { source: 'system', path: '/user/bin/codex' } }
@@ -178,7 +209,9 @@ describe('local agent installation resolution', () => {
 
   it('does not mistake the base CLI for a separately installed ACP adapter', async () => {
     inventory.snapshots.pi = { name: 'pi', availability: { source: 'system', path: '/user/bin/pi' } }
-    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'pi-acp', protocol: 'acp' })).rejects.toMatchObject({
+    await expect(
+      resolveLocalAgentLaunch({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })
+    ).rejects.toMatchObject({
       code: 'LOCAL_AGENT_NOT_INSTALLED'
     })
   })
@@ -189,5 +222,20 @@ describe('local agent installation resolution', () => {
     const found = await detectLocalAgents()
     expect(found.find((entry) => entry.presetId === 'qoder')).toMatchObject({ source: 'mise', path: '/managed/qoder' })
     expect(found.find((entry) => entry.presetId === 'codex')).toMatchObject({ source: 'none' })
+  })
+
+  it('detects the Antigravity adapter and interactive CLI independently', async () => {
+    inventory.snapshots['agy_acp_server.par'] = {
+      name: 'agy_acp_server.par',
+      availability: { source: 'system', path: '/user/bin/agy_acp_server.par' }
+    }
+    const findAntigravity = async () =>
+      (await detectLocalAgents()).find((entry) => entry.presetId === 'antigravity-acp')
+    expect(await findAntigravity()).toMatchObject({ path: '/user/bin/agy_acp_server.par', terminalPath: undefined })
+    inventory.snapshots.agy = { name: 'agy', availability: { source: 'system', path: '/user/bin/agy' } }
+    expect(await findAntigravity()).toMatchObject({
+      path: '/user/bin/agy_acp_server.par',
+      terminalPath: '/user/bin/agy'
+    })
   })
 })

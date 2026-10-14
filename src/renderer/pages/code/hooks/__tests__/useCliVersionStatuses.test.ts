@@ -107,6 +107,7 @@ describe('useCliVersionStatuses', () => {
       installed: true,
       source: 'system',
       systemPath: '/usr/local/bin/claude',
+      resolvedPath: '/usr/local/bin/claude',
       canUpgrade: false
     })
     expect(ipcMocks.snapshots).toHaveBeenCalledWith(['claude'])
@@ -141,6 +142,7 @@ describe('useCliVersionStatuses', () => {
       installed: true,
       source: 'system',
       systemPath: '/usr/local/bin/openclaw',
+      resolvedPath: '/usr/local/bin/openclaw',
       canUpgrade: false
     })
   })

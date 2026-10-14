@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Μεγέθυνση",
   "appMenu.zoomOut": "Σμίκρυνση",
   "chat.conversation.new": "Νέα συνομιλία",
+  "code_cli.config_changed": "Η διαμόρφωση CLI έχει αλλάξει. Ανοίξτε ξανά τον επεξεργαστή πριν την αποθήκευση.",
   "common.channel_available_commands": "Διαθέσιμες εντολές:",
   "common.channel_command_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία της εντολής. Δοκιμάστε ξανά αργότερα.",
   "common.channel_error": "Σφάλμα: {{error}}",

@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Zoom Avant",
   "appMenu.zoomOut": "Dézoomer",
   "chat.conversation.new": "Nouvelle conversation",
+  "code_cli.config_changed": "La configuration CLI a changé. Rouvrez l’éditeur avant d’enregistrer.",
   "common.channel_available_commands": "Commandes disponibles :",
   "common.channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",
   "common.channel_error": "Erreur : {{error}}",

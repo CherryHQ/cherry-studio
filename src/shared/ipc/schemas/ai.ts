@@ -46,8 +46,14 @@ import {
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { FileVersionSchema } from '@shared/types/file'
+import {
+  LOCAL_AGENT_WEB_UI_IDS,
+  type ManagedToolStatusState,
+  type CodeBuddyWebUiStatus
+} from '@shared/types/managedTool'
 
 import { defineRoute } from '../define'
+import { codeCliRequestSchemas } from './codeCli'
 
 /**
  * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
@@ -357,12 +363,30 @@ export const aiRequestSchemas = {
     output: z.custom<LocalAgentSessionInfo | null>()
   }),
   'ai.local_agents.detect': defineRoute({ input: z.object({}), output: z.custom<LocalAgentDetection[]>() }),
+  'ai.local_agents.web_start': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: z.custom<ManagedToolStatusState>()
+  }),
+  'ai.local_agents.web_stop': defineRoute({
+    input: z.object({ presetId: z.enum(LOCAL_AGENT_WEB_UI_IDS) }),
+    output: z.void()
+  }),
+  'ai.codebuddy_web.status': defineRoute({ input: z.void(), output: z.custom<CodeBuddyWebUiStatus>() }),
+  'ai.codebuddy_web.start': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: z.custom<CodeBuddyWebUiStatus>()
+  }),
+  'ai.codebuddy_web.stop': defineRoute({ input: z.void(), output: z.void() }),
   'ai.local_agents.uninstall': defineRoute({
     input: z.object({ presetId: z.string().min(1), expectedPath: z.string().min(1) }),
     output: LocalAgentUninstallResultSchema
   }),
+  'ai.local_agents.version': defineRoute({
+    input: z.object({ presetId: z.string().min(1), latest: z.boolean() }),
+    output: z.object({ current: z.string().optional(), latest: z.string().optional(), canUpgrade: z.boolean() })
+  }),
   'ai.local_agents.install': defineRoute({
-    input: z.object({ presetId: z.string().min(1) }),
+    input: z.object({ presetId: z.string().min(1), targetVersion: z.string().optional() }),
     output: LocalAgentInstallResultSchema
   }),
   'ai.local_agents.authenticate': defineRoute({
@@ -370,6 +394,16 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
+  'ai.local_agents.select_model': defineRoute({
+    input: z.strictObject({
+      agentId: z.string().min(1),
+      nativeModel: z.string().min(1).optional(),
+      sourceModelId: LocalAgentConfigurationSchema.shape.sourceModelId,
+      files: codeCliRequestSchemas['code_cli.write_config'].input.shape.files.optional(),
+      expectedFiles: codeCliRequestSchemas['code_cli.read_config'].output.shape.files.optional()
+    }),
+    output: AgentEntitySchema
+  }),
   'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
   'ai.local_agents.open_terminal': defineRoute({
     input: LocalAgentConfigurationSchema,

@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Mărește",
   "appMenu.zoomOut": "Micșorează",
   "chat.conversation.new": "Conversație nouă",
+  "code_cli.config_changed": "Configurația CLI s-a modificat. Redeschideți editorul înainte de a salva.",
   "common.channel_available_commands": "Comenzi disponibile:",
   "common.channel_command_processing_error": "⚠️ A apărut o eroare la procesarea comenzii. Încercați din nou mai târziu.",
   "common.channel_error": "Eroare: {{error}}",

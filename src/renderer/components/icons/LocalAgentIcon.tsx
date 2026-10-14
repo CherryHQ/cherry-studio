@@ -9,17 +9,21 @@ import { CliIcon } from './CliIcon'
 
 export function LocalAgentIcon({
   presetId,
+  cliId,
   size = 20,
   className
 }: {
   presetId?: string
+  cliId?: string
   size?: number
   className?: string
 }) {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
-  const iconId = preset
-    ? (CODE_CLI_TOOL_PRESETS.find((tool) => tool.executable === preset.executable)?.id ?? preset.id)
-    : undefined
+  const iconId =
+    cliId ??
+    (preset
+      ? (CODE_CLI_TOOL_PRESETS.find((tool) => tool.executable === preset.executable)?.id ?? preset.id)
+      : undefined)
   return (
     <Avatar
       className={cn('items-center justify-center bg-background-subtle', className)}

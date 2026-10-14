@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
-import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
+import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/services/codeCliConfig'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 

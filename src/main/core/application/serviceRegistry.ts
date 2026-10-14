@@ -43,6 +43,7 @@ import { AutoBackupService } from '@main/services/AutoBackupService'
 import { BinaryManager } from '@main/services/binaryManager'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
+import { CodeBuddyWebUiService } from '@main/services/CodeBuddyWebUiService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
@@ -51,6 +52,7 @@ import { DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LanTransferService } from '@main/services/lanTransfer'
+import { LocalAgentWebUiService } from '@main/services/LocalAgentWebUiService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -125,6 +127,8 @@ export const services = {
   CherryCloudService,
   DeepSeekHarnessService,
   HermesDashboardService,
+  CodeBuddyWebUiService,
+  LocalAgentWebUiService,
   LocalAgentInstallService,
   LocalAgentAuthService,
   LanTransferService,

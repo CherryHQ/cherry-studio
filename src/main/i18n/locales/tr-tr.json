@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Yakınlaştır",
   "appMenu.zoomOut": "Uzaklaştır",
   "chat.conversation.new": "Yeni Sohbet",
+  "code_cli.config_changed": "CLI yapılandırması değişti. Kaydetmeden önce düzenleyiciyi yeniden açın.",
   "common.channel_available_commands": "Kullanılabilir komutlar:",
   "common.channel_command_processing_error": "⚠️ Komut işlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
   "common.channel_error": "Hata: {{error}}",

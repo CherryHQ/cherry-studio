@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Zoom In",
   "appMenu.zoomOut": "Zoom Out",
   "chat.conversation.new": "New Chat",
+  "code_cli.config_changed": "The CLI configuration has changed. Reopen the editor before saving.",
   "common.channel_available_commands": "Available commands:",
   "common.channel_command_processing_error": "⚠️ An error occurred while processing the command. Please try again later.",
   "common.channel_error": "Error: {{error}}",

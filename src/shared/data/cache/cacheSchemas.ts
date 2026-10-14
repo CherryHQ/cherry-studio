@@ -7,7 +7,7 @@ import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp
 import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { CodeBuddyWebUiStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -325,6 +325,8 @@ export type SharedCacheSchema = {
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   'feature.deepseek_harness.status': ManagedToolStatusState
+  'feature.local_agent.web_ui.status': Record<string, ManagedToolStatusState>
+  'feature.codebuddy.web_ui.status': CodeBuddyWebUiStatus
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
@@ -389,6 +391,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.deepseek_harness.status': { status: 'stopped' },
+  'feature.local_agent.web_ui.status': {},
+  'feature.codebuddy.web_ui.status': { status: 'stopped', owned: false },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
   'feature.remote_access.discovery_status': 'inactive',

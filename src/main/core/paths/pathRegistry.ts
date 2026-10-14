@@ -291,6 +291,10 @@ export function buildPathRegistry() {
       ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'Programs', 'ACP', 'agents')
       : path.join(sysHome, '.local', 'share', 'acp', 'agents'),
     'external.acp.bin': path.join(sysHome, '.local', 'bin'),
+    'external.codebuddy.web_ui_ports.file': path.join(sysHome, '.codebuddy', 'web-ui-port.json'),
+    'external.antigravity.cli.file': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'agy', 'bin', 'agy.exe')
+      : path.join(sysHome, '.local', 'bin', 'agy'),
     'external.claude.config': path.join(sysHome, '.claude'),
     'external.browser.chrome': isMac
       ? path.join(sysHome, 'Library/Application Support/Google/Chrome')

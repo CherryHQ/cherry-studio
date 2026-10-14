@@ -14,7 +14,12 @@ import {
 } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 
-function selectInstallation(preset: LocalAgentPreset, snapshots: Record<string, BinaryToolSnapshot>) {
+import { readInstalledPackageVersion } from './installedVersion'
+
+function selectInstallation(
+  preset: Pick<LocalAgentPreset, 'executable' | 'aliases'>,
+  snapshots: Record<string, BinaryToolSnapshot>
+) {
   const candidates = [preset.executable, ...(preset.aliases ?? [])].map((name) => snapshots[name]?.availability)
   return (
     candidates.find((value) => value?.source === 'mise') ??
@@ -32,7 +37,10 @@ export function systemAgentWrapper(command: string): string {
     : `#!/bin/sh\nexec '${command.replace(/'/g, "'\\''")}' "$@"\n`
 }
 
-async function selectAvailableInstallation(preset: LocalAgentPreset, snapshots: Record<string, BinaryToolSnapshot>) {
+export async function selectAvailableInstallation(
+  preset: Pick<LocalAgentPreset, 'executable' | 'aliases'>,
+  snapshots: Record<string, BinaryToolSnapshot>
+) {
   const installed = selectInstallation(preset, snapshots)
   if (installed.source !== 'none') return installed
   const entry = systemAgentEntry(preset.executable)
@@ -48,24 +56,47 @@ async function selectAvailableInstallation(preset: LocalAgentPreset, snapshots: 
 export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
   const snapshots = await application
     .get('BinaryManager')
-    .getToolSnapshots(LOCAL_AGENT_PRESETS.flatMap((preset) => [preset.executable, ...(preset.aliases ?? [])]))
+    .getToolSnapshots(
+      LOCAL_AGENT_PRESETS.flatMap((preset) => [
+        preset.executable,
+        ...(preset.aliases ?? []),
+        ...(preset.terminalExecutable ? [preset.terminalExecutable] : [])
+      ])
+    )
   return Promise.all(
-    LOCAL_AGENT_PRESETS.map(async (preset) => ({
-      presetId: preset.id,
-      ...(await selectAvailableInstallation(preset, snapshots))
-    }))
+    LOCAL_AGENT_PRESETS.map(async (preset) => {
+      const installed = await selectAvailableInstallation(preset, snapshots)
+      const terminal = preset.terminalExecutable
+        ? await selectAvailableInstallation({ executable: preset.terminalExecutable }, snapshots)
+        : installed
+      return {
+        presetId: preset.id,
+        ...installed,
+        terminalPath: preset.terminalArgs && terminal.source !== 'none' ? terminal.path : undefined,
+        version:
+          'version' in installed
+            ? installed.version
+            : installed.source !== 'none'
+              ? await readInstalledPackageVersion(installed.path)
+              : undefined
+      }
+    })
   )
 }
 
-export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, signal?: AbortSignal) {
-  const preset = LOCAL_AGENT_PRESETS.find((p) => p.id === config.presetId)
+export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, signal?: AbortSignal, terminal = false) {
+  const definition = LOCAL_AGENT_PRESETS.find((p) => p.id === config.presetId)
+  const preset =
+    terminal && definition?.terminalExecutable
+      ? { ...definition, executable: definition.terminalExecutable, aliases: undefined }
+      : definition
   if (config.presetId && (!preset || preset.protocol !== config.protocol)) throw new Error('Invalid local agent preset')
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
   const shellEnv = await getRawShellEnv(signal)
   let executable: string | undefined
   let source = 'system'
-  if (config.executableOverride) {
+  if (config.executableOverride && !(terminal && definition?.terminalExecutable)) {
     executable = path.isAbsolute(config.executableOverride)
       ? config.executableOverride
       : ((await findExecutableInEnv(config.executableOverride, { env: shellEnv })) ?? undefined)
@@ -103,7 +134,7 @@ export async function resolveLocalAgentLaunch(config: LocalAgentConfiguration, s
 export async function openLocalAgentTerminal(config: LocalAgentConfiguration) {
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
   if (!preset?.terminalArgs) throw new Error('This agent does not have a supported interactive CLI')
-  const launch = await resolveLocalAgentLaunch(config)
+  const launch = await resolveLocalAgentLaunch(config, undefined, true)
   const envKeys = new Set(['PATH', ...Object.keys(preset.env ?? {}), ...Object.keys(config.env)])
   const env = Object.fromEntries(
     Object.entries(launch.env).filter(

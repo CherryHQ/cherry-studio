@@ -68,6 +68,7 @@
   "appMenu.zoomIn": "Увеличить",
   "appMenu.zoomOut": "Уменьшить",
   "chat.conversation.new": "Новый чат",
+  "code_cli.config_changed": "Конфигурация CLI изменилась. Откройте редактор заново перед сохранением.",
   "common.channel_available_commands": "Доступные команды:",
   "common.channel_command_processing_error": "⚠️ При обработке команды произошла ошибка. Повторите попытку позже.",
   "common.channel_error": "Ошибка: {{error}}",
