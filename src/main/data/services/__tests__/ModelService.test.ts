@@ -1187,6 +1187,29 @@ describe('ModelService — manual reasoning capability projects effort controls'
     expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
   })
 
+  it('keeps a provider-disabled reasoning contract across a model endpoint override', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('groq-like', 'Groq Like'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('groq-like', 'llama-3.3-70b-versatile', {
+        name: 'Llama 3.3 70B',
+        presetModelId: 'groq-preset',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        endpointTypes: ['openai-chat-completions']
+      })
+    )
+    // The provider explicitly disables reasoning (none profile, disabled wire)
+    // and the request layer discards every selection for it — the override must
+    // not resurrect effort knobs with a generic openai wire.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: { format: 'none', wire: { disabled: true } }
+    })
+
+    const [model] = modelService.list({ providerId: 'groq-like' })
+    expect(model.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
   it('leaves models without the reasoning capability untouched', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 

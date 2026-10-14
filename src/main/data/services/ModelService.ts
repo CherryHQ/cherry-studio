@@ -501,6 +501,11 @@ const CHAT_ENDPOINT_REASONING_FORMAT: Partial<Record<EndpointType, ReasoningForm
  * provider profile, unless the model row overrides the endpoint — then the
  * canonical profile for the overridden endpoint. (Catalog descriptors are
  * endpoint-projected by the registry itself and never pass through here.)
+ *
+ * A provider that explicitly disables reasoning keeps that contract across an
+ * override: the request layer discards every selection for a disabled profile,
+ * so resurrecting knobs with a generic wire would only offer choices that do
+ * nothing. (CherryHQ/cherry-studio#19761)
  */
 function manualReasoningProfileFor(
   model: { endpointTypes?: EndpointType[] | null },
@@ -510,6 +515,7 @@ function manualReasoningProfileFor(
     ?.map((endpoint) => CHAT_ENDPOINT_REASONING_FORMAT[endpoint])
     .find((format) => format !== undefined)
   if (!overrideFormat || overrideFormat === reasoningProfile.format) return reasoningProfile
+  if (reasoningProfile.format === 'none' || reasoningProfile.wire.disabled) return reasoningProfile
   return { format: overrideFormat, wire: REASONING_FORMAT_PROFILES[overrideFormat].wire }
 }
 
