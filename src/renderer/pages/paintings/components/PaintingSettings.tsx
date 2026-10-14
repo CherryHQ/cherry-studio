@@ -1,7 +1,8 @@
-import { InfoTooltip } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { InfoTooltip } from '@cherrystudio/ui'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
@@ -67,9 +68,7 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
             <PaintingFieldRenderer
               item={item}
               painting={paintingParams}
-              onChange={(updates) =>
-                onConfigChange({ params: { ...paintingParams, ...updates } } as Partial<PaintingData>)
-              }
+              onChange={(updates) => onConfigChange({ params: { ...paintingParams, ...updates } })}
               onGenerateRandomSeed={onGenerateRandomSeed}
             />
           </div>

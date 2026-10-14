@@ -1,9 +1,10 @@
-import type * as I18nLabelModule from '@renderer/i18n/label'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { act, render, screen } from '@testing-library/react'
 import type { ReactNode, Ref } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as I18nLabelModule from '@renderer/i18n/label'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
 import type { ModelSelectorModelItem } from '../types'
@@ -113,13 +114,13 @@ const provider: Provider = {
   apiKeys: [],
   authType: 'api-key',
   reportsActualCost: false,
-  settings: {} as Provider['settings'],
+  settings: {},
   isEnabled: true
-} as Provider
+}
 
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {
-    id: 'openai::gpt-4o-mini' as UniqueModelId,
+    id: 'openai::gpt-4o-mini',
     providerId: provider.id,
     apiModelId: 'gpt-4o-mini',
     name: 'GPT-4o mini',
@@ -128,7 +129,7 @@ function makeModel(overrides: Partial<Model> = {}): Model {
     isEnabled: true,
     isHidden: false,
     ...overrides
-  } as Model
+  }
 }
 
 function makeItem(model: Model): ModelSelectorModelItem {
@@ -245,7 +246,7 @@ describe('ModelSelectorDetailCard', () => {
           bottom: 540,
           left: 180,
           toJSON: () => {}
-        } as DOMRect
+        }
       }
 
       return {
@@ -258,7 +259,7 @@ describe('ModelSelectorDetailCard', () => {
         bottom: 216,
         left: 320,
         toJSON: () => {}
-      } as DOMRect
+      }
     })
 
     render(
@@ -280,7 +281,7 @@ describe('ModelSelectorDetailCard', () => {
 
   it('renders reasoning options derived from the descriptor', () => {
     const model = makeModel({
-      id: 'openai::gpt-5-codex-max' as UniqueModelId,
+      id: 'openai::gpt-5-codex-max',
       apiModelId: 'gpt-5-codex-max',
       name: 'GPT-5 Codex Max',
       reasoning: {
@@ -302,7 +303,7 @@ describe('ModelSelectorDetailCard', () => {
 
   it('renders the localized Ultra effort for GPT-6 Astra', () => {
     const model = makeModel({
-      id: 'openai-codex::gpt-6-astra' as UniqueModelId,
+      id: 'openai-codex::gpt-6-astra',
       providerId: 'openai-codex',
       apiModelId: 'gpt-6-astra',
       name: 'GPT-6 Astra',

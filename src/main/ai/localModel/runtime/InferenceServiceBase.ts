@@ -1,20 +1,19 @@
+import PQueue from 'p-queue'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn } from '@main/core/lifecycle'
 import type {
   UtilityProcessClient,
   UtilityProcessContract,
-  UtilityProcessDefinition,
   UtilityProcessRequestOptions
 } from '@main/core/utilityProcess/types'
 import { isUtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import type { LocalModelCapability } from '@shared/data/presets/localModel'
-import PQueue from 'p-queue'
 
 import { bundleForCapability } from '../catalog/catalog'
 import { localModelStorageService } from '../installation/LocalModelStorageService'
-import { resolveLocalInferenceProfile } from './inferenceAcceleration'
-import type { InferenceInitData } from './protocol'
+import type { InferenceProcessDefinition } from './inferenceProcess'
 
 /**
  * Shared host for local inference utility processes. Each capability gets its own process,
@@ -32,7 +31,7 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
   protected constructor(
-    private readonly definition: UtilityProcessDefinition<Contract, InferenceInitData>,
+    private readonly definition: InferenceProcessDefinition<Contract>,
     private readonly capability: LocalModelCapability
   ) {
     super()
@@ -64,10 +63,10 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
     // The cast is p-queue's `T | void`: it resolves to void only when an AbortSignal is
     // passed to `add`, which this never does. Treating undefined as a failure would reject
     // every method whose output is void, `load` included.
-    return (await this.queue.add(async () => {
+    return await this.queue.add(async () => {
       await this.restartIfRuntimeChanged()
       return this.request(method, input, options)
-    })) as Contract['methods'][M]['output']
+    })
   }
 
   private async request<M extends keyof Contract['methods'] & string>(
@@ -84,9 +83,7 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
   }
 
   private async restartIfRuntimeChanged(): Promise<void> {
-    const profile = resolveLocalInferenceProfile(
-      application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
-    )
+    const profile = this.definition.resolveRuntimeProfile()
     if (this.launchedProfileId !== null && this.launchedProfileId !== profile.id) {
       this.logger.info('inference runtime configuration changed; restarting process')
       await this.client.stop()

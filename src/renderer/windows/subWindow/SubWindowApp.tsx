@@ -1,16 +1,20 @@
+import { useEffect } from 'react'
+
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
+import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
-import { useEffect } from 'react'
 
 // Headless behavior leaf inside the providers: the shared window runtime (same route
 // tree as main, so it needs the same window-level side effects). It renders nothing;
@@ -18,6 +22,7 @@ import { useEffect } from 'react'
 // none of the main-only concerns (boot spinner/timer, update/storage notification).
 function SubWindowRuntime(): null {
   useWindowRuntime()
+  useAutoReadPreferenceSync()
 
   // Same route tree as main, so topic/message exports run here too — register the
   // image-mode popup behind the services seam like MainApp does.
@@ -43,8 +48,10 @@ function SubWindowApp(): React.ReactElement {
                 <SubWindowAppShell />
                 <SubWindowRuntime />
                 <ConversationNotificationRuntime />
+                <McpInteractionHost />
                 <PopupHost />
                 <ToastHost />
+                <VoicePlaybackHost />
               </TabsProvider>
             </CommandProvider>
           </CommandContextKeyProvider>

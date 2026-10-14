@@ -1,5 +1,6 @@
-import { loggerService } from '@logger'
 import type * as NodeScreenshotsModule from 'node-screenshots'
+
+import { loggerService } from '@logger'
 
 import { ScreenCaptureError } from './types'
 

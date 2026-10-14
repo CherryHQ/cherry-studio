@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { miniAppBackupPath, miniAppDataPath, miniAppInstallPath, miniAppRollingPath } from '../paths'
 

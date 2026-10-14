@@ -1,7 +1,8 @@
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 
 import { CliConfigEditor } from '../CliConfigEditor'
 
@@ -9,13 +10,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: { children: ReactNode }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  CodeEditor: ({ value, onChange }: { value: string; onChange?: (value: string) => void }) => (
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ value, onChange }: { value: string; onChange?: (value: string) => void }) => (
     <>
       <textarea readOnly value={value} />
       <button type="button" onClick={() => onChange?.(value)}>
@@ -25,7 +21,16 @@ vi.mock('@cherrystudio/ui', () => ({
         edit value
       </button>
     </>
+  )
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: { children: ReactNode }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
   ),
+
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,

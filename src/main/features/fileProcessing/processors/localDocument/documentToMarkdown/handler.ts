@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
 
-import { application } from '@application'
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { createPdfParser } from '@main/utils/pdf'
 
@@ -17,17 +18,6 @@ const logger = loggerService.withContext('LocalDocumentToMarkdownHandler')
  * timing out with nothing to show for it.
  */
 const MAX_PDF_PAGES = 300
-
-/**
- * anydoc reports "this PDF is a scan, OCR it" only through the rejection message.
- * Its Rust side does tag the error with a `ConvertError` variant, but that tag does
- * not survive the napi boundary in 0.1.3 — every rejection arrives as
- * `code: 'GenericFailure'` — so the message is the sole signal. Sibling failures
- * read "malformed document: ..." / "unsupported input: unrecognized file content",
- * neither of which matches. `handler.smoke.test.ts` pins these strings against the
- * real binding, so an anydoc upgrade that rewords them fails loudly here.
- */
-const SCANNED_PDF_MESSAGE = /no extractable text|OCR is required/
 
 type AnydocModule = {
   formatFromExtension: typeof formatFromExtension
@@ -109,7 +99,7 @@ async function convertWithAnydoc(pdfBytes: Uint8Array): Promise<string | null> {
 
 /** Whether an anydoc rejection means "no text layer, hand this to OCR". */
 export function isScannedPdfError(error: unknown): boolean {
-  return error instanceof Error && SCANNED_PDF_MESSAGE.test(error.message)
+  return error instanceof Error && 'code' in error && error.code === 'needsOcr'
 }
 
 async function inspectPdf(pdfBytes: Uint8Array): Promise<{ pageCount: number; hasTextlessPages: boolean }> {

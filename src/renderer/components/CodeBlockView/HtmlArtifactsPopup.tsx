@@ -1,7 +1,22 @@
 import {
+  Camera,
+  Check,
+  Code,
+  Eye,
+  Maximize2,
+  Minimize2,
+  SaveIcon,
+  ShieldAlert,
+  SquareSplitHorizontal,
+  X
+} from 'lucide-react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Button,
-  CodeEditor,
   type CodeEditorHandles,
+  type CodeEditorProps,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -22,26 +37,13 @@ import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { FilePngIcon } from '@renderer/components/icons/FileIcons'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
-import {
-  Camera,
-  Check,
-  Code,
-  Eye,
-  Maximize2,
-  Minimize2,
-  SaveIcon,
-  ShieldAlert,
-  SquareSplitHorizontal,
-  X
-} from 'lucide-react'
-import { memo, type ReactNode, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import HtmlArtifactPreviewSurface, { htmlArtifactPreviewRequiresInteractive } from './HtmlArtifactPreviewSurface'
 
@@ -50,7 +52,7 @@ const logger = loggerService.withContext('HtmlArtifactsPopup')
 interface CodePanelProps {
   codeEditorRef: React.RefObject<CodeEditorHandles | null>
   html: string
-  theme: React.ComponentProps<typeof CodeEditor>['theme']
+  theme: CodeEditorProps['theme']
   fontSize: number
   onSave?: (html: string) => void
   editable: boolean
@@ -71,7 +73,7 @@ const CodePanel = memo<CodePanelProps>(
 
     return (
       <div className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
-        <CodeEditor
+        <LazyCodeEditor
           ref={codeEditorRef}
           value={html}
           language="html"

@@ -1,5 +1,6 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { useCallback } from 'react'
+
+import { usePersistCache } from '@data/hooks/useCache'
 
 const MAX_RECENT_EMOJIS = 32
 

@@ -1,7 +1,8 @@
-// @vitest-environment jsdom
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// @vitest-environment jsdom
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),

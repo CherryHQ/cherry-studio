@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import { getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
 import { TopicType } from '@renderer/components/composer/tools/types'
-import { describe, expect, it, vi } from 'vitest'
 
 const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(() => ({
   mockIsGenerateImageModel: vi.fn(),
@@ -61,7 +62,19 @@ describe('composer tool visibility', () => {
       } as any
     })
 
-    expect(tools.map((tool) => tool.key)).toEqual(expect.arrayContaining(['generate_image', 'knowledge_base']))
+    expect(tools.map((tool) => tool.key)).toEqual(
+      expect.arrayContaining(['web_search', 'generate_image', 'knowledge_base'])
+    )
+  })
+
+  it('keeps dictation available without mounting assistant tools in an unlinked chat with a default model', () => {
+    const tools = getToolsForScope(TopicType.Chat, {
+      model: { id: 'default-model', providerId: 'provider-1', name: 'Default model' } as any
+    }).map((tool) => tool.key)
+
+    expect(tools).toContain('dictation')
+    expect(tools).not.toContain('web_search')
+    expect(tools).not.toContain('generate_image')
   })
 
   it('shows MCP status in chat and agent session scopes only', () => {
@@ -83,5 +96,14 @@ describe('composer tool visibility', () => {
     })
 
     expect(tools.map((tool) => tool.key)).toContain('knowledge_base')
+  })
+
+  it('exposes shared dictation only in Chat, Agent Session, and Painting composers', () => {
+    const model = { id: 'model', providerId: 'provider', name: 'Model' } as any
+
+    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope('painting', { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('dictation')
   })
 })

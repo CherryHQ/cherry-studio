@@ -1,9 +1,10 @@
-import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { formatRelativeTime } from '@renderer/utils/time'
-import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import { Plus, RefreshCw, Settings2, Trash2 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { formatRelativeTime } from '@renderer/utils/time'
+import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 
@@ -52,13 +53,13 @@ const DataSourcePanelHeader = ({
     return (
       <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-3">
         <span className="flex min-w-0 items-baseline gap-2 pl-2">
-          <span className="truncate text-foreground text-sm">
+          <span className="truncate text-sm text-foreground">
             {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
           </span>
           {/* Selection only covers loaded rows; warn when unloaded pages remain so the
               checked-all state doesn't read as "all rows in the base". */}
           {total > loadedCount ? (
-            <span className="shrink-0 text-foreground-tertiary text-xs">
+            <span className="shrink-0 text-xs text-foreground-tertiary">
               {t('knowledge.data_source.bulk.loaded_only_hint', { total })}
             </span>
           ) : null}
@@ -79,7 +80,7 @@ const DataSourcePanelHeader = ({
 
   return (
     <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-2">
-      <span className="min-w-0 truncate pl-2 text-foreground-tertiary text-xs leading-4">
+      <span className="min-w-0 truncate pl-2 text-xs leading-4 text-foreground-tertiary">
         {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
       </span>
       <div className="flex shrink-0 items-center gap-2">
@@ -87,7 +88,7 @@ const DataSourcePanelHeader = ({
           <>
             <span
               role="status"
-              className="max-w-52 truncate text-muted-foreground text-xs"
+              className="max-w-52 truncate text-xs text-muted-foreground"
               title={localModelStatus.label}>
               {localModelStatus.label}
             </span>
@@ -96,7 +97,7 @@ const DataSourcePanelHeader = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 min-h-0 gap-1 rounded-md bg-transparent px-2 py-1 font-medium text-muted-foreground text-xs leading-4 shadow-none hover:bg-accent hover:text-foreground"
+                className="h-7 min-h-0 gap-1 rounded-md bg-transparent px-2 py-1 text-xs leading-4 font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
                 onClick={localModelStatus.onOpenSettings}>
                 <Settings2 className="size-3" />
                 {t('common.go_to_settings')}
@@ -112,7 +113,7 @@ const DataSourcePanelHeader = ({
                 size="sm"
                 aria-haspopup="menu"
                 aria-expanded={isSourceMenuOpen}
-                className="h-7 min-h-0 gap-1 rounded-md bg-transparent px-2 py-1 font-medium text-muted-foreground text-xs leading-4 shadow-none hover:bg-accent hover:text-foreground">
+                className="h-7 min-h-0 gap-1 rounded-md bg-transparent px-2 py-1 text-xs leading-4 font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
                 <Plus className="size-3" />
                 {t('knowledge.data_source.toolbar.add')}
               </Button>

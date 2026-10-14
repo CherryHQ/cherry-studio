@@ -135,7 +135,7 @@ async function* collectAgentChatRecords(
   const sessions = new Map<string, ChatRecordReference>()
   try {
     do {
-      const page = agentSessionMessageService.listCreatedInRangeMetadataPage({
+      const page = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
         ...range,
         cursor,
         limit: CHAT_RECORD_PAGE_SIZE

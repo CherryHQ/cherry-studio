@@ -1,3 +1,6 @@
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
+import type { LanguageModelUsage, ModelMessage } from 'ai'
+
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
  * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
@@ -20,7 +23,7 @@
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
+import { compactModelMessages, getContextTokens, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
@@ -37,7 +40,6 @@ import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
-import type { LanguageModelUsage, ModelMessage } from 'ai'
 
 import type { RequestFeature } from '../feature'
 
@@ -82,16 +84,11 @@ function estimateMessageTokens(message: ModelMessage, dialect: TokenDialect): nu
  */
 function estimatePromptTokens(
   messages: ModelMessage[],
-  steps: ReadonlyArray<{ usage: LanguageModelUsage }> | undefined,
+  steps: ReadonlyArray<{ usage: LanguageModelUsage; providerMetadata?: SharedV3ProviderMetadata }> | undefined,
   dialect: TokenDialect
 ): number {
-  const usage = steps?.at(-1)?.usage
-  // Trust totalTokens only when inputTokens is also reported — otherwise totalTokens
-  // can collapse to output-only and badly undercount (same guard as the usage observer).
-  const anchor =
-    usage && typeof usage.inputTokens === 'number' && typeof usage.totalTokens === 'number'
-      ? usage.totalTokens
-      : undefined
+  const step = steps?.at(-1)
+  const anchor = step ? getContextTokens(step.usage, step.providerMetadata) : undefined
   if (anchor === undefined) return estimateModelMessages(messages, dialect)
   // Delta = messages appended after the last assistant output (this step's tool results).
   let lastAssistant = -1
@@ -139,7 +136,7 @@ export const inLoopCompactionFeature: RequestFeature = {
   name: 'in-loop-compaction',
   applies: (scope) => {
     if (scope.request.contextOwner === 'caller') return false
-    const topicId = scope.request.chatId
+    const topicId = scope.request.conversation.topicId
     if (!topicId) return false
     if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false

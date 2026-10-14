@@ -1,3 +1,7 @@
+import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
@@ -7,14 +11,11 @@ import { getDefaultGroupName } from '@renderer/utils/naming'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
-import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
+import { drawerClasses, fieldClasses, ProviderHelpText } from '../../primitives/ProviderSettingsPrimitives'
 import {
   areModelClassificationsEqual,
   buildModelCapabilities,
@@ -448,6 +449,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   onInputModalityToggle={handleToggleInputModality}
                   onReset={handleResetClassification}
                 />
+                <ProviderHelpText className="mt-2">
+                  {t('settings.models.edit.classification_save_hint')}
+                </ProviderHelpText>
               </div>
 
               <div className={drawerClasses.sectionCard}>

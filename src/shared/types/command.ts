@@ -55,14 +55,18 @@ export interface CommandDefinition<TCommand extends string = string> {
   keybinding?: CommandKeybindingContribution
 }
 
-export interface RegisteredCommandDefinition<TCommand extends string = string>
-  extends Omit<CommandDefinition<TCommand>, 'enablement' | 'keybinding'> {
+export interface RegisteredCommandDefinition<TCommand extends string = string> extends Omit<
+  CommandDefinition<TCommand>,
+  'enablement' | 'keybinding'
+> {
   enablement?: ContextExpr
   enablementSource?: ContextExprSource
 }
 
-export interface RegisteredKeybindingRule<TCommand extends string = string>
-  extends Omit<KeybindingRule<TCommand>, 'when'> {
+export interface RegisteredKeybindingRule<TCommand extends string = string> extends Omit<
+  KeybindingRule<TCommand>,
+  'when'
+> {
   preferenceKey: CommandShortcutPreferenceKey<TCommand>
   when?: ContextExpr
   whenSource?: ContextExprSource
@@ -88,8 +92,10 @@ export interface MenuContribution<TCommand extends string = string> {
   when?: ContextExprSource
 }
 
-export interface RegisteredMenuContribution<TCommand extends string = string>
-  extends Omit<MenuContribution<TCommand>, 'when'> {
+export interface RegisteredMenuContribution<TCommand extends string = string> extends Omit<
+  MenuContribution<TCommand>,
+  'when'
+> {
   when?: ContextExpr
   whenSource?: ContextExprSource
 }

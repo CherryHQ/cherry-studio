@@ -1,4 +1,3 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 import * as React from 'react'
 import {
@@ -9,6 +8,8 @@ import {
   getDefaultClassNames,
   type MonthCaptionProps
 } from 'react-day-picker'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
 
@@ -35,12 +36,12 @@ function Calendar({
         months: cn(defaultClassNames.months, 'relative flex flex-col gap-4 sm:flex-row'),
         month: cn(defaultClassNames.month, 'space-y-3'),
         month_caption: cn(defaultClassNames.month_caption, 'flex h-8 items-center justify-center'),
-        caption_label: cn(defaultClassNames.caption_label, 'font-medium text-sm'),
+        caption_label: cn(defaultClassNames.caption_label, 'text-sm font-medium'),
         dropdowns: cn(defaultClassNames.dropdowns, 'flex w-full items-center justify-center gap-2'),
         dropdown_root: cn(defaultClassNames.dropdown_root, 'relative'),
         dropdown: cn(
           defaultClassNames.dropdown,
-          'h-8 rounded-md border border-border bg-background px-2 text-sm outline-none transition-colors focus-visible:border-primary'
+          'h-8 rounded-md border border-border bg-background px-2 text-sm transition-colors outline-none focus-visible:border-primary'
         ),
         nav: cn(defaultClassNames.nav, 'absolute inset-x-0 top-3 flex items-center justify-between px-3'),
         button_previous: cn(
@@ -53,12 +54,12 @@ function Calendar({
         ),
         month_grid: cn(defaultClassNames.month_grid, 'w-full border-collapse space-y-1'),
         weekdays: cn(defaultClassNames.weekdays, 'flex'),
-        weekday: cn(defaultClassNames.weekday, 'w-8 rounded-md text-center font-normal text-muted-foreground text-xs'),
+        weekday: cn(defaultClassNames.weekday, 'w-8 rounded-md text-center text-xs font-normal text-muted-foreground'),
         week: cn(defaultClassNames.week, 'mt-1 flex w-full'),
         day: cn(defaultClassNames.day, 'size-8 p-0 text-center text-sm'),
         day_button: cn(
           defaultClassNames.day_button,
-          'inline-flex size-8 items-center justify-center rounded-md font-normal text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40'
+          'inline-flex size-8 items-center justify-center rounded-md text-sm font-normal transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40'
         ),
         selected: cn(
           defaultClassNames.selected,

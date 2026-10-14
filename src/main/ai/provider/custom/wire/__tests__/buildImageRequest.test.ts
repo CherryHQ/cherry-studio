@@ -90,7 +90,7 @@ describe('buildVendorProviderOptions — diffusion family (passthrough)', () => 
 })
 
 describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () => {
-  const OPENAI_FAMILY = ['openai', 'openai-chat', 'azure', 'azure-responses', 'huggingface', 'cherryin', 'newapi']
+  const OPENAI_FAMILY = ['openai', 'openai-chat', 'azure', 'azure-responses', 'huggingface', 'cherryin']
 
   it.each(OPENAI_FAMILY)('dual-keys the openai body under openai + %s, dropping seed', (providerId) => {
     const paramValues = {
@@ -111,6 +111,42 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
   it("drops 'auto'/blank and returns {} when nothing maps", () => {
     const paramValues = { quality: 'auto', background: '', numInferenceSteps: 20, cfg: 7.5 }
     expect(engine('openai', paramValues)).toEqual({})
+  })
+})
+
+describe('buildVendorProviderOptions — New API image relay', () => {
+  it('preserves OpenAI fields, diffusion fields and vendor extras under the SDK namespace', () => {
+    expect(
+      engine('newapi', {
+        quality: 'high',
+        background: 'transparent',
+        moderation: 'low',
+        style: 'vivid',
+        negativePrompt: 'blurry',
+        numInferenceSteps: 25,
+        guidanceScale: 0,
+        seed: 0,
+        promptEnhancement: false,
+        cfg: 0
+      })
+    ).toEqual({
+      newapi: {
+        quality: 'high',
+        background: 'transparent',
+        moderation: 'low',
+        style: 'vivid',
+        negative_prompt: 'blurry',
+        num_inference_steps: 25,
+        guidance_scale: 0,
+        seed: 0,
+        prompt_enhancement: false,
+        cfg: 0
+      }
+    })
+  })
+
+  it('still omits unset mapped fields without adding defaults', () => {
+    expect(engine('newapi', { quality: 'auto', background: '', negativePrompt: '' })).toEqual({})
   })
 })
 

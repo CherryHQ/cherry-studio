@@ -1,3 +1,8 @@
+import { ExternalLink } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Composio,
   Glama,
@@ -10,11 +15,8 @@ import {
   Zhipu
 } from '@cherrystudio/ui/icons/providers'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
-import { ExternalLink } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const mcpMarkets = [
   {
@@ -93,7 +95,7 @@ const McpMarketList: FC = () => {
       <SettingTitle style={{ marginBottom: 10 }}>{t('settings.mcp.findMore')}</SettingTitle>
       <MarketGrid>
         {mcpMarkets.map((resource) => (
-          <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
+          <MarketCard key={resource.name} onClick={() => void openExternalWebsite(resource.url)}>
             <MarketIconWrap>
               {typeof resource.logo !== 'string' ? (
                 <resource.logo.Avatar size={22} shape="rounded" />

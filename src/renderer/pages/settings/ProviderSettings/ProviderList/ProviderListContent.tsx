@@ -1,10 +1,11 @@
-import { ReorderableList, Sortable } from '@cherrystudio/ui'
 import { closestCenter } from '@dnd-kit/core'
+import { type ReactNode, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { ReorderableList, Sortable } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
-import { type ReactNode, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { groupProvidersByPreset } from './providerGrouping'
 import ProviderListGroup from './ProviderListGroup'

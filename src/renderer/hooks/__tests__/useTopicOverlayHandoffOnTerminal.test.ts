@@ -1,6 +1,7 @@
-import type { TopicStreamStatus } from '@shared/ai/transport'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { TopicStreamStatus } from '@shared/ai/transport'
 
 const mockEntry = vi.fn<() => { status: TopicStreamStatus | undefined } | undefined>()
 
@@ -15,7 +16,9 @@ import { useTopicOverlayHandoffOnTerminal } from '../useTopicStreamStatus'
 const setStatus = (status: TopicStreamStatus | undefined) => mockEntry.mockReturnValue({ status })
 
 describe('useTopicOverlayHandoffOnTerminal', () => {
-  beforeEach(() => mockEntry.mockReset())
+  beforeEach(() => {
+    mockEntry.mockReset()
+  })
 
   it.each<TopicStreamStatus>(['done', 'error', 'aborted'])('fires once on streaming → %s', async (terminal) => {
     const handoff = vi.fn(async () => {})

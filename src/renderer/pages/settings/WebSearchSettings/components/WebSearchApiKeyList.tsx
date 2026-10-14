@@ -1,3 +1,8 @@
+import { Check, Copy, Minus, Plus, X } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -6,10 +11,6 @@ import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import { Check, Copy, Minus, Plus, X } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useWebSearchApiKeyList, type WebSearchApiKeyListItem as ApiKeyListItem } from '../hooks/useWebSearchApiKeyList'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
@@ -89,7 +90,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
   }
 
   return (
-    <div className="flex min-h-10 items-center justify-between gap-2 border-border-subtle border-b px-3 py-2 last:border-b-0">
+    <div className="flex min-h-10 items-center justify-between gap-2 border-b border-border-subtle px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
           <Input
@@ -130,7 +131,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
           <Tooltip content={t('common.copy')} delay={500}>
             <button
               type="button"
-              className="min-w-0 cursor-help truncate text-left text-muted-foreground text-xs leading-tight"
+              className="min-w-0 cursor-help truncate text-left text-xs leading-tight text-muted-foreground"
               onClick={handleCopy}>
               {maskApiKey(item.key)}
             </button>
@@ -168,14 +169,14 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
     useWebSearchApiKeyList(providerId)
 
   if (!provider) {
-    return <div className="py-3 text-muted-foreground text-xs leading-tight">{t('error.no_api_key')}</div>
+    return <div className="py-3 text-xs leading-tight text-muted-foreground">{t('error.no_api_key')}</div>
   }
 
   return (
     <div className="py-3">
       <div className="overflow-hidden rounded-xl border border-border-subtle bg-foreground/2">
         {displayItems.length === 0 ? (
-          <div className="px-3 py-2 text-muted-foreground text-xs leading-tight">{t('error.no_api_key')}</div>
+          <div className="px-3 py-2 text-xs leading-tight text-muted-foreground">{t('error.no_api_key')}</div>
         ) : (
           <Scrollbar className="max-h-[60vh] overflow-x-hidden">
             <div>
@@ -193,7 +194,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
       </div>
 
       <div className="mt-3.5 flex items-center justify-between gap-3">
-        <span className="min-w-0 text-muted-foreground text-xs leading-tight">
+        <span className="min-w-0 text-xs leading-tight text-muted-foreground">
           {t('settings.provider.api_key.tip')}
         </span>
         <Button

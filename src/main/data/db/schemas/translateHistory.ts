@@ -1,5 +1,6 @@
-import type { TranslateHistoryKind } from '@shared/data/types/translate'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+import type { TranslateHistoryKind } from '@shared/data/types/translate'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { translateLanguageTable } from './translateLanguage'

@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import HtmlArtifactsPopup from '../HtmlArtifactsPopup'
 
@@ -19,6 +20,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal<typeof CherryStudioUi>()),
   CodeEditor: mocks.CodeEditor
+}))
+
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: mocks.CodeEditor
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({

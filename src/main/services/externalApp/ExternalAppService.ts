@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process'
 import { lstatSync, statSync } from 'node:fs'
 import path from 'node:path'
 
+import { app, shell } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { safeOpen, showInFolder } from '@main/services/file'
@@ -10,7 +12,6 @@ import { removeEnvProxy } from '@main/utils/processRunner'
 import type { ExternalOpenTarget, ExternalOpenTargetResult } from '@shared/types/externalApp'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { isDangerExt, normalizeExt } from '@shared/utils/file'
-import { app, shell } from 'electron'
 
 import { resolveDefaultApplication } from './defaultApplication'
 
@@ -18,6 +19,8 @@ const SYSTEM_DEFAULT_TARGET_ID = 'system_default'
 const FILE_MANAGER_TARGET_ID = 'file_manager'
 const KNOWN_TARGET_PREFIX = 'known:'
 const CACHE_DURATION_MS = 5 * 60 * 1000
+const INSTALLED_APPS_CACHE_KEY = 'external-app:installed-apps'
+const openTargetsCacheKey = (key: string) => `external-app:open-targets:${key}`
 const logger = loggerService.withContext('ExternalAppService')
 
 type KnownExternalAppId = 'vscode' | 'cursor' | 'zed' | 'wt'
@@ -68,9 +71,6 @@ const SUPPORTED_EXTERNAL_APPS = [
 ] satisfies readonly KnownExternalAppConfig[]
 
 export class ExternalAppService {
-  private installedAppsCache: { apps: InstalledKnownExternalApp[]; timestamp: number } | null = null
-  private readonly openTargetsCache = new Map<string, { result: ExternalOpenTargetResult; timestamp: number }>()
-
   async listOpenTargets(
     inputPath: string,
     pathKindHint?: ExternalOpenTargetPathKind
@@ -78,11 +78,12 @@ export class ExternalAppService {
     const targetPath = this.resolveTargetPath(inputPath)
     const pathKind = this.getPathKind(targetPath, pathKindHint)
     const cacheKey = this.getCacheKey(targetPath, pathKind)
-    const cached = this.openTargetsCache.get(cacheKey)
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION_MS) return cached.result
+    const cacheService = application.get('CacheService')
+    const cached = cacheService.get<ExternalOpenTargetResult>(openTargetsCacheKey(cacheKey))
+    if (cached) return cached
 
     const result = pathKind === 'directory' ? await this.listDirectoryTargets() : await this.listFileTargets(targetPath)
-    this.openTargetsCache.set(cacheKey, { result, timestamp: Date.now() })
+    cacheService.set(openTargetsCacheKey(cacheKey), result, CACHE_DURATION_MS)
     return result
   }
 
@@ -161,9 +162,9 @@ export class ExternalAppService {
   }
 
   private async detectInstalledApps(): Promise<InstalledKnownExternalApp[]> {
-    if (this.installedAppsCache && Date.now() - this.installedAppsCache.timestamp < CACHE_DURATION_MS) {
-      return this.installedAppsCache.apps
-    }
+    const cacheService = application.get('CacheService')
+    const cached = cacheService.get<InstalledKnownExternalApp[]>(INSTALLED_APPS_CACHE_KEY)
+    if (cached) return cached
 
     const apps = (
       await Promise.all(
@@ -183,7 +184,7 @@ export class ExternalAppService {
     logger.debug('Detected external applications', {
       apps: apps.map(({ id, path: applicationPath }) => ({ id, path: applicationPath }))
     })
-    this.installedAppsCache = { apps, timestamp: Date.now() }
+    cacheService.set(INSTALLED_APPS_CACHE_KEY, apps, CACHE_DURATION_MS)
     return apps
   }
 

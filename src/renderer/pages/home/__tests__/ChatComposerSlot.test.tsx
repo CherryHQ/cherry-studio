@@ -1,9 +1,10 @@
-import { type ComposerContextValue, useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
-import type { Topic } from '@renderer/types/topic'
-import type { ComposerChatTarget } from '@shared/ai/transport'
 import { render, screen, waitFor } from '@testing-library/react'
 import { useLayoutEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { type ComposerContextValue, useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
+import type { Topic } from '@renderer/types/topic'
+import type { ComposerChatTarget } from '@shared/ai/transport'
 
 import ChatComposerSlot from '../ChatComposerSlot'
 

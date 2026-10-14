@@ -1,8 +1,10 @@
+import { join } from 'path'
+
+import { session } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { session } from 'electron'
-import { join } from 'path'
 
 const logger = loggerService.withContext('devtools')
 

@@ -6,8 +6,9 @@
  * system notification, which is a phishing primitive.
  */
 
-import { application } from '@application'
 import * as z from 'zod'
+
+import { application } from '@application'
 
 import { RateLimitedError } from './quota'
 

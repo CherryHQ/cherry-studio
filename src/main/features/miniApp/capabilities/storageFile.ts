@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 
-import { loggerService } from '@logger'
 import * as z from 'zod'
+
+import { loggerService } from '@logger'
 
 import { MiniAppUnavailableError } from '../errors'
 import { miniAppDataPath, miniAppStorageFile } from '../paths'

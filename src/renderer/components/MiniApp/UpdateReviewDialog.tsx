@@ -1,9 +1,10 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { UpdateReviewCard } from '@renderer/components/MiniApp/UpdateReviewCard'
-import type { UpdateDecision, UpdateOffer } from '@renderer/hooks/useMiniAppUpdate'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { UpdateReviewCard } from '@renderer/components/MiniApp/UpdateReviewCard'
+import type { UpdateDecision, UpdateOffer } from '@renderer/hooks/useMiniAppUpdate'
 
 /**
  * The one place an available update is reviewed and applied — reached from the tile's

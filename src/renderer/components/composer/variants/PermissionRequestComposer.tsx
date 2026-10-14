@@ -1,3 +1,8 @@
+import { Loader2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
@@ -11,10 +16,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { Loader2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
-import { useTranslation } from 'react-i18next'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -45,7 +46,7 @@ function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpT
 
 function normalizeArgs(args: ToolResponseLike['arguments']): Record<string, unknown> | unknown[] | null {
   if (args === undefined || args === null) return null
-  if (typeof args === 'object') return args as Record<string, unknown> | unknown[]
+  if (typeof args === 'object') return args
   return { value: args }
 }
 
@@ -200,7 +201,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
-    const reason = rejectionReason.trim() || t('agent.toolPermission.defaultDenyMessage')
+    const reason = rejectionReason.trim() || undefined
     await respond(
       {
         match: request.match,
@@ -209,7 +210,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
       },
       'deny'
     )
-  }, [isSubmitting, rejectionReason, request.match, respond, t])
+  }, [isSubmitting, rejectionReason, request.match, respond])
 
   useHotkeys(
     'enter',

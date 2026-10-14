@@ -1,8 +1,7 @@
-import { loggerService } from '@logger'
-import type { WebDavConfig } from '@shared/types/backup'
 import https from 'https'
 import path from 'path'
 import type Stream from 'stream'
+
 import type {
   BufferLike,
   CreateDirectoryOptions,
@@ -12,6 +11,9 @@ import type {
   WebDAVClient
 } from 'webdav'
 import { createClient } from 'webdav'
+
+import { loggerService } from '@logger'
+import type { WebDavConfig } from '@shared/types/backup'
 
 const logger = loggerService.withContext('WebDav')
 

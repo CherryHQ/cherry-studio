@@ -36,5 +36,5 @@ export function splitParamValues(paramValues: Record<string, unknown>): SplitIma
       vendorBag[key] = value
     }
   }
-  return { structured: structured as ParamValues & { n?: number }, vendorBag }
+  return { structured: structured, vendorBag }
 }

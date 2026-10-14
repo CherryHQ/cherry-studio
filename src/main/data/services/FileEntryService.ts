@@ -18,6 +18,26 @@
  * module-level layering rules.
  */
 
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+  type SQLWrapper
+} from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
+import { ZodError } from 'zod'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { persistentRefAbsenceConditions } from '@data/db/schemas/fileRelations'
@@ -43,25 +63,6 @@ import {
 } from '@shared/data/types/file'
 import type { FileType } from '@shared/types/file'
 import { type CanonicalFilePath, fileTypeMap } from '@shared/utils/file'
-import {
-  and,
-  asc,
-  count,
-  eq,
-  gt,
-  inArray,
-  isNotNull,
-  isNull,
-  lt,
-  notInArray,
-  or,
-  type SQL,
-  sql,
-  type SQLWrapper
-} from 'drizzle-orm'
-import { v7 as uuidv7 } from 'uuid'
-import * as z from 'zod'
-import { ZodError } from 'zod'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -128,6 +129,7 @@ export interface FindEntriesQuery {
 export type ListFilesSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size' | 'ext'
 
 export interface ListCursorQuery {
+  readonly ids?: readonly FileEntryId[]
   readonly origin?: FileEntryOrigin
   readonly inTrash?: boolean
   readonly fileType?: FileType
@@ -257,8 +259,8 @@ export interface FileEntryService {
    */
   findManualUnreferenced(query?: { origin?: FileEntryOrigin }): FileEntry[]
 
-  /** Auto-policy entries past grace with zero persistent refs (trashed included) — backs the GC pass. */
-  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[]
+  /** Auto-policy entries past grace with zero persistent refs; excludes active runtime consumers before the batch limit. */
+  findCleanupCandidates(opts: { graceMs: number; limit: number; excludedIds?: readonly FileEntryId[] }): FileEntry[]
 
   /**
    * All entry ids regardless of trashed state — backs the FS orphan sweep,
@@ -292,6 +294,9 @@ export interface FileEntryService {
 
   /** Remove the row (CASCADE drops dependent persistent file refs). No-op if already gone. */
   delete(id: FileEntryId): void
+
+  /** Hard-delete trashed entries older than the retention cutoff. */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[]
 
   /** Tx-scoped variant of `delete` for composing write flows. */
   deleteTx(tx: DbOrTx, id: FileEntryId): void
@@ -646,6 +651,9 @@ class FileEntryServiceImpl implements FileEntryService {
 
   listCursor(query: ListCursorQuery = {}): FileEntryListResponse {
     const filterConditions: SQL[] = []
+    if (query.ids) {
+      filterConditions.push(inArray(fileEntryTable.id, query.ids))
+    }
     if (query.origin) {
       filterConditions.push(eq(fileEntryTable.origin, query.origin))
     }
@@ -734,13 +742,14 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }
 
-  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[] {
+  findCleanupCandidates(opts: { graceMs: number; limit: number; excludedIds?: readonly FileEntryId[] }): FileEntry[] {
     const conditions: SQL[] = [
       // NOTE: no deletedAt filter — trashed auto entries are reclaimed too (spec §5.1)
       eq(fileEntryTable.cleanupPolicy, 'delete_when_unreferenced'),
       lt(fileEntryTable.createdAt, Date.now() - opts.graceMs),
       ...persistentRefAbsenceConditions()
     ]
+    if (opts.excludedIds?.length) conditions.push(notInArray(fileEntryTable.id, [...opts.excludedIds]))
     const rows = this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
@@ -869,6 +878,29 @@ class FileEntryServiceImpl implements FileEntryService {
 
   deleteTx(tx: DbOrTx, id: FileEntryId): void {
     tx.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
+  }
+
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[] {
+    const rows = tx
+      .select({ id: fileEntryTable.id })
+      .from(fileEntryTable)
+      .where(
+        and(
+          isNotNull(fileEntryTable.deletedAt),
+          lt(fileEntryTable.deletedAt, cutoffMs),
+          // A trashed file can still back a live painting or message — the ref rows
+          // FK-cascade, so purging here would strip the image out from under it.
+          // It stays in the trash until the last holder is gone.
+          ...persistentRefAbsenceConditions()
+        )
+      )
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return ids
+
+    tx.delete(fileEntryTable).where(inArray(fileEntryTable.id, ids)).run()
+    return ids
   }
 }
 
