@@ -1,14 +1,19 @@
 import '@testing-library/jest-dom/vitest'
-
-import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { CherryUIMessage } from '@shared/data/types/message'
+
 const state = vi.hoisted(() => ({
+  readAloud: vi.fn(async () => undefined),
   assistant: undefined as { id: string } | undefined,
+  fallbackAssistant: undefined as { id: string } | undefined,
+  quickAssistantId: '' as string,
+  isFallbackLoading: false as boolean,
+  isChosenLoading: false as boolean,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string }>,
@@ -17,6 +22,8 @@ const state = vi.hoisted(() => ({
   liveAssistants: [] as CherryUIMessage[],
   isPending: false
 }))
+
+vi.mock('@renderer/services/voice', () => ({ readTextAloud: state.readAloud }))
 
 import ActionGeneral from '../ActionGeneral'
 
@@ -46,11 +53,20 @@ vi.mock('@ai-sdk/react', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => ['en-US']
+  usePreference: (key: string) => {
+    if (key === 'feature.quick_assistant.assistant_id') return [state.quickAssistantId]
+    return ['en-US']
+  }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({ assistant: state.assistant })
+  useAssistant: (id: string) => {
+    if (!id) return { assistant: undefined, isLoading: false }
+    if (id === state.quickAssistantId) {
+      return { assistant: state.fallbackAssistant, isLoading: state.isFallbackLoading }
+    }
+    return { assistant: state.assistant, isLoading: state.isChosenLoading }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
@@ -90,17 +106,22 @@ vi.mock('@renderer/components/CopyButton', () => ({
 
 vi.mock('../WindowFooter', () => ({
   default: ({
+    children,
     loading,
     onPause,
     onRegenerate
   }: {
+    children?: React.ReactNode
     loading: boolean
     onPause: () => void
     onRegenerate: () => void
   }) => (
-    <button type="button" data-testid="window-footer" onClick={loading ? onPause : onRegenerate}>
-      {loading ? 'stop' : 'regenerate'}
-    </button>
+    <div data-testid="window-footer">
+      <button type="button" onClick={loading ? onPause : onRegenerate}>
+        {loading ? 'stop' : 'regenerate'}
+      </button>
+      {children}
+    </div>
   )
 }))
 
@@ -128,6 +149,10 @@ function createAction(overrides: Partial<SelectionActionItem> = {}): SelectionAc
 describe('ActionGeneral', () => {
   beforeEach(() => {
     state.assistant = undefined
+    state.fallbackAssistant = undefined
+    state.quickAssistantId = ''
+    state.isFallbackLoading = false
+    state.isChosenLoading = false
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.temporaryTopicOptions = []
@@ -135,6 +160,7 @@ describe('ActionGeneral', () => {
     state.onError = undefined
     state.liveAssistants = []
     state.isPending = false
+    state.readAloud.mockClear()
   })
 
   afterEach(() => {
@@ -147,7 +173,7 @@ describe('ActionGeneral', () => {
   // before any result has ever rendered is what makes this assertion prove
   // the mount preload specifically.
   it('preloads the result-content chunk on mount, before any result arrives', async () => {
-    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+    render(<ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />)
 
     // liveAssistants stays empty in this setup, so nothing result-related is
     // rendered — the chunk import must still fire so its download overlaps the
@@ -156,28 +182,101 @@ describe('ActionGeneral', () => {
   })
 
   it('leases a no-assistant temporary topic and sends for default model actions', async () => {
-    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+    render(<ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />)
 
     await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
   })
 
+  it('interpolates selected text literally into every custom prompt placeholder', async () => {
+    const selectedText = "$$E=mc^2$$ | $& | $` | $' | {{text}}"
+    const prompt = 'Before {{text}} / {{text}} after'
+
+    render(
+      <ActionGeneral
+        sourceEntityId="test-session"
+        action={createAction({ id: 'custom', isBuiltIn: false, assistantId: '', prompt, selectedText })}
+      />
+    )
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.sendMessage).toHaveBeenCalledWith({ text: `Before ${selectedText} / ${selectedText} after` })
+  })
+
   it('waits for a configured assistant before leasing and sending', async () => {
+    state.isChosenLoading = true
     const action = createAction({ assistantId: 'assistant-1' })
-    const { rerender } = render(<ActionGeneral action={action} />)
+    const { rerender } = render(<ActionGeneral sourceEntityId="test-session" action={action} />)
 
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: false, assistantId: undefined })
     expect(state.sendMessage).not.toHaveBeenCalled()
 
+    state.isChosenLoading = false
     state.assistant = { id: 'assistant-1' }
-    rerender(<ActionGeneral action={{ ...action }} />)
+    rerender(<ActionGeneral sourceEntityId="test-session" action={{ ...action }} />)
 
     await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'assistant-1' })
   })
 
+  it('falls back to quickAssistant when built-in has no explicit assistant', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = { id: 'fallback-1' }
+
+    render(<ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'fallback-1' })
+  })
+
+  it('waits for fallback assistant when quickAssistant is configured but not yet loaded', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = undefined
+    state.isFallbackLoading = true
+
+    const { rerender } = render(
+      <ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />
+    )
+
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: false, assistantId: undefined })
+    expect(state.sendMessage).not.toHaveBeenCalled()
+
+    state.isFallbackLoading = false
+    state.fallbackAssistant = { id: 'fallback-1' }
+    rerender(<ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'fallback-1' })
+  })
+
+  it('does not fall back for custom actions configured with default model', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = { id: 'fallback-1' }
+
+    render(
+      <ActionGeneral
+        sourceEntityId="test-session"
+        action={createAction({ id: 'custom', isBuiltIn: false, assistantId: '', prompt: 'hello', selectedText: 'hi' })}
+      />
+    )
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
+  })
+
+  it('degrades to no-assistant when fallback assistant is stale (not found)', async () => {
+    state.quickAssistantId = 'deleted-id'
+    state.fallbackAssistant = undefined
+    state.isFallbackLoading = false
+
+    render(<ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
+  })
+
   it('localizes a known error and leaves space above it', () => {
-    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+    render(<ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />)
 
     act(() => state.onError?.(new Error("Model with id 'provider/model' not found")))
 
@@ -188,17 +287,18 @@ describe('ActionGeneral', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-25T00:00:00.000Z'))
 
-    const view = render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+    const view = render(<ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />)
     state.isPending = true
     state.liveAssistants = [
       {
         id: 'streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
-      view.rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+      view.rerender(<ActionGeneral sourceEntityId="test-session" action={createAction({ assistantId: '' })} />)
+      await vi.dynamicImportSettled()
     })
     expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
 
@@ -214,17 +314,18 @@ describe('ActionGeneral', () => {
     vi.setSystemTime(new Date('2026-07-25T00:00:00.000Z'))
 
     const action = createAction({ assistantId: '' })
-    const view = render(<ActionGeneral action={action} />)
+    const view = render(<ActionGeneral sourceEntityId="test-session" action={action} />)
     state.isPending = true
     state.liveAssistants = [
       {
         id: 'first-streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
-      view.rerender(<ActionGeneral action={{ ...action }} />)
+      view.rerender(<ActionGeneral sourceEntityId="test-session" action={{ ...action }} />)
+      await vi.dynamicImportSettled()
     })
     act(() => {
       vi.advanceTimersByTime(3000)
@@ -232,7 +333,7 @@ describe('ActionGeneral', () => {
     expect(screen.getByText('Processing 3 seconds')).toBeInTheDocument()
 
     state.isPending = false
-    view.rerender(<ActionGeneral action={{ ...action }} />)
+    view.rerender(<ActionGeneral sourceEntityId="test-session" action={{ ...action }} />)
     fireEvent.click(screen.getByRole('button', { name: 'regenerate' }))
 
     state.isPending = true
@@ -241,12 +342,38 @@ describe('ActionGeneral', () => {
         id: 'second-streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking again', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
-      view.rerender(<ActionGeneral action={{ ...action }} />)
+      view.rerender(<ActionGeneral sourceEntityId="test-session" action={{ ...action }} />)
+      await vi.dynamicImportSettled()
     })
 
     expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
+  })
+  it('reads only a completed general result with an opaque action identity', async () => {
+    const view = render(
+      <ActionGeneral action={createAction({ selectedText: 'PRIVATE_ORIGINAL' })} sourceEntityId="opaque-session" />
+    )
+    expect(state.readAloud).not.toHaveBeenCalled()
+    state.isPending = true
+    view.rerender(
+      <ActionGeneral action={createAction({ selectedText: 'PRIVATE_ORIGINAL' })} sourceEntityId="opaque-session" />
+    )
+    state.liveAssistants = [{ id: 'result', role: 'assistant', parts: [{ type: 'text', text: 'PRIVATE_RESULT' }] }]
+    expect(screen.queryByRole('button', { name: /selection.action.voice.read_result/ })).not.toBeInTheDocument()
+    state.isPending = false
+    view.rerender(
+      <ActionGeneral action={createAction({ selectedText: 'PRIVATE_ORIGINAL' })} sourceEntityId="opaque-session" />
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /selection.action.voice.read_result/ }))
+    expect(state.readAloud).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'PRIVATE_RESULT',
+        mode: 'document',
+        sourceLabel: 'preview',
+        sourceEntityId: 'opaque-session'
+      })
+    )
   })
 })

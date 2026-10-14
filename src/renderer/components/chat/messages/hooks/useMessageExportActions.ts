@@ -1,20 +1,15 @@
+import { useCallback, useMemo } from 'react'
+
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
-import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { ipcApi } from '@renderer/ipc'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessageAsMarkdown as exportMessageAsMarkdownFile,
-  exportMessageToNotes,
-  exportMessageToNotion,
-  getMessageTitle,
-  messageToMarkdown
-} from '@renderer/services/ExportService'
-import type { MessageExportView } from '@renderer/types/messageExport'
-import { useCallback, useMemo } from 'react'
+import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
+import type {
+  ExportMessages,
+  ExportMessagesToObsidian,
+  MessageExportTarget,
+  MessageExportView
+} from '@renderer/types/messageExport'
 
 type MessageExportActions = Pick<
   MessageListActions,
@@ -33,10 +28,31 @@ type MessageExportActions = Pick<
 
 interface MessageExportActionParams {
   topicName?: string
+  exportToObsidian: ExportMessagesToObsidian
 }
 
-export function useMessageExportActions({ topicName }: MessageExportActionParams): MessageExportActions {
+export function useMessageExportActions({
+  topicName,
+  exportToObsidian: showObsidianExport
+}: MessageExportActionParams): MessageExportActions & { exportMessages: ExportMessages } {
   const { notesPath } = useNotesSettings()
+
+  const exportContent = useCallback(
+    async (messages: MessageExportView[], target: MessageExportTarget, title?: string) => {
+      const { exportMessagesToTarget } = await import('@renderer/services/ExportService')
+      return exportMessagesToTarget(messages, target, {
+        title,
+        exportToObsidian: showObsidianExport,
+        chooseImageMode: chooseImageExportMode
+      })
+    },
+    [showObsidianExport]
+  )
+
+  const exportMessages = useCallback<ExportMessages>(
+    (messages, target) => exportContent(messages, target, topicName?.trim() || undefined),
+    [exportContent, topicName]
+  )
 
   const saveTextFile = useCallback((fileName: string, content: string) => {
     return window.api.file.save(fileName, content)
@@ -46,20 +62,26 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
     return window.api.file.saveImage(fileName, dataUrl)
   }, [])
 
-  const exportToWord = useCallback((markdown: string, title: string) => {
-    return ipcApi.request('export.word.from_markdown', { markdown, fileName: title })
+  const exportToWord = useCallback(async (markdown: string, title: string) => {
+    await ipcApi.request('export.word.from_markdown', { markdown, fileName: title })
   }, [])
 
-  const saveToKnowledge = useCallback((message: MessageExportView) => {
+  const saveToKnowledge = useCallback(async (message: MessageExportView) => {
+    const { default: SaveToKnowledgePopup } = await import('@renderer/components/SaveToKnowledgePopup')
     void SaveToKnowledgePopup.showForMessage(message)
   }, [])
 
-  const exportMessageAsMarkdown = useCallback((message: MessageExportView, includeReasoning?: boolean) => {
-    return exportMessageAsMarkdownFile(message, includeReasoning)
-  }, [])
+  const exportMessageAsMarkdown = useCallback(
+    async (message: MessageExportView, includeReasoning?: boolean) => {
+      await exportContent([message], includeReasoning ? 'markdown-reason' : 'markdown')
+    },
+    [exportContent]
+  )
 
   const exportToNotes = useCallback(
     async (message: MessageExportView) => {
+      const { exportMessageToNotes, getMessageTitle, messageToMarkdown } =
+        await import('@renderer/services/ExportService')
       const title = await getMessageTitle(message)
       const markdown = await messageToMarkdown(message)
       return exportMessageToNotes(title, markdown, notesPath)
@@ -68,35 +90,40 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
   )
 
   const exportToNotion = useCallback(async (message: MessageExportView) => {
+    const { exportMessageToNotion, getMessageTitle, messageToMarkdown } =
+      await import('@renderer/services/ExportService')
     const title = await getMessageTitle(message)
     const markdown = await messageToMarkdown(message)
     await exportMessageToNotion(title, markdown, message)
   }, [])
 
-  const exportToYuque = useCallback(async (message: MessageExportView) => {
-    const title = await getMessageTitle(message)
-    const markdown = await messageToMarkdown(message)
-    await exportMarkdownToYuque(title, markdown)
-  }, [])
+  const exportToYuque = useCallback(
+    async (message: MessageExportView) => {
+      await exportContent([message], 'yuque')
+    },
+    [exportContent]
+  )
 
   const exportToObsidian = useCallback(
     async (message: MessageExportView) => {
-      const title = topicName?.replace(/\\/g, '_') || 'Untitled'
-      await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
+      await exportContent([message], 'obsidian', topicName || 'Untitled')
     },
-    [topicName]
+    [exportContent, topicName]
   )
 
-  const exportToJoplin = useCallback(async (message: MessageExportView) => {
-    const title = await getMessageTitle(message)
-    await exportMarkdownToJoplin(title, message)
-  }, [])
+  const exportToJoplin = useCallback(
+    async (message: MessageExportView) => {
+      await exportContent([message], 'joplin')
+    },
+    [exportContent]
+  )
 
-  const exportToSiyuan = useCallback(async (message: MessageExportView) => {
-    const title = await getMessageTitle(message)
-    const markdown = await messageToMarkdown(message)
-    return exportMarkdownToSiyuan(title, markdown)
-  }, [])
+  const exportToSiyuan = useCallback(
+    async (message: MessageExportView) => {
+      await exportContent([message], 'siyuan')
+    },
+    [exportContent]
+  )
 
   return useMemo(
     () => ({
@@ -104,6 +131,7 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
       saveImage,
       saveToKnowledge,
       exportMessageAsMarkdown,
+      exportMessages,
       exportToNotes,
       exportToWord,
       exportToNotion,
@@ -114,6 +142,7 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
     }),
     [
       exportMessageAsMarkdown,
+      exportMessages,
       exportToJoplin,
       exportToNotes,
       exportToNotion,

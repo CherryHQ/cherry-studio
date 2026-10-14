@@ -43,14 +43,26 @@ export interface AssistantFormState {
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
+  enableBrowser: boolean
   mcpMode: AssistantSettings['mcpMode']
-  // context management (P2-D assistant override). `contextOverrideEnabled`
-  // is the "自定义/customize" master switch: false → settings.contextSettings
-  // is written as null (inherit globals); true → the three fields below form
-  // the override object.
+  // context management (P2-D assistant override). `contextOverrideEnabled` is
+  // the master switch for the OFFLOAD + COMPRESSION fields only.
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
+  /**
+   * Serve only the last N messages; null = unlimited. Independent of
+   * `contextOverrideEnabled` — it decides how much history a request carries,
+   * not what happens when the context overflows, and it persists on its own.
+   */
+  contextMaxMessages: number | null
+  /**
+   * Compact once the prompt passes this percent of the available input context.
+   * null = inherit the global trigger — same three-state contract as
+   * `contextMaxMessages`, so editing a sibling field never freezes an
+   * inherited threshold at whatever the global happened to be.
+   */
+  contextCompressThresholdPercent: number | null
   /** null = no explicit pick (follow the global / current model). */
   contextCompressModelId: string | null
   // relations
@@ -80,12 +92,15 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     maxToolCalls: settings.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
+    enableBrowser: settings.enableBrowser ?? true,
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
-    // null/absent contextSettings → override off; show the global defaults as
-    // placeholders (the section seeds live global values on toggle-on).
-    contextOverrideEnabled: ctx != null,
+    // Only an offload/compression field means "override": a lone maxMessages is
+    // the scope control saved on its own.
+    contextOverrideEnabled: ctx != null && (ctx.truncateThreshold !== undefined || ctx.compress !== undefined),
     contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
+    contextMaxMessages: ctx?.maxMessages ?? null,
+    contextCompressThresholdPercent: ctx?.compress?.thresholdPercent ?? null,
     contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
@@ -134,11 +149,15 @@ export function diffAssistantUpdate(
   const enableMaxTokensChanged = baseline.enableMaxTokens !== form.enableMaxTokens
   const contextSettingsChanged =
     baseline.contextOverrideEnabled !== form.contextOverrideEnabled ||
+    // Always compared: the scope control persists whether or not the
+    // offload/compression override is on.
+    baseline.contextMaxMessages !== form.contextMaxMessages ||
     // Sub-fields only matter while the override is on, so an ON→OFF→ON round
     // trip that lands back on the baseline values fires no spurious PATCH.
     (form.contextOverrideEnabled &&
       (baseline.contextCompressEnabled !== form.contextCompressEnabled ||
         baseline.contextTruncateThreshold !== form.contextTruncateThreshold ||
+        baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
   const settings: NonNullable<UpdateAssistantDto['settings']> = {
@@ -151,18 +170,29 @@ export function diffAssistantUpdate(
     ...(baseline.streamOutput !== form.streamOutput ? { streamOutput: form.streamOutput } : {}),
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
+    ...(baseline.enableBrowser !== form.enableBrowser ? { enableBrowser: form.enableBrowser } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
     ...(contextSettingsChanged
       ? {
-          // null = clear the override (inherit globals). The `enabled` kill-switch
-          // is deliberately not written here — it stays a global/topic-layer concern.
+          // null clears the override; the `enabled` kill-switch stays global.
+          // An empty limit is ABSENT, matching the "follow global" placeholder.
           contextSettings: form.contextOverrideEnabled
             ? {
                 truncateThreshold: form.contextTruncateThreshold,
-                compress: { enabled: form.contextCompressEnabled, modelId: form.contextCompressModelId }
+                ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
+                compress: {
+                  enabled: form.contextCompressEnabled,
+                  modelId: form.contextCompressModelId,
+                  // Absent = inherit the global trigger; the UI's empty field.
+                  ...(form.contextCompressThresholdPercent !== null
+                    ? { thresholdPercent: form.contextCompressThresholdPercent }
+                    : {})
+                }
               }
-            : null
+            : form.contextMaxMessages !== null
+              ? { maxMessages: form.contextMaxMessages }
+              : null
         }
       : {})
   }

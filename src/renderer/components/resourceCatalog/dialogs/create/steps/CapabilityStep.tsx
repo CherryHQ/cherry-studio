@@ -1,7 +1,8 @@
-import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
-import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+
+import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
+import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 

@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+import { useCallback, useMemo } from 'react'
+
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   executeTopicMenuAction,
@@ -6,49 +9,41 @@ import {
   type TopicExportMenuOptions,
   type TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
-import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportTopicAsMarkdown,
-  exportTopicToNotes,
-  exportTopicToNotion,
-  topicToMarkdown
-} from '@renderer/services/ExportService'
+import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import type { TFunction } from 'i18next'
-import { useCallback, useMemo } from 'react'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
+type TopicDeleteHandler = (topic: Topic) => void | Promise<void>
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
 
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions
+  isArchiveBlocked: boolean
   isActiveInCurrentTab: boolean
   isRenaming: boolean
   notesPath: string
   onAutoRename: TopicMenuHandler
   onClearMessages: TopicMenuHandler
   onCopyImage?: TopicMenuHandler
-  onDelete: TopicMenuHandler
+  onDelete: TopicDeleteHandler
   onExportImage?: TopicMenuHandler
   assistantMoveTargets?: readonly TopicMoveAssistantTarget[]
   onMoveToAssistant?: TopicMoveToAssistantHandler
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
+  onToggleSidebar?: TopicMenuHandler
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
   panePosition?: TopicTabPosition
+  sidebarPinned?: boolean
   t: TFunction
   topic: Topic
   topicsLength: number
@@ -56,6 +51,7 @@ export interface TopicMenuActionOptions {
 
 export function createTopicActionContext({
   exportMenuOptions,
+  isArchiveBlocked,
   isActiveInCurrentTab,
   isRenaming,
   notesPath,
@@ -69,15 +65,18 @@ export function createTopicActionContext({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  onToggleSidebar,
   onSetPanePosition,
   onStartRename,
   panePosition,
+  sidebarPinned,
   t,
   topic,
   topicsLength
 }: TopicMenuActionOptions): TopicActionContext {
   return {
     exportMenuOptions,
+    isArchiveBlocked,
     isActiveInCurrentTab,
     isRenaming,
     onAutoRename,
@@ -88,22 +87,33 @@ export function createTopicActionContext({
     onDelete,
     onExportImage: onExportImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)),
     onExportJoplin: async (topic) => {
+      const { exportMarkdownToJoplin } = await import('@renderer/services/ExportService')
       const topicMessages = await getTopicMessages(topic.id)
       void exportMarkdownToJoplin(topic.name, topicMessages)
     },
-    onExportMarkdown: exportTopicAsMarkdown,
-    onExportMarkdownReason: (topic) => exportTopicAsMarkdown(topic, true),
-    onExportNotion: (topic) => {
-      void exportTopicToNotion(topic)
+    onExportMarkdown: async (topic) => {
+      const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
+      return exportTopicAsMarkdown(topic, false, undefined, chooseImageExportMode)
     },
-    onExportObsidian: (topic) => {
-      void ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
+    onExportMarkdownReason: async (topic) => {
+      const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
+      return exportTopicAsMarkdown(topic, true, undefined, chooseImageExportMode)
+    },
+    onExportNotion: async (topic) => {
+      const { exportTopicToNotion } = await import('@renderer/services/ExportService')
+      await exportTopicToNotion(topic)
+    },
+    onExportObsidian: async (topic) => {
+      const { default: ObsidianExportPopup } = await import('@renderer/components/ObsidianExportPopup')
+      await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
     },
     onExportSiyuan: async (topic) => {
+      const { exportMarkdownToSiyuan, topicToMarkdown } = await import('@renderer/services/ExportService')
       const markdown = await topicToMarkdown(topic)
       void exportMarkdownToSiyuan(topic.name, markdown)
     },
     onExportWord: async (topic) => {
+      const { topicToMarkdown } = await import('@renderer/services/ExportService')
       const markdown = await topicToMarkdown(topic)
       void ipcApi.request('export.word.from_markdown', {
         markdown,
@@ -111,6 +121,7 @@ export function createTopicActionContext({
       })
     },
     onExportYuque: async (topic) => {
+      const { exportMarkdownToYuque, topicToMarkdown } = await import('@renderer/services/ExportService')
       const markdown = await topicToMarkdown(topic)
       void exportMarkdownToYuque(topic.name, markdown)
     },
@@ -119,9 +130,11 @@ export function createTopicActionContext({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onToggleSidebar,
     onSetPanePosition,
     onSaveToKnowledge: async (topic) => {
       try {
+        const { default: SaveToKnowledgePopup } = await import('@renderer/components/SaveToKnowledgePopup')
         const result = await SaveToKnowledgePopup.showForTopic(topic)
         if (result?.success) {
           toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
@@ -130,9 +143,13 @@ export function createTopicActionContext({
         toast.error(t('chat.save.topic.knowledge.error.save_failed'))
       }
     },
-    onSaveToNotes: (topic) => exportTopicToNotes(topic, notesPath),
+    onSaveToNotes: async (topic) => {
+      const { exportTopicToNotes } = await import('@renderer/services/ExportService')
+      return exportTopicToNotes(topic, notesPath)
+    },
     onStartRename,
     panePosition,
+    sidebarPinned,
     t,
     topic,
     topicsLength
@@ -150,7 +167,7 @@ export async function runTopicMenuAction(
   await executeTopicMenuAction(action, actionContext)
 }
 
-export type TopicMenuActionContextOverride = Partial<Pick<TopicActionContext, 'onStartRename'>>
+export type TopicMenuActionContextOverride = Partial<Pick<TopicActionContext, 'isRenaming' | 'onStartRename'>>
 
 export interface TopicMenuPreset<TItem> {
   getActions: (item: TItem, contextOverride?: TopicMenuActionContextOverride) => readonly ResolvedAction[]
@@ -180,10 +197,7 @@ export function useTopicMenuPreset<TItem>({
   )
   const onAction = useCallback(
     async (item: TItem, action: ResolvedAction, contextOverride?: TopicMenuActionContextOverride) => {
-      await runTopicMenuAction(
-        action as ResolvedAction<TopicActionContext>,
-        getActionContextWithOverride(item, contextOverride)
-      )
+      await runTopicMenuAction(action, getActionContextWithOverride(item, contextOverride))
     },
     [getActionContextWithOverride]
   )
@@ -194,6 +208,7 @@ export function useTopicMenuPreset<TItem>({
 export function useTopicMenuActions(options: TopicMenuActionOptions) {
   const {
     exportMenuOptions,
+    isArchiveBlocked,
     isActiveInCurrentTab,
     isRenaming,
     notesPath,
@@ -207,9 +222,11 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onToggleSidebar,
     onSetPanePosition,
     onStartRename,
     panePosition,
+    sidebarPinned,
     t,
     topic,
     topicsLength
@@ -218,6 +235,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     () =>
       createTopicActionContext({
         exportMenuOptions,
+        isArchiveBlocked,
         isActiveInCurrentTab,
         isRenaming,
         notesPath,
@@ -231,15 +249,18 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
+        onToggleSidebar,
         onSetPanePosition,
         onStartRename,
         panePosition,
+        sidebarPinned,
         t,
         topic,
         topicsLength
       }),
     [
       exportMenuOptions,
+      isArchiveBlocked,
       isActiveInCurrentTab,
       isRenaming,
       notesPath,
@@ -253,9 +274,11 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onToggleSidebar,
       onSetPanePosition,
       onStartRename,
       panePosition,
+      sidebarPinned,
       t,
       topic,
       topicsLength

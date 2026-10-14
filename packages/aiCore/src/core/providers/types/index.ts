@@ -94,7 +94,7 @@ export interface ProviderVariant<
   resolveModel?: (provider: TOutput, modelId: string) => LanguageModel
 
   /** 替换整个 provider（如 azure-anthropic），简单方法切换用 resolveModel */
-  transform?: (baseProvider: TProvider, settings?: TSettings) => TOutput
+  transform?: (baseProvider: TProvider, settings?: TSettings) => TOutput | Promise<TOutput>
 
   toolFactories?: ToolFactoryMap<TOutput>
 }
@@ -147,9 +147,10 @@ export type ExtractExtensionSettings<T> = T extends ProviderExtension<infer TSet
 /**
  * Map all Provider IDs from an Extension to its Settings type
  */
-export type ExtensionToSettingsMap<T> = T extends ProviderExtension<infer TSettings, any, infer TConfig>
-  ? { [K in ExtractProviderIds<TConfig>]: TSettings }
-  : never
+export type ExtensionToSettingsMap<T> =
+  T extends ProviderExtension<infer TSettings, any, infer TConfig>
+    ? { [K in ExtractProviderIds<TConfig>]: TSettings }
+    : never
 
 // ============================================================================
 // Provider Settings Map - Auto-extracted from Extensions

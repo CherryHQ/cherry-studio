@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { installMock, toggleMock } = vi.hoisted(() => ({ installMock: vi.fn(), toggleMock: vi.fn() }))
 const fetchMock = vi.hoisted(() => vi.fn())
@@ -8,23 +10,23 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 }))
 vi.mock('electron', () => ({ net: { fetch: fetchMock } }))
 
-const { default: SkillsServer } = await import('../skills')
-type SkillsServerInstance = InstanceType<typeof SkillsServer>
+const { createSkillsServer } = await import('../skills')
 
-function createServer(agentId = 'agent-1') {
-  return new SkillsServer(agentId)
+type Result = { isError?: boolean; content: Array<{ type: string; text: string }> }
+const clients: Client[] = []
+
+async function createServer(agentId = 'agent-1'): Promise<Client> {
+  const client = await connectMcpTestClient(() => createSkillsServer(agentId))
+  clients.push(client)
+  return client
 }
 
-function handlers(server: SkillsServerInstance) {
-  return (server.mcpServer.server as any)._requestHandlers
+async function listTools(client: Promise<Client>) {
+  return (await client).listTools()
 }
 
-async function listTools(server: SkillsServerInstance): Promise<any> {
-  return handlers(server).get('tools/list')({ method: 'tools/list', params: {} }, {})
-}
-
-async function callTool(server: SkillsServerInstance, name: string, args: Record<string, unknown>): Promise<any> {
-  return handlers(server).get('tools/call')({ method: 'tools/call', params: { name, arguments: args } }, {})
+async function callTool(client: Client | Promise<Client>, name: string, args: Record<string, unknown>) {
+  return (await (await client).callTool({ name, arguments: args })) as Result
 }
 
 function mockMarketplace(skills: unknown[]) {
@@ -40,14 +42,18 @@ function mockMarketplace(skills: unknown[]) {
   }))
 }
 
-describe('SkillsServer', () => {
+describe('skills MCP server', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+
   it('exposes exactly search_skills and install_skill', async () => {
     const result = await listTools(createServer())
-    expect(result.tools.map((t: any) => t.name)).toEqual(['search_skills', 'install_skill'])
+    expect(result.tools.map((t) => t.name)).toEqual(['search_skills', 'install_skill'])
   })
 
   describe('search_skills', () => {
@@ -173,10 +179,46 @@ describe('SkillsServer', () => {
       expect(result.content[0].text).toContain('No installable skills found')
     })
 
-    it('errors when the query is missing', async () => {
-      const result = await callTool(createServer(), 'search_skills', {})
+    it.each([
+      [
+        'repository-root blob link',
+        'https://github.com/Viy1204/recruiting-copilot/blob/master/SKILL.md',
+        'https://github.com/Viy1204/recruiting-copilot/blob/master/SKILL.md'
+      ],
+      [
+        'official raw link',
+        'https://github.com/Viy1204/recruiting-copilot/raw/refs/heads/master/SKILL.md',
+        'https://raw.githubusercontent.com/Viy1204/recruiting-copilot/refs/heads/master/SKILL.md'
+      ]
+    ])('resolves a %s without querying registries', async (_case, url, canonicalUrl) => {
+      const server = createServer()
+      installMock.mockResolvedValue({ id: 'skill-1', name: 'recruiting-copilot', folderName: 'recruiting-copilot' })
+      toggleMock.mockReturnValue({ id: 'skill-1', isEnabled: true })
+
+      const search = await callTool(server, 'search_skills', { query: url })
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(search.content[0].text).toContain(`github:${canonicalUrl}`)
+
+      const install = await callTool(server, 'install_skill', { install_source: `github:${canonicalUrl}` })
+      expect(installMock).toHaveBeenCalledWith({ installSource: `github:${canonicalUrl}` })
+      expect(install.isError).toBeFalsy()
+    })
+
+    it('still searches the registries for a query that only looks like a link', async () => {
+      mockMarketplace([])
+      const result = await callTool(createServer(), 'search_skills', {
+        query: 'https://github.com/Viy1204/recruiting-copilot'
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(result.content[0].text).toContain('No installable skills found')
+    })
+
+    it.each([{}, { query: '' }])('rejects a missing or empty query without searching: %j', async (args) => {
+      const result = await callTool(createServer(), 'search_skills', args)
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toMatch(/query/i)
+      expect(result.content[0].text).toContain('Input validation error')
       expect(fetchMock).not.toHaveBeenCalled()
     })
   })
@@ -227,6 +269,19 @@ describe('SkillsServer', () => {
     it('errors when install_source is missing (never touches SkillService)', async () => {
       const result = await callTool(createServer(), 'install_skill', {})
       expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Input validation error')
+      expect(installMock).not.toHaveBeenCalled()
+    })
+
+    it('does not honor an install_source issued to a different connection', async () => {
+      mockMarketplace([
+        { id: 'c', name: 'C', namespace: 'a', metadata: { repoOwner: 'a', repoName: 'b', directoryPath: 'c' } }
+      ])
+      await callTool(createServer(), 'search_skills', { query: 'c' })
+
+      const result = await callTool(createServer(), 'install_skill', { install_source: 'claude-plugins:a/b/c' })
+
+      expect(result.isError).toBe(true)
       expect(installMock).not.toHaveBeenCalled()
     })
 
@@ -246,10 +301,5 @@ describe('SkillsServer', () => {
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('clone failed')
     })
-  })
-
-  it('rejects an unknown tool', async () => {
-    const result = await callTool(createServer(), 'nope', {})
-    expect(result.isError).toBe(true)
   })
 })

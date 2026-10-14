@@ -50,6 +50,15 @@ function deleteComposerTokenRange(editor: Editor, from: number, to: number) {
   return true
 }
 
+function deleteAllComposerContent(editor: Editor) {
+  if (!(editor.state.selection instanceof AllSelection)) return false
+
+  // Tiptap's deleteRange keeps AllSelection mapped onto the empty document; ProseMirror's
+  // selection-aware transaction collapses it back to a text cursor.
+  editor.view.dispatch(editor.state.tr.deleteSelection().scrollIntoView())
+  return true
+}
+
 function deleteComposerTokenNearSelection(editor: Editor, nodeName: string, direction: -1 | 1) {
   const { selection } = editor.state
 
@@ -312,8 +321,9 @@ export const ComposerTokenNode = Node.create<ComposerTokenNodeOptions>({
 
   addKeyboardShortcuts() {
     return {
-      Backspace: () => deleteComposerTokenNearSelection(this.editor, this.name, -1),
-      Delete: () => deleteComposerTokenNearSelection(this.editor, this.name, 1)
+      Backspace: () =>
+        deleteAllComposerContent(this.editor) || deleteComposerTokenNearSelection(this.editor, this.name, -1),
+      Delete: () => deleteAllComposerContent(this.editor) || deleteComposerTokenNearSelection(this.editor, this.name, 1)
     }
   },
 

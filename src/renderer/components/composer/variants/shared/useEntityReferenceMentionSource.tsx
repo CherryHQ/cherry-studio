@@ -1,12 +1,13 @@
-import { dataApiService } from '@data/DataApiService'
-import { toast } from '@renderer/services/toast'
 import type { Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { MessageSquare, MousePointerClick } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../../composerDraft'
+import { dataApiService } from '@data/DataApiService'
+import { toast } from '@renderer/services/toast'
+
+import { serializeComposerDocument } from '../../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../quickPanel'
 import { fetchEntityReferencePromptText } from './entityReferenceContext'
@@ -15,10 +16,6 @@ const REFERENCE_RESULT_LIMIT = 50
 // List endpoints page pinned-first in manual order, so recency sorting happens client-side
 // over the first page; entities beyond it are reachable by typing a name query instead.
 const REFERENCE_LIST_FETCH_LIMIT = 200
-// Below this much room left in the draft a reference block carries too little of the
-// conversation to be worth inserting.
-const REFERENCE_MIN_ROOM_CHARS = 1000
-
 const referenceTokenId = (entityType: 'topic' | 'session', id: string) => `reference:${entityType}:${id}`
 
 interface EntityReferenceHit {
@@ -30,18 +27,18 @@ interface EntityReferenceHit {
 
 async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): Promise<EntityReferenceHit[]> {
   if (!q) {
-    // Empty query lists every conversation (most recently updated first); /search/entities
+    // Empty query lists every conversation (most recently active first); /search/entities
     // requires a non-empty q, so the plain list endpoints back the initial panel.
     if (entityType === 'topic') {
       const page = await dataApiService.get('/topics', { query: { limit: REFERENCE_LIST_FETCH_LIMIT } })
       return page.items
-        .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
         .slice(0, REFERENCE_RESULT_LIMIT)
         .map((topic) => ({ id: topic.id, title: topic.name, agentId: null }))
     }
     const page = await dataApiService.get('/agent-sessions', { query: { limit: REFERENCE_LIST_FETCH_LIMIT } })
     return page.items
-      .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .toSorted((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
       .slice(0, REFERENCE_RESULT_LIMIT)
       .map((session) => ({ id: session.id, title: session.name, agentId: session.agentId }))
   }
@@ -106,7 +103,7 @@ export interface EntityReferenceMentionItems {
 
 /**
  * Builds the `@`-mention items that reference past conversations: an empty query lists the
- * most recently updated entities (via the list endpoints), a non-empty query searches by
+ * most recently active entities (via the list endpoints), a non-empty query searches by
  * name (via `/search/entities`). Picking an item inserts a `reference` composer token at once
  * and fills it in place with the conversation's transcript when it loads. Consumed directly as
  * a suggestion source by the chat composer (topics), and appended to the agent composer's
@@ -146,14 +143,6 @@ export function useEntityReferenceMentionItems({
               const draft = serializeComposerDocument(editor)
               if (draft.tokens.some((token) => token.id === tokenId)) return
 
-              // Token insertion bypasses the composer's input-length guards (they sit on the
-              // typing and paste paths), so the block is budgeted against what the draft has left.
-              const remainingChars = COMPOSER_INPUT_MAX_LENGTH - draft.text.length
-              if (remainingChars < REFERENCE_MIN_ROOM_CHARS) {
-                toast.error(t('chat.input.reference_panel.no_room'))
-                return
-              }
-
               // Insert synchronously so the chip is bound to this draft and position; the
               // transcript fills it in place later. Sending stays blocked until then, so a
               // message can never go out holding an empty reference.
@@ -177,8 +166,7 @@ export function useEntityReferenceMentionItems({
                   const promptText = await fetchEntityReferencePromptText(
                     entityType === 'topic'
                       ? { entityType, id: hit.id, name: title }
-                      : { entityType, id: hit.id, name: title, agentId: hit.agentId },
-                    { maxTotalChars: remainingChars }
+                      : { entityType, id: hit.id, name: title, agentId: hit.agentId }
                   )
                   settlePendingReferenceToken(editor, tokenId, promptText)
                 } catch {

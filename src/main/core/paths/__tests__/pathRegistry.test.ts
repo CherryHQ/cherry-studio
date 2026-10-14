@@ -1,15 +1,19 @@
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const packagedState = vi.hoisted(() => ({ value: false }))
 const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
 
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: getPathMock,
-    isPackaged: false
+    get isPackaged() {
+      return packagedState.value
+    },
+    setAppLogsPath: vi.fn()
   }
 }))
 
@@ -28,13 +32,54 @@ beforeEach(() => {
   getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
 })
 
+afterEach(() => {
+  packagedState.value = false
+  vi.unstubAllGlobals()
+})
+
 describe('buildPathRegistry', () => {
+  it('isolates voice scratch directories for profiles sharing the same basename', () => {
+    const voiceTemp = (profile: string) => {
+      getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
+      return buildPathRegistry()['feature.voice.temp']
+    }
+
+    const first = voiceTemp('/profiles/first/CherryStudio')
+    expect(voiceTemp('/profiles/second/CherryStudio')).not.toBe(first)
+    expect(voiceTemp('/profiles/first/./CherryStudio')).toBe(first)
+  })
+
+  it.each([
+    ['win32', 'x64', false, '/mock/app/packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
+    ['win32', 'x64', true, '/mock/resources/system-speech/cherry-system-speech.exe'],
+    ['darwin', 'arm64', false, '/mock/app/packages/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
+    ['darwin', 'x64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech'],
+    ['darwin', 'arm64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech']
+  ] as const)('resolves the %s/%s packaged=%s system speech helper', (platform, arch, packaged, expected) => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: platform },
+        arch: { value: arch },
+        resourcesPath: {
+          value: platform === 'darwin' ? '/mock/Cherry Studio.app/Contents/Resources' : '/mock/resources'
+        }
+      })
+    )
+    packagedState.value = packaged
+    expect(buildPathRegistry()['feature.voice.helper_file']).toBe(path.normalize(expected))
+    expect(shouldAutoEnsure('feature.voice.helper_file')).toBe(false)
+  })
+
   it('keeps the database and restore journal together under userData Data', () => {
     const registry = buildPathRegistry()
     const dataRoot = path.join('/mock/userData', 'Data')
 
     expect(registry['app.database.file']).toBe(path.join(dataRoot, 'cherrystudio.sqlite'))
     expect(registry['feature.backup.restore.file']).toBe(path.join(dataRoot, 'restore-journal.json'))
+    expect(registry['feature.cherry_account.credentials_file']).toBe(
+      path.join('/mock/userData', 'Credentials', 'cherry-account.json')
+    )
   })
 
   it('keeps the Claude config under the Agents data directory', () => {
@@ -45,6 +90,41 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps conditional Code Mate skill templates in read-only app resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.code_cli.skills.builtin']).toBe(
+      path.join(registry['app.root.resources'], 'code-cli-skills')
+    )
+    expect(shouldAutoEnsure('feature.code_cli.skills.builtin')).toBe(false)
+  })
+
+  it('keeps utility-process entry bundles read-only under the app root', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['app.utility_process']).toBe(path.join('/mock/app', 'out', 'utility-process'))
+    expect(shouldAutoEnsure('app.utility_process')).toBe(false)
+  })
+
+  it('keeps pi runtime state under the Agents data directory', () => {
+    const registry = buildPathRegistry()
+    const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')
+
+    expect(registry['feature.agents.pi.root']).toBe(piRoot)
+    expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+    expect(registry['feature.agents.pi.vcc_file']).toBe(path.join('/mock/app', 'out', 'main', 'pi-vcc.mjs'))
+    expect(shouldAutoEnsure('feature.agents.pi.vcc_file')).toBe(false)
+  })
+
+  it('keeps the provider registry override under userData Runtime', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.provider_registry.override']).toBe(
+      path.join('/mock/userData', 'Runtime', 'provider-registry-override')
+    )
+    expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
+  })
+
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')
@@ -52,6 +132,14 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('keeps persisted MCP resource blobs in Cherry temporary storage', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.mcp.resource_results.temp']).toBe(
+      path.join('/mock/temp', 'CherryStudio', 'mcp-resource-results')
+    )
   })
 
   it('stores active traces under userData Runtime and keeps the old path cleanup-only', () => {
@@ -98,8 +186,120 @@ describe('buildPathRegistry', () => {
     const registry = buildPathRegistry()
 
     expect(registry['feature.agents.assistant.manifest.file']).toBe(
-      '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
+      path.join('/mock/app', 'resources', 'builtin-agents', 'cherry-assistant', 'product-manifest.json')
     )
+  })
+
+  it('keeps Dia and Comet profiles separate from Chrome without creating external directories', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.browser.dia']).toBe(path.join(os.homedir(), 'Library/Application Support/Dia/User Data'))
+    expect(registry['external.browser.comet']).toBe(
+      process.platform === 'win32'
+        ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData/Local'), 'Perplexity/Comet/User Data')
+        : path.join(os.homedir(), 'Library/Application Support/Comet')
+    )
+    for (const browser of ['dia', 'comet'] as const) {
+      expect(registry[`external.browser.${browser}`]).not.toBe(registry['external.browser.chrome'])
+      expect(shouldAutoEnsure(`external.browser.${browser}`)).toBe(false)
+    }
+  })
+
+  it('locates standard Vivaldi, Opera and Chromium data in their platform directories', () => {
+    vi.spyOn(os, 'homedir').mockReturnValue('/browser-owner')
+    vi.stubEnv('LOCALAPPDATA', '/local')
+    vi.stubEnv('APPDATA', '/roaming')
+    vi.stubEnv('XDG_CONFIG_HOME', '/config')
+    try {
+      const expected =
+        process.platform === 'darwin'
+          ? [
+              '/browser-owner/Library/Application Support/Vivaldi',
+              '/browser-owner/Library/Application Support/com.operasoftware.Opera',
+              '/browser-owner/Library/Application Support/Chromium'
+            ]
+          : process.platform === 'win32'
+            ? ['/local/Vivaldi/User Data', '/roaming/Opera Software/Opera Stable', '/local/Chromium/User Data']
+            : ['/config/vivaldi', '/config/opera', '/config/chromium']
+      const registry = buildPathRegistry()
+      expect(
+        (['vivaldi', 'opera', 'chromium'] as const).map((browser) => registry[`external.browser.${browser}`])
+      ).toEqual(expected.map((directory) => path.normalize(directory)))
+      for (const browser of ['vivaldi', 'opera', 'chromium'] as const)
+        expect(shouldAutoEnsure(`external.browser.${browser}`)).toBe(false)
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('uses the shared user-owned DeepSeek Harness home', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+  })
+
+  it('registers standalone Pi settings as external data', () => {
+    expect(buildPathRegistry()['external.pi.settings_file']).toBe(
+      path.join(os.homedir(), '.pi', 'agent', 'settings.json')
+    )
+    expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
+  })
+
+  it('registers the platform-native default Hermes home as external data', () => {
+    const registry = buildPathRegistry()
+    const windowsBase = process.env.LOCALAPPDATA?.trim() || path.join(os.homedir(), 'AppData', 'Local')
+    const expected =
+      process.platform === 'win32' ? path.join(windowsBase, 'hermes') : path.join(os.homedir(), '.hermes')
+
+    expect(registry['external.hermes.default_home']).toBe(expected)
+    expect(shouldAutoEnsure('external.hermes.default_home')).toBe(false)
+  })
+
+  it('isolates the managed DeepSeek Harness workspace from the user home', () => {
+    const registry = buildPathRegistry()
+    expect(registry['feature.deepseek_harness.workspace']).toBe(
+      path.join('/mock/userData', 'Data', 'DeepSeekHarness', 'Workspace')
+    )
+    expect(shouldAutoEnsure('feature.deepseek_harness.workspace')).toBe(true)
+  })
+
+  it('exposes the mini app package root under userData/Data', () => {
+    expect(buildPathRegistry()['feature.mini_app.packages']).toBe(
+      path.join('/mock/userData', 'Data', 'MiniApps', 'packages')
+    )
+  })
+
+  it('keeps mini app data OUTSIDE the package tree', () => {
+    // `packages/<id>` is wholesale-renamed on update and hashed by `hashTree`; a save
+    // file inside it would die with the next update and churn `contentHash` per write.
+    expect(buildPathRegistry()['feature.mini_app.data']).toBe(path.join('/mock/userData', 'Data', 'MiniApps', 'data'))
+  })
+
+  it('exposes the publish journal directory as its own key', () => {
+    // Its own key, not a filename under `packages`: the journal is a DIRECTORY of per-app
+    // files, and `getPath`'s filename argument names a file, not a subtree.
+    expect(buildPathRegistry()['feature.mini_app.publish_journal']).toBe(
+      path.join('/mock/userData', 'Data', 'MiniApps', '.publish-journal')
+    )
+  })
+
+  it('ships builtin packages inside the bundle and never auto-creates them', () => {
+    expect(buildPathRegistry()['feature.mini_app.builtin']).toBe(path.join('/mock/app/resources', 'builtin-mini-apps'))
+    expect(buildPathRegistry()['feature.mini_app.logs']).toBe(path.join('/mock/logs', 'mini-apps'))
+    // Same reason `feature.agents.builtin` is in NO_ENSURE: a signed, read-only tree.
+    expect(shouldAutoEnsure('feature.mini_app.builtin')).toBe(false)
+  })
+
+  it('keeps Antigravity session data in a Cherry-owned isolated directory', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.cli.antigravity.root']).toBe(path.join('/mock/userData', 'Data', 'CodeCli', 'Antigravity'))
+    expect(shouldAutoEnsure('feature.cli.antigravity.root')).toBe(true)
+    // The settings file must sit under the dir handed to the CLI as `--gemini_dir`,
+    // in the fixed `antigravity-cli/` subdir the binary itself resolves.
+    expect(registry['feature.cli.antigravity.settings.file']).toBe(
+      path.join(registry['feature.cli.antigravity.root'], 'antigravity-cli', 'settings.json')
+    )
+    expect(shouldAutoEnsure('feature.cli.antigravity.settings.file')).toBe(true)
   })
 })
 
@@ -135,6 +335,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for feature.files.data', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
+    })
+
+    it('returns true for the provider registry override (writable, not opted out)', () => {
+      // The remote-updated override dir under Runtime is Cherry-owned and
+      // writable — unlike the read-only bundled feature.provider_registry.data.
+      expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
     })
 
     it('returns true for feature.mcp', () => {

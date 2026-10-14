@@ -1,15 +1,17 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { DragDropContext } from '@hello-pangea/dnd'
+import type { FC } from 'react'
+
+import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import type { FC } from 'react'
 
 import { useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsList from './ActionsList'
 import ActionsListDivider from './ActionsListDivider'
+import SelectionActionModelSettings from './SelectionActionModelSettings'
 import SelectionActionSearchModal from './SelectionActionSearchModal'
 import SelectionActionUserModal from './SelectionActionUserModal'
 import SettingsActionsListHeader from './SettingsActionsListHeader'
@@ -62,6 +64,8 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
       />
 
       <SettingDivider />
+
+      <SelectionActionModelSettings />
 
       <div className="my-6 flex items-center justify-center">
         <SelectionToolbarView

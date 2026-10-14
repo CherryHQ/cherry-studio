@@ -1,6 +1,7 @@
-import { cn } from '@renderer/utils/style'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 

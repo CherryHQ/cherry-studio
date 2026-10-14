@@ -1,9 +1,10 @@
+import { describe, expect, it } from 'vitest'
+
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   readComposerClipboardFragment
 } from '@renderer/utils/message/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import type { MessageListItem } from '../../types'
 import {
@@ -41,6 +42,26 @@ describe('messageSelection', () => {
     expect(views.map((message) => message.id)).toEqual(['a', 'b'])
     expect(views[0].parts).toEqual(partsByMessageId.a)
     expect(views[1].parts).toEqual(partsByMessageId.b)
+  })
+
+  it('lets a selected message cite the tool results of an earlier, unselected message', () => {
+    const messages = [createMessage('a'), createMessage('b')]
+    const searchPart = {
+      type: 'tool-web_search',
+      toolCallId: 'search-1',
+      state: 'output-available',
+      input: { query: 'q' },
+      output: [{ id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' }]
+    } as unknown as CherryMessagePart
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      a: [searchPart, { type: 'text', text: 'first [cite:3f2a1b9c-1]' }],
+      b: [{ type: 'text', text: 'still [cite:3f2a1b9c-1]' }]
+    }
+
+    const views = createSelectedMessageExportViews(['b'], messages, partsByMessageId)
+
+    expect(views).toHaveLength(1)
+    expect(views[0].priorCitationParts).toEqual([searchPart])
   })
 
   it('copies selected message text in visible message order', () => {

@@ -9,14 +9,15 @@
 import fsp from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 
+import { tool } from 'ai'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { isTextByContent } from '@main/utils/file'
 import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
 import { CONTEXT_PERSIST_THRESHOLD_CHARS, FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
-import { tool } from 'ai'
-import * as z from 'zod'
 
 import { makeTextFieldCodec } from '../../../outputCodec'
 import { getToolCallContext } from '../context'
@@ -312,6 +313,9 @@ export function createFsReadToolEntry(): ToolEntry {
     namespace: 'fs',
     description: 'Read a text file by absolute path (persisted-output retrieval; paginated)',
     defer: 'never',
-    tool: fsReadTool
+    tool: fsReadTool,
+    // Read-back must exist wherever offload can; resolveTools additionally
+    // drops a lone fs_read, which has nothing to read back.
+    applies: (scope) => scope.hasPersistedOutputs === true || scope.canOffloadToolOutputs === true
   }
 }

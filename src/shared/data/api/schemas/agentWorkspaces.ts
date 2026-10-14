@@ -34,18 +34,8 @@ export const AgentWorkspaceEntitySchema = z.strictObject({
 })
 export type AgentWorkspaceEntity = z.infer<typeof AgentWorkspaceEntitySchema>
 
-// `name` is optional — the service derives it from the path basename when omitted.
-export const CreateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({ path: true, name: true }).partial({
-  name: true
-})
-export type CreateAgentWorkspaceDto = z.infer<typeof CreateAgentWorkspaceSchema>
-
 export const UpdateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({ name: true })
 export type UpdateAgentWorkspaceDto = z.infer<typeof UpdateAgentWorkspaceSchema>
-
-export interface DeleteAgentWorkspaceResult {
-  deletedIds: string[]
-}
 
 export interface AgentWorkspaceReferenceItem {
   id: string
@@ -68,11 +58,6 @@ export type AgentWorkspaceSchemas = {
     GET: {
       response: AgentWorkspaceEntity[]
     }
-    // find-or-create by path: idempotent on the `agent_workspace.path` unique index.
-    POST: {
-      body: CreateAgentWorkspaceDto
-      response: AgentWorkspaceEntity
-    }
   }
 
   '/agent-workspaces/:workspaceId': {
@@ -84,17 +69,6 @@ export type AgentWorkspaceSchemas = {
       params: { workspaceId: string }
       body: UpdateAgentWorkspaceDto
       response: AgentWorkspaceEntity
-    }
-    /**
-     * Delete a user workspace.
-     *
-     * Cascades: every session bound to this workspace, plus their messages
-     * and pins, are deleted in the same transaction. Channel and scheduled-task
-     * references to the workspace are reset to the system workspace source.
-     */
-    DELETE: {
-      params: { workspaceId: string }
-      response: DeleteAgentWorkspaceResult
     }
   }
 

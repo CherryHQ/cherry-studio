@@ -1,3 +1,5 @@
+import { isToolUIPart, readUIMessageStream } from 'ai'
+
 /**
  * Window-level owner of streaming overlay state shared by topic and agent-session
  * consumers (execution readers, live snapshots, interval-batched flushes). Extracted
@@ -44,13 +46,13 @@ import { loggerService } from '@logger'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { isToolUIPart, readUIMessageStream } from 'ai'
 
 import { TopicStreamSubscription } from './TopicStreamSubscription'
 
 const logger = loggerService.withContext('ExecutionStreamOverlayService')
 
 export interface ExecutionFinishEvent {
+  attemptId: number
   message: CherryUIMessage
   isAbort: boolean
   isError: boolean
@@ -68,6 +70,7 @@ type FinishListener = (executionId: string, event: ExecutionFinishEvent) => void
 
 interface ReaderHandle {
   executionId: UniqueModelId
+  attemptId: number
   anchorMessageId?: string
   cancel: () => void
   unregister: () => void
@@ -146,15 +149,20 @@ const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
   liveAssistants: Object.freeze([]) as unknown as CherryUIMessage[]
 })
 
-function executionKey(executionId: UniqueModelId, anchorMessageId?: string): string {
-  return JSON.stringify([executionId, anchorMessageId ?? null])
+function executionKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
+  return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
 }
 
-function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): CherryUIMessage | undefined {
+function pickSeed(
+  uiMessages: CherryUIMessage[],
+  anchorMessageId?: string,
+  seedFromEmpty = false
+): CherryUIMessage | undefined {
   if (!anchorMessageId) return undefined
+  if (seedFromEmpty) return { id: anchorMessageId, role: 'assistant', parts: [] }
   const found = uiMessages.find((m) => m.id === anchorMessageId)
   if (!found) {
-    return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+    return { id: anchorMessageId, role: 'assistant', parts: [] }
   }
   // readUIMessageStream mutates `message.parts` in place. `found` is the live, render-stable
   // SWR-derived row whose `parts` array aliases the SWR cache, so seeding the reader with it
@@ -229,7 +237,7 @@ function shareSettledPartReferences(
 function computeView(snapshots: Record<string, CherryUIMessage>): ExecutionOverlayView {
   const overlay: Record<string, CherryMessagePart[]> = {}
   for (const snapshot of Object.values(snapshots)) {
-    if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts as CherryMessagePart[]
+    if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts
   }
   const liveAssistants = Object.values(snapshots).filter((s): s is CherryUIMessage => s?.role === 'assistant')
   return { overlay, liveAssistants }
@@ -242,7 +250,7 @@ export class ExecutionStreamOverlayService {
     const entry = this.#getOrCreate(topicId)
     entry.refCount += 1
     entry.lastActiveAt = Date.now()
-    // A hidden window's rAF may have stalled with frames pending; materialize
+    // A hidden window's commit timer may be delayed with snapshots pending; materialize
     // them so the re-acquiring consumer's first read sees the latest state.
     this.#flushPending(entry, entry.epoch)
   }
@@ -278,12 +286,23 @@ export class ExecutionStreamOverlayService {
 
     const union = new Map<
       string,
-      { executionId: UniqueModelId; anchorMessageId?: string; seed: ConsumerContribution }
+      {
+        executionId: UniqueModelId
+        attemptId: number
+        anchorMessageId?: string
+        seedFromEmpty?: boolean
+        seed: ConsumerContribution
+      }
     >()
     for (const contribution of entry.desired.values()) {
-      for (const { executionId, anchorMessageId } of contribution.executions) {
-        const key = executionKey(executionId, anchorMessageId)
-        if (!union.has(key)) union.set(key, { executionId, anchorMessageId, seed: contribution })
+      for (const { executionId, attemptId, anchorMessageId, seedFromEmpty } of contribution.executions) {
+        const key = executionKey(executionId, anchorMessageId, attemptId)
+        const existing = union.get(key)
+        if (!existing) {
+          union.set(key, { executionId, attemptId, anchorMessageId, seedFromEmpty, seed: contribution })
+        } else if (seedFromEmpty && !existing.seedFromEmpty) {
+          union.set(key, { ...existing, seedFromEmpty: true })
+        }
       }
     }
 
@@ -319,10 +338,18 @@ export class ExecutionStreamOverlayService {
         // turn's chunks queue in an open branch, while a stale consumer
         // report has none — restarting on the latter would orphan a zombie
         // reader on a stream that already ended (A7).
-        if (!entry.sub.hasOpenBranch(item.executionId, item.anchorMessageId)) continue
+        if (!entry.sub.hasOpenBranch(item.executionId, item.anchorMessageId, item.attemptId)) continue
         entry.settledKeys.delete(key)
       }
-      this.#startReader(entry, key, item.executionId, item.anchorMessageId, item.seed.getSeedMessages)
+      this.#startReader(
+        entry,
+        key,
+        item.executionId,
+        item.attemptId,
+        item.anchorMessageId,
+        item.seedFromEmpty,
+        item.seed.getSeedMessages
+      )
     }
   }
 
@@ -436,6 +463,19 @@ export class ExecutionStreamOverlayService {
     sub.onExecutionTerminal(() => {
       if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
     })
+    sub.onBranchesRetired((branches) => {
+      if (this.#entries.get(topicId) !== entry) return
+      for (const branch of branches) {
+        const key = executionKey(branch.executionId, branch.anchorMessageId, branch.attemptId)
+        entry.settledKeys.add(key)
+        const handle = entry.readers.get(key)
+        if (!handle) continue
+        handle.cancel()
+        handle.unregister()
+        entry.readers.delete(key)
+      }
+      this.#maybeDrop(entry)
+    })
     sub.onTopicStateChange(() => {
       if (this.#entries.get(topicId) === entry) this.#maybeDrop(entry)
     })
@@ -481,7 +521,7 @@ export class ExecutionStreamOverlayService {
 
   #liveReaderExecutionIds(entry: Entry): Set<string> {
     const ids = new Set<string>()
-    for (const handle of entry.readers.values()) ids.add(handle.executionId as string)
+    for (const handle of entry.readers.values()) ids.add(handle.executionId)
     return ids
   }
 
@@ -497,10 +537,18 @@ export class ExecutionStreamOverlayService {
     entry: Entry,
     key: string,
     executionId: UniqueModelId,
+    attemptId: number,
     anchorMessageId: string | undefined,
+    seedFromEmpty: boolean | undefined,
     getSeedMessages: () => CherryUIMessage[]
   ): void {
-    const branch = entry.sub.register(executionId, anchorMessageId)
+    const branch = entry.sub.register(executionId, anchorMessageId, attemptId)
+    if (!entry.sub.hasOpenBranch(executionId, anchorMessageId, attemptId)) {
+      // A terminal fence can reject stale work after empty-set tombstone pruning.
+      // Do not report its closed stream as success.
+      entry.settledKeys.add(key)
+      return
+    }
     const readerEpoch = entry.epoch
     const readerVersion = (entry.readerVersions.get(executionId) ?? 0) + 1
     entry.readerVersions.set(executionId, readerVersion)
@@ -520,21 +568,24 @@ export class ExecutionStreamOverlayService {
     let terminal: { isAbort: boolean; isError: boolean } | undefined
     const offTerminal = entry.sub.onExecutionTerminal((id, t) => {
       if (id !== executionId) return
+      if (t.attemptId !== undefined && t.attemptId !== attemptId) return
       if (t.anchorMessageId !== undefined && t.anchorMessageId !== anchorMessageId) return
       terminal = t
     })
-    const seed = pickSeed(getSeedMessages(), anchorMessageId)
+    const seed = pickSeed(getSeedMessages(), anchorMessageId, seedFromEmpty)
     const topicId = entry.topicId
 
     const handle: ReaderHandle = {
       executionId,
+      attemptId,
       anchorMessageId,
       cancel: () => {
         cancelled = true
+        entry.sub.cancelBranch(executionId, anchorMessageId, attemptId)
       },
       unregister: () => {
         offTerminal()
-        entry.sub.unregister(executionId, anchorMessageId)
+        entry.sub.unregister(executionId, anchorMessageId, attemptId)
       }
     }
     entry.readers.set(key, handle)
@@ -547,13 +598,14 @@ export class ExecutionStreamOverlayService {
           stream: branch,
           message: seed,
           terminateOnError: false,
-          onError: (err) => logger.warn('readUIMessageStream error', { topicId, executionId, err })
+          onError: (err) => {
+            if (!cancelled) logger.warn('readUIMessageStream error', { topicId, executionId, err })
+          }
         })) {
-          if (cancelled) break
-          const sharedParts = shareSettledPartReferences(
-            last?.parts as CherryMessagePart[] | undefined,
-            snapshot.parts as CherryMessagePart[]
-          )
+          // cancelBranch terminates the input; drain queued output so the SDK
+          // can close its controller without an iterator cancellation racing it.
+          if (cancelled) continue
+          const sharedParts = shareSettledPartReferences(last?.parts, snapshot.parts)
           const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
           last = nextSnapshot
           this.#queueSnapshot(entry, executionId, nextSnapshot, readerEpoch, readerVersion)
@@ -566,7 +618,7 @@ export class ExecutionStreamOverlayService {
       } finally {
         offTerminal()
         if (entry.readers.get(key) === handle) {
-          entry.sub.unregister(executionId, anchorMessageId)
+          entry.sub.unregister(executionId, anchorMessageId, attemptId)
           entry.readers.delete(key)
         }
         if (!cancelled) {
@@ -596,6 +648,7 @@ export class ExecutionStreamOverlayService {
             const message = last ?? seed
             if (message || isError) {
               const event: ExecutionFinishEvent = {
+                attemptId,
                 message: message ?? { id: '', role: 'assistant', parts: [] },
                 isAbort: t.isAbort,
                 isError

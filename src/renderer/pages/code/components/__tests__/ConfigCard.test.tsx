@@ -1,8 +1,9 @@
-import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 
 import { ProviderCard } from '../ConfigCard'
 
@@ -28,7 +29,7 @@ const provider = {
   name: 'Anthropic'
 } as Provider
 
-function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
+function renderCard(options: { isCurrent?: boolean; modelName?: string; actionsDisabled?: boolean } = {}) {
   const onMoveToTop = vi.fn()
   const onConfigure = vi.fn()
   const onToggleCurrent = vi.fn()
@@ -40,6 +41,7 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
       providerName="Anthropic"
       modelName={modelName}
       isCurrent={isCurrent}
+      actionsDisabled={options.actionsDisabled}
       onMoveToTop={onMoveToTop}
       onConfigure={onConfigure}
       onToggleCurrent={onToggleCurrent}
@@ -93,6 +95,17 @@ describe('ProviderCard', () => {
     fireEvent.click(configureButton)
 
     expect(onConfigure).toHaveBeenCalledWith(provider)
+    expect(onToggleCurrent).not.toHaveBeenCalled()
+  })
+
+  it('prevents provider changes while its managed runtime is active', () => {
+    const { configureButton, enableButton, onConfigure, onToggleCurrent } = renderCard({ actionsDisabled: true })
+
+    expect(configureButton).toBeDisabled()
+    expect(enableButton).toBeDisabled()
+    fireEvent.click(configureButton)
+    fireEvent.click(enableButton)
+    expect(onConfigure).not.toHaveBeenCalled()
     expect(onToggleCurrent).not.toHaveBeenCalled()
   })
 

@@ -14,6 +14,7 @@ import { SearchTool } from './SearchTool'
 import { SkillTool } from './SkillTool'
 import { createStructuredAgentTool } from './StructuredAgentTool'
 import { TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStopTool, TaskUpdateTool } from './TaskTool'
+import { TodoWriteTool } from './TodoWriteTool'
 import { ToolSearchTool } from './ToolSearchTool'
 import { WebFetchTool } from './WebFetchTool'
 import { WebSearchTool } from './WebSearchTool'
@@ -31,6 +32,7 @@ export const toolRenderers: ToolRenderersMap = {
   [AgentToolsType.Bash]: BashTool,
   [AgentToolsType.Search]: SearchTool,
   [AgentToolsType.Glob]: GlobTool,
+  [AgentToolsType.TodoWrite]: TodoWriteTool,
   [AgentToolsType.WebSearch]: WebSearchTool,
   [AgentToolsType.Grep]: GrepTool,
   [AgentToolsType.Write]: WriteTool,

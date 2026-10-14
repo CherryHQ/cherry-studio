@@ -1,10 +1,16 @@
-import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/components/composer/toolLauncher'
+import type { TFunction } from 'i18next'
+import React from 'react'
+
+import type {
+  ComposerToolFooterAction,
+  ComposerToolLauncher,
+  ComposerToolLauncherKind
+} from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { Model } from '@shared/data/types/model'
-import type { TFunction } from 'i18next'
-import React from 'react'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { ComposerSerializedToken } from '../tokens'
 import type { ComposerToolContextValue } from './ComposerToolProvider'
@@ -51,7 +57,7 @@ export interface ToolContext {
   scope: ComposerToolScope
   /** Absent in Agent Session scope — Sessions have an `agentId` (see `session`), not an assistant row. */
   assistant?: Assistant
-  model: Model
+  model?: Model
   // Session data for Agent Session scope (only available when scope is TopicType.Session).
   // Note: config fields (model/instructions/...) live on the parent agent — fetch via
   // useAgent(session.agentId). agentType drives the builtin slash command fallback; slashCommands
@@ -61,7 +67,7 @@ export interface ToolContext {
     sessionId?: string
     agentType?: string
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
-    accessiblePaths?: string[]
+    accessiblePaths?: readonly AbsoluteFilePath[]
     slashCommands?: SlashCommand[]
     /** Knowledge bases statically bound to the Agent. */
     knowledgeBaseIds?: readonly string[]
@@ -69,7 +75,7 @@ export interface ToolContext {
 }
 
 export interface ToolLauncherApi {
-  registerLaunchers: (entries: ComposerToolLauncher[]) => () => void
+  registerLaunchers: (entries: ComposerToolLauncher[], footerActions?: ComposerToolFooterAction[]) => () => void
 }
 
 /**
@@ -98,6 +104,8 @@ export interface ToolComposerToolbarContribution {
   kind: ComposerToolLauncherKind
   order: number
   icon: React.ReactNode
+  /** Lets a resolved tool bypass the composer's chat-model-required guard. */
+  availableWithoutModel?: boolean
 }
 
 export interface ToolTokenContribution<
@@ -143,6 +151,7 @@ export interface ToolDefinition<
   condition?: (context: ToolContext) => boolean
   visibleInScopes?: ComposerToolScope[]
   defaultHidden?: boolean
+  availableWithoutModel?: boolean
 
   // Dependencies
   dependencies?: {

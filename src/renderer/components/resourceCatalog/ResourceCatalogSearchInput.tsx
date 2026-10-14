@@ -1,9 +1,10 @@
-import { Button, Input } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { Search, X } from 'lucide-react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, ComponentProps } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Input } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 type ResourceCatalogSearchInputProps = {
   value: string
@@ -11,14 +12,15 @@ type ResourceCatalogSearchInputProps = {
   placeholder: string
   autoFocus?: boolean
   className?: string
-}
+} & Pick<ComponentProps<'input'>, 'aria-label' | 'aria-invalid' | 'aria-describedby'>
 
 export function ResourceCatalogSearchInput({
   value,
   onValueChange,
   placeholder,
   autoFocus,
-  className
+  className,
+  ...inputProps
 }: ResourceCatalogSearchInputProps) {
   const { t } = useTranslation()
 
@@ -33,8 +35,9 @@ export function ResourceCatalogSearchInput({
 
   return (
     <div className={cn('relative', className)}>
-      <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-tertiary" />
+      <Search size={14} className="absolute top-1/2 left-2.5 -translate-y-1/2 text-foreground-tertiary" />
       <Input
+        {...inputProps}
         autoFocus={autoFocus}
         value={value}
         onChange={handleChange}
@@ -48,7 +51,7 @@ export function ResourceCatalogSearchInput({
           size="icon-sm"
           aria-label={t('common.clear')}
           onClick={clear}
-          className="-translate-y-1/2 absolute top-1/2 right-1 size-6 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground">
+          className="absolute top-1/2 right-1 size-6 -translate-y-1/2 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground">
           <X size={12} />
         </Button>
       ) : null}

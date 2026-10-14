@@ -1,3 +1,4 @@
 * text=auto eol=lf
 /.yarn/**            linguist-vendored
 /.yarn/releases/*    binary
+/packages/provider-registry/compat/*-validator.mjs -diff linguist-generated=true

@@ -4,7 +4,7 @@ const { mockGetBuiltinSlashCommands } = vi.hoisted(() => ({
   mockGetBuiltinSlashCommands: vi.fn()
 }))
 
-vi.mock('@shared/ai/agentSlashCommands', () => ({
+vi.mock('../agentSlashCommands', () => ({
   getBuiltinSlashCommands: (...args: unknown[]) => mockGetBuiltinSlashCommands(...args)
 }))
 

@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
+
 import { aiRequestSchemas } from '../ai'
+
+describe('ai.agent.workspace.register schema', () => {
+  const schema = aiRequestSchemas['ai.agent.workspace.register'].input
+  it('normalizes registration input without accepting relative or invalid paths', () => {
+    expect(schema.parse({ path: ' /tmp/workspace ', name: ' Workspace ' })).toEqual({
+      path: '/tmp/workspace',
+      name: 'Workspace'
+    })
+    for (const path of ['relative/path', '', '   ', '/tmp/bad\0path'])
+      expect(schema.safeParse({ path }).success).toBe(false)
+    expect(schema.safeParse({ path: '/tmp/workspace', name: '  ' }).success).toBe(false)
+  })
+})
 
 // The AI IPC boundary validates `uniqueModelId` with the strict `UniqueModelIdSchema`
 // (`providerId::modelId`, separator at a real position, both parts well-formed), so a
@@ -59,6 +74,56 @@ describe('ai.stream.open IPC schema', () => {
       }).success
     ).toBe(false)
   })
+
+  it('accepts an explicit failed assistant row for in-place retry', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        retryMessageId: 'assistant-failed',
+        mentionedModelIds: ['openai::gpt-4o']
+      })
+    ).toMatchObject({ retryMessageId: 'assistant-failed' })
+  })
+
+  it('preserves an explicit live reply-group append target', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        appendToLiveGroupMessageId: 'assistant-source',
+        mentionedModelIds: ['anthropic::claude-sonnet']
+      })
+    ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
+  })
+
+  it('rejects duplicate mentioned model ids before dispatch', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        mentionedModelIds: ['openai::gpt-4o', 'openai::gpt-4o']
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects combining in-place retry with live reply-group append', () => {
+    const combined = {
+      trigger: 'regenerate-message',
+      topicId: 'topic-1',
+      parentAnchorId: 'user-1',
+      retryMessageId: 'assistant-failed',
+      appendToLiveGroupMessageId: 'assistant-source'
+    } as const
+
+    // @ts-expect-error retry and append are mutually exclusive in the shared request contract
+    const invalidRequest: AiStreamOpenRequest = combined
+
+    expect(openStream.safeParse(invalidRequest).success).toBe(false)
+  })
 })
 
 describe('ai.agent.create IPC schema', () => {
@@ -89,21 +154,73 @@ describe('ai.agent.create IPC schema', () => {
   })
 })
 
-describe('ai.agent.feedback_session.create IPC schema', () => {
-  const createFeedbackSession = aiRequestSchemas['ai.agent.feedback_session.create'].input
-  const createFeedbackSessionResult = aiRequestSchemas['ai.agent.feedback_session.create'].output
+describe('ai.agent.session.fork IPC schema', () => {
+  it('accepts only the source session and checkpoint message, rejecting history reconstruction', () => {
+    const forkSession = aiRequestSchemas['ai.agent.session.fork'].input
+    const input = {
+      sourceSessionId: '11111111-1111-4111-8111-111111111111',
+      messageId: '22222222-2222-4222-8222-222222222222'
+    }
+
+    expect(forkSession.parse(input)).toEqual(input)
+    expect(forkSession.safeParse({ ...input, allowHistoryRebuild: true }).success).toBe(false)
+  })
+})
+
+describe('ai.agent.session.delete IPC schema', () => {
+  const deleteSessions = aiRequestSchemas['ai.agent.session.delete'].input
+
+  it('bounds one deletion command to the supported SQLite batch size', () => {
+    expect(
+      deleteSessions.safeParse({ sessionIds: Array.from({ length: 200 }, (_, i) => `session-${i}`) }).success
+    ).toBe(true)
+    expect(
+      deleteSessions.safeParse({ sessionIds: Array.from({ length: 201 }, (_, i) => `session-${i}`) }).success
+    ).toBe(false)
+  })
+})
+
+describe('ai.agent.session.restore IPC schema', () => {
+  const restoreSession = aiRequestSchemas['ai.agent.session.restore'].input
+
+  it('requires exactly one non-empty Session id', () => {
+    expect(restoreSession.safeParse({ sessionId: 'session-1' }).success).toBe(true)
+    expect(restoreSession.safeParse({ sessionId: '' }).success).toBe(false)
+    expect(restoreSession.safeParse({ sessionId: 'session-1', extra: true }).success).toBe(false)
+  })
+})
+
+describe('ai.agent.support_session.create IPC schema', () => {
+  const createSupportSession = aiRequestSchemas['ai.agent.support_session.create'].input
+  const createSupportSessionResult = aiRequestSchemas['ai.agent.support_session.create'].output
 
   it('accepts only a void command payload', () => {
-    expect(createFeedbackSession.safeParse(undefined).success).toBe(true)
-    expect(createFeedbackSession.safeParse({}).success).toBe(false)
+    expect(createSupportSession.safeParse(undefined).success).toBe(true)
+    expect(createSupportSession.safeParse({}).success).toBe(false)
   })
 
   it('returns only the created session id', () => {
-    expect(createFeedbackSessionResult.parse({ sessionId: 'feedback-session' })).toEqual({
+    expect(createSupportSessionResult.parse({ sessionId: 'feedback-session' })).toEqual({
       sessionId: 'feedback-session'
     })
     expect(
-      createFeedbackSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-assistant' }).success
+      createSupportSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-support' }).success
     ).toBe(false)
+  })
+})
+
+describe('ai.agent.skill_session.create IPC schema', () => {
+  const createSkillSession = aiRequestSchemas['ai.agent.skill_session.create'].input
+  const createSkillSessionResult = aiRequestSchemas['ai.agent.skill_session.create'].output
+
+  it('requires one non-empty Skill id and rejects unrelated fields', () => {
+    expect(createSkillSession.parse({ skillId: 'skill-1' })).toEqual({ skillId: 'skill-1' })
+    expect(createSkillSession.safeParse({ skillId: '' }).success).toBe(false)
+    expect(createSkillSession.safeParse({ skillId: 'skill-1', agentId: 'agent-1' }).success).toBe(false)
+  })
+
+  it('returns only the prepared Session id', () => {
+    expect(createSkillSessionResult.parse({ sessionId: 'session-1' })).toEqual({ sessionId: 'session-1' })
+    expect(createSkillSessionResult.safeParse({ sessionId: 'session-1', skillId: 'skill-1' }).success).toBe(false)
   })
 })

@@ -30,6 +30,7 @@ import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'no
 import {
   access,
   constants,
+  copyFile as fsCopyFile,
   type FileHandle,
   lstat as fsLstat,
   mkdir as fsMkdirPromise,
@@ -45,10 +46,11 @@ import path from 'node:path'
 import { addAbortSignal, Readable, Writable } from 'node:stream'
 import { finished, pipeline } from 'node:stream/promises'
 
+import mime from 'mime'
+
 import { loggerService } from '@logger'
 import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import mime from 'mime'
 
 import { createContentHasher } from './contentHash'
 
@@ -160,7 +162,9 @@ export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadabi
  */
 export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Promise<boolean> {
   try {
-    const [sa, sb] = await Promise.all([fsStat(a), fsStat(b)])
+    // bigint: Windows NTFS file reference numbers exceed 2^53, so as doubles
+    // two adjacent files can round to the same ino.
+    const [sa, sb] = await Promise.all([fsStat(a, { bigint: true }), fsStat(b, { bigint: true })])
     return sa.dev === sb.dev && sa.ino === sb.ino
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
@@ -183,16 +187,23 @@ function tmpNameFor(target: string): string {
 /**
  * Whether an errno from a directory-fsync attempt should be silently
  * swallowed instead of warn-logged. Only codes that mean "this FS semantically
- * rejects directory fsync" qualify — EINVAL / EISDIR / ENOTSUP all come from
- * Windows, FUSE, or network mounts that don't expose dir-handle sync. EPERM /
- * EACCES intentionally do NOT qualify: those usually mean the userData
+ * rejects directory fsync" qualify — EINVAL / EISDIR / ENOTSUP come from
+ * POSIX systems, FUSE, or network mounts that don't expose dir-handle sync.
+ * On Windows, fsync on a directory handle always fails with EPERM
+ * (FlushFileBuffers on a directory handle → ERROR_ACCESS_DENIED → Node maps
+ * to EPERM), so EPERM / EACCES additionally qualify there. On other platforms
+ * EPERM / EACCES intentionally do NOT qualify: those usually mean the userData
  * directory's ACL drifted (sandbox containment shift, SELinux/AppArmor
  * tightening, manual chown), and silently skipping the dashboard signal would
  * mask the regression. Exported for direct unit coverage of the classification.
  * @internal
  */
-export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
-  return code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP'
+export function shouldSilenceFsyncDirError(
+  code: string | undefined,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP') return true
+  return platform === 'win32' && (code === 'EPERM' || code === 'EACCES')
 }
 
 /**
@@ -215,7 +226,7 @@ async function fsyncDirectoryOf(target: string): Promise<void> {
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
     if (shouldSilenceFsyncDirError(code)) return
-    logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { target, code, err })
+    logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { code })
   }
 }
 
@@ -254,17 +265,14 @@ export class PathStaleVersionError extends Error {
  * Caller still rethrows the *original* error — this helper only exists for
  * observability and never replaces or wraps the failure cause.
  */
-async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
+async function bestEffortUnlinkTmp(tmp: string): Promise<void> {
   try {
     await unlink(tmp)
   } catch (unlinkErr) {
     const code = (unlinkErr as NodeJS.ErrnoException).code
     if (code !== 'ENOENT') {
       logger.warn('atomicWriteFile: tmp cleanup failed; tmp file may remain on disk', {
-        tmp,
-        target,
-        code,
-        err: unlinkErr
+        code
       })
     }
   }
@@ -291,10 +299,13 @@ async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
  * is never on disk under a looser mode; the rename carries the mode to the
  * target, replacing whatever mode a pre-existing target had.
  */
+/** Shared option shape of the atomic-write family; see `atomicWriteFile` for the mode contract. */
+type AtomicWriteModeOptions = { mode?: number }
+
 export async function atomicWriteFile(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: { mode?: number }
+  options?: AtomicWriteModeOptions
 ): Promise<void> {
   const prepared = await prepareAtomicWrite(target, data, options)
   await prepared.commit()
@@ -435,7 +446,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
       }
       await rename(this.tmp, this.target)
     } catch (err) {
-      await bestEffortUnlinkTmp(this.tmp, this.target)
+      await bestEffortUnlinkTmp(this.tmp)
       this.currentState = 'aborted'
       throw err
     }
@@ -448,7 +459,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
 
   private async abortOnce(): Promise<undefined> {
     this.currentState = 'aborted'
-    await bestEffortUnlinkTmp(this.tmp, this.target)
+    await bestEffortUnlinkTmp(this.tmp)
     return undefined
   }
 }
@@ -457,7 +468,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
 export async function prepareAtomicWrite(
   target: AbsoluteFilePath,
   data: string | Uint8Array,
-  options?: { mode?: number }
+  options?: AtomicWriteModeOptions
 ): Promise<PreparedAtomicWrite> {
   const tmp = tmpNameFor(target)
   const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
@@ -467,12 +478,12 @@ export async function prepareAtomicWrite(
       await tmpHandle.writeFile(bytes)
     } catch (err) {
       await tmpHandle.close().catch(() => undefined)
-      await bestEffortUnlinkTmp(tmp, target)
+      await bestEffortUnlinkTmp(tmp)
       throw err
     }
     await tmpHandle.close()
   } catch (err) {
-    await bestEffortUnlinkTmp(tmp, target)
+    await bestEffortUnlinkTmp(tmp)
     throw err
   }
   return new PreparedAtomicWriteImpl(target, tmp, bytes.byteLength, createContentHasherDigest(bytes))
@@ -495,12 +506,19 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   private finalized = false
   private enteredCommit = false
 
-  constructor(target: AbsoluteFilePath, onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>) {
+  constructor(
+    target: AbsoluteFilePath,
+    onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>,
+    options?: AtomicWriteModeOptions
+  ) {
     super()
     this.target = target
     this.tmp = tmpNameFor(target)
     this.onPrepared = onPrepared
-    this.underlying = nodeCreateWriteStream(this.tmp)
+    this.underlying =
+      options?.mode !== undefined
+        ? nodeCreateWriteStream(this.tmp, { mode: options.mode })
+        : nodeCreateWriteStream(this.tmp)
     this.underlying.on('error', (err) => this.destroy(err))
   }
 
@@ -544,7 +562,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
         // observable. A bare `.catch(() => undefined)` here would silently
         // leak the tmp blob under EACCES/EBUSY/EPERM until orphanSweep
         // collects it >5min later (or never, if persistent).
-        await bestEffortUnlinkTmp(this.tmp, this.target)
+        await bestEffortUnlinkTmp(this.tmp)
         callback(err as Error)
       }
     })
@@ -559,7 +577,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
       // Same rationale as _final: surface non-ENOENT cleanup failures so
       // operators can find the leaked tmp blob; never block destroy on
       // cleanup outcome.
-      void bestEffortUnlinkTmp(this.tmp, this.target).finally(() => callback(err))
+      void bestEffortUnlinkTmp(this.tmp).finally(() => callback(err))
     }
     if (this.underlying.destroyed) {
       cleanup()
@@ -585,24 +603,34 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
 
 /**
  * Create an `AtomicWriteStream` that buffers to a tmp file and atomically
- * commits onto `target` on `.end()`. See `AtomicWriteStream` JSDoc for the
- * full lifecycle contract.
+ * commits onto `target` on `.end()`. `options.mode` follows the
+ * `atomicWriteFile` contract: applied to the tmp file at open(2) and carried
+ * to the target by the rename. See `AtomicWriteStream` JSDoc for the full
+ * lifecycle contract.
  */
-export function createAtomicWriteStream(target: AbsoluteFilePath): AtomicWriteStream {
-  return createPreparedAtomicWriteStream(target, async (prepared) => {
-    await prepared.commit()
-  })
+export function createAtomicWriteStream(target: AbsoluteFilePath, options?: AtomicWriteModeOptions): AtomicWriteStream {
+  return createPreparedAtomicWriteStream(
+    target,
+    async (prepared) => {
+      await prepared.commit()
+    },
+    options
+  )
 }
 
 /**
  * Create a stream whose tmp file is handed to `onPrepared` after fsync.
  * The stream emits `finish` only after that callback resolves.
+ * `options.mode` follows the `atomicWriteFile` contract: applied to the tmp
+ * file at open(2), and `prepared.commit()`'s rename carries it onto the
+ * target, replacing whatever mode a pre-existing target had.
  */
 export function createPreparedAtomicWriteStream(
   target: AbsoluteFilePath,
-  onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>
+  onPrepared: (prepared: PreparedAtomicWrite) => Promise<void>,
+  options?: AtomicWriteModeOptions
 ): AtomicWriteStream {
-  return new AtomicWriteStreamImpl(target, onPrepared)
+  return new AtomicWriteStreamImpl(target, onPrepared, options)
 }
 
 async function prepareAtomicCopyStream(
@@ -754,6 +782,17 @@ export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath, signal
 }
 
 /**
+ * Copy a file to a destination that must not exist yet — an existing name,
+ * including a (dangling) symlink, rejects with `EEXIST` instead of being
+ * overwritten. Unlike {@link copy} this is not atomic: a crash mid-copy can
+ * leave a partial `dest`, acceptable only for callers whose destination names
+ * are fresh and disposable.
+ */
+export async function copyNew(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promise<void> {
+  await fsCopyFile(src, dest, constants.COPYFILE_EXCL)
+}
+
+/**
  * Move/rename a file. Tries `rename` first (atomic on the same filesystem);
  * falls back to copy + unlink on `EXDEV` (cross-mount).
  *
@@ -796,9 +835,9 @@ export async function remove(target: AbsoluteFilePath): Promise<void> {
   }
 }
 
-/** Remove a directory recursively. Idempotent on missing path. */
+/** Remove a directory recursively, retrying transient filesystem locks. Idempotent on missing path. */
 export async function removeDir(target: AbsoluteFilePath): Promise<void> {
-  await fsRm(target, { recursive: true, force: true })
+  await fsRm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
 
 /** Create a single directory. Throws if it already exists. */
@@ -808,6 +847,12 @@ export async function mkdir(target: AbsoluteFilePath): Promise<void> {
 
 /** Ensure a directory exists, creating any missing ancestors. Idempotent. */
 export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
+  const resolved = path.resolve(target)
+  if (resolved === path.parse(resolved).root) {
+    // Windows rejects recursive mkdir on volume roots, even when they exist.
+    await fsStat(resolved)
+    return
+  }
   await fsMkdirPromise(target, { recursive: true })
 }
 

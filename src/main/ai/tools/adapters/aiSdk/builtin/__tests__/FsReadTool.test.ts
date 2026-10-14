@@ -8,8 +8,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { createFsReadToolEntry, executeFsRead } from '../FsReadTool'
 
@@ -206,7 +207,14 @@ describe('createFsReadToolEntry', () => {
     expect(entry.codec).toBeDefined()
     expect(entry.defer).toBe('never')
     expect(entry.namespace).toBe('fs')
-    expect(entry.applies).toBeUndefined()
+  })
+
+  it('applies only when markers exist or the truncate lane can mint new ones', () => {
+    const { applies } = createFsReadToolEntry()
+    const scope = { mcpToolIds: new Set<string>() }
+    expect(applies!(scope)).toBe(false)
+    expect(applies!({ ...scope, hasPersistedOutputs: true })).toBe(true)
+    expect(applies!({ ...scope, canOffloadToolOutputs: true })).toBe(true)
   })
 
   it('its codec blobs only the text field of a text result and rejects errors', () => {

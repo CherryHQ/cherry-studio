@@ -29,6 +29,30 @@ describe('formatRelativeTime', () => {
     const almostADay = 23 * 3600000 + 59 * 60000
     expect(formatRelativeTime(new Date(NOW - almostADay).toISOString(), 'en-US', NOW)).toBe('yesterday')
   })
+
+  it('switches to months and years instead of counting hundreds of days', () => {
+    expect(formatRelativeTime('2026-01-22T12:00:00Z', 'en-US', NOW)).toBe('3 months ago')
+    expect(formatRelativeTime('2024-04-22T12:00:00Z', 'en-US', NOW)).toBe('2 years ago')
+  })
+
+  it('picks the same unit for equal distances in either direction', () => {
+    // Math.round breaks ties toward +infinity, so a signed threshold put -11.5 months on `month` and
+    // +11.5 months on `year`.
+    const days = (n: number) => n * 86400000
+    expect(formatRelativeTime(new Date(NOW - days(345)).toISOString(), 'en-US', NOW)).toBe('last year')
+    expect(formatRelativeTime(new Date(NOW + days(345)).toISOString(), 'en-US', NOW)).toBe('next year')
+    expect(formatRelativeTime(new Date(NOW - days(29.5)).toISOString(), 'en-US', NOW)).toBe('last month')
+    expect(formatRelativeTime(new Date(NOW + days(29.5)).toISOString(), 'en-US', NOW)).toBe('next month')
+  })
+
+  it('leaves no gap between the day, month and year units', () => {
+    const daysAgo = (days: number) => new Date(NOW - days * 86400000).toISOString()
+    // 29 days is still day-level; 30 must already read as a month, never "30 days ago".
+    expect(formatRelativeTime(daysAgo(29), 'en-US', NOW)).toBe('29 days ago')
+    expect(formatRelativeTime(daysAgo(30), 'en-US', NOW)).toBe('last month')
+    // 360 days rounds to 12 months, which must roll up rather than read "12 months ago".
+    expect(formatRelativeTime(daysAgo(360), 'en-US', NOW)).toBe('last year')
+  })
 })
 
 describe('createDurationFormatter', () => {

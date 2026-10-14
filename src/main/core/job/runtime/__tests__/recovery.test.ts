@@ -11,15 +11,16 @@
  * (all live handlers are `retry`) cannot exercise.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { jobService } from '@data/services/JobService'
 import { runStartupRecovery } from '@main/core/job/runtime/recovery'
 import type { JobHandler } from '@main/core/job/types'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -35,7 +36,7 @@ function handlersOf(type: string, recovery: 'abandon' | 'retry' | 'singleton'): 
         async execute() {
           return null
         }
-      } as JobHandler
+      }
     ]
   ])
 }
@@ -45,7 +46,7 @@ describe('runStartupRecovery — in-flight exclusion', () => {
 
   beforeEach(() => {
     const dbSvc = MockMainDbServiceExport.dbService
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       if (name === 'DbService') return dbSvc
       throw new Error(`Unexpected application.get('${name}')`)
     })

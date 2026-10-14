@@ -1,9 +1,10 @@
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { render, screen, waitFor } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 
 import AgentChat from '../AgentChat'
 
@@ -149,7 +150,7 @@ vi.mock('@renderer/components/composer/ComposerCore', () => ({
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
-  useToolApprovalComposerOverrides: () => ({})
+  useToolApprovalComposerOverrides: () => []
 }))
 
 vi.mock('@renderer/components/composer/ComposerDockTransitionFrame', () => ({
@@ -234,7 +235,7 @@ const activeSessionMocks = vi.hoisted(() => ({
     activeSessionId: string | null
     session: { id: string; agentId: string | null; workspace: { path: string } | null } | undefined
     isLoading: boolean
-    setActiveSessionId: ReturnType<typeof vi.fn>
+    setActiveSessionId: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }))
 
@@ -364,6 +365,12 @@ describe('AgentChat locate pending message', () => {
         },
         file: {
           getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
+        },
+        // Replacing `window.api` wholesale drops the setup's IpcApi bridge, which `useIpcOn`
+        // subscribers in the tree call on mount.
+        ipcApi: {
+          request: vi.fn().mockResolvedValue(undefined),
+          on: vi.fn(() => () => {})
         }
       }
     })

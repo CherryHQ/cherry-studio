@@ -1,11 +1,12 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
 import { ArrowUpCircle, Download, ExternalLink, Play, Square, Trash2 } from 'lucide-react'
 import { type FC, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
+
 import type { VersionStatus } from '../types'
-import { CliIcon } from './CliIcon'
 
 interface VersionStatusCardProps {
   toolId: string
@@ -19,6 +20,7 @@ interface VersionStatusCardProps {
   onOpenDashboard?: () => void
   isInstalling?: boolean
   isUpgrading?: boolean
+  upgradeDisabled?: boolean
   canLaunch?: boolean
   launching?: boolean
   running?: boolean
@@ -41,6 +43,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   onOpenDashboard,
   isInstalling,
   isUpgrading,
+  upgradeDisabled,
   canLaunch,
   launching,
   running,
@@ -91,12 +94,12 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
       {running && stopping ? (
         <>
           <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-          {t('openclaw.gateway.stop')}
+          {t('code.stop')}
         </>
       ) : running ? (
         <>
           <Square size={12} />
-          {t('openclaw.gateway.stop')}
+          {t('code.stop')}
         </>
       ) : launching ? (
         <>
@@ -119,7 +122,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-foreground text-sm">{toolName}</span>
+            <span className="truncate text-sm font-medium text-foreground">{toolName}</span>
             {status.source === 'system' ? (
               <span
                 className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
@@ -136,7 +139,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             )}
           </div>
 
-          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             {isInstalled
               ? status.current && <span className="font-mono">v{status.current}</span>
               : status.latest && (
@@ -161,7 +164,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               variant="ghost"
               size="sm"
               onClick={onUpgrade}
-              disabled={busy}
+              disabled={busy || upgradeDisabled}
               className="shrink-0 gap-1 text-warning hover:bg-warning-subtle hover:text-warning-subtle-foreground">
               {isUpgrading ? (
                 <>
@@ -255,7 +258,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               onClick={onOpenDashboard}
               className="shrink-0 text-foreground">
               <ExternalLink size={12} />
-              {t('openclaw.gateway.open_dashboard')}
+              {t('code.open_web_ui')}
             </Button>
           )}
         </div>

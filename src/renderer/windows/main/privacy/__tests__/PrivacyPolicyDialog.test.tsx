@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),

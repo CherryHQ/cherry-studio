@@ -1,3 +1,10 @@
+---
+description: WindowManager architecture — core type relationships, the three lifecycle modes, and the event timing contract
+sources:
+  - src/main/core/window/WindowManager.ts
+  - src/main/core/window/types.ts
+---
+
 # WindowManager Overview
 
 Architecture, lifecycle modes, and event timing contract for WindowManager.
@@ -95,7 +102,7 @@ Windows are reused rather than destroyed. The pool has two orthogonal axes:
 1. **Producer axis (`standbySize`):** Pre-warmed spares are always maintained in the idle queue, actively replenished on every `open()` via `setImmediate`. Guarantees zero-wait for the next caller regardless of concurrent usage.
 2. **Consumer axis (`recycleMinSize` / `recycleMaxSize`):** On `close()`, windows are pushed back to the idle queue (bounded by `recycleMaxSize`) for reuse. `recycleMinSize` is a passive decay floor.
 
-Both axes are independently enabled via config. `open()` pops an idle window (firing `WindowManager_Reused` IPC when `initData` is provided) or creates fresh if empty. `close()` either recycles or destroys depending on the recycle config.
+Both axes are independently enabled via config. `open()` pops an idle window (sending the `window.reused` IpcApi event when `initData` is provided) or creates fresh if empty. `close()` either recycles or destroys depending on the recycle config.
 
 **Use for**: frequently opened windows where creation cost is high (selection actions, screenshot overlays).
 
@@ -125,10 +132,9 @@ See [Warmup Mechanics](./window-manager-warmup-mechanics.md) for the full pool c
 | Lifecycle modes | `default`, `singleton`, `pooled` — covers all window patterns |
 | Window lifecycle hooks (`onWindowCreated` / `onWindowDestroyed`, plus type-filtered `onWindowCreatedByType` / `onWindowDestroyedByType`) | Domain services inject behavior at creation and clean up on destruction via typed `Emitter<ManagedWindow>` events |
 | `broadcast()` / `broadcastToType()` | IPC fan-out to all or type-filtered windows |
-| `open({ initData })` / `create({ initData })` / `setInitData()` / `getInitData()` | Init payload passed atomically on open/create; automatically pushed to renderer via `WindowManager_Reused` on reuse paths |
+| `open({ initData })` / `create({ initData })` / `setInitData()` / `getInitData()` | Init payload passed atomically on open/create; automatically pushed to renderer via `window.reused` on reuse paths |
 | `suspendPool()` / `resumePool()` | Pause pool tracking without destroying in-use windows |
 | macOS Dock visibility management | Existence-based: Dock is visible while any window with `behavior.macShowInDock !== false` is alive (not destroyed). Services express tray-mode intent via `wm.behavior.setMacShowInDockByType(type, value)` to temporarily opt a type out of Dock contribution. Matches native macOS semantics where Cmd+W does not remove the app from the Dock. |
-| `setTitleBarOverlay()` | Batch update overlay on all applicable windows |
 | Bounds persistence (`rememberBounds`) | Singleton-only opt-in to persist & restore a window's position/size across launches (onto its last display), backed by the main persist cache. Runtime-toggleable via `wm.setRememberBounds`. See [README → Bounds Persistence](./README.md#bounds-persistence). |
 
 ## Event Timing Contract

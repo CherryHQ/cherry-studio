@@ -1,12 +1,13 @@
+import { ChevronDown, Eye, EyeOff, Info } from 'lucide-react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Input, Popover, PopoverAnchor, PopoverContent, PopoverTrigger, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig, useProviderMutations } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { DEFAULT_VERTEX_AI_LOCATIONS, parseVertexAIServiceAccountJson } from '@renderer/utils/vertexAi'
-import { ChevronDown, Eye, EyeOff, Info } from 'lucide-react'
-import type { FC } from 'react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   ProviderHelpLink,
@@ -253,7 +254,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         {t('settings.provider.vertex_ai.service_account.title')}
       </ProviderSettingsSubtitle>
       <div
-        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-foreground"
         role="status">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <span>{t('settings.provider.vertex_ai.service_account.description')}</span>
@@ -304,7 +305,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         <button
           type="button"
           onClick={() => setShowClientEmail(!showClientEmail)}
-          className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
+          className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           aria-label={t('settings.provider.vertex_ai.service_account.toggle_client_email_visibility')}>
           {showClientEmail ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
         </button>
@@ -338,7 +339,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         <button
           type="button"
           onClick={() => setShowPrivateKey(!showPrivateKey)}
-          className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
+          className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           aria-label={t('settings.provider.vertex_ai.service_account.toggle_private_key_visibility')}>
           {showPrivateKey ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
         </button>
@@ -365,7 +366,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           <button
             type="button"
             onClick={() => setShowProjectId(!showProjectId)}
-            className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
+            className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             aria-label={t('settings.provider.vertex_ai.service_account.toggle_project_id_visibility')}>
             {showProjectId ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
           </button>
@@ -402,7 +403,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground"
+                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   aria-label={t('settings.provider.vertex_ai.select_location')}
                   aria-haspopup="listbox">
                   <ChevronDown className="size-4" />

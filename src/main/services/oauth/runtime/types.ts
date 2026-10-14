@@ -63,22 +63,15 @@ export interface LoopbackCallbackConfig {
   redirectUri: string
 }
 
-export interface DeepLinkCallbackConfig {
-  redirectUri: string
-}
-
 export interface OAuthRuntimeProviderContext {
-  oauthServer?: string
-  apiHost?: string
   forceRefresh?: boolean
   signal?: AbortSignal
 }
 
-export interface OAuthTokenExchangeSideEffectResult {
-  apiKeys?: string
-}
-
-export interface OAuthRuntimeProviderDefinition {
+export interface OAuthRuntimeProviderDefinition<
+  TContext extends OAuthRuntimeProviderContext = OAuthRuntimeProviderContext,
+  TSideEffect extends object = object
+> {
   providerId: string
   clientId: string
   /**
@@ -88,18 +81,17 @@ export interface OAuthRuntimeProviderDefinition {
    * manual API key (CherryIN), so logout never strips that key's enablement.
    */
   clearDisablesProvider?: boolean
-  transport:
-    | { type: 'loopback'; config: LoopbackCallbackConfig }
-    | { type: 'deep-link'; config: DeepLinkCallbackConfig }
-  createClient(context?: OAuthRuntimeProviderContext): PkceOAuthClient | Promise<PkceOAuthClient>
+  transport: LoopbackCallbackConfig
+  createClient(context?: TContext): PkceOAuthClient | Promise<PkceOAuthClient>
   extractAccountId?(accessToken: string): string | null
+  matchesSignInContext?(current: TContext, requested: TContext): boolean
   /**
    * Post-exchange side effect, run *after* the tokens are persisted so a failure
    * here never discards a valid token (CherryIN fetches the user's API keys).
-   * Its result is forwarded to the deep-link initiator window.
+   * Its result is returned only to the initiator window, after the HTTP callback.
    */
   afterPersistTokens?(
     tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
-    context: OAuthRuntimeProviderContext
-  ): Promise<OAuthTokenExchangeSideEffectResult | void>
+    context: TContext
+  ): Promise<TSideEffect | void>
 }

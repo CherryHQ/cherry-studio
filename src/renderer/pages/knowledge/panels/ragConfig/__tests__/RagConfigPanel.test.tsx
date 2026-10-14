@@ -1,10 +1,11 @@
-import { toast } from '@renderer/services/toast'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import RagConfigPanel from '../RagConfigPanel'
 
@@ -426,15 +427,20 @@ describe('RagConfigPanel', () => {
 
     const thresholdSlider = screen.getByRole('slider', { name: '相似度阈值' })
     expect(thresholdSlider).toHaveValue('0')
+    // The threshold is a 0.01-granularity knob, so 0.65 must stay reachable and
+    // be shown as typed instead of being rounded to a tenth.
+    expect(thresholdSlider).toHaveAttribute('step', '0.01')
 
-    fireEvent.change(thresholdSlider, { target: { value: '0.7' } })
+    fireEvent.change(thresholdSlider, { target: { value: '0.65' } })
+    expect(screen.getByText('0.65')).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(mockSave).toHaveBeenCalledWith(
         expect.objectContaining({
           rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-          threshold: 0.7
+          threshold: 0.65
         })
       )
     })

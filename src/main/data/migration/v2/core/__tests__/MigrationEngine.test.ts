@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
 import { MigrationEngine } from '../MigrationEngine'
@@ -139,8 +140,18 @@ describe('MigrationEngine', () => {
   it('aggregates prepare and execute warnings into the migrator result on success', async () => {
     const events: string[] = []
     const migrator = createTestMigrator('knowledge', 1, events)
-    migrator.prepare.mockResolvedValueOnce({ success: true, itemCount: 0, warnings: ['prepare warn'] } as any)
-    migrator.execute.mockResolvedValueOnce({ success: true, processedCount: 0, warnings: ['execute warn'] } as any)
+    migrator.prepare.mockResolvedValueOnce({
+      success: true,
+      itemCount: 0,
+      warnings: ['prepare warn'],
+      warningMessages: [{ key: 'migration.prepare_warning' }]
+    } as any)
+    migrator.execute.mockResolvedValueOnce({
+      success: true,
+      processedCount: 0,
+      warnings: ['execute warn'],
+      warningMessages: [{ key: 'migration.execute_warning', params: { count: 2 } }]
+    } as any)
 
     engine.registerMigrators([migrator as any])
 
@@ -149,6 +160,10 @@ describe('MigrationEngine', () => {
     expect(result.success).toBe(true)
     expect(result.migratorResults).toHaveLength(1)
     expect(result.migratorResults[0].warnings).toEqual(['prepare warn', 'execute warn'])
+    expect(result.migratorResults[0].warningMessages).toEqual([
+      { key: 'migration.prepare_warning' },
+      { key: 'migration.execute_warning', params: { count: 2 } }
+    ])
   })
 
   it('omits the warnings field when a migrator reports none', async () => {
@@ -193,7 +208,7 @@ describe('MigrationEngine', () => {
       success: true,
       errors: [],
       stats: { sourceCount: 2, targetCount: 1, skippedCount: 0 }
-    } as any)
+    })
 
     engine.registerMigrators([migrator as any])
 
@@ -216,7 +231,7 @@ describe('MigrationEngine', () => {
       success: true,
       errors: [],
       stats: { sourceCount: 2, targetCount: 1, skippedCount: 1 }
-    } as any)
+    })
 
     engine.registerMigrators([migrator as any])
 

@@ -1,5 +1,6 @@
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { TAB_LIMITS, TabLruManager } from '../TabLruManager'
 
@@ -24,21 +25,6 @@ describe('TabLruManager', () => {
     vi.spyOn(console, 'info').mockImplementation(() => {})
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
-  })
-
-  describe('constructor', () => {
-    it('should use default limits', () => {
-      const limits = manager.getLimits()
-      expect(limits.softCap).toBe(TAB_LIMITS.softCap)
-      expect(limits.hardCap).toBe(TAB_LIMITS.hardCap)
-    })
-
-    it('should accept custom limits', () => {
-      const customManager = new TabLruManager({ softCap: 5, hardCap: 15 })
-      const limits = customManager.getLimits()
-      expect(limits.softCap).toBe(5)
-      expect(limits.hardCap).toBe(15)
-    })
   })
 
   describe('checkAndGetDormantCandidates', () => {
@@ -93,10 +79,10 @@ describe('TabLruManager', () => {
         expect(result).not.toContain('home')
       })
 
-      it('should not hibernate pinned tabs', () => {
+      it('should not hibernate pinned tabs below the hard cap', () => {
         const now = Date.now()
         const tabs = [
-          createTab('pinned-tab', { lastAccessTime: now - 10000, isPinned: true }), // Oldest but pinned
+          createTab('pinned-tab', { lastAccessTime: now - 10000, isPinned: true }),
           ...Array.from({ length: TAB_LIMITS.softCap + 1 }, (_, i) =>
             createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
           )
@@ -123,9 +109,8 @@ describe('TabLruManager', () => {
     })
 
     describe('hard cap behavior', () => {
-      it('should use relaxed exemption rules when exceeding hard cap', () => {
+      it('should relax the pin exemption when the merged awake set exceeds the hard cap', () => {
         const now = Date.now()
-        // Create tabs exceeding hard cap, with one pinned oldest tab
         const tabs = [
           createTab('pinned-old', { lastAccessTime: now - 20000, isPinned: true }),
           ...Array.from({ length: TAB_LIMITS.hardCap + 2 }, (_, i) =>
@@ -135,11 +120,10 @@ describe('TabLruManager', () => {
 
         const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.hardCap + 1}`)
 
-        // Hard cap triggered: pinned tabs are no longer exempt (except the default chat tab and active)
         expect(result).toContain('pinned-old')
       })
 
-      it('should still protect the default chat and active tabs in hard cap mode', () => {
+      it('should still protect the default chat and active tabs', () => {
         const now = Date.now()
         const tabs = [
           createTab('home', { lastAccessTime: now - 30000 }),
@@ -147,7 +131,6 @@ describe('TabLruManager', () => {
             createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
           )
         ]
-
         const activeTabId = `tab-${TAB_LIMITS.hardCap + 1}`
         const result = manager.checkAndGetDormantCandidates(tabs, activeTabId)
 
@@ -167,17 +150,10 @@ describe('TabLruManager', () => {
         expect(Array.isArray(result)).toBe(true)
       })
 
-      it('should handle when all tabs are exempt', () => {
-        const now = Date.now()
-        // All tabs are pinned
-        const tabs = Array.from({ length: TAB_LIMITS.softCap + 3 }, (_, i) =>
-          createTab(`tab-${i}`, { lastAccessTime: now + i * 1000, isPinned: true })
-        )
+      it('should preserve an all-pinned set between the soft and hard caps', () => {
+        const tabs = Array.from({ length: TAB_LIMITS.softCap + 3 }, (_, i) => createTab(`tab-${i}`, { isPinned: true }))
 
-        const result = manager.checkAndGetDormantCandidates(tabs, 'tab-0')
-
-        // Should return empty (no candidates available)
-        expect(result.length).toBeLessThan(3)
+        expect(manager.checkAndGetDormantCandidates(tabs, 'tab-0')).toEqual([])
       })
 
       it('should handle mixed dormant and active tabs correctly', () => {

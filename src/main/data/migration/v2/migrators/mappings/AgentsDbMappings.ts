@@ -103,7 +103,7 @@ export function buildUserModelLookupExpr(sourceColumn: string): string {
  * handled by `AgentsMigrator.migrateScheduledTasksTs` in TypeScript — the
  * v1 `(scheduleType, scheduleValue)` columns cannot be encoded into a
  * `Trigger` JSON blob with pure SQL expressions cleanly, and v1 run logs
- * are discarded (see breaking-changes/2026-05-19).
+ * are discarded.
  *
  * Do not reorder entries without updating the child `whereClause`s.
  */
@@ -159,6 +159,13 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       // Placeholder; AgentsMigrator backfills real fractional-indexing keys
       // scoped by agentId, ordered by source `sort_order` after INSERT.
       notNullCol('order_key', "''"),
+      {
+        // Seed the required parent field from creation. AgentsMigrator replaces
+        // it with the exact maximum imported message activity after message import.
+        name: 'last_activity_at',
+        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
+        sourceColumn: 'created_at'
+      },
       {
         name: 'created_at',
         expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",

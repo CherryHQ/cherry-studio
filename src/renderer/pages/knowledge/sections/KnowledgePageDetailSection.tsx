@@ -1,18 +1,23 @@
+import { ArrowLeft } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, PageSidePanel } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { ArrowLeft } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import DetailHeader from '../components/DetailHeader'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
-import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
-import KnowledgeItemNoteContentPanel from '../panels/dataSource/KnowledgeItemNoteContentPanel'
-import RagConfigPanel from '../panels/ragConfig/RagConfigPanel'
-import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
+
+// Item detail views are loaded when an item is opened, not with the page.
+const KnowledgeItemChunkDetailPanel = lazy(() => import('../panels/dataSource/KnowledgeItemChunkDetailPanel'))
+const KnowledgeItemNoteContentPanel = lazy(() => import('../panels/dataSource/KnowledgeItemNoteContentPanel'))
+
+const RagConfigPanel = lazy(() => import('../panels/ragConfig/RagConfigPanel'))
+const RecallTestPanel = lazy(() => import('../panels/recallTest/RecallTestPanel'))
+
 const KnowledgePageDetailSection = () => {
   const { t } = useTranslation()
   const {
@@ -82,11 +87,13 @@ const KnowledgePageDetailSection = () => {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {selectedItemId ? (
-          selectedItemView === 'content' ? (
-            <KnowledgeItemNoteContentPanel itemId={selectedItemId} onBack={closeItemChunks} />
-          ) : (
-            <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
-          )
+          <Suspense fallback={null}>
+            {selectedItemView === 'content' ? (
+              <KnowledgeItemNoteContentPanel itemId={selectedItemId} onBack={closeItemChunks} />
+            ) : (
+              <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
+            )}
+          </Suspense>
         ) : filePreview ? (
           <section
             aria-label={filePreview.fileName}
@@ -140,11 +147,15 @@ const KnowledgePageDetailSection = () => {
         title={t('knowledge.tabs.rag_config')}
         closeLabel={t('common.close')}
         bodyClassName="px-0 py-0">
-        <RagConfigPanel
-          base={selectedBase}
-          itemCount={isItemsLoading ? undefined : selectedBaseItemsTotal}
-          onRestoreBase={openRestoreBaseDialog}
-        />
+        {isRagConfigDrawerOpen ? (
+          <Suspense fallback={null}>
+            <RagConfigPanel
+              base={selectedBase}
+              itemCount={isItemsLoading ? undefined : selectedBaseItemsTotal}
+              onRestoreBase={openRestoreBaseDialog}
+            />
+          </Suspense>
+        ) : null}
       </PageSidePanel>
 
       <PageSidePanel
@@ -153,7 +164,11 @@ const KnowledgePageDetailSection = () => {
         title={t('knowledge.tabs.recall_test')}
         closeLabel={t('common.close')}
         bodyClassName="px-0 py-0">
-        <RecallTestPanel baseId={selectedBaseId} />
+        {isRecallTestDrawerOpen ? (
+          <Suspense fallback={null}>
+            <RecallTestPanel baseId={selectedBaseId} />
+          </Suspense>
+        ) : null}
       </PageSidePanel>
     </main>
   )

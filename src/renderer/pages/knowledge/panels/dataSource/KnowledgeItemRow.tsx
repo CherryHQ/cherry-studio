@@ -1,3 +1,8 @@
+import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
+import type { KeyboardEvent, ReactNode } from 'react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
@@ -8,14 +13,10 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
-import type { KeyboardEvent, ReactNode } from 'react'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_ITEM_ROW_GRID, knowledgeDataSourceCheckboxClassName } from './styles'
 import { type DataSourceStatusViewModel, dataSourceTypeDisplayConfig } from './utils/models'
-import { toKnowledgeItemRowViewModel } from './utils/selectors'
+import { canReindexKnowledgeItem, toKnowledgeItemRowViewModel } from './utils/selectors'
 
 export interface KnowledgeItemRowProps {
   item: KnowledgeItem
@@ -36,6 +37,20 @@ export interface KnowledgeItemRowProps {
  */
 const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
   const progress = useSharedCacheValue(`knowledge.item.embedding_progress.${itemId}` as const)
+  if (progress == null) {
+    return null
+  }
+  return ` ${progress}%`
+}
+
+/**
+ * Live " NN%" suffix for a row whose linked document processor is running (remote OCR /
+ * conversion). Mounted only while `item.status === 'processing'`; the check job mirrors the
+ * processor job's progress into the shared cache every poll round and TTL-collects it when
+ * polling stops, so absence just means the processor reports no progress.
+ */
+const KnowledgeItemFileProcessingProgress = ({ itemId }: { itemId: string }) => {
+  const progress = useSharedCacheValue(`knowledge.item.file_processing_progress.${itemId}` as const)
   if (progress == null) {
     return null
   }
@@ -118,7 +133,7 @@ const KnowledgeItemRow = ({
   // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
   // be migrated); surface it as the badge tooltip.
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
-  const canReindex = item.status === 'completed' || item.status === 'failed'
+  const canReindex = canReindexKnowledgeItem(item)
   const canViewChunks = item.status === 'completed'
   // Every row's primary click views its original content in-app: files/URLs delegate
   // preview/fallback/error handling to `previewSource`, directories drill into their children, and
@@ -237,11 +252,11 @@ const KnowledgeItemRow = ({
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
-          <span className="min-w-0 flex-1 truncate text-foreground text-sm" title={fullTitle}>
+          <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={fullTitle}>
             {title}
           </span>
         </div>
-        <div role="gridcell" className="truncate text-muted-foreground text-xs">
+        <div role="gridcell" className="truncate text-xs text-muted-foreground">
           {typeLabel}
         </div>
         <div role="gridcell">
@@ -254,13 +269,14 @@ const KnowledgeItemRow = ({
               ) : (
                 <>
                   {t(status.labelKey)}
+                  {item.status === 'processing' ? <KnowledgeItemFileProcessingProgress itemId={item.id} /> : null}
                   {item.status === 'embedding' ? <KnowledgeItemEmbeddingProgress itemId={item.id} /> : null}
                 </>
               )
             }
           />
         </div>
-        <div role="gridcell" className="truncate text-foreground-tertiary text-xs">
+        <div role="gridcell" className="truncate text-xs text-foreground-tertiary">
           {updatedAt}
         </div>
         <div role="gridcell" className="flex items-center justify-center" onClick={(event) => event.stopPropagation()}>

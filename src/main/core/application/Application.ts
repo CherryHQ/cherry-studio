@@ -1,6 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { app, dialog } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import {
   type Disposable,
@@ -13,10 +16,9 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, dialog, ipcMain } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { ServiceRegistry } from './serviceRegistry'
 
@@ -528,17 +530,17 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    ipcMain.handle(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
+    handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
       this.relaunch(options)
     })
 
-    ipcMain.handle(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
+    handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
       const hold = this.preventQuit(reason)
       this.ipcQuitHolds.set(hold.id, hold)
       return hold.id
     })
 
-    ipcMain.handle(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
+    handleGuarded(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
       const hold = this.ipcQuitHolds.get(holdId)
       if (hold) {
         hold.dispose()
@@ -564,6 +566,16 @@ export class Application {
    */
   public getOptional<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
     return this.container.getOptional(name)
+  }
+
+  /**
+   * Resolve a service only if the container already created it — never
+   * registers, instantiates, or throws. For preboot-era callers that run before
+   * `bootstrap()` and must degrade gracefully; use `get()` everywhere else.
+   * @param name - Service name from ServiceRegistry
+   */
+  public getExisting<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
+    return this.container.getInstance(name) as ServiceRegistry[K] | undefined
   }
 
   /**

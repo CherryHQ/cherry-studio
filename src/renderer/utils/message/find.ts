@@ -37,7 +37,12 @@ function formatErrorPart(data: Partial<ErrorPartData> | undefined): string {
   return [data.name, data.code, data.message].filter(Boolean).join('\n')
 }
 
-function getRenderableTextContent(part: CherryMessagePart): string {
+/**
+ * Canonical part → Markdown serialization for the text-like part types
+ * (`text` / `data-code` / `data-translation` / `data-error`). Every export path
+ * must go through this so a code part keeps its fences and language tag.
+ */
+export function getRenderableTextContent(part: CherryMessagePart): string {
   switch (part.type) {
     case 'text':
       return part.text ?? ''
@@ -126,7 +131,8 @@ const formatCitationLines = (citations: Citation[]): string =>
     .join('\n\n')
 
 /**
- * Export / copy view of a message whose citations come from its own tool results.
+ * Export / copy view of a message whose citations come from its own tool results
+ * and, via `priorCitationParts`, those of earlier messages in the conversation.
  *
  * These carry no `providerMetadata.cherry.references`: the model writes `[cite:id]`
  * markers straight into the text (see `./citations`). Both halves therefore have to
@@ -151,6 +157,7 @@ export const getToolCitationExport = (
     return !!references?.length && convertReferencesToCitations(references).length > 0
   })
   if (rendersLegacyCitations) return { content, citation: '' }
-  const { content: exported, cited } = toExportableCitations(content, getParts(message))
+  const priorParts = 'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
+  const { content: exported, cited } = toExportableCitations(content, getParts(message), priorParts)
   return { content: exported, citation: formatCitationLines(cited) }
 }

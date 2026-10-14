@@ -1,3 +1,7 @@
+import { useState } from 'react'
+import { type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import { FormField, FormItem } from '@cherrystudio/ui'
 import { PromptEditorField } from '@renderer/components/PromptEditorField'
 import {
@@ -11,9 +15,6 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
-import { useState } from 'react'
-import { type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 
@@ -57,6 +58,7 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
             label={
               <FieldLabelWithHelp
                 label={t('library.config.prompt.label')}
+                labelClassName="font-medium"
                 formLabel={false}
                 helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
               />

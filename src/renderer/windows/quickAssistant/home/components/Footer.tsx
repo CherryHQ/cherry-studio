@@ -1,8 +1,9 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { ArrowLeft, CircleArrowLeft, Copy, Loader2, Pin } from 'lucide-react'
+import { ArrowLeft, CircleArrowLeft, Copy, Loader2, Pin, Volume2 } from 'lucide-react'
 import type { ButtonHTMLAttributes, FC } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
 
 interface FooterProps {
   route: string
@@ -13,6 +14,7 @@ interface FooterProps {
   clearClipboard?: () => void
   onEsc: () => void
   onCopy?: () => void
+  onReadAloud?: () => void
 }
 
 const Footer: FC<FooterProps> = ({
@@ -23,7 +25,8 @@ const Footer: FC<FooterProps> = ({
   onEsc,
   setIsPinned,
   isPinned,
-  onCopy
+  onCopy,
+  onReadAloud
 }) => {
   const { t } = useTranslation()
 
@@ -41,8 +44,8 @@ const Footer: FC<FooterProps> = ({
   }
 
   return (
-    <div className="drag flex flex-row justify-between py-1.5 text-muted-foreground text-xs">
-      <div className="flex items-center justify-center gap-1 text-muted-foreground text-xs">
+    <div className="drag flex flex-row justify-between py-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
         <FooterAction onClick={onEsc}>
           {loading ? (
             <Loader2 size={12} className="animate-spin text-error" />
@@ -64,10 +67,18 @@ const Footer: FC<FooterProps> = ({
           </FooterAction>
         )}
         {route !== 'home' && !loading && (
-          <FooterAction onClick={handleCopy}>
-            <Copy size={14} className="text-foreground" />
-            {t('quickAssistant.footer.copy_last_message')}
-          </FooterAction>
+          <>
+            <FooterAction onClick={handleCopy}>
+              <Copy size={14} className="text-foreground" />
+              {t('quickAssistant.footer.copy_last_message')}
+            </FooterAction>
+            {onReadAloud && (
+              <FooterAction onClick={onReadAloud}>
+                <Volume2 size={14} className="text-foreground" />
+                {t('chat.message.read_aloud.label')}
+              </FooterAction>
+            )}
+          </>
         )}
       </div>
       <button

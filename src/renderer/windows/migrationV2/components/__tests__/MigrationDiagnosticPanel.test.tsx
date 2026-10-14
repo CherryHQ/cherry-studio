@@ -1,6 +1,7 @@
-import type * as CherryUi from '@cherrystudio/ui'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryUi from '@cherrystudio/ui'
 
 const mocks = vi.hoisted(() => ({
   logger: {
@@ -251,8 +252,8 @@ describe('MigrationDiagnosticPanel', () => {
   it('states that a metadata-only bundle is local, not uploaded, and contains only system information', async () => {
     await saveBundle('not_included')
 
-    expect(zhCN.migration.diagnostics.saved_local).toContain('未自动上传')
-    expect(enUS.migration.diagnostics.saved_local).toContain('was not uploaded automatically')
+    expect(zhCN['migration.diagnostics.saved_local']).toContain('未自动上传')
+    expect(enUS['migration.diagnostics.saved_local']).toContain('was not uploaded automatically')
     expect(
       screen.getByText(
         'Application logs could not be included. This diagnostic bundle contains only system information.'

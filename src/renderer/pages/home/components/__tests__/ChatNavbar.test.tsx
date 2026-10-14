@@ -1,7 +1,8 @@
-import type * as CherryUi from '@cherrystudio/ui'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryUi from '@cherrystudio/ui'
 
 const preferenceMock = vi.hoisted(() => ({
   setShowSidebar: vi.fn(),

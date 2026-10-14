@@ -1,7 +1,11 @@
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
+import type { LanguageModelUsage, ModelMessage } from 'ai'
+
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
- * about-to-send prompt in place when it crosses 80% of the model's context
- * window. The aiCore context module does the work via
+ * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
+ * the input room (window minus this request's output reservation). The aiCore
+ * context module does the work via
  * `compactModelMessages` — it splits only on turn boundaries (never orphans a
  * tool result), preserves `system` verbatim, and returns
  * `[...system, <summary>, ...recent turns]`.
@@ -19,23 +23,23 @@
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
+import { compactModelMessages, getContextTokens, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
-  CONTEXT_COMPACT_TRIGGER_RATIO
+  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
 } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
+import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
+import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
-import type { LanguageModelUsage, ModelMessage } from 'ai'
 
 import type { RequestFeature } from '../feature'
 
@@ -80,16 +84,11 @@ function estimateMessageTokens(message: ModelMessage, dialect: TokenDialect): nu
  */
 function estimatePromptTokens(
   messages: ModelMessage[],
-  steps: ReadonlyArray<{ usage: LanguageModelUsage }> | undefined,
+  steps: ReadonlyArray<{ usage: LanguageModelUsage; providerMetadata?: SharedV3ProviderMetadata }> | undefined,
   dialect: TokenDialect
 ): number {
-  const usage = steps?.at(-1)?.usage
-  // Trust totalTokens only when inputTokens is also reported — otherwise totalTokens
-  // can collapse to output-only and badly undercount (same guard as the usage observer).
-  const anchor =
-    usage && typeof usage.inputTokens === 'number' && typeof usage.totalTokens === 'number'
-      ? usage.totalTokens
-      : undefined
+  const step = steps?.at(-1)
+  const anchor = step ? getContextTokens(step.usage, step.providerMetadata) : undefined
   if (anchor === undefined) return estimateModelMessages(messages, dialect)
   // Delta = messages appended after the last assistant output (this step's tool results).
   let lastAssistant = -1
@@ -137,7 +136,7 @@ export const inLoopCompactionFeature: RequestFeature = {
   name: 'in-loop-compaction',
   applies: (scope) => {
     if (scope.request.contextOwner === 'caller') return false
-    const topicId = scope.request.chatId
+    const topicId = scope.request.conversation.topicId
     if (!topicId) return false
     if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false
@@ -160,8 +159,20 @@ export const inLoopCompactionFeature: RequestFeature = {
       })
       return {}
     }
-    const trigger = Math.floor(contextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)
-    const keepBudget = Math.floor(contextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
+    // Against the room the PROMPT actually has, not the whole window: whatever
+    // this request declares as max_tokens is billed alongside the input.
+    const inputRoom = resolveInputRoom(
+      contextWindow,
+      resolveRequestedMaxOutputTokens(
+        scope.request.callOverrides?.maxOutputTokens,
+        undefined,
+        scope.assistant,
+        scope.model,
+        scope.endpointType
+      )
+    )
+    const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)
+    const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // The trigger/keep budgets above belong to the REQUEST model (they describe
     // the chat history it must fit), but the summarize call is issued against
     // the compressor, so its own budget must come from the compressor's window.

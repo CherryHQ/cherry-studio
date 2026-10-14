@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { sanitizeFilename } from '@main/utils/legacyFile'
 import Database from 'better-sqlite3'
+
+import { sanitizeFilename } from '@main/utils/legacyFile'
 
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
 // `rowid IN (...)` binds one SQL variable per id; stay well under SQLite's bound-variable cap,

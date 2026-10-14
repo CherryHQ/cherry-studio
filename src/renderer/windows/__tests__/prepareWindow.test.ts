@@ -1,5 +1,6 @@
-import { preferenceService } from '@data/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { preferenceService } from '@data/PreferenceService'
 
 import { prepareWindow } from '../prepareWindow'
 
@@ -8,6 +9,9 @@ vi.mock('@renderer/i18n/resolver', () => ({ initI18n: initI18nMock }))
 
 const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
 vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
+
+const { initSentryMock } = vi.hoisted(() => ({ initSentryMock: vi.fn() }))
+vi.mock('@renderer/services/sentry', () => ({ initSentry: initSentryMock }))
 
 describe('prepareWindow', () => {
   beforeEach(() => {
@@ -34,6 +38,16 @@ describe('prepareWindow', () => {
     const pending = prepareWindow({ preference: 'all' })
 
     expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1)
+    return pending
+  })
+
+  it('arms renderer error capture before anything that can throw runs', () => {
+    const pending = prepareWindow({ preference: 'all' })
+
+    expect(initSentryMock).toHaveBeenCalledTimes(1)
+    expect(initSentryMock.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(preferenceService.preloadAll).mock.invocationCallOrder[0]
+    )
     return pending
   })
 

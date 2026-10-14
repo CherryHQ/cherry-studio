@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { ContentReference } from '@shared/data/types/message'
 import { CitationType, ReferenceCategory } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import { convertReferencesToCitations } from '../partsToBlocks'
 

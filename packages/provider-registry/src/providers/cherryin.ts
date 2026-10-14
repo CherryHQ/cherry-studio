@@ -13,6 +13,7 @@ const claudeWebToolModels = [
 const geminiWebToolModels = [
   'gemini-2',
   'gemini-3',
+  'gemini-4-argon',
   'gemini-flash-latest',
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
@@ -25,9 +26,24 @@ const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {
   effort: 'enabled'
 })
 
-const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', 'deepseek-v3-2']
+const deepSeekModelOverrides = [
+  {
+    apiModelId: 'deepseek/deepseek-v3.2',
+    modelId: 'deepseek-v3-2',
+    reasoningContracts: {
+      'openai-chat-completions': { wire: deepSeekThinkingWire }
+    }
+  }
+] satisfies Array<Partial<ProviderModelOverride>>
 
 const qwenAudioCompatibilityOverrides = [
+  {
+    apiModelId: 'qwen/qwen3.5-9b',
+    modelId: 'qwen3-5-9b',
+    capabilities: { remove: ['audio-recognition', 'video-recognition'] },
+    inputModalities: ['text', 'image'],
+    reason: 'CherryIN rejects native audio and video for the Qwen3.5 9B endpoint'
+  },
   {
     apiModelId: 'qwen/qwen3.5-122b-a10b',
     modelId: 'qwen3-5-122b-a10b',
@@ -75,9 +91,10 @@ const qwenAudioCompatibilityOverrides = [
     reason: 'CherryIN free endpoint accepts text and image_url parts only'
   },
   {
-    modelId: 'qwen3-5-9b',
+    modelId: 'qwen3-5-9b-free',
     apiModelId: 'qwen/qwen3.5-9b(free)',
     modelVariants: ['9b', 'free'],
+    name: 'Qwen3.5 9B (Free)',
     capabilities: { remove: ['audio-recognition', 'video-recognition'] },
     inputModalities: ['text', 'image'],
     reason: 'CherryIN free endpoint accepts text and image_url parts only'
@@ -87,6 +104,7 @@ const qwenAudioCompatibilityOverrides = [
 export default defineProvider({
   id: 'cherryin',
   name: 'CherryIN',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
@@ -134,13 +152,5 @@ export default defineProvider({
       official: 'https://open.cherryin.ai'
     }
   },
-  overrides: [
-    ...deepSeekModels.map((modelId) => ({
-      modelId,
-      reasoningContracts: {
-        'openai-chat-completions': { wire: deepSeekThinkingWire }
-      }
-    })),
-    ...qwenAudioCompatibilityOverrides
-  ]
+  overrides: [...deepSeekModelOverrides, ...qwenAudioCompatibilityOverrides]
 })

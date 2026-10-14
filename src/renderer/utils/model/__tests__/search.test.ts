@@ -24,6 +24,23 @@ describe('search', () => {
     expect(score).not.toBeNull()
   })
 
+  it('should treat explicit query structure as literal text', () => {
+    const searchFields = (value: string): ModelSearchField[] => [{ value, weight: 0, allowAbbreviation: true }]
+    const cases = [
+      ['3.8', 'GPT-3.8', true],
+      ['3.8', 'Qwen3 8B', false],
+      ['3.8', 'MiniMax-M2.7', false],
+      ['org/model', 'org/model', true],
+      ['org/model', 'org-model', false],
+      ['c++', 'C++', true],
+      ['c++', 'C--', false]
+    ] as const
+
+    for (const [query, value, matches] of cases) {
+      expect(getSearchMatchScore(query, searchFields(value)) !== null).toBe(matches)
+    }
+  })
+
   it('should return null for punctuation-only keyword', () => {
     expect(getSearchMatchScore(':', fields)).toBeNull()
     expect(getSearchMatchScore('---', fields)).toBeNull()
@@ -47,6 +64,21 @@ describe('search', () => {
     // getKeywordMatchScore(':', fields) returns null, which makes the whole search return null.
     expect(getSearchMatchScore('gpt :', fields)).toBeNull()
     expect(getSearchMatchScore('gpt ---', fields)).toBeNull()
+  })
+
+  it('adds Chinese initials only after existing matches, preserving score and field rules', () => {
+    const fields: ModelSearchField[] = [{ value: '知识库模型', weight: 0, allowAbbreviation: true }]
+    expect(getSearchMatchScore('zskmx', fields)).not.toBeNull()
+    expect(getSearchMatchScore('zkm', fields)).toBeNull()
+    expect(getSearchMatchScore('知识', fields)).toBe(0)
+    expect(getSearchMatchScore('zsk missing', fields)).toBeNull()
+    expect(getSearchMatchScore('zsk', [{ value: '知识库', weight: 30 }])).toBeNull()
+    expect(getSearchMatchScore('zsk', [{ value: '知识库', weight: 2, allowPinyin: true }])).not.toBeNull()
+    const literalScore = getSearchMatchScore('zsk', [{ value: 'zsk', weight: 30 }])!
+    expect(getSearchMatchScore('zsk', [...fields, { value: 'zsk', weight: 30 }])).toBe(literalScore)
+    expect(getSearchMatchScore('zsk', fields)).toBeGreaterThan(
+      getSearchMatchScore('zsk', [{ value: 'zsk', weight: 0 }])!
+    )
   })
 
   describe('ranking and abbreviations contract tests', () => {

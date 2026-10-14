@@ -1,14 +1,27 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { getAppLanguage } from '@main/i18n'
-import { type AgentConfiguration, sanitizeAgentConfiguration } from '@shared/data/api/schemas/agents'
 import fs from 'fs'
 import path from 'path'
 
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { getAppLanguage } from '@main/i18n'
+import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { type AgentConfiguration, sanitizeAgentConfiguration } from '@shared/data/api/schemas/agents'
+
 const logger = loggerService.withContext('BuiltinAgentDefinition')
 
+/** Canonical Claude plugin name declared by the bundled Cherry Assistant manifest. */
+export const BUILTIN_AGENT_PLUGIN_NAME = 'cherry-assistant-builtin'
+
 const TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
-  assistant: 'cherry-assistant'
+  [BUILTIN_AGENT_ROLE.ASSISTANT]: 'cherry-assistant',
+  [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-support',
+  [BUILTIN_AGENT_ROLE.DOCTOR]: 'cherry-doctor'
+}
+
+const PLUGIN_TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
+  [BUILTIN_AGENT_ROLE.ASSISTANT]: 'cherry-assistant',
+  [BUILTIN_AGENT_ROLE.SUPPORT]: 'cherry-assistant',
+  [BUILTIN_AGENT_ROLE.DOCTOR]: 'cherry-assistant'
 }
 
 // No `description` here: the builtin agent's display/search description is owned by i18n
@@ -19,11 +32,14 @@ export interface BuiltinAgentDefinition {
   instructions?: string
   configuration?: Record<string, unknown>
   skills?: string[]
+  /** Core tools the bundle opts out of; narrowing only, so it may live in the data file. */
+  disabledTools?: string[]
 }
 
-interface BuiltinAssistantDefaults {
+export interface BuiltinAgentDefaults {
   name: string
   configuration: AgentConfiguration
+  disabledTools?: string[]
 }
 
 /** Resolve a localized field: string passes through; locale-keyed object resolves by language. */
@@ -48,6 +64,16 @@ export function getBuiltinAgentTemplateDirectory(builtinRole: string): string | 
   return path.join(application.getPath('feature.agents.builtin'), templateName)
 }
 
+export function getBuiltinAgentPluginTemplateDirectory(builtinRole: string): string | undefined {
+  const templateName = PLUGIN_TEMPLATE_NAME_BY_ROLE[builtinRole]
+  if (!templateName) {
+    logger.warn('Unknown builtin role, skipping plugin provisioning', { builtinRole })
+    return undefined
+  }
+
+  return path.join(application.getPath('feature.agents.builtin'), templateName)
+}
+
 export function loadBuiltinAgentDefinition(
   builtinRole: string,
   language: string = getAppLanguage()
@@ -63,17 +89,18 @@ export function loadBuiltinAgentDefinition(
 
   try {
     const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
-    if (
-      agentConfig.skills !== undefined &&
-      (!Array.isArray(agentConfig.skills) || agentConfig.skills.some((skill: unknown) => typeof skill !== 'string'))
-    ) {
-      throw new Error('Builtin agent skills must be a string array')
+    for (const field of ['skills', 'disabled_tools'] as const) {
+      const value = agentConfig[field]
+      if (value !== undefined && (!Array.isArray(value) || value.some((item: unknown) => typeof item !== 'string'))) {
+        throw new Error(`Builtin agent ${field} must be a string array`)
+      }
     }
     return {
       name: resolveLocalizedField(agentConfig.name, language),
       instructions: resolveLocalizedField(agentConfig.instructions, language),
       configuration: agentConfig.configuration,
-      skills: agentConfig.skills
+      skills: agentConfig.skills,
+      disabledTools: agentConfig.disabled_tools
     }
   } catch (error) {
     logger.error('Failed to load builtin agent definition', {
@@ -85,19 +112,22 @@ export function loadBuiltinAgentDefinition(
   }
 }
 
-export function loadBuiltinAssistantDefaults(language?: string): BuiltinAssistantDefaults {
-  const definition = loadBuiltinAgentDefinition('assistant', language)
+export function loadBuiltinAgentDefaults(builtinRole: BuiltinAgentRole, language?: string): BuiltinAgentDefaults {
+  const definition = loadBuiltinAgentDefinition(builtinRole, language)
   if (!definition) {
-    throw new Error('Cherry Assistant package definition is unavailable')
+    throw new Error(`Builtin Agent package definition is unavailable: ${builtinRole}`)
   }
 
   const { data: configuration, invalidKeys } = sanitizeAgentConfiguration(definition.configuration)
   if (!configuration || invalidKeys.length > 0) {
-    throw new Error(`Cherry Assistant package configuration is invalid: ${invalidKeys.join(', ') || '<root>'}`)
+    throw new Error(
+      `Builtin Agent package configuration is invalid for ${builtinRole}: ${invalidKeys.join(', ') || '<root>'}`
+    )
   }
 
   return {
-    name: definition.name?.trim() || 'Cherry Assistant',
-    configuration: { ...configuration, builtin_role: 'assistant' }
+    name: definition.name?.trim() || 'Built-in Agent',
+    configuration: { ...configuration, builtin_role: builtinRole },
+    ...(definition.disabledTools ? { disabledTools: definition.disabledTools } : {})
   }
 }

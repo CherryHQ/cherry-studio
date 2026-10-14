@@ -11,12 +11,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { LanguageModelMiddleware } from 'ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { createContextMiddleware, type VFSStorageAdapter } from '@cherrystudio/ai-core'
 import { MIN_IN_FLIGHT_TRUNCATE_THRESHOLD } from '@main/ai/constants'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
-import type { LanguageModelMiddleware } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getByIdMock, adapterFactoryMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn(),
@@ -28,7 +29,12 @@ vi.mock('@main/ai/contextBuild/persistedOutputAdapter', () => ({
 }))
 
 import type { RequestScope } from '../../scope'
-import { buildContextOptions, contextBuildFeature, resolveInFlightTruncateThreshold } from '../contextBuild'
+import {
+  buildContextOptions,
+  contextBuildFeature,
+  hasAnchorRow,
+  resolveInFlightTruncateThreshold
+} from '../contextBuild'
 
 const CACHE_MARK = { anthropic: { cacheControl: { type: 'ephemeral' } } }
 const BIG = 150_000
@@ -65,6 +71,7 @@ interface ScopeOverrides {
   model?: Partial<RequestScope['model']>
   request?: Partial<RequestScope['request']>
   requestContext?: Partial<RequestScope['requestContext']>
+  canOffloadToolOutputs?: boolean
 }
 
 function makeScope(overrides: ScopeOverrides = {}): RequestScope {
@@ -74,7 +81,10 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
     request: { ...overrides.request },
     requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
-    compressionModel: overrides.compressionModel ?? null
+    compressionModel: overrides.compressionModel ?? null,
+    // The normal chat turn. The anchor lookup happens once upstream, so storage
+    // routing reads this flag rather than re-querying the row.
+    canOffloadToolOutputs: overrides.canOffloadToolOutputs ?? true
   } as never
 }
 
@@ -131,7 +141,7 @@ function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
 async function runTransform(prompt: LanguageModelV3Prompt, scope: RequestScope): Promise<LanguageModelV3Prompt> {
   const middleware = createContextMiddleware(buildContextOptions(scope)!)
   const result = await middleware.transformParams!({
-    params: { prompt } as never,
+    params: { prompt },
     type: 'generate',
     model: {} as never
   })
@@ -231,25 +241,49 @@ describe('buildContextOptions — storage routing', () => {
   })
 
   it('no message row (temp chat / one-shot streamPrompt) → no storage', () => {
-    // Real MessageService.getById throws NOT_FOUND for missing rows — it never returns null.
-    getByIdMock.mockImplementation(() => {
-      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
-    })
-    const opts = buildContextOptions(makeScope())!
+    const opts = buildContextOptions(makeScope({ canOffloadToolOutputs: false }))!
     expect(opts.truncate?.storage).toBeUndefined()
     expect(adapterFactoryMock).not.toHaveBeenCalled()
+    // The row was resolved upstream; storage routing must not query it again.
+    expect(getByIdMock).not.toHaveBeenCalled()
   })
 
   it('non-anchored oversized results still truncate inline (no files, no marker path)', async () => {
-    getByIdMock.mockImplementation(() => {
-      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
-    })
-    const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
+    const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope({ canOffloadToolOutputs: false }))
     const { value } = toolOutput(out)
     expect(value.length).toBeLessThan(10_000)
     expect(value).toContain('--- truncated')
     expect(value).not.toContain('<persisted-output>')
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
+  })
+})
+
+// The lookup moved out of resolveTruncateStorage so it can gate fs_read's
+// admission too, and now runs once per request in buildAgentParams.
+describe('hasAnchorRow', () => {
+  it('reports an anchored request when the id resolves to a message row', () => {
+    expect(hasAnchorRow('anchor-1')).toBe(true)
+    expect(getByIdMock).toHaveBeenCalledWith('anchor-1')
+  })
+
+  it('treats a missing row as non-anchored (temp chat / one-shot streamPrompt)', () => {
+    // Real MessageService.getById throws NOT_FOUND for missing rows — it never returns null.
+    getByIdMock.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
+    })
+    expect(hasAnchorRow('anchor-1')).toBe(false)
+  })
+
+  it('skips the lookup entirely when the request carries no message id', () => {
+    expect(hasAnchorRow(undefined)).toBe(false)
+    expect(getByIdMock).not.toHaveBeenCalled()
+  })
+
+  it('rethrows anything that is not a missing row', () => {
+    getByIdMock.mockImplementation(() => {
+      throw new Error('db is on fire')
+    })
+    expect(() => hasAnchorRow('anchor-1')).toThrow('db is on fire')
   })
 })
 
@@ -309,6 +343,20 @@ describe('resolveInFlightTruncateThreshold', () => {
 
   it('never trims below the head+tail the truncator keeps anyway', () => {
     expect(resolveInFlightTruncateThreshold(100_000, 1000)).toBe(MIN_IN_FLIGHT_TRUNCATE_THRESHOLD)
+  })
+
+  // A declared max_tokens is billed alongside the input, so the share has to
+  // come off the room the prompt actually has: 200k − 128k leaves 72k, a third
+  // of the budget the raw window would have handed out.
+  it('takes its share of the room left after a declared max_tokens', () => {
+    expect(resolveInFlightTruncateThreshold(100_000, 200_000, 128_000)).toBe(21_600)
+    expect(resolveInFlightTruncateThreshold(100_000, 200_000, undefined)).toBe(60_000)
+  })
+
+  // minimax-m2 ships 205000/205000 and 82 other registry rows are just as
+  // degenerate; unfloored, the share would be 0 and every tool result offloads.
+  it('floors instead of collapsing when the reservation swallows the window', () => {
+    expect(resolveInFlightTruncateThreshold(100_000, 205_000, 205_000)).toBe(12_300)
   })
 
   it('scales with the window (the point of the change)', () => {
@@ -390,7 +438,10 @@ describe('buildContextOptions — compression wiring', () => {
 
     // compress.enabled: false → nothing set regardless of model.
     const compressOff = makeScope({
-      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
+      contextSettings: {
+        ...DEFAULT_CONTEXT_SETTINGS,
+        compress: { ...DEFAULT_CONTEXT_SETTINGS.compress, enabled: false }
+      },
       compressionModel: {} as never
     })
     expect(buildContextOptions(compressOff)!.onBeforeCompress).toBeUndefined()
@@ -429,7 +480,7 @@ describe('buildContextOptions — compression wiring', () => {
     it('never leaves an orphan tool result at the head', () => {
       const history = toolHistory()
       // Force a drop whose proportional boundary lands inside a tool turn.
-      const kept = fallback()(history, { currentTokens: 1000, limit: 550 } as never) as Array<{ role: string }>
+      const kept = fallback()(history, { currentTokens: 1000, limit: 550 }) as Array<{ role: string }>
       expect(kept.length).toBeLessThan((history as unknown as unknown[]).length)
       const firstNonSystem = kept.find((m) => m.role !== 'system')
       expect(firstNonSystem?.role).not.toBe('tool')
@@ -437,7 +488,7 @@ describe('buildContextOptions — compression wiring', () => {
 
     it('never keeps an assistant tool-call whose results were dropped', () => {
       const history = toolHistory()
-      const kept = fallback()(history, { currentTokens: 1000, limit: 550 } as never) as Array<{
+      const kept = fallback()(history, { currentTokens: 1000, limit: 550 }) as Array<{
         role: string
         tool_calls?: Array<{ id: string }>
         tool_call_id?: string
@@ -452,7 +503,7 @@ describe('buildContextOptions — compression wiring', () => {
 
     it('leaves history untouched when already under budget', () => {
       const history = toolHistory()
-      expect(fallback()(history, { currentTokens: 100, limit: 1000 } as never)).toBe(history)
+      expect(fallback()(history, { currentTokens: 100, limit: 1000 })).toBe(history)
     })
   })
 
@@ -460,7 +511,10 @@ describe('buildContextOptions — compression wiring', () => {
     // Regression: setting onCompress/onBeforeCompress unconditionally made the middleware
     // build a Janitor on every request and warn when no model/tokenizer.
     const scope = makeScope({
-      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
+      contextSettings: {
+        ...DEFAULT_CONTEXT_SETTINGS,
+        compress: { ...DEFAULT_CONTEXT_SETTINGS.compress, enabled: false }
+      },
       compressionModel: {} as never
     })
     const opts = buildContextOptions(scope)!

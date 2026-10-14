@@ -1,4 +1,10 @@
 import '@data/services/AgentTaskService'
+import '@data/services/AgentSessionMessageService'
+import path from 'path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 import { application } from '@application'
 import { agentWorkspaceHandlers } from '@data/api/handlers/agentWorkspaces'
@@ -11,10 +17,6 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import path from 'path'
-import { beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 describe('agentWorkspaceHandlers integration', () => {
   const dbh = setupTestDatabase()
@@ -61,11 +63,9 @@ describe('agentWorkspaceHandlers integration', () => {
       updatedAt: 1
     })
 
-    await expect(
-      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
-        params: { workspaceId: workspace.id }
-      } as never)
-    ).resolves.toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]) })
+    expect(agentSessionService.deleteWorkspaceCascade(workspace.id)).toEqual({
+      deletedIds: expect.arrayContaining([first.id, second.id])
+    })
 
     expect(await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id))).toEqual([])
     expect(
@@ -96,11 +96,9 @@ describe('agentWorkspaceHandlers integration', () => {
       updatedAt: 1
     })
 
-    await expect(
-      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
-        params: { workspaceId: session.workspace.id }
-      } as never)
-    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(() => agentSessionService.deleteWorkspaceCascade(session.workspace.id)).toThrowError(
+      expect.objectContaining({ code: 'NOT_FOUND' })
+    )
 
     const workspaceRows = await dbh.db
       .select()
@@ -136,16 +134,14 @@ describe('agentWorkspaceHandlers integration', () => {
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
         params: { workspaceId: workspace.id }
-      } as never)
+      })
     ).resolves.toEqual({
       sessions: { items: [], total: 0 },
       channels: { items: [{ id: channel.id, name: channel.name }], total: 1 },
       tasks: { items: [{ id: task.id, name: task.name }], total: 1 }
     })
 
-    await agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
-      params: { workspaceId: workspace.id }
-    } as never)
+    agentSessionService.deleteWorkspaceCascade(workspace.id)
 
     expect(agentChannelService.getChannel(channel.id)?.workspace).toEqual({ type: 'system' })
     expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ workspace: { type: 'system' } })
@@ -163,7 +159,7 @@ describe('agentWorkspaceHandlers integration', () => {
 
     const references = await agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
       params: { workspaceId: workspace.id }
-    } as never)
+    })
     if ('data' in references) throw new Error('Expected the default handler response shape')
 
     expect(references.sessions).toMatchObject({ total: 23 })

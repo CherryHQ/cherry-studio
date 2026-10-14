@@ -1,6 +1,7 @@
-import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
 interface OwnProps {
@@ -13,7 +14,7 @@ type Props = OwnProps & PopupInjectedProps<void>
 
 const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve }) => {
   const [fontSize] = usePreference('chat.message.font_size')
-  const { activeCmTheme } = useCodeStyle()
+  const activeCmTheme = useCmTheme(open && extension !== undefined)
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve()}>
@@ -23,14 +24,13 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve
         </DialogHeader>
         <div className="min-h-0 overflow-hidden">
           {extension !== undefined ? (
-            <CodeEditor
+            <LazyCodeEditor
               className="[&_.cm-line]:cursor-text"
               theme={activeCmTheme}
               fontSize={fontSize - 1}
               readOnly={true}
               expanded={false}
               height="100%"
-              style={{ height: '100%' }}
               value={text}
               language={extension}
               options={{
@@ -38,7 +38,7 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve
               }}
             />
           ) : (
-            <div className="h-full cursor-text overflow-auto whitespace-pre p-4 text-foreground text-sm">{text}</div>
+            <div className="h-full cursor-text overflow-auto p-4 text-sm whitespace-pre text-foreground">{text}</div>
           )}
         </div>
       </DialogContent>

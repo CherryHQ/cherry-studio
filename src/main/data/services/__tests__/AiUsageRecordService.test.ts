@@ -1,4 +1,9 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import type { LanguageModelMiddleware } from 'ai'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -14,10 +19,6 @@ import { createLanguageUsageMiddleware } from '@main/ai/hooks/billingHook'
 import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
 import { createAiUsageCaptureContext, createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import type { LanguageModelMiddleware } from 'ai'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -196,6 +197,49 @@ describe('AiUsageRecordService', () => {
       timeThinkingMs: 200
     })
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          endpoint: '/topics/:topicId/messages',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: [messageId]
+        })
+      ])
+    )
+  })
+
+  it('persists flat provider tokens without the gateway normalize middleware', async () => {
+    const capture = createLanguageUsageMiddleware(context())
+    const flatFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 1_000_000,
+        outputTokens: 500_000,
+        totalTokens: 1_500_000,
+        cachedInputTokens: 0
+      }
+    } as unknown as LanguageModelV3StreamPart
+    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        controller.enqueue(flatFinish)
+        controller.close()
+      }
+    })
+    const wrapped = await capture.wrapStream!({ doStream: async () => ({ stream }) } as never)
+
+    await wrapped.stream.pipeTo(new WritableStream())
+
+    expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      totalTokens: 1_500_000,
+      noCacheTokens: 1_000_000,
+      cacheReadTokens: 0,
+      cost: 2,
+      costCurrency: 'USD',
+      costSource: 'computed'
+    })
   })
 
   it('persists normalized gateway tokens and computed cost from a flat finish chunk', async () => {
@@ -399,6 +443,41 @@ describe('AiUsageRecordService', () => {
     expect(row?.costBreakdown).toEqual({ input: 0.006, cacheRead: 0.0012, cacheWrite: 0.0006, output: 0.002 })
   })
 
+  it('derives the tier selection input count from the complete input breakdown', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'tier-derived-input',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 1,
+            outputPerMillionTokens: 2,
+            inputTokenTiers: [
+              {
+                minInputTokens: 1_000,
+                inputPerMillionTokens: 10,
+                outputPerMillionTokens: 20,
+                cacheReadPerMillionTokens: 4,
+                cacheWritePerMillionTokens: 6
+              }
+            ],
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        usage: { outputTokens: 100, noCacheTokens: 600, cacheReadTokens: 300, cacheWriteTokens: 100 }
+      })
+    )
+
+    const row = dbh.db
+      .select()
+      .from(aiUsageRecordTable)
+      .where(eq(aiUsageRecordTable.requestId, 'tier-derived-input'))
+      .get()
+    expect(row).toMatchObject({ costCurrency: 'USD', costSource: 'computed' })
+    expect(row?.cost).toBeCloseTo(0.0098)
+    expect(row?.costBreakdown).toEqual({ input: 0.006, cacheRead: 0.0012, cacheWrite: 0.0006, output: 0.002 })
+  })
+
   it('does not guess the base rate when tiers exist but the all-in input count is missing', () => {
     aiUsageRecordService.recordInvocation(
       invocation({
@@ -564,6 +643,37 @@ describe('AiUsageRecordService', () => {
         '2026-07-28T00:00:00.000Z'
       )
     ).toBeNull()
+  })
+
+  it('inherits the sole explicit currency across partial tier rates', () => {
+    expect(
+      createAiUsagePricingSnapshot(
+        {
+          input: { perMillionTokens: 1, currency: 'CNY' },
+          output: { perMillionTokens: 2, currency: 'CNY' },
+          inputTokenTiers: [
+            {
+              minInputTokens: 1_000,
+              input: { perMillionTokens: 10 },
+              output: { perMillionTokens: 20 }
+            }
+          ]
+        },
+        '2026-07-28T00:00:00.000Z'
+      )
+    ).toEqual({
+      currency: 'CNY',
+      inputPerMillionTokens: 1,
+      outputPerMillionTokens: 2,
+      inputTokenTiers: [
+        {
+          minInputTokens: 1_000,
+          inputPerMillionTokens: 10,
+          outputPerMillionTokens: 20
+        }
+      ],
+      capturedAt: '2026-07-28T00:00:00.000Z'
+    })
   })
 
   it('captures immutable input-token tiers and rejects mixed tier currencies', () => {
