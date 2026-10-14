@@ -1,18 +1,19 @@
+import type { FormEvent } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Dialog, DialogContent, DialogDescription, FieldError, Input, Label } from '@cherrystudio/ui'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
-import type { FormEvent } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
 import { getKnowledgeBaseFailureReason } from '../utils/error'
 import CreateKnowledgeBaseDialog from './CreateKnowledgeBaseDialog'
 import { KnowledgeDialogBody, KnowledgeDialogField } from './KnowledgeDialogLayout'
-import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
+import { KnowledgeEmbeddingModelSelect } from './KnowledgeEmbeddingModelSelect'
 
 interface RestoreKnowledgeBaseDialogProps {
   open: boolean
@@ -73,17 +74,19 @@ const RestoreKnowledgeBaseDialog = ({
     setHasAttemptedSubmit(true)
     setSubmitError(null)
 
-    if (!values.name.trim() || !values.embeddingModelId) {
+    if (!values.name.trim()) {
       return
     }
 
-    let dimensions: number
+    let dimensions: number | null = null
 
-    try {
-      dimensions = await fetchDimensions(values.embeddingModelId)
-    } catch (error) {
-      setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
-      return
+    if (values.embeddingModelId) {
+      try {
+        dimensions = await fetchDimensions(values.embeddingModelId)
+      } catch (error) {
+        setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+        return
+      }
     }
 
     let result: RestoreKnowledgeBaseResult
@@ -121,6 +124,7 @@ const RestoreKnowledgeBaseDialog = ({
             <KnowledgeDialogField>
               <Label htmlFor="knowledge-restore-name">{t('common.name')}</Label>
               <Input
+                autoFocus
                 id="knowledge-restore-name"
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
@@ -134,18 +138,14 @@ const RestoreKnowledgeBaseDialog = ({
 
             <KnowledgeDialogField>
               <Label>{t('knowledge.embedding_model')}</Label>
-              <KnowledgeModelSelect
+              <KnowledgeEmbeddingModelSelect
                 aria-label={t('knowledge.embedding_model')}
                 value={values.embeddingModelId}
-                placeholder={t('knowledge.not_set')}
-                filter={isEmbeddingModel}
-                invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                placeholder={t('knowledge.rag.rerank_disabled')}
+                noneOptionLabel={t('knowledge.rag.rerank_disabled')}
                 onSettingsNavigate={handleSettingsNavigate}
                 onChange={handleEmbeddingModelChange}
               />
-              {hasAttemptedSubmit && !values.embeddingModelId ? (
-                <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
-              ) : null}
             </KnowledgeDialogField>
 
             {submitError ? <FieldError>{submitError}</FieldError> : null}

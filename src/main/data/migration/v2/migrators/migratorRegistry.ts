@@ -3,6 +3,7 @@
  */
 
 import { AgentsMigrator } from './AgentsMigrator'
+import { AiUsageRecordMigrator } from './AiUsageRecordMigrator'
 import { AssistantMigrator } from './AssistantMigrator'
 import { BootConfigMigrator } from './BootConfigMigrator'
 import { ChatMigrator } from './ChatMigrator'
@@ -35,6 +36,7 @@ export function getAllMigrators() {
     new KnowledgeMigrator(),
     new KnowledgeVectorMigrator(),
     new ChatMigrator(),
+    new AiUsageRecordMigrator(),
     new PaintingMigrator(),
     new TranslateMigrator(),
     new PromptMigrator()

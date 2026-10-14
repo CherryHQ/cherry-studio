@@ -1,7 +1,11 @@
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Bot, Check, Filter, Plus } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { EmojiIcon, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import {
+  getResourceCreateDefaultAvatar,
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
@@ -9,11 +13,9 @@ import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
-import { buildCreateAssistantDto, isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
+import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
-import { Bot, Check, Filter, Plus } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { isNonChatModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('AssistantConversationPickerDialog')
 
@@ -50,6 +52,8 @@ export function AssistantConversationPickerDialog({
   const { t } = useTranslation()
   const { presets, isLoading: catalogLoading } = useAssistantCatalogPresets({ enabled: open })
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  // Seeded from the search query so creating after a fruitless search does not mean retyping the name.
+  const [createInitialName, setCreateInitialName] = useState('')
   const [activeTab, setActiveTab] = useState<AssistantPickerTab | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
@@ -62,7 +66,7 @@ export function AssistantConversationPickerDialog({
         id: `assistant:${assistant.id}`,
         name: assistant.name,
         icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+          <EmojiIcon emoji={assistant.emoji} size={24} />
         ) : (
           <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
             <Bot size={14} />
@@ -79,7 +83,7 @@ export function AssistantConversationPickerDialog({
       presets.map((preset) => ({
         id: `catalog:${preset.id}`,
         name: preset.name,
-        icon: <EmojiIcon emoji={preset.emoji || '🤖'} size={24} fontSize={14} className="mr-0" />,
+        icon: <EmojiIcon emoji={preset.emoji || '🤖'} size={24} />,
         searchText: [preset.description, preset.prompt].filter(Boolean).join(' '),
         selection: { type: 'catalog' as const, preset }
       })),
@@ -97,11 +101,16 @@ export function AssistantConversationPickerDialog({
   // dialog is still mounted), so this just forwards the row's selection.
   const handleSelect = useCallback((item: AssistantConversationPickerItem) => onSelect(item.selection), [onSelect])
 
-  // "New assistant" closes the picker and hands off to the shared create dialog.
-  const handleCreateNew = useCallback(() => {
-    onOpenChange(false)
-    setCreateDialogOpen(true)
-  }, [onOpenChange])
+  // "New assistant" closes the picker and hands off to the shared create dialog, carrying whatever
+  // the user had typed as the new assistant's name.
+  const handleCreateNew = useCallback(
+    (query: string) => {
+      setCreateInitialName(query)
+      onOpenChange(false)
+      setCreateDialogOpen(true)
+    },
+    [onOpenChange]
+  )
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
@@ -138,7 +147,7 @@ export function AssistantConversationPickerDialog({
             size={15}
             className={cn(
               'shrink-0',
-              activeTab ? 'text-primary!' : 'text-muted-foreground/60 group-hover:text-muted-foreground/80'
+              activeTab ? 'text-primary!' : 'text-muted-foreground group-hover:text-foreground'
             )}
           />
         </button>
@@ -180,7 +189,19 @@ export function AssistantConversationPickerDialog({
         createAction={
           activeTab === 'catalog'
             ? undefined
-            : { label: t('selector.assistant.create_new'), icon: <Plus />, onSelect: handleCreateNew }
+            : {
+                // With a name to show, the row previews the assistant it would create — same avatar the
+                // wizard starts from — instead of spelling the query back out in a sentence.
+                row: (query) =>
+                  query
+                    ? {
+                        icon: <EmojiIcon emoji={getResourceCreateDefaultAvatar('assistant')} size={24} />,
+                        title: query,
+                        tag: t('selector.assistant.create_tag')
+                      }
+                    : { icon: <Plus />, title: t('selector.assistant.create_new') },
+                onSelect: handleCreateNew
+              }
         }
         pageSize={ASSISTANT_CATALOG_PAGE_SIZE}
         isLoading={
@@ -196,10 +217,11 @@ export function AssistantConversationPickerDialog({
       <ResourceCreateWizard
         kind="assistant"
         open={createDialogOpen}
+        initialName={createInitialName}
         isSubmitting={isCreatingAssistant}
         onOpenChange={setCreateDialogOpen}
         onSubmit={handleSubmitCreate}
-        modelFilter={isSelectableAssistantModel}
+        modelFilter={(candidate) => !isNonChatModel(candidate)}
       />
     </>
   )

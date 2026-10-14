@@ -12,6 +12,7 @@ let events = []
 let selectedId = null
 let rowsSignature = ''
 let detailsSignature = ''
+let selectedSummarySignature = ''
 
 function evalInInspectedWindow(expression) {
   return new Promise((resolve) => {
@@ -107,6 +108,7 @@ function renderRows(force = false) {
   if (selectedId && !visible.some((event) => event.id === selectedId)) {
     selectedId = null
     detailsSignature = ''
+    selectedSummarySignature = ''
     detailsEl.textContent = 'Select a DataApi event.'
   }
 }
@@ -205,31 +207,45 @@ function appendSection(title, payload, options = {}) {
 
 async function refresh() {
   const snapshot = await evalInInspectedWindow(
-    'window.__CHERRY_DATA_API_DEVTOOLS__ ? window.__CHERRY_DATA_API_DEVTOOLS__.snapshot() : []'
+    'window.__CHERRY_DATA_API_DEVTOOLS__ ? window.__CHERRY_DATA_API_DEVTOOLS__.snapshotSummary() : []'
   )
   events = Array.isArray(snapshot) ? snapshot : []
   renderRows()
   if (selectedId) {
-    const selectedEvent = events.find((event) => event.id === selectedId)
-    if (selectedEvent) renderDetails(selectedEvent)
+    const requestedId = selectedId
+    const summary = events.find((event) => event.id === requestedId)
+    const nextSummarySignature = JSON.stringify(summary)
+    if (!summary || nextSummarySignature === selectedSummarySignature) return
+    const selectedEvent = await evalInInspectedWindow(
+      `window.__CHERRY_DATA_API_DEVTOOLS__ && window.__CHERRY_DATA_API_DEVTOOLS__.getEvent(${JSON.stringify(requestedId)})`
+    )
+    if (selectedId === requestedId && selectedEvent?.id === requestedId) {
+      selectedSummarySignature = nextSummarySignature
+      renderDetails(selectedEvent)
+    }
   }
 }
 
 filterEl.addEventListener('input', () => renderRows())
 
-rowsEl.addEventListener('pointerdown', (pointerEvent) => {
+rowsEl.addEventListener('pointerdown', async (pointerEvent) => {
   const target = pointerEvent.target
   if (!(target instanceof Element)) return
 
   const row = target.closest('tr[data-id]')
   if (!row || !rowsEl.contains(row)) return
 
-  const event = events.find((item) => item.id === row.dataset.id)
-  if (!event) return
-
-  selectedId = event.id
+  selectedId = row.dataset.id
+  const requestedId = selectedId
+  const nextSummarySignature = JSON.stringify(events.find((event) => event.id === requestedId))
   renderRows(true)
-  renderDetails(event, true)
+  const selectedEvent = await evalInInspectedWindow(
+    `window.__CHERRY_DATA_API_DEVTOOLS__ && window.__CHERRY_DATA_API_DEVTOOLS__.getEvent(${JSON.stringify(requestedId)})`
+  )
+  if (selectedId === requestedId && selectedEvent?.id === requestedId) {
+    selectedSummarySignature = nextSummarySignature
+    renderDetails(selectedEvent, true)
+  }
 })
 
 clearEl.addEventListener('click', async () => {
@@ -239,6 +255,7 @@ clearEl.addEventListener('click', async () => {
   selectedId = null
   rowsSignature = ''
   detailsSignature = ''
+  selectedSummarySignature = ''
   detailsEl.textContent = 'Select a DataApi event.'
   await refresh()
 })
@@ -250,5 +267,18 @@ capturePayloadsEl.addEventListener('change', async () => {
   )
 })
 
+// capturePayloads lives in the inspected renderer and outlives panel rebuilds
+// (DevTools close/reopen), so read it back on init instead of assuming the
+// checkbox default. setOptions({}) returns the current options unchanged.
+async function syncCaptureState() {
+  const options = await evalInInspectedWindow(
+    'window.__CHERRY_DATA_API_DEVTOOLS__ && window.__CHERRY_DATA_API_DEVTOOLS__.setOptions({})'
+  )
+  if (options && typeof options.capturePayloads === 'boolean') {
+    capturePayloadsEl.checked = options.capturePayloads
+  }
+}
+
 setInterval(refresh, 500)
+void syncCaptureState()
 void refresh()

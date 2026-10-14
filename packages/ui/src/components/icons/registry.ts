@@ -10,10 +10,11 @@ import type { IconMeta } from './types'
 // story and swap these inline regex for `VENDOR_PATTERNS.<vendor>`.
 
 /**
- * Model ID regex patterns mapped to MODEL_ICON_CATALOG keys.
+ * Model ID regex patterns mapped to model icon keys.
  * Order matters: more specific patterns must come before general ones.
  */
 const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
+  [/gpt-6-astra/i, 'gpt-6-astra'],
   // GPT 5.6 series (most specific first; APIs use both `5.6` and `5-6`)
   [/gpt-5[.-]6-luna/i, 'gpt-5-6-luna'],
   [/gpt-5[.-]6-sol/i, 'gpt-5-6-sol'],
@@ -140,7 +141,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // `seed-2.0-lite`/`seed-1.6` match, while `seedream`/`seedance` keep their explicit alts
   [/doubao|seedream|seedance|ep-202|(?:^|[-_/])seed(?:[-_\d]|$)/i, 'doubao'],
   [/^(?:hunyuan|hy-|hy\d)/i, 'hunyuan'],
-  [/kimi|moonshot/i, 'kimi'],
+  [/kimi|moonshot|^k3(?:[-_.]|$)/i, 'kimi'],
   // Other model-specific icons
   [/grok/i, 'grok'],
   [/hailuo/i, 'hailuo'],
@@ -158,7 +159,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
 ]
 
 /**
- * Model ID regex → PROVIDER_ICON_CATALOG key.
+ * Model ID regex → provider icon key.
  * Used when a model has no dedicated model icon but its name implies a provider.
  * E.g. "deepseek-chat" → deepseek provider icon, "llama-3.1-70b" → meta provider icon.
  */
@@ -305,6 +306,7 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   dashscope: 'bailian',
   zai: 'z-ai',
   'minimax-global': 'minimax',
+  'moonshot-global': 'moonshot',
   cherryai: 'cherryin'
 }
 

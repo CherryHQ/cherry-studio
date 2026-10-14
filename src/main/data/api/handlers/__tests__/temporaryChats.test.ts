@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { createTopicMock, deleteTopicMock, appendMessageMock, listMessagesMock, persistMock } = vi.hoisted(() => ({
   createTopicMock: vi.fn(),
@@ -34,6 +35,7 @@ function fakeTopic(overrides: Partial<Topic> = {}): Topic {
     assistantId: undefined,
     activeNodeId: undefined,
     orderKey: '',
+    lastActivityAt: '2025-01-01T00:00:00.000Z',
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
     ...overrides

@@ -310,8 +310,12 @@
   /* Cherry Studio Product Colors */
   /* ==================== */
   --color-background-subtle: var(--background-subtle);
+  --color-foreground-tertiary: var(--foreground-tertiary);
+  --color-foreground-disabled: var(--foreground-disabled);
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
+  --color-border-selected: var(--border-selected);
+  --color-link: var(--link);
   --color-success: var(--success);
   --color-success-subtle: var(--success-subtle);
   --color-success-subtle-foreground: var(--success-subtle-foreground);
@@ -328,47 +332,19 @@
   --color-error-subtle: var(--error-subtle);
   --color-error-subtle-foreground: var(--error-subtle-foreground);
   --color-error-border: var(--error-border);
+  --color-resource-list-row-hover: var(--resource-list-row-hover);
+  --color-resource-list-row-active: var(--resource-list-row-active);
+  --color-resource-list-row-active-foreground: var(--resource-list-row-active-foreground);
+  --color-resource-list-row-selected: var(--resource-list-row-selected);
+  --color-resource-list-row-selected-foreground: var(--resource-list-row-selected-foreground);
 
   /* ==================== */
   /* Compatibility: Existing Semantic Colors */
   /* ==================== */
-  --color-primary-hover: var(--cs-primary-hover);
   --color-destructive-hover: var(--cs-destructive-hover);
-  --color-foreground-secondary: var(--cs-foreground-secondary);
-  --color-foreground-muted: var(--cs-foreground-muted);
-  --color-menu-item-hover: var(--cs-menu-item-hover);
-  --color-border-muted: var(--cs-border-muted);
-  --color-border-hover: var(--cs-border-hover);
-  --color-border-active: var(--cs-border-active);
   --color-secondary-hover: var(--cs-secondary-hover);
   --color-secondary-active: var(--cs-secondary-active);
-  --color-ghost-hover: var(--cs-ghost-hover);
   --color-ghost-active: var(--cs-ghost-active);
-
-  /* ==================== */
-  /* Compatibility: Existing Status Colors */
-  /* ==================== */
-  --color-error-base: var(--cs-error-base);
-  --color-error-text: var(--cs-error-text);
-  --color-error-bg: var(--cs-error-bg);
-  --color-error-text-hover: var(--cs-error-text-hover);
-  --color-error-bg-hover: var(--cs-error-bg-hover);
-  --color-error-border-hover: var(--cs-error-border-hover);
-  --color-error-active: var(--cs-error-active);
-  --color-success-base: var(--cs-success-base);
-  --color-success-text-hover: var(--cs-success-text-hover);
-  --color-success-bg: var(--cs-success-bg);
-  --color-success-bg-hover: var(--cs-success-bg-hover);
-  --color-warning-base: var(--cs-warning-base);
-  --color-warning-text-hover: var(--cs-warning-text-hover);
-  --color-warning-bg: var(--cs-warning-bg);
-  --color-warning-bg-hover: var(--cs-warning-bg-hover);
-  --color-warning-active: var(--cs-warning-active);
-  --color-info-base: var(--cs-info-base);
-  --color-info-text-hover: var(--cs-info-text-hover);
-  --color-info-bg: var(--cs-info-bg);
-  --color-info-bg-hover: var(--cs-info-bg-hover);
-  --color-info-active: var(--cs-info-active);
 
   /* ==================== */
   /* Spacing */

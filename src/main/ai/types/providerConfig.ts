@@ -16,6 +16,11 @@ export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = String
    * @example 'chat/completions', 'images/generations', 'predict'
    */
   endpoint?: string
+  /**
+   * Header this provider keys on the conversation (OpenCode's `x-opencode-session`).
+   * A builder declares it; the chat pipeline fills it from `request.conversation.id`.
+   */
+  conversationHeader?: string
 }
 
 /**
@@ -29,8 +34,6 @@ export interface ProviderCapabilities {
   enableWebSearch: boolean
   /** Whether the model should generate images inline. */
   enableGenerateImage: boolean
-  /** Whether provider-native URL context should be enabled. */
-  enableUrlContext: boolean
 }
 
 /**

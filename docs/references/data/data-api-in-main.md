@@ -1,3 +1,11 @@
+---
+description: Implementing DataApi handlers and services in main - HandlersFor typing, cross-service table access, adapters
+sources:
+  - src/main/data/api/handlers
+  - src/main/data/services
+  - src/main/data/api/core/adapters
+---
+
 # DataApi in Main Process
 
 This guide covers how to implement API handlers and services in the Main process.
@@ -48,26 +56,26 @@ import type { TopicSchemas } from '@shared/data/api/schemas/topics'
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
-    GET: async ({ query }) => {
+    GET: ({ query }) => {
       const { page = 1, limit = 20 } = query ?? {}
-      return await topicService.list({ page, limit })
+      return topicService.list({ page, limit })
     },
-    POST: async ({ body }) => {
-      return await topicService.create(body)
+    POST: ({ body }) => {
+      return topicService.create(body)
     }
   },
   '/topics/:id': {
-    GET: async ({ params }) => {
-      return await topicService.getById(params.id)
+    GET: ({ params }) => {
+      return topicService.getById(params.id)
     },
-    PUT: async ({ params, body }) => {
-      return await topicService.replace(params.id, body)
+    PUT: ({ params, body }) => {
+      return topicService.replace(params.id, body)
     },
-    PATCH: async ({ params, body }) => {
-      return await topicService.update(params.id, body)
+    PATCH: ({ params, body }) => {
+      return topicService.update(params.id, body)
     },
-    DELETE: async ({ params }) => {
-      await topicService.delete(params.id)
+    DELETE: ({ params }) => {
+      topicService.delete(params.id)
     }
   }
 }
@@ -98,6 +106,15 @@ export const allHandlers: ApiImplementation = {
 - Data access via Drizzle ORM
 
 **Scope limit:** A DataApi service is the **data** business-logic layer — its domain workflows orchestrate **SQLite reads/writes only**, never fs/network/process/external-service side effects, even alongside a legitimate DB write and no matter how deeply nested. See [Hard Rule: No Non-Data Side Effects](./api-design-guidelines.md#hard-rule-no-non-data-side-effects).
+
+For example, active conversation removal uses `trash.topic.archive` or
+`trash.topic.delete_permanently` IPC. `TrashService` holds dispatch admission and
+rejects unsettled generation before calling the DB-only `TopicService` mutation.
+Archive retains the conversation for restore; confirmed permanent deletion removes
+it and its messages atomically. The existing DataApi permanent-delete endpoint
+accepts only archived conversations, so stale Recycle Bin views cannot delete
+already-restored conversations. UI archive and permanent-delete actions use
+separate labels, busy hints, and confirmation policies.
 
 ### Cross-Service Table Access
 
@@ -152,45 +169,44 @@ export class TopicService {
     return application.get('DbService').getDb()
   }
 
-  async list(options: { page: number; limit: number }) {
+  list(options: { page: number; limit: number }) {
     const { page, limit } = options
     const offset = (page - 1) * limit
 
-    const [items, countResult] = await Promise.all([
-      this.db.select().from(topicTable)
-        .orderBy(desc(topicTable.updatedAt))
-        .limit(limit).offset(offset),
-      this.db.select({ count: sql<number>`count(*)` }).from(topicTable)
-    ])
+    const items = this.db.select().from(topicTable)
+      .orderBy(desc(topicTable.updatedAt))
+      .limit(limit).offset(offset).all()
+    const countResult = this.db.select({ count: sql<number>`count(*)` })
+      .from(topicTable).all()
 
     return { items, total: countResult[0].count, page, limit }
   }
 
-  async getById(id: string) {
-    const [topic] = await this.db.select().from(topicTable)
-      .where(eq(topicTable.id, id)).limit(1)
+  getById(id: string) {
+    const topic = this.db.select().from(topicTable)
+      .where(eq(topicTable.id, id)).limit(1).get()
     if (!topic) {
       throw DataApiErrorFactory.notFound('Topic', id)
     }
     return topic
   }
 
-  async create(data: CreateTopicDto) {
+  create(data: CreateTopicDto) {
     this.validateTopicData(data)
-    const [topic] = await this.db.insert(topicTable).values(data).returning()
+    const topic = this.db.insert(topicTable).values(data).returning().get()
     return topic
   }
 
-  async update(id: string, data: Partial<UpdateTopicDto>) {
-    await this.getById(id) // Throws if not found
-    const [topic] = await this.db.update(topicTable)
-      .set(data).where(eq(topicTable.id, id)).returning()
+  update(id: string, data: Partial<UpdateTopicDto>) {
+    this.getById(id) // Throws if not found
+    const topic = this.db.update(topicTable)
+      .set(data).where(eq(topicTable.id, id)).returning().get()
     return topic
   }
 
-  async delete(id: string) {
-    await this.getById(id) // Throws if not found
-    await this.db.delete(topicTable).where(eq(topicTable.id, id))
+  delete(id: string) {
+    this.getById(id) // Throws if not found
+    this.db.delete(topicTable).where(eq(topicTable.id, id)).run()
   }
 
   private validateTopicData(data: CreateTopicDto) {
@@ -208,11 +224,11 @@ export const topicService = new TopicService()
 `service.create()` passes a value into `db.insert(...).values({...})` **only** for columns that are `NOT NULL`, have neither a DB `DEFAULT` nor a `$defaultFn`, and are not already supplied by the DTO:
 
 ```ts
-async create(dto: CreateXxxDto) {
-  return await this.db.insert(xxxTable).values({
+create(dto: CreateXxxDto) {
+  return this.db.insert(xxxTable).values({
     ...dto,
     settings: dto.settings ?? DEFAULT_XXX_SETTINGS  // service-owned default for a tunable product value
-  }).returning()
+  }).returning().get()
 }
 ```
 
@@ -269,7 +285,7 @@ Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-
 - **Field renaming**: `row.parameters → domain parameterSupport` (ModelService)
 - **Computed / merged fields**: `authType` derivation, `apiFeatures` merging from defaults (ProviderService)
 - **Sensitive data sanitization**: `apiKeys` stripping — `...clean` would leak unsanitized values
-- **Discriminator-driven field stripping with brand validation**: branded discriminated union where each variant declares only its own fields — `nullsToUndefined + spread` would emit absent fields as `undefined` and break the BO shape. Dispatch on the discriminator and call `schema.parse` per variant. Example: `FileEntryService.rowToFileEntry` for `FileEntry` (variants on `origin`); see `src/shared/data/types/file/fileEntry.ts` header (§"DB row vs Business Object") for the full DB-CHECK / BO-narrow rationale.
+- **Discriminator-driven field stripping with brand validation**: branded discriminated union where each variant declares only its own fields — `nullsToUndefined + spread` would emit absent fields as `undefined` and break the BO shape. Dispatch on the discriminator and call `schema.parse` per variant. Example: `FileEntryService.rowToFileEntry` for `FileEntry` (variants on `origin`); see the `src/shared/data/types/file.ts` header (§ "DB row vs Business Object") for the full DB-CHECK / BO-narrow rationale.
 
 **Anti-pattern — `??` fallbacks for fabricated defaults:**
 
@@ -287,17 +303,19 @@ For function signature details and design-decision history (e.g. why shallow-not
 
 ### Service with Transaction
 
+The main database uses synchronous better-sqlite3. Transaction callbacks and
+the Drizzle calls inside them must remain synchronous; returning a Promise from
+a transaction callback is invalid.
+
 ```typescript
-async createTopicWithMessage(data: CreateTopicWithMessageDto) {
-  const db = application.get('DbService').getDb()
+createTopicWithMessage(data: CreateTopicWithMessageDto) {
+  return application.get('DbService').withWriteTx((tx) => {
+    const [topic] = tx.insert(topicTable).values(data.topic).returning().all()
 
-  return await db.transaction(async (tx) => {
-    const [topic] = await tx.insert(topicTable).values(data.topic).returning()
-
-    const [message] = await tx.insert(messageTable).values({
+    const [message] = tx.insert(messageTable).values({
       ...data.message,
       topicId: topic.id
-    }).returning()
+    }).returning().all()
 
     return { topic, message }
   })
@@ -315,31 +333,41 @@ Service methods accepting a Drizzle transaction:
 | Parameter type | `Pick<DbType, '...'>` with the minimum operations needed |
 | Non-Tx wrapper | optional; thin `db.transaction(...)` wrapper, only when a caller needs to own the transaction |
 
+The transaction contract includes indirect reads: a `*Tx` method must not reach
+the global `DbService` accessor through a helper or another service. Startup
+seeders have a valid transaction while `DbService` is still initializing. Pass
+`tx` through database helpers, or pass the already-read rows/context to a resolver
+that does not query the database. An optional cache must never decide which
+database handle a call uses.
+
+Accepting a handle does not open a transaction: ordinary reads may pass `db`;
+reads composed inside an existing transaction pass `tx`.
+
 ```ts
 // ✅
-async purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void>
+purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): void
 
 // ❌ tx not first
-async purgeForEntity(entityType: EntityType, entityId: string, tx: Pick<DbType, 'delete'>)
+purgeForEntity(entityType: EntityType, entityId: string, tx: Pick<DbType, 'delete'>): void
 // ❌ missing Tx suffix
-async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string)
+purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): void
 // ❌ over-broad type
-async purgeForEntityTx(tx: DbType, entityType: EntityType, entityId: string)
+purgeForEntityTx(tx: DbType, entityType: EntityType, entityId: string): void
 ```
 
 Optional non-Tx wrapper:
 
 ```ts
-async purgeForEntity(entityType: EntityType, entityId: string): Promise<void> {
-  await this.db.transaction((tx) => this.purgeForEntityTx(tx, entityType, entityId))
+purgeForEntity(entityType: EntityType, entityId: string): void {
+  this.db.transaction((tx) => this.purgeForEntityTx(tx, entityType, entityId))
 }
 ```
 
 ## Repository Pattern (Strongly Discouraged)
 
-> **⚠️ Do NOT create Repository files by default.** Services handle both business logic and data access directly via Drizzle ORM. This is an intentional design decision.
->
-> Only create a separate Repository when you are **1000% certain** it is absolutely necessary — e.g., extremely complex multi-table queries with joins/CTEs that would make the Service unreadable, AND the query logic is reused across multiple services.
+> Do not create Repository files by default. Services own business rules and
+> Drizzle access together. Introduce a repository only for a complex, reusable
+> query boundary that would otherwise obscure more than one owning service.
 >
 > If in doubt, keep it in the Service. The overhead of an extra architectural layer is not justified for this project's scale (Electron desktop app + SQLite).
 
@@ -355,6 +383,23 @@ Registry Services:
 - Named `{Domain}RegistryService` (e.g., `ProviderRegistryService`)
 - Primary data source is static preset data (JSON files, TS constants)
 - All methods are read-only (no inserts, updates, or deletes)
+
+Provider model resolution has two explicit entry points:
+
+- `ProviderRegistryService.resolveModel(context, modelId)` resolves registry
+  metadata without querying SQLite. `ModelService` obtains the context through
+  `ProviderService.getReasoningContextsByProviderIdsTx(tx, ids)` using its caller's
+  handle, then calls this resolver. Missing/unavailable provider rows are filtered
+  before resolution.
+- `ProviderRegistryService.lookupModel(providerId, modelId)` is a runtime
+  convenience wrapper that reads provider context before calling `resolveModel`.
+  It must not be called from a transaction-scoped path.
+
+The `tx-boundary/no-ambient-db-in-tx` lint rule is an error. In `ModelService` and
+`ProviderRegistryService`, it also follows same-class helpers/getters and protects
+`resolveModel` as a database-free entry point. It does not infer arbitrary
+cross-module call graphs; database-free behavior is additionally covered by
+regressions that make the global accessor throw.
 
 See [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) for the general architecture.
 
@@ -413,7 +458,7 @@ throw DataApiErrorFactory.validation({
 
 // Database error
 try {
-  await db.insert(table).values(data)
+  db.insert(table).values(data).run()
 } catch (error) {
   throw DataApiErrorFactory.database(error, 'insert topic')
 }

@@ -1,5 +1,6 @@
-import type { CherryMessagePart, CherryUIMessage, TreeNode, TreeResponse } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage, TreeNode, TreeResponse } from '@shared/data/types/message'
 
 import { buildTopicMessageFlowLiveState, mergeTopicMessageFlowLiveTree } from '../topicMessageFlowLiveTree'
 
@@ -43,12 +44,34 @@ function uiMessage({
       modelId: metadata.modelId,
       createdAt: metadata.createdAt ?? createdAt
     }
-  } as CherryUIMessage
+  }
 }
 
-const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
+const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
 
 describe('topicMessageFlowLiveTree', () => {
+  it('derives a context boundary from the hidden data UI part', () => {
+    const liveState = buildTopicMessageFlowLiveState({
+      topicId: 'topic-1',
+      messages: [
+        uiMessage({
+          id: 'clear-1',
+          role: 'user',
+          parentId: 'user-1',
+          parts: [{ type: 'data-clear', data: {} }]
+        })
+      ],
+      partsByMessageId: {},
+      activeNodeId: 'clear-1'
+    })
+
+    expect(liveState?.nodes[0]).toMatchObject({
+      id: 'clear-1',
+      isContextBoundary: true,
+      preview: ''
+    })
+  })
+
   it('adds reserved turn nodes and overlays live assistant preview/status', () => {
     const tree: TreeResponse = {
       activeNodeId: 'root',

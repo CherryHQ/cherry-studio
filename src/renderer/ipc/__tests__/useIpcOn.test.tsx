@@ -23,14 +23,11 @@ beforeEach(() => {
 })
 
 describe('useIpcOn', () => {
-  it('subscribes to the event on mount', () => {
-    renderHook(() => useEvent('demo.evt', vi.fn()))
-    expect(onMock).toHaveBeenCalledWith('demo.evt', expect.any(Function))
-  })
-
-  it('invokes the handler when a matching event payload arrives', () => {
+  it('subscribes on mount and forwards matching event payloads', () => {
     const handler = vi.fn()
     renderHook(() => useEvent('demo.evt', handler))
+
+    expect(onMock).toHaveBeenCalledWith('demo.evt', expect.any(Function))
     captured?.({ width: 5 })
     expect(handler).toHaveBeenCalledWith({ width: 5 })
   })

@@ -1,3 +1,7 @@
+import { Eye, EyeOff } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -14,9 +18,6 @@ import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import type { ProviderType } from '@renderer/types/provider'
 import { maskApiKey } from '@renderer/utils/api'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { Eye, EyeOff } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
   id: string
@@ -118,27 +119,27 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
           handleCancel()
         }
       }}>
-      <DialogContent className="gap-5 rounded-2xl border-border-muted bg-popover p-5 sm:max-w-md">
+      <DialogContent className="gap-5 rounded-2xl border-border-subtle bg-popover p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
-          <DialogTitle className="text-foreground/90 text-sm leading-5">
+          <DialogTitle className="text-sm leading-5 text-foreground">
             {t('settings.models.provider_key_confirm_title', { provider: displayName })}
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground/80 text-sm leading-5">{confirmMessage}</DialogDescription>
+          <DialogDescription className="text-sm leading-5 text-muted-foreground">{confirmMessage}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-border-muted bg-transparent">
+          <div className="overflow-hidden rounded-xl border border-border-subtle bg-transparent">
             {rows.map((row) => (
               <div
                 key={row.label}
-                className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-border-subtle border-b px-3 py-2.5 last:border-b-0">
-                <div className="text-foreground-muted text-xs">{row.label}</div>
-                <div className="min-w-0 truncate text-foreground/85 text-sm">{row.value}</div>
+                className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-b border-border-subtle px-3 py-2.5 last:border-b-0">
+                <div className="text-xs text-muted-foreground">{row.label}</div>
+                <div className="min-w-0 truncate text-sm text-foreground">{row.value}</div>
               </div>
             ))}
             <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 px-3 py-2.5">
-              <div className="text-foreground-muted text-xs">{t('settings.models.api_key')}</div>
+              <div className="text-xs text-muted-foreground">{t('settings.models.api_key')}</div>
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-mono text-foreground/85 text-sm">
+                <span className="min-w-0 truncate font-mono text-sm text-foreground">
                   {showFullKey ? newApiKey : maskApiKey(newApiKey)}
                 </span>
                 <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>

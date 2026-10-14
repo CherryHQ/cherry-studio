@@ -1,7 +1,13 @@
+import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
+import type { FC } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { CodeBlockWrapLinesContext } from '@renderer/components/CodeBlockView/wrapLinesContext'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
@@ -9,13 +15,8 @@ import { cn } from '@renderer/utils/style'
 import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { defaultLanguage } from '@shared/utils/languages'
-import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
-import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
 import WindowFooter from './WindowFooter'
@@ -45,10 +46,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
   const detectLanguage = useDetectLang()
+  // The stored default is zh-cn, so preserve the matching UI-locale fallback for zh-TW.
+  const effectivePreferredLangCode =
+    language === 'zh-TW' && preferredLangCode === BUILTIN_LANGUAGE.zhCN.langCode
+      ? BUILTIN_LANGUAGE.zhTW.langCode
+      : preferredLangCode
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
-    const candidate = language || navigator.language || defaultLanguage
-    const lang = getLanguage(candidate)
+    const lang = getLanguage(effectivePreferredLangCode)
     if (lang) {
       return lang
     }
@@ -78,7 +83,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
-    const targetLang = getLanguage(preferredLangCode)
+    const targetLang = getLanguage(effectivePreferredLangCode)
     if (targetLang) {
       setTargetLanguage(targetLang)
       targetLangRef.current = targetLang
@@ -88,7 +93,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     if (alterLang) {
       setAlterLanguage(alterLang)
     }
-  }, [getLanguage, isLanguagesLoaded, preferredLangCode, alterLangCode])
+  }, [getLanguage, isLanguagesLoaded, effectivePreferredLangCode, alterLangCode])
 
   // Initialize values only once
   const initialize = useCallback(async () => {
@@ -144,7 +149,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   })
 
   const translationParts = useMemo<CherryMessagePart[]>(
-    () => (content ? [{ type: 'text', text: content } as CherryMessagePart] : []),
+    () => (content ? [{ type: 'text', text: content }] : []),
     [content]
   )
 
@@ -162,7 +167,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         metadata: {
           status: isTranslating ? 'pending' : 'success'
         }
-      } as CherryUIMessage,
+      },
       { topicId: TRANSLATION_TOPIC_ID }
     )
   }, [isTranslating, translationParts])
@@ -266,7 +271,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     () => (
       <div className="flex flex-col gap-2">
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
-          <span className="text-foreground-secondary text-xs">{t('translate.preferred_target')}</span>
+          <span className="text-muted-foreground text-xs">{t('translate.preferred_target')}</span>
           <LanguageSelect
             value={targetLanguage.langCode}
             className="w-full [&>div]:w-full"
@@ -281,7 +286,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           />
         </div>
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
-          <span className="text-foreground-secondary text-xs">{t('translate.alter_language')}</span>
+          <span className="text-muted-foreground text-xs">{t('translate.alter_language')}</span>
           <LanguageSelect
             value={alterLanguage.langCode}
             className="w-full [&>div]:w-full"
@@ -314,11 +319,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col items-center">
+      <div className="flex w-full min-w-0 flex-1 flex-col items-center">
         <div className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1">
           <div className="flex min-w-0 shrink items-center gap-1.5">
             {/* Detected language display (read-only) */}
-            <div className="flex min-w-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-foreground-secondary text-xs">
+            <div className="flex min-w-0 items-center whitespace-nowrap rounded bg-muted px-2 py-1 text-muted-foreground text-xs">
               {isDetecting ? (
                 <span className="min-w-0 truncate">{t('translate.detecting')}</span>
               ) : (
@@ -379,7 +384,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             <button
               type="button"
               onClick={() => setShowOriginal(!showOriginal)}
-              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-foreground-secondary text-xs transition-colors hover:text-primary">
+              className="flex cursor-pointer items-center justify-between whitespace-nowrap py-1 text-muted-foreground text-xs transition-colors hover:text-foreground">
               <span>
                 {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
               </span>
@@ -388,7 +393,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </div>
         </div>
         {showOriginal && (
-          <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
+          <div className="mt-2 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-muted-foreground text-xs">
             {action.selectedText}{' '}
             <div className="flex justify-end">
               <CopyButton
@@ -400,20 +405,22 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             </div>
           </div>
         )}
-        <div className="mt-4 w-full whitespace-pre-wrap break-words">
+        <div className="mt-4 w-full min-w-0 max-w-full whitespace-pre-wrap break-words">
           {(isDetecting || isPreparing) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {content && (
             <Suspense fallback={<Loader2 className="size-4 animate-spin text-muted-foreground" />}>
-              <ActionResultContent
-                key={latestAssistantMessage.id}
-                message={latestAssistantMessage}
-                partsByMessageId={partsMap}
-              />
+              <CodeBlockWrapLinesContext value={true}>
+                <ActionResultContent
+                  key={latestAssistantMessage.id}
+                  message={latestAssistantMessage}
+                  partsByMessageId={partsMap}
+                />
+              </CodeBlockWrapLinesContext>
             </Suspense>
           )}
         </div>
         {error && (
-          <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+          <div className="mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
             {error}
           </div>
         )}

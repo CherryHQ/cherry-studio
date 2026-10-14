@@ -35,14 +35,7 @@ describe('useProviderMeta', () => {
         name: 'OpenAI',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true,
         websites: {
@@ -69,14 +62,7 @@ describe('useProviderMeta', () => {
         name: 'My OpenAI',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true,
         websites: {
@@ -99,14 +85,7 @@ describe('useProviderMeta', () => {
         name: 'Custom Provider',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }
@@ -129,14 +108,7 @@ describe('useProviderMeta', () => {
         defaultChatEndpoint: 'openai-responses',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: true,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }
@@ -150,32 +122,25 @@ describe('useProviderMeta', () => {
   it('keeps api options hidden for system OpenAI-compatible providers without visible settings', () => {
     useProviderMock.mockReturnValue({
       provider: {
-        id: 'github',
-        presetProviderId: 'github',
-        name: 'GitHub Models',
+        id: 'cerebras',
+        presetProviderId: 'cerebras',
+        name: 'Cerebras AI',
         defaultChatEndpoint: 'openai-chat-completions',
         endpointConfigs: {
           'openai-chat-completions': {
-            baseUrl: 'https://models.github.ai/inference',
-            adapterFamily: 'openai-compatible'
+            baseUrl: 'https://api.cerebras.ai/v1',
+            adapterFamily: 'cerebras'
           }
         },
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }
     })
 
-    const { result } = renderHook(() => useProviderMeta('github'))
+    const { result } = renderHook(() => useProviderMeta('cerebras'))
 
     expect(result.current.showApiOptionsButton).toBe(false)
   })
@@ -189,14 +154,7 @@ describe('useProviderMeta', () => {
         defaultChatEndpoint: 'google-generate-content',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }

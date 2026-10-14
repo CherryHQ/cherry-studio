@@ -1,7 +1,8 @@
 import type { FileMetadata } from '@renderer/types/file'
 import type { ExportableMessage } from '@renderer/types/messageExport'
+import { getRenderableTextContent } from '@renderer/utils/message/find'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
+import type { CodePartData } from '@shared/data/types/uiParts'
 
 /**
  * 内容类型常量定义
@@ -186,6 +187,15 @@ export function processMessageContent(
   }
 }
 
+// Part types whose Markdown is owned by `getRenderableTextContent`; the knowledge
+// path only decides whether the user selected them, never how they serialize.
+const CANONICAL_PART_CONTENT_TYPES: Partial<Record<CherryMessagePart['type'], ContentType>> = {
+  text: CONTENT_TYPES.TEXT,
+  'data-code': CONTENT_TYPES.CODE,
+  'data-translation': CONTENT_TYPES.TRANSLATION,
+  'data-error': CONTENT_TYPES.ERROR
+}
+
 /**
  * 处理所选类型的文本内容
  */
@@ -197,36 +207,15 @@ function processTextlikePart(
 ): string {
   const partId = `${messageId}-part-${index}`
 
+  const canonicalContentType = CANONICAL_PART_CONTENT_TYPES[part.type]
+  if (canonicalContentType) {
+    return selectedTypes.has(canonicalContentType) ? getRenderableTextContent(part) : ''
+  }
+
   switch (part.type) {
-    case 'text': {
-      if (!selectedTypes.has(CONTENT_TYPES.TEXT)) return ''
-      return part.text || ''
-    }
-
-    case 'data-code': {
-      if (!selectedTypes.has(CONTENT_TYPES.CODE)) return ''
-      return getDataPart<CodePartData>(part)?.content || ''
-    }
-
     case 'reasoning': {
       if (!selectedTypes.has(CONTENT_TYPES.THINKING)) return ''
       return `<think>\n${part.text || ''}\n</think>`
-    }
-
-    case 'data-error': {
-      if (!selectedTypes.has(CONTENT_TYPES.ERROR)) return ''
-      const data = getDataPart<ErrorPartData>(part)
-      const error = data
-        ? { name: data.name ?? undefined, message: data.message ?? data.code ?? 'Error occurred', stack: data.stack }
-        : undefined
-      const errorContent = error ? JSON.stringify(error) : 'Error occurred'
-      return `<error>\n${errorContent}\n</error>`
-    }
-
-    case 'data-translation': {
-      if (!selectedTypes.has(CONTENT_TYPES.TRANSLATION)) return ''
-      const data = getDataPart<TranslationPartData>(part)
-      return `<translation target="${data?.targetLanguage ?? ''}">\n${data?.content ?? ''}\n</translation>`
     }
 
     case 'file': {

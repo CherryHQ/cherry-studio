@@ -1,25 +1,47 @@
+import { getToolName, isToolUIPart } from 'ai'
+import { useEffect, useMemo } from 'react'
+
+import { isAskUserQuestionToolName } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useCallback, useMemo, useState } from 'react'
 
 import type { ComposerOverride } from './ComposerContext'
 import { createAskUserQuestionComposerOverride } from './variants/AskUserQuestionComposer'
 import { findLatestPendingAskUserQuestionRequest } from './variants/askUserQuestionComposerRequest'
+import { clearAskUserQuestionDraftCache } from './variants/askUserQuestionDraftCache'
 import { createPermissionRequestComposerOverride } from './variants/PermissionRequestComposer'
-import { findLatestPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
+import { findNextPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
 
 type ToolApprovalComposerOverridesOptions = {
   partsByMessageId: Record<string, CherryMessagePart[]>
+  /** Database message parts, before live overlays or optimistic projections. */
+  persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
 }
 
 export function useToolApprovalComposerOverrides({
   partsByMessageId,
+  persistedPartsByMessageId,
   streamingLayers,
   onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
-  const [dismissedApprovalIds, setDismissedApprovalIds] = useState<ReadonlySet<string>>(() => new Set())
+  useEffect(() => {
+    for (const parts of Object.values(persistedPartsByMessageId)) {
+      for (const part of parts) {
+        if (!isToolUIPart(part) || !isAskUserQuestionToolName(getToolName(part))) continue
+        if (
+          part.state !== 'approval-responded' &&
+          part.state !== 'output-available' &&
+          part.state !== 'output-denied'
+        ) {
+          continue
+        }
+        if (part.approval?.id) clearAskUserQuestionDraftCache(part.approval.id)
+      }
+    }
+  }, [persistedPartsByMessageId])
+
   const settledHistoryParts = useMemo<Record<string, CherryMessagePart[]> | null>(() => {
     if (!streamingLayers) return null
 
@@ -50,32 +72,11 @@ export function useToolApprovalComposerOverrides({
   )
   const askUserQuestionRequest = currentAskUserQuestionRequest ?? historyAskUserQuestionRequest
   const historyPermissionRequest = useMemo(
-    () => (settledHistoryParts ? findLatestPendingPermissionRequest(settledHistoryParts) : null),
+    () => (settledHistoryParts ? findNextPendingPermissionRequest(settledHistoryParts) : null),
     [settledHistoryParts]
   )
-  const currentPermissionRequest = useMemo(() => findLatestPendingPermissionRequest(currentParts), [currentParts])
+  const currentPermissionRequest = useMemo(() => findNextPendingPermissionRequest(currentParts), [currentParts])
   const permissionRequest = currentPermissionRequest ?? historyPermissionRequest
-  const visiblePermissionRequest =
-    permissionRequest && !dismissedApprovalIds.has(permissionRequest.approvalId) ? permissionRequest : null
-
-  const optimisticallyRespond = useCallback(
-    async (input: MessageToolApprovalInput) => {
-      const approvalId = input.match.approvalId
-      setDismissedApprovalIds((current) => new Set(current).add(approvalId))
-
-      try {
-        await onRespond(input)
-      } catch (error) {
-        setDismissedApprovalIds((current) => {
-          const next = new Set(current)
-          next.delete(approvalId)
-          return next
-        })
-        throw error
-      }
-    },
-    [onRespond]
-  )
 
   return useMemo(() => {
     const overrides: ComposerOverride[] = []
@@ -89,15 +90,15 @@ export function useToolApprovalComposerOverrides({
       )
     }
 
-    if (visiblePermissionRequest) {
+    if (permissionRequest) {
       overrides.push(
         createPermissionRequestComposerOverride({
-          request: visiblePermissionRequest,
-          onRespond: optimisticallyRespond
+          request: permissionRequest,
+          onRespond
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, optimisticallyRespond, visiblePermissionRequest])
+  }, [askUserQuestionRequest, onRespond, permissionRequest])
 }

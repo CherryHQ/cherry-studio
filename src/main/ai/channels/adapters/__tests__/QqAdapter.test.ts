@@ -6,10 +6,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
-}))
-
 const mockNetFetch = vi.fn()
 vi.mock('electron', () => ({
   app: { getPath: () => '/mock/userData' },
@@ -22,15 +18,7 @@ vi.mock('ws', () => {
   return { default: Ctor, WebSocket: Ctor }
 })
 
-import '../qq/QqAdapter'
-
-import { registerAdapterFactory } from '../../ChannelManager'
-
-// Capture the factory at module load — `registerAdapterFactory('qq', …)` runs once on import,
-// and afterEach's restoreAllMocks would otherwise wipe that call history before later tests.
-const qqCall = vi.mocked(registerAdapterFactory).mock.calls.find((c) => c[0] === 'qq')
-if (!qqCall) throw new Error('registerAdapterFactory was not called for qq')
-const qqFactory = qqCall[1] as (channel: any, agentId: string) => any
+import { createQqAdapter } from '../qq/QqAdapter'
 
 function mockBinaryResponse(buf: Buffer, contentType = 'image/png'): Response {
   return {
@@ -50,6 +38,11 @@ function mockOkJson(): Response {
   } as unknown as Response
 }
 
+// PNG signature followed by an empty IDAT chunk: the smallest layout file-type sniffs as image/png.
+const PNG_BYTES = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54, 0, 0, 0, 0
+])
+
 function groupMessage(id: string, groupOpenid = 'g1', content = 'hi'): any {
   return {
     id,
@@ -60,12 +53,45 @@ function groupMessage(id: string, groupOpenid = 'g1', content = 'hi'): any {
   }
 }
 
-function createAdapter() {
-  return qqFactory(
-    { id: 'ch-qq-1', type: 'qq', enabled: true, config: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [] } },
-    'agent-1'
-  )
+function createAdapter(): any {
+  return createQqAdapter({
+    channelId: 'ch-qq-1',
+    channelType: 'qq',
+    agentId: 'agent-1',
+    channelConfig: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [] }
+  })
 }
+
+describe('QqAdapter connection lifecycle', () => {
+  beforeEach(() => {
+    mockNetFetch.mockReset()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('aborts a stalled startup request when disconnected', async () => {
+    let startupSignal: AbortSignal | undefined
+    let rejectStartup!: (error: Error) => void
+    mockNetFetch.mockImplementation((_url: string, init?: RequestInit) => {
+      startupSignal = init?.signal ?? undefined
+      return new Promise((_resolve, reject) => {
+        rejectStartup = reject
+        startupSignal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+    const adapter = createAdapter()
+
+    const connecting = adapter.connect()
+    await vi.waitFor(() => expect(mockNetFetch).toHaveBeenCalled())
+
+    const observedSignal = startupSignal
+    await adapter.disconnect()
+    if (!observedSignal) rejectStartup(new Error('test cleanup'))
+    await expect(connecting).resolves.toBeUndefined()
+    expect(observedSignal).toBeInstanceOf(AbortSignal)
+  })
+})
 
 describe('QqAdapter.downloadAttachments', () => {
   beforeEach(() => mockNetFetch.mockReset())
@@ -86,7 +112,7 @@ describe('QqAdapter.downloadAttachments', () => {
   it('downloads a public attachment URL', async () => {
     const adapter = createAdapter()
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
-    mockNetFetch.mockResolvedValue(mockBinaryResponse(Buffer.from('img'), 'image/png'))
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(PNG_BYTES, 'image/png'))
 
     const result = await adapter.downloadAttachments([
       { url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }
@@ -94,6 +120,33 @@ describe('QqAdapter.downloadAttachments', () => {
 
     expect(result.images).toHaveLength(1)
     expect(mockNetFetch).toHaveBeenCalled()
+  })
+
+  it('routes a ZIP declared as image/png to files under its sniffed type', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const zipBytes = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(64)])
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(zipBytes, 'image/png'))
+
+    const result = await adapter.downloadAttachments([
+      { url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }
+    ])
+
+    expect(result.images).toBeUndefined()
+    expect(result.files).toEqual([expect.objectContaining({ filename: 'a.png', media_type: 'application/zip' })])
+  })
+
+  it('routes PNG bytes declared as application/octet-stream to images', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(PNG_BYTES, 'application/octet-stream'))
+
+    const result = await adapter.downloadAttachments([
+      { url: 'https://gchat.qpic.cn/a.bin', content_type: 'application/octet-stream', filename: 'a.bin' }
+    ])
+
+    expect(result.files).toBeUndefined()
+    expect(result.images).toEqual([expect.objectContaining({ media_type: 'image/png' })])
   })
 })
 
@@ -226,5 +279,126 @@ describe('ChannelAdapter.sendFile default', () => {
     const file = { filename: 'a.txt', data: 'eA==', media_type: 'text/plain', size: 1 }
 
     await expect(adapter.sendFile('100', file)).rejects.toThrow('Channel type "qq" does not support sending files')
+  })
+})
+
+describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  function createAdapterWithConfig(config: Record<string, unknown>): any {
+    return createQqAdapter({
+      channelId: 'ch-qq-1',
+      channelType: 'qq',
+      agentId: 'agent-1',
+      channelConfig: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [], ...config }
+    } as any)
+  }
+
+  it('mention_only=true (default): discards all GROUP_MESSAGE_CREATE events', async () => {
+    const adapter = createAdapter()
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleGroupFullMessage(groupMessage('full-1'))
+
+    expect(events).toHaveLength(0)
+  })
+
+  it('mention_only=false: processes GROUP_MESSAGE_CREATE and emits message event', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleGroupFullMessage(groupMessage('full-1', 'g1', 'hey everyone'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('full-1')
+    expect(events[0].text).toBe('hey everyone')
+  })
+
+  it('mention_only=false: dedup—AT event then FULL event with same msg.id emits once', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    // Real routing through handleDispatch: AT arrives first, then the FULL twin.
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('dup-1', 'g1', 'hello'))
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('dup-1', 'g1', 'hello'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('dup-1')
+  })
+
+  it('mention_only=false: dedup—FULL event then AT event with same msg.id emits once', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    // Real routing through handleDispatch: FULL arrives first, then the AT twin.
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('dup-2', 'g1', 'hello'))
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('dup-2', 'g1', 'hello'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('dup-2')
+  })
+
+  it('mention_only=false: still respects allowed_chat_ids filter', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false, allowed_chat_ids: ['group:g-whitelist'] })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('full-1', 'g-other', 'hi'))
+
+    expect(events).toHaveLength(0)
+  })
+
+  it('routing: mention_only=true (default) — AT processed, FULL dropped, via handleDispatch', async () => {
+    const adapter = createAdapter()
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('m-1', 'g1', 'hi'))
+    expect(events).toHaveLength(0)
+
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('m-1', 'g1', 'hi @bot'))
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('m-1')
+  })
+
+  it('rollback: FULL fails → AT retries the same message successfully', async () => {
+    const adapter = createAdapterWithConfig({ mention_only: false })
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    // First copy fails (e.g. transient download error) — the dedup mark must be rolled back.
+    vi.spyOn(adapter, 'processMessage').mockRejectedValueOnce(new Error('download failed'))
+    await expect(adapter.handleDispatch('GROUP_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))).rejects.toThrow(
+      'download failed'
+    )
+
+    // Twin AT event arrives — the mark was rolled back, so this copy processes.
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('rb-1', 'g1', 'hello'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('rb-1')
+  })
+
+  it('dedup cap: 501 marks → map stays at 500, oldest evicted', () => {
+    vi.useFakeTimers()
+    try {
+      const adapter = createAdapterWithConfig({ mention_only: false })
+      for (let i = 0; i < 501; i++) adapter.markSeen(`cap-${i}`)
+      expect(adapter.seenMsgIds.size).toBe(500)
+      expect(adapter.wasSeen('cap-0')).toBe(false) // oldest evicted by the cap
+      expect(adapter.wasSeen('cap-500')).toBe(true) // newest still present
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('parseContent strips alphanumeric mentions of other users', () => {
+    const adapter = createAdapter()
+    expect(adapter.parseContent('hi <@!A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4> how are you')).toBe('hi how are you')
+    expect(adapter.parseContent('@bot hello')).toBe('@bot hello') // non-bracket text untouched
   })
 })

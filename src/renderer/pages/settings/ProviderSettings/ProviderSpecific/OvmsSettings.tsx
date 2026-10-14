@@ -1,11 +1,12 @@
-import { Button, ColFlex } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+
+import { Button, ColFlex } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
 import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
@@ -90,9 +91,9 @@ const OvmsSettings: FC = () => {
 
   const bannerClasses = cn(
     'w-full rounded-lg border px-3 py-3 text-sm',
-    ovmsStatus === 'running' && 'border-success/40 bg-success/10 text-foreground',
-    ovmsStatus === 'not-running' && 'border-warning/40 bg-warning/10 text-foreground',
-    ovmsStatus === 'not-installed' && 'border-destructive/40 bg-destructive/10 text-foreground'
+    ovmsStatus === 'running' && 'border-success-border bg-success-subtle text-success-subtle-foreground',
+    ovmsStatus === 'not-running' && 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+    ovmsStatus === 'not-installed' && 'border-error-border bg-error-subtle text-error-subtle-foreground'
   )
 
   const getStatusMessage = () => {
@@ -152,7 +153,7 @@ const OvmsSettings: FC = () => {
       </div>
 
       <div
-        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-foreground"
         role="status">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="min-w-0 flex-1 space-y-1">
@@ -166,7 +167,7 @@ const OvmsSettings: FC = () => {
                 p: <p />,
                 a: (
                   <a
-                    className="text-primary"
+                    className="text-link"
                     href="https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md"
                     rel="noreferrer"
                     target="_blank"

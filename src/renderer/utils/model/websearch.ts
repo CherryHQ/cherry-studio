@@ -1,44 +1,15 @@
-import { getLowerBaseModelName } from '@renderer/utils/naming'
-import type { Model } from '@shared/data/types/model'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { type Model, SERVER_TOOL } from '@shared/data/types/model'
 import {
-  isOpenAIWebSearchChatCompletionOnlyModel as sharedIsOpenAIWebSearchChatCompletionOnlyModel,
-  isOpenAIWebSearchModel as sharedIsOpenAIWebSearchModel,
-  isWebSearchModel as sharedIsWebSearchModel
+  isOpenAIModel,
+  isOpenAIWebSearchChatCompletionOnlyModel as sharedIsOpenAIWebSearchChatCompletionOnlyModel
 } from '@shared/utils/model'
+import { isServerToolModelEligible } from '@shared/utils/provider'
 
 export { GEMINI_FLASH_MODEL_REGEX } from './capabilities'
 
-const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reasoning', 'sonar-reasoning-pro', 'sonar-deep-research']
-
 // ── Pure ID / capability checks delegated to shared ────────────────────────
-export const isOpenAIWebSearchModel = (model: Model): boolean => sharedIsOpenAIWebSearchModel(model)
+export const isOpenAIWebSearchModel = (model: Model): boolean =>
+  isOpenAIModel(model) && isServerToolModelEligible(model, { id: 'openai' }, SERVER_TOOL.WEB_SEARCH)
 
 export const isOpenAIWebSearchChatCompletionOnlyModel = (model: Model): boolean =>
   sharedIsOpenAIWebSearchChatCompletionOnlyModel(model)
-
-/**
- * Web-search-capable model. Reads the `WEB_SEARCH` capability. v2
- * `Model.capabilities` is authoritative (registry inference + baked-in user
- * overrides merged by `ModelService`).
- */
-export function isWebSearchModel(model: Model): boolean {
-  if (!model) return false
-  return sharedIsWebSearchModel(model)
-}
-
-/** Provider-host forces web search on every request (Perplexity / OpenRouter sonar). */
-export function isMandatoryWebSearchModel(model: Model): boolean {
-  if (!model) return false
-  const { providerId, modelId } = parseUniqueModelId(model.id)
-  if (providerId !== 'perplexity' && providerId !== 'openrouter') return false
-  return PERPLEXITY_SEARCH_MODELS.includes(getLowerBaseModelName(modelId))
-}
-
-/** OpenRouter exposes native web search for OpenAI's search-preview SKUs and sonar. */
-export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
-  if (!model) return false
-  const { providerId, modelId } = parseUniqueModelId(model.id)
-  if (providerId !== 'openrouter') return false
-  return isOpenAIWebSearchChatCompletionOnlyModel(model) || getLowerBaseModelName(modelId).includes('sonar')
-}

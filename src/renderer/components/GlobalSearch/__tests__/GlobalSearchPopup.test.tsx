@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, PropsWithChildren } from 'react'
 import type * as ReactModule from 'react'
@@ -85,6 +84,13 @@ import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 import GlobalSearchPopup from '../GlobalSearchPopup'
 
+function openGlobalSearchPopup() {
+  render(<PopupHost />)
+  act(() => {
+    void GlobalSearchPopup.show()
+  })
+}
+
 afterEach(() => {
   // Unmount the host first so settling/removing leftover entries triggers no React
   // update on a still-mounted host (which would fire act warnings). Then drain the
@@ -101,11 +107,7 @@ afterEach(() => {
 
 describe('GlobalSearchPopup', () => {
   it('allows the search panel to autofocus the search input when opened', async () => {
-    render(<PopupHost />)
-
-    act(() => {
-      void GlobalSearchPopup.show()
-    })
+    openGlobalSearchPopup()
 
     await waitFor(() => {
       expect(screen.getByLabelText('Search input')).toHaveFocus()
@@ -113,11 +115,7 @@ describe('GlobalSearchPopup', () => {
   })
 
   it('closes when the blank overlay area is clicked', async () => {
-    render(<PopupHost />)
-
-    act(() => {
-      void GlobalSearchPopup.show()
-    })
+    openGlobalSearchPopup()
 
     await screen.findByLabelText('Search input')
 
@@ -129,11 +127,7 @@ describe('GlobalSearchPopup', () => {
   })
 
   it('renders above chat shell overlays', async () => {
-    render(<PopupHost />)
-
-    act(() => {
-      void GlobalSearchPopup.show()
-    })
+    openGlobalSearchPopup()
 
     const overlay = await screen.findByTestId('dialog-overlay')
     expect(overlay).toHaveClass('z-1001')

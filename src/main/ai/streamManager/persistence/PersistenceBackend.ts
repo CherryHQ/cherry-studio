@@ -4,11 +4,11 @@
  * they write to; stream-manager only owns the generic contract.
  *
  * The listener attaches error parts, terminalizes interrupted parts, and
- * composes `MessageStats` before calling the backend — backends never
- * synthesise UIMessages or repeat projection logic.
+ * extracts message-owned runtime stats before calling the backend — backends
+ * never synthesise UIMessages or repeat projection logic.
  */
 
-import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
   type AgentTaskEventPartData,
@@ -17,13 +17,22 @@ import {
   withCherryMeta
 } from '@shared/data/types/uiParts'
 
-import type { SemanticTimings, TransportTimings } from '../types'
-
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
 
 function isToolPart(part: CherryMessagePart): boolean {
   const t = part.type
   return t.startsWith('tool-') || t === 'dynamic-tool'
+}
+
+/**
+ * Drop transient status parts that must never reach storage. `data-retry`
+ * (model retry/fallback status) is emitted live for the renderer but is not
+ * part of the assistant's answer, so it is stripped before persistence.
+ * Returns the same array reference when nothing was removed.
+ */
+export function stripTransientStatusParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  const filtered = parts.filter((part) => part.type !== 'data-retry')
+  return filtered.length === parts.length ? parts : filtered
 }
 
 export function finalizeInterruptedParts(
@@ -35,6 +44,12 @@ export function finalizeInterruptedParts(
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
+    // A `text` part left `streaming` by a mid-response failure renders as a still-typing
+    // cursor instead of the truncated sentence the user actually received.
+    if (part.type === 'text') {
+      return part.state === 'streaming' ? { ...part, state: 'done' } : part
+    }
+
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
         const cherry = readCherryMeta(part)
@@ -102,15 +117,19 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   return filtered.length === parts.length ? parts : filtered
 }
 
-export type StatsTimings = TransportTimings & SemanticTimings
-
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
   finalMessage?: CherryUIMessage
   status: 'success' | 'paused' | 'error'
   /** Set when the topic is multi-model. */
   modelId?: UniqueModelId
-  stats?: MessageStats
+  runtimeStats?: MessageRuntimeStatsInput
+}
+
+export interface PersistedAssistant {
+  messageId: string
+  messageRevision: string
+  historyRevision: string
 }
 
 export interface PersistenceBackend {
@@ -123,66 +142,19 @@ export interface PersistenceBackend {
    */
   readonly canPersistEmptyTerminal?: boolean
 
-  persistAssistant(input: PersistAssistantInput): void
+  /** True only when an empty successful response is itself a valid terminal result. */
+  readonly canPersistEmptySuccessTerminal?: boolean
+
+  persistAssistant(input: PersistAssistantInput): PersistedAssistant | void | Promise<PersistedAssistant | void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
    * placeholder row to a terminal `error` state so a reload shows a terminal
-   * bubble instead of a frozen `pending` one. Only backends that finalize a
-   * pre-existing placeholder (e.g. `MessageServiceBackend`) implement this.
+   * bubble instead of a frozen `pending` one. Backends that finalize a
+   * pre-existing placeholder implement this.
    */
   markTerminalError?(): void
 
   /** Best-effort post-success hook; failures are swallowed by the listener. */
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
-}
-
-/**
- * Token counts come from `finalMessage.metadata` (populated by
- * agentLoop's `messageMetadata` on the `finish` chunk). Request durations
- * come from the merged `StatsTimings`; thinking duration is the sum of the
- * stabilized per-reasoning-part metadata. We deliberately do not subtract
- * `reasoningStartedAt` from `reasoningEndedAt`, because that wall-clock can
- * include interleaved tool execution.
- */
-export function statsFromTerminal(
-  finalMessage: CherryUIMessage | undefined,
-  timings: StatsTimings | undefined
-): MessageStats | undefined {
-  const stats: MessageStats = {}
-
-  const meta = finalMessage?.metadata
-  if (meta && typeof meta === 'object') {
-    if (typeof meta.totalTokens === 'number') stats.totalTokens = meta.totalTokens
-    if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
-    if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
-    if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
-    if (typeof meta.noCacheTokens === 'number') stats.noCacheTokens = meta.noCacheTokens
-    if (typeof meta.cacheReadTokens === 'number') stats.cacheReadTokens = meta.cacheReadTokens
-    if (typeof meta.cacheWriteTokens === 'number') stats.cacheWriteTokens = meta.cacheWriteTokens
-  }
-
-  let thinkingDurationMs = 0
-  let hasThinkingDuration = false
-  for (const part of finalMessage?.parts ?? []) {
-    if (part.type !== 'reasoning') continue
-    const thinkingMs = readCherryMeta(part)?.thinkingMs
-    if (thinkingMs === undefined || !Number.isFinite(thinkingMs) || thinkingMs < 0) continue
-    thinkingDurationMs += thinkingMs
-    hasThinkingDuration = true
-  }
-  if (hasThinkingDuration) {
-    stats.timeThinkingMs = Math.round(thinkingDurationMs)
-  }
-
-  if (timings) {
-    if (timings.firstTextAt != null) {
-      stats.timeFirstTokenMs = Math.round(timings.firstTextAt - timings.startedAt)
-    }
-    if (timings.completedAt != null) {
-      stats.timeCompletionMs = Math.round(timings.completedAt - timings.startedAt)
-    }
-  }
-
-  return Object.keys(stats).length > 0 ? stats : undefined
 }

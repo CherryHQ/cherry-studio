@@ -1,6 +1,6 @@
 export { BaseService } from './BaseService'
 export { allOf, anyOf, not, onArch, onCpuVendor, onEnvVar, onPlatform, when } from './conditions'
-export { SHUTDOWN_TIMEOUT_MS } from './constants'
+export { SERVICE_STOP_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS } from './constants'
 export { Conditional, DependsOn, ErrorHandling, Injectable, Priority, ServicePhase } from './decorators'
 export { type Disposable, Emitter, type Event, toDisposable } from './event'
 export { LifecycleManager } from './LifecycleManager'

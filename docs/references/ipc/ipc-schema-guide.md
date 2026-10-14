@@ -1,3 +1,10 @@
+---
+description: Authoring IpcApi schemas — per-domain files, route and event naming rules, derived types, ESLint key enforcement
+sources:
+  - src/shared/ipc/schemas
+  - src/shared/ipc/define.ts
+---
+
 # IpcApi Schema Guide
 
 ## File Organization
@@ -30,7 +37,7 @@ export type IpcEventName = keyof IpcEventSchemas
 | Request value/type | `*RequestSchemas` / `IpcRequestSchemas` / `IpcRoute` | `windowRequestSchemas` |
 | Event contract/type | `*EventSchemas` / `IpcEventSchemas` / `IpcEventName` | `WindowEventSchemas` |
 
-Any depth ≥ 2 segments is allowed. Add a subdomain once a namespace's routes fall into distinct groups — put the **resource path first and the verb last** (`ai.agent.task.create`, not `ai.create_agent_task`), and never fake a level with an underscore (`ai.stream.open`, not `ai.stream_open`). Group by **domain, not by owning service**: `ai.tool.get_result` and `ai.tool.respond_approval` share a subtree while delegating to different services. Existing subdomain trees: `ai.*`, `mcp.{server,tool,package}`, `window.{main,sub}`, `system.{mac,shell}`, `app.{updater,data_reset,user_data_relocation}`, `channel.{feishu,wechat}`, `export.{obsidian,word}`.
+Any depth ≥ 2 segments is allowed. Add a subdomain once a namespace's routes fall into distinct groups — put the **resource path first and the verb last** (`ai.agent.task.create`, not `ai.create_agent_task`), and never fake a level with an underscore (`ai.stream.open`, not `ai.stream_open`). Group by **domain, not by owning service**: `ai.tool.get_result` and `ai.tool.respond_approval` share a subtree while delegating to different services. Existing subdomain trees: `ai.*`, `mcp.{server,tool,package}`, `window.{main,sub}`, `system.{mac,shell}`, `app.{cache_cleanup,updater,data_reset,user_data_relocation}`, `channel.{feishu,wechat}`, `export.{obsidian,word}`.
 
 The dot structure is a naming convention, not type syntax — `IpcRoute` is the strong-typed union `keyof IpcRequestSchemas`; an undeclared route is a compile error. Reuse Preference's `data-schema-key`/`valid-key` ESLint rule for the snake-case keys.
 
@@ -46,7 +53,7 @@ The dot structure is a naming convention, not type syntax — `IpcRoute` is the 
 | `IpcHandlersFor<S>` | exhaustive, closed handler map for a schema set `S` |
 | `IpcContext` | `{ senderId: WindowId \| null }` — handler's controlled second argument |
 
-`InputFor`/`OutputFor`/`EventPayload`/`IpcRoute`/`IpcEventName` are bound to the *global* registry, so they resolve to `never` until at least one domain is migrated. The reusable inference (`IpcHandlersFor<S>`) is generic and verifiable against any schema set today.
+`InputFor`/`OutputFor`/`EventPayload`/`IpcRoute`/`IpcEventName` are bound to the composed *global* registry. The reusable inference (`IpcHandlersFor<S>`) is generic so each domain handler map can be checked against its own schema object before composition.
 
 ## zod Across Processes (critical)
 

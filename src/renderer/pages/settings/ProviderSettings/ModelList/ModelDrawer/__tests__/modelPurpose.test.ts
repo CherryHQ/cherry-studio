@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import {
   ENDPOINT_TYPE,
   type EndpointType,
@@ -6,7 +8,6 @@ import {
   MODEL_CAPABILITY,
   type ModelCapability
 } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import {
   applyModelPurpose,
@@ -20,8 +21,8 @@ import {
 describe('getModelDrawerMode', () => {
   it.each([
     [{ id: 'custom-provider', presetProviderId: undefined }, 'purpose'],
-    [{ id: 'new-api', presetProviderId: 'new-api' }, 'purpose'],
-    [{ id: 'custom-new-api', presetProviderId: 'new-api' }, 'purpose'],
+    [{ id: 'new-api', presetProviderId: 'new-api' }, 'endpoint-types'],
+    [{ id: 'custom-new-api', presetProviderId: 'new-api' }, 'endpoint-types'],
     [{ id: 'cherryin', presetProviderId: 'cherryin' }, 'endpoint-types'],
     [{ id: 'custom-cherryin', presetProviderId: 'cherryin' }, 'endpoint-types'],
     [{ id: 'aionly', presetProviderId: 'aionly' }, 'endpoint-types'],

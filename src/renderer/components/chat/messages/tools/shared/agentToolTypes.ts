@@ -33,7 +33,6 @@ import type {
   TaskGetOutput,
   TaskListInput,
   TaskListOutput,
-  TaskOutputInput,
   TaskStopInput,
   TaskStopOutput,
   TaskUpdateInput,
@@ -43,9 +42,13 @@ import type {
   WebFetchInput,
   WebFetchOutput,
   WebSearchInput,
-  WebSearchOutput
+  WebSearchOutput,
+  WorkflowInput,
+  WorkflowOutput
 } from '@anthropic-ai/claude-agent-sdk/sdk-tools'
 import * as z from 'zod'
+
+import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
@@ -81,7 +84,8 @@ export const AgentToolsType = {
   TeamCreate: 'TeamCreate',
   TeamDelete: 'TeamDelete',
   EnterWorktree: 'EnterWorktree',
-  ExitWorktree: 'ExitWorktree'
+  ExitWorktree: 'ExitWorktree',
+  Workflow: 'Workflow'
 } as const
 
 export type AgentToolsType = (typeof AgentToolsType)[keyof typeof AgentToolsType]
@@ -92,10 +96,12 @@ export type TextOutput = {
 }
 
 export interface SkillToolInput {
-  skill: string
+  /** Claude uses `skill`; dsh's native skill tool uses `name`. */
+  skill?: string
+  name?: string
   args?: string
 }
-export type SkillToolOutput = string
+export type SkillToolOutput = string | TextOutput[]
 
 export type ReadToolInput = FileReadInput
 export type ReadToolOutput = FileReadOutput | string | TextOutput[]
@@ -106,7 +112,12 @@ export type TaskToolOutput = AgentOutput | TextOutput[]
 export type AgentToolInput = AgentInput
 export type AgentToolOutput = AgentOutput | TextOutput[]
 
-export type TaskOutputToolInput = TaskOutputInput
+// Historical TaskOutput messages still need rendering after the SDK removed its input type.
+export type TaskOutputToolInput = {
+  task_id: string
+  block: boolean
+  timeout: number
+}
 export type TaskOutputToolOutput = Record<string, unknown> | unknown[] | string
 
 export type TaskStopToolInput = TaskStopInput
@@ -121,9 +132,9 @@ export type SearchToolOutput = string
 export type GlobToolInput = GlobInput
 export type GlobToolOutput = GlobOutput | string
 
-export type TodoItem = TodoWriteInput['todos'][number]
-export type TodoWriteToolInput = TodoWriteInput
-export type TodoWriteToolOutput = TodoWriteOutput | string
+export type TodoItem = Omit<TodoWriteInput['todos'][number], 'activeForm'> & { activeForm?: string }
+export type TodoWriteToolInput = { todos: TodoItem[] }
+export type TodoWriteToolOutput = TodoWriteOutput | string | TextOutput[]
 
 export type WebSearchToolInput = WebSearchInput
 export type WebSearchToolOutput = WebSearchOutput | string
@@ -150,7 +161,7 @@ export type MultiEditToolInput = {
 }
 export type MultiEditToolOutput = string
 
-export type BashOutputToolInput = Partial<TaskOutputInput> & {
+export type BashOutputToolInput = Partial<TaskOutputToolInput> & {
   bash_id?: string
   filter?: string
 }
@@ -216,13 +227,26 @@ export function isAskUserQuestionToolName(toolName: unknown): boolean {
   return toolName === AgentToolsType.AskUserQuestion || toolName === 'builtin_AskUserQuestion'
 }
 
+/** cherry-tools document converter — an MCP tool, so it is keyed by its runtime wire name. */
+export const TO_MARKDOWN_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${TO_MARKDOWN_TOOL_NAME}`
+
+/**
+ * Whether an `Agent`/`Task` result is a launch receipt for a subagent that is still running. A
+ * detached subagent returns immediately, so its tool call reaches a terminal state while the work has
+ * barely started — the tool call finished, the task did not.
+ */
+export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): boolean {
+  if (!output || Array.isArray(output)) return false
+  return output.status === 'async_launched' || output.status === 'remote_launched'
+}
+
 /**
  * Safely parse AskUserQuestionToolInput from unknown data.
  * Returns undefined if the data doesn't match the expected structure.
  */
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
   const result = AskUserQuestionToolInputSchema.safeParse(value)
-  return result.success ? (result.data as AskUserQuestionToolInput) : undefined
+  return result.success ? result.data : undefined
 }
 
 export type ListMcpResourcesToolInput = ListMcpResourcesInput
@@ -251,6 +275,10 @@ export type EnterWorktreeToolOutput = EnterWorktreeOutput | string
 
 export type ExitWorktreeToolInput = ExitWorktreeInput
 export type ExitWorktreeToolOutput = ExitWorktreeOutput | string
+
+/** The Workflow tool always launches in the background, so its result is a launch receipt. */
+export type WorkflowToolInput = WorkflowInput
+export type WorkflowToolOutput = WorkflowOutput | string
 
 // Agent-teams tools are runtime/experimental (not in the SDK typed union) — loosely typed.
 export type SendMessageToolInput = { to?: string; message?: string } & Record<string, unknown>
@@ -292,6 +320,7 @@ export type ToolInput =
   | TeamDeleteToolInput
   | EnterWorktreeToolInput
   | ExitWorktreeToolInput
+  | WorkflowToolInput
 
 export type ToolOutput =
   | SkillToolOutput
@@ -321,6 +350,7 @@ export type ToolOutput =
   | TaskListToolOutput
   | EnterWorktreeToolOutput
   | ExitWorktreeToolOutput
+  | WorkflowToolOutput
 
 export interface ToolRenderer {
   render: (props: { input: ToolInput; output?: ToolOutput }) => React.ReactElement
@@ -359,6 +389,7 @@ export interface ToolInputMap {
   [AgentToolsType.TeamDelete]: TeamDeleteToolInput
   [AgentToolsType.EnterWorktree]: EnterWorktreeToolInput
   [AgentToolsType.ExitWorktree]: ExitWorktreeToolInput
+  [AgentToolsType.Workflow]: WorkflowToolInput
 }
 
 export interface ToolOutputMap {
@@ -394,6 +425,7 @@ export interface ToolOutputMap {
   [AgentToolsType.TeamDelete]: TeamDeleteToolOutput
   [AgentToolsType.EnterWorktree]: EnterWorktreeToolOutput
   [AgentToolsType.ExitWorktree]: ExitWorktreeToolOutput
+  [AgentToolsType.Workflow]: WorkflowToolOutput
 }
 
 export type ToolRendererProps<T extends AgentToolsType = AgentToolsType> = {

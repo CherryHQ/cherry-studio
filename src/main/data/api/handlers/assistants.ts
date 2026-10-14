@@ -14,6 +14,7 @@ import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
 import {
   CreateAssistantSchema,
   DeleteAssistantQuerySchema,
+  DuplicateAssistantSchema,
   ImportAssistantSchema,
   ListAssistantsQuerySchema,
   UpdateAssistantSchema
@@ -40,6 +41,13 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     }
   },
 
+  '/assistants/:id/duplicate': {
+    POST: async ({ params, body }) => {
+      const parsed = DuplicateAssistantSchema.parse(body)
+      return assistantDataService.duplicate(params.id, parsed)
+    }
+  },
+
   '/assistants/:id': {
     GET: async ({ params }) => {
       return assistantDataService.getById(params.id)
@@ -57,9 +65,13 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     },
 
     DELETE: async ({ params, query }) => {
-      const parsed = DeleteAssistantQuerySchema.parse(query ?? {})
-      return assistantDataService.delete(params.id, { deleteTopics: parsed.deleteTopics === true })
+      DeleteAssistantQuerySchema.parse(query)
+      return assistantDataService.delete(params.id, { permanent: true })
     }
+  },
+
+  '/assistants/:id/restore': {
+    POST: async ({ params }) => assistantDataService.restore(params.id)
   },
 
   '/assistants/:id/order': {

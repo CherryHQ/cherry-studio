@@ -15,6 +15,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { FILE_EDIT_MAX_SIZE_BYTES, useFileEditSession } from '../useFileEditSession'
 
 const path = '/ws/notes.txt' as AbsoluteFilePath
+const handle = { kind: 'path' as const, path }
 
 function utf8(content: string): Uint8Array {
   return new TextEncoder().encode(content)
@@ -38,10 +39,12 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 )
 
 function renderSession() {
-  return renderHook(() => useFileEditSession(path), { wrapper })
+  return renderHook(() => useFileEditSession(handle), { wrapper })
 }
 
-beforeEach(() => ipcMocks.request.mockReset())
+beforeEach(() => {
+  ipcMocks.request.mockReset()
+})
 
 afterEach(() => {
   cleanup()
@@ -56,7 +59,7 @@ describe('useFileEditSession', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'))
     expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
       handle: { kind: 'path', path },
-      options: { encoding: 'binary' }
+      options: { mode: 'full', encoding: 'binary' }
     })
     expect(result.current.draft).toBe('hello\n')
     expect(result.current.savedContent).toBe('hello\n')
@@ -86,7 +89,7 @@ describe('useFileEditSession', () => {
         await vi.advanceTimersByTimeAsync(1)
       })
       expect(ipcMocks.request).toHaveBeenCalledWith('file.write_if_unchanged', {
-        path,
+        handle,
         data: utf8('changed\n'),
         expectedVersion: { mtime: 1, size: 6 }
       })
@@ -204,6 +207,104 @@ describe('useFileEditSession', () => {
     }
   })
 
+  it('keeps a conflicted draft by rebasing it onto the latest disk version before saving', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => result.current.setDraft('keep me'))
+      ipcMocks.request
+        .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+        .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+      expect(result.current.conflict).toBe(true)
+
+      const write = Promise.withResolvers<ReturnType<typeof writeResult>>()
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), 10)).mockReturnValueOnce(write.promise)
+      let keepPromise!: Promise<void>
+      let settled = false
+      await act(async () => {
+        keepPromise = result.current.keepDraft()
+        void keepPromise.then(
+          () => {
+            settled = true
+          },
+          () => {
+            settled = true
+          }
+        )
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(result.current.isSaving).toBe(true)
+      expect(settled).toBe(false)
+
+      await act(async () => {
+        write.resolve(writeResult(11, 7))
+        await keepPromise
+      })
+
+      expect(result.current.conflict).toBe(false)
+      expect(result.current.savedContent).toBe('keep me')
+      expect(writeCalls().at(-1)?.[1]).toMatchObject({
+        data: utf8('keep me'),
+        expectedVersion: { mtime: 10, size: 9 }
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps edits made while a conflicted draft is reloading', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => result.current.setDraft('keep me'))
+      ipcMocks.request
+        .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+        .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+
+      let resolveReload!: (value: ReturnType<typeof readResult>) => void
+      ipcMocks.request
+        .mockImplementationOnce(() => new Promise((resolve) => (resolveReload = resolve)))
+        .mockResolvedValueOnce(writeResult(11, 19))
+      let keepPromise!: Promise<void>
+      act(() => {
+        keepPromise = result.current.keepDraft()
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => result.current.setDraft('typed during reload'))
+      await act(async () => {
+        resolveReload(readResult(utf8('external\n'), 10))
+        await keepPromise
+      })
+
+      expect(result.current.savedContent).toBe('typed during reload')
+      expect(writeCalls().at(-1)?.[1]).toMatchObject({
+        data: utf8('typed during reload'),
+        expectedVersion: { mtime: 10, size: 9 }
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('adopts a stale write whose content already matches the disk (no conflict)', async () => {
     vi.useFakeTimers()
     try {
@@ -297,6 +398,45 @@ describe('useFileEditSession', () => {
         await result.current.flush()
       })
       expect(result.current.isDirty).toBe(false)
+      expect(result.current.saveError).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshes after committed-metadata-pending without replaying it, then saves a later user edit', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      const pending = new IpcError(fileErrorCodes.COMMITTED_METADATA_PENDING, 'metadata pending', {
+        entryId: 'entry-id',
+        version: { mtime: 2, size: 5 }
+      })
+      act(() => result.current.setDraft('saved'))
+      ipcMocks.request.mockRejectedValueOnce(pending).mockResolvedValueOnce(readResult(utf8('saved'), 2))
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+
+      expect(writeCalls()).toHaveLength(1)
+      expect(result.current.savedContent).toBe('saved')
+      expect(result.current.isDirty).toBe(false)
+      expect(result.current.saveError).toBe(pending)
+
+      ipcMocks.request.mockResolvedValueOnce(writeResult(3, 6))
+      act(() => result.current.setDraft('saved2'))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+
+      expect(writeCalls()).toHaveLength(2)
+      expect(result.current.savedContent).toBe('saved2')
       expect(result.current.saveError).toBeUndefined()
     } finally {
       vi.useRealTimers()
@@ -470,7 +610,7 @@ describe('useFileEditSession', () => {
 
       expect(ipcMocks.request).toHaveBeenCalledWith(
         'file.write_if_unchanged',
-        expect.objectContaining({ path, data: utf8('flushed') })
+        expect.objectContaining({ handle, data: utf8('flushed') })
       )
       expect(result.current.isDirty).toBe(false)
     } finally {
@@ -578,7 +718,7 @@ describe('useFileEditSession', () => {
 
         expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
           handle: { kind: 'path', path },
-          options: { encoding: 'binary' }
+          options: { mode: 'full', encoding: 'binary' }
         })
         expect(result.current.savedContent).toBe('a')
         expect(result.current.conflict).toBe(false)

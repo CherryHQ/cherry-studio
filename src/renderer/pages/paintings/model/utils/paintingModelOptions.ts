@@ -31,6 +31,10 @@ export function supportsImageGenerationEndpoint(model: Model): boolean {
   return hasImageEndpoint || (model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) && canOutputImage(model))
 }
 
+export function isAvailablePaintingModel(model: Model): boolean {
+  return model.isEnabled && !model.isHidden && supportsImageGenerationEndpoint(model)
+}
+
 export function getPaintingModelOptions(providerId: string, models: readonly Model[]): ModelOption[] {
   return models
     .filter((model) => model.providerId === providerId && !model.isHidden && supportsImageGenerationEndpoint(model))

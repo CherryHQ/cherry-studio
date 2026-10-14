@@ -1,14 +1,16 @@
-import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
-import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+
 import { TopicRightPane } from '../TopicRightPane'
 
-const developerModeEnabled = vi.fn(() => true)
 const useCommandHandlerMock = vi.hoisted(() => vi.fn())
+const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: useCommandHandlerMock
@@ -17,11 +19,6 @@ vi.mock('@renderer/hooks/command', () => ({
 vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
   ...(await importOriginal()),
   useIsActiveTab: () => true
-}))
-
-vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) =>
-    key === 'app.developer_mode.enabled' ? [developerModeEnabled(), vi.fn()] : [undefined, vi.fn()]
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -92,17 +89,20 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
     payload ? <div data-testid="trace-pane" data-topic-id={payload.topicId} data-trace-id={payload.traceId} /> : null
 }))
 
-vi.mock('../TopicBranchPanel', () => ({
-  default: ({ open, onLocateMessage }: { open: boolean; onLocateMessage?: (messageId: string) => void }) => (
-    <button
-      type="button"
-      data-open={String(open)}
-      data-testid="branch-pane"
-      onClick={() => onLocateMessage?.('message-1')}>
-      locate current branch message
-    </button>
-  )
-}))
+vi.mock('../TopicBranchPanel', () => {
+  topicBranchPanelModuleState.importCount += 1
+  return {
+    default: ({ open, onLocateMessage }: { open: boolean; onLocateMessage?: (messageId: string) => void }) => (
+      <button
+        type="button"
+        data-open={String(open)}
+        data-testid="branch-pane"
+        onClick={() => onLocateMessage?.('message-1')}>
+        locate current branch message
+      </button>
+    )
+  }
+})
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -115,7 +115,25 @@ vi.mock('react-i18next', () => ({
 describe('TopicRightPane', () => {
   beforeEach(() => {
     useCommandHandlerMock.mockClear()
-    developerModeEnabled.mockReturnValue(true)
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+  })
+
+  it('hides the browser entry when conversation or global browser control is disabled', () => {
+    const pane = (browserEnabled: boolean) => (
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Shortcuts browserEnabled={browserEnabled} />
+      </TopicRightPane.Scope>
+    )
+    const view = render(pane(true))
+    expect(screen.getByRole('button', { name: 'settings.browser.title' })).toBeVisible()
+    view.rerender(pane(false))
+    expect(screen.queryByRole('button', { name: 'settings.browser.title' })).not.toBeInTheDocument()
+    view.rerender(pane(true))
+    expect(screen.getByRole('button', { name: 'settings.browser.title' })).toBeVisible()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    view.rerender(pane(true))
+    expect(screen.queryByRole('button', { name: 'settings.browser.title' })).not.toBeInTheDocument()
   })
 
   const triggerRightSidebarShortcut = () => {
@@ -127,7 +145,18 @@ describe('TopicRightPane', () => {
     handler?.()
   }
 
-  it('registers the right sidebar keyboard shortcut for the branch pane', () => {
+  it('does not load the branch flow implementation before the pane opens', () => {
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(topicBranchPanelModuleState.importCount).toBe(0)
+  })
+
+  it('registers the right sidebar keyboard shortcut for the branch pane', async () => {
     render(
       <TopicRightPane.Scope topicId="topic-a">
         <TopicRightPane.Viewport />
@@ -144,7 +173,7 @@ describe('TopicRightPane', () => {
     act(triggerRightSidebarShortcut)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
 
     act(triggerRightSidebarShortcut)
 
@@ -180,7 +209,7 @@ describe('TopicRightPane', () => {
     )
   })
 
-  it('hides environmental presentation without discarding topic pane intent or its visited instance', () => {
+  it('hides environmental presentation without discarding topic pane intent or its visited instance', async () => {
     const { rerender } = render(
       <TopicRightPane.Scope topicId="topic-a">
         <TopicRightPane.Viewport />
@@ -188,7 +217,7 @@ describe('TopicRightPane', () => {
     )
 
     act(triggerRightSidebarShortcut)
-    const branchPane = screen.getByTestId('branch-pane')
+    const branchPane = await screen.findByTestId('branch-pane')
 
     rerender(
       <TopicRightPane.Scope topicId="topic-a" present={false}>
@@ -235,8 +264,26 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
   })
 
-  it('hides the trace tab when developer mode is off', () => {
-    developerModeEnabled.mockReturnValue(false)
+  it('unmounts the trace pane after switching away so its trace tree can be collected', async () => {
+    render(
+      <TopicRightPane.Scope topicId="topic-a" traceId="trace-a">
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+    const tracePane = await screen.findByTestId('trace-pane')
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+    expect(await screen.findByTestId('trace-pane')).not.toBe(tracePane)
+  })
+
+  it('hides the trace tab when developer mode is off', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', false)
 
     render(
       <TopicRightPane.Scope topicId="topic-a" traceId="trace-a">
@@ -249,7 +296,7 @@ describe('TopicRightPane', () => {
 
     expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
     expect(screen.queryByTestId('trace-pane')).toBeNull()
-    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
   })
 
   it('forwards branch-node locate requests without closing the shell', async () => {
@@ -352,7 +399,7 @@ describe('TopicRightPane', () => {
     expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('keeps visited capabilities mounted across switches and offers maximize only for the branch pane', () => {
+  it('keeps visited capabilities mounted across switches and offers maximize only for the branch pane', async () => {
     render(
       <TopicRightPane.Scope
         topicId="topic-a"
@@ -365,7 +412,7 @@ describe('TopicRightPane', () => {
     )
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
-    const branchPane = screen.getByTestId('branch-pane')
+    const branchPane = await screen.findByTestId('branch-pane')
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'true')
 
@@ -413,7 +460,7 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('reconciles an open resource capability to the next ready capability', () => {
+  it('reconciles an open resource capability to the next ready capability', async () => {
     const { rerender } = render(
       <TopicRightPane.Scope
         topicId="topic-a"
@@ -434,7 +481,7 @@ describe('TopicRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.queryByTestId('resource-list')).toBeNull()
-    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
   })
 
   it('opens the resource pane on a locate reveal request', () => {

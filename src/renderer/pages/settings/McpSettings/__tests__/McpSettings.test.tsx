@@ -1,232 +1,418 @@
-import { popup } from '@renderer/services/popup'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const requestMock = vi.hoisted(() => ({ request: vi.fn() }))
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { popup } from '@renderer/services/popup'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpServerLogEntry } from '@shared/types/mcp'
 
-const server = {
-  id: 'srv-1',
-  name: 'Test Server',
-  type: 'stdio' as const,
-  isActive: false,
-  command: 'node',
-  args: [],
-  env: {},
-  headers: {},
-  disabledTools: [],
-  disabledAutoApproveTools: [],
-  tags: []
-}
+import McpSettings from '../McpSettings'
+import { formatMcpLogs } from '../utils'
 
-const updateMcpServer = vi.fn(async () => {})
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: (route: string, input: unknown) => requestMock.request(route, input),
-    on: () => () => {}
-  }
+const mockUseMcpServer = vi.hoisted(() => vi.fn())
+const mocks = vi.hoisted(() => ({
+  confirm: vi.fn(),
+  invalidate: vi.fn(),
+  navigate: vi.fn(),
+  on: vi.fn<(event: string, callback: (log: McpServerLogEntry & { serverId: string }) => void) => () => void>(() =>
+    vi.fn()
+  ),
+  request: vi.fn(),
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+  updateMcpServer: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useMcpServer', () => ({
-  useMcpServer: () => ({ server, isLoading: false, updateMcpServer, deleteMcpServer: vi.fn() })
-}))
+let currentServer: McpServer
+let currentSearch: { autoEnable?: 'true' }
 
-vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
-  useMcpRuntimeStatus: () => ({ state: 'disabled', lastError: undefined })
-}))
-
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ theme: 'light' })
+// Keep the real useMcpServerMutations so the delete tests exercise the actual
+// remove flow (IPC channel + cache invalidation), not a stand-in.
+vi.mock('@renderer/hooks/useMcpServer', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useMcpServer: mockUseMcpServer
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useParams: () => ({ serverId: 'srv-1' }),
-  useNavigate: () => vi.fn()
+  useNavigate: () => mocks.navigate,
+  useParams: () => ({ serverId: currentServer.id }),
+  getRouteApi: () => ({ useSearch: () => currentSearch })
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key })
-}))
-
-vi.mock('@renderer/utils/error', () => ({
-  formatMcpError: (error: { message?: string }) => error?.message ?? 'error'
-}))
-
-vi.mock('@renderer/utils/style', () => ({ cn: (...c: string[]) => c.filter(Boolean).join(' ') }))
-
-vi.mock('react-hook-form', () => ({
-  useForm: () => ({
-    reset: vi.fn(),
-    watch: () => undefined,
-    trigger: vi.fn(async () => true),
-    getValues: () => ({ isActive: false })
-  })
-}))
-
-vi.mock('@hookform/resolvers/zod', () => ({ zodResolver: () => () => ({ values: {}, errors: {} }) }))
-
-vi.mock('lucide-react', () => ({
-  ArrowLeft: () => <span />,
-  SaveIcon: () => <span />
-}))
-
-vi.mock('@modelcontextprotocol/sdk/types.js', () => ({}))
-
-vi.mock('@cherrystudio/ui', () => {
-  const Passthrough = ({ children }: { children?: ReactNode }) => <>{children}</>
-  return {
-    Alert: Passthrough,
-    Badge: Passthrough,
-    Button: ({ children, onClick, disabled }: { children?: ReactNode; onClick?: () => void; disabled?: boolean }) => (
-      <button type="button" onClick={onClick} disabled={disabled}>
-        {children}
-      </button>
-    ),
-    Flex: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    Form: ({ children }: { children?: ReactNode }) => <>{children}</>,
-    SegmentedControl: Passthrough,
-    Switch: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (value: boolean) => void }) => (
-      <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)}>
-        switch
-      </button>
-    ),
-    Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    TabsContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>
+vi.mock('@renderer/services/popup', () => ({
+  popup: {
+    confirm: mocks.confirm,
+    error: vi.fn()
   }
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    on: mocks.on,
+    request: mocks.request
+  }
+}))
+
+vi.mock('@renderer/data/hooks/useCache', () => ({ useSharedCacheValue: () => undefined }))
+vi.mock('@renderer/data/hooks/useDataApi', async (importOriginal) => {
+  const actual = await importOriginal<object>()
+  return { ...actual, useInvalidateCache: () => mocks.invalidate }
 })
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: { children?: ReactNode }) => <div>{children}</div>
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    success: mocks.toastSuccess,
+    error: mocks.toastError
+  }
 }))
-
-vi.mock('@renderer/components/CollapsibleSearchBar', () => ({
-  default: () => <div data-testid="search-bar" />
+vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
+  useMcpRuntimeStatus: () => ({ state: 'disabled', lastError: undefined })
 }))
+vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 
-vi.mock('@renderer/components/icons/DeleteIcon', () => ({
-  default: () => <span />
-}))
-
+vi.mock('@renderer/components/CollapsibleSearchBar', () => ({ default: () => null }))
+vi.mock('@renderer/components/Scrollbar', () => ({ default: ({ children }: { children: ReactNode }) => children }))
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
-  SettingContainer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  SettingContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SettingDivider: () => <hr />,
-  SettingTitle: ({ children }: { children?: ReactNode }) => <div>{children}</div>
+  SettingTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
+vi.mock('@renderer/pages/settings/McpSettings/McpDescription', () => ({ default: () => null }))
+vi.mock('../McpPrompt', () => ({ default: () => null }))
+vi.mock('../McpResource', () => ({ default: () => null }))
+vi.mock('../McpTool', () => ({ default: () => null }))
 
-vi.mock('@renderer/components/icons/SvgIcon', () => ({
-  McpLogo: () => <span />
-}))
-
-vi.mock('../McpDescription', () => ({ default: () => <div /> }))
-vi.mock('../McpPrompt', () => ({ default: () => <div /> }))
-vi.mock('../McpResource', () => ({ default: () => <div /> }))
-vi.mock('../McpTool', () => ({ default: () => <div /> }))
-
-vi.mock('../McpServerFields', async () => {
-  const { z } = await import('zod')
+vi.mock('../McpServerFields', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
-    buildMcpSchema: () => z.object({}),
-    MCP_FORM_DEFAULT_VALUES: {},
+    ...actual,
     McpEndpointField: () => null,
-    McpFormGrid: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    McpIdentityFields: () => null,
+    McpIdentityFields: ({ form }: { form: { register: (name: 'name') => Record<string, unknown> } }) => (
+      <label>
+        Server name
+        <input {...form.register('name')} />
+      </label>
+    ),
     McpRuntimeFields: () => null,
-    McpTransportFields: () => null,
-    toMcpServerFields: () => ({}),
-    useMcpRegistryState: () => ({ syncFromServer: () => {} })
+    McpTransportFields: () => null
   }
 })
 
-vi.mock('../useMcpServerTrust', () => ({
-  useMcpServerTrust: () => ({ ensureServerTrusted: async (s: unknown) => s })
-}))
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<object>()
+  return {
+    ...actual,
+    useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key })
+  }
+})
 
-vi.mock('../utils', () => ({
-  toUpdateMcpServerDto: (s: unknown) => s
-}))
-
-import McpSettings from '../McpSettings'
-
-const CAPABILITY_ROUTES = [
-  'mcp.server.refresh_tools',
-  'mcp.server.list_prompts',
-  'mcp.server.list_resources',
-  'mcp.server.get_version'
-] as const
-
-function makeDeferred<T>(value: T) {
-  let resolve!: (v: T) => void
-  let reject!: (e: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve: () => resolve(value), reject }
-}
-
-describe('McpSettings onToggleActive capability reads', () => {
+describe('McpSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    MockUseCacheUtils.resetMocks()
-    requestMock.request.mockReset()
+    currentServer = {
+      id: 'protocol-server-id',
+      name: 'protocol-server',
+      type: 'stdio',
+      command: 'printf',
+      args: ['deeplink-test'],
+      installSource: 'protocol',
+      isActive: false,
+      isTrusted: false
+    }
+    currentSearch = { autoEnable: 'true' }
+    mocks.confirm.mockResolvedValue(false)
+    mocks.invalidate.mockResolvedValue(undefined)
+    mocks.updateMcpServer.mockResolvedValue(undefined)
+    mockUseMcpServer.mockImplementation(() => ({
+      server: currentServer,
+      isLoading: false,
+      updateMcpServer: mocks.updateMcpServer
+    }))
   })
 
-  it('starts all four capability requests concurrently before any resolves', async () => {
-    const deferreds = CAPABILITY_ROUTES.map(() => makeDeferred(undefined))
-    const routeCalls: string[] = []
-    requestMock.request.mockImplementation((route: string) => {
-      routeCalls.push(route)
-      const idx = CAPABILITY_ROUTES.indexOf(route as (typeof CAPABILITY_ROUTES)[number])
-      return deferreds[idx].promise
-    })
-
+  it('dispatches every capability read before settlement and reports only one enable error', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    const routes = [
+      'mcp.server.refresh_tools',
+      'mcp.server.list_prompts',
+      'mcp.server.list_resources',
+      'mcp.server.list_resource_templates',
+      'mcp.server.get_version'
+    ]
+    const pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
+    mocks.request.mockImplementation(
+      (route: string) =>
+        new Promise((resolve, reject) => {
+          pending.set(route, { resolve, reject })
+        })
+    )
+    const user = userEvent.setup()
     render(<McpSettings />)
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('switch'))
-    })
-
-    // updateMcpServer({ body: { isActive: true } }) resolves first; then the four
-    // capability requests are dispatched together via Promise.allSettled.
-    await waitFor(() => expect(requestMock.request).toHaveBeenCalledTimes(4))
-
-    // None of the deferreds have resolved yet, but every route was already called.
-    expect(routeCalls).toEqual(expect.arrayContaining([...CAPABILITY_ROUTES]))
+    await user.click(screen.getByRole('switch'))
+    await waitFor(() => expect([...pending.keys()]).toEqual(expect.arrayContaining(routes)))
     expect(popup.error).not.toHaveBeenCalled()
-
     await act(async () => {
-      deferreds.forEach((d) => d.resolve())
+      pending.get(routes[0])!.reject(new Error('tools unavailable'))
+      pending.get(routes[1])!.reject(new Error('prompts unavailable'))
+      pending.get(routes[2])!.resolve([])
+      pending.get(routes[3])!.resolve([])
+      pending.get(routes[4])!.resolve('1.0.0')
     })
-
-    await waitFor(() => expect(popup.error).not.toHaveBeenCalled())
+    await waitFor(() => expect(popup.error).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('switch')).not.toBeDisabled()
+    expect(screen.getByRole('switch')).toBeChecked()
   })
 
-  it('shows at most one start error and keeps cleanup correct when a read rejects', async () => {
-    const deferreds = CAPABILITY_ROUTES.map(() => makeDeferred(undefined))
-    requestMock.request.mockImplementation((route: string) => {
-      const idx = CAPABILITY_ROUTES.indexOf(route as (typeof CAPABILITY_ROUTES)[number])
-      return deferreds[idx].promise
-    })
-
+  it('consumes protocol auto-enable and shows the run confirmation once without enabling when canceled', async () => {
     render(<McpSettings />)
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('switch'))
+    await waitFor(() => expect(mocks.confirm).toHaveBeenCalledTimes(1))
+
+    expect(mocks.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'settings.mcp.protocolInstallWarning.title' })
+    )
+    expect(mocks.confirm.mock.calls[0][0].content).toMatchObject({ props: { server: currentServer } })
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/settings/mcp/settings/$serverId',
+      params: { serverId: currentServer.id },
+      search: {},
+      replace: true
+    })
+    expect(mocks.updateMcpServer).not.toHaveBeenCalled()
+  })
+
+  it('preserves edits for the same server ID and loads defaults for a different server ID', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: false
+    }
+    const user = userEvent.setup()
+    const { rerender } = render(<McpSettings />)
+    const nameInput = screen.getByRole('textbox', { name: 'Server name' })
+
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Unsaved server name')
+
+    currentServer = { ...currentServer, name: 'Refetched Server A' }
+    rerender(<McpSettings />)
+
+    expect(screen.getByRole('textbox', { name: 'Server name' })).toHaveValue('Unsaved server name')
+
+    currentServer = {
+      id: 'server-b',
+      name: 'Server B',
+      type: 'stdio',
+      command: 'server-b',
+      isActive: false
+    }
+    rerender(<McpSettings />)
+
+    expect(screen.getByRole('textbox', { name: 'Server name' })).toHaveValue('Server B')
+  })
+
+  it('renders selectable MCP logs and copies them to the clipboard', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: true
+    }
+    const logs: McpServerLogEntry[] = [
+      { timestamp: 1700000000000, level: 'info', message: 'Server started' },
+      { timestamp: 1700000001000, level: 'error', message: 'Connection failed', data: { detail: 'timeout' } }
+    ]
+    const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_logs') return Promise.resolve(logs)
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      return Promise.resolve([])
     })
 
-    await waitFor(() => expect(requestMock.request).toHaveBeenCalledTimes(4))
+    const user = userEvent.setup()
+    const { container } = render(<McpSettings />)
 
-    await act(async () => {
-      // Resolve three, reject one (refresh_tools).
-      deferreds[1].resolve()
-      deferreds[2].resolve()
-      deferreds[3].resolve()
-      deferreds[0].reject(new Error('boom'))
+    expect(mocks.on).not.toHaveBeenCalledWith('mcp.server.log', expect.any(Function))
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.get_logs', expect.anything())
+
+    await user.click(screen.getByRole('radio', { name: 'Logs' }))
+
+    expect(mocks.on).toHaveBeenCalledWith('mcp.server.log', expect.any(Function))
+    expect(await screen.findByText('Server started')).toBeInTheDocument()
+    expect(screen.getByText('Connection failed')).toBeInTheDocument()
+
+    const liveLog = {
+      serverId: currentServer.id,
+      timestamp: 1700000002000,
+      level: 'info' as const,
+      message: 'Live log'
+    }
+    const logListener = mocks.on.mock.calls.find(([event]) => event === 'mcp.server.log')?.[1]
+    act(() => {
+      logListener?.(liveLog)
+    })
+    expect(screen.getByText('Live log')).toBeInTheDocument()
+
+    // `.selectable` is the maintained contract that opts the log list out of the
+    // global `user-select: none` (src/renderer/assets/styles/index.css).
+    expect(container.querySelector('.selectable')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Copy logs' }))
+    expect(clipboardWriteText).toHaveBeenCalledWith(formatMcpLogs([...logs, liveLog]))
+  })
+
+  it('defers tools/prompts/resources fetches until the matching tab is first opened', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: true
+    }
+
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      if (channel === 'mcp.server.list_prompts') return Promise.resolve([])
+      if (channel === 'mcp.server.list_resources') return Promise.resolve([])
+      return Promise.resolve([])
     })
 
-    await waitFor(() => expect(popup.error).toHaveBeenCalledTimes(1))
-    expect(popup.error).toHaveBeenCalledWith(expect.objectContaining({ title: 'settings.mcp.startError' }))
+    const user = userEvent.setup()
+    render(<McpSettings />)
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.get_version', { serverId: currentServer.id })
+    )
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.refresh_tools', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_prompts', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_resources', expect.anything())
+
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.refresh_tools', { serverId: currentServer.id })
+    )
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_prompts', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_resources', expect.anything())
+
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.prompts' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.list_prompts', { serverId: currentServer.id })
+    )
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_resources', expect.anything())
+
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.resources' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.list_resources', { serverId: currentServer.id })
+    )
+
+    mocks.request.mockClear()
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.prompts' }))
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.resources' }))
+
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.refresh_tools', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_prompts', expect.anything())
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.list_resources', expect.anything())
+  })
+
+  it('retries a capability tab fetch after the first IPC call fails', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: true
+    }
+
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      if (channel === 'mcp.server.refresh_tools') return Promise.reject(new Error('unreachable'))
+      return Promise.resolve([])
+    })
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.refresh_tools', { serverId: currentServer.id })
+    )
+
+    mocks.request.mockClear()
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      if (channel === 'mcp.server.refresh_tools') return Promise.resolve([])
+      return Promise.resolve([])
+    })
+
+    await user.click(screen.getByRole('radio', { name: 'Logs' }))
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('mcp.server.refresh_tools', { serverId: currentServer.id })
+    )
+  })
+
+  it('deletes via the mcp.server.remove IPC channel, refreshes the cache, and navigates back', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    mocks.confirm.mockResolvedValue(true)
+    mocks.request.mockResolvedValue(undefined)
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: /common\.delete/ }))
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/mcp' }))
+    expect(mocks.request).toHaveBeenCalledWith('mcp.server.remove', { serverId: 'server-a' })
+    expect(mocks.invalidate).toHaveBeenCalledWith('/mcp-servers')
+    expect(mocks.toastSuccess).toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an IPC removal failure without refreshing, reporting success, or navigating', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    mocks.confirm.mockResolvedValue(true)
+    mocks.request.mockImplementation((channel: string) =>
+      channel === 'mcp.server.remove' ? Promise.reject(new Error('close failed')) : Promise.resolve([])
+    )
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: /common\.delete/ }))
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled())
+    expect(mocks.invalidate).not.toHaveBeenCalled()
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('does not report a committed delete as failed when the cache refresh rejects', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    mocks.confirm.mockResolvedValue(true)
+    mocks.request.mockResolvedValue(undefined)
+    mocks.invalidate.mockRejectedValue(new Error('refetch failed'))
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: /common\.delete/ }))
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/mcp' }))
+    expect(mocks.toastSuccess).toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 })

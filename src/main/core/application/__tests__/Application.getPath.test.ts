@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 // Type-only import used to give vi.importActual a generic argument that
 // satisfies @typescript-eslint/consistent-type-imports (which forbids
 // inline `import()` type annotations).
 import type * as PathRegistryModule from '@main/core/paths/pathRegistry'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
@@ -41,7 +42,7 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
         'cherry.bin': '/mock/home/.cherrystudio/bin',
         // Cherry-owned files (auto-ensure dirname only)
         'feature.copilot.token_file': '/mock/home/.cherrystudio/config/.copilot_token',
-        'app.database.file': '/mock/userData/cherrystudio.sqlite',
+        'app.database.file': '/mock/userData/Data/cherrystudio.sqlite',
         // NO_ENSURE — exact key entries (build artifacts)
         'app.exe_file': '/mock/install/CherryStudio',
         'app.extra_resources': '/mock/resources',
@@ -147,7 +148,7 @@ describe('Application.getPath', () => {
     it('mkdirs path.dirname(base) for a key whose name ends with ".file"', () => {
       app.getPath('app.database.file')
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData/Data', { recursive: true })
     })
 
     it('does not mkdir for keys in the NO_ENSURE exact list (app.exe_file)', () => {
@@ -231,7 +232,7 @@ describe('Application.getPath', () => {
   })
 
   // Note: compile-time PathKey enforcement is verified via `pnpm typecheck`
-  // (which runs tsgo). vitest's compile path uses esbuild and does not
+  // (which runs tsc). vitest's compile path uses esbuild and does not
   // enforce type-only directives like @ts-expect-error reliably, so we do
   // not assert them here.
 })

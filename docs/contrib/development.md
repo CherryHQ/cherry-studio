@@ -1,0 +1,171 @@
+---
+description: Developer environment setup covering IDE configuration, Windows symlink support, and project install steps
+---
+
+# 🖥️ Develop
+
+## IDE Setup
+
+### VSCode like
+
+- Editor: [Cursor](https://www.cursor.com/), etc. Any VS Code compatible editor.
+- Recommended extensions are listed in [`.vscode/extensions.json`](../../.vscode/extensions.json).
+
+### Zed
+
+1. Install the [Oxc extension](https://github.com/oxc-project/zed-oxc) for Oxfmt and Oxlint.
+2. Copy the example settings file to your local Zed config:
+   ```bash
+   cp .zed/settings.json.example .zed/settings.json
+   ```
+3. Customize `.zed/settings.json` as needed (it is git-ignored).
+
+## Windows: Enable Symlinks
+
+This project uses symlinks to synchronize files such as AGENTS.md and skills. Windows developers must enable symlink support before cloning:
+
+1. **Enable Developer Mode** (Settings → Update & Security → For developers), or grant `SeCreateSymbolicLinkPrivilege` via `secpol.msc`.
+2. **Configure Git**:
+   ```bash
+   git config --global core.symlinks true
+   ```
+3. Clone (or re-clone) the repository after enabling symlink support.
+
+## Project Setup
+
+### Install
+
+```bash
+pnpm install
+```
+
+### Setup Node.js
+
+The required Node.js version is defined in `.node-version`. Use a version manager like [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm) to install it automatically:
+
+```bash
+nvm install
+```
+
+### Setup pnpm
+
+The pnpm version is locked in the `packageManager` field of `package.json`. Just enable corepack and it will use the correct version automatically:
+
+```bash
+corepack enable
+```
+
+### Install Dependencies
+
+```bash
+pnpm install
+```
+
+### ENV
+
+```bash
+cp .env.example .env
+```
+
+### Start
+
+```bash
+pnpm dev
+```
+
+By default, development runs append `Dev` to Electron's default `userData`
+directory, keeping local dev data separate from packaged app data. To run
+an entirely isolated development profile, set an absolute profile root in
+`.env`:
+
+```bash
+CS_DEV_PROFILE_ROOT=/absolute/path/to/cherry-profile
+```
+
+This keeps Cherry home, BootConfig, legacy config discovery, Electron
+`userData`, and logs under that root. The root cannot be relative or the
+filesystem root, and packaged builds ignore it. When set, it takes precedence
+over `CS_DEV_USER_DATA_SUFFIX`.
+
+| Data | Isolated location |
+|------|-------------------|
+| Cherry home and BootConfig | `{profileRoot}/.cherrystudio` |
+| Electron `userData` | `{profileRoot}/userData` |
+| Application logs | `{profileRoot}/logs` |
+
+For lightweight isolation of multiple development instances, give each
+instance a unique userData suffix. You can set it in `.env`:
+
+```bash
+CS_DEV_USER_DATA_SUFFIX=DevQuito
+```
+
+Or pass it inline when starting a dev instance:
+
+```bash
+CS_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
+CS_DEV_USER_DATA_SUFFIX=DevParis pnpm dev
+```
+
+The suffix must be a single path component (no path separator, drive colon,
+`* ? " < > |`, control character, or trailing dot). Blank values fall back to
+`Dev`; anything else that breaks those rules stops the dev run instead of
+falling back, so two instances never end up sharing one directory.
+
+### Debug
+
+```bash
+pnpm debug
+```
+
+Then input chrome://inspect in browser
+
+### Validate changes
+
+```bash
+pnpm check --plan
+pnpm check
+pnpm check --base <parent-branch> --plan
+pnpm check:all
+```
+
+`check` includes all branch changes since the merge base with `origin/main`, plus staged,
+unstaged, and untracked files. Use `--base` for the parent of a stacked branch. Ordinary
+Markdown selects only formatting and documentation checks; runtime resources and unknown
+paths conservatively select more checks. Missing comparison history selects the full gate.
+
+`pnpm lint` only runs read-only Oxlint and ESLint checks. Use `pnpm lint:fix` to apply lint
+fixes and `pnpm format` to format files. Type checking and i18n validation are separate tasks
+selected by `check`. `pnpm typecheck` runs compilers serially. Local Vitest uses two workers;
+override with `--maxWorkers=N` when needed. CI retains its runner worker limit.
+
+### Test
+
+```bash
+pnpm test:main src/main/path/to/example.test.ts
+pnpm test:renderer src/renderer/path/to/example.test.ts
+pnpm test
+```
+
+`pnpm test` runs all registered projects in one invocation; file arguments apply to all
+projects. Each coding agent should use its own worktree and dependency installation.
+Main-process tests rebuild SQLite for Node, while `pnpm dev` rebuilds it for Electron:
+do not run both concurrently against the same worktree's native binary.
+
+See [Validation tooling](../../scripts/validation/README.md) for selection rules and task groups.
+
+### Build
+
+```bash
+# For windows
+$ pnpm build:win
+
+# For macOS
+$ pnpm build:mac
+
+# For Linux
+$ pnpm build:linux
+```
+
+For architecture-specific commands and the pinned `better-sqlite3` prebuild workflow, see
+[Linux Packaging](./linux-packaging.md).

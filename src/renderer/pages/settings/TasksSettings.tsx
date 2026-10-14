@@ -1,3 +1,31 @@
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Cron } from 'croner'
+import type { TFunction } from 'i18next'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bot,
+  CalendarCheck2,
+  CalendarClock,
+  CalendarFold,
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleSlash,
+  CircleStop,
+  CircleX,
+  Clock3,
+  Folder,
+  Loader2,
+  MoreHorizontal,
+  PencilLine,
+  Play,
+  Plus,
+  Trash2
+} from 'lucide-react'
+import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Alert,
@@ -59,6 +87,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
@@ -69,7 +98,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import {
   useAllTasks,
@@ -85,31 +114,13 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useTheme } from '@renderer/hooks/useTheme'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
-import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskEntity, ScheduledTaskListItem, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import type { TFunction } from 'i18next'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bot,
-  CalendarClock,
-  ChevronDown,
-  ChevronRight,
-  CircleSlash,
-  Folder,
-  MoreHorizontal,
-  PencilLine,
-  Play,
-  Plus,
-  Trash2
-} from 'lucide-react'
-import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TasksSettings')
 const ALL_TASKS_FILTER = 'all'
@@ -167,6 +178,7 @@ type TaskDraftSnapshot = {
   schedule: ScheduleFormState
   channelIds: string[]
   workspaceId: string | null
+  reuseSession: boolean
 }
 type TaskUpdateResult = {
   succeeded: boolean
@@ -186,17 +198,41 @@ const parseScheduleDate = (value: string) => {
   return Number.isNaN(date.getTime()) ? undefined : date
 }
 
-const parseTime = (value: string) => {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
-  if (!match) return null
-  const hour = Number(match[1])
-  const minute = Number(match[2])
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
-  return { hour, minute }
+// Canonical value for the time presets: a sorted, deduped 'HH:MM,HH:MM…' list
+// sharing one minute — per-entry minutes would cross-product into extra cron firings.
+const parseTimes = (value: string): { hours: string[]; minute: string } | null => {
+  const matches = value.split(',').map((part) => /^(\d{1,2}):(\d{2})$/.exec(part.trim()))
+  if (matches.some((match) => match === null)) return null
+
+  const minute = matches[0]![2]
+  if (Number(minute) > 59 || matches.some((match) => match![2] !== minute)) return null
+
+  const hours = matches.map((match) => Number(match![1]))
+  if (hours.some((hour) => hour > 23)) return null
+
+  const uniqueSorted = [...new Set(hours)].sort((a, b) => a - b)
+  return { hours: uniqueSorted.map((hour) => String(hour).padStart(2, '0')), minute }
 }
 
-const formatTime = (hour: number, minute: number) =>
-  `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+const formatTimes = (hours: string[], minute: string) =>
+  [...new Set(hours)]
+    .sort()
+    .map((hour) => `${hour}:${minute}`)
+    .join(',')
+
+function isValidCronExpression(value: string): boolean {
+  const expression = value.trim()
+
+  let cron: Cron | undefined
+  try {
+    cron = new Cron(expression, { paused: true })
+    return cron.nextRun() !== null
+  } catch {
+    return false
+  } finally {
+    cron?.stop()
+  }
+}
 
 export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 'timeoutMinutes'> {
   if (trigger.kind === 'interval') {
@@ -226,15 +262,23 @@ export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 't
   }
 
   const minute = Number(minutePart)
-  const hour = Number(hourPart)
+  const hourParts = hourPart.split(',')
   const hasValidTime =
-    Number.isInteger(minute) && minute >= 0 && minute <= 59 && Number.isInteger(hour) && hour >= 0 && hour <= 23
+    Number.isInteger(minute) &&
+    minute >= 0 &&
+    minute <= 59 &&
+    hourParts.every((part) => /^\d{1,2}$/.test(part) && Number(part) <= 23)
 
   if (!hasValidTime || dayOfMonth !== '*' || month !== '*') {
     return { kind: 'cron', value: trigger.expr, weekday: '1' }
   }
 
-  const value = formatTime(hour, minute)
+  // Canonical form: sorted, deduped (matches parseTimes/formatTimes so the UI
+  // multi-select never disagrees with the value it renders).
+  const value = formatTimes(
+    hourParts.map((part) => part.padStart(2, '0')),
+    String(minute).padStart(2, '0')
+  )
   if (dayOfWeek === '*') return { kind: 'daily', value, weekday: '1' }
   if (dayOfWeek === '1-5') return { kind: 'weekdays', value, weekday: '1' }
   if (/^[0-6]$/.test(dayOfWeek)) return { kind: 'weekly', value, weekday: dayOfWeek }
@@ -257,12 +301,12 @@ export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null 
 
   if (schedule.kind === 'cron') {
     const expr = schedule.value.trim()
-    return expr ? { kind: 'cron', expr } : null
+    return isValidCronExpression(expr) ? { kind: 'cron', expr } : null
   }
 
-  const time = parseTime(schedule.value)
-  if (!time) return null
-  const prefix = `${time.minute} ${time.hour} * *`
+  const times = parseTimes(schedule.value)
+  if (!times || times.hours.length === 0) return null
+  const prefix = `${Number(times.minute)} ${times.hours.map(Number).join(',')} * *`
 
   if (schedule.kind === 'daily') return { kind: 'cron', expr: `${prefix} *` }
   if (schedule.kind === 'weekdays') return { kind: 'cron', expr: `${prefix} 1-5` }
@@ -277,7 +321,7 @@ function scheduleForKind(kind: ScheduleKind, current: ScheduleFormState): Schedu
     case 'daily':
     case 'weekdays':
     case 'weekly':
-      return { ...current, kind, value: parseTime(current.value) ? current.value : '09:00' }
+      return { ...current, kind, value: parseTimes(current.value) ? current.value : '09:00' }
     case 'interval':
     case 'once':
     case 'cron':
@@ -294,7 +338,8 @@ function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapshot {
       timeoutMinutes: task.timeoutMinutes > 0 ? task.timeoutMinutes.toString() : ''
     },
     channelIds: task.channelIds ?? [],
-    workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
+    workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null,
+    reuseSession: task.reuseSession
   }
 }
 
@@ -338,41 +383,139 @@ function getWeekdayLabel(weekday: string, t: TFunction) {
   return labels[weekday] ?? weekday
 }
 
-function getScheduleKindLabel(kind: ScheduleKind, t: TFunction) {
-  const labels: Record<ScheduleKind, string> = {
-    hourly: t('agent.tasks.schedule.hourly'),
-    daily: t('agent.tasks.schedule.daily'),
-    weekdays: t('agent.tasks.schedule.weekdaysOnly'),
-    weekly: t('agent.tasks.schedule.weekly'),
-    interval: t('agent.tasks.schedule.interval'),
-    once: t('agent.tasks.schedule.once'),
-    cron: t('agent.tasks.schedule.custom')
-  }
-  return labels[kind]
-}
-
 function getTaskStatusLabel(status: string, t: TFunction) {
   const labels: Record<string, string> = {
     active: t('agent.tasks.status.active'),
     paused: t('agent.tasks.status.paused'),
-    completed: t('agent.tasks.status.completed')
+    completed: t('agent.tasks.status.completed'),
+    missed: t('agent.tasks.status.missed')
   }
   return labels[status] ?? status
 }
 
+function getTaskScheduleStatusIconPresentation(status: ScheduledTaskEntity['status']) {
+  switch (status) {
+    case 'active':
+      return {
+        Icon: CalendarClock,
+        wrapperClassName: 'bg-info-subtle text-info-subtle-foreground',
+        iconClassName: 'text-info-subtle-foreground'
+      }
+    case 'missed':
+    case 'paused':
+      return {
+        Icon: CalendarFold,
+        wrapperClassName: 'bg-warning-subtle text-warning-subtle-foreground',
+        iconClassName: 'text-warning-subtle-foreground'
+      }
+    case 'completed':
+      return {
+        Icon: CalendarCheck2,
+        wrapperClassName: 'bg-success-subtle text-success-subtle-foreground',
+        iconClassName: 'text-success-subtle-foreground'
+      }
+  }
+}
+
+const TaskScheduleStatusIcon: FC<{ status: ScheduledTaskEntity['status'] }> = ({ status }) => {
+  const { Icon, wrapperClassName, iconClassName } = getTaskScheduleStatusIconPresentation(status)
+
+  return (
+    <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', wrapperClassName)}>
+      <Icon size={20} aria-hidden className={iconClassName} />
+    </div>
+  )
+}
+
+function formatTaskCardTime(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskListItem['runSummary']> }> = ({ summary }) => {
+  const { t } = useTranslation()
+
+  if (summary.status === 'queued') {
+    return (
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        <Clock3 aria-hidden className="size-3" />
+        {t('agent.tasks.runSummary.queued')}
+      </span>
+    )
+  }
+
+  if (summary.status === 'running') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <Loader2 aria-hidden className="size-3 text-foreground motion-safe:animate-spin" />
+        {t('agent.tasks.runSummary.running')}
+      </span>
+    )
+  }
+
+  const time = formatTaskCardTime(summary.finishedAt)
+  if (summary.status === 'completed') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <CircleCheck aria-hidden className="size-3 text-foreground" />
+        {t('agent.tasks.runSummary.completed', { time })}
+      </span>
+    )
+  }
+  if (summary.status === 'failed') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <CircleX aria-hidden className="size-3 text-foreground" />
+        {t('agent.tasks.runSummary.failed', { time })}
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-foreground">
+      <CircleStop aria-hidden className="size-3 text-foreground" />
+      {t('agent.tasks.runSummary.cancelled', { time })}
+    </span>
+  )
+}
+
+const TaskCardRunStatus: FC<{ task: ScheduledTaskListItem }> = ({ task }) => {
+  const { t } = useTranslation()
+  const nextRun = task.status === 'active' ? task.nextRun : null
+
+  if (!task.runSummary && !nextRun) return null
+
+  return (
+    <div className="flex flex-col items-end gap-0.5 whitespace-nowrap text-xs">
+      {task.runSummary && <TaskRunSummaryLine summary={task.runSummary} />}
+      {nextRun && (
+        <span className="text-muted-foreground">
+          {t('agent.tasks.nextRun')} · {formatTaskCardTime(nextRun)}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function getTriggerSummary(trigger: Trigger, t: TFunction) {
   const schedule = triggerToFormState(trigger)
+  // Time presets may hold a comma-joined list; space it out for display.
+  const time = schedule.value.split(',').join(', ')
   switch (schedule.kind) {
     case 'hourly':
       return t('agent.tasks.schedule.summary.hourly')
     case 'daily':
-      return t('agent.tasks.schedule.summary.daily', { time: schedule.value })
+      return t('agent.tasks.schedule.summary.daily', { time })
     case 'weekdays':
-      return t('agent.tasks.schedule.summary.weekdays', { time: schedule.value })
+      return t('agent.tasks.schedule.summary.weekdays', { time })
     case 'weekly':
       return t('agent.tasks.schedule.summary.weekly', {
         weekday: getWeekdayLabel(schedule.weekday, t),
-        time: schedule.value
+        time
       })
     case 'interval':
       return t('agent.tasks.schedule.summary.interval', { count: Number(schedule.value) })
@@ -383,40 +526,77 @@ function getTriggerSummary(trigger: Trigger, t: TFunction) {
   }
 }
 
-const TaskTimeSelect: FC<{
+export const TaskTimeSelect: FC<{
   value: string
   disabled?: boolean
   onChange: (value: string) => void
 }> = ({ value, disabled, onChange }) => {
   const { t } = useTranslation()
-  const { hour, minute } = parseTime(value) ?? { hour: 9, minute: 0 }
-  const hourValue = String(hour).padStart(2, '0')
-  const minuteValue = String(minute).padStart(2, '0')
+  // An empty preset means the user cleared every hour; render no selection so the
+  // UI agrees with the empty form value (which blocks saving until repopulated).
+  // A non-empty value that fails to parse is unexpected, so fall back to the
+  // default selection rather than rendering a blank, uneditable control.
+  const { hours, minute } =
+    parseTimes(value) ?? (value === '' ? { hours: [], minute: '00' } : { hours: ['09'], minute: '00' })
+
+  // The minute is encoded inside the comma-joined value, so clearing the last
+  // hour would otherwise discard it (formatTimes([], '30') === ''). Track the
+  // last committed minute in state so re-picking an hour after clearing every
+  // selection keeps the minute the user did not edit (e.g. 18:30 -> clear 18 ->
+  // pick 20 yields 20:30, not 20:00). While no hour is selected the minute
+  // stays a local preview only: the form value remains '' and saving is blocked.
+  // Seed the retained minute from the mounted value: lastValue starts equal to
+  // value, so the update block below never runs on the first render and a
+  // fresh/remounted selector loading a non-zero-minute schedule would otherwise
+  // fall back to 00 once every hour is cleared.
+  const [rememberedMinute, setRememberedMinute] = useState(() => {
+    const parsed = parseTimes(value)
+    return parsed && parsed.hours.length > 0 ? parsed.minute : '00'
+  })
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    const parsed = parseTimes(value)
+    if (parsed && parsed.hours.length > 0) setRememberedMinute(parsed.minute)
+  }
+  const displayMinute = hours.length > 0 ? minute : rememberedMinute
 
   return (
     <RowFlex role="group" aria-label={t('agent.tasks.schedule.time')} className="items-center gap-2">
-      <Select
-        value={hourValue}
+      <Combobox
+        multiple
+        searchable={false}
+        width={160}
+        aria-label={t('agent.tasks.schedule.hours')}
+        placeholder={t('agent.tasks.schedule.hours')}
         disabled={disabled}
-        onValueChange={(nextHour) => onChange(`${nextHour}:${minuteValue}`)}>
-        <SelectTrigger aria-label={t('agent.tasks.schedule.hour')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {SCHEDULE_HOURS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+        options={SCHEDULE_HOURS.map((hour) => ({ value: hour, label: hour }))}
+        value={hours}
+        renderValue={(selectedHours) => {
+          const values = Array.isArray(selectedHours) ? selectedHours : []
+          return (
+            <span className={cn('min-w-0 flex-1 truncate text-left', values.length === 0 && 'text-muted-foreground')}>
+              {values.length > 0 ? values.join(', ') : t('agent.tasks.schedule.hours')}
+            </span>
+          )
+        }}
+        onChange={(next) => {
+          if (Array.isArray(next)) onChange(formatTimes(next, displayMinute))
+        }}
+      />
       <InputGroupText aria-hidden="true">:</InputGroupText>
       <Select
-        value={minuteValue}
+        value={displayMinute}
         disabled={disabled}
-        onValueChange={(nextMinute) => onChange(`${hourValue}:${nextMinute}`)}>
+        onValueChange={(nextMinute) => {
+          if (hours.length === 0) {
+            // No hour selected: the minute cannot live in the value string, so
+            // keep it only as the preview for the next hour selection.
+            setRememberedMinute(nextMinute)
+            return
+          }
+          onChange(formatTimes(hours, nextMinute))
+        }}>
         <SelectTrigger aria-label={t('agent.tasks.schedule.minute')}>
           <SelectValue />
         </SelectTrigger>
@@ -511,6 +691,16 @@ const TaskScheduleControls: FC<{
           if (date) updateValue(date.toISOString())
         }}
       />
+    ) : value.kind === 'cron' ? (
+      <Input
+        className="w-72 max-w-full font-mono"
+        value={value.value}
+        placeholder={t('agent.tasks.schedule.cronPlaceholder')}
+        disabled={disabled}
+        aria-label={t('agent.tasks.schedule.cron')}
+        aria-invalid={invalid || undefined}
+        onChange={(event) => updateValue(event.target.value)}
+      />
     ) : null
 
   return (
@@ -518,12 +708,9 @@ const TaskScheduleControls: FC<{
       <Field data-invalid={invalid || undefined}>
         <FieldLabel htmlFor={`${id}-kind`}>{t('agent.tasks.frequency.label')}</FieldLabel>
         <RowFlex className="flex-wrap items-center gap-3">
-          <Select
-            value={value.kind === 'cron' ? undefined : value.kind}
-            disabled={disabled}
-            onValueChange={(kind) => updateKind(kind as Exclude<ScheduleKind, 'cron'>)}>
+          <Select value={value.kind} disabled={disabled} onValueChange={(kind) => updateKind(kind as ScheduleKind)}>
             <SelectTrigger id={`${id}-kind`} aria-invalid={invalid || undefined}>
-              <SelectValue placeholder={value.kind === 'cron' ? t('agent.tasks.schedule.custom') : undefined} />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -533,12 +720,17 @@ const TaskScheduleControls: FC<{
                 <SelectItem value="weekly">{t('agent.tasks.schedule.weekly')}</SelectItem>
                 <SelectItem value="interval">{t('agent.tasks.schedule.interval')}</SelectItem>
                 <SelectItem value="once">{t('agent.tasks.schedule.once')}</SelectItem>
+                <SelectItem value="cron">{t('agent.tasks.schedule.cron')}</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
           {frequencyControl}
         </RowFlex>
-        <FieldError>{invalid ? t('agent.tasks.schedule.invalid') : undefined}</FieldError>
+        <FieldError>
+          {invalid
+            ? t(value.kind === 'cron' ? 'agent.tasks.schedule.invalidCron' : 'agent.tasks.schedule.invalid')
+            : undefined}
+        </FieldError>
       </Field>
 
       <Field>
@@ -614,9 +806,47 @@ const TaskChannelSelector: FC<{
   )
 }
 
+const TaskSessionReuseField: FC<{
+  value: boolean
+  onChange: (value: boolean) => void
+  disabled?: boolean
+}> = ({ value, onChange, disabled }) => {
+  const { t } = useTranslation()
+
+  return (
+    <Field>
+      <RowFlex className="items-center justify-between gap-3">
+        <div className="min-w-0">
+          <FieldLabel htmlFor="task-form-reuse-session">{t('agent.tasks.reuseSession.label')}</FieldLabel>
+          <ItemDescription>{t('agent.tasks.reuseSession.description')}</ItemDescription>
+        </div>
+        <Switch
+          id="task-form-reuse-session"
+          className="shrink-0"
+          checked={value}
+          disabled={disabled}
+          onCheckedChange={onChange}
+        />
+      </RowFlex>
+      {value && <Alert type="warning" showIcon description={t('agent.tasks.reuseSession.warning')} />}
+    </Field>
+  )
+}
+
 const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language
+  const locale = i18n.resolvedLanguage ?? i18n.language
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }),
+    [locale]
+  )
   const { openConversation } = useConversationNavigation('agents')
   const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
@@ -629,9 +859,9 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         log.result?.toLowerCase().includes(query) ||
         log.error?.toLowerCase().includes(query) ||
         log.status.toLowerCase().includes(query) ||
-        new Date(log.startedAt).toLocaleString(locale).toLowerCase().includes(query)
+        dateFormatter.format(new Date(log.startedAt)).toLowerCase().includes(query)
     )
-  }, [locale, logs, searchText])
+  }, [dateFormatter, logs, searchText])
 
   const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
     () => [
@@ -639,22 +869,15 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         accessorKey: 'startedAt',
         header: t('agent.tasks.logs.runAt'),
         meta: { width: 160 },
-        cell: ({ getValue }) =>
-          new Date(getValue() as string).toLocaleString(undefined, {
-            month: 'numeric',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          })
+        cell: ({ getValue }) => dateFormatter.format(new Date(getValue() as string))
       },
       {
         accessorKey: 'durationMs',
         header: t('agent.tasks.logs.duration'),
         meta: { width: 80 },
         cell: ({ getValue, row }) => {
-          const value = getValue() as number
-          if (row.original.status === 'running') return '-'
+          const value = getValue() as number | null
+          if (value == null || row.original.status === 'running') return '-'
           if (value < 1000) return `${value}ms`
           if (value < 60_000) return `${(value / 1000).toFixed(1)}s`
           return `${(value / 60_000).toFixed(1)}m`
@@ -712,7 +935,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         }
       }
     ],
-    [openConversation, t]
+    [dateFormatter, openConversation, t]
   )
 
   if (isLoading) {
@@ -762,6 +985,7 @@ const TaskDetail: FC<{
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()
+  const { openConversation } = useConversationNavigation('agents')
   const isCompleted = task.status === 'completed'
   const agentName = agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId
   const taskChannels = useMemo(
@@ -778,7 +1002,8 @@ const TaskDetail: FC<{
   const hasUndeliverableChannel = selectedChannels.some((channel) => !channel.hasActiveChatIds)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   const workspaceId = task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
   const workspaceLabel =
@@ -814,6 +1039,28 @@ const TaskDetail: FC<{
     },
     { label: t('agent.session.display.workdir'), value: workspaceLabel },
     {
+      label: t('agent.tasks.reuseSession.label'),
+      // A raw session UUID tells the user nothing — show the state, and make the
+      // bound case a real affordance (the same jump the run log already offers).
+      // The bound session only exists once a fire has run; until then the switch
+      // is on but there is nothing to point at yet.
+      value: !task.reuseSession ? (
+        t('common.disabled')
+      ) : task.reuseSessionId ? (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto p-0"
+          onClick={() => openConversation(task.reuseSessionId as string)}>
+          {t('agent.tasks.reuseSession.bound')}
+          <ArrowRight size={13} />
+        </Button>
+      ) : (
+        t('agent.tasks.reuseSession.pending')
+      )
+    },
+    {
       label: t('agent.tasks.channels.label'),
       value: selectedChannels.length > 0 ? selectedChannels.map((channel) => channel.name).join(', ') : t('common.none')
     },
@@ -830,8 +1077,8 @@ const TaskDetail: FC<{
   )
 
   return (
-    <SettingsContentColumn theme={theme}>
-      <SettingGroup theme={theme}>
+    <SettingsContentColumn theme={theme} className="pt-4">
+      <div>
         <SettingTitle className="flex-wrap gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <Button
@@ -845,6 +1092,17 @@ const TaskDetail: FC<{
               <ArrowLeft size={16} />
             </Button>
             <span className="min-w-0 break-words">{task.name}</span>
+            {task.status === 'missed' && <Badge variant="secondary">{t('agent.tasks.status.missed')}</Badge>}
+            {!isCompleted && task.status !== 'missed' && (
+              <Switch
+                className="ml-1 shrink-0"
+                size="sm"
+                checked={task.status === 'active'}
+                onCheckedChange={(checked) => onToggleStatus(task.id, checked ? 'active' : 'paused')}
+                aria-label={t('agent.tasks.status.active')}
+                title={task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
+              />
+            )}
           </div>
           <RowFlex className="flex-wrap items-center gap-2">
             {!isCompleted && (
@@ -876,24 +1134,12 @@ const TaskDetail: FC<{
             </DropdownMenu>
           </RowFlex>
         </SettingTitle>
-        <RowFlex className="mt-3 flex-wrap items-center gap-2">
-          {!isCompleted && (
-            <Switch
-              size="sm"
-              checked={task.status === 'active'}
-              onCheckedChange={(checked) => onToggleStatus(task.id, checked ? 'active' : 'paused')}
-              aria-label={t('agent.tasks.status.active')}
-              title={task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
-            />
-          )}
-          <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
-          {task.nextRun && (
-            <SettingDescription className="mt-0">
-              {t('agent.tasks.nextRun')}: {formatDateTime(task.nextRun)}
-            </SettingDescription>
-          )}
-        </RowFlex>
-      </SettingGroup>
+        {task.nextRun && (
+          <SettingDescription>
+            {t('agent.tasks.nextRun')}: {formatDateTime(task.nextRun)}
+          </SettingDescription>
+        )}
+      </div>
 
       <SettingGroup theme={theme}>
         <Tabs defaultValue="prompt" variant="line">
@@ -902,11 +1148,11 @@ const TaskDetail: FC<{
             <TabsTrigger value="general">{t('settings.general.title')}</TabsTrigger>
             <TabsTrigger value="history">{t('agent.tasks.logs.label')}</TabsTrigger>
           </TabsList>
-          <TabsContent value="prompt">
+          <TabsContent value="prompt" className="min-w-0">
             <SettingDivider />
-            <Item variant="muted">
-              <ItemContent>
-                <ItemDescription className="line-clamp-none whitespace-pre-wrap break-words">
+            <Item variant="muted" className="min-w-0 max-w-full">
+              <ItemContent className="min-w-0">
+                <ItemDescription className="wrap-anywhere line-clamp-none min-w-0 max-w-full whitespace-pre-wrap">
                   {task.prompt}
                 </ItemDescription>
               </ItemContent>
@@ -988,12 +1234,14 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [schedule, setSchedule] = useState<ScheduleFormState>(DEFAULT_SCHEDULE)
   const [channelIds, setChannelIds] = useState<string[]>([])
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const [reuseSession, setReuseSession] = useState(false)
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
   const wasOpenRef = useRef(false)
   const initialDraftRef = useRef<TaskDraftSnapshot | null>(null)
-  const { data: workspaces } = useQuery('/agent-workspaces')
+  const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
+  useDataChange('/agent-workspaces', () => void refetchWorkspaces())
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
@@ -1005,6 +1253,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       setSchedule(draft?.schedule ?? DEFAULT_SCHEDULE)
       setChannelIds(draft?.channelIds ?? [])
       setWorkspaceId(draft?.workspaceId ?? null)
+      setReuseSession(draft?.reuseSession ?? false)
       setSaving(false)
       setSubmitted(false)
       setPromptPreviewKey((key) => key + 1)
@@ -1032,11 +1281,15 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspaces?.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId)
-  const trigger = formStateToTrigger(schedule)
+  const trigger = useMemo(() => formStateToTrigger(schedule), [schedule])
+  const unchangedExistingSchedule =
+    props.task !== undefined &&
+    scheduleInputsEqual(schedule, initialDraftRef.current?.schedule ?? taskToDraftSnapshot(props.task).schedule)
+  const resolvedTrigger = trigger ?? (unchangedExistingSchedule ? props.task?.trigger : null)
 
   const handleSave = useCallback(async () => {
     setSubmitted(true)
-    if (!agentId || !name.trim() || !prompt.trim() || !trigger) return
+    if (!agentId || !name.trim() || !prompt.trim() || !resolvedTrigger) return
 
     setSaving(true)
     try {
@@ -1058,9 +1311,10 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           updates.timeoutMinutes = timeoutMinutes
         }
         if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
+        if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
-          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, trigger)
+          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, resolvedTrigger)
           if (!triggersEqual(nextTrigger, props.task.trigger)) updates.trigger = nextTrigger
         }
 
@@ -1069,9 +1323,10 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         saved = await props.onCreate(agentId, {
           name: name.trim(),
           prompt: prompt.trim(),
-          trigger,
+          trigger: resolvedTrigger,
           workspace,
           timeoutMinutes,
+          reuseSession,
           channelIds: channelIds.length > 0 ? channelIds : undefined
         })
       }
@@ -1079,7 +1334,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     } finally {
       setSaving(false)
     }
-  }, [agentId, channelIds, name, onOpenChange, prompt, props, schedule, trigger, workspaceId])
+  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, resolvedTrigger, workspaceId])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -1099,6 +1354,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                 {t('agent.tasks.name.label')}
               </FieldLabel>
               <Input
+                autoFocus
                 id="task-form-name"
                 value={name}
                 disabled={saving}
@@ -1185,9 +1441,11 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
             <TaskScheduleControls
               value={schedule}
               disabled={saving}
-              invalid={submitted && !trigger}
+              invalid={submitted && !resolvedTrigger}
               onChange={setSchedule}
             />
+
+            <TaskSessionReuseField value={reuseSession} disabled={saving} onChange={setReuseSession} />
 
             <TaskChannelSelector
               channels={availableChannels}
@@ -1279,7 +1537,7 @@ const TasksSettings: FC = () => {
 
   useEffect(() => {
     if (agentsError || tasksError || taskError) {
-      logger.error('Failed to load tasks settings', (agentsError ?? tasksError ?? taskError) as Error)
+      logger.error('Failed to load tasks settings', agentsError ?? tasksError ?? taskError)
       toast.error(t('agent.tasks.error.loadFailed'))
     }
   }, [agentsError, t, taskError, tasksError])
@@ -1352,9 +1610,9 @@ const TasksSettings: FC = () => {
     async (selectedTaskId: string) => {
       const task = getTaskForAction(selectedTaskId)
       if (!task) return
-      const deleted = await deleteTask(task.agentId, selectedTaskId)
-      if (!deleted) return
-      await navigate({ to: '/settings/scheduled-tasks' })
+      await deleteTask(task.agentId, selectedTaskId, {
+        onDeleted: () => navigate({ to: '/settings/scheduled-tasks' })
+      })
     },
     [deleteTask, getTaskForAction, navigate]
   )
@@ -1428,181 +1686,193 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <SettingsContentColumn theme={theme} className="pt-2" innerClassName="flex min-h-full flex-col">
-      <div className="flex flex-1 flex-col">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <SettingTitle>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-4">
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <SettingTitle className="shrink-0">
               <span>{t('settings.scheduledTasks.title')}</span>
             </SettingTitle>
-            <SettingDescription className="mt-0">{t('settings.scheduledTasks.description')}</SettingDescription>
+            <CollapsibleSearchBar
+              onSearch={setSearchQuery}
+              value={searchQuery}
+              placeholder={t('settings.scheduledTasks.searchPlaceholder')}
+              tooltip={t('settings.scheduledTasks.search')}
+              clearLabel={t('common.clear')}
+              maxWidth={220}
+              collapsedSize={30}
+              style={{ borderRadius: 8 }}
+            />
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button">
-                <Plus size={16} />
-                {t('settings.scheduledTasks.newTask')}
-                <ChevronDown size={14} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
-                  <PencilLine />
-                  {t('settings.scheduledTasks.manualCreate')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
-                  <Bot />
-                  {t('settings.scheduledTasks.agentCreate')}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex shrink-0 items-center gap-2">
+            {tasks.length > 0 && (
+              <>
+                <Select value={agentFilter} onValueChange={setAgentFilter}>
+                  <SelectTrigger
+                    className="h-8 min-w-32 bg-transparent"
+                    aria-label={t('settings.scheduledTasks.filterAgent')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allAgents')}</SelectItem>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger
+                    className="h-8 min-w-32 bg-transparent"
+                    aria-label={t('settings.scheduledTasks.filterStatus')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allStatuses')}</SelectItem>
+                      <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
+                      <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
+                      <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
+                      <SelectItem value="missed">{t('agent.tasks.status.missed')}</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" className="shrink-0">
+                  <Plus size={12} className="lucide-custom" />
+                  {t('settings.scheduledTasks.newTask')}
+                  <ChevronDown size={12} className="text-primary-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-40">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
+                    <PencilLine />
+                    {t('settings.scheduledTasks.manualCreate')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
+                    <Bot />
+                    {t('settings.scheduledTasks.agentCreate')}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-        <SettingDivider />
-
-        {tasks.length === 0 ? (
-          <EmptyState
-            preset={agents.length === 0 ? 'no-agent' : 'no-result'}
-            icon={agents.length === 0 ? undefined : CalendarClock}
-            title={
-              agents.length === 0
-                ? t('settings.scheduledTasks.noAgentsTitle')
-                : t('settings.scheduledTasks.noTasksTitle')
-            }
-            description={
-              agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
-            }
-            actionLabel={
-              agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : t('settings.scheduledTasks.manualCreate')
-            }
-            onAction={() => {
-              if (agents.length === 0) openRoute('/app/agents')
-              else setCreateOpen(true)
-            }}
-          />
-        ) : (
-          <>
-            <RowFlex className="mb-3 flex-wrap items-center gap-2 py-1">
-              <div className="min-w-56 flex-1 [&>[data-slot=input-group]]:border-border [&>[data-slot=input-group]]:bg-transparent">
-                <SearchInput
-                  aria-label={t('settings.scheduledTasks.search')}
-                  placeholder={t('settings.scheduledTasks.searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.currentTarget.value)}
-                  onClear={() => setSearchQuery('')}
-                  clearLabel={t('common.clear')}
-                />
-              </div>
-              <Select value={agentFilter} onValueChange={setAgentFilter}>
-                <SelectTrigger aria-label={t('settings.scheduledTasks.filterAgent')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allAgents')}</SelectItem>
-                    {agents.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger aria-label={t('settings.scheduledTasks.filterStatus')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allStatuses')}</SelectItem>
-                    <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
-                    <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
-                    <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </RowFlex>
-
-            {filteredTasks.length === 0 && hasActiveFilters ? (
-              <EmptyState
-                preset="no-result"
-                title={t('settings.scheduledTasks.noMatchesTitle')}
-                description={t('settings.scheduledTasks.noMatches')}
-                actionLabel={t('settings.scheduledTasks.clearFilters')}
-                onAction={clearFilters}
-              />
-            ) : (
-              <ItemGroup className="gap-2">
-                {filteredTasks.map((task) => (
-                  <Item
-                    key={task.id}
-                    asChild
-                    size="sm"
-                    variant="outline"
-                    className="rounded-lg border-border/60 px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35">
-                    <Link to="/settings/scheduled-tasks/$taskId" params={{ taskId: task.id }}>
-                      <ItemContent>
-                        <ItemTitle>{task.name}</ItemTitle>
-                        <ItemDescription>
-                          {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
-                          {getTriggerSummary(task.trigger, t)}
-                        </ItemDescription>
-                      </ItemContent>
-                      <ItemActions>
-                        <Badge variant="outline">
-                          {getScheduleKindLabel(triggerToFormState(task.trigger).kind, t)}
-                        </Badge>
-                        <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
-                        <ChevronRight size={16} />
-                      </ItemActions>
-                    </Link>
-                  </Item>
-                ))}
-              </ItemGroup>
-            )}
-            {pageCount > 1 && (
-              <Pagination aria-label={t('settings.scheduledTasks.paginationLabel')} className="pt-4">
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      aria-disabled={!hasPrev}
-                      aria-label={t('common.previous')}
-                      tabIndex={hasPrev ? undefined : -1}
-                      className={hasPrev ? undefined : 'pointer-events-none opacity-40'}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        prevPage()
-                      }}>
-                      {t('common.previous')}
-                    </PaginationPrevious>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <SettingDescription className="mt-0 px-2 tabular-nums">
-                      {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
-                    </SettingDescription>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      aria-disabled={!hasNext}
-                      aria-label={t('common.next')}
-                      tabIndex={hasNext ? undefined : -1}
-                      className={hasNext ? undefined : 'pointer-events-none opacity-40'}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        nextPage()
-                      }}>
-                      {t('common.next')}
-                    </PaginationNext>
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            )}
-          </>
-        )}
       </div>
+
+      <Scrollbar className="min-h-0 flex-1 px-6 pt-4 pb-3">
+        <div className="mx-auto w-full max-w-3xl">
+          {tasks.length === 0 ? (
+            <EmptyState
+              preset={agents.length === 0 ? 'no-agent' : 'no-result'}
+              icon={agents.length === 0 ? undefined : CalendarClock}
+              title={
+                agents.length === 0
+                  ? t('settings.scheduledTasks.noAgentsTitle')
+                  : t('settings.scheduledTasks.noTasksTitle')
+              }
+              description={
+                agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
+              }
+              actionLabel={agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : undefined}
+              className="py-20"
+              onAction={agents.length === 0 ? () => openRoute('/app/agents') : undefined}
+            />
+          ) : (
+            <>
+              {filteredTasks.length === 0 && hasActiveFilters ? (
+                <EmptyState
+                  preset="no-result"
+                  title={t('settings.scheduledTasks.noMatchesTitle')}
+                  description={t('settings.scheduledTasks.noMatches')}
+                  actionLabel={t('settings.scheduledTasks.clearFilters')}
+                  className="py-20"
+                  onAction={clearFilters}
+                />
+              ) : (
+                <ItemGroup className="gap-3">
+                  {filteredTasks.map((task) => (
+                    <Item
+                      key={task.id}
+                      asChild
+                      variant="outline"
+                      className="rounded-xl border-border bg-card transition-[border-color,box-shadow] hover:border-border-strong hover:bg-card hover:shadow-sm">
+                      <Link
+                        to="/settings/scheduled-tasks/$taskId"
+                        params={{ taskId: task.id }}
+                        style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
+                        <TaskScheduleStatusIcon status={task.status} />
+                        <ItemContent className="min-w-0">
+                          <ItemTitle className="min-w-0 max-w-full">
+                            <span className="truncate">{task.name}</span>
+                            <Badge variant="secondary" className="shrink-0">
+                              {getTaskStatusLabel(task.status, t)}
+                            </Badge>
+                          </ItemTitle>
+                          <ItemDescription className="truncate text-xs leading-4">
+                            {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
+                            {getTriggerSummary(task.trigger, t)}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions className="ml-auto shrink-0">
+                          <TaskCardRunStatus task={task} />
+                          <ChevronRight size={16} className="text-foreground-tertiary" />
+                        </ItemActions>
+                      </Link>
+                    </Item>
+                  ))}
+                </ItemGroup>
+              )}
+              {pageCount > 1 && (
+                <Pagination aria-label={t('settings.scheduledTasks.paginationLabel')} className="pt-4">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        aria-disabled={!hasPrev}
+                        aria-label={t('common.previous')}
+                        tabIndex={hasPrev ? undefined : -1}
+                        className={hasPrev ? undefined : 'pointer-events-none opacity-40'}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          prevPage()
+                        }}>
+                        {t('common.previous')}
+                      </PaginationPrevious>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <SettingDescription className="mt-0 px-2 tabular-nums">
+                        {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
+                      </SettingDescription>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        aria-disabled={!hasNext}
+                        aria-label={t('common.next')}
+                        tabIndex={hasNext ? undefined : -1}
+                        className={hasNext ? undefined : 'pointer-events-none opacity-40'}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          nextPage()
+                        }}>
+                        {t('common.next')}
+                      </PaginationNext>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </>
+          )}
+        </div>
+      </Scrollbar>
 
       <TaskFormDialog
         open={createOpen}
@@ -1610,7 +1880,7 @@ const TasksSettings: FC = () => {
         onOpenChange={setCreateOpen}
         onCreate={async (agentId, request) => Boolean(await handleCreate(agentId, request))}
       />
-    </SettingsContentColumn>
+    </div>
   )
 }
 

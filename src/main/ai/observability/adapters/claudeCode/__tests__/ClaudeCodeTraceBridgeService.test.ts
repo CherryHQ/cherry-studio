@@ -1,9 +1,10 @@
 import type * as NodeZlib from 'node:zlib'
 import { gzipSync } from 'node:zlib'
 
-import { BaseService } from '@main/core/lifecycle'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 const mocks = vi.hoisted(() => ({
   traceStorageSetTopicId: vi.fn(),
@@ -150,6 +151,46 @@ describe('ClaudeCodeTraceBridgeService', () => {
       traceContext.traceId,
       '2'.repeat(16),
       expect.objectContaining({ name: 'claude_code.log' })
+    )
+
+    await service._doStop()
+  })
+
+  it('uses the admitted turn after a primed connection refreshes its trace context', async () => {
+    const service = new ClaudeCodeTraceBridgeService()
+    await service._doInit()
+    const env = await service.prepareTrace({ ...traceContext, turnId: '' })
+
+    service.refreshTraceContext(traceContext)
+    await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        resourceSpans: [
+          {
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    traceId: traceContext.traceId,
+                    spanId: '7'.repeat(16),
+                    name: 'claude_code.interaction',
+                    startTimeUnixNano: '1700000000000000000',
+                    endTimeUnixNano: '1700000001000000000'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    })
+
+    expect(mocks.traceStorageSaveEntity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: '7'.repeat(16),
+        attributes: expect.objectContaining({ 'cs.agent_turn_id': traceContext.turnId })
+      })
     )
 
     await service._doStop()

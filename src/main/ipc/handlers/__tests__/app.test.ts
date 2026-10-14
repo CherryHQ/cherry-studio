@@ -1,14 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, appGetPathMock, appRelaunchMock, requestDataResetMock, inspectTargetMock, requestRelocationMock } =
-  vi.hoisted(() => ({
-    appGetMock: vi.fn(),
-    appGetPathMock: vi.fn(),
-    appRelaunchMock: vi.fn(),
-    requestDataResetMock: vi.fn(),
-    inspectTargetMock: vi.fn(),
-    requestRelocationMock: vi.fn()
-  }))
+const {
+  appGetMock,
+  appGetPathMock,
+  appRelaunchMock,
+  cacheCleanupInspectMock,
+  cacheCleanupRunMock,
+  inspectTargetMock,
+  requestDataResetMock,
+  requestV1RemigrationMock,
+  requestRelocationMock
+} = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  appGetPathMock: vi.fn(),
+  appRelaunchMock: vi.fn(),
+  cacheCleanupInspectMock: vi.fn(),
+  cacheCleanupRunMock: vi.fn(),
+  inspectTargetMock: vi.fn(),
+  requestDataResetMock: vi.fn(),
+  requestV1RemigrationMock: vi.fn(),
+  requestRelocationMock: vi.fn()
+}))
 
 vi.mock('@application', () => ({
   application: {
@@ -17,10 +29,16 @@ vi.mock('@application', () => ({
     relaunch: appRelaunchMock
   }
 }))
-vi.mock('@main/services/dataReset', () => ({ requestDataReset: requestDataResetMock }))
+vi.mock('@main/services/dataReset', () => ({
+  requestDataReset: requestDataResetMock,
+  requestV1Remigration: requestV1RemigrationMock
+}))
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
+}))
+vi.mock('@main/services/cacheCleanup', () => ({
+  cacheCleanupService: { inspect: cacheCleanupInspectMock, run: cacheCleanupRunMock }
 }))
 vi.mock('electron', () => ({
   app: { getVersion: () => '1.0.0', isPackaged: true },
@@ -34,6 +52,7 @@ import { appHandlers } from '../app'
 
 const appUpdaterService = {
   checkForUpdates: vi.fn(),
+  getReleaseHistory: vi.fn(),
   quitAndInstall: vi.fn()
 }
 const preferenceService = {
@@ -83,6 +102,33 @@ describe('appHandlers', () => {
     expect(appRelaunchMock).toHaveBeenCalledOnce()
   })
 
+  it('delegates cache cleanup inspection to the service', async () => {
+    const expected = {
+      results: [
+        {
+          group: 'normal_cache' as const,
+          size: { bytes: 128, accuracy: 'estimated' as const, completeness: 'complete' as const }
+        }
+      ]
+    }
+    cacheCleanupInspectMock.mockResolvedValue(expected)
+
+    const result = await appHandlers['app.cache_cleanup.inspect']({ groups: ['normal_cache'] }, ctx)
+
+    expect(cacheCleanupInspectMock).toHaveBeenCalledWith(['normal_cache'])
+    expect(result).toEqual(expected)
+  })
+
+  it('delegates cache cleanup execution to the service', async () => {
+    const expected = { results: [{ group: 'site_data' as const, status: 'cleared' as const }] }
+    cacheCleanupRunMock.mockResolvedValue(expected)
+
+    const result = await appHandlers['app.cache_cleanup.run']({ groups: ['site_data'] }, ctx)
+
+    expect(cacheCleanupRunMock).toHaveBeenCalledWith(['site_data'])
+    expect(result).toEqual(expected)
+  })
+
   it('check_for_update triggers the AppUpdaterService check and resolves void', async () => {
     appUpdaterService.checkForUpdates.mockResolvedValue({ currentVersion: '1.0.0', updateInfo: null })
 
@@ -90,6 +136,16 @@ describe('appHandlers', () => {
 
     expect(appUpdaterService.checkForUpdates).toHaveBeenCalledTimes(1)
     expect(result).toBeUndefined()
+  })
+
+  it('gets release notes through AppUpdaterService', async () => {
+    const releases = [{ releaseNotes: 'New features', version: '1.1.0' }]
+    appUpdaterService.getReleaseHistory.mockResolvedValue(releases)
+
+    const result = await appHandlers['app.updater.release_notes.get'](undefined, ctx)
+
+    expect(appUpdaterService.getReleaseHistory).toHaveBeenCalledOnce()
+    expect(result).toEqual(releases)
   })
 
   it('quit_and_install delegates to AppUpdaterService and resolves void', async () => {
@@ -110,5 +166,12 @@ describe('appHandlers', () => {
     requestDataResetMock.mockRejectedValueOnce(new Error('EACCES: permission denied'))
 
     await expect(appHandlers['app.data_reset.request'](undefined, ctx)).rejects.toThrow('EACCES')
+  })
+
+  it('delegates v1 remigration requests to the owning domain module', async () => {
+    const result = await appHandlers['app.migration_v2.rerun'](undefined, ctx)
+
+    expect(requestV1RemigrationMock).toHaveBeenCalledTimes(1)
+    expect(result).toBeUndefined()
   })
 })

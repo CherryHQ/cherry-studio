@@ -5,7 +5,9 @@
  * declared in `src/shared/ipc/schemas/knowledge`, not through DataApi.
  */
 
-import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api/types'
+import * as z from 'zod'
+
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import {
   type KnowledgeBase,
   KnowledgeBaseEntitySchema,
@@ -13,7 +15,6 @@ import {
   type KnowledgeItem,
   KnowledgeItemTypeSchema
 } from '@shared/data/types/knowledge'
-import * as z from 'zod'
 
 const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   name: true,
@@ -76,12 +77,12 @@ export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 
 export const KNOWLEDGE_ITEMS_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_ITEMS_MAX_LIMIT = 100
-export const KNOWLEDGE_BASES_DEFAULT_PAGE = 1
 export const KNOWLEDGE_BASES_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_BASES_MAX_LIMIT = 100
 
 export const ListKnowledgeBasesQuerySchema = z.strictObject({
-  page: z.int().positive().default(KNOWLEDGE_BASES_DEFAULT_PAGE),
+  ids: z.array(z.string().min(1)).min(1).max(KNOWLEDGE_BASES_MAX_LIMIT).optional(),
+  cursor: z.string().optional(),
   limit: z.int().positive().max(KNOWLEDGE_BASES_MAX_LIMIT).default(KNOWLEDGE_BASES_DEFAULT_LIMIT),
   search: z.string().trim().min(1).optional(),
   updatedAtFrom: z.iso.datetime().optional(),
@@ -94,13 +95,16 @@ export type ListKnowledgeBasesQuery = z.output<typeof ListKnowledgeBasesQuerySch
 export type KnowledgeBaseListItem = KnowledgeBase & {
   itemCount: number
 }
+export interface KnowledgeBaseListResponse extends CursorPaginationResponse<KnowledgeBaseListItem> {
+  total: number
+}
 
 /**
  * Query parameters for GET /knowledge-bases/:id/items
  *
  * Returns flat knowledge items for one knowledge base with optional filters,
- * using cursor-based pagination (keyset on `createdAt`/`id`) so concurrent
- * inserts during polling never duplicate or skip rows across pages.
+ * using cursor-based pagination (keyset on `directoryRank ASC` / `createdAt DESC` /
+ * `id ASC`) so concurrent inserts during polling never duplicate or skip rows across pages.
  */
 export const ListKnowledgeItemsQuerySchema = z.strictObject({
   /** Cursor returned by the previous page. Omitted for the first page. */
@@ -124,7 +128,7 @@ export type KnowledgeSchemas = {
   '/knowledge-bases': {
     GET: {
       query?: ListKnowledgeBasesQueryParams
-      response: OffsetPaginationResponse<KnowledgeBaseListItem>
+      response: KnowledgeBaseListResponse
     }
   }
 

@@ -1,5 +1,6 @@
-import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import { createContext, type ReactNode, use, useCallback, useSyncExternalStore } from 'react'
+
+import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 
 import type {
   ResourceListGroupStateSnapshot,
@@ -43,6 +44,15 @@ export type ResourceListGroupHeaderIconContext = {
 }
 
 export type ResourceListGroupHeaderClickBehavior = 'toggle' | 'select-first-then-toggle' | 'none'
+
+/**
+ * What a group header IS, which decides how it reads: an `entity` names something you can open or
+ * manage (an agent, an assistant, a workdir) and looks like the content it sits above; a `bucket`
+ * only gathers rows (a time range, "pinned", "no workdir") and recedes into a label. Defaults to
+ * `entity` — a header names something unless the list says otherwise. Both kinds stay on the shared
+ * row rhythm; hierarchy comes from their visual voice rather than extra vertical spacing.
+ */
+export type ResourceListGroupHeaderKind = 'entity' | 'bucket'
 
 export type ResourceListSortOption<T extends ResourceListItemBase> = {
   id: string
@@ -136,15 +146,16 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   isGroupHeaderIconVisible?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => boolean
-  getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
+  getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number
   defaultGroupVisibleCount: number
   groupLoadStep: number
+  groupEmptyLabel?: string
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
   revealRequest?: ResourceListRevealRequest

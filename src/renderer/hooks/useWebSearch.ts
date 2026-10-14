@@ -1,3 +1,7 @@
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
@@ -11,8 +15,6 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWebSearch')
 
@@ -23,6 +25,7 @@ export type WebSearchBasicAuthPatch = {
 
 type WebSearchPreferenceSnapshot = Pick<
   PreferenceDefaultScopeType,
+  | 'chat.web_search.model_tools_preferred'
   | 'chat.web_search.exclude_domains'
   | 'chat.web_search.max_results'
   | 'chat.web_search.compression.method'
@@ -30,6 +33,7 @@ type WebSearchPreferenceSnapshot = Pick<
 >
 
 const WEB_SEARCH_SETTINGS_PREFERENCE_KEYS = {
+  modelToolsPreferred: 'chat.web_search.model_tools_preferred',
   excludeDomains: 'chat.web_search.exclude_domains',
   maxResults: 'chat.web_search.max_results',
   compressionMethod: 'chat.web_search.compression.method',
@@ -41,6 +45,7 @@ type WebSearchPreferenceValues = {
 }
 
 type WebSearchSettingsState = {
+  modelToolsPreferred: boolean
   maxResults: number
   excludeDomains: string[]
   compressionConfig: {
@@ -51,6 +56,7 @@ type WebSearchSettingsState = {
 
 function buildWebSearchSettingsState(preferences: WebSearchPreferenceValues): WebSearchSettingsState {
   return {
+    modelToolsPreferred: preferences.modelToolsPreferred,
     maxResults: Math.max(1, preferences.maxResults),
     excludeDomains: preferences.excludeDomains,
     compressionConfig: {
@@ -78,13 +84,22 @@ export const useWebSearchProviders = () => {
   const [defaultFetchUrlsProviderId, setDefaultFetchUrlsProviderId] = usePreference(
     'chat.web_search.default_fetch_urls_provider'
   )
+  const { data: zhipuModelApiKeys, isLoading } = useQuery('/providers/:providerId/api-keys', {
+    params: { providerId: 'zhipu' },
+    query: { enabled: true }
+  })
   const providers = useMemo<WebSearchProvider[]>(() => {
+    if (isLoading) {
+      return []
+    }
+
     return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
       const override = providerOverrides[preset.id]
+      const apiKeys = trimStringList(override?.apiKeys ?? [])
 
       return {
         ...preset,
-        apiKeys: trimStringList(override?.apiKeys ?? []),
+        apiKeys: preset.id === 'zhipu' ? trimStringList(zhipuModelApiKeys?.keys.map(({ key }) => key) ?? []) : apiKeys,
         capabilities: preset.capabilities.map((capability) => {
           const capabilityOverride = override?.capabilities?.[capability.feature]
 
@@ -100,7 +115,7 @@ export const useWebSearchProviders = () => {
         basicAuthPassword: trimString(override?.basicAuthPassword ?? '')
       }
     })
-  }, [providerOverrides])
+  }, [isLoading, providerOverrides, zhipuModelApiKeys])
 
   const defaultSearchKeywordsProvider = useMemo(
     () => providers.find((item) => item.id === defaultSearchKeywordsProviderId),
@@ -172,6 +187,7 @@ export const useWebSearchProviders = () => {
   )
 
   return {
+    isLoading,
     providerOverrides,
     providers,
     defaultSearchKeywordsProvider,
@@ -211,6 +227,7 @@ export const useSyncZhipuWebSearchApiKeys = () => {
 }
 
 export const useWebSearchSettings = (): WebSearchSettingsState & {
+  setModelToolsPreferred: (value: boolean) => Promise<void>
   setExcludeDomains: (value: string[]) => Promise<void>
   setMaxResults: (value: number) => Promise<void>
   setCompressionConfig: (config: WebSearchSettingsState['compressionConfig']) => Promise<void>
@@ -221,6 +238,9 @@ export const useWebSearchSettings = (): WebSearchSettingsState & {
 
   return {
     ...state,
+    setModelToolsPreferred: (value) => {
+      return setPreferences({ modelToolsPreferred: value })
+    },
     setExcludeDomains: (value) => {
       return setPreferences({ excludeDomains: value })
     },

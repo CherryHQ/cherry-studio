@@ -1,122 +1,318 @@
-import type { MiniApp } from '@shared/data/types/miniApp'
-import { render } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { act, cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { WebviewTag } from 'electron'
+import { useState } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// `WebviewContainer` renders an Electron `<webview>` element which JSDOM can't
-// instantiate. Stub it with a div carrying the same `data-mini-app-id` so DOM
-// order assertions still work.
-vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
-  default: ({ appid, url }: { appid: string; url: string }) => (
-    <div data-mini-app-id={appid} data-testid={`webview-${appid}`} data-url={url} />
-  )
-}))
-
-const stubApp = (id: string): MiniApp => ({
-  appId: id,
-  name: id,
-  url: `https://${id}.example.com`,
-  presetMiniAppId: id as MiniApp['presetMiniAppId'],
-  status: 'enabled',
-  orderKey: 'a0'
-})
-
-const mocks = vi.hoisted(() => ({
-  openedKeepAliveMiniApps: [] as MiniApp[],
-  currentMiniAppId: '',
-  tabs: [] as { id: string; url: string }[],
-  activeTabId: ''
-}))
-
-vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({
-    openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
-    currentMiniAppId: mocks.currentMiniAppId
-  })
-}))
-
-vi.mock('@renderer/hooks/tab', () => ({
-  useTabs: () => ({
-    tabs: mocks.tabs,
-    activeTabId: mocks.activeTabId
-  })
-}))
-
-vi.mock('@renderer/utils/webviewStateManager', () => ({
-  getWebviewLoaded: () => false,
-  setWebviewLoaded: vi.fn()
-}))
+import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { cacheService } from '@renderer/data/CacheService'
+import { createMiniApp } from '@renderer/hooks/__tests__/fixtures/miniApp'
+import { useTabs } from '@renderer/hooks/tab'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useMiniAppRuntime } from '@renderer/hooks/useMiniAppRuntime'
+import MiniAppPane from '@renderer/pages/miniApps/components/MiniAppPane'
+import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
 
-const renderedAppIds = (container: HTMLElement): string[] =>
-  Array.from(container.querySelectorAll<HTMLElement>('[data-mini-app-id]')).map((el) => el.dataset.miniAppId as string)
+vi.unmock('@renderer/data/hooks/useCache')
 
-const renderedAppUrls = (container: HTMLElement): string[] =>
-  Array.from(container.querySelectorAll<HTMLElement>('[data-mini-app-id]')).map((el) => el.dataset.url as string)
+const ipc = vi.hoisted(() => ({ request: vi.fn(async () => true), events: new Map<string, (payload: any) => void>() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipc.request },
+  useIpcOn: (name: string, fn: (payload: any) => void) => {
+    ipc.events.set(name, fn)
+  }
+}))
+vi.mock('@renderer/components/AgentBrowserRuntimeHost', () => ({ AgentBrowserRuntimeHost: () => null }))
+vi.mock('@renderer/hooks/command', () => ({ useCommandContextKey: () => {} }))
+vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
+  default: ({ isWebviewReady, onReload }: { isWebviewReady: boolean; onReload: () => void }) => (
+    <button type="button" disabled={!isWebviewReady} onClick={onReload}>
+      Reload guest
+    </button>
+  )
+}))
+vi.mock('@renderer/components/WebviewSearch', () => ({ default: () => null }))
 
-describe('MiniAppTabsPool', () => {
-  beforeEach(() => {
-    mocks.openedKeepAliveMiniApps = []
-    mocks.currentMiniAppId = ''
-    mocks.tabs = []
-    mocks.activeTabId = ''
+const queryGuest = (appId: string) => document.querySelector<WebviewTag>(`webview[data-mini-app-id="${appId}"]`)
+const getGuest = (appId: string) => {
+  const guest = queryGuest(appId)
+  expect(guest).not.toBeNull()
+  return guest!
+}
+
+function Controls() {
+  const tabs = useTabs()
+  const [poolVersion, setPoolVersion] = useState(0)
+  const popup = useMiniAppPopup()
+  const runtime = useMiniAppRuntime()
+  return (
+    <>
+      <button type="button" onClick={() => tabs.openTab('/app/mini-app/a', { id: 'a' })}>
+        Open A
+      </button>
+      <button type="button" onClick={() => tabs.openTab('/app/mini-app/b', { id: 'b' })}>
+        Open B
+      </button>
+      <button type="button" onClick={() => popup.openMiniAppInSplit(createMiniApp('b'))}>
+        Split B
+      </button>
+      <button type="button" onClick={() => tabs.openTab('/app/mini-app/a', { id: 'duplicate', forceNew: true })}>
+        Duplicate A
+      </button>
+      <button type="button" onClick={() => tabs.closeTab('a')}>
+        Close A
+      </button>
+      <button type="button" onClick={() => tabs.closeTab('duplicate')}>
+        Close duplicate
+      </button>
+      <button type="button" onClick={() => tabs.closeTab('b')}>
+        Close B
+      </button>
+      <button type="button" onClick={() => tabs.setActiveTab('home')}>
+        Show home
+      </button>
+      <button type="button" onClick={() => tabs.setActiveTab('a')}>
+        Show A
+      </button>
+      <button type="button" onClick={() => tabs.updateTab('b', { isDormant: true })}>
+        Sleep B
+      </button>
+      <button type="button" onClick={() => tabs.detachTab('a')}>
+        Detach A
+      </button>
+      <output aria-label="dormant">
+        {tabs.tabs
+          .filter((tab) => tab.isDormant)
+          .map((tab) => tab.id)
+          .join(',')}
+      </output>
+      <button type="button" onClick={popup.closeSplit}>
+        Collapse split
+      </button>
+      <output aria-label="tabs">{tabs.tabs.map((tab) => tab.id).join(',')}</output>
+      <output aria-label="primary">{tabs.activeTabId}</output>
+      <output aria-label="secondary">{runtime.splitMiniAppId}</output>
+      <button type="button" onClick={() => setPoolVersion((version) => version + 1)}>
+        Remount pool
+      </button>
+      <MiniAppTabsPool key={poolVersion} />
+      <MiniAppPane app={createMiniApp('a')} splitMode="open" onSplit={popup.openSplit} />
+    </>
+  )
+}
+
+beforeEach(() => {
+  MockCacheUtils.resetMocks()
+  MockUseDataApiUtils.resetMocks()
+  MockUsePreferenceUtils.resetMocks()
+  MockUseDataApiUtils.mockQueryData('/mini-apps', [createMiniApp('a'), createMiniApp('b')])
+  webviewRuntimeService.dispose()
+  ipc.events.clear()
+  ipc.request.mockReset().mockResolvedValue(true)
+})
+afterEach(cleanup)
+const mount = () =>
+  render(
+    <TabsProvider>
+      <Controls />
+    </TabsProvider>
+  )
+
+describe('MiniApp guest ownership', () => {
+  it('keeps the guest usable while navigation is in progress or aborted', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const guest = getGuest('a')
+    guest.getWebContentsId = () => 42
+    guest.reload = vi.fn()
+    await act(() => guest.dispatchEvent(new Event('dom-ready')))
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeEnabled()
+    await act(() =>
+      guest.dispatchEvent(
+        Object.assign(new Event('did-start-navigation'), {
+          isMainFrame: true,
+          isInPlace: false
+        })
+      )
+    )
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeEnabled()
+    await act(() =>
+      guest.dispatchEvent(
+        Object.assign(new Event('did-fail-load'), {
+          isMainFrame: true,
+          errorCode: -3
+        })
+      )
+    )
+    await user.click(screen.getByRole('button', { name: 'Reload guest' }))
+    expect(guest.reload).toHaveBeenCalledOnce()
+    expect(getGuest('a')).toBe(guest)
   })
 
-  it('renders webviews in stable appId-sorted order regardless of LRU order', () => {
-    // Three apps. The hook returns them in LRU order (most-recent last).
-    mocks.openedKeepAliveMiniApps = [stubApp('charlie'), stubApp('alpha'), stubApp('bravo')]
-    mocks.currentMiniAppId = 'alpha'
-    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
-    mocks.activeTabId = 't1'
-
-    const { container, rerender } = render(<MiniAppTabsPool />)
-
-    // Always sorted by appId, NOT by LRU order — otherwise React would move
-    // <webview> DOM nodes when the LRU touches an app, and Electron <webview>
-    // loses its content on detach/reattach.
-    expect(renderedAppIds(container)).toEqual(['alpha', 'bravo', 'charlie'])
-
-    // LRU touches "charlie" — list re-orders, but the rendered DOM order must
-    // stay the same so no <webview> gets moved.
-    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo'), stubApp('charlie')]
-    mocks.currentMiniAppId = 'charlie'
-    rerender(<MiniAppTabsPool />)
-
-    expect(renderedAppIds(container)).toEqual(['alpha', 'bravo', 'charlie'])
+  it('keeps the new pool guest after the previous pool unmounts', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    await user.click(screen.getByText('Remount pool'))
+    const guest = getGuest('a')
+    guest.getWebContentsId = () => 42
+    await act(() => guest.dispatchEvent(new Event('dom-ready')))
+    expect(screen.getByRole('button', { name: 'Reload guest' })).toBeEnabled()
   })
 
-  it('renders no webviews when the keep-alive list is empty', () => {
-    const { container } = render(<MiniAppTabsPool />)
-    expect(renderedAppIds(container)).toEqual([])
+  it('opens split without a tab and releases its guest when collapsed', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const a = getGuest('a')
+    await user.click(screen.getByText('Split B'))
+    expect(getGuest('b')).toBeInTheDocument()
+    expect(screen.getByLabelText('primary')).toHaveTextContent('a')
+    expect(screen.getByLabelText('secondary')).toHaveTextContent('b')
+    await user.click(screen.getByText('Collapse split'))
+    expect(queryGuest('b')).toBeNull()
+    expect(getGuest('a')).toBe(a)
   })
 
-  it('keeps DOM order stable when an app is added (only the new one inserts in sort position)', () => {
-    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('charlie')]
-    mocks.currentMiniAppId = 'alpha'
-    const { container, rerender } = render(<MiniAppTabsPool />)
-    expect(renderedAppIds(container)).toEqual(['alpha', 'charlie'])
-
-    // Adding "bravo" must place it between alpha/charlie alphabetically — the
-    // existing two webviews retain their DOM positions.
-    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('charlie'), stubApp('bravo')]
-    rerender(<MiniAppTabsPool />)
-    expect(renderedAppIds(container)).toEqual(['alpha', 'bravo', 'charlie'])
+  it('preserves an independently opened tab and guest when split collapses', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open B'))
+    const b = getGuest('b')
+    await user.click(screen.getByText('Open A'))
+    await user.click(screen.getByText('Split B'))
+    expect(screen.getByLabelText('primary')).toHaveTextContent('a')
+    expect(getGuest('b')).toBe(b)
+    await user.click(screen.getByText('Collapse split'))
+    expect(getGuest('b')).toBe(b)
+    await user.click(screen.getByText('Close B'))
+    expect(queryGuest('b')).toBeNull()
   })
 
-  it('updates WebviewContainer props when an opened app changes without changing appId', () => {
-    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
-    mocks.currentMiniAppId = 'alpha'
-    const { container, rerender } = render(<MiniAppTabsPool />)
-    expect(renderedAppIds(container)).toEqual(['alpha', 'bravo'])
-    expect(renderedAppUrls(container)).toEqual(['https://alpha.example.com', 'https://bravo.example.com'])
+  it('retains a shared guest until the last matching tab closes', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const guest = getGuest('a')
+    await user.click(screen.getByText('Duplicate A'))
+    await user.click(screen.getByText('Close A'))
+    expect(getGuest('a')).toBe(guest)
+    await user.click(screen.getByText('Close duplicate'))
+    expect(queryGuest('a')).toBeNull()
+  })
 
-    mocks.openedKeepAliveMiniApps = [
-      { ...stubApp('bravo'), url: 'https://bravo.example.com' },
-      { ...stubApp('alpha'), url: 'https://renamed-alpha.example.com' }
-    ]
-    rerender(<MiniAppTabsPool />)
+  it('removes every matching owner on main-process eviction', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    await user.click(screen.getByText('Duplicate A'))
+    act(() => ipc.events.get('mini_app.runtime.evicted')?.({ appId: 'a' }))
+    expect(queryGuest('a')).toBeNull()
+    expect(screen.getByLabelText('tabs')).not.toHaveTextContent('duplicate')
+  })
+  it('keeps a guest independent of its dormant route page and restores split presentation', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open B'))
+    await user.click(screen.getByText('Open A'))
+    await user.click(screen.getByText('Split B'))
+    await user.click(screen.getByText('Show home'))
+    expect(screen.getByLabelText('secondary')).toHaveTextContent(/^$/)
+    const guest = getGuest('b')
+    await user.click(screen.getByText('Sleep B'))
+    expect(getGuest('b')).toBe(guest)
+    await user.click(screen.getByText('Show A'))
+    expect(getGuest('b')).toBeInTheDocument()
+    expect(screen.getByLabelText('secondary')).toHaveTextContent('b')
+    expect(screen.getByLabelText('dormant')).toHaveTextContent('b')
+  })
 
-    expect(renderedAppIds(container)).toEqual(['alpha', 'bravo'])
-    expect(renderedAppUrls(container)).toEqual(['https://renamed-alpha.example.com', 'https://bravo.example.com'])
+  it('closes removed catalog apps but preserves transient descriptors absent from the catalog', async () => {
+    const user = userEvent.setup()
+    const view = mount()
+    await user.click(screen.getByText('Open A'))
+    MockUseDataApiUtils.mockQueryData('/mini-apps', [createMiniApp('b')])
+    view.rerender(
+      <TabsProvider>
+        <Controls />
+      </TabsProvider>
+    )
+    expect(queryGuest('a')).toBeNull()
+    expect(screen.getByLabelText('tabs')).not.toHaveTextContent('a')
+    act(() =>
+      cacheService.setShared('mini_app.transient_descriptor.a', {
+        appId: 'a',
+        name: 'Transient',
+        url: 'https://a.example'
+      })
+    )
+    await user.click(screen.getByText('Open A'))
+    expect(getGuest('a')).toBeInTheDocument()
+  })
+
+  it('receives an existing tab without duplicating its owner or guest', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const guest = getGuest('a')
+    await act(async () =>
+      ipc.events.get('tab.attached')?.({
+        id: 'a',
+        type: 'route',
+        url: '/app/mini-app/a',
+        title: 'A'
+      })
+    )
+    expect(screen.getByLabelText('tabs')).toHaveTextContent('home,a')
+    expect(getGuest('a')).toBe(guest)
+  })
+
+  it('uses the current tab selection when a pending detach completes', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    let accept!: (value: boolean) => void
+    ipc.request.mockReturnValueOnce(
+      new Promise((resolve) => {
+        accept = resolve
+      })
+    )
+    await user.click(screen.getByText('Detach A'))
+    await user.click(screen.getByText('Show home'))
+    expect(getGuest('a')).toBeInTheDocument()
+    await act(async () => accept(true))
+    expect(queryGuest('a')).toBeNull()
+    expect(screen.getByLabelText('primary')).toHaveTextContent('home')
+  })
+  it('does not interpret catalog visibility changes as global tab closure', async () => {
+    const user = userEvent.setup()
+    const view = mount()
+    await user.click(screen.getByText('Open A'))
+    const guest = getGuest('a')
+    MockUseDataApiUtils.mockQueryData('/mini-apps', [{ ...createMiniApp('a'), status: 'disabled' }, createMiniApp('b')])
+    view.rerender(
+      <TabsProvider>
+        <Controls />
+      </TabsProvider>
+    )
+    expect(getGuest('a')).toBe(guest)
+    expect(screen.getByLabelText('tabs')).toHaveTextContent('a')
+  })
+  it('preserves the source tab and guest when detaching fails', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByText('Open A'))
+    const guest = getGuest('a')
+    ipc.request.mockRejectedValueOnce(new Error('window creation failed'))
+    await user.click(screen.getByText('Detach A'))
+    expect(screen.getByLabelText('tabs')).toHaveTextContent('a')
+    expect(screen.getByLabelText('primary')).toHaveTextContent('a')
+    expect(getGuest('a')).toBe(guest)
   })
 })

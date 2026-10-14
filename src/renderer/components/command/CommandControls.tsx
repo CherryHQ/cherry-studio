@@ -1,8 +1,9 @@
+import type React from 'react'
+
 import { Button, Kbd, Tooltip, type TooltipProps } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import type { CommandId } from '@shared/utils/command'
-import type React from 'react'
 
 export function CommandShortcut({
   command,
@@ -22,7 +23,7 @@ export function CommandShortcut({
   return (
     <Kbd
       aria-hidden="true"
-      className={cn('h-6 min-w-6 rounded-full bg-muted px-2 py-0 text-foreground-secondary', className)}>
+      className={cn('h-6 min-w-6 rounded-full bg-muted px-2 py-0 text-muted-foreground', className)}>
       {shortcutLabel}
     </Kbd>
   )
@@ -39,7 +40,7 @@ export function CommandHint({ command, className }: { command: CommandId; classN
     <Kbd
       aria-hidden="true"
       className={cn(
-        'shrink-0 rounded-md bg-transparent px-1 py-0 text-[11px] text-foreground-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100',
+        'shrink-0 rounded-md bg-transparent px-1 py-0 text-[11px] text-foreground-tertiary opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100',
         className
       )}>
       {shortcutLabel}

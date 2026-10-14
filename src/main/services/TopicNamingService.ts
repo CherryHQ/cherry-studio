@@ -4,9 +4,10 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import type { AiGenerateRequest } from '@main/ai/AiService'
+import type { AiGenerateRequest, AsInProcessChat } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
+import { getAppLanguage } from '@main/i18n'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -17,6 +18,7 @@ import {
   sanitizeConversationTitle,
   truncateFirstUserMessageTitleSource
 } from '@shared/utils/conversationTitle'
+import { languageEnglishNameMap } from '@shared/utils/languages'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('TopicNamingService')
@@ -27,6 +29,24 @@ const FALLBACK_PROMPT =
 
 const summaryLocks = new Set<string>()
 const agentSessionRenameLocks = new Set<string>()
+
+// In-flight async naming writes, keyed `topic:${id}#seq` / `agent-session:${id}#seq`.
+// The summary renames are spawned detached (`void backend.afterPersist(...)` in
+// PersistenceListener), so a stream's loopPromise settles BEFORE the rename's DB
+// write lands. AiStreamManager.drainInFlight awaits this registry so a backup
+// restore's write-quiesce verdict cannot miss them. Registration happens
+// synchronously at method entry — a detached spawn is captured before its
+// caller's promise resolves.
+let namingSeq = 0
+const inFlightNamingWrites = new Map<string, Promise<void>>()
+
+function trackNamingWrite(prefix: string, run: () => Promise<void>): Promise<void> {
+  const promise = run()
+  const key = `${prefix}#${++namingSeq}`
+  inFlightNamingWrites.set(key, promise)
+  promise.catch(() => {}).finally(() => inFlightNamingWrites.delete(key))
+  return promise
+}
 
 // New placeholder agent sessions store `''`, matching topic names. Keep the
 // localized values so legacy sessions created before that change still auto-rename.
@@ -47,7 +67,8 @@ const DEFAULT_AGENT_SESSION_NAMES = new Set([
   'unbenannt',
   'sans nom',
   'sin nombre',
-  'fără nume'
+  'fără nume',
+  'adsız'
 ])
 
 type StructuredMessage = {
@@ -59,7 +80,7 @@ type StructuredMessage = {
 function getParts(
   data: MessageData | undefined
 ): Array<{ type?: string; text?: string; filename?: string; name?: string }> {
-  return (data?.parts ?? []) as Array<{ type?: string; text?: string; filename?: string; name?: string }>
+  return data?.parts ?? []
 }
 
 function getMainTextContentFromMessage(message: Message): string {
@@ -125,9 +146,6 @@ function buildStructuredConversation(messages: StructuredMessage[]): string {
 export class TopicNamingService {
   maybeRenameFromFirstUserMessage(topicId: string, userMessageId: string): void {
     try {
-      const enabled = application.get('PreferenceService').get('topic.naming.enabled')
-      if (!enabled) return
-
       const topic = this.getTopic(topicId)
       if (!topic || topic.isNameManuallyEdited) return
       if (!canAutoRenameTopicName(topic.name)) return
@@ -147,7 +165,18 @@ export class TopicNamingService {
     }
   }
 
-  async maybeRenameFromConversationSummary(
+  maybeRenameFromConversationSummary(
+    topicId: string,
+    assistantId: string | undefined,
+    userMessageId: string,
+    finalMessage: UIMessage
+  ): Promise<void> {
+    return trackNamingWrite(`topic:${topicId}`, () =>
+      this.doMaybeRenameFromConversationSummary(topicId, assistantId, userMessageId, finalMessage)
+    )
+  }
+
+  private async doMaybeRenameFromConversationSummary(
     topicId: string,
     assistantId: string | undefined,
     userMessageId: string,
@@ -180,8 +209,8 @@ export class TopicNamingService {
 
       const uniqueModelId = this.resolveNamingModelId()
       const title = await this.generateSummaryTitle(
-        assistantId,
         uniqueModelId,
+        topicId,
         buildStructuredConversation(structuredConversation)
       )
       if (!title) return
@@ -209,9 +238,6 @@ export class TopicNamingService {
    */
   maybeRenameAgentSessionFromFirstUserMessage(sessionId: string, userMessage: MessageData | string | undefined): void {
     try {
-      const enabled = application.get('PreferenceService').get('topic.naming.enabled')
-      if (!enabled) return
-
       const session = this.getAgentSession(sessionId, 'initial')
       if (session?.isNameManuallyEdited) return
       if (!session || !canAutoRenameAgentSessionName(session.name)) return
@@ -240,16 +266,29 @@ export class TopicNamingService {
    *
    * Mirrors {@link maybeRenameFromConversationSummary} but targets the agents
    * DB (`session.name`) rather than `topics.name`. Uses the shared topic
-   * naming model preference (`topic.naming.model_id`) for summarization,
-   * matching normal chat topic naming behavior.
+   * quick-assistant model preference for summarization, matching normal chat
+   * topic naming behavior. The agent id is deliberately
+   * NOT passed to the generation request — that would attach the agent's tool
+   * configuration (MCP tools, web search, knowledge bases) to the title.
    *
-   * @param agentId    Agent id used as AI generation context.
+   * @param agentId    Agent id, used for failure logging context only.
    * @param sessionId  Cherry Studio session id.
    * @param userText   Plain text of the persisted user turn, extracted by
    *                   AgentSessionRuntimeService from the saved user message.
    * @param finalMessage Accumulated assistant UIMessage for this turn.
    */
-  async maybeRenameAgentSession(
+  maybeRenameAgentSession(
+    agentId: string,
+    sessionId: string,
+    userText: string,
+    finalMessage: UIMessage
+  ): Promise<void> {
+    return trackNamingWrite(`agent-session:${sessionId}`, () =>
+      this.doMaybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
+    )
+  }
+
+  private async doMaybeRenameAgentSession(
     agentId: string,
     sessionId: string,
     userText: string,
@@ -273,8 +312,8 @@ export class TopicNamingService {
       ]
 
       const title = await this.generateSummaryTitle(
-        agentId,
         uniqueModelId,
+        sessionId,
         buildStructuredConversation(structuredConversation)
       )
       if (!title) return
@@ -298,6 +337,14 @@ export class TopicNamingService {
     }
   }
 
+  /**
+   * Advisory registry of in-flight async naming writes (drain wait-set for
+   * AiStreamManager's write-quiesce). Read-only; entries self-remove on settle.
+   */
+  inFlightWrites(): ReadonlyMap<string, Promise<void>> {
+    return inFlightNamingWrites
+  }
+
   private getTopic(topicId: string): Topic | null {
     try {
       return topicService.getById(topicId)
@@ -317,16 +364,25 @@ export class TopicNamingService {
   }
 
   private async generateSummaryTitle(
-    assistantId: string | undefined,
     uniqueModelId: UniqueModelId,
+    chatId: string,
     prompt: string
   ): Promise<string | null> {
     const systemPrompt = this.resolveNamingPrompt()
-    const request: AiGenerateRequest = {
-      assistantId,
+    // A title is a throwaway 10-word summary: never carry the source assistant /
+    // agent id, or buildAgentParams resolves its tool configuration (MCP tools,
+    // web search, knowledge bases) onto this request — the manual rename path in
+    // the renderer omits assistantId for the same reason.
+    const request: AsInProcessChat<AiGenerateRequest> = {
       uniqueModelId,
+      conversation: { id: chatId, topicId: chatId },
       system: systemPrompt,
-      prompt
+      prompt,
+      // A title is 10 words: never reason. Set this explicitly so the request builder does not
+      // fall back to the source assistant's saved `reasoning_effort` (buildAgentParams precedence is
+      // `request.reasoningEffort ?? assistant.settings.reasoning_effort ?? 'default'`), which would
+      // otherwise leak a `high`/`xhigh`/`max` thinking budget onto this throwaway request.
+      reasoningEffort: 'none'
     }
 
     try {
@@ -348,42 +404,45 @@ export class TopicNamingService {
   private resolveNamingPrompt(): string {
     const preferenceService = application.get('PreferenceService')
     const configuredPrompt = preferenceService.get('topic.naming_prompt')
-    const language = preferenceService.get('app.language') || 'en-us'
+    const language = languageEnglishNameMap[getAppLanguage()]
     return (configuredPrompt || FALLBACK_PROMPT).replaceAll('{{language}}', language)
   }
 
   private resolveNamingModelId(): UniqueModelId {
-    const configured = application.get('PreferenceService').get('topic.naming.model_id')
-    const parsed = UniqueModelIdSchema.safeParse(configured)
-    if (!parsed.success) {
-      if (configured != null) {
-        logger.warn('topic.naming.model_id is invalid; falling back to managed CherryAI default model', { configured })
-      }
-      return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    const preferenceService = application.get('PreferenceService')
+
+    const configured =
+      preferenceService.get('feature.quick_assistant.model_id') ?? preferenceService.get('chat.default_model_id')
+    const quickModelId = this.toUsableNamingModelId(configured)
+    if (quickModelId) return quickModelId
+    if (configured != null) {
+      logger.warn('Quick assistant model is not usable for topic naming; falling back to managed CherryAI default', {
+        configured
+      })
     }
+
+    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+  }
+
+  /**
+   * Validate a `providerId::modelId` candidate for topic naming. Returns the id when usable, else
+   * `null`. A candidate is rejected when it fails to parse, its model no longer exists, or its
+   * provider is an external-CLI (agent-only) provider — those reuse a CLI's own login, hold no
+   * app-side credential, and cannot serve a generation request, so they can never name a topic
+   * (capability-derived, so any such provider is covered without keying on a specific id).
+   */
+  private toUsableNamingModelId(candidate: string | null | undefined): UniqueModelId | null {
+    const parsed = UniqueModelIdSchema.safeParse(candidate)
+    if (!parsed.success) return null
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
     try {
-      // External-CLI providers (e.g. Claude Code) reuse a CLI's own login: they
-      // hold no app-side credential and cannot serve a generation request, so they
-      // can never name a topic. Capability-derived, so any such provider is covered
-      // without keying on a specific id.
       const provider = providerService.getByProviderId(providerId)
-      if (isExternalCliProvider(provider)) {
-        logger.warn(
-          'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
-          { configured }
-        )
-        return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-      }
-
+      if (isExternalCliProvider(provider)) return null
       modelService.getByKey(providerId, modelId)
       return parsed.data
-    } catch (error) {
-      logger.warn('topic.naming.model_id points to a missing model; falling back to managed CherryAI default model', {
-        configured
-      })
-      return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    } catch {
+      return null
     }
   }
 

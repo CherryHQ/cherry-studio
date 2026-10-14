@@ -1,7 +1,9 @@
-import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
-import type { Model } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { memo } from 'react'
+
+import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 export type ModelTagsWithLabelModel = Pick<
   Model,
@@ -11,6 +13,7 @@ export type ModelTagsWithLabelModel = Pick<
 
 interface ModelTagsProps {
   model: ModelTagsWithLabelModel
+  provider?: Provider
   showFree?: boolean
   showReasoning?: boolean
   showToolsCalling?: boolean
@@ -21,6 +24,7 @@ interface ModelTagsProps {
 
 const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   model,
+  provider,
   showFree = true,
   showReasoning = true,
   showToolsCalling = true,
@@ -29,10 +33,10 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   style
 }) => {
   const tagProps = { size, showTooltip, showLabel: false }
-  const tags = getModelDisplayTags(model, { showFree, showReasoning, showToolsCalling })
+  const tags = getModelDisplayTags(model, { showFree, showReasoning, showToolsCalling }, provider)
 
   return (
-    <div className="flex min-w-0 max-w-full flex-row flex-wrap items-center gap-0.5 overflow-visible" style={style}>
+    <div className="flex max-w-full min-w-0 flex-row flex-wrap items-center gap-0.5 overflow-visible" style={style}>
       {tags.map((tag) => (
         <span key={tag} className="inline-flex">
           <ModelTag tag={tag} {...tagProps} />

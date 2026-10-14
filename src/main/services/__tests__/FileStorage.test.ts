@@ -1,8 +1,8 @@
-import { dialog, shell } from 'electron'
 import * as fs from 'fs'
-import iconv from 'iconv-lite'
 import * as os from 'os'
 import * as path from 'path'
+
+import { dialog, shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
@@ -29,7 +29,7 @@ describe('FileStorage', () => {
     })
 
     it('returns null when the dialog resolves without a file path', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '' })
       await expect(fileStorage.save(event, 'note.md', 'content')).resolves.toBeNull()
     })
   })
@@ -48,6 +48,32 @@ describe('FileStorage', () => {
     })
   })
 
+  describe('openPath', () => {
+    let tmpFile: string
+
+    beforeEach(() => {
+      tmpFile = path.join(os.tmpdir(), `filestorage-openpath-test-${uniqueId()}.md`)
+      fs.writeFileSync(tmpFile, 'note')
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpFile, { force: true })
+    })
+
+    // The target has to exist: on Linux an unresolvable path kills the child Electron forks inside
+    // `shell.openPath`, so only real paths may reach the default-open guard.
+    it('opens a file with a safe extension via the system default app', async () => {
+      vi.mocked(shell.openPath).mockResolvedValue('')
+      await fileStorage.openPath(event, tmpFile)
+      expect(shell.openPath).toHaveBeenCalledWith(tmpFile)
+    })
+
+    it('refuses script extensions before reaching the OS handler', async () => {
+      await expect(fileStorage.openPath(event, '/mock/notes/report.py')).rejects.toThrow('Refusing to open .py')
+      expect(shell.openPath).not.toHaveBeenCalled()
+    })
+  })
+
   describe('writeFile', () => {
     let tmpFile: string
 
@@ -62,30 +88,6 @@ describe('FileStorage', () => {
     it('writes the given content', async () => {
       await fileStorage.writeFile(event, tmpFile, 'content')
       expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('content')
-    })
-  })
-
-  describe('isTextFile', () => {
-    let tmpFile: string
-
-    beforeEach(() => {
-      tmpFile = path.join(os.tmpdir(), `filestorage-text-test-${uniqueId()}`)
-    })
-
-    afterEach(() => {
-      fs.rmSync(tmpFile, { force: true })
-    })
-
-    it('accepts an extensionless GBK text file', async () => {
-      fs.writeFileSync(tmpFile, iconv.encode('这是一个没有扩展名的 GBK 文本文件，用于验证文件选择。', 'gbk'))
-
-      await expect(fileStorage.isTextFile(event, tmpFile)).resolves.toBe(true)
-    })
-
-    it('rejects an extensionless binary file', async () => {
-      fs.writeFileSync(tmpFile, Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj'))
-
-      await expect(fileStorage.isTextFile(event, tmpFile)).resolves.toBe(false)
     })
   })
 
@@ -150,6 +152,87 @@ describe('FileStorage', () => {
       await fileStorage.deleteExternalDir(event, '')
 
       expect(shell.trashItem).not.toHaveBeenCalled()
+    })
+  })
+
+  // Round-trips through the real text branches of readFileCore; catches a
+  // readFileSync → fs.promises.readFile swap regressing content or return type.
+  describe('readExternalFile', () => {
+    let tmpFile: string
+
+    beforeEach(() => {
+      tmpFile = path.join(os.tmpdir(), `filestorage-read-test-${uniqueId()}.md`)
+      fs.writeFileSync(tmpFile, 'Hello 世界\nsecond line')
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpFile, { force: true })
+    })
+
+    it('returns utf-8 file content verbatim (plain branch)', async () => {
+      await expect(fileStorage.readExternalFile(event, tmpFile)).resolves.toBe('Hello 世界\nsecond line')
+    })
+
+    it('returns utf-8 file content verbatim (auto-encoding branch)', async () => {
+      await expect(fileStorage.readExternalFile(event, tmpFile, true)).resolves.toBe('Hello 世界\nsecond line')
+    })
+  })
+
+  // Catches an inverted canceled/filePath check (cancel writing a file, confirm
+  // returning false) and a lost 'base64' encoding (literal base64 text on disk).
+  describe('saveImage', () => {
+    it('returns false and writes nothing when the save dialog is canceled', async () => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
+
+      await expect(fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA')).resolves.toBe(false)
+    })
+
+    it('decodes the base64 payload to disk and returns true on confirm', async () => {
+      const tmpFile = path.join(os.tmpdir(), `filestorage-image-test-${uniqueId()}.png`)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
+      const payload = Buffer.from('fake-png-bytes').toString('base64')
+
+      try {
+        await expect(fileStorage.saveImage(event, 'pic', `data:image/png;base64,${payload}`)).resolves.toBe(true)
+        expect(fs.readFileSync(tmpFile).equals(Buffer.from('fake-png-bytes'))).toBe(true)
+      } finally {
+        fs.rmSync(tmpFile, { force: true })
+      }
+    })
+  })
+
+  describe('fileNameGuard', () => {
+    let tmpDir: string
+
+    beforeEach(() => {
+      tmpDir = path.join(os.tmpdir(), `filestorage-filenameguard-test-${uniqueId()}`)
+      fs.mkdirSync(tmpDir, { recursive: true })
+      fs.writeFileSync(path.join(tmpDir, 'a.md'), 'a')
+      fs.writeFileSync(path.join(tmpDir, 'b.md'), 'b')
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('reports that the requested name is already taken', async () => {
+      const result = await fileStorage.fileNameGuard(event, tmpDir, 'b', true)
+      expect(result.exists).toBe(true)
+      // safeName stays the deduplicated suggestion for callers that want it
+      expect(result.safeName).toBe('b1')
+    })
+
+    it('reports a fresh name as available and keeps it unchanged', async () => {
+      const result = await fileStorage.fileNameGuard(event, tmpDir, 'fresh', true)
+      expect(result.exists).toBe(false)
+      expect(result.safeName).toBe('fresh')
+    })
+
+    it('applies the same rule to directories', async () => {
+      fs.mkdirSync(path.join(tmpDir, 'folder'))
+      const result = await fileStorage.fileNameGuard(event, tmpDir, 'folder', false)
+      expect(result.exists).toBe(true)
+      expect(result.safeName).toBe('folder1')
     })
   })
 })

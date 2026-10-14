@@ -1,3 +1,8 @@
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { Check, Plus, Search, X } from 'lucide-react'
+import { type KeyboardEvent, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Input, Skeleton } from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
 import { useAssistantMutations } from '@renderer/hooks/resourceCatalog'
@@ -12,11 +17,8 @@ import {
 } from '@renderer/hooks/useAssistantCatalogPresets'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 import { cn } from '@renderer/utils/style'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { Check, Plus, Search, X } from 'lucide-react'
-import { type KeyboardEvent, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 // Local "browse everything" tab that sits before the preset categories. It is dialog-only —
 // the shared catalog surface has no such concept — so it lives here rather than in the catalog hook.
@@ -39,9 +41,11 @@ function getPresetSummary(preset: AssistantCatalogPreset) {
 
 function matchesSearch(preset: AssistantCatalogPreset, keyword: string) {
   if (!keyword) return true
-  return [preset.name, preset.description, preset.prompt]
-    .filter(Boolean)
-    .some((text) => text?.toLowerCase().includes(keyword))
+  return (
+    [preset.name, preset.description, preset.prompt]
+      .filter(Boolean)
+      .some((text) => text?.toLowerCase().includes(keyword)) || matchesPinyinInitials(preset.name, keyword)
+  )
 }
 
 /**
@@ -177,7 +181,7 @@ export function AssistantLibraryDialog({
             <DialogTitle>{t('library.assistant_catalog.title')}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-5 pb-3">
+          <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-5 pb-3">
             <div
               className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               data-testid="library-tabs">
@@ -191,10 +195,10 @@ export function AssistantLibraryDialog({
                       data-active={isActive}
                       onClick={() => setActiveTab(tab.id)}
                       className={cn(
-                        'h-8 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm transition-colors',
+                        'h-8 shrink-0 rounded-lg px-3 text-sm whitespace-nowrap transition-colors',
                         isActive
                           ? 'bg-secondary font-medium text-secondary-foreground'
-                          : 'font-normal text-foreground-muted hover:bg-accent hover:text-foreground'
+                          : 'font-normal text-muted-foreground hover:bg-accent hover:text-foreground'
                       )}>
                       {tab.label}
                     </button>
@@ -204,12 +208,12 @@ export function AssistantLibraryDialog({
             </div>
 
             <div className="relative w-52 shrink-0">
-              <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
+              <Search size={14} className="absolute top-1/2 left-2.5 -translate-y-1/2 text-foreground-tertiary" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('library.toolbar.search_placeholder')}
-                className="h-8 rounded-lg border-input bg-background pr-8 pl-8 text-sm placeholder:text-foreground-muted"
+                className="h-8 rounded-lg border-input bg-background pr-8 pl-8 text-sm placeholder:text-muted-foreground"
               />
               {search && (
                 <Button
@@ -217,7 +221,7 @@ export function AssistantLibraryDialog({
                   size="icon-sm"
                   aria-label={t('common.clear')}
                   onClick={() => setSearch('')}
-                  className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-muted hover:text-foreground">
+                  className="absolute top-1/2 right-1 size-6 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X size={13} />
                 </Button>
               )}
@@ -227,7 +231,7 @@ export function AssistantLibraryDialog({
           <div
             ref={listScrollRef}
             aria-busy={isLoading || undefined}
-            className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+            className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]">
             {isLoading ? (
               <AssistantLibraryPresetListSkeleton />
             ) : visiblePresets.length === 0 ? (
@@ -398,13 +402,13 @@ const AssistantLibraryPresetRow = memo(function AssistantLibraryPresetRow({
       aria-label={preset.name}
       onClick={handlePreview}
       onKeyDown={activateOnKeyDown}
-      className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-card px-3.5 py-2.5 transition-[border-color,background-color] hover:border-border-hover hover:bg-accent">
+      className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-card px-3.5 py-2.5 transition-[border-color,background-color] hover:border-border-strong hover:bg-accent">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
         {preset.emoji || '🤖'}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-foreground text-sm leading-5">{preset.name}</div>
-        {summary && <div className="truncate text-foreground-secondary text-xs leading-4">{summary}</div>}
+        <div className="truncate text-sm leading-5 font-medium text-foreground">{preset.name}</div>
+        {summary && <div className="truncate text-xs leading-4 text-muted-foreground">{summary}</div>}
       </div>
       {/* stopPropagation so the quick add/open action never bubbles to the row's preview. */}
       <div className="shrink-0" onClick={(event) => event.stopPropagation()}>

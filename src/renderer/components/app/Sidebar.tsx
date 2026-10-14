@@ -1,81 +1,82 @@
+import { arrayMove } from '@dnd-kit/sortable'
+import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
+import type { Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { startTransition, useOptimistic } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
-import { arrayMove } from '@dnd-kit/sortable'
-import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import type { SidebarAppId } from '@renderer/utils/sidebar'
-import {
-  getSidebarFavoriteKey,
-  getSidebarMenuPath,
-  REQUIRED_SIDEBAR_FAVORITES,
-  resolveSidebarActiveItem
-} from '@renderer/utils/sidebar'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
-import type { Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { toast } from '@renderer/services/toast'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,
   normalizeSidebarWidth,
-  Sidebar as UISidebar,
+  type ResolvedSidebarEntry,
+  type SidebarIconPresentation,
   type SidebarUser,
   type SidebarVisibleLayout,
+  Sidebar as UISidebar,
   UserAvatar
 } from '../Sidebar'
 import UserPopup from '../UserPopup'
-import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
+import {
+  useResolvedSidebarShortcuts,
+  useSidebarShortcutActivation,
+  useSidebarNavigationSnapshot,
+  useSidebarShortcutRegistry
+} from './sidebarShortcuts'
 
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
+const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
-function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
-  if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
-  const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
-  return appId || undefined
+function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly string[]): ResolvedSidebarEntry[] {
+  const byKey = new Map(entries.map((entry) => [entry.key, entry]))
+  const optimisticKeys = new Set(orderedKeys)
+  return [
+    ...orderedKeys.flatMap((key) => {
+      const entry = byKey.get(key)
+      return entry ? [entry] : []
+    }),
+    ...entries.filter((entry) => !optimisticKeys.has(entry.key))
+  ]
 }
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const { favorites, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
-  const { activeTab, updateTab, openTab } = useTabs()
-  const { miniApps, pinned } = useMiniApps()
-  const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+  const { shortcuts, remove, reorder } = useSidebarShortcuts()
+  const registry = useSidebarShortcutRegistry()
+  const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
+  const activateShortcut = useSidebarShortcutActivation()
+  const navigation = useSidebarNavigationSnapshot()
 
-  // Sidebar width — persisted across restarts. Dragging through the
-  // intermediate 50-120px range uses a local preview width so the UI can
-  // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
   }, [activeSidebarWidth])
 
-  // Migration, not dead code: the resize path only persists normalized widths,
-  // but older builds (three-state layout, default 65) persisted intermediate
-  // values that must be collapsed once on load. Writing derived state back
-  // cannot loop — normalizeSidebarWidth is idempotent and the write is guarded
-  // by the inequality check. Skip while a drag preview is active so the
-  // write-back does not clobber it.
   useEffect(() => {
     if (previewSidebarWidth !== null) return
-
     const normalizedWidth = normalizeSidebarWidth(sidebarWidth)
-    if (normalizedWidth !== sidebarWidth) {
-      setSidebarWidth(normalizedWidth)
-    }
+    if (normalizedWidth !== sidebarWidth) setSidebarWidth(normalizedWidth)
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
-  // User avatar
   const avatar = useAvatar()
   const sidebarUser = useMemo<SidebarUser>(
     () => ({
@@ -86,168 +87,118 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [avatar, t, userName]
   )
   const sidebarLogo = useMemo(
-    () => (
-      <button
-        type="button"
-        aria-label={sidebarUser.name}
-        onClick={sidebarUser.onClick}
-        className="flex h-full w-full items-center justify-center rounded-full [-webkit-app-region:no-drag]">
-        <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />
-      </button>
-    ),
+    () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
     [sidebarUser]
   )
 
-  // Floating sidebar (hover reveal when hidden)
   const [hoverVisible, setHoverVisible] = useState(false)
   const layout = getSidebarLayout(activeSidebarWidth)
+  const resolvedEntries = useMemo(
+    () =>
+      resolutions.map((resolution) => {
+        const { shortcut } = resolution
+        const provider = registry.resolve(shortcut.target)
+        const isResolved = resolution.status === 'resolved'
+        const label = isResolved
+          ? resolution.resource.label
+          : shortcut.fallbackLabel || shortcut.target.locator.resourceId
+        const renderIcon = isResolved
+          ? resolution.resource.renderIcon
+          : ({ glyphSize }: SidebarIconPresentation) => {
+              const Icon =
+                resolution.status === 'loading' ? LoaderCircle : resolution.status === 'missing' ? CircleOff : WifiOff
+              return (
+                <Icon
+                  size={glyphSize}
+                  strokeWidth={1.6}
+                  className={resolution.status === 'loading' ? 'animate-spin' : undefined}
+                />
+              )
+            }
+        const activate = (inNewTab = false) => {
+          if (!isResolved || !provider) return
+          void activateShortcut(provider, shortcut.target, resolution.resource, inNewTab).catch(() =>
+            toast.error(t('common.error'))
+          )
+        }
+        const activateInNewTab =
+          isResolved && provider && resolution.resource.supportsNewTab ? () => activate(true) : undefined
 
-  // Menu items
-  const pathname = activeTab?.url || '/'
-  const activeMiniAppId = getMiniAppIdFromUrl(activeTab?.url)
-  const openableMiniAppById = useMemo(() => {
-    const appById = new Map<string, (typeof miniApps)[number]>()
-    for (const app of miniApps) {
-      appById.set(app.appId, app)
-    }
-    for (const app of pinned) {
-      appById.set(app.appId, app)
-    }
-    return appById
-  }, [miniApps, pinned])
-
-  const handleRemoveSidebarFavorite = useCallback(
-    (favorite: SidebarAppId) => {
-      if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
-      setAppPinned(favorite, false)
-    },
-    [setAppPinned]
+        return {
+          key: shortcut.id,
+          label,
+          renderIcon,
+          disabled: !isResolved || !provider,
+          isActive: !!provider?.isActive?.(shortcut.target, navigation),
+          statusLabel: isResolved
+            ? undefined
+            : resolution.status === 'loading'
+              ? t('common.loading')
+              : resolution.status === 'missing'
+                ? t('sidebar.resource_missing')
+                : t('sidebar.resource_unavailable'),
+          onOpen: () => activate(),
+          onOpenNewTab: activateInNewTab,
+          contextMenuItems: [
+            ...(activateInNewTab
+              ? [
+                  {
+                    type: 'item' as const,
+                    id: `sidebar.open-in-new-tab.${shortcut.id}`,
+                    label: t('common.open_in_new_tab'),
+                    onSelect: activateInNewTab
+                  }
+                ]
+              : []),
+            {
+              type: 'item' as const,
+              id: `sidebar.remove.${shortcut.id}`,
+              label: t('launchpad.unpin_from_sidebar'),
+              onSelect: () => remove(shortcut.target)
+            }
+          ]
+        }
+      }),
+    [activateShortcut, navigation, registry, remove, resolutions, shortcuts, t]
   )
+  const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 
-  const activeItem = resolveSidebarActiveItem(pathname)
-
-  const handleNavigate = useCallback(
-    (menuItemId: string) => {
-      const menuId = menuItemId as SidebarAppId
-      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
-      if (!path || activeTab?.url === path) return
-
-      const title = getDefaultRouteTitle(path)
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon: undefined,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
-        })
-        return
-      }
-
-      openTab(path, { forceNew: true, title })
-    },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
-  )
-  const handleOpenSettingsTab = useCallback(() => {
-    openSettingsTab('/settings/provider')
-  }, [])
-
-  const handleOpenMiniAppTab = useCallback(
-    (appId: string) => {
-      const app = openableMiniAppById.get(appId)
-      if (!app) return
-
-      const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
-      if (activeTab?.url === path) return
-
-      const title = app.nameKey ? t(app.nameKey) : app.name
-      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
-      const icon = app.logoSrc ?? app.logo
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title, icon })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
-        })
-        return
-      }
-
-      openTab(path, {
-        forceNew: true,
-        title,
-        icon
-      })
-    },
-    [activeTab, openableMiniAppById, openTab, t, updateTab]
-  )
-
-  // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
-  // lives in the variant registry; the container only supplies the runtime context.
-  const variantContext = useMemo<SidebarVariantContext>(
-    () => ({
-      t,
-      defaultPaintingProvider,
-      installedMiniApps: openableMiniAppById,
-      isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
-      openApp: handleNavigate,
-      openMiniApp: handleOpenMiniAppTab,
-      removeApp: handleRemoveSidebarFavorite,
-      removeMiniApp
-    }),
-    [
-      t,
-      defaultPaintingProvider,
-      openableMiniAppById,
-      handleNavigate,
-      handleOpenMiniAppTab,
-      handleRemoveSidebarFavorite,
-      removeMiniApp
-    ]
-  )
-
-  // One continuous list: built-in apps and mini apps interleaved in their stored
-  // favorites order. Unrenderable rows (no route/icon, or an uninstalled mini app)
-  // are dropped here but stay in the preference.
-  const entries = useMemo(
-    () => favorites.flatMap((favorite) => resolveSidebarEntry(favorite, variantContext) ?? []),
-    [favorites, variantContext]
-  )
-
-  // A single drag reorders the whole mixed list. arrayMove yields the new entry
-  // order; map each entry back to its favorite by key and persist. The sidebar owns
-  // its order entirely through `ui.sidebar.favorites` and never touches order keys.
   const handleReorder = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const byKey = new Map(favorites.map((favorite) => [getSidebarFavoriteKey(favorite), favorite]))
-      const nextFavorites = arrayMove(entries, oldIndex, newIndex).flatMap((entry) => {
-        const favorite = byKey.get(entry.key)
-        return favorite ? [favorite] : []
+      if (oldIndex === newIndex) return
+      const byId = new Map(shortcuts.map((shortcut) => [shortcut.id, shortcut]))
+      const reorderedEntries = arrayMove(entries, oldIndex, newIndex)
+      const reorderedShortcuts = reorderedEntries.flatMap((entry) => {
+        const shortcut = byId.get(entry.key)
+        return shortcut ? [shortcut] : []
       })
-      reorderFavorites(nextFavorites)
+      startTransition(async () => {
+        setOptimisticEntryOrder(reorderedEntries.map((entry) => entry.key))
+        await reorder(reorderedShortcuts).catch(() => undefined)
+      })
     },
-    [entries, favorites, reorderFavorites]
+    [entries, reorder, setOptimisticEntryOrder, shortcuts]
   )
 
-  // Common props shared between normal and floating sidebar
+  const handleOpenSettingsTab = useCallback(() => openSettingsTab(), [])
+  const handleOpenFeedback = useCallback(() => {
+    setFeedbackDialogMounted(true)
+    setFeedbackOpen(true)
+  }, [])
+
   const sidebarProps = {
+    isFullscreen,
     entries,
-    active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
-    actions: (footerLayout: SidebarVisibleLayout) => (
-      <SidebarShellActions layout={footerLayout} onSettingsClick={handleOpenSettingsTab} />
+    onHeaderClick: sidebarUser.onClick,
+    actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
+      <SidebarShellActions
+        layout={footerLayout}
+        onFeedbackClick={handleOpenFeedback}
+        onSettingsClick={handleOpenSettingsTab}
+        onOverlayOpenChange={onOverlayOpenChange}
+      />
     ),
     onEntriesReorder: handleReorder
   }
@@ -270,6 +221,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           {...sidebarProps}
         />
       )}
+      {feedbackDialogMounted ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

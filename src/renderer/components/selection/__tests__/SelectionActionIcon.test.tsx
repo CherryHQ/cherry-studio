@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest'
-
 import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -29,6 +28,15 @@ describe('SelectionActionIcon', () => {
       expect(dynamicIconState.render).not.toHaveBeenCalled()
     }
   )
+
+  it('renders the fallback synchronously when the optional icon name is empty', () => {
+    dynamicIconState.render.mockClear()
+
+    render(<SelectionActionIcon fallback={() => <span data-testid="missing-icon-fallback" />} />)
+
+    expect(screen.getByTestId('missing-icon-fallback')).toBeInTheDocument()
+    expect(dynamicIconState.render).not.toHaveBeenCalled()
+  })
 
   it('lazy-loads custom icon names and keeps the provided fallback', async () => {
     render(

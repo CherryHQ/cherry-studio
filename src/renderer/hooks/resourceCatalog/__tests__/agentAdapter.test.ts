@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAgentMutations, useAgentMutationsById } from '../agentAdapter'
@@ -26,15 +26,13 @@ describe('useAgentMutationsById', () => {
     })
   })
 
-  it('refreshes agent list and details after scoped mutations', () => {
+  it('uses DataApi only for the scoped update mutation', () => {
     renderHook(() => useAgentMutationsById('agent-1'))
 
     expect(useMutationMock).toHaveBeenCalledWith('PATCH', '/agents/agent-1', {
       refresh: expect.any(Function)
     })
-    expect(useMutationMock).toHaveBeenCalledWith('DELETE', '/agents/agent-1', {
-      refresh: ['/agents', '/agents/*', '/pins']
-    })
+    expect(useMutationMock).toHaveBeenCalledTimes(1)
   })
 
   it('additionally refreshes /skills only when the PATCH body includes skillUpdates', () => {
@@ -97,5 +95,34 @@ describe('useAgentMutations', () => {
     })
 
     expect(result.current.isCreatingAgent).toBe(false)
+  })
+
+  it('releases the creating state and skips invalidation when IPC creation fails', async () => {
+    const dto = {
+      name: 'Agent',
+      model: 'anthropic::claude-3' as const,
+      type: 'claude-code' as const
+    }
+    let rejectCreate!: (error: Error) => void
+    const pendingCreate = new Promise<never>((_, reject) => {
+      rejectCreate = reject
+    })
+    ipcRequestMock.mockReturnValueOnce(pendingCreate)
+
+    const { result } = renderHook(() => useAgentMutations())
+    let createPromise!: Promise<unknown>
+
+    act(() => {
+      createPromise = result.current.createAgent(dto)
+    })
+    await waitFor(() => expect(result.current.isCreatingAgent).toBe(true))
+
+    await act(async () => {
+      rejectCreate(new Error('create failed'))
+      await expect(createPromise).rejects.toThrow('create failed')
+    })
+
+    expect(result.current.isCreatingAgent).toBe(false)
+    expect(invalidateMock).not.toHaveBeenCalled()
   })
 })

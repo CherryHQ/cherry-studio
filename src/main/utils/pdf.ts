@@ -1,4 +1,16 @@
+import { pathToFileURL } from 'node:url'
+
 import type { LoadParameters } from 'pdf-parse'
+
+export async function getPdfPageCount(filePath: string): Promise<number> {
+  const parser = await createPdfParser({ url: pathToFileURL(filePath).href })
+  try {
+    const info = await parser.getInfo()
+    return info.total
+  } finally {
+    await parser.destroy()
+  }
+}
 
 /**
  * Extract text content from PDF data.
@@ -37,7 +49,12 @@ export async function extractPdfText(data: Uint8Array | ArrayBuffer | string | U
   }
 }
 
-async function createPdfParser(options: LoadParameters) {
+/**
+ * Build a `PDFParse` wired for Electron main. Callers needing more than plain text
+ * (page count via `getInfo()`, page rasters via `getScreenshot()`) go through this
+ * so the `CanvasFactory` wiring stays in one place. Always `destroy()` the parser.
+ */
+export async function createPdfParser(options: LoadParameters) {
   // Loads @napi-rs/canvas DOM globals that pdf-parse expects in Electron main.
   const { CanvasFactory } = await import('pdf-parse/worker')
   const { PDFParse } = await import('pdf-parse')

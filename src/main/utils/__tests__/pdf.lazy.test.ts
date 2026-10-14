@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('extractPdfText module loading', () => {
@@ -60,6 +62,51 @@ describe('extractPdfText module loading', () => {
     expect(pdfParseLoadedAfterWorker).toBe(true)
     expect(constructorMock).toHaveBeenCalledWith({ data, CanvasFactory })
     expect(getTextMock).toHaveBeenCalled()
+    expect(destroyMock).toHaveBeenCalled()
+  })
+  it('reads local PDF metadata through a file URL and destroys the parser', async () => {
+    const getInfoMock = vi.fn(async () => ({ total: 3 }))
+    const destroyMock = vi.fn(async () => undefined)
+    const constructorMock = vi.fn()
+
+    vi.doMock('pdf-parse/worker', () => ({ CanvasFactory: class CanvasFactory {} }))
+    vi.doMock('pdf-parse', () => ({
+      PDFParse: class PDFParse {
+        constructor(options: unknown) {
+          constructorMock(options)
+        }
+
+        getInfo = getInfoMock
+        destroy = destroyMock
+      }
+    }))
+
+    const { getPdfPageCount } = await import('../pdf')
+    const pdfPath = '/tmp/report with spaces.pdf'
+
+    await expect(getPdfPageCount(pdfPath)).resolves.toBe(3)
+    expect(constructorMock).toHaveBeenCalledWith(expect.objectContaining({ url: pathToFileURL(pdfPath).href }))
+    expect(getInfoMock).toHaveBeenCalled()
+    expect(destroyMock).toHaveBeenCalled()
+  })
+
+  it('destroys the parser when reading PDF metadata fails', async () => {
+    const getInfoMock = vi.fn(async () => {
+      throw new Error('invalid PDF')
+    })
+    const destroyMock = vi.fn(async () => undefined)
+
+    vi.doMock('pdf-parse/worker', () => ({ CanvasFactory: class CanvasFactory {} }))
+    vi.doMock('pdf-parse', () => ({
+      PDFParse: class PDFParse {
+        getInfo = getInfoMock
+        destroy = destroyMock
+      }
+    }))
+
+    const { getPdfPageCount } = await import('../pdf')
+
+    await expect(getPdfPageCount('/tmp/invalid.pdf')).rejects.toThrow('invalid PDF')
     expect(destroyMock).toHaveBeenCalled()
   })
 })

@@ -30,7 +30,7 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
-    <div ref={ref} data-testid="translate-input-scrollbar" {...props}>
+    <div ref={ref} {...props}>
       {children}
     </div>
   ),
@@ -45,6 +45,7 @@ const baseProps = () => ({
   onPaste: vi.fn(),
   onDrop: vi.fn(),
   onSelectFile: vi.fn(),
+  copied: false,
   onCopy: vi.fn(),
   onCancelOcr: vi.fn(),
   disabled: false,
@@ -67,22 +68,14 @@ describe('TranslateInputPane', () => {
     expect(props.onSelectFile).not.toHaveBeenCalled()
   })
 
-  it('hides the upload area once input has text', () => {
+  it('shows the input value and hides the upload area once input has text', () => {
     const props = baseProps()
     props.text = 'hello'
 
     render(<TranslateInputPane {...props} />)
 
     expect(screen.queryByRole('button', { name: 'translate.files.upload' })).not.toBeInTheDocument()
-  })
-
-  it('renders the editable input inside the shared Scrollbar', () => {
-    const props = baseProps()
-    props.text = 'hello'
-
-    render(<TranslateInputPane {...props} />)
-
-    expect(screen.getByTestId('translate-input-scrollbar')).toContainElement(screen.getByRole('textbox'))
+    expect(screen.getByRole('textbox')).toHaveValue('hello')
   })
 
   it('clears the input when the clear button is clicked', () => {
@@ -102,6 +95,16 @@ describe('TranslateInputPane', () => {
     expect(screen.queryByRole('button', { name: 'common.clear' })).not.toBeInTheDocument()
   })
 
+  it('swaps the copy icon for a check once the text has been copied', () => {
+    const { rerender } = render(<TranslateInputPane {...baseProps()} text="hello" />)
+
+    expect(screen.getByRole('button', { name: 'common.copy' }).querySelector('.lucide-check')).toBeNull()
+
+    rerender(<TranslateInputPane {...baseProps()} text="hello" copied />)
+
+    expect(screen.getByRole('button', { name: 'common.copy' }).querySelector('.lucide-check')).not.toBeNull()
+  })
+
   it('shows the drop indicator while a file is dragged over the pane', () => {
     dragState.isDragging = true
 
@@ -117,20 +120,12 @@ describe('TranslateInputPane', () => {
     expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
   })
 
-  it('shows the OCR processing overlay while OCR is running', () => {
+  it('shows the OCR processing overlay and supports cancellation', () => {
     const props = { ...baseProps(), ocrProcessing: true }
 
     render(<TranslateInputPane {...props} />)
 
-    const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('ocr.processing')
-    expect(status.querySelector('svg')).toBeInTheDocument()
-  })
-
-  it('calls the OCR cancel handler from the processing overlay', () => {
-    const props = { ...baseProps(), ocrProcessing: true }
-
-    render(<TranslateInputPane {...props} />)
+    expect(screen.getByRole('status')).toHaveTextContent('ocr.processing')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
 

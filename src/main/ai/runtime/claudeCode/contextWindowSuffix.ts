@@ -13,12 +13,21 @@
  * second-guess it by forcing the suffix. "First-party" is decided by the resolved
  * host, NOT the provider's preset origin — a provider copied from the Anthropic
  * preset but repointed at a custom 1M proxy is not first-party and still needs it.
+ * First-party 1M is a user choice instead: the catalog serves the suffixed ids as
+ * their own models (see `provider-registry/src/providers/claude-code.ts`), because
+ * on a subscription the Opus 1M window can cost usage credits.
  *
  * @see https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code
  */
 
 const ONE_MILLION = 1_000_000
+const DEFAULT_CONTEXT_WINDOW = 200_000
 const ANTHROPIC_OFFICIAL_HOST = 'api.anthropic.com'
+
+/** Claude Code's local context budget (see the header): 200K by default, 1M under the `[1m]` suffix. */
+export function effectiveContextWindowTokens(modelId: string | undefined): number {
+  return modelId && /\[1m\]$/i.test(modelId) ? ONE_MILLION : DEFAULT_CONTEXT_WINDOW
+}
 
 /**
  * True for the first-party Anthropic endpoint: an explicit `api.anthropic.com`

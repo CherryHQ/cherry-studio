@@ -37,6 +37,16 @@ export function splitApiKeyString(keyStr: string): string[] {
 }
 
 /**
+ * Mask an API key for transient display while retaining enough prefix and
+ * suffix characters to distinguish configured keys.
+ */
+export function maskApiKey(key: string): string {
+  if (!key) return ''
+
+  return key.length > 8 ? `${key.slice(0, 2)}****${key.slice(-4)}` : key
+}
+
+/**
  * Joins API keys into the comma-separated input format accepted by splitApiKeyString.
  */
 export function joinApiKeyString(apiKeys: readonly string[]): string {
@@ -186,6 +196,28 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
     return `${normalizedHost}/${apiVersion}`
   } else {
     return withoutTrailingSharp(normalizedHost)
+  }
+}
+
+/**
+ * Whether a host is an official Vertex endpoint carrying no user override.
+ * The Vertex SDK owns the `/projects/{project}/locations/{location}` segment,
+ * so such a host is the default, not a base URL to send requests to.
+ * `URL` normalises the default `:443` away, leaving `port` set only for a real
+ * override; a lone trailing `#` parses to an empty hash and stays default.
+ */
+export function isBareVertexApiHost(host: string): boolean {
+  try {
+    const url = new URL(trim(host))
+    return (
+      url.hostname.endsWith('aiplatform.googleapis.com') &&
+      url.pathname === '/' &&
+      !url.port &&
+      !url.search &&
+      !url.hash
+    )
+  } catch {
+    return false
   }
 }
 

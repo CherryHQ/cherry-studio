@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -147,6 +146,19 @@ describe('Dialog primitive', () => {
       'data-[state=open]:slide-in-from-bottom-4',
       'data-[state=closed]:slide-out-to-bottom-4'
     )
+  })
+
+  it('marks dialog content as no-drag so it stays clickable over titlebar drag regions', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const content = document.querySelector('[data-slot="dialog-content"]')
+    expect(content).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
   it('keeps content mounted while its close animation is active', () => {
@@ -358,5 +370,30 @@ describe('Dialog primitive', () => {
 
     await waitFor(() => expect(screen.queryByRole('option', { name: 'Beta' })).not.toBeInTheDocument())
     expect(handleOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it('names the close control Close by default', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+  })
+
+  it('uses a caller-provided closeLabel as the close control name', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined} closeLabel="关闭">
+          <DialogTitle>频道日志</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(screen.getByRole('button', { name: '关闭' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
   })
 })

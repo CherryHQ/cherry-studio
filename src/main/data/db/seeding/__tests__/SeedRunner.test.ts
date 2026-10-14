@@ -1,14 +1,15 @@
 import { resolve } from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
 
@@ -29,6 +30,10 @@ describe('SeedRunner', () => {
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
       if (key === 'feature.provider_registry.data' && filename) {
         return resolve('packages/provider-registry/data', filename)
+      }
+      if (key === 'feature.agents.builtin') {
+        const builtinRoot = resolve('resources/builtin-agents')
+        return filename ? resolve(builtinRoot, filename) : builtinRoot
       }
 
       return filename ? `/mock/${key}/${filename}` : `/mock/${key}`

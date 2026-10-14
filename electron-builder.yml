@@ -1,5 +1,7 @@
 appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
+extraMetadata:
+  cherryEdition: global
 electronLanguages:
   - zh-CN
   - zh-TW
@@ -19,15 +21,19 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!electron-builder.cn.config.cjs"
+  - "!electron.vite.entries.config.ts"
   - "!.*"
   - "!components.json"
-  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
+  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,.oxfmtrc.json}"
   - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!native"
   - "!config"
   - "!patches"
   - "!**/node_modules/**/*.cpp"
@@ -60,9 +66,15 @@ files:
   - "!node_modules/@tavily/core/node_modules/js-tiktoken"
   - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
-  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
+  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
+  # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
+  # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
+  - "!node_modules/selection-hook/build/**"
   - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
   - "!node_modules/selection-hook/src" # we don't need source files
+  - "!**/node_modules/node-pty/build/**" # ship upstream prebuilds; the rebuilt binary needs GLIBC_2.34 and is never cross-compiled
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
@@ -77,8 +89,20 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/sharp/**"
+  - "node_modules/@img/colour/**"
+  - "node_modules/detect-libc/**"
+  - "node_modules/semver/**"
+  - "node_modules/node-pty/**"
+  - "node_modules/koffi/**"
+  - "node_modules/@koromix/koffi-*/**"
+  - "node_modules/yaml/**"
+  - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -94,9 +118,13 @@ win:
     - target: nsis
     - target: portable
   signtoolOptions:
-    sign: scripts/win-sign.js
+    sign: scripts/packaging/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
+  # Preserve the existing global installer identity so either edition replaces the same Windows installation.
+  guid: 41a4ccd8-bcc0-5710-9eee-0e164da68057
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
@@ -105,10 +133,12 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
-  differentialPackage: false
+  differentialPackage: true
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
+  # electron-builder 26.15.6 uses true for a unique $PLUGINSDIR on every launch.
+  unpackDirName: true
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
@@ -123,6 +153,8 @@ mac:
     - target: zip
 dmg:
   writeUpdateInfo: false
+toolsets:
+  appimage: "1.0.3"
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   executableName: CherryStudio
@@ -145,63 +177,33 @@ rpm:
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
+  useMultipleRangeRequest: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-beforePack: scripts/before-pack.js
-afterPack: scripts/after-pack.js
-afterSign: scripts/notarize.js
-artifactBuildCompleted: scripts/artifact-build-completed.js
+beforePack: scripts/packaging/before-pack.js
+afterPack: scripts/packaging/after-pack.js
+afterSign: scripts/packaging/notarize.js
+artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-beta.3 - Migration Safety, API Gateway & Agent Improvements
-
-    ✨ New Features
-    - [Agent] Agents can now discover and install reusable CLIs through Cherry Studio
-    - [Settings] Show the client ID in System Settings when Developer Mode is enabled
+    Cherry Studio 2.1.6 - Bug Fixes and Provider Updates
 
     🐛 Bug Fixes
-    - [Privacy] The app can now be used without accepting the privacy policy; anonymous error and usage reporting stays disabled until the latest policy is accepted
-    - [Chat] Chat topic titles are no longer overwritten by auto-naming after an app restart or idle time; once a title has been AI-generated or manually edited, it stays fixed
-    - [Agent] Agent conversations now prompt you to pick a model when sending without one
-    - [Agent] Agent question cards no longer flash or duplicate while streaming, and answered questions keep their order
-    - [Agent] Agent AskUserQuestion prompts now appear and wait for a response even when bypass permissions are enabled
-    - [Agent] WeChat and Feishu agent channels can now use interactive QR authentication, and the QR code stays visible outside collapsed tool history
-    - [API Gateway] API Key and Authorization Header are now masked by default with a reveal toggle
-    - [Claude Code] Fixed Claude Code configuration for versioned Anthropic endpoints, with clearer route, authentication, and model-mapping errors
-    - [Ollama] Ollama models now use the configured context window size instead of being capped at the 2048-token default
-    - [Composer] Composer text, attachments, and focus are now preserved while tool approval prompts are shown
-    - [Channels] Fixed Telegram, QQ, Discord and Slack channels failing to create with "Validation failed"; new channels are created inactive and activate with the switch after credentials are filled
-    - [UI] Non-searchable dropdowns now highlight the currently selected option when opened instead of always the first item
-    - [UI] Fixed unwanted resource-list expansion during navigation, refined global-search reveal, and balanced the new-task icon size
-
-    💄 Improvements
-    - [Code Mate] Renamed "Code Switch" to "Code Mate" across supported languages
-    - [Translate] Translation now turns off model "thinking" when supported, reducing latency and token usage
+    - [Search] Fix searches for programming languages with hash symbols (e.g., C#, F#) not matching messages.
+    - [Backup] Fix restore failing on Windows when browser storage is locked by the current session. Restore progress now stays monotonic, failed attempts are reported with retry guidance, and orphaned restore files are cleaned up.
+    - [Errors] Stop misreporting client-refusal errors as "invalid API key" — now shows the correct permission guidance instead of sending users to regenerate working keys.
+    - [Chat] Context-usage token counts now follow the selected interface language and update when it changes.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-beta.3 - 迁移安全、API 网关与智能体改进
-
-    ✨ 新功能
-    - [智能体] 智能体现可在 Cherry Studio 中发现并安装可复用的 CLI
-    - [设置] 开启开发者模式后，在系统设置中显示客户端 ID
+    Cherry Studio 2.1.6 - 问题修复与供应商更新
 
     🐛 问题修复
-    - [隐私] 现在可以在不接受隐私政策的情况下继续使用应用；在接受最新政策之前，匿名错误与用量上报保持关闭
-    - [聊天] 重启应用或长时间空闲后，聊天话题标题不再被自动命名覆盖；标题经 AI 生成或手动编辑后即固定不变
-    - [智能体] 智能体对话在未选择模型时发送，会提示先选择模型
-    - [智能体] 智能体问题卡片在流式输出时不再闪烁或重复，已回答的问题保持原顺序
-    - [智能体] 启用绕过权限时，智能体的 AskUserQuestion 提示也能正常出现并等待回应
-    - [智能体] 微信与飞书智能体渠道支持交互式二维码认证，且二维码在折叠的工具历史之外仍可见
-    - [API 网关] API Key 与 Authorization Header 默认掩码显示，并提供切换显示的开关
-    - [Claude Code] 修复了带版本号的 Anthropic 端点的 Claude Code 配置，并分别报告路由、鉴权与模型映射错误
-    - [Ollama] Ollama 模型现在使用配置的上下文窗口大小，而不再被默认 2048 token 上限限制
-    - [输入框] 显示工具批准提示时，输入框文本、附件与焦点得以保留
-    - [渠道] 修复 Telegram、QQ、Discord、Slack 渠道创建时报“校验失败”的问题；新渠道以停用状态创建，填写凭据后用开关激活
-    - [界面] 不可搜索的下拉菜单打开时现在高亮当前选中项，而不是总是高亮第一项
-    - [界面] 修复了导航时资源列表意外展开的问题，优化全局搜索的显示与输入框工具栏行为，并调整了新建任务图标尺寸
+    - [搜索] 修复搜索包含井号的编程语言（如 C#、F#）时无法匹配消息的问题。
+    - [备份] 修复 Windows 上浏览器存储被当前会话锁定导致恢复失败的问题。恢复进度现在保持单调，失败的恢复会显示重试指引，孤立的恢复文件会被清理。
+    - [错误] 修复客户端拒绝被错误报告为"API 密钥无效"的问题 — 现在显示正确的权限指引，而不是引导用户重新生成有效的密钥。
+    - [对话] 上下文使用量的 token 计数现在跟随所选界面语言，并在切换语言时更新。
 
-    💄 改进
-    - [Code Mate] 在支持的各语言中将“Code Switch”更名为“Code Mate”
-    - [翻译] 翻译现在会在模型支持时关闭“思考”，降低延迟与 token 用量
+    💡 提示
+    - 腾讯 TI 和混元供应商已随腾讯平台下线而停用。请配置 TokenHub 或其他可用供应商以继续使用；现有本地数据已保留。
     <!--LANG:END-->

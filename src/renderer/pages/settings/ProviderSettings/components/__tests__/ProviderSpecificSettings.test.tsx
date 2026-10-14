@@ -1,10 +1,12 @@
-import ProviderSpecificSettings from '@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderSpecificSettings'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import ProviderSpecificSettings from '@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderSpecificSettings'
 
 const useProviderMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const isProviderSupportAuthMock = vi.fn()
+const providerOauthModuleLoadedMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
@@ -22,9 +24,12 @@ vi.mock('@shared/utils/provider', () => ({
     provider?.id === presetId || provider?.presetProviderId === presetId
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderOauth', () => ({
-  default: ({ providerId }: any) => <div>{`provider-oauth-${providerId}`}</div>
-}))
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderOauth', () => {
+  providerOauthModuleLoadedMock()
+  return {
+    default: ({ providerId }: any) => <div>{`provider-oauth-${providerId}`}</div>
+  }
+})
 
 vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/CherryInOauth', () => ({
   default: ({ providerId }: any) => <div>{`cherryin-oauth-${providerId}`}</div>
@@ -58,6 +63,10 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAiSett
   default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
 }))
 
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/DoubaoSetupGuide', () => ({
+  default: ({ providerId }: any) => <div>{`doubao-setup-guide-${providerId}`}</div>
+}))
+
 describe('ProviderSpecificSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -68,16 +77,26 @@ describe('ProviderSpecificSettings', () => {
     isProviderSupportAuthMock.mockReturnValue(false)
   })
 
-  it('renders beforeAuth blocks in stable registry order', () => {
+  it('does not load a provider-specific panel when its registry entry does not match', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'openai', isEnabled: true }
+    })
+
+    render(<ProviderSpecificSettings providerId="openai" placement="beforeAuth" />)
+
+    expect(providerOauthModuleLoadedMock).not.toHaveBeenCalled()
+  })
+
+  it('renders matching beforeAuth blocks', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'openai', isEnabled: true }
     })
     isProviderSupportAuthMock.mockReturnValue(true)
 
-    const { container } = render(<ProviderSpecificSettings providerId="openai" placement="beforeAuth" />)
-    const text = container.textContent ?? ''
+    render(<ProviderSpecificSettings providerId="openai" placement="beforeAuth" />)
 
-    expect(text).toContain('provider-oauth-openai')
+    expect(await screen.findByText('provider-oauth-openai')).toBeInTheDocument()
+    expect(providerOauthModuleLoadedMock).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -92,6 +111,12 @@ describe('ProviderSpecificSettings', () => {
       placement: 'beforeAuth' as const,
       meta: { isCherryIN: false, isDmxapi: true },
       expectedText: 'dmxapi-settings-dmxapi'
+    },
+    {
+      providerId: 'doubao',
+      placement: 'beforeAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'doubao-setup-guide-doubao'
     },
     {
       providerId: 'ovms',
@@ -140,24 +165,29 @@ describe('ProviderSpecificSettings', () => {
     }
   ])(
     'renders the expected provider-specific block for $providerId',
-    ({ providerId, placement, meta, expectedText, authType }: any) => {
+    async ({ providerId, placement, meta, expectedText, authType, supportAuth }: any) => {
       useProviderMock.mockReturnValue({
         provider: { id: providerId, name: providerId, isEnabled: true, ...(authType ? { authType } : {}) }
       })
       useProviderMetaMock.mockReturnValue(meta)
+      if (supportAuth !== undefined) {
+        isProviderSupportAuthMock.mockReturnValue(supportAuth)
+      }
 
       render(<ProviderSpecificSettings providerId={providerId} placement={placement} />)
 
-      expect(screen.getByText(expectedText)).toBeInTheDocument()
+      expect(await screen.findByText(expectedText)).toBeInTheDocument()
     }
   )
 
-  it('returns nothing when the provider is missing', () => {
+  it('does not render a provider-specific promotion for AMD GPU Cloud', () => {
     useProviderMock.mockReturnValue({
-      provider: undefined
+      provider: { id: 'radeon-cloud', name: 'AMD GPU Cloud', isEnabled: true }
     })
+    useProviderMetaMock.mockReturnValue({ isCherryIN: false, isDmxapi: false })
+    isProviderSupportAuthMock.mockReturnValue(false)
 
-    const { container } = render(<ProviderSpecificSettings providerId="missing" placement="beforeAuth" />)
+    const { container } = render(<ProviderSpecificSettings providerId="radeon-cloud" placement="beforeAuth" />)
 
     expect(container).toBeEmptyDOMElement()
   })

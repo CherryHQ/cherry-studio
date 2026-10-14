@@ -1,14 +1,16 @@
-export type ExternalAppTag = 'code-editor'
+export type ExternalOpenTargetKind = 'system_default' | 'application' | 'file_manager' | 'terminal'
 
-export type ExternalAppId = 'vscode' | 'cursor' | 'zed'
-
-export interface ExternalAppConfig {
-  id: ExternalAppId
-  name: string
-  protocol: string
-  tags: ExternalAppTag[]
+export interface ExternalOpenTarget {
+  id: string
+  /** Best-effort display name; absence does not make the target unavailable. */
+  name?: string
+  iconDataUrl?: string
+  kind: ExternalOpenTargetKind
 }
 
-export interface ExternalAppInfo extends ExternalAppConfig {
-  path: string
+export interface ExternalOpenTargetResult {
+  pathKind: 'file' | 'directory'
+  /** Product fallback used when no valid persisted target preference exists. */
+  recommendedTargetId: string
+  targets: ExternalOpenTarget[]
 }

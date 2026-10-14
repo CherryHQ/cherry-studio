@@ -87,4 +87,14 @@ describe('McpProviderSettings persist cache', () => {
       expect(cached.bailian).toEqual([{ name: 'srv-bailian' }])
     })
   })
+
+  it('persists an empty token when the saved token is cleared', () => {
+    const provider = makeProvider('modelscope')
+
+    render(<McpProviderSettings provider={provider} existingServers={[]} />)
+
+    fireEvent.change(screen.getByDisplayValue('tok'), { target: { value: '' } })
+
+    expect(provider.saveToken).toHaveBeenCalledWith('')
+  })
 })

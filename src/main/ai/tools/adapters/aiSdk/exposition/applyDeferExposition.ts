@@ -27,11 +27,11 @@ export interface ApplyDeferExpositionResult {
   deferredEntries: ToolEntry[]
 }
 
-export function applyDeferExposition(
+export async function applyDeferExposition(
   tools: ToolSet | undefined,
   registry: ToolRegistry,
   contextWindow: number | undefined
-): ApplyDeferExpositionResult {
+): Promise<ApplyDeferExpositionResult> {
   if (!tools || Object.keys(tools).length === 0) return { tools, deferredEntries: [] }
 
   const candidateEntries = Object.keys(tools)
@@ -42,7 +42,7 @@ export function applyDeferExposition(
   // `defer: 'never'` when force-prompt (see `mcp/mcpTools.ts`), so the SDK's native gate fires on
   // the inline tool. `tool_invoke` / `tool_exec` still guard at execution time as the runtime
   // backstop for the `registry.getByName(any-name)` vector.
-  const { deferredNames } = shouldDefer(candidateEntries, contextWindow)
+  const { deferredNames } = await shouldDefer(candidateEntries, contextWindow)
   if (deferredNames.size === 0) return { tools, deferredEntries: [] }
 
   // Per-request scope for the meta-tools: every tool the request exposed (inline or deferred).

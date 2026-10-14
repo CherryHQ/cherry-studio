@@ -1,3 +1,17 @@
+import { Pin, Plus, SquarePen } from 'lucide-react'
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  memo,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+
 import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
@@ -12,18 +26,7 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
-import { Pin, Plus, SquarePen } from 'lucide-react'
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactElement,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -179,7 +182,7 @@ function ResourceGroupChip({ name, active = true, onClick }: { name: string; act
   const chip = (
     <span
       className={cn(
-        'inline-flex h-4 max-w-24 items-center overflow-hidden rounded-sm bg-secondary px-1.5 text-[10px] text-foreground-secondary transition-opacity',
+        'inline-flex h-4 max-w-24 items-center overflow-hidden rounded-sm bg-secondary px-1.5 text-[10px] text-muted-foreground transition-opacity',
         !active && 'opacity-50',
         onClick && 'cursor-pointer'
       )}>
@@ -195,6 +198,97 @@ function ResourceGroupChip({ name, active = true, onClick }: { name: string; act
     </button>
   )
 }
+
+type ResourceSelectorOptionRowProps<T extends ResourceSelectorShellItem> = {
+  item: T
+  flatIndex: number
+  selected: boolean
+  focused: boolean
+  multiEnabled: boolean
+  fallbackIcon?: ReactNode
+  listboxId: string
+  onFocus: (index: number) => void
+  onSelect: (item: T) => void
+  renderEditAction: (item: T) => ReactNode
+  renderPinAction: (item: T) => ReactNode
+}
+
+function ResourceSelectorOptionRowComponent<T extends ResourceSelectorShellItem>({
+  item,
+  flatIndex,
+  selected,
+  focused,
+  multiEnabled,
+  fallbackIcon,
+  listboxId,
+  onFocus,
+  onSelect,
+  renderEditAction,
+  renderPinAction
+}: ResourceSelectorOptionRowProps<T>) {
+  const leading = item.emoji ? (
+    <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">{item.emoji}</span>
+  ) : fallbackIcon ? (
+    <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
+  ) : null
+
+  const trailing = item.groupName ? (
+    <div
+      className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
+      data-resource-selector-group={item.id}>
+      <ResourceGroupChip name={item.groupName} />
+    </div>
+  ) : null
+
+  return (
+    <div className="py-0.5">
+      <ModelSelectorRow
+        selected={selected}
+        focused={focused}
+        disabled={item.disabled}
+        showSelectedIndicator={!multiEnabled && selected}
+        checkbox={
+          multiEnabled ? (
+            <Checkbox
+              checked={selected}
+              tabIndex={-1}
+              aria-hidden="true"
+              className={cn('pointer-events-none', MODEL_SELECTOR_ROW_CHECKBOX_CLASS)}
+            />
+          ) : null
+        }
+        leading={leading}
+        trailing={trailing}
+        actions={
+          <>
+            {renderEditAction(item)}
+            {renderPinAction(item)}
+          </>
+        }
+        onSelect={() => onSelect(item)}
+        rootProps={{
+          onMouseEnter: () => {
+            if (item.disabled) return
+            onFocus(flatIndex)
+          },
+          className: 'pr-0.5',
+          'data-option-row': item.id
+        }}
+        optionProps={{
+          id: `${listboxId}-opt-${item.id}`,
+          'aria-disabled': item.disabled || undefined,
+          'data-option-id': item.id,
+          'data-active': focused || undefined
+        }}>
+        <span className="min-w-0 truncate" data-resource-selector-name={item.id}>
+          {item.name}
+        </span>
+      </ModelSelectorRow>
+    </div>
+  )
+}
+
+const ResourceSelectorOptionRow = memo(ResourceSelectorOptionRowComponent) as typeof ResourceSelectorOptionRowComponent
 
 export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props: ResourceSelectorShellProps<T>) {
   const {
@@ -281,7 +375,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const wasOpenRef = useRef(false)
   useEffect(() => {
     if (open && !wasOpenRef.current) {
-      void onOpenRef.current?.()
+      onOpenRef.current?.()
     }
     wasOpenRef.current = open
   }, [open])
@@ -313,7 +407,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     if (query) {
       filtered = filtered.filter(
         (item) =>
-          item.name.toLowerCase().includes(query) ||
+          matchesSearchText(item.name, query) ||
           (item.description ? item.description.toLowerCase().includes(query) : false)
       )
     }
@@ -376,9 +470,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         if (isItemType) {
           const byId = new Map<string, T>(items.map((item) => [item.id, item]))
           const mapped = ids.map((id) => byId.get(id)).filter(Boolean) as T[]
-          ;(props.onChange as (value: T[]) => void)(mapped)
+          props.onChange(mapped)
         } else {
-          ;(props.onChange as (value: string[]) => void)(ids)
+          props.onChange(ids)
         }
         return
       }
@@ -386,9 +480,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const id = ids[0] ?? null
       if (isItemType) {
         const item = id ? (items.find((candidate) => candidate.id === id) ?? null) : null
-        ;(props.onChange as (value: T | null) => void)(item)
+        props.onChange(item)
       } else {
-        ;(props.onChange as (value: string | null) => void)(id)
+        props.onChange(id)
       }
     },
     [isItemType, isMulti, items, props.onChange]
@@ -536,6 +630,11 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     [closeBeforeAction, labels.edit, onEditItem]
   )
 
+  const handleRowFocus = useCallback((index: number) => {
+    pendingActiveScrollBlockRef.current = null
+    setActiveIndex(index)
+  }, [])
+
   const multiToggleLabel = 'multiToggleLabel' in props ? props.multiToggleLabel : null
   const multiToggleHint = 'multiToggleHint' in props ? props.multiToggleHint : undefined
 
@@ -548,9 +647,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const firstId = valueIds[0]
       if (isItemType) {
         const firstItem = items.find((item) => item.id === firstId) ?? null
-        ;(props.onChange as (value: T[]) => void)(firstItem ? [firstItem] : [])
+        props.onChange(firstItem ? [firstItem] : [])
       } else {
-        ;(props.onChange as (value: string[]) => void)([firstId])
+        props.onChange([firstId])
       }
     },
     [isItemType, isMulti, items, props.onChange, valueIds]
@@ -584,75 +683,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       }
     : undefined
 
-  const renderOptionRow = (item: T, flatIndex: number) => {
-    const isSelected = selectedSet.has(item.id)
-    const isActive = flatIndex === activeIndex
-    const editAction = renderEditAction(item)
-    const pinAction = renderPinAction(item)
-
-    const leading = item.emoji ? (
-      <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">{item.emoji}</span>
-    ) : fallbackIcon ? (
-      <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
-    ) : null
-
-    const trailing = item.groupName ? (
-      <div
-        className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
-        data-resource-selector-group={item.id}>
-        <ResourceGroupChip name={item.groupName} />
-      </div>
-    ) : null
-
-    return (
-      <div key={item.id} className="py-0.5">
-        <ModelSelectorRow
-          selected={isSelected}
-          focused={isActive}
-          disabled={item.disabled}
-          showSelectedIndicator={!multiEnabled && isSelected}
-          checkbox={
-            multiEnabled ? (
-              <Checkbox
-                checked={isSelected}
-                tabIndex={-1}
-                aria-hidden="true"
-                className={cn('pointer-events-none', MODEL_SELECTOR_ROW_CHECKBOX_CLASS)}
-              />
-            ) : null
-          }
-          leading={leading}
-          trailing={trailing}
-          actions={
-            <>
-              {editAction}
-              {pinAction}
-            </>
-          }
-          onSelect={() => handleSelectItem(item)}
-          rootProps={{
-            onMouseEnter: () => {
-              if (item.disabled) return
-              pendingActiveScrollBlockRef.current = null
-              setActiveIndex(flatIndex)
-            },
-            className: 'pr-0.5',
-            'data-option-row': item.id
-          }}
-          optionProps={{
-            id: `${listboxId}-opt-${item.id}`,
-            'aria-disabled': item.disabled || undefined,
-            'data-option-id': item.id,
-            'data-active': isActive || undefined
-          }}>
-          <span className="min-w-0 truncate" data-resource-selector-name={item.id}>
-            {item.name}
-          </span>
-        </ModelSelectorRow>
-      </div>
-    )
-  }
-
   const listContent = loading ? null : flatItems.length === 0 ? (
     <EmptyState
       compact
@@ -671,7 +701,25 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
               {section.header}
             </div>
           ) : null}
-          {section.items.map((item, itemIndex) => renderOptionRow(item, offset + itemIndex))}
+          {section.items.map((item, itemIndex) => {
+            const flatIndex = offset + itemIndex
+            return (
+              <ResourceSelectorOptionRow
+                key={item.id}
+                item={item}
+                flatIndex={flatIndex}
+                selected={selectedSet.has(item.id)}
+                focused={flatIndex === activeIndex}
+                multiEnabled={multiEnabled}
+                fallbackIcon={fallbackIcon}
+                listboxId={listboxId}
+                onFocus={handleRowFocus}
+                onSelect={handleSelectItem}
+                renderEditAction={renderEditAction}
+                renderPinAction={renderPinAction}
+              />
+            )
+          })}
         </div>
       )
     })

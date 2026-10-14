@@ -1,3 +1,9 @@
+import { fileURLToPath } from 'node:url'
+
+import { describe, expect, it } from 'vitest'
+
+import type { ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { applyUserOverlay, type UserModelOverlay } from '@data/services/ModelService'
 import {
   applyCapabilityOverride,
@@ -5,7 +11,6 @@ import {
   mergePresetModel,
   resolveReasoningProfileFromRegistry
 } from '@data/services/ProviderRegistryService'
-import { describe, expect, it } from 'vitest'
 
 // Use string literals matching the actual enum values to avoid
 // importing @cherrystudio/provider-registry just for the constants.
@@ -15,6 +20,13 @@ const CAPABILITY = {
   REASONING: 'reasoning',
   EMBEDDING: 'embedding'
 } as const
+
+const registryDataUrl = new URL('../../../../../packages/provider-registry/data/', import.meta.url)
+const registryLoader = new RegistryLoader({
+  models: fileURLToPath(new URL('models.json', registryDataUrl)),
+  providers: fileURLToPath(new URL('providers.json', registryDataUrl)),
+  providerModels: fileURLToPath(new URL('provider-models.json', registryDataUrl))
+})
 
 // ---------- applyCapabilityOverride ----------
 
@@ -114,6 +126,57 @@ describe('mergePresetModel', () => {
     const model = mergePresetModel(presetModel, override, 'openai')
     expect(model.isEnabled).toBe(false)
   })
+
+  it('projects Fast support from the provider-model override', () => {
+    const override = {
+      providerId: 'openai-codex',
+      modelId: 'gpt-4o',
+      supportsFastMode: true
+    } satisfies ProtoProviderModelOverride
+    expect(mergePresetModel(presetModel, override, 'openai-codex').supportsFastMode).toBe(true)
+    expect(mergePresetModel(presetModel, null, 'openai-codex').supportsFastMode).toBeUndefined()
+  })
+})
+
+describe('CherryIN Qwen media capability overrides', () => {
+  const unsupportedAudioModels = [
+    ['qwen/qwen3.5-122b-a10b', 'qwen3-5-122b-a10b', ['text', 'image', 'video']],
+    ['qwen/qwen3.5-27b', 'qwen3-5-27b', ['text', 'image', 'video']],
+    ['qwen/qwen3.5-35b-a3b', 'qwen3-5-35b-a3b', ['text', 'image', 'video']],
+    ['qwen/qwen3.5-35b-a3b(free)', 'qwen3-5-35b-a3b', ['text', 'image']],
+    ['qwen/qwen3.5-397b-a17b', 'qwen3-5-397b-a17b', ['text', 'image', 'video']],
+    ['qwen/qwen3.5-4b(free)', 'qwen3-5-4b', ['text', 'image']],
+    ['qwen/qwen3.5-9b(free)', 'qwen3-5-9b', ['text', 'image']]
+  ] as const
+
+  it.each(unsupportedAudioModels)(
+    'resolves %s without unsupported media',
+    (apiModelId, presetModelId, inputModalities) => {
+      const override = registryLoader.findOverride('cherryin', apiModelId)
+      expect(override).not.toBeNull()
+
+      const presetModel = registryLoader.findModel(override!.modelId)
+      expect(presetModel?.id).toBe(presetModelId)
+
+      const model = mergePresetModel(presetModel!, override, 'cherryin')
+      expect(model.apiModelId).toBe(apiModelId)
+      expect(model.capabilities).not.toContain('audio-recognition')
+      expect(model.inputModalities).toEqual(inputModalities)
+      expect(model.inputModalities).not.toContain('audio')
+
+      if (!inputModalities.some((modality) => modality === 'video')) {
+        expect(model.capabilities).not.toContain('video-recognition')
+      }
+    }
+  )
+
+  it('preserves Qwen Omni audio support', () => {
+    expect(registryLoader.findOverride('cherryin', 'qwen3-omni-flash')).toBeNull()
+
+    const presetModel = registryLoader.findModel('qwen3-omni-flash')
+    expect(presetModel?.capabilities).toContain('audio-recognition')
+    expect(presetModel?.inputModalities).toContain('audio')
+  })
 })
 
 // ---------- mergePresetModel + applyUserOverlay (replaces mergeModelWithUser) ----------
@@ -147,7 +210,7 @@ describe('mergePresetModel + applyUserOverlay', () => {
     const overlay: UserModelOverlay = {
       name: 'User Override',
       contextWindow: 50_000,
-      capabilities: [CAPABILITY.EMBEDDING] as any
+      capabilities: [CAPABILITY.EMBEDDING]
     }
     const baseline = mergePresetModel(presetModel, override, 'openai')
     const model = applyUserOverlay(baseline, overlay)

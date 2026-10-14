@@ -48,12 +48,68 @@ describe('web search provider schemas', () => {
     )
   })
 
+  it('models Firecrawl as one provider with keyword search and URL fetch capabilities', () => {
+    const firecrawl = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'firecrawl')
+
+    expect(firecrawl).toBeDefined()
+    expect(firecrawl!.capabilities.map((capability) => capability.feature)).toEqual(['searchKeywords', 'fetchUrls'])
+    expect(firecrawl!.capabilities.find((capability) => capability.feature === 'fetchUrls')).toEqual({
+      feature: 'fetchUrls',
+      requiresApiHost: true,
+      requiresApiKey: false,
+      apiHost: 'https://api.firecrawl.dev'
+    })
+  })
+
+  it('requires a user-provided host but permits anonymous Crawl4AI fetching', () => {
+    const crawl4ai = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'crawl4ai')
+
+    expect(crawl4ai?.capabilities).toEqual([
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }
+    ])
+    expect(
+      WebSearchProviderOverridesSchema.safeParse({
+        crawl4ai: { capabilities: { fetchUrls: { apiHost: 'http://localhost:11235' } }, apiKeys: [] }
+      }).success
+    ).toBe(true)
+  })
+
+  it('models Parallel as an API-key-authenticated keyword search provider', () => {
+    const parallel = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'parallel')
+
+    expect(parallel).toBeDefined()
+    expect(parallel!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.parallel.ai'
+      }
+    ])
+  })
+
+  it('models Serply as an API-key-authenticated keyword search provider', () => {
+    const serply = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'serply')
+
+    expect(serply).toBeDefined()
+    expect(serply!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serply.io'
+      }
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 
     expect(fetch).toBeDefined()
     expect(fetch!.capabilities.find((capability) => capability.feature === 'fetchUrls')).toEqual({
-      feature: 'fetchUrls'
+      feature: 'fetchUrls',
+      requiresApiHost: false,
+      requiresApiKey: false
     })
   })
 

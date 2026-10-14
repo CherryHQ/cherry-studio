@@ -1,10 +1,11 @@
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import type { Assistant } from '@renderer/types/assistant'
 import type { SerializedError } from '@renderer/types/error'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type {
   BaseMessageBlock,
-  CitationMessageBlock,
   ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
@@ -21,7 +22,6 @@ import {
   UserMessageStatus
 } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
-import { v4 as uuidv4 } from 'uuid'
 
 type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
 
@@ -184,7 +184,7 @@ export function createErrorBlock(
     error: errorData,
     ...overrides
   })
-  return baseBlock as ErrorMessageBlock
+  return baseBlock
 }
 
 /**
@@ -222,36 +222,6 @@ export function createToolBlock(
     toolName,
     arguments: args,
     content
-  }
-}
-
-/**
- * Creates a Citation Block.
- * @param messageId - The ID of the parent message.
- * @param citationData - The citation data.
- * @param overrides - Optional properties to override the defaults.
- * @returns A CitationBlock object.
- */
-export function createCitationBlock(
-  messageId: string,
-  citationData: Omit<CitationMessageBlock, keyof BaseMessageBlock | 'type'>,
-  overrides: Partial<Omit<CitationMessageBlock, 'id' | 'messageId' | 'type' | keyof typeof citationData>> = {}
-): CitationMessageBlock {
-  const { response, knowledge, memories, ...baseOverrides } = {
-    ...citationData,
-    ...overrides
-  }
-
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.CITATION, {
-    status: MessageBlockStatus.SUCCESS,
-    ...baseOverrides
-  })
-
-  return {
-    ...baseBlock,
-    response,
-    knowledge,
-    memories
   }
 }
 

@@ -1,7 +1,8 @@
-import { toast } from '@renderer/services/toast'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import ModelListGroup from '../ModelListGroup'
 
@@ -98,10 +99,7 @@ describe('ModelListGroup', () => {
       />
     )
 
-    const deleteButtons = screen.getAllByRole('button', { name: 'settings.models.manage.remove_whole_group' })
-
-    expect(deleteButtons[0]).toHaveClass('opacity-0', 'group-hover/modelGroup:opacity-100')
-    fireEvent.click(deleteButtons[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.manage.remove_whole_group' })[0])
 
     expect(onDeleteModels).toHaveBeenCalledWith(models)
   })

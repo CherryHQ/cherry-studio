@@ -1,15 +1,17 @@
+import type { TFunction } from 'i18next'
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import { useDrag } from '@renderer/hooks/useDrag'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import { filterSupportedFiles, isSupportedFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import { isComposerFileTokenPathLike } from '@renderer/utils/message/composerFileTokenSource'
-import type { FileUrlString } from '@shared/types/file'
-import { fileUrlToPath } from '@shared/utils/file'
-import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 
 const logger = loggerService.withContext('useFileDragDrop')
 
@@ -53,7 +55,8 @@ export function getSingleDroppedPathFromText(text: string): string | null {
 
 async function getDroppedPathKind(path: string): Promise<'file' | 'directory' | null> {
   try {
-    return (await window.api.file.isDirectory(path)) ? 'directory' : 'file'
+    const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(AbsoluteFilePathSchema.parse(path)))
+    return meta?.kind ?? 'file'
   } catch {
     return null
   }

@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useConversationNavigation } from '../useConversationNavigation'
 
-// Drive the boundary over a fake tabs context; utils/sidebar (the identity↔url registry)
-// runs for real, so these tests also lock the assistants/agents instanceKey wiring.
+// Drive the boundary over a fake tabs context; utils/sidebar (the key↔URL registry)
+// runs for real, so these tests also lock the assistants/agents conversationRoute wiring.
 const tabsMock = vi.hoisted(() => ({
   ctx: null as ReturnType<typeof makeCtx> | null,
   emitResourceListReveal: vi.fn(),
@@ -39,17 +39,16 @@ beforeEach(() => {
 })
 
 describe('useConversationNavigation', () => {
-  it('openConversationTab opens a forceNew base-route tab with metadata when none exists', () => {
+  it('openConversationTab opens a forceNew tab on the conversation url when none exists', () => {
     const ctx = makeCtx([])
     ctx.openTab.mockReturnValue('new-agent-tab')
     tabsMock.ctx = ctx
     const { result } = renderHook(() => useConversationNavigation('agents'))
 
     result.current.openConversationTab('s1', 'Session 1')
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents', {
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents?sessionId=s1', {
       forceNew: true,
-      title: 'Session 1',
-      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+      title: 'Session 1'
     })
     expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
   })
@@ -62,10 +61,9 @@ describe('useConversationNavigation', () => {
 
     result.current.openConversationTab('s1', 'Session 1')
     expect(ctx.setActiveTab).not.toHaveBeenCalled()
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents', {
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents?sessionId=s1', {
       forceNew: true,
-      title: 'Session 1',
-      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+      title: 'Session 1'
     })
     expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
   })
@@ -78,45 +76,22 @@ describe('useConversationNavigation', () => {
 
     result.current.openConversationTab('s1', 'Session 1', { forceNew: true })
     expect(ctx.setActiveTab).not.toHaveBeenCalled()
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents', {
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents?sessionId=s1', {
       forceNew: true,
-      title: 'Session 1',
-      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+      title: 'Session 1'
     })
     expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
-  it('openConversationTab opens a forceNew tab after metadata-aware lookup misses', () => {
+  it('openConversationTab builds the chat url from the topic key', () => {
     const ctx = makeCtx([])
     tabsMock.ctx = ctx
     const { result } = renderHook(() => useConversationNavigation('assistants'))
 
     result.current.openConversationTab('t1', 'Topic 1')
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/chat', {
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/chat?topicId=t1', {
       forceNew: true,
-      title: 'Topic 1',
-      metadata: { instanceAppId: 'assistants', instanceKey: 't1' }
-    })
-  })
-
-  it('openConversationTab does not url-dedupe into a stale tab whose metadata points elsewhere', () => {
-    const ctx = makeCtx([
-      {
-        id: 'stale-url',
-        type: 'route',
-        url: '/app/chat?topicId=t1',
-        metadata: { instanceAppId: 'assistants', instanceKey: 't2' }
-      }
-    ])
-    tabsMock.ctx = ctx
-    const { result } = renderHook(() => useConversationNavigation('assistants'))
-
-    result.current.openConversationTab('t1', 'Topic 1')
-    expect(ctx.setActiveTab).not.toHaveBeenCalled()
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/chat', {
-      forceNew: true,
-      title: 'Topic 1',
-      metadata: { instanceAppId: 'assistants', instanceKey: 't1' }
+      title: 'Topic 1'
     })
   })
 
@@ -140,9 +115,9 @@ describe('useConversationNavigation', () => {
     expect(payload).toMatchObject({
       url: '/app/chat?topicId=t1',
       title: 'Topic 1',
-      type: 'route',
-      metadata: { instanceAppId: 'assistants', instanceKey: 't1' }
+      type: 'route'
     })
+    expect(payload.metadata).toBeUndefined()
     expect(typeof payload.id).toBe('string')
     // Opening elsewhere must not focus or duplicate a tab in the current window.
     expect(ctx.openTab).not.toHaveBeenCalled()
@@ -158,10 +133,9 @@ describe('useConversationNavigation', () => {
 
     result.current.openConversation('s1', 'Session 1')
 
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents', {
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents?sessionId=s1', {
       forceNew: true,
-      title: 'Session 1',
-      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+      title: 'Session 1'
     })
   })
 
@@ -176,8 +150,7 @@ describe('useConversationNavigation', () => {
     expect(ipcMock.request.mock.calls[0][1]).toMatchObject({
       url: '/app/agents?sessionId=s1',
       title: 'Session 1',
-      type: 'route',
-      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+      type: 'route'
     })
   })
 

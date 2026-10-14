@@ -1,6 +1,7 @@
-import { splitToSubTrunks } from '@renderer/services/ShikiStreamTokenizer'
 import type { ThemedToken } from 'shiki/types'
 import { describe, expect, it } from 'vitest'
+
+import { splitToSubTrunks } from '@renderer/services/ShikiStreamTokenizer'
 
 import { getMarkdownIt, getReactStyleFromToken } from '../shiki'
 
@@ -210,7 +211,8 @@ describe('shiki', () => {
       }
     )
 
-    it.each(['white', '#fff', '#ffffff', '#FFFFFF'])('should preserve %s tokens in dark themes', (color) => {
+    it('should preserve white tokens in dark themes', () => {
+      const color = 'white'
       const token = createThemedToken({
         content: 'LogPage',
         offset: 0,

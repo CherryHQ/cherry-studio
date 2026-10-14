@@ -7,9 +7,14 @@
 import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
+import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
+import type { Client } from '@modelcontextprotocol/client'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetAgent,
@@ -18,7 +23,7 @@ const {
   mockRealpath,
   mockGetPath,
   mockPreferenceGet,
-  mockMemoryConstructor,
+  mockListOrOutlineKnowledge,
   mockEnsureManagedDirectory
 } = vi.hoisted(() => ({
   mockGetAgent: vi.fn(),
@@ -27,7 +32,7 @@ const {
   mockRealpath: vi.fn(),
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockPreferenceGet: vi.fn(() => undefined),
-  mockMemoryConstructor: vi.fn(),
+  mockListOrOutlineKnowledge: vi.fn(),
   mockEnsureManagedDirectory: vi.fn()
 }))
 
@@ -59,6 +64,10 @@ vi.mock('@application', async () => {
     ...module,
     application: {
       ...module.application,
+      get: (name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getTurnTrustedNotifyChannels: () => undefined }
+          : module.application.get(name),
       getPath: mockGetPath
     }
   }
@@ -78,22 +87,27 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
 
+vi.mock('@main/ai/mcp/servers/assistant', () => ({
+  createAssistantServer: vi.fn()
+}))
+
+vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
+  createAssistantFileToolsServer: vi.fn()
+}))
+
 vi.mock('@data/services/AgentChannelService', () => ({
-  agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
+  agentChannelService: { findBySessionId: vi.fn(() => null), listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mockGetAgent }
 }))
 
-vi.mock('@main/ai/mcp/servers/agentMemory', () => ({
-  default: class {
-    mcpServer = {}
-
-    constructor(agentId: string, agentDataPath: string) {
-      mockMemoryConstructor(agentId, agentDataPath)
-    }
-  }
+// Spread the real module so the kb_* tool descriptions/schemas stay genuine; only the core call is
+// spied, to observe the id set the scope closure actually hands down.
+vi.mock('@main/ai/tools/knowledgeLookup', async (importOriginal) => ({
+  ...(await importOriginal<typeof KnowledgeLookup>()),
+  listOrOutlineKnowledge: mockListOrOutlineKnowledge
 }))
 
 const {
@@ -103,6 +117,7 @@ const {
   buildMcpServers,
   prepareClaudeCodeWorkspaceDirectory
 } = await import('../settingsBuilder')
+const { resolveMountedMcpServers } = await import('@main/ai/agents/builtin/builtinAgentCapabilities')
 
 const agent = { id: 'agent-1', mcps: [] } as unknown as AgentEntity
 const session = {
@@ -137,9 +152,40 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
   } as unknown as AgentSessionEntity
 }
 
+const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
+const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
+
+describe('resolveMountedMcpServers', () => {
+  it('mounts skills but no host servers for an ordinary Agent', () => {
+    const mounted = resolveMountedMcpServers({ type: 'claude-code', configuration: {} } as never, {
+      channelLinked: false
+    })
+    expect([...mounted].sort()).toEqual(['agent-memory', 'cherry-tools', 'mcp-manager', 'skills'])
+  })
+
+  it('drops the skills and mcp-manager servers for Cherry Support while keeping its host servers', () => {
+    const mounted = resolveMountedMcpServers(
+      { type: 'claude-code', configuration: { builtin_role: 'support' } } as never,
+      {
+        channelLinked: false
+      }
+    )
+    expect(mounted.has('skills')).toBe(false)
+    // A sealed Agent must not register MCP servers into the user's environment either.
+    expect(mounted.has('mcp-manager')).toBe(false)
+    expect(mounted.has('assistant')).toBe(true)
+  })
+
+  it('withdraws Cherry Assistant host servers once the session is channel-linked', () => {
+    const agentRef = { type: 'claude-code', configuration: { builtin_role: 'assistant' } } as never
+    expect(resolveMountedMcpServers(agentRef, { channelLinked: false }).has('assistant')).toBe(true)
+    expect(resolveMountedMcpServers(agentRef, { channelLinked: true }).has('assistant')).toBe(false)
+  })
+})
+
 describe('adjustAllowedToolsForMcp', () => {
   it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kb_manage', () => {
-    const allowed = adjustAllowedToolsForMcp(false)
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, [])
     expect(allowed).toEqual(
       expect.arrayContaining([
         'mcp__cherry-tools__kb_search',
@@ -147,69 +193,116 @@ describe('adjustAllowedToolsForMcp', () => {
         'mcp__cherry-tools__cron',
         'mcp__cherry-tools__notify',
         'mcp__cherry-tools__config',
-        'mcp__agent-memory__*'
+        'mcp__agent-memory__memory'
       ])
     )
     // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
     // per-call approval via canUseTool. A bare wildcard would silently re-include it.
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
+    // read-only skill search is auto-approved; the mutating install_skill stays on per-call approval.
+    expect(allowed).toContain('mcp__skills__search_skills')
+    expect(allowed).not.toContain('mcp__skills__install_skill')
+    // install_mcp_server can launch an arbitrary local command — never pre-approved.
+    expect(allowed).not.toContain('mcp__mcp-manager__install_mcp_server')
   })
 
-  it('additionally lists only the navigate assistant tool for the Cherry Assistant', () => {
-    const allowed = adjustAllowedToolsForMcp(true)
+  it('auto-approves only read-only Assistant tools', () => {
+    const allowed = adjustAllowedToolsForMcp(WITH_HOST_TOOLS, [])
     expect(allowed).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__kb_search', 'mcp__cherry-tools__kb_list', 'mcp__assistant__navigate'])
+      expect.arrayContaining([
+        'mcp__cherry-tools__kb_search',
+        'mcp__cherry-tools__kb_list',
+        'mcp__assistant__navigate',
+        'mcp__assistant__product_info'
+      ])
     )
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
+    expect(allowed).not.toContain('mcp__assistant__apply_setting')
+    expect(allowed).not.toContain('mcp__assistant__create_agent')
     // diagnose reads local logs/source/config — it must go through per-call approval, so neither
     // the tool itself nor an assistant namespace wildcard may appear in the SDK pre-approval list.
     expect(allowed).not.toContain('mcp__assistant__diagnose')
     expect(allowed).not.toContain('mcp__assistant__*')
+    expect(allowed).toContain('mcp__assistant-files__read_file')
+    expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
+    expect(allowed).not.toContain('mcp__assistant-files__*')
+  })
+
+  it('removes an exact disabled tool without affecting sibling auto-approvals', () => {
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, ['mcp__cherry-tools__web_fetch'])
+
+    expect(allowed).not.toContain('mcp__cherry-tools__web_fetch')
+    expect(allowed).toContain('mcp__cherry-tools__web_search')
+  })
+
+  it.each(['mcp__cherry-tools', 'mcp__cherry-tools__*'])('removes server-wide disabled tools for %s', (rule) => {
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, [rule])
+
+    expect(allowed.some((toolName) => toolName.startsWith('mcp__cherry-tools__'))).toBe(false)
+    expect(allowed).toContain('mcp__agent-memory__memory')
+  })
+
+  it('removes every MCP auto-approval for the global disabled rule', () => {
+    expect(adjustAllowedToolsForMcp(WITH_HOST_TOOLS, ['mcp__*'])).toEqual([])
+  })
+
+  it('does not let the memory auto-approval override an exact disabled tool', () => {
+    const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, ['mcp__agent-memory__memory'])
+
+    expect(allowed).not.toContain('mcp__agent-memory__memory')
   })
 })
 
 describe('buildMcpServers', () => {
   beforeEach(() => {
     mockGetAgent.mockReset()
-    mockMemoryConstructor.mockClear()
   })
 
-  it('injects the agent-memory server for every agent (REGRESSION agents-jobs-3)', async () => {
-    const result = buildMcpServers(session, agent, false, undefined, undefined, '/data/Agents/agent-1')
-    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
-    expect(Object.keys(result ?? {})).not.toContain('skills')
-    expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
+  it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
+    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
+    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
+    const { instance } = result!['agent-memory'] as McpSdkServerConfigWithInstance
+    const client = await connectMcpTestClient(instance)
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['memory'])
+    await client.close()
+  })
+
+  it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {
+    expect(buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)?.['mcp-manager']).toBeDefined()
+    const sealed = new Set([...WITHOUT_HOST_TOOLS].filter((name) => name !== 'mcp-manager'))
+    expect(buildMcpServers(session, agent, sealed)?.['mcp-manager']).toBeUndefined()
   })
 
   it('injects cherry-tools for every session; the standalone cherry server and exa are gone', async () => {
-    const result = buildMcpServers(session, agent, false)
+    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)
     expect(result?.['cherry-tools']).toBeDefined()
     expect(result?.cherry).toBeUndefined()
     expect(result?.exa).toBeUndefined()
   })
 
-  async function cherryToolNames(result: ReturnType<typeof buildMcpServers>): Promise<string[]> {
+  // Each call opens a new connection, so the per-connection tool decisions re-read the Agent.
+  const clients: Client[] = []
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+  async function cherryToolsClient(result: ReturnType<typeof buildMcpServers>): Promise<Client> {
     if (!result) throw new Error('buildMcpServers returned no servers')
-    const instance = (
-      result['cherry-tools'] as unknown as {
-        instance: {
-          server: {
-            _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<{ tools: Array<{ name: string }> }>>
-          }
-        }
-      }
-    ).instance
-    const listHandler = instance.server._requestHandlers.get('tools/list')
-    if (!listHandler) throw new Error('tools/list handler not registered')
-    const listed = await listHandler({ method: 'tools/list', params: {} }, {})
-    return listed.tools.map((tool) => tool.name)
+    const { instance } = result['cherry-tools'] as McpSdkServerConfigWithInstance
+    const client = await connectMcpTestClient(instance)
+    clients.push(client)
+    return client
+  }
+
+  async function cherryToolNames(result: ReturnType<typeof buildMcpServers>): Promise<string[]> {
+    const { tools } = await (await cherryToolsClient(result)).listTools()
+    return tools.map((tool) => tool.name)
   }
 
   it('hides the kb_* tools from cherry-tools when the agent has no bound knowledge base', async () => {
     mockGetAgent.mockReturnValue(agent)
-    const names = await cherryToolNames(buildMcpServers(session, agent, false))
+    const names = await cherryToolNames(buildMcpServers(session, agent, WITHOUT_HOST_TOOLS))
     expect(names).toContain('web_search')
     expect(names).not.toContain('kb_search')
     expect(names).not.toContain('kb_manage')
@@ -218,27 +311,123 @@ describe('buildMcpServers', () => {
   it('exposes the kb_* tools from cherry-tools when the agent is bound to a knowledge base', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
     mockGetAgent.mockReturnValue(boundAgent)
-    const names = await cherryToolNames(buildMcpServers(session, boundAgent, false))
+    const names = await cherryToolNames(buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS))
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
   })
 
-  it('re-reads knowledge bindings for an already-created cherry-tools server', async () => {
+  it('exposes the kb_* tools from a frozen composer selection when the Agent has no binding', async () => {
+    mockGetAgent.mockReturnValue(agent)
+    const names = await cherryToolNames(
+      buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, undefined, ['kb-selected'])
+    )
+
+    expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
+  })
+
+  it('exposes every cherry-tool to the built-in Assistant without a knowledge binding', async () => {
+    const assistant = {
+      id: 'agent-1',
+      mcps: [],
+      knowledgeBaseIds: [],
+      configuration: { builtin_role: 'assistant' }
+    } as unknown as AgentEntity
+    mockGetAgent.mockReturnValue(assistant)
+
+    const names = await cherryToolNames(buildMcpServers(session, assistant, WITH_HOST_TOOLS))
+
+    expect(names).toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
+    )
+  })
+
+  it('revokes unrestricted knowledge access when the built-in Assistant is deleted', async () => {
+    const assistant = {
+      id: 'agent-1',
+      mcps: [],
+      knowledgeBaseIds: [],
+      configuration: { builtin_role: 'assistant' }
+    } as unknown as AgentEntity
+    mockGetAgent.mockReturnValue(assistant)
+    const servers = buildMcpServers(session, assistant, WITH_HOST_TOOLS)
+
+    expect(await cherryToolNames(servers)).toContain('kb_search')
+
+    mockGetAgent.mockReturnValue(undefined)
+    expect(await cherryToolNames(servers)).not.toContain('kb_search')
+  })
+
+  /** Run kb_list through the server and report the id set the scope closure handed to the core. */
+  async function scopePassedToKnowledgeCore(result: ReturnType<typeof buildMcpServers>): Promise<readonly string[]> {
+    mockListOrOutlineKnowledge.mockReset().mockResolvedValue({ bases: [] })
+    await (await cherryToolsClient(result)).callTool({ name: 'kb_list', arguments: {} })
+    expect(mockListOrOutlineKnowledge).toHaveBeenCalledTimes(1)
+    return mockListOrOutlineKnowledge.mock.calls[0][1]
+  }
+
+  // Tool *visibility* cannot catch a swapped `resolveKnowledgeBaseScope(selected, configured)` here —
+  // both orders leave the scope non-empty, so the tools show up either way while the trust boundary
+  // silently inverts. These two pin the resolved id set instead.
+  it('narrows a bound Agent to the frozen composer selection', async () => {
+    const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb-a', 'kb-b'] } as unknown as AgentEntity
+    mockGetAgent.mockReturnValue(boundAgent)
+
+    const scope = await scopePassedToKnowledgeCore(
+      buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS, undefined, undefined, undefined, ['kb-a'])
+    )
+
+    expect(scope).toEqual(['kb-a'])
+  })
+
+  it('keeps the Agent binding when the frozen composer selection falls outside it', async () => {
+    const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb-bound'] } as unknown as AgentEntity
+    mockGetAgent.mockReturnValue(boundAgent)
+
+    const scope = await scopePassedToKnowledgeCore(
+      buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS, undefined, undefined, undefined, ['kb-selected'])
+    )
+
+    expect(scope).toEqual(['kb-bound'])
+    expect(scope).not.toContain('kb-selected')
+  })
+
+  it('fails closed when the Agent backing a frozen composer selection is deleted', async () => {
+    mockGetAgent.mockReturnValueOnce(agent).mockReturnValueOnce(undefined)
+    const servers = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, undefined, [
+      'kb-selected'
+    ])
+
+    expect(await cherryToolNames(servers)).toContain('kb_search')
+    expect(await cherryToolNames(servers)).not.toContain('kb_search')
+  })
+
+  it('re-reads knowledge bindings for each new cherry-tools connection', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
     mockGetAgent.mockReturnValueOnce(boundAgent).mockReturnValueOnce({ ...boundAgent, knowledgeBaseIds: [] })
-    const servers = buildMcpServers(session, boundAgent, false)
+    const servers = buildMcpServers(session, boundAgent, WITHOUT_HOST_TOOLS)
 
     expect(await cherryToolNames(servers)).toContain('kb_read')
     expect(await cherryToolNames(servers)).not.toContain('kb_read')
   })
+
+  it('injects assistant file tools only for Cherry Assistant sessions', () => {
+    const plain = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)
+    const assistant = buildMcpServers(session, agent, WITH_HOST_TOOLS)
+
+    expect(plain?.['assistant-files']).toBeUndefined()
+    expect(assistant?.assistant).toBeDefined()
+    expect(assistant?.['assistant-files']).toBeDefined()
+  })
 })
 
 describe('prepareClaudeCodeWorkspaceDirectory', () => {
+  const managedRoot = path.resolve('/tmp/managed-workspaces')
+
   beforeEach(() => {
     mockGetPathStatus.mockReset()
     mockMkdir.mockReset()
     mockRealpath.mockReset()
     mockRealpath.mockImplementation(async (targetPath: string) => targetPath)
-    mockGetPath.mockReturnValue('/tmp/managed-workspaces')
+    mockGetPath.mockReturnValue(managedRoot)
     mockEnsureManagedDirectory.mockImplementation(async (root: string, target: string) => {
       const [resolvedRoot, resolvedTarget] = await Promise.all([mockRealpath(root), mockRealpath(target)])
       const relative = path.relative(resolvedRoot, resolvedTarget)
@@ -260,7 +449,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   })
 
   it('creates a missing system workspace before asserting it', async () => {
-    const workspacePath = '/tmp/managed-workspaces/sess-workspace'
+    const workspacePath = path.join(managedRoot, 'sess-workspace')
     mockGetPathStatus.mockResolvedValueOnce({ ok: true, kind: 'directory' })
     mockMkdir.mockResolvedValueOnce(undefined)
 
@@ -279,10 +468,10 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   })
 
   it('rejects system workspace symlinks that resolve outside the managed root', async () => {
-    const workspacePath = '/tmp/managed-workspaces/sess-link'
+    const workspacePath = path.join(managedRoot, 'sess-link')
     mockRealpath.mockImplementation(async (targetPath: string) => {
-      if (targetPath === '/tmp/managed-workspaces') return '/tmp/managed-workspaces'
-      if (targetPath === workspacePath) return '/tmp/outside-workspace'
+      if (targetPath === managedRoot) return managedRoot
+      if (targetPath === workspacePath) return path.resolve('/tmp/outside-workspace')
       return targetPath
     })
 

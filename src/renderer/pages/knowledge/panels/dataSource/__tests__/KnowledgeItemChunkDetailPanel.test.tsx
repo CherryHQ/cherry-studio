@@ -1,7 +1,8 @@
-import type { KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { CSSProperties, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeItemChunk } from '@shared/data/types/knowledge'
 
 import KnowledgeItemChunkDetailPanel from '../KnowledgeItemChunkDetailPanel'
 import { createFileItem } from './testUtils'
@@ -93,9 +94,10 @@ vi.mock('@cherrystudio/ui', () => ({
       {description}
     </div>
   ),
-  Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <div {...props}>{children}</div>
-  )
+  Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => {
+    delete props.autoHideScrollbar
+    return <div {...props}>{children}</div>
+  }
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -297,11 +299,5 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '返回' }))
 
     expect(onBack).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('button', { name: '返回' }).closest('.h-11')).toHaveClass(
-      'after:left-3',
-      'after:right-3',
-      'after:border-border',
-      'after:border-b'
-    )
   })
 })

@@ -1,8 +1,9 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -19,11 +20,27 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [key === 'chat.message.font_size' ? 14 : false]
 }))
 
-// No matching model → `model` resolves undefined → ComposerToolRuntimeHost (and its
-// tool runtimes / DataApi deps) is not rendered, while the real provider + seeding
-// hook still drive `files`.
+// The model-switch case needs a real capability transition (edit-capable → not), so
+// the catalog must actually resolve — the draft-clear is reconciled from that signal
+// now, not from a remount. Stub only ComposerToolRuntimeHost (tool runtimes / DataApi
+// deps, out of scope here) and keep the real provider + seeding hook driving `files`.
+vi.mock('@renderer/components/composer/ComposerToolRuntime', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ComposerToolRuntimeHost: () => null
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModels: () => ({ models: [] })
+  useModels: () => ({
+    models: [
+      { providerId: 'openai', apiModelId: 'edit-model', name: 'Edit', type: ['image_gen'] },
+      { providerId: 'openai', apiModelId: 'generate-model', name: 'Generate', type: ['image_gen'] }
+    ]
+  })
+}))
+
+vi.mock('@shared/utils/model', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  isEditImageModel: (entry?: { apiModelId?: string }) => entry?.apiModelId === 'edit-model'
 }))
 
 const { default: PaintingComposer } = await import('../PaintingComposer')
@@ -31,21 +48,20 @@ const { default: PaintingComposer } = await import('../PaintingComposer')
 const makeEntry = (id: string): FileEntry =>
   ({ id, name: `${id}.png`, ext: 'png', size: 100, origin: 'internal' }) as unknown as FileEntry
 
-const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'): PaintingData =>
-  ({
-    id,
-    providerId: 'openai',
-    model,
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    inputFiles
-  }) as PaintingData
+const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'): PaintingData => ({
+  id,
+  providerId: 'openai',
+  model,
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  inputFiles
+})
 
 const handlers = {
   generating: false,
+  submitting: false,
   onPromptChange: vi.fn(),
-  onInputFilesChange: vi.fn(),
   onGenerate: vi.fn(),
   onCancel: vi.fn(),
   onModelSelect: vi.fn(),
@@ -88,7 +104,10 @@ describe('PaintingComposer painting switch', () => {
   // switchModel clears inputFiles for a generate-only model on the SAME painting id.
   // The model in the provider key remounts the bridge so the stale chip can't linger
   // (and later be resurrected onto a model that can't accept it).
-  it('clears input files when the model switches on the same painting', async () => {
+  it('clears input files when the model stops accepting images on the same painting', async () => {
+    // Route A: the provider keys on `painting.id` alone, so a same-painting model
+    // switch does NOT remount. The clear is reconciled from the capability signal
+    // (`accept` → `reject`) instead — which is why the catalog has to resolve here.
     const filesCount = () => screen.getByTestId('files-count').textContent
 
     const { rerender } = render(

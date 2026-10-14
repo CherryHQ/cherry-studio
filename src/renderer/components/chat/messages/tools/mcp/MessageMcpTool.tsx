@@ -1,14 +1,15 @@
-import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { useTimer } from '@renderer/hooks/useTimer'
-import type { McpToolResponse } from '@renderer/types/mcpTool'
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTimer } from '@renderer/hooks/useTimer'
+import type { McpToolResponse } from '@renderer/types/mcpTool'
 
 import {
   useMessageRenderConfig,
@@ -18,7 +19,10 @@ import {
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
+import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { ToolResultLinkList } from '../shared/ToolResultLinkList'
+import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
 import { truncateOutput } from '../shared/truncateOutput'
 
 interface Props {
@@ -136,7 +140,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
       extra: (isDone || isError) && copyText && (
         <Tooltip content={t('common.copy')} delay={500}>
           <ActionButton
-            className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+            className="message-action-button invisible opacity-0 transition-opacity duration-150 group-hover/tool:visible group-hover/tool:opacity-100 focus-visible:visible focus-visible:opacity-100"
             onClick={() => copyContent(JSON.stringify(result, null, 2), id)}
             aria-label={t('common.copy')}>
             {copiedMap[id] ? t('common.copied') : t('common.copy')}
@@ -171,6 +175,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
         className="message-tools-container"
         items={getDisclosureItems()}
       />
+      <ToolApprovalOutcome approval={toolResponse.approval} />
     </ToolContainer>
   )
 }
@@ -178,27 +183,34 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 type ExtractedContent = {
   text: string
   images: Array<{ data: string; mimeType: string }>
+  links: ToolResultLinkData[]
 }
 
 /**
  * Extract preview content from MCP tool response using SDK schema
  */
 const extractPreviewContent = (response: unknown): ExtractedContent => {
-  if (!response) return { text: '', images: [] }
+  if (!response) return { text: '', images: [], links: [] }
 
   const hasMcpContent =
     typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
   const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
   if (result?.success) {
     const contents = result.data.content
-    if (contents.length === 0) return { text: '', images: [] }
+    if (contents.length === 0) return { text: '', images: [], links: [] }
 
     const textParts: string[] = []
     const images: Array<{ data: string; mimeType: string }> = []
+    const links: ToolResultLinkData[] = []
     for (const content of contents) {
       switch (content.type) {
         case 'text':
           if (content.text) {
+            const textLinks = getToolResultLinks(content)
+            if (textLinks) {
+              for (const link of textLinks) links.push(link)
+              break
+            }
             try {
               const parsed = JSON.parse(content.text)
               textParts.push(JSON.stringify(parsed, null, 2))
@@ -215,13 +227,21 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
         case 'resource':
           textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
           break
+        case 'resource_link': {
+          const resourceLinks = getToolResultLinks(content)
+          if (resourceLinks) links.push(...resourceLinks)
+          else textParts.push(content.uri)
+          break
+        }
       }
     }
-    return { text: textParts.join('\n\n'), images }
+    return { text: textParts.join('\n\n'), images, links }
   }
 
   // Fallback: return JSON string for unknown format
-  return { text: JSON.stringify(response, null, 2), images: [] }
+  const text = JSON.stringify(response, null, 2)
+  const links = getToolResultLinks({ type: 'text', text: typeof response === 'string' ? response : text })
+  return { text: links ? '' : text, images: [], links: links ?? [] }
 }
 
 const truncateArgText = (text: string): string => {
@@ -293,8 +313,10 @@ const ExpandedToolResponseContent: FC<{
   const [showResponse, setShowResponse] = useState(false)
   const [highlightedResponse, setHighlightedResponse] = useState<string>('')
   const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string }>>([])
+  const [responseLinks, setResponseLinks] = useState<ToolResultLinkData[]>([])
   const [isTruncated, setIsTruncated] = useState(false)
   const [originalLength, setOriginalLength] = useState(0)
+  const highlightedForRef = useRef<{ response: unknown; highlight: typeof highlightCode } | null>(null)
 
   useEffect(() => {
     const argsTimer = window.setTimeout(() => setShowArgs(true), TOOL_ARGS_RENDER_DELAY_MS)
@@ -326,17 +348,24 @@ const ExpandedToolResponseContent: FC<{
   // Extract and highlight response when available
   useEffect(() => {
     if (!showResponse || !response) return
+    // Skip when the last completed highlight already covers these inputs — an
+    // <Activity> re-show re-runs this effect with an unchanged response, and
+    // the unconditional clear+shiki pass would flash and re-pay the highlight.
+    const last = highlightedForRef.current
+    if (last && last.response === response && last.highlight === highlightCode) return
 
     let cancelled = false
 
     const highlight = async () => {
       setHighlightedResponse('')
       setResponseImages([])
+      setResponseLinks([])
       setIsTruncated(false)
       setOriginalLength(0)
-      const { text: previewContent, images } = extractPreviewContent(response)
+      const { text: previewContent, images, links } = extractPreviewContent(response)
       if (cancelled) return
       setResponseImages(images)
+      setResponseLinks(links)
       const {
         data: truncatedContent,
         isTruncated: wasTruncated,
@@ -345,8 +374,9 @@ const ExpandedToolResponseContent: FC<{
       if (cancelled) return
       setIsTruncated(wasTruncated)
       setOriginalLength(origLen)
-      const result = await highlightCode(truncatedContent, 'json')
+      const result = truncatedContent ? await highlightCode(truncatedContent, 'json') : ''
       if (cancelled) return
+      highlightedForRef.current = { response, highlight: highlightCode }
       setHighlightedResponse(result)
     }
 
@@ -410,23 +440,26 @@ const ExpandedToolResponseContent: FC<{
       {renderArgsTable()}
 
       {/* Response */}
-      {response !== undefined && response !== null && (highlightedResponse || responseImages.length > 0) && (
-        <ResponseSection>
-          <ArgsSectionTitle>Response</ArgsSectionTitle>
-          {highlightedResponse && (
-            <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
-          )}
-          {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
-          {responseImages.map((img, idx) => (
-            <img
-              key={idx}
-              src={`data:${img.mimeType};base64,${img.data}`}
-              alt="Tool output"
-              style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
-            />
-          ))}
-        </ResponseSection>
-      )}
+      {response !== undefined &&
+        response !== null &&
+        (highlightedResponse || responseImages.length > 0 || responseLinks.length > 0) && (
+          <ResponseSection>
+            <ArgsSectionTitle>Response</ArgsSectionTitle>
+            {highlightedResponse && (
+              <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+            )}
+            {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+            <ToolResultLinkList links={responseLinks} />
+            {responseImages.map((img, idx) => (
+              <img
+                key={idx}
+                src={`data:${img.mimeType};base64,${img.data}`}
+                alt="Tool output"
+                style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
+              />
+            ))}
+          </ResponseSection>
+        )}
     </div>
   )
 }
@@ -434,7 +467,7 @@ const ExpandedToolResponseContent: FC<{
 const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
   <ToolDisclosure
     className={[
-      'border-none [--status-color-error:color-mix(in_oklch,var(--foreground)_66.6667%,transparent)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
+      'border-none [--status-color-error:var(--muted-foreground)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
       className
     ]
       .filter(Boolean)
@@ -475,7 +508,7 @@ const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
   <Flex
     className={[
-      'min-w-0 max-w-full shrink overflow-hidden font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/tool:text-foreground',
+      'min-w-0 max-w-full shrink overflow-hidden font-normal text-[13px] text-muted-foreground transition-colors duration-150 group-hover/tool:text-foreground',
       className
     ]
       .filter(Boolean)
@@ -492,7 +525,7 @@ const ActionButton = ({ className, type = 'button', ...props }: ComponentPropsWi
   <button
     type={type}
     className={[
-      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-muted-foreground opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-none',
       className
     ]
       .filter(Boolean)

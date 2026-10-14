@@ -1,22 +1,19 @@
-import type { MessageMenuBarScope } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
-import {
-  DEFAULT_MESSAGE_MENUBAR_SCOPE,
-  getMessageMenuBarConfig
-} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
-import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import type { Topic } from '@renderer/types/topic'
-import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
-import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
-import { classNames } from '@renderer/utils/style'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
+import { classNames } from '@renderer/utils/style'
+
 import { useMessageParts } from '../blocks/MessagePartsContext'
+import { useOptionalMessageCaptureLease } from '../list/MessageCaptureLeaseContext'
 import {
   useMessageListActions,
   useMessageListSelection,
   useMessageListUi,
+  useMessagePriorCitationParts,
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageMenuConfig, type MessageListItem } from '../types'
@@ -34,7 +31,6 @@ import MessageTokens from './MessageTokens'
 
 interface Props {
   message: MessageListItem
-  topic: Topic
   isGrouped?: boolean
   isLastMessage: boolean
   forceVisible?: boolean
@@ -43,7 +39,7 @@ interface Props {
   messageContainerRef: React.RefObject<HTMLDivElement>
   onStartEditing?: (messageId: string) => void
   onMenuOpenChange?: (open: boolean) => void
-  onUpdateUseful?: (msgId: string) => void
+  onSelectContext?: (msgId: string) => void
   variant?: 'footer' | 'header'
 }
 
@@ -55,11 +51,10 @@ const MessageMenuBar: FC<Props> = (props) => {
     forceVisible = false,
     isAssistantMessage,
     isProcessing,
-    topic,
     messageContainerRef,
     onStartEditing,
     onMenuOpenChange,
-    onUpdateUseful,
+    onSelectContext,
     variant = 'footer'
   } = props
   const { t } = useTranslation()
@@ -67,6 +62,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
   const renderConfig = useMessageRenderConfig()
+  const messageCaptureLease = useOptionalMessageCaptureLease()
   const menuConfig = messageUi.menuConfig ?? defaultMessageMenuConfig
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translateLanguages = useMemo(() => messageUi.translationLanguages ?? [], [messageUi.translationLanguages])
@@ -75,24 +71,25 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const messageParts = useMessageParts(message.id)
-  const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
+  const priorCitationParts = useMessagePriorCitationParts(message.id)
+  const messageForExport = useMemo(
+    () => createMessageExportView(message, messageParts, priorCitationParts),
+    [message, messageParts, priorCitationParts]
+  )
 
   const mainTextContent = useMemo(() => getComposerTextFromParts(messageParts), [messageParts])
 
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
 
-  const menubarScope: MessageMenuBarScope = topic?.type ?? DEFAULT_MESSAGE_MENUBAR_SCOPE
-  const { buttonIds } = getMessageMenuBarConfig(menubarScope)
-  const toolbarButtonIds = useMemo(() => new Set(buttonIds), [buttonIds])
-
-  const isEditable = isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts)
+  const isEditable =
+    actions.canEditMessage?.(message) ??
+    (isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts))
 
   const hasTranslationBlocks = hasTranslationParts(messageParts)
-  const isUseful = !!messageUi.getMessageUiState?.(message.id).useful
+  const isSelectedForContext = !!message.isActiveBranch
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-  const showMessageTokens =
-    renderConfig.showEstimatedTokens && variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
+  const showMessageTokens = variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
   const isUserBubbleStyleMessage = variant === 'footer' && isBubbleStyle && isUserMessage
 
   const actionContext = useMemo<MessageMenuBarActionContext>(
@@ -102,8 +99,9 @@ const MessageMenuBar: FC<Props> = (props) => {
       messageParts,
       messageForExport,
       messageContainerRef,
+      acquireMessageCaptureLease: messageCaptureLease?.acquireMessageCaptureLease,
+      getRenderedMessageElement: messageCaptureLease?.getRenderedMessageElement,
       mainTextContent,
-      toolbarButtonIds,
       selection,
       menuConfig,
       copied,
@@ -115,12 +113,13 @@ const MessageMenuBar: FC<Props> = (props) => {
       isTranslating,
       hasTranslationBlocks,
       isUserMessage,
-      isUseful,
+      isSelectedForContext,
       isEditable,
       translateLanguages,
+      translationLanguagesStatus: messageUi.translationLanguagesStatus,
       getTranslationLanguageLabel: messageUi.getTranslationLanguageLabel,
       startEditingMessage: onStartEditing,
-      onUpdateUseful,
+      onSelectContext,
       t
     }),
     [
@@ -133,22 +132,23 @@ const MessageMenuBar: FC<Props> = (props) => {
       isLastMessage,
       isProcessing,
       isTranslating,
-      isUseful,
+      isSelectedForContext,
       isUserMessage,
       mainTextContent,
       menuConfig,
       message,
       messageContainerRef,
+      messageCaptureLease,
       messageUi.getTranslationLanguageLabel,
+      messageUi.translationLanguagesStatus,
       messageForExport,
       messageParts,
       onStartEditing,
-      onUpdateUseful,
+      onSelectContext,
       selection,
       setCopied,
       t,
-      translateLanguages,
-      toolbarButtonIds
+      translateLanguages
     ]
   )
 
@@ -166,8 +166,9 @@ const MessageMenuBar: FC<Props> = (props) => {
   return (
     <>
       <div
+        data-ui="part:message-actions"
         className={classNames(
-          'menubar flex flex-row items-center justify-end gap-1.5',
+          'menubar flex select-none flex-row items-center justify-end gap-1.5',
           isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',
           (isLastMessage || forceVisible) && 'show'
         )}>

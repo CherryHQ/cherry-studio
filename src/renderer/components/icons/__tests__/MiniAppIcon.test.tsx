@@ -3,10 +3,12 @@ import type React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import MiniAppIcon from '../MiniAppIcon'
+import type * as MiniAppsLogoModule from '../miniAppsLogo'
 
 // Mirror production: only preset keys resolve to a CompoundIcon; everything else
 // (an uploaded logo's `file://` URL) returns undefined and renders as an image.
-vi.mock('@renderer/components/icons/miniAppsLogo', () => {
+vi.mock('@renderer/components/icons/miniAppsLogo', async (importOriginal) => {
+  const actual = await importOriginal<typeof MiniAppsLogoModule>()
   const CompoundLogo = ({
     'aria-label': ariaLabel,
     className,
@@ -31,15 +33,23 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => {
   CompoundLogo.colorPrimary = '#000000'
   return {
     getMiniAppsLogoRef: (logo: unknown) =>
-      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling'
+      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling' || logo === 'loading-logo'
         ? { kind: 'provider', key: logo, meta: { id: logo, colorPrimary: '#000000' } }
-        : undefined,
-    useMiniAppLogo: (logo: unknown) =>
-      logo === 'compound-logo' || logo === 'felo' || logo === 'abacus' || logo === 'ling' ? CompoundLogo : undefined
+        : actual.getMiniAppsLogoRef(logo as string | undefined),
+    useMiniAppLogo: (logo: unknown) => (logo !== 'loading-logo' ? CompoundLogo : undefined)
   }
 })
 
 describe('MiniAppIcon', () => {
+  it.each(['minimax', 'zeroone', 'mintop3', '3mintop', 'claude', 'ling'])(
+    'keeps the aliased %s artwork inside the sidebar glyph target',
+    (logo) => {
+      const { getByLabelText } = render(
+        <MiniAppIcon app={{ logo, name: 'Mini App' }} appearance="bare" size={18} artworkSize={14} />
+      )
+      expect(getByLabelText('Mini App')).toHaveStyle({ width: '14px', height: '14px' })
+    }
+  )
   const baseApp = {
     appId: 'test-app-1' as any,
     presetMiniAppId: 'test-preset',
@@ -103,10 +113,40 @@ describe('MiniAppIcon', () => {
     expect(container.querySelector('img')).toHaveAttribute('src', 'file:///files/tab.webp')
   })
 
+  it('renders an uploaded sidebar logo as a transparent circular icon', () => {
+    const { container } = render(
+      <MiniAppIcon
+        app={{ ...baseApp, logoSrc: 'file:///files/installed.webp', background: '#ffffff' }}
+        appearance="sidebar"
+        size={24}
+      />
+    )
+
+    const image = container.querySelector('img') as HTMLImageElement
+    expect(container.firstElementChild).not.toHaveClass('bg-white/90')
+    expect(image).toHaveClass('rounded-full', 'object-cover')
+    expect(image).toHaveStyle({ width: '24px', height: '24px' })
+    expect(image.style.backgroundColor).toBe('')
+  })
+
   it('returns null when there is neither a logo nor a logoSrc', () => {
     const { container } = render(<MiniAppIcon app={baseApp} />)
 
     expect(container.firstChild).toBeNull()
+  })
+
+  it('keeps a size-stable placeholder while a preset icon is loading', () => {
+    const { container } = render(
+      <MiniAppIcon app={{ ...baseApp, logo: 'loading-logo' }} size={48} style={{ marginTop: 4 }} />
+    )
+
+    expect(container.firstElementChild).toHaveClass('shrink-0')
+    expect(container.firstElementChild).toHaveStyle({
+      width: '48px',
+      height: '48px',
+      marginTop: '4px'
+    })
+    expect(container.querySelector('img, [data-testid="compound-logo"]')).toBeNull()
   })
 
   it('renders compound icons as avatar by default', () => {

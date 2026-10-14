@@ -15,7 +15,9 @@
  *   unambiguous.
  * - `displayName` is the original filename, kept for logs/observability.
  *
- * The internal `fileEntryId` never reaches the model.
+ * The internal `fileEntryId` never reaches the model *through this ref* — handles are
+ * what resolve. Agent sessions separately announce managed paths, whose UUID filename is
+ * the entry id; that disclosure is inherent to handing out a path, not a leak of this type.
  */
 export interface FileAttachmentRef {
   readonly fileEntryId: string

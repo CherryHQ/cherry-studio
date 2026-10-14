@@ -1,12 +1,15 @@
+import { EventEmitter } from 'events'
+
 import { loggerService } from '@logger'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentChannelEntity, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
-import { EventEmitter } from 'events'
 
 import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from './types'
 
 export type ChannelMessageEvent = {
   chatId: string
+  /** Stable external conversation identity. Defaults to chatId for platforms without threads. */
+  conversationId?: string
   userId: string
   userName: string
   text: string
@@ -16,6 +19,8 @@ export type ChannelMessageEvent = {
    * looked up from mutable per-chat state at send time. Adapters that don't need it omit it.
    */
   messageId?: string
+  /** Keep a response to this message inside its platform thread when supported. */
+  replyInThread?: boolean
   /** Pre-downloaded base64 images attached to the message. */
   images?: ImageAttachment[]
   /** Pre-downloaded base64 files attached to the message. */
@@ -24,19 +29,28 @@ export type ChannelMessageEvent = {
 
 export type ChannelCommandEvent = {
   chatId: string
+  /** Stable external conversation identity. Defaults to chatId for platforms without threads. */
+  conversationId?: string
   userId: string
   userName: string
   command: 'new' | 'compact' | 'help' | 'whoami'
   args?: string
   /** Platform message id of the command message, so the reply can target it. See `ChannelMessageEvent.messageId`. */
   messageId?: string
+  /** Keep a response to this command inside its platform thread when supported. */
+  replyInThread?: boolean
 }
 
 export type SendMessageOptions = {
   parseMode?: 'MarkdownV2' | 'HTML'
   /** Inbound message id to reply against. String for QQ (passive `msg_id`); number for Telegram. */
   replyToMessageId?: string | number
+  /** Keep the reply inside the inbound message's thread when the platform supports it. */
+  replyInThread?: boolean
 }
+
+export type ChannelStreamOutcome = { status: 'success' | 'paused' }
+export type ChannelStreamErrorOptions = { suppressDelivery: boolean }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
 type ChannelConfigByType = {
@@ -118,6 +132,11 @@ export abstract class ChannelAdapter extends EventEmitter {
     return this._connected
   }
 
+  /** Whether this instance still owns a stream subscription, including recoverable transport loss. */
+  isStreamListenerAlive(): boolean {
+    return this.connected
+  }
+
   /**
    * Mark the adapter as disconnected when the underlying connection drops unexpectedly.
    * Subclasses should call this from error handlers (e.g. WebSocket close, polling failure).
@@ -174,13 +193,19 @@ export abstract class ChannelAdapter extends EventEmitter {
    * Disconnect the adapter. Aborts any in-progress connect, then calls performDisconnect.
    */
   async disconnect(): Promise<void> {
-    if (this.connectAbort) {
-      this.connectAbort.abort()
-      this.connectAbort = null
-    }
+    this.abortConnect()
     this._connected = false
     await this.performDisconnect()
   }
+
+  /** Abort in-progress connection work before the owning runtime reconciles a newer target. */
+  abortConnect(): void {
+    this.connectAbort?.abort()
+    this.connectAbort = null
+  }
+
+  /** Allow adapters to recover transports invalidated while the system was suspended. */
+  handleSystemResume(): void {}
 
   /**
    * Check if the adapter has everything it needs to connect immediately.
@@ -204,7 +229,7 @@ export abstract class ChannelAdapter extends EventEmitter {
   protected abstract performDisconnect(): Promise<void>
 
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
-  abstract sendTypingIndicator(chatId: string): Promise<void>
+  abstract sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void>
 
   /**
    * Send a file to a chat. Non-abstract so adapters can adopt outbound file
@@ -222,9 +247,13 @@ export abstract class ChannelAdapter extends EventEmitter {
    * @param fullText - The full cumulative response text so far.
    */
   // oxlint-disable-next-line no-unused-vars
-  async onTextUpdate(_chatId: string, _fullText: string): Promise<void> {
+  async onTextUpdate(_chatId: string, _fullText: string, _opts?: SendMessageOptions): Promise<void> {
     // Default no-op — adapters that support streaming should override.
   }
+
+  /** Release an inbound response superseded by batching without sending a reply. */
+  // oxlint-disable-next-line no-unused-vars
+  discardResponse(_chatId: string, _opts?: SendMessageOptions): void {}
 
   /**
    * Called when the stream is complete. The adapter should finalize the
@@ -232,19 +261,30 @@ export abstract class ChannelAdapter extends EventEmitter {
    * @returns true if the adapter handled the final delivery (e.g. updated the card).
    *          false means the caller should fall back to sendMessage().
    */
-  // oxlint-disable-next-line no-unused-vars
-  async onStreamComplete(_chatId: string, _finalText: string): Promise<boolean> {
+  /* oxlint-disable no-unused-vars */
+  async onStreamComplete(
+    _chatId: string,
+    _finalText: string,
+    _opts?: SendMessageOptions,
+    _outcome?: ChannelStreamOutcome
+  ): Promise<boolean> {
     return false
   }
 
   /**
    * Called when the stream errors out. The adapter can update the streaming
-   * UI to show an error state.
+   * UI to show an error state. Return true when error delivery is handled.
    */
-  // oxlint-disable-next-line no-unused-vars
-  async onStreamError(_chatId: string, _error: string): Promise<void> {
-    // Default no-op.
+  async onStreamError(
+    _chatId: string,
+    _error: string,
+    _opts?: SendMessageOptions,
+    _options?: ChannelStreamErrorOptions
+  ): Promise<boolean> {
+    return false
   }
+
+  /* oxlint-enable no-unused-vars */
 
   // Typed event emitter overrides
   override emit(event: 'message', data: ChannelMessageEvent): boolean

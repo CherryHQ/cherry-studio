@@ -1,3 +1,6 @@
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -12,13 +15,13 @@ import {
   resolveCommandShortcutPreference
 } from '@shared/utils/command'
 import { normalizeShortcutBinding } from '@shared/utils/shortcut'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useCommandContextReader } from './useCommandContext'
 
 export type ShortcutSettingsGroup = 'general' | 'chat' | 'topic' | 'assistant'
 type CommandShortcutKey = CommandShortcutPreferenceKey<CommandId>
+
+const currentPlatform = platform as SupportedPlatform | undefined
 
 const shortcutPreferenceKeyMap = REGISTERED_KEYBINDINGS.reduce<Record<CommandId, CommandShortcutKey>>(
   (acc, rule) => {
@@ -76,7 +79,7 @@ export interface ShortcutListItem {
 export const getAllShortcutDefaultPreferences = (): Record<CommandShortcutKey, PreferenceShortcutType> => {
   return REGISTERED_KEYBINDINGS.reduce(
     (acc, rule) => {
-      const defaultPreference = getCommandDefaultShortcutPreference(rule.command)
+      const defaultPreference = getCommandDefaultShortcutPreference(rule.command, currentPlatform)
       if (!defaultPreference) {
         return acc
       }
@@ -100,10 +103,10 @@ export const useCommandShortcuts = () => {
       const rule = REGISTERED_KEYBINDINGS.find((item) => item.preferenceKey === key)
       if (!rule) return
       const currentValue = values[rule.command] as PreferenceShortcutType | undefined
-      const state = resolveCommandShortcutPreference(rule.command, currentValue)
+      const state = resolveCommandShortcutPreference(rule.command, currentValue, currentPlatform)
       if (!state) return
       const nextValue = buildNextPreference(state, currentValue, patch)
-      await setValues({ [rule.command]: nextValue } as Partial<Record<string, PreferenceShortcutType>>)
+      await setValues({ [rule.command]: nextValue })
     },
     [setValues, values]
   )
@@ -126,8 +129,8 @@ export const useCommandShortcuts = () => {
         }
 
         const rawValue = values[rule.command] as PreferenceShortcutType | undefined
-        const preference = resolveCommandShortcutPreference(rule.command, rawValue)
-        const defaultPreference = getCommandDefaultShortcutPreference(rule.command)
+        const preference = resolveCommandShortcutPreference(rule.command, rawValue, currentPlatform)
+        const defaultPreference = getCommandDefaultShortcutPreference(rule.command, currentPlatform)
         if (!preference || !defaultPreference) {
           return []
         }

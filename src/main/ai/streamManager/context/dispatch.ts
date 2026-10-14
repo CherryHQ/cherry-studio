@@ -5,10 +5,15 @@
  */
 
 import { loggerService } from '@logger'
+import { topicService } from '@main/data/services/TopicService'
+import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode'
+import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspace'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
@@ -18,7 +23,7 @@ import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
 
 /**
  * Resume an assistant turn paused on a tool-approval-request. Synthesised
- * inside `Ai_ToolApproval_Respond` after `ToolApprovalRegistry` reports
+ * inside `AiService.respondToolApproval` after `ToolApprovalRegistry` reports
  * no live entry for `approvalId`. Not on the renderer↔main IPC contract.
  */
 export interface MainContinueConversationRequest {
@@ -41,10 +46,18 @@ export interface MainSteerContinuationRequest {
   userMessageId: string
   /** Selection captured with the original busy submit. */
   reasoningEffort?: ReasoningEffortOption
+  /** Provider request tier captured with the original busy submit. */
+  serviceTier?: ServiceTierSelection
+  /** Fast selection captured with the original busy submit. */
+  fastMode: boolean
 }
 
 export type MainDispatchRequest = (
   | AiStreamOpenRequest
+  | (Omit<Extract<AiStreamOpenRequest, { trigger: 'submit-message' }>, 'trigger'> & {
+      trigger: 'edit-agent-message'
+      editTarget: AgentSessionEditTarget
+    })
   | MainContinueConversationRequest
   | MainSteerContinuationRequest
 ) & {
@@ -53,6 +66,10 @@ export type MainDispatchRequest = (
    * task), so runtimes must not enable ask-the-user tools. Never set on renderer requests.
    */
   headless?: boolean
+  /** Main-only durable user row accepted by the cross-session delivery path. */
+  agentDeliveryMessage?: AgentSessionMessageEntity
+  /** Trusted main-process sender identity for targeted MCP interaction requests. */
+  interactionWindowId?: WindowId
 }
 
 const logger = loggerService.withContext('chatContextDispatch')
@@ -112,12 +129,21 @@ export async function dispatchStreamRequest(
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
   }
+  for (const model of prepared.models) {
+    model.request.interactionWindowId = req.interactionWindowId
+  }
 
   // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an
   // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
   // and `onExecutionDone` chains a `steer-continuation` to answer it.
   if (prepared.pendingSteerUserMessageId) {
-    manager.enqueuePendingSteer(req.topicId, prepared.pendingSteerUserMessageId, prepared.pendingSteerReasoningEffort)
+    manager.enqueuePendingSteer(
+      req.topicId,
+      prepared.pendingSteerUserMessageId,
+      prepared.pendingSteerReasoningEffort,
+      prepared.pendingSteerServiceTier,
+      prepared.pendingSteerFastMode === true
+    )
   } else if (
     provider.name === persistentChatContextProvider.name &&
     prepared.models.length === 0 &&
@@ -140,34 +166,55 @@ export async function dispatchStreamRequest(
       ?.filter((message) => message.role === 'assistant')
       .map((message) => message.id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0) ?? []
-  const fallbackPlaceholderIds = prepared.models
-    .map((m) => m.request.messageId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0)
-  const placeholderIds = reservedAssistantIds.length > 0 ? reservedAssistantIds : fallbackPlaceholderIds
 
-  // Multi-model topics are persistent-only with a placeholder per model, so the
-  // filtered list must stay aligned with `executionIds`. Fail fast if a future
-  // multi-model provider ever returns a model without a messageId — silently
-  // dropping it would desync the renderer's per-execution bubble join.
-  if (prepared.isMultiModel && placeholderIds.length !== prepared.models.length) {
+  // Multi-model topics are persistent-only with a placeholder per model. Keep
+  // those reservations aligned with the executions the manager will launch.
+  if (prepared.models.length > 1 && reservedAssistantIds.length !== prepared.models.length) {
     throw new Error(
-      `Multi-model dispatch produced ${placeholderIds.length} placeholderIds for ${prepared.models.length} models (topicId=${prepared.topicId})`
+      `Multi-model dispatch produced ${reservedAssistantIds.length} assistant reservations for ${prepared.models.length} models (topicId=${prepared.topicId})`
     )
   }
+
+  // Async preparation may outlive the stream it planned to append to. Re-check
+  // liveness once at the synchronous handoff and degrade to a fresh turn when
+  // the original stream has settled.
+  const preparedChange = prepared.liveExecutionChange
+  const canAppendToLiveStream = preparedChange?.mode === 'append' && manager.hasLiveStream(prepared.topicId)
+  let preserveActiveNode = prepared.preserveActiveNode
+  if (preparedChange?.mode === 'append' && !canAppendToLiveStream && preparedChange.activateFallback) {
+    const fallbackActiveNodeId = reservedAssistantIds.at(-1)
+    if (!fallbackActiveNodeId) {
+      throw new Error(`Live-group append fallback produced no assistant placeholder (topicId=${prepared.topicId})`)
+    }
+    topicService.setActiveNode(prepared.topicId, fallbackActiveNodeId)
+    preserveActiveNode = false
+  }
+  const liveExecutionChange =
+    preparedChange?.mode === 'replace'
+      ? preparedChange
+      : preparedChange?.mode === 'append' && canAppendToLiveStream
+        ? {
+            mode: 'append' as const,
+            groupAnchorMessageId: preparedChange.groupAnchorMessageId,
+            parentAnchorId: preparedChange.parentAnchorId,
+            siblingsGroupId: preparedChange.siblingsGroupId
+          }
+        : undefined
 
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,
     listeners: prepared.listeners,
     siblingsGroupId: prepared.siblingsGroupId,
-    lifecycle: prepared.lifecycle
+    liveExecutionChange,
+    lifecycle: prepared.lifecycle,
+    isPersistentConversation: provider.isPersistentConversation
   })
 
   return {
     mode: result.mode,
-    executionIds: prepared.isMultiModel ? result.executionIds : undefined,
-    userMessageId: prepared.userMessageId,
-    reservedMessages: prepared.reservedMessages,
-    placeholderIds: placeholderIds.length > 0 ? placeholderIds : undefined
+    activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
+    preserveActiveNode,
+    reservedMessages: prepared.reservedMessages
   }
 }

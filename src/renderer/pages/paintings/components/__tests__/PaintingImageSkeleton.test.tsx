@@ -7,11 +7,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const mockPaintingSkeletonGrid = vi.hoisted(() => vi.fn())
-vi.mock('../PaintingSkeletonGrid', () => ({
+const mockPaintingSkeletonSurface = vi.hoisted(() => vi.fn())
+vi.mock('../PaintingSkeletonSurface', () => ({
   default: (props: { imageUrl?: string; onRevealReady?: () => void }) => {
-    mockPaintingSkeletonGrid(props)
-    return <div data-testid="painting-skeleton-grid" />
+    mockPaintingSkeletonSurface(props)
+    return <div data-testid="painting-skeleton-surface" />
   }
 }))
 
@@ -30,16 +30,15 @@ const supportWith = (key: string, options: string[], def: string) => ({
   modes: { generate: { supports: { [key]: { type: 'enum', options, default: def } } } }
 })
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'p1',
-    providerId: 'openai',
-    model: 'gpt-image-1',
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    ...overrides
-  }) as PaintingData
+const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
+  id: 'p1',
+  providerId: 'openai',
+  model: 'gpt-image-1',
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  ...overrides
+})
 
 describe('PaintingImageSkeleton', () => {
   beforeAll(() => {
@@ -56,10 +55,10 @@ describe('PaintingImageSkeleton', () => {
 
   beforeEach(() => {
     mockUseImageGenerationSupport.mockReset()
-    mockPaintingSkeletonGrid.mockClear()
+    mockPaintingSkeletonSurface.mockClear()
   })
 
-  it('renders the skeleton grid with the status role', () => {
+  it('renders the skeleton surface with the status role', () => {
     mockUseImageGenerationSupport.mockReturnValue(supportWith('size', ['1024x1024'], '1024x1024'))
 
     const { getByRole } = render(<PaintingImageSkeleton painting={makePainting()} />)
@@ -68,7 +67,7 @@ describe('PaintingImageSkeleton', () => {
     expect(getByRole('status').firstElementChild).not.toBeNull()
   })
 
-  it('passes the image url and reveal handoff through to the skeleton grid', () => {
+  it('passes the image url and reveal handoff through to the skeleton surface', () => {
     mockUseImageGenerationSupport.mockReturnValue(supportWith('size', ['1024x1024'], '1024x1024'))
     const onRevealReady = vi.fn()
 
@@ -80,7 +79,7 @@ describe('PaintingImageSkeleton', () => {
       />
     )
 
-    expect(mockPaintingSkeletonGrid).toHaveBeenLastCalledWith(
+    expect(mockPaintingSkeletonSurface).toHaveBeenLastCalledWith(
       expect.objectContaining({
         imageUrl: 'file:///tmp/image-1.png',
         onRevealReady
@@ -180,11 +179,11 @@ describe('PaintingImageSkeleton', () => {
 
     beforeEach(() => {
       clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400)
-      clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
-        this: HTMLElement
-      ) {
-        return this.dataset.testid === 'painting-skeleton-top-bar-measure' ? 40 : 300
-      })
+      clientHeight = vi
+        .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+        .mockImplementation(function (this: HTMLElement) {
+          return this.dataset.testid === 'painting-skeleton-top-bar-measure' ? 40 : 300
+        })
     })
 
     afterEach(() => {

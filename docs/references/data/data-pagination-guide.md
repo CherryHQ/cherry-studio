@@ -1,3 +1,11 @@
+---
+description: Canonical pagination spec - offset vs cursor (keyset) modes, wire contract, server codec, and renderer hooks
+sources:
+  - src/shared/data/api/types.ts
+  - src/main/data/services/utils/keysetCursor.ts
+  - src/renderer/data/hooks/useDataApi.ts
+---
+
 # Pagination Guide
 
 Canonical spec for paginating any list endpoint in the DataApi system. It is the
@@ -28,8 +36,9 @@ offset path (the path generic is constrained via `OffsetPaginatedPath` /
 bound or is read newest-first while being written to (messages, sessions,
 translate/painting history) — offset's `page * limit` window silently skips or
 repeats rows when items are inserted between requests. Prefer **offset** when the
-UI shows discrete page controls or needs an exact total (knowledge bases,
-assistants, files, MCP servers).
+UI shows discrete page controls or needs an exact total (assistants and MCP
+servers). A cursor response may still carry `total` when the UI needs both
+progressive loading and an exact count (knowledge bases and files).
 
 ## 2. The Four Layers (Quickstart)
 
@@ -130,20 +139,19 @@ calling `DataApiService` directly.
 
 ### Offset
 
-Compute `offset = (page - 1) * limit`, run the page query and a `count(*)` in
-one `Promise.all`, and return `{ items, total, page }`. The canonical real
+Compute `offset = (page - 1) * limit`, run the synchronous page query and
+`count(*)`, and return `{ items, total, page }`. The canonical real
 example is `AssistantService.list` (`src/main/data/services/AssistantService.ts`,
 backing `GET /assistants`):
 
 ```typescript
-async list(query: ListAssistantsQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
+list(query: ListAssistantsQuery): { items: Assistant[]; total: number; page: number } {
   const { page, limit } = query
   const offset = (page - 1) * limit
-  const [rows, [{ count }]] = await Promise.all([
-    this.db.select().from(assistantTable).where(whereClause)
-      .orderBy(...orderByClauses).limit(limit).offset(offset),
-    this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
-  ])
+  const rows = this.db.select().from(assistantTable).where(whereClause)
+    .orderBy(...orderByClauses).limit(limit).offset(offset).all()
+  const [{ count }] = this.db.select({ count: sql<number>`count(*)` })
+    .from(assistantTable).where(whereClause).all()
   return { items: rows.map(rowToEntity), total: Number(count), page }
 }
 ```
@@ -170,10 +178,11 @@ const cursor = decodeListCursor(query.cursor, asNumericKey, 'translate-history')
 const conditions: SQL[] = [...filterConditions]
 if (cursor) conditions.push(ordering.where(cursor))
 
-const rows = await db.select().from(table)
+const rows = db.select().from(table)
   .where(and(...conditions))
   .orderBy(...ordering.orderBy)   // cannot drift from ordering.where — same dir spec
   .limit(limit + 1)               // fetch one extra to detect "has next"
+  .all()
 
 const hasNext = rows.length > limit
 const pageRows = hasNext ? rows.slice(0, limit) : rows

@@ -13,18 +13,24 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { applyMigrations } from '@data/db/applyMigrations'
 import { readAppliedChain } from '@data/db/restore/appliedChain'
 import { hashDbFile } from '@data/db/restore/hashDbFile'
 import type * as RestoreJournalModule from '@data/db/restore/restoreJournal'
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import { readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
-import { isLiveDbStranded, markRestoreFailedAfterCrash, runRestorePromotion } from '@data/db/restore/restorePromotion'
+import {
+  cleanupTerminalRestoreArtifacts,
+  isLiveDbStranded,
+  markRestoreFailedAfterCrash,
+  runRestorePromotion
+} from '@data/db/restore/restorePromotion'
 import { appStateTable } from '@data/db/schemas/appState'
-import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Crash matrix for the restore promotion gate.
@@ -61,9 +67,16 @@ const markerFailure = vi.hoisted(() => ({
 const fsyncDirFailure = vi.hoisted(() => ({
   shouldFail: null as ((dir: string) => boolean) | null
 }))
+const renameFailure = vi.hoisted(() => ({ source: '', code: 'EPERM' }))
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsModule>()
+  const renameSync = (...args: Parameters<typeof actual.renameSync>) => {
+    if (args[0] === renameFailure.source) {
+      throw Object.assign(new Error('injected rename lock'), { code: renameFailure.code })
+    }
+    return actual.renameSync(...args)
+  }
   const openSync = (...args: Parameters<typeof actual.openSync>) => {
     const [target, flags] = args
     if (typeof target === 'string' && flags === 'r' && fsyncDirFailure.shouldFail?.(target)) {
@@ -71,7 +84,7 @@ vi.mock('node:fs', async (importOriginal) => {
     }
     return actual.openSync(...args)
   }
-  return { ...actual, default: { ...actual, openSync }, openSync }
+  return { ...actual, default: { ...actual, openSync, renameSync }, openSync, renameSync }
 })
 
 vi.mock('@data/db/restore/restoreJournal', async (importOriginal) => {
@@ -92,9 +105,9 @@ vi.mock('@application', () => ({
     getPath: vi.fn((key: string, filename?: string) => {
       const bases: Record<string, string> = {
         'app.userdata': userData,
-        'app.database.file': join(userData, 'cherrystudio.sqlite'),
+        'app.database.file': join(userData, 'Data', 'cherrystudio.sqlite'),
         'app.database.migrations': resolveMigrationsPath(),
-        'feature.backup.restore.file': join(userData, 'restore-journal.json'),
+        'feature.backup.restore.file': join(userData, 'Data', 'restore-journal.json'),
         'feature.backup.restore.staging': join(userData, 'restore-staging')
       }
       const base = bases[key]
@@ -107,13 +120,14 @@ vi.mock('@application', () => ({
 const RID = 'restore-t1'
 const MARKER_KEY = 'restore-test-marker'
 
-const livePath = () => join(userData, 'cherrystudio.sqlite')
-const asideRel = `cherrystudio.sqlite.pre-restore-${RID}`
+const dataDir = () => join(userData, 'Data')
+const livePath = () => join(dataDir(), 'cherrystudio.sqlite')
+const asideRel = `Data/cherrystudio.sqlite.pre-restore-${RID}`
 const asidePath = () => join(userData, asideRel)
 const workRel = `restore-staging/${RID}/work.sqlite`
 const workPath = () => join(userData, workRel)
 const stagingDir = () => join(userData, 'restore-staging', RID)
-const journalPath = () => join(userData, 'restore-journal.json')
+const journalPath = () => join(dataDir(), 'restore-journal.json')
 
 /** Create a migrated, sealed (cleanly closed ⇒ no -wal) DB with a marker row. */
 function makeDb(dbPath: string, which: 'old' | 'new'): void {
@@ -250,10 +264,58 @@ describe('runRestorePromotion', () => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
     markerFailure.shouldFail = null
     fsyncDirFailure.shouldFail = null
+    renameFailure.source = ''
+    renameFailure.code = 'EPERM'
   })
 
   afterEach(() => {
     rmSync(userData, { recursive: true, force: true })
+  })
+
+  it.each(['live', 'staged'] as const)(
+    'keeps the original database and storage when the %s directory rename fails',
+    async (source) => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      const live = join(userData, 'Local Storage')
+      const staged = join(stagingDir(), 'Local Storage')
+      mkdirSync(live)
+      mkdirSync(staged)
+      writeFileSync(join(live, 'data'), 'old')
+      writeFileSync(join(staged, 'data'), 'new')
+      writeRestoreJournal(
+        await buildJournal({
+          fileResources: [
+            {
+              kind: 'overwrite',
+              livePath: 'Local Storage',
+              stagingPath: `restore-staging/${RID}/Local Storage`,
+              asidePath: `restore-staging/${RID}/aside/Local Storage`
+            }
+          ]
+        })
+      )
+      renameFailure.source = source === 'live' ? live : staged
+
+      await runRestorePromotion()
+
+      expect(journalState()).toBe('failed')
+      expect(readMarker(livePath())).toBe('old')
+      expect(readFileSync(join(live, 'data'), 'utf8')).toBe('old')
+    }
+  )
+
+  it('keeps the original database when the work database rename fails', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    writeRestoreJournal(await buildJournal())
+    renameFailure.source = workPath()
+    renameFailure.code = 'EBUSY'
+
+    await runRestorePromotion()
+
+    expect(journalState()).toBe('failed')
+    expect(readMarker(livePath())).toBe('old')
   })
 
   it('does nothing and creates nothing when no journal exists (zero-cost early exit)', async () => {
@@ -262,7 +324,7 @@ describe('runRestorePromotion', () => {
     expect(readdirSync(userData)).toEqual([])
   })
 
-  it('returns without touching anything on a terminal journal', async () => {
+  it('leaves a terminal journal for the gate shell to consume', async () => {
     makeDb(livePath(), 'old')
     // Terminal journals are never gate-checked, so no work DB is needed.
     writeRestoreJournal(await buildJournal({ state: 'expired', chain: [{ folderMillis: 1, hash: 'x' }] }))
@@ -271,6 +333,36 @@ describe('runRestorePromotion', () => {
 
     expect(journalState()).toBe('expired')
     expect(readMarker(livePath())).toBe('old')
+  })
+
+  it('cleans a terminal journal and any remaining restore staging after the stranded-DB check', async () => {
+    makeDb(livePath(), 'old')
+    mkdirSync(stagingDir(), { recursive: true })
+    writeFileSync(join(stagingDir(), 'leftover'), 'stale')
+    writeRestoreJournal(
+      await buildJournal({
+        state: 'completed',
+        step: 'integrity-ok',
+        chain: [{ folderMillis: 1, hash: 'x' }]
+      })
+    )
+
+    cleanupTerminalRestoreArtifacts()
+
+    expect(readRestoreJournal()).toEqual({ kind: 'none' })
+    expect(existsSync(stagingDir())).toBe(false)
+    expect(readMarker(livePath())).toBe('old')
+  })
+
+  it('does not clean an active restore journal', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    writeRestoreJournal(await buildJournal())
+
+    cleanupTerminalRestoreArtifacts()
+
+    expect(journalState()).toBe('staged')
+    expect(existsSync(stagingDir())).toBe(true)
   })
 
   it('promotes a valid staged restore end to end (DB swap + manifest + terminal journal)', async () => {
@@ -294,6 +386,37 @@ describe('runRestorePromotion', () => {
     // Terminal bookkeeping: journal completed, staging tree gone.
     expect(journalState()).toBe('completed')
     expect(existsSync(stagingDir())).toBe(false)
+  })
+
+  it('overwrites a Data child without replacing the Data root that owns the live database', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const stagedAgents = join(stagingDir(), 'resources', 'Data', 'Agents')
+    const liveAgents = join(dataDir(), 'Agents')
+    mkdirSync(stagedAgents, { recursive: true })
+    writeFileSync(join(stagedAgents, 'new-agent.json'), 'NEW')
+    mkdirSync(liveAgents, { recursive: true })
+    writeFileSync(join(liveAgents, 'old-agent.json'), 'OLD')
+    writeRestoreJournal(
+      await buildJournal({
+        fileResources: [
+          {
+            kind: 'overwrite',
+            stagingPath: `restore-staging/${RID}/resources/Data/Agents`,
+            livePath: 'Data/Agents',
+            asidePath: `restore-staging/${RID}/aside/Data/Agents`
+          }
+        ]
+      })
+    )
+
+    await runRestorePromotion()
+
+    expect(readMarker(livePath())).toBe('new')
+    expect(readMarker(asidePath())).toBe('old')
+    expect(readFileSync(join(liveAgents, 'new-agent.json'), 'utf8')).toBe('NEW')
+    expect(existsSync(join(liveAgents, 'old-agent.json'))).toBe(false)
+    expect(journalState()).toBe('completed')
   })
 
   it('expires when the live fingerprint drifted (write-gate leak simulation)', async () => {
@@ -334,8 +457,14 @@ describe('runRestorePromotion', () => {
     // (fewer applied migrations); here work carries the full chain and only
     // the journal's CLAIMED chain is truncated. The gate compares only the
     // claimed chain against the bundled one, so the pinned contract is the same.
-    const prefix = chainOf(workPath()).slice(0, -1)
-    expect(prefix.length).toBeGreaterThan(0)
+    const chain = chainOf(workPath())
+    // A freshly reinitialized migration history has only its initial entry,
+    // so a non-empty strict prefix cannot exist until the next migration lands.
+    if (chain.length < 2) {
+      expect(chain).toHaveLength(1)
+      return
+    }
+    const prefix = chain.slice(0, -1)
     writeRestoreJournal(await buildJournal({ chain: prefix }))
 
     await runRestorePromotion()
@@ -377,7 +506,7 @@ describe('runRestorePromotion', () => {
     // Crash arrangement: additive moved, live renamed aside, work untouched.
     arrangeAdditiveMoved()
     renameSync(livePath(), asidePath())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
     await runRestorePromotion()
 
@@ -394,48 +523,6 @@ describe('runRestorePromotion', () => {
     expect(existsSync(stagingDir())).toBe(false)
   })
 
-  it('continues the manifest inverse past a failing entry (best-effort rollback)', async () => {
-    makeDb(livePath(), 'old')
-    makeDb(workPath(), 'new')
-    seedManifestFixtures()
-    // Poisoned entry: its live path is a non-empty DIRECTORY, so the inverse's
-    // non-recursive rmSync throws. The rollback must keep going — the healthy
-    // entry's aside restore and the DB rollback may not be aborted by it.
-    mkdirSync(join(userData, 'poison-target'), { recursive: true })
-    writeFileSync(join(userData, 'poison-target', 'child.txt'), 'x')
-    mkdirSync(join(userData, 'poison-aside'), { recursive: true })
-    writeFileSync(join(userData, 'poison-aside', 'original.txt'), 'ORIGINAL')
-    const manifest: RestoreJournal['fileResources'] = [
-      {
-        kind: 'overwrite',
-        stagingPath: `restore-staging/${RID}/poison.bin`,
-        livePath: 'poison-target',
-        asidePath: 'poison-aside/original.txt'
-      },
-      {
-        kind: 'note-overwrite',
-        stagingPath: `restore-staging/${RID}/notes/note.md`,
-        livePath: 'Notes/note.md',
-        asidePath: `restore-aside/${RID}/note.md`
-      }
-    ]
-    const journal = await buildJournal({ fileResources: manifest })
-    // Pre-commit crash arrangement with the note already overwritten + parked.
-    mkdirSync(dirname(noteAside()), { recursive: true })
-    renameSync(liveNote(), noteAside())
-    renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
-    renameSync(livePath(), asidePath())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
-
-    await runRestorePromotion()
-
-    // DB rollback and the healthy entry's restore happened despite entry 1 failing.
-    expect(readMarker(livePath())).toBe('old')
-    expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
-    expect(journalState()).toBe('failed')
-    expect(existsSync(stagingDir())).toBe(false)
-  })
-
   it('resumes a post-commit crash (step=work-promoted): entries applied, completed', async () => {
     makeDb(livePath(), 'old')
     makeDb(workPath(), 'new')
@@ -445,7 +532,7 @@ describe('runRestorePromotion', () => {
     arrangeAdditiveMoved()
     renameSync(livePath(), asidePath())
     renameSync(workPath(), livePath())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
 
     await runRestorePromotion()
 
@@ -470,7 +557,7 @@ describe('runRestorePromotion', () => {
     arrangeAdditiveMoved()
     renameSync(livePath(), asidePath())
     renameSync(workPath(), livePath())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
     await runRestorePromotion()
 
@@ -500,7 +587,7 @@ describe('runRestorePromotion', () => {
     renameSync(liveNote(), noteAside())
     renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
     renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' })
 
     await runRestorePromotion()
 
@@ -519,27 +606,71 @@ describe('runRestorePromotion', () => {
     makeDb(livePath(), 'old')
     makeDb(workPath(), 'new')
     seedManifestFixtures()
-    const journal = await buildJournal({ fileResources: standardManifest() })
+    const stagedClaude = join(stagingDir(), 'app-claude')
+    const liveClaude = join(userData, '.claude')
+    mkdirSync(stagedClaude, { recursive: true })
+    writeFileSync(join(stagedClaude, 'new-session.jsonl'), 'NEW')
+    mkdirSync(liveClaude, { recursive: true })
+    writeFileSync(join(liveClaude, 'old-session.jsonl'), 'OLD')
+    const manifest: RestoreJournal['fileResources'] = [
+      ...standardManifest(),
+      {
+        kind: 'overwrite',
+        stagingPath: `restore-staging/${RID}/app-claude`,
+        livePath: '.claude',
+        asidePath: `restore-staging/${RID}/aside/.claude`
+      }
+    ]
+    const journal = await buildJournal({ fileResources: manifest })
     // Crash arrangement at step=work-promoted, but the promoted live file is
     // corrupt garbage — integrity must fail AFTER entries get applied.
     arrangeAdditiveMoved()
     renameSync(livePath(), asidePath())
     rmSync(workPath())
     writeFileSync(livePath(), 'THIS IS NOT A SQLITE DATABASE'.repeat(300))
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
 
     await runRestorePromotion()
 
-    // Old DB is live again; the broken candidate is retained for forensics.
+    // Old DB is live again; the failed candidate is removed after rollback.
     expect(readMarker(livePath())).toBe('old')
     const workFailed = readdirSync(userData).filter((name) => name.includes(`work-failed-${RID}`))
-    expect(workFailed).toHaveLength(1)
+    expect(workFailed).toHaveLength(0)
     // ALL file operations undone — note aside restored, every add removed.
     expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
     expect(existsSync(noteAside())).toBe(false)
     expect(existsSync(liveBlob())).toBe(false)
     expect(existsSync(liveKbDir())).toBe(false)
     expect(existsSync(liveAddedNote())).toBe(false)
+    // Directory overwrites use the same aside-first rollback as files.
+    expect(readFileSync(join(liveClaude, 'old-session.jsonl'), 'utf8')).toBe('OLD')
+    expect(existsSync(join(liveClaude, 'new-session.jsonl'))).toBe(false)
+    expect(journalState()).toBe('failed')
+    expect(existsSync(stagingDir())).toBe(false)
+  })
+
+  it('keeps the failed candidate until the original database can be restored', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const journal = await buildJournal()
+    renameSync(livePath(), asidePath())
+    rmSync(workPath())
+    const corruptCandidate = 'NOT A SQLITE DATABASE'.repeat(300)
+    writeFileSync(livePath(), corruptCandidate)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
+    renameFailure.source = asidePath()
+
+    await expect(runRestorePromotion()).rejects.toThrow('injected rename lock')
+
+    expect(readMarker(asidePath())).toBe('old')
+    expect(readFileSync(join(stagingDir(), 'failed.sqlite'), 'utf8')).toBe(corruptCandidate)
+    expect(journalState()).toBe('promoting')
+    expect(isLiveDbStranded()).toBe(true)
+
+    renameFailure.source = ''
+    await runRestorePromotion()
+
+    expect(readMarker(livePath())).toBe('old')
     expect(journalState()).toBe('failed')
     expect(existsSync(stagingDir())).toBe(false)
   })
@@ -560,7 +691,7 @@ describe('runRestorePromotion', () => {
     renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
     renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
     renameSync(workPath(), join(userData, `work-failed-${RID}.sqlite`))
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'entries-applied' })
 
     await runRestorePromotion()
 
@@ -593,7 +724,7 @@ describe('runRestorePromotion', () => {
     renameSync(join(stagingDir(), 'notes', 'note.md'), liveNote())
     renameSync(join(stagingDir(), 'notes', 'added.md'), liveAddedNote())
     renameSync(workPath(), join(userData, `work-failed-${RID}.sqlite`))
-    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+    writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
     await runRestorePromotion()
 
@@ -615,7 +746,7 @@ describe('runRestorePromotion', () => {
     await runRestorePromotion()
 
     expect(existsSync(journalPath())).toBe(false)
-    const quarantined = readdirSync(userData).filter((name) => name.startsWith('restore-journal.json.corrupt-'))
+    const quarantined = readdirSync(dataDir()).filter((name) => name.startsWith('restore-journal.json.corrupt-'))
     expect(quarantined).toHaveLength(1)
     expect(existsSync(join(userData, 'restore-staging'))).toBe(false)
     expect(readMarker(livePath())).toBe('old')
@@ -689,7 +820,7 @@ describe('runRestorePromotion', () => {
       arrangeAdditiveMoved()
       renameSync(livePath(), asidePath())
       renameSync(workPath(), livePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
       markerFailure.shouldFail = (j) => j.state === 'promoting' && j.step === 'work-promoted'
 
       await runRestorePromotion()
@@ -745,7 +876,7 @@ describe('runRestorePromotion', () => {
         // while live is absent (the live-aside rename). One-shot so the
         // continuation's later journal fsyncs of the same dir go through.
         fsyncDirFailure.shouldFail = (dir) => {
-          if (dir === userData && existsSync(livePath()) && !existsSync(workPath())) {
+          if (dir === dataDir() && existsSync(livePath()) && !existsSync(workPath())) {
             fsyncDirFailure.shouldFail = null
             return true
           }
@@ -833,7 +964,7 @@ describe('runRestorePromotion', () => {
       writeFileSync(join(liveKbDir(), 'user.txt'), 'USER-KB')
       writeFileSync(liveAddedNote(), 'USER-DATA')
       renameSync(livePath(), asidePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
       await runRestorePromotion()
 
@@ -890,7 +1021,7 @@ describe('runRestorePromotion', () => {
       // The work slot must be empty too — mid-revert the candidate DB was
       // already parked as work-failed-*, so nothing here reads as resumable.
       rmSync(workPath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
 
       markRestoreFailedAfterCrash()
 
@@ -911,7 +1042,7 @@ describe('runRestorePromotion', () => {
       arrangeAdditiveMoved()
       renameSync(livePath(), asidePath())
       renameSync(workPath(), livePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'work-promoted' })
 
       markRestoreFailedAfterCrash()
 
@@ -932,7 +1063,7 @@ describe('runRestorePromotion', () => {
       arrangeAdditiveMoved()
       renameSync(livePath(), asidePath())
       renameSync(workPath(), livePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
       markRestoreFailedAfterCrash()
 
@@ -949,7 +1080,7 @@ describe('runRestorePromotion', () => {
       makeDb(workPath(), 'new')
       const journal = await buildJournal()
       renameSync(livePath(), asidePath())
-      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' } as RestoreJournal)
+      writeRestoreJournal({ ...journal, state: 'promoting', step: 'live-aside' })
 
       expect(isLiveDbStranded()).toBe(true)
     })
@@ -967,6 +1098,7 @@ describe('runRestorePromotion', () => {
     })
 
     it('is false on a corrupt journal (no aside path to check)', () => {
+      mkdirSync(dataDir(), { recursive: true })
       writeFileSync(journalPath(), '{ definitely not a journal')
 
       expect(isLiveDbStranded()).toBe(false)

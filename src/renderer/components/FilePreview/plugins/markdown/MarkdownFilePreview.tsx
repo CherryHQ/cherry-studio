@@ -1,22 +1,26 @@
-import '@cherrystudio/ui/components/composites/markdown/styles'
-
-import { EmptyState, Markdown, withFullMarkdown } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { createFilePathHandle } from '@shared/utils/file'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useEffect, useId, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
+import { EmptyState } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
+import { parseFileLinkHref } from '@renderer/utils/filePath'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
+import { joinPath } from '@renderer/utils/path'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+
 import type { FilePreviewPluginProps } from '../../types'
+import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
 
 const logger = loggerService.withContext('MarkdownFilePreview')
 const MARKDOWN_PREVIEW_MAX_SIZE_MIB = 2
 const MARKDOWN_PREVIEW_MAX_SIZE_BYTES = MARKDOWN_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
-const MARKDOWN_PLUGINS = withFullMarkdown()
+const YAML_FRONTMATTER_PATTERN = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[^\S\r\n]*(?:\r?\n|$)/
 const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 
 type MarkdownFileLoadState =
@@ -36,7 +40,7 @@ function MarkdownPreviewLoading() {
   )
 }
 
-function MarkdownPreviewError({ error }: { error: Error }) {
+function MarkdownPreviewError() {
   const { t } = useTranslation()
 
   return (
@@ -44,8 +48,8 @@ function MarkdownPreviewError({ error }: { error: Error }) {
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.markdown.read_error.title')}
-        description={error.message}
-        className="h-full [&_p]:break-all"
+        description={t('file_preview.load_error.description')}
+        className="h-full"
       />
     </div>
   )
@@ -80,16 +84,43 @@ function MarkdownPreviewEmpty() {
 }
 
 interface MarkdownPreviewContentProps {
+  hideFrontmatter: boolean
   loadState: MarkdownFileLoadState
   markdownId: string
   mode: MarkdownFilePreviewMode
 }
 
-function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreviewContentProps): ReactNode {
-  const { t } = useTranslation()
+function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
+  const linkPath = parseFileLinkHref(href)
+  if (!linkPath) return null
+
+  const candidate = AbsoluteFilePathSchema.safeParse(linkPath).success ? linkPath : joinPath(workspacePath, linkPath)
+
+  try {
+    return normalizeFilePreviewPath(candidate)
+  } catch {
+    return null
+  }
+}
+
+function MarkdownPreviewContent({
+  hideFrontmatter,
+  loadState,
+  markdownId,
+  mode
+}: MarkdownPreviewContentProps): ReactNode {
+  const navigation = useOptionalFilePreviewNavigation()
+  const openFilePath = useCallback(
+    (path: string) => {
+      if (!navigation) return
+      const target = resolveMarkdownFileLink(navigation.workspacePath, path)
+      if (target) return navigation.openFile(target)
+    },
+    [navigation]
+  )
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
-  if (loadState.status === 'error') return <MarkdownPreviewError error={loadState.error} />
+  if (loadState.status === 'error') return <MarkdownPreviewError />
   if (loadState.status === 'too_large') return <MarkdownPreviewTooLarge />
 
   if (mode === 'source') {
@@ -107,21 +138,23 @@ function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreview
     )
   }
 
-  if (loadState.content.trim().length === 0) return <MarkdownPreviewEmpty />
+  const content = hideFrontmatter ? loadState.content.replace(YAML_FRONTMATTER_PATTERN, '') : loadState.content
+  if (content.trim().length === 0) return <MarkdownPreviewEmpty />
 
-  return (
-    <div className="mx-auto w-full max-w-4xl">
-      <Markdown id={markdownId} plugins={MARKDOWN_PLUGINS} footnoteLabel={t('common.footnotes')}>
-        {loadState.content}
-      </Markdown>
+  const markdown = (
+    <div className="mx-auto w-full max-w-4xl px-4 pt-4">
+      <StaticMarkdown id={markdownId}>{content}</StaticMarkdown>
     </div>
   )
+
+  return navigation ? <MarkdownHostProvider openFilePath={openFilePath}>{markdown}</MarkdownHostProvider> : markdown
 }
 
-export default function MarkdownFilePreview({ filePath, refreshKey }: FilePreviewPluginProps) {
+export default function MarkdownFilePreview({ filePath, metadata, refreshKey, type = 'file' }: FilePreviewPluginProps) {
   const markdownId = useId()
   const [mode, setMode] = useState<MarkdownFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<MarkdownFileLoadState>({ status: 'loading' })
+  const effectiveMode = type === 'artifact' ? 'preview' : mode
 
   useEffect(() => {
     let cancelled = false
@@ -129,9 +162,6 @@ export default function MarkdownFilePreview({ filePath, refreshKey }: FilePrevie
 
     void (async () => {
       try {
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
-        if (cancelled) return
-
         if (metadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
@@ -150,13 +180,20 @@ export default function MarkdownFilePreview({ filePath, refreshKey }: FilePrevie
     return () => {
       cancelled = true
     }
-  }, [filePath, refreshKey])
+  }, [filePath, metadata.size, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>
-      <MarkdownFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
+      {type === 'file' ? (
+        <MarkdownFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
+      ) : null}
       <FilePreviewLayout.Content>
-        <MarkdownPreviewContent loadState={loadState} markdownId={markdownId} mode={mode} />
+        <MarkdownPreviewContent
+          hideFrontmatter={type === 'artifact'}
+          loadState={loadState}
+          markdownId={markdownId}
+          mode={effectiveMode}
+        />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

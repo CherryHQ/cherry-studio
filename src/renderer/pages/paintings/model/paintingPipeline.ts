@@ -11,14 +11,27 @@ import type { PaintingData } from './types/paintingData'
 
 const logger = loggerService.withContext('paintings/paintingPipeline')
 
+export interface PaintingDraftDefaults {
+  providerId: string
+  modelId?: string
+}
+
 /**
  * Build an initial `PaintingData` row for a new painting under the given
- * provider. Single empty shape — every per-model knob lives in
+ * provider and optional configured model. Every per-model knob lives in
  * `params: Record<string, unknown>` and gets populated by the form when the
  * user picks a model + edits controls.
  */
-export function createDefaultPainting(providerId: string): PaintingData {
-  return { id: uuid(), providerId, mode: 'generate', prompt: '', files: [], params: {} }
+export function createDefaultPainting({ providerId, modelId }: PaintingDraftDefaults): PaintingData {
+  return {
+    id: uuid(),
+    providerId,
+    mode: 'generate',
+    prompt: '',
+    files: [],
+    params: {},
+    ...(modelId && { model: modelId })
+  }
 }
 
 /**

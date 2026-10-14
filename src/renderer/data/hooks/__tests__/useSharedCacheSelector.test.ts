@@ -1,3 +1,6 @@
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Contract tests for the multi-key shared cache selector hook.
  *
@@ -15,8 +18,8 @@
  */
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { installCacheApiMock } from './testUtils'
 
 // Undo the global mocks from renderer.setup.ts — the contract only means
 // anything against the real store wiring.
@@ -34,16 +37,7 @@ let consoleErrorSpy: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   broadcastSync.mockClear()
 
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      cache: {
-        broadcastSync,
-        onSync: vi.fn(),
-        getAllShared: vi.fn(async () => ({}))
-      }
-    }
-  })
+  installCacheApiMock(broadcastSync)
 
   // The singleton persists across tests — make sure the keys start absent.
   cacheService.deleteShared(KEY_A)

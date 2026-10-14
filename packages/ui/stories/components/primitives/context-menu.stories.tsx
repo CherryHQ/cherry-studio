@@ -1,3 +1,7 @@
+import type { Meta, StoryObj } from '@storybook/react'
+import { Cloud, Copy, Edit, Folder, Mail, Settings, Trash2, User } from 'lucide-react'
+import * as React from 'react'
+
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -15,9 +19,6 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger
 } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
-import { Cloud, Copy, Edit, Folder, Mail, Settings, Trash2, User } from 'lucide-react'
-import * as React from 'react'
 
 const meta: Meta<typeof ContextMenu> = {
   title: 'Components/Primitives/ContextMenu',

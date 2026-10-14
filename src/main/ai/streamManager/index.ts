@@ -1,12 +1,15 @@
+export { AiStreamAdmissionError } from './admission'
 export { AiStreamManager } from './AiStreamManager'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
+export { agentChatContextProvider } from './context/AgentChatContextProvider'
+export type { MainDispatchRequest } from './context/dispatch'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'
 export { PersistenceListener } from './listeners/PersistenceListener'
 export { SseListener } from './listeners/SseListener'
 export { TraceFlushListener } from './listeners/TraceFlushListener'
 export { WebContentsListener } from './listeners/WebContentsListener'
-export { TranslationBackend } from './persistence/backends/TranslationBackend'
-export type { PersistAssistantInput, PersistenceBackend } from './persistence/PersistenceBackend'
+export type { MessageRuntimeTimingSink } from './MessageRuntimeTimingCollector'
+export type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from './persistence/PersistenceBackend'
 export { finalizeInterruptedParts } from './persistence/PersistenceBackend'
 export type {
   ActiveStream,
@@ -16,6 +19,7 @@ export type {
   AiStreamManagerConfig,
   AiStreamOpenRequest,
   CherryUIMessage,
+  ConversationCompletedEvent,
   StreamChunkPayload,
   StreamDonePayload,
   StreamDoneResult,

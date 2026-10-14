@@ -11,7 +11,6 @@
  * - providers.ts - Provider API handlers
  * - translate.ts - Translate API handlers
  */
-
 import type { ApiImplementation } from '@shared/data/api/types'
 
 import { agentChannelHandlers } from './agentChannels'
@@ -19,7 +18,12 @@ import { agentHandlers } from './agents'
 import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
+import { aiUsageRecordHandlers } from './aiUsageRecords'
+import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
+import { archiveHandlers } from './archives'
 import { assistantHandlers } from './assistants'
+import { browserVisitHandlers } from './browserVisits'
+import { diagnosticReportHandlers } from './diagnosticReports'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
@@ -48,9 +52,13 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
+  ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
+  ...archiveHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,
+  ...browserVisitHandlers,
+  ...diagnosticReportHandlers,
   ...topicHandlers,
   ...messageHandlers,
   ...fileHandlers,
@@ -72,5 +80,6 @@ export const apiHandlers: ApiImplementation = {
   ...promptHandlers,
   ...agentWorkspaceHandlers,
   ...jobHandlers,
-  ...searchHandlers
+  ...searchHandlers,
+  ...aiUsageRecordHandlers
 }

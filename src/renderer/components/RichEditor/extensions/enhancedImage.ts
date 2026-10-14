@@ -12,19 +12,28 @@ declare module '@tiptap/core' {
   }
 }
 
+interface EnhancedImageOptions extends ImageOptions {
+  enableInputRules: boolean
+}
+
 // Enhanced Image extension that emits events for image upload
-export const EnhancedImage = Image.extend({
+export const EnhancedImage = Image.extend<EnhancedImageOptions>({
   addOptions() {
     // @tiptap/extension-image@3.26 made `inline`/`resize` required options. Spreading the
-    // optional `this.parent?.()` widens them to optional, so cast back to ImageOptions —
-    // the parent extension always provides the real defaults at runtime.
+    // optional `this.parent?.()` widens them to optional, so cast back to our extended
+    // option type — the parent extension always provides the real defaults at runtime.
     return {
       ...this.parent?.(),
       allowBase64: true,
+      enableInputRules: true,
       HTMLAttributes: {
         class: 'rich-editor-image'
       }
-    } as ImageOptions
+    } as EnhancedImageOptions
+  },
+
+  addInputRules() {
+    return this.options.enableInputRules ? (this.parent?.() ?? []) : []
   },
 
   addAttributes() {

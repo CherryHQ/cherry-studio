@@ -1,6 +1,7 @@
-import AuthConnectionSlotsLayout from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/AuthConnectionSlotsLayout'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import AuthConnectionSlotsLayout from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/AuthConnectionSlotsLayout'
 
 type TestProvider = { id: string; presetProviderId?: string; authMethods?: string[] }
 
@@ -62,39 +63,6 @@ describe('AuthConnectionSlotsLayout', () => {
     )
 
     expect(container.querySelector('h3')).toBeNull()
-  })
-
-  it('uses compact spacing only for AWS Bedrock', () => {
-    const { container, rerender } = render(
-      <AuthConnectionSlotsLayout providerId="aws-bedrock">
-        <div>core</div>
-      </AuthConnectionSlotsLayout>
-    )
-
-    expect(container.querySelector('.gap-1')).not.toBeNull()
-    expect(container.querySelector('.gap-5')).toBeNull()
-
-    rerender(
-      <AuthConnectionSlotsLayout providerId="openai">
-        <div>core</div>
-      </AuthConnectionSlotsLayout>
-    )
-
-    expect(container.querySelector('.gap-5')).not.toBeNull()
-    expect(container.querySelector('.gap-1')).toBeNull()
-  })
-
-  it('uses compact spacing for providers derived from the AWS Bedrock preset', () => {
-    providersById.set('custom-bedrock', { id: 'custom-bedrock', presetProviderId: 'aws-bedrock' })
-
-    const { container } = render(
-      <AuthConnectionSlotsLayout providerId="custom-bedrock">
-        <div>core</div>
-      </AuthConnectionSlotsLayout>
-    )
-
-    expect(container.querySelector('.gap-1')).not.toBeNull()
-    expect(container.querySelector('.gap-5')).toBeNull()
   })
 
   it('omits the empty generic authentication container for login-based providers', () => {

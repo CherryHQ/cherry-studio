@@ -1,6 +1,8 @@
+import { useCallback, useMemo, useState } from 'react'
+
 import { MODEL_DISPLAY_TAGS, type ModelDisplayTag, modelMatchesDisplayTag } from '@renderer/components/tags/Model'
 import type { Model } from '@shared/data/types/model'
-import { useCallback, useMemo, useState } from 'react'
+import type { Provider } from '@shared/data/types/provider'
 
 export const MODEL_SELECTOR_TAGS = MODEL_DISPLAY_TAGS
 
@@ -28,9 +30,9 @@ export function useModelTagFilter() {
   }, [])
 
   const tagFilter = useCallback(
-    (model: Model) => {
+    (model: Model, provider?: Provider) => {
       if (selectedTags.length === 0) return true
-      return selectedTags.every((tag) => modelMatchesDisplayTag(model, tag))
+      return selectedTags.every((tag) => modelMatchesDisplayTag(model, tag, provider))
     },
     [selectedTags]
   )

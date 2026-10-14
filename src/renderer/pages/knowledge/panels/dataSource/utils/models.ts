@@ -1,3 +1,6 @@
+import type { LucideIcon } from 'lucide-react'
+import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
+
 import { formatRelativeTime } from '@renderer/utils/time'
 import {
   getKnowledgeItemDisplayTitle,
@@ -6,8 +9,6 @@ import {
   type KnowledgeItemStatus,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import type { LucideIcon } from 'lucide-react'
-import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
 
 export type DataSourceStatus = 'completed' | 'processing' | 'failed'
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'
@@ -73,7 +74,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'failed',
       labelKey: 'knowledge.data_source.status.error',
-      textClassName: 'text-red-500/60',
+      textClassName: 'text-error',
       icon: 'alert'
     }
   }
@@ -82,7 +83,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
-      textClassName: 'text-amber-500/70',
+      textClassName: 'text-warning',
       icon: 'loader'
     }
   }
@@ -90,8 +91,8 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
   if (status === 'reading') {
     return {
       kind: 'processing',
-      labelKey: 'knowledge.rag.file_processing',
-      textClassName: 'text-blue-500/70',
+      labelKey: 'knowledge.data_source.status.reading',
+      textClassName: 'text-info',
       icon: 'loader'
     }
   }
@@ -100,7 +101,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
-      textClassName: 'text-yellow-500/70',
+      textClassName: 'text-yellow-500',
       icon: 'loader'
     }
   }
@@ -109,7 +110,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.pending',
-      textClassName: 'text-zinc-500/70',
+      textClassName: 'text-zinc-500',
       icon: 'loader'
     }
   }
@@ -117,7 +118,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
   return {
     kind: 'processing',
     labelKey: 'knowledge.data_source.status.chunking',
-    textClassName: 'text-violet-500/70',
+    textClassName: 'text-violet-500',
     icon: 'loader'
   }
 }

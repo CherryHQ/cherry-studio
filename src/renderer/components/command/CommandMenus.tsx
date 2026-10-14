@@ -1,3 +1,5 @@
+import React, { useCallback, useMemo, useRef, useState } from 'react'
+
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -41,7 +43,6 @@ import type {
   SupportedPlatform
 } from '@shared/types/command'
 import { type CommandId, findKeybindingRule, resolveMenuPresentationMode } from '@shared/utils/command'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 
@@ -560,7 +561,15 @@ export function CommandContextMenu({
         <ContextMenuContent
           className={contentClassName}
           onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}>
+          onMouseDown={(e) => e.stopPropagation()}
+          onCloseAutoFocus={(e) => {
+            // 菜单卸载时 Radix 会把焦点还原到打开前的元素（右键聚焦的行），
+            // 打掉刚挂载的 rename 输入框。仅当关闭瞬间焦点已被菜单外元素持有时拦截。
+            const active = document.activeElement
+            if (active && active !== document.body && !(e.target as HTMLElement).contains(active)) {
+              e.preventDefault()
+            }
+          }}>
           {combinedItems.map((item, index) =>
             isExtraMenuItem(item) ? (
               <CommandContextMenuExtraItemView
@@ -710,7 +719,8 @@ export function CommandPopupMenu({
   disabled,
   renderIcon,
   extraItems = EMPTY_EXTRA_ITEMS,
-  presentationMode
+  presentationMode,
+  deferActionsUntilClosed = false
 }: {
   location: MenuLocation
   children: React.ReactNode
@@ -725,6 +735,7 @@ export function CommandPopupMenu({
   renderIcon?: CommandIconRenderer
   extraItems?: readonly CommandContextMenuExtraItem[]
   presentationMode?: MenuPresentationMode
+  deferActionsUntilClosed?: boolean
 }): React.ReactNode {
   const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
@@ -733,6 +744,7 @@ export function CommandPopupMenu({
   const model = useResolvedCommandMenu(location)
   const mode = resolveMenuPresentationMode(location, presentationMode ?? preferredMode ?? 'cherry')
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
+  const pendingCherryActionRef = useRef<(() => void) | null>(null)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
   const resolveShortcutLabel = useCallback(
@@ -779,7 +791,7 @@ export function CommandPopupMenu({
       const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
       onOpenChange?.(true)
       try {
-        const result = await window.api.command.showNativePopupMenu(model as never, anchor)
+        const result = await window.api.command.showNativePopupMenu(model, anchor)
         if (result?.type === 'command') {
           runtime.execute(result.command)
         } else if (result?.type === 'custom') {
@@ -804,7 +816,26 @@ export function CommandPopupMenu({
     [onOpenChange, open]
   )
 
-  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
+  const handleCherrySelectItemAfterFrame = useCloseBeforeAction(handleCherryOpenChange)
+  const handleCherrySelectItemAfterClose = useCallback(
+    (action: () => void) => {
+      pendingCherryActionRef.current = action
+      handleCherryOpenChange(false)
+    },
+    [handleCherryOpenChange]
+  )
+  const handleCherryCloseAutoFocus = useCallback(() => {
+    // Radix fires this after the popup's exit animation and focus cleanup.
+    // Heavy actions (such as image capture) must not block that final frame.
+    const action = pendingCherryActionRef.current
+    pendingCherryActionRef.current = null
+    if (action) {
+      window.requestAnimationFrame(action)
+    }
+  }, [])
+  const handleCherrySelectItem = deferActionsUntilClosed
+    ? handleCherrySelectItemAfterClose
+    : handleCherrySelectItemAfterFrame
 
   if (disabled || combinedItems.length === 0) {
     return <>{children}</>
@@ -831,7 +862,12 @@ export function CommandPopupMenu({
   return (
     <DropdownMenu open={currentOpen} onOpenChange={handleCherryOpenChange}>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align={align} side={side} sideOffset={sideOffset} className={contentClassName}>
+      <DropdownMenuContent
+        align={align}
+        side={side}
+        sideOffset={sideOffset}
+        className={contentClassName}
+        onCloseAutoFocus={deferActionsUntilClosed ? handleCherryCloseAutoFocus : undefined}>
         {combinedItems.map((item, index) =>
           isExtraMenuItem(item) ? (
             <CommandDropdownExtraItemView key={`extra-${item.id}`} item={item} onSelectItem={handleCherrySelectItem} />

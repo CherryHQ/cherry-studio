@@ -1,14 +1,14 @@
-import { application } from '@application'
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerService } from '@data/services/ProviderService'
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
 import type { AuthConfig } from '@shared/data/types/provider'
 
 import type { DbType, ISeeder } from '../../types'
 
 /**
  * Seed rows are DELTA rows: registry-owned connection config
- * (endpointConfigs, apiFeatures, defaultChatEndpoint) is NOT persisted —
+ * (endpointConfigs, defaultChatEndpoint) is NOT persisted —
  * it resolves from the registry at read time (#17096), so registry updates
  * reach existing installs without reconciliation. Only user-editable
  * scaffolding is seeded: identity, display name, and the auth shell below.
@@ -51,11 +51,7 @@ export class PresetProviderSeeder implements ISeeder {
 
   private getLoader(): RegistryLoader {
     if (!this._loader) {
-      this._loader = new RegistryLoader({
-        models: application.getPath('feature.provider_registry.data', 'models.json'),
-        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
-        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
-      })
+      this._loader = new RegistryLoader(resolveRegistryPaths())
     }
     return this._loader
   }

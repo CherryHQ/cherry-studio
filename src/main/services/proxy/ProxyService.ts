@@ -1,11 +1,13 @@
+import type { ProxyConfig } from 'electron'
+import { app, session } from 'electron'
+import { getSystemProxy } from 'os-proxy-config'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import type { ProxyConfig } from 'electron'
-import { app, session } from 'electron'
-import { getSystemProxy } from 'os-proxy-config'
+import { WEBVIEW_SECURITY_PARTITIONS } from '@shared/utils/webviewSecurity'
 
 import { NodeProxyController } from './NodeProxyController'
 
@@ -49,11 +51,23 @@ export function resolveProxyConfig({
   }
 }
 
+export interface ProxyAppliedSnapshot {
+  readonly mode: ProxyMode
+  readonly hasConfiguredUrl: boolean
+  /** `system` mode only: the OS proxy read failed and bare system mode was applied instead. */
+  readonly systemProxyReadFailed: boolean
+  /** The config in effect is the one the preferences ask for; when false `lastError` says why not. */
+  readonly converged: boolean
+  readonly lastError?: string
+}
+
 @Injectable('ProxyService')
 @ServicePhase(Phase.WhenReady)
 export class ProxyService extends BaseService {
   private systemProxyInterval: Disposable | null = null
   private appliedKey: string | null = null
+  private desiredKey: string | null = null
+  private systemProxyReadFailed = false
   private nodeProxyController: NodeProxyController | null = null
 
   // Latest-wins reconciler: rapid proxy-preference toggles (or system-proxy changes) collapse
@@ -67,12 +81,28 @@ export class ProxyService extends BaseService {
   })
 
   /**
-   * Key of the currently applied proxy config (null before the first apply).
+   * Key of the fully applied proxy config (null before or after an incomplete apply).
    * Exposed so RegionService can invalidate its cached egress country the
    * moment the proxy — and thus the egress IP — changes.
    */
   get appliedProxyKey(): string | null {
     return this.appliedKey
+  }
+
+  /** Read-only view of intent vs. what is in effect, for diagnostics. */
+  async getAppliedSnapshot(): Promise<ProxyAppliedSnapshot> {
+    await this.proxyReconciler.flush()
+    const preferenceService = application.get('PreferenceService')
+    const converged = this.desiredKey === this.appliedKey
+    // `getLastError()` only clears on a successful apply, so it is meaningful solely while unconverged.
+    const error = converged ? null : this.proxyReconciler.getLastError()
+    return {
+      mode: preferenceService.get('app.proxy.mode'),
+      hasConfiguredUrl: preferenceService.get('app.proxy.url') !== '',
+      systemProxyReadFailed: this.systemProxyReadFailed,
+      converged,
+      ...(error != null && { lastError: error instanceof Error ? error.message : String(error) })
+    }
   }
 
   /**
@@ -93,7 +123,7 @@ export class ProxyService extends BaseService {
     void this.proxyReconciler.flush().then(() => {
       const error = this.proxyReconciler.getLastError()
       if (error) {
-        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error as Error)
+        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error)
       }
     })
   }
@@ -106,6 +136,7 @@ export class ProxyService extends BaseService {
       url: preferenceService.get('app.proxy.url'),
       bypassRules: preferenceService.get('app.proxy.bypass_rules')
     })
+    this.systemProxyReadFailed = false
     if (config.mode === 'system') {
       // A failed OS read must not abort the apply — fall back to bare system mode so Electron
       // still applies something instead of leaving the proxy unconfigured.
@@ -116,9 +147,11 @@ export class ProxyService extends BaseService {
           config.proxyBypassRules = currentProxy.noProxy.join(',')
         }
       } catch (error) {
+        this.systemProxyReadFailed = true
         logger.warn('Failed to read OS system proxy; applying bare system mode', error as Error)
       }
     }
+    this.desiredKey = proxyConfigKey(config)
     return config
   }
 
@@ -128,6 +161,7 @@ export class ProxyService extends BaseService {
     if (config.mode === 'system') this.ensureSystemProxyMonitor()
     else this.clearSystemProxyMonitor()
 
+    this.appliedKey = null
     await this.setGlobalProxy(config)
     this.appliedKey = proxyConfigKey(config)
   }
@@ -145,7 +179,7 @@ export class ProxyService extends BaseService {
   }
 
   private async setGlobalProxy(config: ProxyConfig): Promise<void> {
-    this.getNodeProxyController().configure({
+    await this.getNodeProxyController().configure({
       proxyRules: config.mode === 'direct' ? undefined : config.proxyRules,
       proxyBypassRules: config.proxyBypassRules
     })
@@ -158,9 +192,15 @@ export class ProxyService extends BaseService {
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-    // Await the session AND app proxy config together so a one-shot apply can't fail
-    // silently and callers can rely on the proxy being in effect once this resolves.
-    await Promise.all([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])
+    // `persist:miniapp:*` is deliberately absent: those partitions run a constant deny-all PAC
+    // (features/miniApp/runtime/network.ts) that a user proxy change must never overwrite.
+    const sessions = [
+      session.defaultSession,
+      ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
+    ]
+    // Drain every write even on failure so the next apply cannot race stale session writes.
+    const outcomes = await Promise.allSettled([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])
+    const failed = outcomes.find((outcome) => outcome.status === 'rejected')
+    if (failed) throw failed.reason
   }
 }

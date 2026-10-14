@@ -8,5 +8,5 @@ import type { IconTooltipProps } from './types'
  * Used for providing additional information or context.
  */
 export const InfoTooltip = (props: IconTooltipProps) => {
-  return <IconTooltip icon={Info} ariaLabel="Information" defaultColor="var(--muted-foreground)" {...props} />
+  return <IconTooltip icon={Info} defaultAriaLabel="Information" defaultColor="var(--muted-foreground)" {...props} />
 }

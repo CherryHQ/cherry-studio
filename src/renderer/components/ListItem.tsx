@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ReactNode } from 'react'
 
 interface ListItemProps {
   active?: boolean
@@ -30,7 +31,7 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
               {title}
             </span>
           </Tooltip>
-          {subtitle && <div className="mt-[2px] line-clamp-1 text-[10px] text-foreground-muted">{subtitle}</div>}
+          {subtitle && <div className="mt-[2px] line-clamp-1 text-[10px] text-foreground-tertiary">{subtitle}</div>}
         </div>
         {rightContent && <div className="ml-auto">{rightContent}</div>}
       </div>

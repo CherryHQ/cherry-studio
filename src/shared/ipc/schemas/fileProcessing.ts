@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { JobSnapshotSchema } from '@shared/data/api/schemas/jobs'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import { FileHandleSchema } from '@shared/data/types/file'
@@ -5,7 +7,6 @@ import {
   FileProcessingOutputTargetSchema,
   ListAvailableFileProcessorsResultSchema
 } from '@shared/data/types/fileProcessing'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
@@ -45,5 +46,13 @@ export const fileProcessingRequestSchemas = {
   'file_processing.list_available_processors': defineRoute({
     input: z.void(),
     output: ListAvailableFileProcessorsResultSchema
+  }),
+  /**
+   * Is the configured Open MinerU host answering? A probe that cannot reach the
+   * host is an answer, not a failure, so it resolves false rather than rejecting.
+   */
+  'file_processing.open_mineru.check_connectivity': defineRoute({
+    input: z.void(),
+    output: z.boolean()
   })
 }

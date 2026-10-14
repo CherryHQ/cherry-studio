@@ -38,6 +38,16 @@ describe('AgentSessionMessage schemas', () => {
     ).toBe(false)
   })
 
+  it('does not accept caller-owned stats in create DTOs', () => {
+    expect(
+      CreateAgentSessionMessageSchema.safeParse({
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'hello' }] },
+        stats: { totalTokens: 42 }
+      }).success
+    ).toBe(false)
+  })
+
   it('allows batch create without runtimeResumeToken', () => {
     const parsed = CreateAgentSessionMessagesSchema.parse({
       sessionId: 'session-1',

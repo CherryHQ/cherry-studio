@@ -1,3 +1,11 @@
+---
+description: 'Message-tree model for topic chat: adjacency list, virtual root, sibling groups, invariants, delete semantics'
+sources:
+  - src/main/data/db/schemas/message.ts
+  - src/main/data/services/MessageService.ts
+  - src/renderer/components/chat/flow
+---
+
 # Message Tree
 
 Canonical reference for the chat **message-tree model**: how a topic's messages are
@@ -43,6 +51,27 @@ queries (`WHERE role = 'system'`, etc.) exclude it for free — no `parentId IS 
 caveat. `role = 'root'` and `parentId IS NULL` are equivalent; `parentId IS NULL` stays
 the indexed root *lookup* key.
 
+### Persisted awaiting-input branches
+
+Starting a branch below an assistant uses `POST /messages/:id/branches` to persist empty successful
+`role = 'user'` leaves. A leaf assistant gets two children so its first reservation forms a real
+branch; an assistant that already has a child gets one new node. Multiple empty reservations below
+one assistant are intentional branch points, not duplicates. Awaiting-input state is derived from
+that structure — no draft marker is stored. The conversation list hides empty successful user rows,
+while `getTree` projects empty user leaves as `isAwaitingInput` for the flow canvas.
+
+An idle reservation becomes the topic's active node. During a live stream the renderer sends
+`activate: false`, so creating the reservation cannot move the active stream path. If the user
+later selects that reservation and writes while the topic is still live, the queued payload
+captures the reservation id and waits for the topic to become idle; it cannot be manually
+steered into the running turn.
+
+The next composer submission uses the empty row's id instead of creating another user row and
+opens a normal `submit-message` flow. `MessageService.createUserMessageWithPlaceholders` validates
+that the target is still an empty successful user leaf with no reply, then fills it and creates
+the assistant placeholder(s) in one transaction. A main-process live-stream guard rejects a
+reserved-branch submission before any write, closing renderer timing races.
+
 ## Invariants
 
 | Invariant | Enforced by |
@@ -51,6 +80,8 @@ the indexed root *lookup* key.
 | Every content message has a non-null parent | **DB CHECK** `message_root_parent_check` `((role = 'root') = (parent_id IS NULL))` — a content row (`role != 'root'`) with a null parent is rejected at the storage layer, not by convention. First-turn content messages get `parentId = <virtual root>`. |
 | `role = 'root'` ⇔ `parentId IS NULL` | Same **DB CHECK** `message_root_parent_check`. `createRootMessageTx` (runtime) / `ChatMigrator` (migration) are the sole *writers* of the root row, but the biconditional itself is enforced structurally. |
 | `activeNodeId` is never the virtual root | `NULL` for an empty topic, otherwise a content message; read paths drop the root from the active path. |
+| An awaiting-input branch is an empty successful user leaf | `MessageService.reserveBranch` creates two distinct rows for a leaf anchor, otherwise one. `createUserMessageWithPlaceholders(mode = 'fill-reserved')` revalidates the selected leaf and atomically fills it with its assistant placeholder(s). |
+| Deleting an awaiting-input node must never delete a message that was filled meanwhile | Canvas requests `DELETE /messages/:id?awaitingInputOnly=true`; `MessageService.delete` revalidates empty parts, success status, user role, and absence of live children before deleting it. |
 | The virtual root is deletable only via topic deletion | `delete()` hard-rejects it (see below); the topic FK `ON DELETE CASCADE` is the only path that removes it. |
 
 The virtual root is created **eagerly**, in the same transaction that creates the topic —
@@ -70,8 +101,8 @@ papered over).
 | Target | Behavior |
 |---|---|
 | Virtual root | **Rejected** (`INVALID_OPERATION`), regardless of `cascade`. Deleting it would orphan first-turn children (unique-index violation) or leave a rootless topic. |
-| Content message, `cascade = false` | Splice the node out: reparent its children onto its parent (their grandparent), then delete it. A child carries its `siblingsGroupId` (relative to its old parent), so each distinct non-zero moved group is **rebased** to a fresh id above any group already at the destination — it can't merge into an unrelated group there. |
-| Content message, `cascade = true` | Delete the message and its whole subtree. |
+| Content message, `cascade = false` | For a grouped assistant reply on the active path with the default parent strategy, transfer children to the next live reply in the same group (previous at the end), ordered by creation time then ID. Otherwise reparent children onto the deleted node's parent. Clear descendant context anchors when deleting a grouped context reply, including when no sibling remains. Preserve an active descendant; if the deleted node itself is active, descend from the successor — or from the parent — to the newest surviving leaf (the same rule branch navigation uses), so a surviving group or continuation stays on the path. A child carries its `siblingsGroupId` (relative to its old parent), so each distinct non-zero moved group is **rebased** to a fresh id above any group already at the destination — it can't merge into an unrelated group there. |
+| Content message, `cascade = true` | Delete the message and its whole subtree. If the active node was inside it, descend from the parent to the newest surviving leaf, as above. |
 | "Clear all messages" | `clearTopicMessages(topicId)` (`DELETE /topics/:topicId/messages`) — deletes every non-root row of the topic in one statement and clears `activeNodeId`; the content-less virtual root stays. The structural replacement for the old "delete the root to clear the topic" (now rejected). |
 
 The self-FK (`parentId → message.id`) is **`ON DELETE CASCADE`**. Deleting a node
@@ -103,10 +134,9 @@ they become first-turn nodes.)
   path, and treats its children as the logical roots. First-turn nodes keep their **real**
   parent (the virtual root id) in the response; the virtual root is **never** returned as a
   node. Hence `TreeNode.parentId` and `SiblingsGroup.parentId` are non-null `string`.
-- **Flow canvas** *(forward reference — the renderer flow-canvas work lives on the
-  `feat/chat-page` integration branch, not this PR branch)*: the edge builder will skip
-  edges whose parent isn't a rendered node — the virtual root, which first turns hang off
-  but which is never a node — so first turns still render as graph roots.
+- **Flow canvas** skips edges whose parent isn't a rendered node — the virtual root,
+  which first turns hang off but which is never a node — so first turns still render as
+  graph roots. Persisted awaiting-input branches remain real selectable tree nodes.
 - **Role-based content queries** need no special root handling: the root is `role = 'root'`,
   so it is excluded by construction.
 

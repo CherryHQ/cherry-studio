@@ -1,7 +1,4 @@
 import './EmojiPicker.css'
-
-import { loggerService } from '@logger'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import EmojiPickerReact, {
   Categories,
   type EmojiClickData,
@@ -13,6 +10,9 @@ import { Clock3, Flag, Hash, Lightbulb, PawPrint, Plane, Smile, Trophy, Utensils
 import type { CSSProperties, FC, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
 import { type EmojiData, loadEmojiData } from './emojiData'
 import type { EmojiPickerProps } from './EmojiPicker'
@@ -38,9 +38,9 @@ const CHERRY_PICKER_STYLE = {
   '--epr-search-input-bg-color-active': 'var(--background)',
   '--epr-search-input-height': '32px',
   '--epr-search-input-text-color': 'var(--foreground)',
-  '--epr-search-input-placeholder-color': 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)',
+  '--epr-search-input-placeholder-color': 'var(--foreground-tertiary)',
   '--epr-search-border-color': 'var(--input)',
-  '--epr-search-border-color-active': 'var(--ring)',
+  '--epr-search-border-color-active': 'var(--primary)',
   '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
   '--epr-emoji-hover-color': 'var(--accent)',
   '--epr-emoji-variation-indicator-color': 'var(--border)',

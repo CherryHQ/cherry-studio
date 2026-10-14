@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
 import * as z from 'zod'
+
+import { application } from '@application'
 
 /**
  * Restore promotion journal — the crash-safe contract between the backup
@@ -157,6 +158,25 @@ export function writeRestoreJournal(journal: RestoreJournal): void {
     fs.closeSync(fd)
   }
   fs.renameSync(tmpPath, journalPath)
+
+  if (process.platform !== 'win32') {
+    const dirFd = fs.openSync(path.dirname(journalPath), 'r')
+    try {
+      fs.fsyncSync(dirFd)
+    } finally {
+      fs.closeSync(dirFd)
+    }
+  }
+}
+
+/**
+ * Remove a consumed terminal journal and any interrupted-write sibling,
+ * then durably flush the directory entry on POSIX.
+ */
+export function removeRestoreJournal(): void {
+  const journalPath = journalFilePath()
+  fs.rmSync(journalPath, { force: true })
+  fs.rmSync(`${journalPath}.tmp`, { force: true })
 
   if (process.platform !== 'win32') {
     const dirFd = fs.openSync(path.dirname(journalPath), 'r')

@@ -1,10 +1,11 @@
+import { Check, Copy } from 'lucide-react'
+import type { ComponentProps, CSSProperties, FC, MouseEventHandler } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { Check, Copy } from 'lucide-react'
-import type { ComponentProps, CSSProperties, FC, MouseEventHandler } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface CopyButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
   tooltip?: string
@@ -25,7 +26,7 @@ const CopyButton: FC<CopyButtonProps> = ({
   tooltip,
   textToCopy,
   label,
-  color = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)',
+  color = 'var(--muted-foreground)',
   hoverColor = 'var(--primary)',
   size = 14,
   successFeedback = 'toast',

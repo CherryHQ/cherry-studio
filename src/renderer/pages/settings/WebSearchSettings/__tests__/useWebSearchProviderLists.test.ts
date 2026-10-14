@@ -10,14 +10,12 @@ describe('useWebSearchProviderLists', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
   })
 
-  it('splits providers by capability and exposes feature sections', () => {
+  it('exposes providers grouped into feature sections', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', 'fetch')
 
     const { result } = renderHook(() => useWebSearchProviderLists())
 
-    expect(result.current.keywordProviders.some((provider) => provider.id === 'tavily')).toBe(true)
-    expect(result.current.fetchUrlsProviders.some((provider) => provider.id === 'fetch')).toBe(true)
     expect(result.current.featureSections.find((section) => section.capability === 'searchKeywords')?.entries).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: 'searchKeywords:jina' })])
     )

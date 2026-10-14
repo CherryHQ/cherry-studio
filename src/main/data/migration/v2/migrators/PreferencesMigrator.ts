@@ -2,12 +2,13 @@
  * Preferences migrator - migrates preferences from ElectronStore, Redux, and Dexie settings to SQLite
  */
 
+import { and, eq, sql } from 'drizzle-orm'
+
 import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { tagStoredFileRef } from '@shared/data/types/file'
-import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -242,7 +243,14 @@ export class PreferencesMigrator extends BaseMigrator {
           typeof item.value === 'string' &&
           item.value.startsWith('data:')
         ) {
-          const avatarFile = await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, AVATAR_REF, item.value)
+          const avatarFile = await prepareBase64ImageFileEntry(
+            ctx.paths.filesDataDir,
+            AVATAR_REF,
+            item.value,
+            // No ref table backs the avatar — the `app.user.avatar` preference is
+            // its only holder, so the anti-join would reclaim it on sight.
+            'manual'
+          )
           item.value = avatarFile ? tagStoredFileRef(avatarFile.id) : ''
           if (avatarFile) avatarFiles.push(avatarFile)
         }

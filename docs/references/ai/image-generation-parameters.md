@@ -1,3 +1,12 @@
+---
+description: Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile
+sources:
+  - packages/provider-registry/src/schemas/imageParamCatalog.ts
+  - src/renderer/pages/paintings
+  - src/main/ai/provider/custom/wire/wireProfile.ts
+  - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
+---
+
 # Image-Generation Parameterized Architecture
 
 How the paintings page renders a per-model parameter form, collects the user's
@@ -221,7 +230,9 @@ The SDK image model is one of: a custom `ImageModelV3` (e.g.
 
 ### 4. Transport delivery (async / bespoke wire shape)
 
-When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`) so it survives a restart.
+When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation.
+
+The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
 
 Unlike the SDK path (whose bag IS the body), a transport builds its **own** per-model
 envelope, so it receives the **canonical camelCase params directly** — native
@@ -251,7 +262,7 @@ descriptor is a pure derivation, not a param.
 
 ### Add a parameter to a model
 
-1. Pick (or reuse) the **canonical key**. If new, add one row to `IMAGE_PARAM_CATALOG` (`{ schema, wire? }`) — set `wire` **only** if the vendor name isn't the auto snake_case form. Add its `KEY_LABELS` row + i18n (`pnpm i18n:sync`).
+1. Pick (or reuse) the **canonical key**. If new, add one row to `IMAGE_PARAM_CATALOG` (`{ schema, wire? }`) — set `wire` **only** if the vendor name isn't the auto snake_case form. Add its `KEY_LABELS` row, then complete every locale and validation step in the [i18n workflow](../i18n/README.md#translation-completion-in-pull-requests).
 2. Declare it in the model's `supports` with the right `SupportSpec` (options/range/default).
 3. That's it for a flat-body provider — the form, validation, types, and wire name all flow from the catalog row. Only add a `WireProfile` field / transport line if the param needs bespoke placement (a nested block, a sibling provider key, a transport envelope).
 

@@ -1,7 +1,7 @@
 /**
  * Version upgrade policy for the v1→v2 migration gate.
  *
- * Enforces a linear upgrade path: v1.old → v1.last → v2.0.0 → v2.x.
+ * Enforces a linear upgrade path: v1.old → v1.last → v2.x → v3.0+.
  * Called by `v2MigrationGate.ts` after `needsMigration()` returns true
  * and before the migration window is created. If the check fails, the
  * gate shows an error dialog and quits — the user never sees the
@@ -21,8 +21,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { loggerService } from '@logger'
 import semver from 'semver'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('VersionPolicy')
 
@@ -36,8 +37,14 @@ const logger = loggerService.withContext('VersionPolicy')
  */
 export const V1_REQUIRED_VERSION = '1.9.12'
 
-/** v2 migration gateway version — must not be skipped. */
+/** First version in the v2.x migration gateway line. */
 export const V2_GATEWAY_VERSION = '2.0.0'
+
+/** User-facing label for the accepted migration gateway line. */
+const V2_GATEWAY_SERIES = '2.x'
+
+/** First release line that cannot be a direct v1→v2 migration target. */
+const V2_DIRECT_MIGRATION_CEILING = '3.0.0'
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -93,17 +100,17 @@ export function checkUpgradePathCompatibility(input: VersionCheckInput): Version
     }
   }
 
-  // ❸ Previous version is v1.x and current version jumped past the
-  //    v2.0.0 gateway (e.g. v1.9.0 → v2.1.0, or v2.0.0-beta → v2.1.0).
+  // ❸ Direct migration from v1 is supported throughout v2.x; v3.0+
+  //    requires completing migration on v2 first.
   if (
     previousVersion &&
     semver.lt(previousVersion, V2_GATEWAY_VERSION) &&
-    semver.gt(coercedCurrent, V2_GATEWAY_VERSION)
+    semver.gte(coercedCurrent, V2_DIRECT_MIGRATION_CEILING)
   ) {
     return {
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion, currentVersion: currentAppVersion, gatewayVersion: V2_GATEWAY_VERSION }
+      details: { previousVersion, currentVersion: currentAppVersion, gatewayVersion: V2_GATEWAY_SERIES }
     }
   }
 

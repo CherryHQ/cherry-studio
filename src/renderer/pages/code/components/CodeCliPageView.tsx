@@ -1,6 +1,7 @@
-import { ConfirmDialog } from '@cherrystudio/ui'
 import type { ComponentProps, FC } from 'react'
 import { Fragment } from 'react'
+
+import { ConfirmDialog } from '@cherrystudio/ui'
 
 import { CodeCliContentPanel } from './CodeCliContentPanel'
 import { CodeCliSidebar } from './CodeCliSidebar'
@@ -30,15 +31,15 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
   ownLoginConfigPanelProps
 }) => {
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
+    <div data-ui="code.view" className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
       <div className="flex min-h-0 flex-1">
         <CodeCliSidebar {...sidebarProps} />
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div data-ui="code.content" className="flex min-h-0 min-w-0 flex-1 flex-col">
           {contentProps ? (
             <CodeCliContentPanel {...contentProps} />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground/50 text-sm">
+            <div className="flex flex-1 items-center justify-center text-sm text-foreground-tertiary">
               {emptyMessage}
             </div>
           )}

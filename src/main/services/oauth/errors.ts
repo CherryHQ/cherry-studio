@@ -9,6 +9,13 @@ export class OAuthServiceError extends Error {
   }
 }
 
+export class OAuthSignInCancelledError extends OAuthServiceError {
+  constructor(providerId: string) {
+    super(`${providerId} sign-in was cancelled`)
+    this.name = 'OAuthSignInCancelledError'
+  }
+}
+
 /**
  * A token refresh failed transiently (network, 5xx, 408/425/429) — the stored
  * session is still valid and the caller should retry, not re-authenticate.

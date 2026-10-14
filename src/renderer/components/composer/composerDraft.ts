@@ -1,3 +1,7 @@
+import type { Editor, JSONContent } from '@tiptap/core'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+
+import { isComposerInputTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type {
   CherryProviderMetadata,
@@ -6,34 +10,18 @@ import type {
   ComposerMessageTokenPayload
 } from '@shared/data/types/uiParts'
 import { FileTypeSchema } from '@shared/types/file'
-import type { Editor, JSONContent } from '@tiptap/core'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
-import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
+import { createPromptVariableContent } from './promptVariables'
+import { getComposerInputLeafText } from './quickPanel'
+import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
-/** Upper bound on a serialized draft's text — enforced by every path that grows the composer. */
-export const COMPOSER_INPUT_MAX_LENGTH = 40000
-
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
-const RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
-  'skill',
-  'file',
-  'folder',
-  'command',
-  'knowledge',
-  'reference',
-  'quote'
-])
 type PersistedComposerSerializedToken = ComposerSerializedToken & {
-  kind: Exclude<ComposerSerializedToken['kind'], 'promptVariable'>
-}
-type RestoredComposerToken = Omit<ComposerMessageToken, 'index' | 'textOffset'> & {
-  payload?: ComposerMessageTokenPayload & {
-    restoredTextSuffix?: string
-  }
+  kind: ComposerMessageToken['kind']
 }
 
 function isEditorSource(source: ComposerSerializableSource): source is Pick<Editor, 'getJSON'> {
@@ -53,6 +41,10 @@ function getRestoredTextSuffix(payload: unknown): string {
   const restoredTextSuffix = (payload as Record<string, unknown>).restoredTextSuffix
   return typeof restoredTextSuffix === 'string' ? restoredTextSuffix : ''
 }
+
+/** The serialized text a composer token contributes: its prompt text plus any restored suffix. */
+const composerTokenText = (token: ComposerDraftToken): string =>
+  (token.promptText ?? '') + getRestoredTextSuffix(token.payload)
 
 function readPayloadObject(payload: unknown): Record<string, unknown> | undefined {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
@@ -95,10 +87,13 @@ function getRestorableQuoteTextSuffix(text: string, start: number): string {
   return next === ' ' || next === '\n' || next === '\r' ? next : ''
 }
 
-function createComposerTokenNode(token: ComposerMessageToken, restoredTextSuffix = ''): JSONContent {
+function createComposerTokenNode(
+  token: ComposerSerializedToken | ComposerMessageToken,
+  restoredTextSuffix = ''
+): JSONContent {
   const basePayload = readPayloadObject(token.payload)
   const payload = restoredTextSuffix ? { ...basePayload, restoredTextSuffix } : basePayload
-  const attrs: RestoredComposerToken = {
+  const attrs: ComposerDraftToken = {
     id: token.id,
     kind: token.kind,
     label: token.label,
@@ -114,13 +109,17 @@ function createComposerTokenNode(token: ComposerMessageToken, restoredTextSuffix
   }
 }
 
-export function createComposerDocumentContent(text: string, composer?: ComposerMessageSnapshot): JSONContent {
+function createComposerContent(
+  text: string,
+  sourceTokens: readonly (ComposerSerializedToken | ComposerMessageToken)[],
+  isRestorableKind: (kind: ComposerSerializedToken['kind']) => boolean
+): JSONContent {
   const nodes: JSONContent[] = []
-  const tokens = composer?.tokens
-    .filter((token) => RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS.has(token.kind) && token.label)
+  const tokens = sourceTokens
+    .filter((token) => isRestorableKind(token.kind) && token.label)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
 
-  if (!tokens?.length) {
+  if (!tokens.length) {
     appendTextContent(nodes, text)
     return {
       type: 'doc',
@@ -160,6 +159,20 @@ export function createComposerDocumentContent(text: string, composer?: ComposerM
   }
 }
 
+export function createComposerDocumentContent(text: string, composer?: ComposerMessageSnapshot): JSONContent {
+  return createComposerContent(text, composer?.tokens ?? [], isComposerMessageTokenKind)
+}
+
+export function createComposerDraftContent(draft: {
+  text: string
+  tokens: readonly ComposerSerializedToken[]
+}): JSONContent {
+  const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
+  if (!inputTokens.length) return createPromptVariableContent(draft.text)
+
+  return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
+}
+
 export function serializeComposerDocument(source: ComposerSerializableSource): ComposerSerializedDraft {
   const json = isEditorSource(source) ? source.getJSON() : source
   const tokens: ComposerSerializedToken[] = []
@@ -178,14 +191,12 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
 
     if (node.type === COMPOSER_TOKEN_NODE_NAME) {
       const token = normalizeComposerTokenAttrs(node.attrs ?? {})
-      const restoredTextSuffix = getRestoredTextSuffix(token.payload)
       tokens.push({
         ...token,
         index: tokens.length,
         textOffset: text.length
       })
-      text += token.promptText ?? ''
-      text += restoredTextSuffix
+      text += composerTokenText(token)
       return
     }
 
@@ -207,6 +218,82 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   return { text, tokens }
 }
 
+/**
+ * The text `serializeComposerDocument` attributes to a leaf node. For any length measured
+ * against the serialized draft — a replacement budget over a selection — a token atom must
+ * count by its prompt text; the plain leaf callback counts it as empty and undercharges the
+ * text the replacement removes.
+ */
+export function getComposerSerializedLeafText(node: ProseMirrorNode): string {
+  if (node.type.name === COMPOSER_TOKEN_NODE_NAME) {
+    return composerTokenText(normalizeComposerTokenAttrs(node.attrs ?? {}))
+  }
+  return getComposerInputLeafText(node)
+}
+
+/**
+ * Drops the tokens a persistence layer cannot carry, taking the prompt text each one contributed with
+ * it. `serializeComposerDocument` folds `promptText` into the draft text, so filtering the token alone
+ * strands its sentence as ordinary prose — for a knowledge token that means a restored draft still
+ * telling the model a base is attached after the chip, and with it the scope part, is gone.
+ *
+ * The separator space the editor inserts after a chip is swallowed along with the sentence, so a
+ * pick-only draft collapses back to empty rather than to whitespace.
+ */
+export function excludeComposerDraftTokens(
+  draft: ComposerSerializedDraft,
+  shouldExclude: (token: ComposerSerializedToken) => boolean
+): ComposerSerializedDraft {
+  if (!draft.tokens.some(shouldExclude)) return draft
+
+  // Merged into disjoint ascending ranges so the splice below and `rebase` agree on exactly how much
+  // text was removed before any given offset — overlapping cuts would otherwise be double-counted.
+  const cuts: Array<{ start: number; end: number }> = []
+  draft.tokens
+    .filter(shouldExclude)
+    .map((token) => {
+      const start = Math.min(draft.text.length, Math.max(0, token.textOffset))
+      const promptText = token.promptText ?? ''
+      // The prompt text has moved (the user edited over it), so there is no span we can safely cut —
+      // drop the token and leave the prose alone rather than slicing through what they wrote.
+      if (!promptText || !draft.text.startsWith(promptText, start)) return { start, end: start }
+      const end = start + promptText.length
+      return { start, end: draft.text[end] === ' ' ? end + 1 : end }
+    })
+    .filter((cut) => cut.end > cut.start)
+    .sort((first, second) => first.start - second.start)
+    .forEach((cut) => {
+      const previous = cuts.at(-1)
+      if (previous && cut.start <= previous.end) previous.end = Math.max(previous.end, cut.end)
+      else cuts.push({ ...cut })
+    })
+
+  let text = ''
+  let cursor = 0
+  cuts.forEach((cut) => {
+    text += draft.text.slice(cursor, cut.start)
+    cursor = cut.end
+  })
+  text += draft.text.slice(cursor)
+
+  /** An offset landing inside a removed range collapses to where that range started. */
+  const rebase = (offset: number) => {
+    let removed = 0
+    for (const cut of cuts) {
+      if (cut.start >= offset) break
+      removed += Math.min(offset, cut.end) - cut.start
+    }
+    return offset - removed
+  }
+
+  return {
+    text,
+    tokens: draft.tokens
+      .filter((token) => !shouldExclude(token))
+      .map((token, index) => ({ ...token, index, textOffset: rebase(Math.max(0, token.textOffset)) }))
+  }
+}
+
 type ComposerLineRange = {
   start: number
   contentEnd: number
@@ -225,6 +312,19 @@ function getComposerLineRanges(text: string): ComposerLineRange[] {
   }
 
   return lines
+}
+
+/**
+ * Removes blank lines only at the boundaries of a plain text run, keeping whitespace inside the
+ * first and last meaningful lines — a code block's indentation and a Markdown hard break's trailing
+ * spaces both survive, unlike `String.trim`.
+ */
+export function trimTextBoundaryBlankLines(text: string): string {
+  const lines = getComposerLineRanges(text)
+  const meaningfulLines = lines.filter((line) => text.slice(line.start, line.contentEnd).trim().length > 0)
+  const first = meaningfulLines[0]
+  const last = meaningfulLines.at(-1)
+  return first && last ? text.slice(first.start, last.contentEnd) : ''
 }
 
 /**
@@ -265,8 +365,8 @@ export function trimComposerDraftBoundaryBlankLines(draft: ComposerSerializedDra
 }
 
 export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): ComposerMessageSnapshot | undefined {
-  const visibleTokens = draft.tokens.filter(
-    (token): token is PersistedComposerSerializedToken => token.kind !== 'promptVariable'
+  const visibleTokens = draft.tokens.filter((token): token is PersistedComposerSerializedToken =>
+    isComposerMessageTokenKind(token.kind)
   )
   if (visibleTokens.length === 0) return undefined
 
@@ -292,7 +392,7 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
 }
 
 function createComposerTextPart(text: string, composer?: ComposerMessageSnapshot): CherryMessagePart {
-  if (!composer) return { type: 'text', text } as CherryMessagePart
+  if (!composer) return { type: 'text', text }
 
   const cherry: CherryProviderMetadata = { composer }
   return {

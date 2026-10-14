@@ -1,7 +1,8 @@
-import type { CommandId } from '@shared/utils/command'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CommandId } from '@shared/utils/command'
 
 const { loggerMock, preferenceValues } = vi.hoisted(() => ({
   loggerMock: {
@@ -154,39 +155,25 @@ describe('CommandProvider', () => {
     const onExecute = vi.fn()
     renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
 
-    dispatchShortcut({ isComposing: true } as KeyboardEventInit)
+    dispatchShortcut({ isComposing: true })
 
     expect(onExecute).not.toHaveBeenCalled()
   })
 
-  it('skips no-modifier shortcuts when an editable target is focused', () => {
+  it.each([
+    { name: 'a contenteditable element', target: 'contenteditable' },
+    { name: 'an input', target: 'input' }
+  ])('skips no-modifier shortcuts when $name is focused', ({ target }) => {
     const onExecute = vi.fn()
+    const testId = `editable-${target}`
     renderProvider(
       <>
         <RegisteredCommand command="app.fullscreen.exit" onExecute={onExecute} />
-        <div contentEditable="true" data-testid="editable" />
+        {target === 'input' ? <input data-testid={testId} /> : <div contentEditable="true" data-testid={testId} />}
       </>
     )
 
-    fireEvent.keyDown(screen.getByTestId('editable'), {
-      key: 'Escape',
-      code: 'Escape',
-      cancelable: true
-    })
-
-    expect(onExecute).not.toHaveBeenCalled()
-  })
-
-  it('skips no-modifier shortcuts when an input is focused', () => {
-    const onExecute = vi.fn()
-    renderProvider(
-      <>
-        <RegisteredCommand command="app.fullscreen.exit" onExecute={onExecute} />
-        <input data-testid="text-input" />
-      </>
-    )
-
-    fireEvent.keyDown(screen.getByTestId('text-input'), {
+    fireEvent.keyDown(screen.getByTestId(testId), {
       key: 'Escape',
       code: 'Escape',
       cancelable: true

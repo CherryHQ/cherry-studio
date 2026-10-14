@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import {
   applyModelFilters,
@@ -41,7 +42,7 @@ const models = [
     name: 'Gamma',
     providerId: 'openai',
     group: 'chat',
-    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.WEB_SEARCH],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
     isEnabled: true
   },
   {
@@ -85,6 +86,35 @@ describe('modelListDerivedState', () => {
     ]
 
     expect(Object.keys(groupModels(groupedModels as any))).toEqual(['deepseek', 'openai'])
+  })
+
+  it('repairs legacy provider-id groups while preserving explicit user groups', () => {
+    const groupedModels = [
+      {
+        id: 'opencode::deepseek-v4-pro',
+        apiModelId: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        providerId: 'opencode',
+        group: 'opencode',
+        capabilities: [],
+        isEnabled: true
+      },
+      {
+        id: 'opencode::gpt-5.6-sol',
+        apiModelId: 'gpt-5.6-sol',
+        name: 'GPT 5.6 Sol',
+        providerId: 'opencode',
+        group: 'Featured',
+        capabilities: [],
+        isEnabled: true
+      }
+    ]
+
+    const groups = groupModels(groupedModels as any, false, { preferModelGroup: true })
+
+    expect(groups.deepseek.map((model) => model.id)).toEqual(['opencode::deepseek-v4-pro'])
+    expect(groups.Featured.map((model) => model.id)).toEqual(['opencode::gpt-5.6-sol'])
+    expect(groups.opencode).toBeUndefined()
   })
 
   it('applies search text and capability filters together', () => {

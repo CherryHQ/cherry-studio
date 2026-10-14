@@ -19,6 +19,9 @@ describe('matchVendor — anchored, order-independent (#5)', () => {
     expect(matchVendor('deepseek-r1')).toBe('deepseek')
     expect(matchVendor('grok-4')).toBe('grok')
     expect(matchVendor('mixtral-8x7b')).toBe('mistral')
+    expect(matchVendor('k3')).toBe('kimi')
+    expect(matchVendor('k3-256k')).toBe('kimi')
+    expect(matchVendor('k3po')).toBeUndefined()
   })
 })
 

@@ -1,59 +1,65 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ChatMarkdown from '../ChatMarkdown'
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+
+import ChatMarkdown from '../ChatMarkdownRuntime'
 
 const mocks = vi.hoisted(() => ({
-  markdown: vi.fn(),
-  streamingMarkdown: vi.fn()
+  actions: undefined as
+    | undefined
+    | {
+        openArtifactFile?: (path: string) => void | Promise<void>
+        openPath?: (path: string) => void | Promise<void>
+        isDirectory?: (path: string) => Promise<boolean>
+      }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Markdown: (props: { children: string }) => {
-    mocks.markdown(props)
-    return <div data-testid="static-markdown">{props.children}</div>
-  },
-  StreamingMarkdown: (props: { animated?: false; children: string; parseIncompleteMarkdown?: boolean }) => {
-    mocks.streamingMarkdown(props)
-    return (
-      <div
-        data-testid="streaming-markdown"
-        data-animated={String(props.animated)}
-        data-parse-incomplete={String(props.parseIncompleteMarkdown)}>
-        {props.children}
-      </div>
-    )
-  },
-  withChatPlugins: () => ({})
-}))
-
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false })
+  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
+  useOptionalMessageListActions: () => mocks.actions
 }))
+vi.mock('react-i18next', () => {
+  const t = (key: string) => key
+  return { useTranslation: () => ({ t }) }
+})
 
-vi.mock('../useChatMarkdownComponents', () => ({
-  useChatMarkdownComponents: () => ({})
-}))
-
-describe('ChatMarkdown', () => {
+describe('ChatMarkdown adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mocks.actions = undefined
   })
 
-  it.each(['success', 'error'])('keeps the streaming renderer but disables live semantics on %s', (status) => {
-    const { rerender } = render(
-      <ChatMarkdown block={{ id: 'message-part', content: '[unfinished](', status: 'streaming' }} />
+  it('keeps the paused message placeholder in the chat adapter', () => {
+    render(<ChatMarkdown block={{ id: 'part', content: '', status: 'paused' }} />)
+    expect(screen.getByText('message.chat.completion.paused')).toBeVisible()
+  })
+
+  it('preserves code source while processing prose around HTML artifacts', () => {
+    const source = 'Outside\n\n```html\n<script>const text = "Outside"</script>\n```'
+    render(
+      <ChatMarkdown
+        block={{ id: 'part', content: source, status: 'success' }}
+        inlineHtmlPreviewMode="ready"
+        postProcess={(content) => content.replaceAll('Outside', 'Processed')}
+        components={{ code: ({ children }) => <code>{children}</code> }}
+      />,
+      { wrapper: CodeStyleProvider }
     )
-    const streamingNode = screen.getByTestId('streaming-markdown')
+    expect(screen.getByText('Processed')).toBeVisible()
+    expect(screen.getByText('<script>const text = "Outside"</script>')).toBeVisible()
+  })
 
-    expect(streamingNode).toHaveAttribute('data-animated', 'undefined')
-    expect(streamingNode).toHaveAttribute('data-parse-incomplete', 'true')
-
-    rerender(<ChatMarkdown block={{ id: 'message-part', content: '[unfinished](', status }} />)
-
-    expect(screen.getByTestId('streaming-markdown')).toBe(streamingNode)
-    expect(streamingNode).toHaveAttribute('data-animated', 'false')
-    expect(streamingNode).toHaveAttribute('data-parse-incomplete', 'false')
-    expect(mocks.markdown).not.toHaveBeenCalled()
+  it('routes directory links through the workspace-aware opener', async () => {
+    const user = userEvent.setup()
+    const openPath = vi.fn()
+    const openArtifactFile = vi.fn()
+    mocks.actions = { openPath, openArtifactFile, isDirectory: vi.fn().mockResolvedValue(true) }
+    render(<ChatMarkdown block={{ id: 'part', content: '[Docs](./docs)', status: 'success' }} />)
+    await user.click(screen.getByRole('link', { name: 'Docs' }))
+    expect(openPath).toHaveBeenCalledWith('./docs')
+    expect(openArtifactFile).not.toHaveBeenCalled()
   })
 })

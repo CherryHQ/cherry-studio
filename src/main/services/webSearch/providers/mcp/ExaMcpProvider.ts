@@ -1,12 +1,13 @@
-import { loggerService } from '@logger'
-import { defaultAppHeaders } from '@main/utils/http'
-import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { net } from 'electron'
 import * as z from 'zod'
 
+import { loggerService } from '@logger'
+import { defaultAppHeaders } from '@main/utils/http'
+import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+
 import { resolveProviderApiHost } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
-import type { RequestSearchContext } from '../base/context'
+import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const McpSearchRequestSchema = z.object({
   jsonrpc: z.string(),
@@ -48,7 +49,7 @@ const ExaSearchResultsSchema = z.object({
 const REQUEST_TIMEOUT_MS = 25000
 const logger = loggerService.withContext('MainWebSearchProvider:ExaMcp')
 
-type ExaMcpSearchContext = RequestSearchContext<z.infer<typeof McpSearchRequestSchema>> & {
+type ExaMcpSearchContext = ApiKeyRequestSearchContext<z.infer<typeof McpSearchRequestSchema>> & {
   upstreamSignal?: AbortSignal
 }
 
@@ -73,6 +74,7 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       query,
       maxResults: config.maxResults,
       requestUrl: resolveProviderApiHost(this.provider, 'searchKeywords'),
+      apiKey: this.resolveApiKey(false),
       requestBody: McpSearchRequestSchema.parse({
         jsonrpc: '2.0',
         id: 1,
@@ -226,13 +228,19 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       : timeoutController.signal
 
     try {
+      const headers: Record<string, string> = {
+        ...defaultAppHeaders(),
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json'
+      }
+
+      if (context.apiKey) {
+        headers['x-api-key'] = context.apiKey
+      }
+
       const response = await net.fetch(context.requestUrl, {
         method: 'POST',
-        headers: {
-          ...defaultAppHeaders(),
-          accept: 'application/json, text/event-stream',
-          'content-type': 'application/json'
-        },
+        headers,
         body: JSON.stringify(context.requestBody),
         signal
       })

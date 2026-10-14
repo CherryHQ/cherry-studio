@@ -1,6 +1,6 @@
 /**
  * Pure text-paging helpers shared by the eager inline cap (`attachmentRouting`)
- * and `read_file` pagination (`fileLookup`), so both agree on where a page may
+ * and `read_file` pagination (`ReadFileTool`), so both agree on where a page may
  * end. No I/O, no domain types.
  */
 

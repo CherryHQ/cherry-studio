@@ -1,6 +1,12 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -8,11 +14,6 @@ import { BaseService } from '@main/core/lifecycle'
 import { type FileEntryId } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const electronMocks = vi.hoisted(() => ({
   ipcMain: {
@@ -25,7 +26,10 @@ const electronMocks = vi.hoisted(() => ({
   }
 }))
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+
 vi.mock('electron', () => electronMocks)
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -41,7 +45,7 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
 
 const { FileManager } = await import('../FileManager')
 const { danglingCache } = await import('../danglingCache')
-const { fileRefService } = await import('@data/services/FileRefService')
+const { fileEntryService } = await import('@data/services/FileEntryService')
 
 describe('FileManager (integration)', () => {
   const dbh = setupTestDatabase()
@@ -59,6 +63,9 @@ describe('FileManager (integration)', () => {
       if (key === 'feature.files.data') {
         return filename ? path.join(internalRoot, filename) : internalRoot
       }
+      if (key === 'feature.files.intakes') {
+        return path.join(tmp, 'intakes', filename ?? '')
+      }
       return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
     })
     electronMocks.ipcMain.handle.mockReset()
@@ -69,11 +76,57 @@ describe('FileManager (integration)', () => {
     BaseService.resetInstances()
     danglingCache.clear()
     hasPendingRestoreMock.mockReturnValue(false)
+    notifyDataApiDataChangeMock.mockClear()
+    const jobManager = application.get('JobManager')
+    vi.mocked(jobManager.registerHandler).mockReset()
+    vi.mocked(jobManager.enqueue)
+      .mockReset()
+      .mockReturnValue({ id: 'mock-job-id', snapshot: {} as never, finished: Promise.resolve({} as never) })
+    mockMainLoggerService.warn.mockClear()
     fm = new FileManager()
   })
 
   afterEach(async () => {
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('registers the content-hash backfill handler during onInit', async () => {
+    await (fm as unknown as { onInit: () => Promise<void> }).onInit()
+    expect(application.get('JobManager').registerHandler).toHaveBeenCalledWith(
+      'file.contenthash-backfill',
+      expect.objectContaining({ recovery: 'singleton' })
+    )
+  })
+
+  it('enqueues one startup backfill only when internal hashes are pending', async () => {
+    const countSpy = vi.spyOn(fileEntryService, 'countInternalMissingContentHash')
+    countSpy.mockReturnValueOnce(0)
+    ;(fm as unknown as { onAllReady: () => void }).onAllReady()
+    expect(application.get('JobManager').enqueue).not.toHaveBeenCalled()
+
+    countSpy.mockReturnValueOnce(2)
+    ;(fm as unknown as { onAllReady: () => void }).onAllReady()
+    expect(application.get('JobManager').enqueue).toHaveBeenCalledOnce()
+    expect(application.get('JobManager').enqueue).toHaveBeenCalledWith(
+      'file.contenthash-backfill',
+      {},
+      {
+        idempotencyKey: 'file.contenthash-backfill'
+      }
+    )
+  })
+
+  it('warns without rejecting readiness when the startup backfill enqueue fails', async () => {
+    vi.spyOn(fileEntryService, 'countInternalMissingContentHash').mockReturnValueOnce(1)
+    vi.mocked(application.get('JobManager').enqueue).mockImplementationOnce(() => {
+      throw new Error('enqueue failed')
+    })
+
+    expect(() => (fm as unknown as { onAllReady: () => void }).onAllReady()).not.toThrow()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'contentHash backfill: failed to enqueue at startup',
+      expect.objectContaining({ err: expect.any(Error) })
+    )
   })
 
   it('INT-1: end-to-end internal entry read', async () => {
@@ -143,7 +196,7 @@ describe('FileManager (integration)', () => {
 
     // Content hash works for external entries
     const hash = await fm.getContentHash(id)
-    expect(hash).toMatch(/^[0-9a-f]+$/)
+    expect(hash).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 
   it('INT-3: missing-file ENOENT propagates from read', async () => {
@@ -277,7 +330,7 @@ describe('FileManager (integration)', () => {
       const file = path.join(tmp, fileName)
       await writeFile(file, 'payload')
 
-      const entry = await fm.ensureExternalEntry({ externalPath: file as never })
+      const entry = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
       expect(entry.name).toBe(expectedName)
       expect(entry.ext).toBe('exe')
 
@@ -301,8 +354,30 @@ describe('FileManager (integration)', () => {
       updatedAt: now
     })
 
+    await writeFile(path.join(internalRoot, `${id}.pdf`), 'doc')
+
     await fm.open(id)
     expect(electronMocks.shell.openPath).toHaveBeenCalledWith(path.join(internalRoot, `${id}.pdf`))
+  })
+
+  it('INT-3h: open refuses an entry whose file is gone instead of handing it to the OS', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff38' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: 'ghost',
+      ext: 'png',
+      size: 1,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    // On Linux an unresolvable path kills the child Electron forks inside `shell.openPath`.
+    await expect(fm.open(id)).rejects.toMatchObject({ code: fileErrorCodes.OPEN_TARGET_UNAVAILABLE })
+    expect(electronMocks.shell.openPath).not.toHaveBeenCalled()
   })
 
   it('INT-4: write path round-trip — create internal, write, read, trash, restore, permanentDelete', async () => {
@@ -310,7 +385,8 @@ describe('FileManager (integration)', () => {
       source: 'bytes',
       data: new Uint8Array([0x01, 0x02]),
       name: 'note',
-      ext: 'txt'
+      ext: 'txt',
+      cleanupPolicy: 'manual'
     })
     expect(created.origin).toBe('internal')
     if (created.origin !== 'internal') throw new Error('expected internal entry')
@@ -322,30 +398,85 @@ describe('FileManager (integration)', () => {
     const read = await fm.read(created.id, { encoding: 'binary' })
     expect(Array.from(read.content)).toEqual([0xaa, 0xbb, 0xcc])
 
+    notifyDataApiDataChangeMock.mockClear()
     await fm.trash(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     const trashed = await fm.getById(created.id)
     if (trashed.origin === 'internal') {
       expect(typeof trashed.deletedAt).toBe('number')
     }
 
+    notifyDataApiDataChangeMock.mockClear()
     const restored = await fm.restore(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     if (restored.origin === 'internal') {
       expect(restored.deletedAt).toBeUndefined()
     }
 
+    notifyDataApiDataChangeMock.mockClear()
     await fm.permanentDelete(created.id)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [created.id] },
+      { endpoint: '/files/entries/:id', entityIds: [created.id] }
+    ])
     await expect(fm.getById(created.id)).rejects.toThrow(/not found/i)
   })
 
-  it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_delete', async () => {
+  it('publishes batch lifecycle changes only for successful entries', async () => {
+    const first = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'first',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    const second = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x02]),
+      name: 'second',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    const missing = '019606a0-0000-7000-8000-00000000ffff' as FileEntryId
+    const ids = [first.id, missing, second.id]
+
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchTrash(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
+
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchRestore(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
+
+    notifyDataApiDataChangeMock.mockClear()
+    await fm.batchTrash([first.id, second.id])
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchPermanentDeleteFromTrash(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
+      { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
+    ])
+  })
+
+  it('INT-5: trash on external entry is rejected without mutating the row', async () => {
     const file = path.join(tmp, 'ext.txt')
     await writeFile(file, 'x')
-    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     await expect(fm.trash(e.id)).rejects.toThrow()
-    // External BO has no `deletedAt` field by construction; if the trash
-    // attempt had slipped through, the DB CHECK fe_external_no_delete would
-    // have rejected it, so reading the row back must still surface as
-    // origin='external' with no deletedAt projection.
+    // External BOs have no `deletedAt` field, so the rejected trash attempt
+    // must leave the origin and projection unchanged.
     const refreshed = await fm.getById(e.id)
     expect(refreshed.origin).toBe('external')
     expect(refreshed).not.toHaveProperty('deletedAt')
@@ -354,9 +485,20 @@ describe('FileManager (integration)', () => {
   it('INT-6: permanentDelete on external leaves user file untouched', async () => {
     const file = path.join(tmp, 'ext-keep.txt')
     await writeFile(file, 'preserve me')
-    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     await fm.permanentDelete(e.id)
     await expect(fm.getById(e.id)).rejects.toThrow(/not found/i)
+    const { readFile } = await import('node:fs/promises')
+    expect(await readFile(file, 'utf-8')).toBe('preserve me')
+  })
+
+  it('INT-6a: batchRemoveFromLibrary removes the row and leaves the user file untouched', async () => {
+    const file = path.join(tmp, 'library-remove-keep.txt')
+    await writeFile(file, 'preserve me')
+    const entry = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
+
+    expect(await fm.batchRemoveFromLibrary([entry.id])).toEqual({ succeeded: [entry.id], failed: [] })
+    await expect(fm.getById(entry.id)).rejects.toThrow(/not found/i)
     const { readFile } = await import('node:fs/promises')
     expect(await readFile(file, 'utf-8')).toBe('preserve me')
   })
@@ -381,7 +523,7 @@ describe('FileManager (integration)', () => {
 
     const externalFile = path.join(tmp, 'will-go.txt')
     await writeFile(externalFile, 'will-go')
-    const ext = await fm.ensureExternalEntry({ externalPath: externalFile as never })
+    const ext = await fm.ensureExternalEntry({ externalPath: externalFile as never, cleanupPolicy: 'manual' })
     expect(await fm.getDanglingState({ id: ext.id })).toBe('present')
 
     const { rm: rmFile } = await import('node:fs/promises')
@@ -418,7 +560,7 @@ describe('FileManager (integration)', () => {
   it('INT-9: subscribeDangling delivers transitions for the subscribed external entry', async () => {
     const file = path.join(tmp, 'sub.txt')
     await writeFile(file, 'sub')
-    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     // After ensureExternalEntry the cache holds 'present' (source='ops').
     // A 'missing' observation is a genuine transition → listener fires.
     const seen: string[] = []
@@ -445,57 +587,102 @@ describe('FileManager (integration)', () => {
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
   })
 
-  it('INT-12: runSweep prunes dangling temp refs and reports orphan entries (DB sweep branch)', async () => {
-    const danglingTempId = '019606a0-0000-7000-8000-00000000ff31' as FileEntryId
+  it('INT-12: runSweep reports orphan entries (DB sweep branch)', async () => {
     const orphanEntryId = '019606a0-0000-7000-8000-00000000ff32' as FileEntryId
     const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values([
-      {
-        id: danglingTempId,
-        origin: 'internal',
-        name: 'dangling-temp',
-        ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: null,
-        createdAt: now,
-        updatedAt: now
-      },
-      {
-        id: orphanEntryId,
-        origin: 'internal',
-        name: 'orphan-entry',
-        ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: null,
-        createdAt: now + 1,
-        updatedAt: now + 1
-      }
-    ])
-    fileRefService.createTempSessionRef({
-      fileEntryId: danglingTempId,
-      sourceId: 'sess-orphan',
-      role: 'pending'
+    await dbh.db.insert(fileEntryTable).values({
+      id: orphanEntryId,
+      origin: 'internal',
+      name: 'orphan-entry',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
     })
-    await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, danglingTempId))
 
     const report = await fm.runSweep()
 
-    expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'sess-orphan' })).toEqual([])
     expect(report.outcome).toBe('completed')
-    expect(report.orphanRefsByType.temp_session).toBe(1)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
     // lastRunAt is the sweep start time captured server-side.
     expect(typeof report.lastRunAt).toBe('number')
   })
 
+  it('retains volume limits for default sweeps while allowing cache cleanup to bypass them', async () => {
+    const orphanPaths = Array.from({ length: 25 }, (_, i) =>
+      path.join(internalRoot, `019606a0-0000-7000-8000-${String(i + 400).padStart(12, '0')}.txt`)
+    )
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    for (const orphanPath of orphanPaths) {
+      await writeFile(orphanPath, 'orphan')
+      await utimes(orphanPath, ancient, ancient)
+    }
+
+    expect(await fm.inspectOrphanFiles()).toMatchObject({ outcome: 'aborted', abortReason: 'count-fraction' })
+    expect(await fm.cleanupOrphanFiles()).toMatchObject({ outcome: 'aborted', actualDeleteCount: 0 })
+    expect(await fm.runSweep()).toMatchObject({
+      outcome: 'partial',
+      fsSweepIssue: expect.stringContaining('count-fraction')
+    })
+
+    const preview = await fm.inspectOrphanFiles({ bypassSafetyThreshold: true })
+    expect(preview).toMatchObject({
+      outcome: 'completed',
+      plannedDeleteCount: 25,
+      plannedDeleteBytes: 150,
+      actualDeleteCount: 0
+    })
+    for (const orphanPath of orphanPaths) {
+      expect(await readFile(orphanPath, 'utf8')).toBe('orphan')
+    }
+
+    const cleanup = await fm.cleanupOrphanFiles({ bypassSafetyThreshold: true })
+    expect(cleanup).toMatchObject({ outcome: 'completed', actualDeleteCount: 25, actualDeleteBytes: 150 })
+    for (const orphanPath of orphanPaths) {
+      await expect(stat(orphanPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  })
+
+  it.each(['active', 'trashed'] as const)(
+    'keeps %s imported blobs whose extension looks like tmp residue',
+    async (state) => {
+      const ext = 'tmp-22222222-2222-4222-8222-aaaaaaaaaaaa'
+      const sourcePath = path.join(tmp, `keep.${ext}`)
+      await writeFile(sourcePath, 'retained payload')
+      const entry = await fm.createInternalEntry({
+        source: 'path',
+        path: AbsoluteFilePathSchema.parse(sourcePath),
+        cleanupPolicy: 'manual'
+      })
+      expect(entry.ext).toBe(ext)
+      if (state === 'trashed') await fm.trash(entry.id)
+      const retainedEntry = fileEntryService.getById(entry.id)
+      const physicalPath = fm.getPhysicalPath(entry.id)
+      const residuePath = `${physicalPath}.tmp-33333333-3333-4333-8333-bbbbbbbbbbbb`
+      await writeFile(residuePath, 'abandoned write')
+      const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+      await utimes(physicalPath, ancient, ancient)
+      await utimes(residuePath, ancient, ancient)
+
+      const preview = await fm.inspectOrphanFiles()
+      expect(preview).toMatchObject({ outcome: 'completed', plannedDeleteCount: 1, actualDeleteCount: 0 })
+      const report = await fm.runSweep()
+
+      expect(report.outcome).toBe('completed')
+      expect(await readFile(physicalPath, 'utf8')).toBe('retained payload')
+      expect(fileEntryService.getById(entry.id)).toEqual(retainedEntry)
+      await expect(stat(residuePath)).rejects.toThrow(/ENOENT/)
+    }
+  )
+
   it('INT-14a: a runDbSweep collapse propagates through to runSweep outcome="failed"', async () => {
     // Drive `runDbSweep` into its inner `'failed'` branch by spying on
-    // `scanOrphanEntries`'s downstream `findUnreferenced` call to throw.
+    // `scanOrphanEntries`'s downstream `findManualUnreferenced` call to throw.
     // Verifies the end-to-end propagation: runDbSweep → `'failed'` report
     // → `runSweep` returns the `'failed'` variant.
-    const spy = vi.spyOn(fm['deps'].fileEntryService, 'findUnreferenced').mockImplementationOnce(() => {
+    const spy = vi.spyOn(fm['deps'].fileEntryService, 'findManualUnreferenced').mockImplementationOnce(() => {
       throw new Error('db conn lost mid-sweep')
     })
 
@@ -511,7 +698,7 @@ describe('FileManager (integration)', () => {
 
   it('INT-14b: an FS sweep collapse degrades runSweep umbrella to "partial" (does not bleed into "failed")', async () => {
     // `listAllIds` is the FS sweep's first dependency call; `runDbSweep` uses
-    // `findUnreferenced`, so spying on `listAllIds` isolates the failure to
+    // `findManualUnreferenced`, so spying on `listAllIds` isolates the failure to
     // the FS side and the DB sweep stays on its happy `'completed'` path.
     // Without the umbrella merge, the cleanup UI would see `outcome:
     // 'completed'` over an EACCES — the regression flagged in
@@ -548,14 +735,38 @@ describe('FileManager (integration)', () => {
     expect(typeof report.lastRunAt).toBe('number')
   })
 
+  it('INT-14d: runSweep reclaims a large auto candidate set and reports entryCleanup (no volume abort)', async () => {
+    const HOUR = 60 * 60 * 1000
+    const now = Date.now()
+    const nthCleanupId = (i: number): FileEntryId => `019606a0-0000-7000-8000-${String(900 + i).padStart(12, '0')}`
+    const rows = Array.from({ length: 25 }, (_, i) => ({
+      id: nthCleanupId(i),
+      origin: 'internal' as const,
+      name: 'e',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      cleanupPolicy: 'delete_when_unreferenced' as const,
+      deletedAt: null,
+      createdAt: now - 2 * HOUR,
+      updatedAt: now - 2 * HOUR
+    }))
+    await dbh.db.insert(fileEntryTable).values(rows)
+
+    // 25 auto candidates = 100% of rows; the removed count-fraction abort (spec
+    // §5.3) would have refused. Silent cleanup now reclaims them in one pass.
+    const swept = await fm.runSweep()
+    expect(swept.entryCleanup).toMatchObject({ outcome: 'completed', deleted: 25 })
+  })
+
   it('INT-15a: batchCreateInternalEntries reports succeeded with sourceRef + per-item failed', async () => {
     // Two valid items + one that fails (invalid base64 data URI). Verify
     // succeeded carries `{ id, sourceRef }` correlation back to input indices
     // and failed carries the sourceRef (`#${index}`) for the bad item.
     const result = await fm.batchCreateInternalEntries([
-      { source: 'bytes', data: new Uint8Array([1]), name: 'a', ext: 'bin' },
-      { source: 'base64', data: 'not-a-data-uri' as never },
-      { source: 'bytes', data: new Uint8Array([2]), name: 'c', ext: 'bin' }
+      { source: 'bytes', data: new Uint8Array([1]), name: 'a', ext: 'bin', cleanupPolicy: 'manual' },
+      { source: 'base64', data: 'not-a-data-uri' as never, cleanupPolicy: 'manual' },
+      { source: 'bytes', data: new Uint8Array([2]), name: 'c', ext: 'bin', cleanupPolicy: 'manual' }
     ])
     expect(result.succeeded).toHaveLength(2)
     expect(result.failed).toHaveLength(1)
@@ -573,9 +784,9 @@ describe('FileManager (integration)', () => {
     const missing = path.join(tmp, 'no-such-file.txt')
 
     const result = await fm.batchEnsureExternalEntries([
-      { externalPath: same as never },
-      { externalPath: same as never },
-      { externalPath: missing as never }
+      { externalPath: same as never, cleanupPolicy: 'manual' },
+      { externalPath: same as never, cleanupPolicy: 'manual' },
+      { externalPath: missing as never, cleanupPolicy: 'manual' }
     ])
     // Two `same`-path inputs collapse to ONE DB row, but BOTH appear in
     // succeeded with the matching sourceRef so callers can still correlate

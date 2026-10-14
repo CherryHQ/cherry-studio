@@ -9,14 +9,12 @@ import {
   isCompletedVectorKnowledgeBase,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KnowledgeAddItemInputSchema,
-  type KnowledgeBase,
   KnowledgeBaseSchema,
   KnowledgeItemSchema,
   RestoreKnowledgeBaseSchema
 } from '../../../types/knowledge'
 import {
   KNOWLEDGE_BASES_DEFAULT_LIMIT,
-  KNOWLEDGE_BASES_DEFAULT_PAGE,
   KNOWLEDGE_BASES_MAX_LIMIT,
   ListKnowledgeBasesQuerySchema,
   ListKnowledgeItemsQuerySchema,
@@ -93,7 +91,7 @@ describe('Knowledge base schemas', () => {
       embeddingModelId: 'embed-model',
       chunkSize: 0,
       chunkOverlap: -1,
-      documentCount: 0
+      documentCount: -1
     })
 
     expect(result.success).toBe(false)
@@ -153,6 +151,26 @@ describe('Knowledge base schemas', () => {
     if (result.success) {
       expect(result.data.name).toBe('Base 1_bak')
     }
+  })
+
+  it('accepts a BM25-only restore and rejects half-set embedding config', () => {
+    expect(
+      RestoreKnowledgeBaseSchema.safeParse({
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
+        name: 'Base 1 BM25',
+        dimensions: null,
+        embeddingModelId: null
+      }).success
+    ).toBe(true)
+
+    expect(
+      RestoreKnowledgeBaseSchema.safeParse({
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
+        name: 'Base 1 BM25',
+        dimensions: 3072,
+        embeddingModelId: null
+      }).success
+    ).toBe(false)
   })
 
   it('rejects extra fields in restore-base DTOs', () => {
@@ -262,7 +280,7 @@ describe('Knowledge base schemas', () => {
     const result = UpdateKnowledgeBaseSchema.safeParse({
       chunkSize: -10,
       chunkOverlap: -1,
-      documentCount: 0
+      documentCount: -1
     })
 
     expect(result.success).toBe(false)
@@ -280,7 +298,7 @@ describe('Knowledge base schemas', () => {
       chunkSize: 0,
       chunkOverlap: -1,
       threshold: 2,
-      documentCount: 0,
+      documentCount: -1,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
@@ -305,6 +323,30 @@ describe('Knowledge base schemas', () => {
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
     ).toBe(false)
+  })
+
+  it('accepts documentCount 0 for empty knowledge bases', () => {
+    const result = KnowledgeBaseSchema.safeParse({
+      id: KNOWLEDGE_BASE_ID,
+      name: 'KB',
+      dimensions: 1024,
+      embeddingModelId: 'embed-model',
+      groupId: null,
+      status: 'completed',
+      error: null,
+      chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+      chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      chunkStrategy: 'structured',
+      chunkSeparator: '\\n\\n',
+      documentCount: 0,
+      createdAt: '2026-04-10T00:00:00.000Z',
+      updatedAt: '2026-04-10T00:00:00.000Z'
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.documentCount).toBe(0)
+    }
   })
 
   it('accepts nullable groupId and requires persisted defaults in entity schema', () => {
@@ -395,7 +437,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -409,7 +451,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'idle',
+        status: 'processing',
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
@@ -706,7 +748,7 @@ describe('isCompletedKnowledgeBase', () => {
       isCompletedKnowledgeBase({
         ...completedBase,
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
-      } as KnowledgeBase)
+      })
     ).toBe(false)
   })
 })
@@ -743,9 +785,9 @@ describe('isCompletedVectorKnowledgeBase', () => {
   })
 
   it('rejects illegal vector states the schema would never produce', () => {
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: null } as KnowledgeBase)).toBe(false)
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: 0 } as KnowledgeBase)).toBe(false)
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null } as KnowledgeBase)).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: null })).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: 0 })).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null })).toBe(false)
   })
 
   it('rejects a failed base', () => {
@@ -764,18 +806,26 @@ describe('isCompletedVectorKnowledgeBase', () => {
 describe('ListKnowledgeBasesQuerySchema', () => {
   it('trims search and applies pagination defaults', () => {
     expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
-      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
       limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
       search: 'docs'
     })
   })
 
-  it('accepts max limit and rejects blank search', () => {
-    expect(ListKnowledgeBasesQuerySchema.parse({ page: 2, limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
-      page: 2,
+  it('accepts cursor and max limit and rejects the old page field', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ cursor: 'next-page', limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
+      cursor: 'next-page',
       limit: KNOWLEDGE_BASES_MAX_LIMIT
     })
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 2, limit: 20 }).success).toBe(false)
     expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
+  })
+
+  it('accepts exact ids up to the collection limit', () => {
+    const ids = Array.from({ length: KNOWLEDGE_BASES_MAX_LIMIT }, (_, index) => `base-${index}`)
+
+    expect(ListKnowledgeBasesQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
   })
 
   it('accepts sort and updatedAtFrom query fields', () => {
@@ -786,7 +836,6 @@ describe('ListKnowledgeBasesQuerySchema', () => {
         updatedAtFrom: '2026-05-01T00:00:00.000Z'
       })
     ).toEqual({
-      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
       limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
       sortBy: 'updatedAt',
       sortOrder: 'desc',

@@ -1,16 +1,38 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AbsoluteFilePath } from '@shared/types/file'
+
+import type { FilePreviewType } from '../../../types'
 import HtmlFilePreview from '../HtmlFilePreview'
 
 const mocks = vi.hoisted(() => ({
   codeViewer: vi.fn(),
   htmlFrame: vi.fn(),
-  getMetadata: vi.fn(),
-  readText: vi.fn()
+  readText: vi.fn(),
+  webviewBrowser: vi.fn()
+}))
+
+vi.mock('@renderer/components/WebviewBrowser', () => ({
+  WebviewBrowser: (props: {
+    initialUrl: string
+    reloadKey?: number
+    securityProfile: string
+    target: { id: string; label: string }
+  }) => {
+    mocks.webviewBrowser(props)
+    return (
+      <div
+        data-testid="webview-browser"
+        data-url={props.initialUrl}
+        data-security-profile={props.securityProfile}
+        data-target-id={props.target.id}
+        data-target-label={props.target.label}
+      />
+    )
+  }
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
@@ -83,12 +105,22 @@ vi.mock('react-i18next', () => ({
 
 const filePath = '/tmp/workspace/index.html' as AbsoluteFilePath
 
-function renderPreview(overrides: Partial<{ filePath: AbsoluteFilePath; fileName: string; refreshKey: number }> = {}) {
+function renderPreview(
+  overrides: Partial<{
+    filePath: AbsoluteFilePath
+    fileName: string
+    refreshKey: number
+    size: number
+    type: FilePreviewType
+  }> = {}
+) {
   return render(
     <HtmlFilePreview
       filePath={overrides.filePath ?? filePath}
       fileName={overrides.fileName ?? 'index.html'}
+      metadata={{ size: overrides.size ?? 42, modifiedAt: 1 }}
       refreshKey={overrides.refreshKey ?? 0}
+      type={overrides.type ?? 'file'}
     />
   )
 }
@@ -96,12 +128,10 @@ function renderPreview(overrides: Partial<{ filePath: AbsoluteFilePath; fileName
 describe('HtmlFilePreview', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 42 })
     mocks.readText.mockResolvedValue('<h1>Hello</h1>')
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        file: { getMetadata: mocks.getMetadata },
         fs: { readText: mocks.readText }
       }
     })
@@ -114,7 +144,6 @@ describe('HtmlFilePreview', () => {
     expect(frame).toHaveAttribute('srcdoc', '<h1>Hello</h1>')
     expect(frame.getAttribute('data-base-url')).toMatch(/^file:\/\/.*index\.html$/)
     expect(frame.parentElement).toHaveClass('h-full', 'bg-white')
-    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: filePath })
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
   })
 
@@ -132,33 +161,32 @@ describe('HtmlFilePreview', () => {
   })
 
   it('shows the empty state for empty content', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 0 })
     mocks.readText.mockResolvedValueOnce('')
 
-    renderPreview()
+    renderPreview({ size: 0 })
 
     expect(await screen.findByText('file_preview.html.empty.title')).toBeInTheDocument()
     expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
   })
 
   it('rejects files over 2 MiB before reading their contents', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 2 * 1024 * 1024 + 1 })
-
-    renderPreview()
+    renderPreview({ size: 2 * 1024 * 1024 + 1 })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.html.too_large.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.html.too_large.description')
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('shows and logs the actual read error for diagnosis', async () => {
+  it('logs the actual read error but shows only a localized description', async () => {
     const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mocks.readText.mockRejectedValueOnce(new Error('EACCES: permission denied'))
 
     renderPreview()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.html.read_error.title')
-    expect(screen.getByRole('alert')).toHaveTextContent('EACCES: permission denied')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
+    // The raw (English) error message must not leak into the UI — it is for logs only.
+    expect(screen.queryByText('EACCES: permission denied')).not.toBeInTheDocument()
     expect(loggerError).toHaveBeenCalledWith(
       `Failed to read HTML preview: ${filePath}`,
       expect.objectContaining({ message: 'EACCES: permission denied' })
@@ -180,16 +208,43 @@ describe('HtmlFilePreview', () => {
     expect(screen.getByTestId('html-frame')).toBeInTheDocument()
   })
 
+  it('opens artifact HTML in the shared WebView browser and keeps ordinary file HTML in the restricted iframe', async () => {
+    renderPreview({ type: 'artifact' })
+
+    const browser = await screen.findByTestId('webview-browser')
+    expect(browser.getAttribute('data-url')).toMatch(/^file:\/\/.*index\.html$/)
+    expect(browser).toHaveAttribute('data-target-label', 'index.html')
+    expect(browser).toHaveAttribute('data-security-profile', 'agent-html-artifact')
+    expect(mocks.readText).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.html.mode.preview' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.html.mode.source' })).not.toBeInTheDocument()
+  })
+
   it('reloads when the path or refresh key changes', async () => {
     const secondPath = '/tmp/workspace/about.html' as AbsoluteFilePath
     const view = renderPreview()
     await screen.findByTestId('html-frame')
 
-    view.rerender(<HtmlFilePreview filePath={secondPath} fileName="about.html" refreshKey={0} />)
-    await waitFor(() => expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: secondPath }))
+    view.rerender(
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="about.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={0}
+      />
+    )
+    await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(secondPath))
 
-    view.rerender(<HtmlFilePreview filePath={secondPath} fileName="about.html" refreshKey={1} />)
-    await waitFor(() => expect(mocks.getMetadata).toHaveBeenCalledTimes(3))
+    view.rerender(
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="about.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={1}
+      />
+    )
+    await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
   })
 
   it('ignores a stale read after the path changes', async () => {
@@ -205,7 +260,14 @@ describe('HtmlFilePreview', () => {
     const view = renderPreview()
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(filePath))
 
-    view.rerender(<HtmlFilePreview filePath={secondPath} fileName="second.html" refreshKey={0} />)
+    view.rerender(
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="second.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={0}
+      />
+    )
     expect(await screen.findByTestId('html-frame')).toHaveAttribute('srcdoc', '<p>Second</p>')
 
     resolveFirstRead?.('<p>Stale</p>')

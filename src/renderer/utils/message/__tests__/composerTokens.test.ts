@@ -1,8 +1,9 @@
+import { describe, expect, it } from 'vitest'
+
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import { describe, expect, it } from 'vitest'
 
 import {
   getComposerTextFromMessage,
@@ -20,9 +21,12 @@ function snapshot(tokens: ComposerMessageToken[]): ComposerMessageSnapshot {
 }
 
 function composerTextPart(text: string, tokens: ComposerMessageToken[]) {
-  return withCherryMeta({ type: 'text', text } as Extract<CherryMessagePart, { type: 'text' }>, {
-    composer: snapshot(tokens)
-  })
+  return withCherryMeta(
+    { type: 'text', text },
+    {
+      composer: snapshot(tokens)
+    }
+  )
 }
 
 function userMessage(parts: CherryMessagePart[]): ExportableMessage {
@@ -33,7 +37,7 @@ function userMessage(parts: CherryMessagePart[]): ExportableMessage {
     createdAt: '2024-01-01T00:00:00Z',
     status: 'success',
     parts
-  } as ExportableMessage
+  }
 }
 
 describe('getComposerTokenClipboardText', () => {
@@ -71,6 +75,18 @@ describe('getComposerTokenClipboardText', () => {
         })
       )
     ).toBe('/Users/jd/Notes/Project Notes')
+  })
+
+  it('returns the original URL for link tokens', () => {
+    expect(
+      getComposerTokenClipboardText(
+        token({
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: 'https://example.com/docs'
+        })
+      )
+    ).toBe('https://example.com/docs')
   })
 })
 

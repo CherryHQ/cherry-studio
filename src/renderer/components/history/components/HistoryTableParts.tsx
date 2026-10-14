@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import type { TFunction } from 'i18next'
+import { Archive, PinIcon } from 'lucide-react'
+import type { ReactElement, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { Button, Checkbox, RowFlex } from '@cherrystudio/ui'
 import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -5,24 +11,19 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import dayjs from 'dayjs'
-import type { TFunction } from 'i18next'
-import { PinIcon, Trash2 } from 'lucide-react'
-import type { ReactElement, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
 export const historyTableGridClassName =
   'grid min-w-[760px] grid-cols-[44px_minmax(180px,1fr)_minmax(280px,2.5fr)_100px_84px]'
 const historyHeaderClassName =
-  'sticky top-0 z-10 border-border-muted border-b bg-card text-foreground-secondary text-sm leading-5'
+  'sticky top-0 z-10 border-border-subtle border-b bg-card text-muted-foreground text-sm leading-5'
 const historyHeaderCellClassName = 'flex h-8 min-w-0 items-center px-3 py-1.5 font-semibold'
 // The row itself paints no hover/selection fill: each cell paints its own `muted` layer instead. This keeps
 // the fixed action column's fill from stacking on top of a row-level fill (which, with alpha `muted`, read
 // darker), and lets every cell — action column included — animate the same transitionable `background-color`
 // in lockstep. The `group` marker drives the per-cell `group-hover` / `group-data-[state=selected]` variants.
 export const historyBodyRowClassName =
-  'group border-border-subtle border-b bg-card text-foreground-secondary text-sm leading-5'
+  'group border-border-subtle border-b bg-card text-muted-foreground text-sm leading-5'
 export const historyBodyCellClassName =
   'flex min-w-0 items-center px-3 py-1.5 transition-colors group-hover:bg-muted group-data-[state=selected]:bg-muted'
 // Opaque `bg-card` base keeps horizontally-scrolled cells from bleeding through the pinned column; the shared
@@ -31,8 +32,8 @@ export const historyFixedActionCellClassName =
   'sticky right-0 z-2 justify-center bg-card px-2 [border-left:0.5px_solid_var(--border-subtle)]'
 export const historyFixedActionShadowClassName =
   '[--history-fixed-action-shadow:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)] [box-shadow:-8px_0_12px_-12px_var(--history-fixed-action-shadow)]'
-// DESIGN.md §82 sanctions this token-backed 0.5px hairline written as an arbitrary property (a real
-// `border-b` renders 1px). Shared by the header / filter bar / toolbar so the value stays in one place.
+// Use a token-backed 0.5px hairline arbitrary property because a real `border-b` renders 1px. Shared
+// by the header / filter bar / toolbar so the value stays in one place.
 export const HISTORY_HAIRLINE_BOTTOM = '[border-bottom:0.5px_solid_var(--border-subtle)]'
 
 interface HistoryVirtualTableProps<TItem> {
@@ -140,6 +141,7 @@ export const HistoryTableHeader = ({
         checked={selectedState}
         disabled={selectionDisabled}
         aria-label={selectAllLabel}
+        data-history-selection-checkbox
         onCheckedChange={(checked) => onToggleAll(Boolean(checked))}
         onClick={(event) => event.stopPropagation()}
       />
@@ -169,7 +171,7 @@ interface HistorySelectionCellProps {
   checked: boolean
   disabled?: boolean
   label: string
-  onCheckedChange: (checked: boolean) => void
+  onCheckedChange: (checked: boolean, selectRange?: boolean) => void
 }
 
 export const HistorySelectionCell = ({
@@ -184,8 +186,11 @@ export const HistorySelectionCell = ({
       checked={checked}
       disabled={disabled}
       aria-label={label}
-      onCheckedChange={(nextChecked) => onCheckedChange(Boolean(nextChecked))}
-      onClick={(event) => event.stopPropagation()}
+      data-history-selection-checkbox
+      onClick={(event) => {
+        event.stopPropagation()
+        onCheckedChange(!checked, event.shiftKey)
+      }}
     />
   </div>
 )
@@ -197,9 +202,10 @@ interface HistoryTitleButtonProps {
 
 export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) => (
   <span
+    data-history-record-title
     role="button"
     tabIndex={0}
-    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    className="text-muted-foreground -mx-1 block w-full max-w-full min-w-0 cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
     title={title}
     onClick={(event) => {
       event.stopPropagation()
@@ -315,7 +321,7 @@ export function HistoryActionsCell<TContext = unknown>({
   onTogglePin
 }: HistoryActionsCellProps<TContext>) {
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ResolvedAction<TContext> | undefined>()
-  const deleteAction = useMemo(() => actions.find(isDeleteAction), [actions])
+  const deleteAction = useMemo(() => findRowDeleteAction(actions), [actions])
   const handleAction = useCallback(
     (action: ResolvedAction<TContext>) => {
       window.requestAnimationFrame(() => {
@@ -359,6 +365,10 @@ export function HistoryActionsCell<TContext = unknown>({
   )
 }
 
+function findRowDeleteAction<TContext>(actions: readonly ResolvedAction<TContext>[]) {
+  return actions.find(isDeleteAction)
+}
+
 function isDeleteAction<TContext>(action: ResolvedAction<TContext>) {
   return action.id.endsWith('.delete') || action.commandId?.endsWith('.delete')
 }
@@ -376,7 +386,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-foreground-secondary hover:bg-accent hover:text-foreground"
+      className="text-muted-foreground hover:bg-accent hover:text-foreground"
       data-testid="history-delete-button"
       disabled={disabled}
       size="icon-sm"
@@ -386,7 +396,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
         event.stopPropagation()
         if (action) onClick(action)
       }}>
-      <Trash2 className="size-4" />
+      <Archive className="size-4" />
     </Button>
   )
 }
@@ -405,7 +415,7 @@ const PinActionButton = ({ isPinned, pinLabel, unpinLabel, onClick }: PinActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-foreground-secondary hover:bg-accent hover:text-foreground"
+      className="text-muted-foreground hover:bg-accent hover:text-foreground"
       data-testid="history-pin-button"
       size="icon-sm"
       title={label}
@@ -435,7 +445,7 @@ interface HistoryRecordRowProps {
   unpinLabel: string
   onAction: (action: ResolvedAction) => void | Promise<void>
   onOpen?: () => void
-  onSelectedChange: (checked: boolean) => void
+  onSelectedChange: (checked: boolean, selectRange?: boolean) => void
   onTogglePin?: () => void | Promise<void>
 }
 
@@ -472,10 +482,10 @@ export const HistoryRecordRow = ({
     />
     <div className={historyBodyCellClassName} role="cell">
       <RowFlex className="min-w-0 items-center gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center text-foreground text-sm leading-none">
+        <span className="flex size-6 shrink-0 items-center justify-center text-sm leading-none text-foreground">
           {avatar}
         </span>
-        <span className="truncate text-foreground text-xs">{sourceLabel}</span>
+        <span className="truncate text-xs text-foreground">{sourceLabel}</span>
       </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
@@ -488,7 +498,7 @@ export const HistoryRecordRow = ({
       </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
-      <div className="text-foreground-secondary text-xs tabular-nums">{timeLabel}</div>
+      <div className="text-muted-foreground text-xs tabular-nums">{timeLabel}</div>
     </div>
     <div
       className={cn(

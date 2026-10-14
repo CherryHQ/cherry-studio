@@ -1,78 +1,267 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { Activity, type ButtonHTMLAttributes, type HTMLAttributes, type PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TracePage } from '../TracePage'
+import type * as TraceTreeModule from '../TraceTree'
 
 const mocks = vi.hoisted(() => ({
-  getTraceData: vi.fn()
+  getData: vi.fn(),
+  t: (key: string) => key
 }))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: mocks.t })
+}))
+
+vi.mock('@cherrystudio/ui', () => {
+  const Div = ({ children, ...props }: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) => (
+    <div {...props}>{children}</div>
+  )
+
+  return {
+    Button: ({ children, ...props }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Field: Div,
+    FieldContent: Div,
+    FieldDescription: Div,
+    FieldGroup: Div,
+    FieldTitle: Div,
+    Tabs: Div,
+    TabsContent: Div,
+    TabsList: Div,
+    TabsTrigger: ({ children, ...props }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  }
+})
 
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre data-testid="code-viewer">{value}</pre>
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key
-  }),
-  // SpanDetail -> ModelAvatar -> @renderer/utils -> i18n/index runs `i18n.use(initReactI18next)` at load.
-  initReactI18next: { type: '3rdParty', init: () => {} }
+vi.mock('../TraceTree', async (importOriginal) => ({
+  ...(await importOriginal<typeof TraceTreeModule>()),
+  default: ({
+    handleClick,
+    model
+  }: {
+    handleClick: (id: string) => void
+    model: { visibleRows: Array<{ id: string }>; getNode: (id: string) => { name: string } }
+  }) => (
+    <div>
+      {model.visibleRows.map((row) => (
+        <button type="button" key={row.id} onClick={() => handleClick(row.id)}>
+          {model.getNode(row.id).name}
+        </button>
+      ))}
+    </div>
+  )
 }))
+
+function TracePageHarness({ visible, traceId = 'a1b2c3' }: { visible: boolean; traceId?: string }) {
+  return (
+    <Activity mode={visible ? 'visible' : 'hidden'}>
+      <TracePage topicId="topic-1" traceId={traceId} />
+    </Activity>
+  )
+}
 
 describe('TracePage', () => {
   beforeEach(() => {
-    mocks.getTraceData.mockReset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        trace: {
-          getData: mocks.getTraceData
+    vi.useFakeTimers()
+    mocks.getData.mockReset().mockResolvedValue({
+      reset: true,
+      cursor: { historyVersion: null, liveRevision: 1 },
+      spans: [
+        {
+          id: 'span-1',
+          parentId: null,
+          name: 'ai.turn',
+          startTime: 1,
+          endTime: 2
         }
-      }
+      ]
     })
+    ;(window as unknown as { api: unknown }).api = { trace: { getData: mocks.getData } }
   })
 
   afterEach(() => {
-    cleanup()
-    vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
-  it('keeps the trace list vertically scrollable without forcing horizontal table width', async () => {
-    const longSpanName =
-      'agent_session_runtime_with_a_very_long_tool_span_name_that_should_wrap_inside_the_trace_table_cell'
-    mocks.getTraceData.mockResolvedValue([
-      {
-        id: 'span-1',
-        traceId: 'trace-a',
-        parentId: null,
-        name: longSpanName,
-        status: 'OK',
-        kind: 'LLM',
-        topicId: 'topic-a',
-        modelName: 'model-a',
-        startTime: 1000,
-        endTime: 2000,
-        attributes: {},
-        events: [],
-        links: [],
-        usage: {
-          prompt_tokens: 123,
-          completion_tokens: 456
-        }
-      }
-    ])
+  it('keeps checking a completed container trace for later turns', async () => {
+    render(<TracePageHarness visible />)
 
-    render(
-      <div style={{ height: 240, width: 360 }}>
-        <TracePage topicId="topic-a" traceId="trace-a" />
-      </div>
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000)
+    })
+    const callsAfterIdlePeriod = mocks.getData.mock.calls.length
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+
+    expect(mocks.getData.mock.calls.length).toBeGreaterThan(callsAfterIdlePeriod)
+  })
+
+  it('passes the server cursor and applies a changed span without requesting another full snapshot', async () => {
+    const cursor = { historyVersion: '1:100', liveRevision: 4 }
+    mocks.getData
+      .mockResolvedValueOnce({
+        reset: true,
+        cursor,
+        spans: [{ id: 'span-1', parentId: null, name: 'before', startTime: 1, endTime: null }]
+      })
+      .mockResolvedValue({
+        reset: false,
+        cursor: { ...cursor, liveRevision: 5 },
+        spans: [{ id: 'span-1', parentId: null, name: 'after', startTime: 1, endTime: 2 }]
+      })
+
+    render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(mocks.getData).toHaveBeenNthCalledWith(1, 'topic-1', 'a1b2c3', undefined)
+    expect(mocks.getData).toHaveBeenNthCalledWith(2, 'topic-1', 'a1b2c3', cursor)
+    expect(screen.getByText('after')).toBeInTheDocument()
+  })
+
+  it('updates the selected span detail after receiving a delta', async () => {
+    const cursor = { historyVersion: '1:100', liveRevision: 4 }
+    mocks.getData
+      .mockResolvedValueOnce({
+        reset: true,
+        cursor,
+        spans: [
+          {
+            id: 'span-1',
+            parentId: null,
+            name: 'tool.call',
+            startTime: 1,
+            endTime: null,
+            attributes: { inputs: 'before' }
+          }
+        ]
+      })
+      .mockResolvedValue({
+        reset: false,
+        cursor: { ...cursor, liveRevision: 5 },
+        spans: [
+          {
+            id: 'span-1',
+            parentId: null,
+            name: 'tool.call',
+            startTime: 1,
+            endTime: 2,
+            attributes: { inputs: 'after' }
+          }
+        ]
+      })
+
+    render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'tool.call' }))
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('before')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('after')
+  })
+
+  // A mid-stream reset (trace evicted, or local trace data cleared) empties the id map that resolves
+  // clicks and the selection. Leaving the rendered rows behind would strand them: visible, but
+  // unresolvable by every handler.
+  it('clears the rendered spans when a reset arrives mid-stream with nothing left', async () => {
+    mocks.getData
+      .mockResolvedValueOnce({
+        reset: true,
+        cursor: { historyVersion: '1:100', liveRevision: 4 },
+        spans: [{ id: 'span-1', parentId: null, name: 'ai.turn', startTime: 1, endTime: null }]
+      })
+      .mockResolvedValue({
+        reset: true,
+        cursor: { historyVersion: null, liveRevision: 0 },
+        spans: []
+      })
+
+    render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByText('ai.turn')).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(screen.queryByText('ai.turn')).not.toBeInTheDocument()
+    expect(screen.getByText('trace.noTraceList')).toBeInTheDocument()
+  })
+
+  it('does not overlap polls while the previous IPC request is pending', async () => {
+    let resolveRequest: ((value: unknown) => void) | undefined
+    mocks.getData.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve
+        })
     )
 
-    const spanName = await screen.findByText(longSpanName)
+    render(<TracePageHarness visible />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+    expect(mocks.getData).toHaveBeenCalledTimes(1)
 
-    expect(screen.getByTestId('trace-list-scroll')).toHaveClass('overflow-y-auto', 'overflow-x-hidden', 'min-w-0')
-    expect(screen.getByTestId('trace-table')).toHaveClass('min-w-0', 'overflow-hidden')
-    expect(screen.getByTestId('trace-table')).not.toHaveClass('min-w-[640px]')
-    expect(spanName).toHaveClass('min-w-0', 'flex-1')
+    await act(async () => {
+      resolveRequest?.({ reset: true, cursor: { historyVersion: null, liveRevision: 0 }, spans: [] })
+      await Promise.resolve()
+    })
+  })
+
+  it('cancels polling when the panel unmounts', async () => {
+    const view = render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const callsBeforeUnmount = mocks.getData.mock.calls.length
+
+    view.unmount()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    expect(mocks.getData).toHaveBeenCalledTimes(callsBeforeUnmount)
+  })
+
+  it('clears selection and starts a fresh cursor when switching traces', async () => {
+    const view = render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'ai.turn' }))
+    expect(screen.getByTestId('code-viewer')).toBeInTheDocument()
+
+    view.rerender(<TracePageHarness visible traceId="d4e5f6" />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+    expect(mocks.getData).toHaveBeenLastCalledWith('topic-1', 'd4e5f6', undefined)
   })
 })

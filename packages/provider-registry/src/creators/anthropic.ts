@@ -7,12 +7,134 @@ export default defineCreator({
   fetchModels: anthropicModels(),
   modelsDevProviders: ['anthropic'],
   idPrefixes: ['claude'],
+  models: [
+    {
+      id: 'claude-haiku-5-5',
+      name: 'Claude Haiku 5.5',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.1 },
+        output: { currency: 'USD', perMillionTokens: 0.5 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.01 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 0.125 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 100001,
+            input: { currency: 'USD', perMillionTokens: 0.5 },
+            output: { currency: 'USD', perMillionTokens: 2.5 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.05 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 0.625 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [
+          { kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' },
+          { kind: 'toggle' }
+        ]
+      }
+    },
+    {
+      id: 'claude-sonnet-5-5',
+      name: 'Claude Sonnet 5.5',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        output: { currency: 'USD', perMillionTokens: 10 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 2.5 }
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [
+          { kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'high' },
+          { kind: 'toggle' }
+        ]
+      }
+    },
+    {
+      id: 'claude-opus-5-5',
+      name: 'Claude Opus 5.5',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 4 },
+        output: { currency: 'USD', perMillionTokens: 20 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 5 }
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+      }
+    }
+  ],
   reasoningFamilies: [
+    {
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-haiku-5[.-]5(?:$|[\\[ @:-])',
+      effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+      toggle: true,
+      wireDialect: 'effort'
+    },
+    // Sonnet's lowest setting skips up-front thinking but retains progress updates between tools.
+    {
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-sonnet-5[.-]5(?:$|[\\[ @:-])',
+      effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+      toggle: true,
+      wireDialect: 'adaptive-between-tools'
+    },
+    // Opus 5.5 always uses adaptive thinking.
+    {
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
+      effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+      toggle: false,
+      wireDialect: 'adaptive-always'
+    },
     // Fable always reasons. The API rejects attempts to disable thinking.
     {
       pattern: '^(?:anthropic\\.)?claude-fable',
       effort: ['low', 'medium', 'high', 'max'],
-      toggle: false
+      toggle: false,
+      wireDialect: 'effort'
     },
     // Adaptive-effort generations: 4.6+ minors, the 5.x/Fable line, and the
     // -latest aliases (which track the newest flagship).
@@ -20,10 +142,14 @@ export default defineCreator({
       pattern:
         '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest)',
       effort: ['low', 'medium', 'high', 'max'],
-      toggle: true
+      toggle: true,
+      wireDialect: 'effort'
     },
-    // Pre-adaptive thinking SKUs: on/off + budget (tiers below).
-    { pattern: '^(?:anthropic\\.)?claude', toggle: true, template: true },
+    // Pre-adaptive thinking SKUs: on/off + budget (tiers below). `thinking.type
+    // = adaptive` is 4.6+, so every earlier SKU stays on enabled+budget_tokens
+    // — including opus-4.5, which DOES take an effort knob (output_config.effort)
+    // yet still rejects adaptive. Effort-capability and dialect are independent.
+    { pattern: '^(?:anthropic\\.)?claude', toggle: true, wireDialect: 'budget', template: true },
     {
       pattern: '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$',
       budget: { min: 1024, max: 128000 },
@@ -67,13 +193,5 @@ export default defineCreator({
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: 'claude-3-7-sonnet|claude-3\\.7-sonnet' },
     { pattern: 'claude-(?:sonnet|opus|haiku)-4' }
-  ],
-  webSearch: [
-    'claude-opus-4',
-    'claude-sonnet-4',
-    'claude-haiku-4',
-    'claude-3-5-haiku',
-    'claude-3-5-sonnet',
-    'claude-3-7-sonnet'
   ]
 })

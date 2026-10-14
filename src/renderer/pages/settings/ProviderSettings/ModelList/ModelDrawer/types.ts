@@ -21,16 +21,15 @@ export interface ModelBasicFormState {
   modelId: string
   name: string
   group: string
-  contextWindow: string
-  maxInputTokens: string
-  maxOutputTokens: string
+  contextWindow: number | null
+  maxInputTokens: number | null
+  maxOutputTokens: number | null
   endpointTypes?: ModelDrawerEndpointType[]
 }
 
 export const MODEL_CAPABILITY_TOGGLE_VALUES = [
   MODEL_CAPABILITY.REASONING,
-  MODEL_CAPABILITY.FUNCTION_CALL,
-  MODEL_CAPABILITY.WEB_SEARCH
+  MODEL_CAPABILITY.FUNCTION_CALL
 ] as const satisfies readonly ModelCapability[]
 
 export type ModelCapabilityToggle = (typeof MODEL_CAPABILITY_TOGGLE_VALUES)[number]

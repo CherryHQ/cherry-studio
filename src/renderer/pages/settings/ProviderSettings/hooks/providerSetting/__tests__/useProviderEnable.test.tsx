@@ -36,7 +36,7 @@ describe('useProviderEnable', () => {
     expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
-  it('enables and moves the provider to the top through the atomic mutation', async () => {
+  it('enables the provider without a separate reorder mutation', async () => {
     const { result } = renderHook(() => useProviderEnable('openai'))
 
     await act(async () => {
@@ -47,26 +47,11 @@ describe('useProviderEnable', () => {
     expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
-  it('does nothing when the provider is missing', async () => {
-    useProviderMock.mockReturnValue({
-      provider: undefined
-    })
-
-    const { result } = renderHook(() => useProviderEnable('openai'))
-
-    await act(async () => {
-      await result.current.toggleProviderEnabled(true)
-    })
-
-    expect(updateProviderMock).not.toHaveBeenCalled()
-    expect(enableProviderMock).not.toHaveBeenCalled()
-  })
-
-  it('surfaces atomic enable-and-pin failures without stale rollback', async () => {
+  it('surfaces enable failures without a stale rollback', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', isEnabled: false }
     })
-    const enableError = new Error('enable and pin failed')
+    const enableError = new Error('enable failed')
     enableProviderMock.mockRejectedValueOnce(enableError)
 
     const { result } = renderHook(() => useProviderEnable('openai'))

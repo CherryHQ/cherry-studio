@@ -1,6 +1,7 @@
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 
 // ── Service mocks ────────────────────────────────────────────────────
 
@@ -188,7 +189,7 @@ describe('TemporaryChatContextProvider', () => {
     const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: false })
 
     expect(prepared.topicId).toBe('1')
-    expect(prepared.isMultiModel).toBe(false)
+    expect(provider.isPersistentConversation).toBe(false)
 
     // user message was appended (service allocates the id)
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
@@ -215,8 +216,10 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messages).toBeDefined()
     expect(request.messages!).toHaveLength(1)
     expect(request.messages![0].role).toBe('user')
-    // No pre-allocated messageId: AI SDK generates it for the streaming UIMessage
-    expect(request.messageId).toBeUndefined()
+    // The stream and temporary backend share one stable message id so
+    // invocation records can link to it before later promotion rebuilds the
+    // same message projection.
+    expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('reads the knowledge scope from the submitted user-message parts', async () => {

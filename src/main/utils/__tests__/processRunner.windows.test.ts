@@ -1,5 +1,3 @@
-import type { ChildProcess } from 'node:child_process'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const crossSpawnMock = vi.hoisted(() => vi.fn())
@@ -17,12 +15,33 @@ vi.mock('@logger', () => ({
 
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: vi.fn() }))
 
-import { crossPlatformSpawn } from '../processRunner'
+import { crossPlatformSpawn, removeEnvProxy } from '../processRunner'
+
+describe('removeEnvProxy', () => {
+  it('removes every Cherry proxy variable case-insensitively while preserving other entries', () => {
+    const env: NodeJS.ProcessEnv = {
+      CHERRY_STUDIO_NODE_PROXY_RULES: 'http://user:password@proxy.example',
+      cherry_studio_node_proxy_bypass_rules: 'localhost',
+      Http_Proxy: 'http://proxy.example',
+      HTTPS_PROXY: 'http://proxy.example',
+      All_Proxy: 'socks5://proxy.example',
+      socks_proxy: 'socks5://proxy.example',
+      No_Proxy: 'localhost',
+      GRPC_PROXY: 'http://proxy.example',
+      Path: 'C:\\Windows\\System32',
+      USER_DEFINED_TOKEN: 'preserve-me'
+    }
+
+    removeEnvProxy(env)
+
+    expect(env).toEqual({ Path: 'C:\\Windows\\System32', USER_DEFINED_TOKEN: 'preserve-me' })
+  })
+})
 
 describe('crossPlatformSpawn (Windows batch shims)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    crossSpawnMock.mockReturnValue({} as ChildProcess)
+    crossSpawnMock.mockReturnValue({})
   })
 
   it.each(['cmd', 'bat'])('delegates a .%s executable and opaque arguments without enabling a shell', (extension) => {

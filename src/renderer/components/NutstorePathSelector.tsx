@@ -1,9 +1,10 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/icons/NutstoreIcons'
 import { popup } from '@renderer/services/popup'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface NewFolderProps {
   onConfirm: (name: string) => void
@@ -58,6 +59,7 @@ interface FileListProps {
 
 function FileList(props: FileListProps) {
   const [files, setFiles] = useState<Nutstore.FileStat[]>([])
+  const { t } = useTranslation()
 
   const folders = files.filter((file) => file.isDir).sort((a, b) => a.basename.localeCompare(b.basename, ['zh']))
 
@@ -70,14 +72,14 @@ function FileList(props: FileListProps) {
         if (error instanceof Error) {
           logger.error('Error fetching files:', error)
           void popup.error({
-            content: error.message,
+            content: t('settings.data.nutstore.pathSelector.fetchError'),
             centered: true
           })
         }
       }
     }
     void fetchFiles()
-  }, [props.path, props.fs])
+  }, [props.path, props.fs, t])
 
   return (
     <>

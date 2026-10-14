@@ -97,8 +97,27 @@ async function statQuiet(absPath: string): Promise<TreeNodeStats | undefined> {
   }
 }
 
+async function findNearestExistingDirectory(absPath: string): Promise<string> {
+  let candidate = normalizePath(path.posix.dirname(absPath))
+  while (true) {
+    try {
+      const stats = await nodeStat(candidate)
+      if (stats.isDirectory()) return candidate
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+
+    const parent = normalizePath(path.posix.dirname(candidate))
+    if (parent === candidate) {
+      throw new Error(`No existing directory found above ${absPath}`)
+    }
+    candidate = parent
+  }
+}
+
 export interface DirectoryTreeBuilder extends Disposable {
   readonly root: TreeDirRoot
+  readonly isDisposed: boolean
   readonly onMutation: (listener: (e: TreeMutationEvent) => void) => Disposable
   /** O(1) lookup of any node by its absolute path. */
   getNode(absPath: string): TreeNode | null
@@ -144,6 +163,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private watcherClosePromise: Promise<void> | null = null
   private readonly options: ResolvedTreeOptions
   private readonly rootPath: string
+  private watcherRootPath: string
   // Loaded once during `init()`; what the user's `.gitignore` (plus the
   // always-on `.git` exclusion) says to skip. `null` when the caller
   // opted out via `respectGitignore: false` or the file isn't readable.
@@ -152,6 +172,8 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private ignorePredicate: GitignorePredicate | null = null
   private disposed = false
   private initialScanPromise: Promise<void> | null = null
+  private rootMissingAtInit = false
+  private readonly pendingAdds = new Map<string, symbol>()
   // Paths recently affected by an explicit `rename()` — used to suppress the
   // chokidar `unlink(oldPath)` + `add(newPath)` events that follow shortly
   // after, so the renderer doesn't apply `removed` + `added` on top of the
@@ -162,6 +184,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
 
   constructor(rootPath: string, options: ResolvedTreeOptions) {
     this.rootPath = normalizePath(rootPath)
+    this.watcherRootPath = this.rootPath
     this.options = options
     this.root = new TreeDirRoot(this.rootPath)
     this.map.set(this.rootPath, this.root)
@@ -188,6 +211,15 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     if (this.options.respectGitignore) {
       this.ignorePredicate = await loadGitignorePredicate(this.rootPath)
     }
+    if (this.options.watchMissingRoot) {
+      try {
+        await nodeStat(this.rootPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        this.rootMissingAtInit = true
+        this.watcherRootPath = await findNearestExistingDirectory(this.rootPath)
+      }
+    }
     // Start the watcher *before* the initial scan completes so we don't
     // miss events for paths created during the scan window. The events are
     // queued behind the scan promise and applied after it resolves.
@@ -210,13 +242,13 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       }
     }
 
-    // Let scan failures propagate. Swallowing them resolves File_TreeCreate
+    // Let scan failures propagate. Swallowing them resolves file.tree.create
     // with an empty tree — indistinguishable from "the directory is genuinely
     // empty" to the renderer, which produces a silent regression (the user
     // sees zero notes when ripgrep is missing or the root is unreadable).
     let paths: string[]
     try {
-      paths = await searchListDirectory(this.rootPath as AbsoluteFilePath, {
+      paths = await searchListDirectory(this.rootPath, {
         recursive: true,
         maxDepth: this.options.maxDepth,
         includeHidden: this.options.includeHidden,
@@ -283,14 +315,30 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // is a real code repo with a `node_modules` blob. The predicate
     // fires before chokidar recurses into the dir, so the cost stays
     // at "one Ignore.ignores() call per entry".
-    const watcherIgnore = ((p: AbsoluteFilePath) => this.shouldIgnorePath(p)) as (path: AbsoluteFilePath) => boolean
+    const watcherIgnore = (p: AbsoluteFilePath) => {
+      const normalized = normalizePath(p)
+      if (this.rootMissingAtInit) {
+        const isTargetPath = normalized === this.rootPath || normalized.startsWith(`${this.rootPath}/`)
+        const isTargetAncestor = normalized === this.watcherRootPath || this.rootPath.startsWith(`${normalized}/`)
+        if (!isTargetPath && !isTargetAncestor) return true
+        if (isTargetAncestor && !isTargetPath) return false
+      }
+      return this.shouldIgnorePath(normalized)
+    }
+    const rootDepthOffset = path.posix.relative(this.watcherRootPath, this.rootPath).split('/').filter(Boolean).length
     const watcherMaxDepth =
-      this.options.maxDepth === Number.MAX_SAFE_INTEGER ? undefined : Math.max(0, this.options.maxDepth)
+      this.options.maxDepth === Number.MAX_SAFE_INTEGER
+        ? undefined
+        : Math.max(0, this.options.maxDepth + rootDepthOffset)
 
-    const watcher = createDirectoryWatcher(this.rootPath as AbsoluteFilePath, {
+    const watcher = createDirectoryWatcher(this.watcherRootPath as AbsoluteFilePath, {
       recursive: true,
       maxDepth: watcherMaxDepth,
       stabilityThresholdMs: 200,
+      // A missing root can appear with children before chokidar attaches to
+      // the new directory. Emit that first scan so the builder cannot miss
+      // files created in the same burst as the root.
+      emitInitial: this.rootMissingAtInit,
       ignore: watcherIgnore
     })
     this.watcher = watcher
@@ -306,10 +354,13 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
           if (ev.kind === 'error' && !ready) {
             reject(ev.error)
           }
-          // Defer watcher events until the initial scan completes so we
-          // don't apply a mutation for a path the scan is about to insert.
+          // Queue events behind the scan. The factory reports scan failures,
+          // so discard queued events when initialization fails.
           if (this.initialScanPromise) {
-            void this.initialScanPromise.then(() => this.handleWatcherEvent(ev))
+            void this.initialScanPromise.then(
+              () => this.handleWatcherEvent(ev),
+              () => undefined
+            )
           } else {
             void this.handleWatcherEvent(ev)
           }
@@ -335,6 +386,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     }
 
     const evPath = normalizePath(ev.path)
+    if (evPath !== this.rootPath && !evPath.startsWith(`${this.rootPath}/`)) return
     // Belt-and-suspenders: chokidar's ignore predicate runs before
     // recursion, but in case of races (a `node_modules` event arrives
     // before chokidar processes the ignore for it), drop it here too.
@@ -349,12 +401,23 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     if (ev.kind === 'add' || ev.kind === 'addDir') {
       const isDir = ev.kind === 'addDir'
       if (!isDir && !passesExtensionFilter(evPath, this.options)) return
+      const pending = Symbol()
+      this.pendingAdds.set(evPath, pending)
       const stats = this.options.withStats ? await statQuiet(evPath) : undefined
+      if (this.pendingAdds.get(evPath) !== pending) return
+      this.pendingAdds.delete(evPath)
       this.insertNode(evPath, isDir ? 'directory' : 'file', stats, /* emit */ true)
       return
     }
 
     if (ev.kind === 'unlink' || ev.kind === 'unlinkDir') {
+      this.invalidatePendingAdds(evPath)
+      if (evPath === this.rootPath) {
+        for (const child of Object.values(this.root.children)) {
+          this.removeNode(child.path, /* emit */ true)
+        }
+        return
+      }
       this.removeNode(evPath, /* emit */ true)
       return
     }
@@ -369,6 +432,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
           this.emitter.fire({ type: 'updated', path: evPath, stats })
         }
       }
+    }
+  }
+
+  private invalidatePendingAdds(absPath: string): void {
+    for (const pendingPath of this.pendingAdds.keys()) {
+      if (pendingPath === absPath || pendingPath.startsWith(`${absPath}/`)) this.pendingAdds.delete(pendingPath)
     }
   }
 
@@ -482,16 +551,11 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     const newNorm = normalizePath(newPath)
     if (oldNorm === newNorm) return false
     const node = this.map.get(oldNorm)
-    if (!node) {
-      // Race: chokidar's unlink already fired and removed the node. The
-      // renderer has applied `removed`; the matching `added` for newNorm is
-      // either pending or already applied. Identity is lost but we keep
-      // the dedup window armed so the still-pending events don't
-      // double-apply over what the renderer is about to receive.
-      this.markRenamed(oldNorm, newNorm)
-      return false
-    }
+    // If unlink won the race, let the pending add recreate the target node.
+    if (!node) return false
 
+    this.invalidatePendingAdds(oldNorm)
+    this.pendingAdds.delete(newNorm)
     if (this.shouldIgnorePath(newNorm)) {
       this.markRenamed(oldNorm, newNorm)
       this.removeNode(oldNorm, /* emit */ true)
@@ -553,9 +617,14 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     return this.root.toJSON()
   }
 
+  get isDisposed(): boolean {
+    return this.disposed
+  }
+
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.pendingAdds.clear()
     this.watcherSubscription?.dispose()
     this.watcherSubscription = null
     const watcher = this.watcher
@@ -573,6 +642,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       return
     }
     this.disposed = true
+    this.pendingAdds.clear()
     this.watcherSubscription?.dispose()
     this.watcherSubscription = null
     // Capture the watcher before nulling so we can await its close. The
@@ -600,6 +670,11 @@ export async function createDirectoryTree(
 ): Promise<DirectoryTreeBuilder> {
   const resolved = resolveOptions(options)
   const builder = new DirectoryTreeBuilderImpl(rootPath, resolved)
-  await builder.init()
-  return builder
+  try {
+    await builder.init()
+    return builder
+  } catch (error) {
+    await builder.disposeAsync()
+    throw error
+  }
 }

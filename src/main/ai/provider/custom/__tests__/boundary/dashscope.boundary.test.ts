@@ -1,6 +1,7 @@
-import type { ImageGenerationMode } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
+
+import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { createDashScopeProvider } from '../../dashscope/dashscopeProvider'
 import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
@@ -51,7 +52,7 @@ const CASES: Case[] = [
       seed: 42,
       modelDescriptor: descriptor('qwen-image', 'generate'),
       providerParams: {}
-    } as ImageGenerationSubmitInput,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string() }),
@@ -67,11 +68,36 @@ const CASES: Case[] = [
       files: file([1, 2, 3]),
       modelDescriptor: descriptor('qwen-image-edit', 'edit'),
       providerParams: {}
-    } as ImageGenerationSubmitInput,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({
         messages: z.array(z.strictObject({ role: z.literal('user'), content: z.array(messagePart) }))
+      })
+    })
+  },
+  {
+    name: 'chat-like (qwen-image-3.0) → messages[] + prompt_extend/watermark/negative_prompt',
+    input: {
+      ...base,
+      modelId: 'qwen-image-3.0',
+      prompt: 'a fox',
+      n: 2,
+      size: '1328x1328',
+      modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
+      providerParams: { addWatermark: false, negativePrompt: 'blurry', promptExtend: true }
+    },
+    schema: z.strictObject({
+      model: z.string(),
+      input: z.strictObject({
+        messages: z.array(z.strictObject({ role: z.literal('user'), content: z.array(messagePart) }))
+      }),
+      parameters: z.strictObject({
+        size: z.literal('1328*1328'),
+        n: z.literal(2),
+        negative_prompt: z.literal('blurry'),
+        prompt_extend: z.literal(true),
+        watermark: z.literal(false)
       })
     })
   },
@@ -90,7 +116,7 @@ const CASES: Case[] = [
         refStrength: 0.5,
         refMode: 'repaint'
       }
-    } as ImageGenerationSubmitInput,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string(), ref_image: z.string() }),
@@ -116,7 +142,7 @@ const CASES: Case[] = [
       ] as ImageGenerationSubmitInput['files'],
       modelDescriptor: descriptor('wan2.5-i2i-preview', 'edit'),
       providerParams: {}
-    } as ImageGenerationSubmitInput,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string(), images: z.array(z.string()) }),
@@ -132,7 +158,7 @@ const CASES: Case[] = [
       files: file([4, 5, 6]),
       modelDescriptor: descriptor('qwen-mt-image', 'generate'),
       providerParams: { sourceLang: 'auto', targetLang: 'en' }
-    } as ImageGenerationSubmitInput,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ image_url: z.string(), source_lang: z.string(), target_lang: z.string() })
@@ -152,7 +178,7 @@ const CASES: Case[] = [
         upscaleFactor: 2,
         addWatermark: true
       }
-    } as ImageGenerationSubmitInput,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ function: z.string(), prompt: z.string(), base_image_url: z.string() }),

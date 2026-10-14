@@ -12,7 +12,6 @@ import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSchemas,
-  DeleteAgentQuerySchema,
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
@@ -54,9 +53,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { search, page, limit } = parsed.data
+      const { ids, inTrash, search, page, limit } = parsed.data
       const offset = (page - 1) * limit
-      const { agents, total } = agentService.listAgents({ limit, offset, search })
+      const { agents, total } = agentService.listAgents({ ids, limit, offset, search, inTrash })
       return { items: agents, total, page }
     }
   },
@@ -74,21 +73,18 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
-    },
-
-    DELETE: async ({ params, query }) => {
-      const parsed = DeleteAgentQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const result = agentService.deleteAgent(params.agentId, {
-        deleteSessions: parsed.data.deleteSessions === true
-      })
-      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
-      return result
     }
   },
 
   // Task reads only — task mutations are mixed-effect commands (schedule row +
   // subscriptions + timer) and live on IpcApi `ai.agent.task.*` (AgentJobsService).
+  '/agents/:agentId/heartbeat': {
+    GET: async ({ params }) => {
+      if (!agentService.getAgent(params.agentId)) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return taskService.getHeartbeatStatus(params.agentId)
+    }
+  },
+
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
