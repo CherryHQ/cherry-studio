@@ -63,7 +63,8 @@ export interface SubagentPort {
   load?(sessionId: string): Promise<readonly TranscriptEntry[] | undefined>
   /**
    * Approval events of the subagents' tool calls (the parent's own may come too: they are told
-   * apart by call id). While one is pending, its subagent shows as `awaiting_approval`.
+   * apart by `sessionId`, or by call id when an event has none). While one is pending, its subagent
+   * shows as `awaiting_approval`.
    */
   onApproval?(listener: (event: ToolApprovalEvent) => void): () => void
   /** Background subagents one parent session may run at once; default 20 (Claude Code's default). */
@@ -100,7 +101,8 @@ export interface Subagent {
   background: boolean
   /**
    * The model the host must give it: the one the `model` parameter named (unset otherwise: the host
-   * picks its default subagent model), or for a continuation the one its first run used.
+   * picks its default subagent model), or for a continuation the one its first run used. When it is
+   * the parent's current model, the host may give none.
    */
   modelKey?: string
 }
@@ -117,8 +119,9 @@ export interface SubagentSessionOptions {
   onSessionCreated?: (session: AgentSession) => void
   /**
    * The model it runs on. Required for `Subagent.modelKey` (that key's model), or the launch or
-   * continuation fails; otherwise the host's default subagent model, the parent's when unset.
-   * Ignored for a new fork, which keeps the parent's model.
+   * continuation fails, unless that key is the parent's current model, which runs it when this is
+   * unset; otherwise the host's default subagent model, the parent's when unset. Ignored for a new
+   * fork, which keeps the parent's model.
    */
   model?: AgentRuntimeModel
 }
@@ -174,7 +177,7 @@ export const SUBAGENT_GOAL_LINK = 'cherry.subagent-goal-link'
 /** What the goal extension of the same session asks of its subagents; internal to the package. */
 export interface SubagentGoalLink {
   /** Background subagents running or waiting for an approval. */
-  running(): number
+  runningBackground(): number
   /** Stops those of `sessionIds` still running, as the goal's budget is used up. */
   stopForBudget(sessionIds: Iterable<string>): void
   /** While `refusal()` returns a message, background launches and continuations fail with it. */
@@ -342,7 +345,7 @@ export function createSubagentExtension({
     let inSubagent = false
     let unsubscribeApproval: (() => void) | undefined
     let backgroundRefusal: () => string | undefined = () => undefined
-    const refuseBackground = () => {
+    const assertBackgroundAllowed = () => {
       const refusal = backgroundRefusal()
       if (refusal) throw new Error(refusal)
     }
@@ -370,7 +373,7 @@ export function createSubagentExtension({
     const delivery = new SubagentDelivery({
       startTurn: (message) => pi.sendMessage(message, { triggerTurn: true }),
       isIdle: () => ctx?.isIdle() ?? false,
-      stillRunning: () => registry.runningBackground()
+      runningBackground: () => registry.runningBackground().length
     })
 
     pi.on('session_start', (_event, context) => {
@@ -385,7 +388,7 @@ export function createSubagentExtension({
       delivery.restore(undelivered)
       unsubscribeApproval = port.onApproval?.((event) => registry.approval(event))
       const link: SubagentGoalLink = {
-        running: () => registry.runningBackground(),
+        runningBackground: () => registry.runningBackground().length,
         stopForBudget: (sessionIds) => {
           for (const sessionId of sessionIds) void registry.stop(sessionId, 'budget')
         },
@@ -396,7 +399,7 @@ export function createSubagentExtension({
     // After a compaction the model no longer sees its subagent calls; this keeps it from starting them again.
     pi.on('session_compact', () => {
       if (inSubagent) return
-      const status = renderStatus(registry.unfinished(), delivery.pending())
+      const status = renderStatus(registry.runningBackground(), delivery.pending())
       if (status) pi.sendMessage(status, { triggerTurn: false })
     })
     pi.on('agent_before_settle', (event) => (inSubagent ? undefined : delivery.beforeSettle(event)))
@@ -435,7 +438,7 @@ export function createSubagentExtension({
           background,
           ...(named ? { modelKey: await resolveModel(port, named) } : {})
         }
-        if (background) refuseBackground()
+        if (background) assertBackgroundAllowed()
         const release = background ? registry.reserveBackground() : () => {}
         const inbox = new SubagentInbox()
         let child: AgentRuntimeSession
@@ -448,8 +451,16 @@ export function createSubagentExtension({
           if (!background && signal?.aborted) return notStarted(subagent.sessionId, fork)
           const model = pickModel(subagent, options, parentModel)
           modelKey = model.key
-          const start = [...prefix, originEntry({ parentToolCallId: toolCallId, fork, description, modelKey })]
-          child = await openChild({ subagent, options, model, transcript: start, handOff: start, inbox, createSession })
+          const startEntries = [...prefix, originEntry({ parentToolCallId: toolCallId, fork, description, modelKey })]
+          child = await openChild({
+            subagent,
+            options,
+            model,
+            transcript: startEntries,
+            handOff: startEntries,
+            inbox,
+            createSession
+          })
         } finally {
           release()
         }
@@ -487,7 +498,7 @@ export function createSubagentExtension({
     /** A finished subagent's next run, in the background, from the transcript the host stored. */
     const continueSubagent = async (record: SubagentRecord, message: string, toolCallId: string) => {
       const id = record.sessionId
-      refuseBackground()
+      assertBackgroundAllowed()
       const release = registry.reserveBackground()
       const inbox = new SubagentInbox()
       let child: AgentRuntimeSession
@@ -552,16 +563,16 @@ export function createSubagentExtension({
         const record = registry.get(id)
         if (!record) throw new Error(unknownId(id, registry))
         // Another message may be continuing it right now; this one then goes to that run.
-        for (let starting = registry.startingRun(id); starting; starting = registry.startingRun(id))
-          await starting.catch(() => undefined)
+        for (let lock = registry.continuationLock(id); lock; lock = registry.continuationLock(id))
+          await lock.catch(() => undefined)
         // A run being stopped would drop the message; it is answered once the stop is recorded.
-        if (record.status !== 'finished' && !record.stoppedBy && registry.message(id, message)) {
+        if (record.status !== 'finished' && !record.stoppedBy && registry.queueMessage(id, message)) {
           const details: SubagentMessageDetails = { sessionId: id, continued: false }
           return { content: [text(`Message queued for subagent ${id}; it reads it after its current step.`)], details }
         }
-        return registry.startRun(id, async () => {
+        return registry.withContinuationLock(id, async () => {
           // A run that has just ended is recorded before the next one starts.
-          await registry.recorded(id)
+          await registry.whenRecorded(id)
           if (record.stoppedBy === 'user')
             throw new Error(
               `Subagent ${id} was stopped by the user and cannot be continued. Start a new subagent if the work is still needed.`

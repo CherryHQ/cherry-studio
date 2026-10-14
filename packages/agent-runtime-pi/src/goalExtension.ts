@@ -77,7 +77,8 @@ export interface GoalPort {
   modelSupportsTools(): boolean
   /**
    * Wired by the host integration (its ToolApprovalRegistry): approval events of this session's
-   * tool calls. Events of other calls (a subagent's) are ignored.
+   * tool calls. Events of other sessions (a subagent's) are ignored: by `sessionId`, or by call id
+   * when an event has none.
    */
   onApproval?(listener: (event: ToolApprovalEvent) => void): () => void
   verify?: GoalVerifier
@@ -669,7 +670,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         return undefined
       }
       // Spec §11.1: background subagents still at work; their notification starts the next turn.
-      if ((subagents?.running() ?? 0) > 0) return undefined
+      if ((subagents?.runningBackground() ?? 0) > 0) return undefined
       const round = { type: 'custom_message' as const, ...roundMessage(goal, reserve(goal)) }
       // Pi keeps only the last handler's entries, so carry what earlier extensions proposed.
       return { entries: [...event.entries, round], continue: true }
@@ -769,7 +770,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
           if (input === '') {
             notice(
               runtime.goal
-                ? statusText(runtime.goal, usage(), subagents?.running() ?? 0)
+                ? statusText(runtime.goal, usage(), subagents?.runningBackground() ?? 0)
                 : 'No goal is set. Use /goal <objective> to create one.'
             )
             return

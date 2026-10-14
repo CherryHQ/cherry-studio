@@ -12,7 +12,7 @@ export const SUBAGENT_NOTIFICATION_TYPE = 'cherry.subagent-notification'
 export const SUBAGENT_STATUS_TYPE = 'cherry.subagent-status'
 
 /** Results longer than this many characters are shortened when the host has no offload store. */
-export const NOTIFICATION_THRESHOLD_CHARS = 20_000
+const NOTIFICATION_THRESHOLD_CHARS = 20_000
 
 /** `details` of a notification: for the host's rendering and the goal's accounting, never sent to the model. */
 export interface SubagentNotificationDetails {
@@ -53,8 +53,8 @@ export interface DeliveryHost {
   startTurn(message: NotificationMessage): void
   /** The parent runs nothing and compacts nothing. */
   isIdle(): boolean
-  /** Background subagents of the parent still running or awaiting approval. */
-  stillRunning(): number
+  /** Background subagents of the parent running or awaiting approval. */
+  runningBackground(): number
 }
 
 const HEADER = 'Background subagent update (automatic message, not from the user):'
@@ -152,11 +152,14 @@ export function renderStatus(
 }
 
 /** One message for every pending item, oldest first. */
-export function renderNotification(items: readonly PendingDelivery[], stillRunning: number): NotificationMessage {
+export function renderNotification(items: readonly PendingDelivery[], runningBackground: number): NotificationMessage {
   const footer =
-    stillRunning === 0
+    runningBackground === 0
       ? []
-      : ['', `${stillRunning} other background ${stillRunning === 1 ? 'subagent is' : 'subagents are'} still running.`]
+      : [
+          '',
+          `${runningBackground} other background ${runningBackground === 1 ? 'subagent is' : 'subagents are'} still running.`
+        ]
   return {
     customType: SUBAGENT_NOTIFICATION_TYPE,
     content: [HEADER, '', ...items.map(itemText), ...footer].join('\n'),
@@ -254,6 +257,6 @@ export class SubagentDelivery {
   private take(): NotificationMessage {
     const items = this.queue
     this.queue = []
-    return renderNotification(items, this.host.stillRunning())
+    return renderNotification(items, this.host.runningBackground())
   }
 }
