@@ -399,6 +399,7 @@ export function useDoctorController({
     setPanelInteraction,
     toggleDevTools,
     requestEvidence,
+    scope,
     viewModel
   }
 }

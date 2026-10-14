@@ -63,7 +63,6 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
-import { AgentsMdLoader } from './AgentsMdLoader'
 import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
 import {
   AUTO_COMPACT_TRIGGER_PCT,
@@ -212,8 +211,6 @@ export async function buildClaudeCodeSessionSettings(
   // stream exits abnormally.
   const approvalEmitter = sessionState().getToolApprovalEmitterHolder(session.id)
   const steerHolder = sessionState().getSteerHolder(session.id)
-  const agentsMdLoader = await AgentsMdLoader.create(cwd)
-  const agentsMdContext = await agentsMdLoader.loadInitialContext()
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
@@ -221,7 +218,6 @@ export async function buildClaudeCodeSessionSettings(
     agent,
     mountedServers,
     agentDataPath,
-    agentsMdLoader,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
     options?.supportsImages !== false
   )
@@ -236,7 +232,6 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    agentsMdContext,
     options?.effectiveLanguage
   )
 
@@ -329,12 +324,14 @@ export async function buildClaudeCodeSessionSettings(
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
-    // Support loads only Cherry-owned plugin configuration. AGENTS.md context is injected above
-    // by AgentsMdLoader, so disabling filesystem settings does not remove workspace instructions.
+    // Sealed agents exclude filesystem settings and native workspace instructions.
     settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
       cleanupPeriodDays: CLAUDE_SESSION_RETENTION_DAYS,
+      pluginConfigs: {
+        'agents-md@builtin': { options: { instructionFiles: 'claude-md-and-agents-md' } }
+      },
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
       // Disable Claude Code's separate auto-memory store so the preset does not introduce a
       // second, conflicting memory contract.
@@ -468,7 +465,6 @@ async function buildToolPermissions(
   agent: AgentEntity,
   mountedServers: ReadonlySet<string>,
   agentDataPath: string,
-  agentsMdLoader: AgentsMdLoader,
   pluginDirectories: ReadonlyMap<string, string>,
   supportsImages: boolean
 ): Promise<{
@@ -613,8 +609,7 @@ async function buildToolPermissions(
     builtinRole,
     mountedServers,
     pluginDirectories,
-    supportsImages,
-    agentsMdLoader
+    supportsImages
   })
 
   return {
@@ -633,8 +628,6 @@ export async function buildSystemPrompt(
   knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
-  /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
-  agentsMdContext?: string,
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
@@ -657,7 +650,6 @@ export async function buildSystemPrompt(
     agentDataPath,
     agent,
     citationsGuidance,
-    workspaceInstructions: agentsMdContext,
     customBaseContext,
     effectiveLanguage
   })
