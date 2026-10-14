@@ -23,22 +23,3 @@ export function objectKeys<T extends object>(obj: T): (keyof T)[] {
 export function objectValues<T extends Record<string, unknown>>(obj: T): T[keyof T][] {
   return Object.values(obj) as T[keyof T][]
 }
-
-/**
- * Removes the given keys from an object and returns a new object.
- * @param obj - the source object
- * @param keys - the keys to remove
- * @returns a new object without the specified keys
- * @example
- * ```ts
- * const obj = { a: 1, b: 2, c: 3 }
- * const result = strip(obj, ['a', 'b']) // { c: 3 }
- * ```
- */
-export function strip<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
-  const result = { ...obj }
-  for (const key of keys) {
-    delete (result as any)[key] // Omit already guarantees type safety
-  }
-  return result
-}
