@@ -1,14 +1,18 @@
 import '@testing-library/jest-dom/vitest'
-
-import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { CherryUIMessage } from '@shared/data/types/message'
+
 const state = vi.hoisted(() => ({
   assistant: undefined as { id: string } | undefined,
+  fallbackAssistant: undefined as { id: string } | undefined,
+  quickAssistantId: '' as string,
+  isFallbackLoading: false as boolean,
+  isChosenLoading: false as boolean,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string }>,
@@ -46,11 +50,20 @@ vi.mock('@ai-sdk/react', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => ['en-US']
+  usePreference: (key: string) => {
+    if (key === 'feature.quick_assistant.assistant_id') return [state.quickAssistantId]
+    return ['en-US']
+  }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({ assistant: state.assistant })
+  useAssistant: (id: string) => {
+    if (!id) return { assistant: undefined, isLoading: false }
+    if (id === state.quickAssistantId) {
+      return { assistant: state.fallbackAssistant, isLoading: state.isFallbackLoading }
+    }
+    return { assistant: state.assistant, isLoading: state.isChosenLoading }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
@@ -128,6 +141,10 @@ function createAction(overrides: Partial<SelectionActionItem> = {}): SelectionAc
 describe('ActionGeneral', () => {
   beforeEach(() => {
     state.assistant = undefined
+    state.fallbackAssistant = undefined
+    state.quickAssistantId = ''
+    state.isFallbackLoading = false
+    state.isChosenLoading = false
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.temporaryTopicOptions = []
@@ -175,17 +192,72 @@ describe('ActionGeneral', () => {
   })
 
   it('waits for a configured assistant before leasing and sending', async () => {
+    state.isChosenLoading = true
     const action = createAction({ assistantId: 'assistant-1' })
     const { rerender } = render(<ActionGeneral action={action} />)
 
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: false, assistantId: undefined })
     expect(state.sendMessage).not.toHaveBeenCalled()
 
+    state.isChosenLoading = false
     state.assistant = { id: 'assistant-1' }
     rerender(<ActionGeneral action={{ ...action }} />)
 
     await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'assistant-1' })
+  })
+
+  it('falls back to quickAssistant when built-in has no explicit assistant', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = { id: 'fallback-1' }
+
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'fallback-1' })
+  })
+
+  it('waits for fallback assistant when quickAssistant is configured but not yet loaded', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = undefined
+    state.isFallbackLoading = true
+
+    const { rerender } = render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: false, assistantId: undefined })
+    expect(state.sendMessage).not.toHaveBeenCalled()
+
+    state.isFallbackLoading = false
+    state.fallbackAssistant = { id: 'fallback-1' }
+    rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'fallback-1' })
+  })
+
+  it('does not fall back for custom actions configured with default model', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = { id: 'fallback-1' }
+
+    render(
+      <ActionGeneral
+        action={createAction({ id: 'custom', isBuiltIn: false, assistantId: '', prompt: 'hello', selectedText: 'hi' })}
+      />
+    )
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
+  })
+
+  it('degrades to no-assistant when fallback assistant is stale (not found)', async () => {
+    state.quickAssistantId = 'deleted-id'
+    state.fallbackAssistant = undefined
+    state.isFallbackLoading = false
+
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
   })
 
   it('localizes a known error and leaves space above it', () => {
@@ -207,10 +279,11 @@ describe('ActionGeneral', () => {
         id: 'streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+      await vi.dynamicImportSettled()
     })
     expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()
 
@@ -233,10 +306,11 @@ describe('ActionGeneral', () => {
         id: 'first-streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={{ ...action }} />)
+      await vi.dynamicImportSettled()
     })
     act(() => {
       vi.advanceTimersByTime(3000)
@@ -253,10 +327,11 @@ describe('ActionGeneral', () => {
         id: 'second-streamed-assistant',
         role: 'assistant',
         parts: [{ type: 'reasoning', text: 'Thinking again', state: 'streaming' }]
-      } as CherryUIMessage
+      }
     ]
     await act(async () => {
       view.rerender(<ActionGeneral action={{ ...action }} />)
+      await vi.dynamicImportSettled()
     })
 
     expect(screen.getByText('Processing 0 seconds')).toBeInTheDocument()

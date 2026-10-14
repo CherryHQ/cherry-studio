@@ -1,9 +1,10 @@
-import { Divider, type MarkdownSource, NormalTooltip } from '@cherrystudio/ui'
 import { Languages, Trash } from 'lucide-react'
 import type { FC } from 'react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
+
+import { Divider, type MarkdownSource, NormalTooltip } from '@cherrystudio/ui'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 

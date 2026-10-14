@@ -1,9 +1,10 @@
+import { describe, expect, it } from 'vitest'
+
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   readComposerClipboardFragment
 } from '@renderer/utils/message/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import type { MessageListItem } from '../../types'
 import {

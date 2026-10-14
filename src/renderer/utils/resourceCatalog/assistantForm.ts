@@ -43,6 +43,7 @@ export interface AssistantFormState {
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
+  enableBrowser: boolean
   mcpMode: AssistantSettings['mcpMode']
   // context management (P2-D assistant override). `contextOverrideEnabled` is
   // the master switch for the OFFLOAD + COMPRESSION fields only.
@@ -91,6 +92,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     maxToolCalls: settings.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
+    enableBrowser: settings.enableBrowser ?? true,
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
     // Only an offload/compression field means "override": a lone maxMessages is
     // the scope control saved on its own.
@@ -168,6 +170,7 @@ export function diffAssistantUpdate(
     ...(baseline.streamOutput !== form.streamOutput ? { streamOutput: form.streamOutput } : {}),
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
+    ...(baseline.enableBrowser !== form.enableBrowser ? { enableBrowser: form.enableBrowser } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
     ...(contextSettingsChanged

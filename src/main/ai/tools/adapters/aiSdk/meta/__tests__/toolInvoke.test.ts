@@ -16,7 +16,7 @@ function makeRegistry(): ToolRegistry {
     description: 'inner',
     inputSchema: jsonSchema({ type: 'object' }),
     execute: innerExecute
-  } as Tool
+  }
   const entry: ToolEntry = {
     name: 'mcp__s1__t',
     namespace: 'mcp:s1',
@@ -42,7 +42,7 @@ function makeRegistryWithToModelOutput(): ToolRegistry {
       inputSchema: jsonSchema({ type: 'object' }),
       execute: innerExecute,
       toModelOutput: innerToModelOutput
-    } as Tool
+    }
   })
   return reg
 }
@@ -63,7 +63,7 @@ async function callInvoke(tool: Tool, args: { name: string; params?: unknown }) 
     toolCallId: 'outer-1',
     messages: [],
     experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
-  } as Parameters<NonNullable<Tool['execute']>>[1])
+  })
 }
 
 describe('tool_invoke meta-tool', () => {
@@ -132,7 +132,7 @@ describe('tool_invoke meta-tool', () => {
         inputSchema: jsonSchema({ type: 'object' }),
         needsApproval: async () => true,
         execute: innerExecute
-      } as Tool
+      }
     })
     const tool = createToolInvokeTool(reg, allowAll('mcp__s1__danger'), inspected('mcp__s1__danger'))
     await expect(callInvoke(tool, { name: 'mcp__s1__danger', params: {} })).rejects.toThrow(/requires user approval/)

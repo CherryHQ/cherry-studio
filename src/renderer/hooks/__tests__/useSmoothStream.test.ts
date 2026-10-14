@@ -24,7 +24,8 @@ function tick(ms = 16, frames = 1): void {
   }
 }
 
-const lastText = (fn: ReturnType<typeof vi.fn>): string => (fn.mock.calls.at(-1)?.[0] as string) ?? ''
+const lastText = (fn: ReturnType<typeof vi.fn<(...args: any[]) => any>>): string =>
+  (fn.mock.calls.at(-1)?.[0] as string) ?? ''
 
 /** Mirrors the hook's internal MAX_BACKLOG (not exported). */
 const MAX_BACKLOG = 400
@@ -33,7 +34,7 @@ beforeEach(() => {
   clock = 0
   rafCallbacks = new Map()
   rafId = 0
-  vi.stubGlobal('performance', { now: () => clock } as Performance)
+  vi.stubGlobal('performance', { now: () => clock })
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
     rafId += 1
     rafCallbacks.set(rafId, cb)
@@ -121,9 +122,9 @@ describe('useSmoothStream', () => {
     expect(lastText(onUpdate).length).toBe(600)
   })
 
-  // After streamDone the tail must beat the old fixed 5/frame: frame 1 is
-  // MIN_STEP, then a 999 tail reveals ceil(999*16/(2*1000))=8 (> 5).
-  it('drains a huge tail faster than the gentle step once streamDone', () => {
+  // Once the source is done, every queued grapheme is already final. Keeping
+  // it buffered would expose a completed state whose copyable text is partial.
+  it('flushes the queued tail on the first frame after streamDone', () => {
     const onUpdate = vi.fn()
     const { result, rerender } = renderHook(
       ({ done }: { done: boolean }) => useSmoothStream({ onUpdate, streamDone: done, minDelay: 0 }),
@@ -132,12 +133,8 @@ describe('useSmoothStream', () => {
 
     act(() => result.current.addChunk('a'.repeat(1000)))
     rerender({ done: true })
-    act(() => tick(16)) // frame 1: MIN_STEP → 1
-    const afterFirst = lastText(onUpdate).length
-    act(() => tick(16)) // frame 2: tail step
-    expect(lastText(onUpdate).length - afterFirst).toBeGreaterThan(5)
+    act(() => tick(16))
 
-    act(() => tick(16, 5000))
     expect(onUpdate).toHaveBeenLastCalledWith('a'.repeat(1000))
   })
 

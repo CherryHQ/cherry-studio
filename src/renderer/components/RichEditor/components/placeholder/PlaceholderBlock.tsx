@@ -1,5 +1,6 @@
-import { useTheme } from '@renderer/hooks/useTheme'
 import React from 'react'
+
+import { useTheme } from '@renderer/hooks/useTheme'
 
 const PLACEHOLDER_FOREGROUND = '#656d76'
 

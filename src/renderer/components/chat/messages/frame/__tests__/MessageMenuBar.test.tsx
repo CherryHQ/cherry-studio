@@ -1,8 +1,9 @@
-import type { Topic } from '@renderer/types/topic'
 import { render } from '@testing-library/react'
 import type React from 'react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Topic } from '@renderer/types/topic'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import {
@@ -25,17 +26,16 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
+  exportService: {
+    captureScrollableAsBlob: vi.fn(),
+    captureScrollableAsDataUrl: vi.fn()
+  },
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
 
 vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn()
-}))
-
-vi.mock('@renderer/utils/image', () => ({
-  captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({
@@ -113,7 +113,9 @@ function renderWithProvider(children: ReactNode, renderConfig: Partial<typeof de
       getMessageActivityState: () => ({
         isProcessing: false,
         isStreamTarget: false,
-        isApprovalAnchor: false
+        isApprovalAnchor: false,
+        isActiveTurnProcessing: false,
+        isStreamLive: false
       }),
       translationLanguages: []
     },

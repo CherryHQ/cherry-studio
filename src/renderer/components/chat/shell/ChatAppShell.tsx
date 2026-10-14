@@ -1,10 +1,11 @@
-import { usePersistCache } from '@data/hooks/useCache'
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
-import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
+import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
+import { cn } from '@renderer/utils/style'
 
 import { useOptionalRightPanelState, useRightPanelComposerElevated } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
@@ -13,6 +14,8 @@ import {
   CHAT_SHELL_TRANSITION,
   type ChatPanePosition,
   getRightPaneWidthPolicy,
+  RESOURCE_LIST_PANE_CACHE_KEY,
+  RESOURCE_LIST_PANE_WINDOW_CACHE_KEY,
   type RightPaneWidthPolicy
 } from './paneLayout'
 import { evaluateAutoCollapse, predictCenterWidth } from './paneWidthPolicy'
@@ -58,7 +61,7 @@ export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterConten
 const MANUAL_EXPAND_RELEASE_NARROWING = 8
 
 function clampPaneStoredWidth(width: number, { minWidth, maxWidth }: RightPaneWidthPolicy): number {
-  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
+  return Math.min(maxWidth ?? Number.POSITIVE_INFINITY, Math.max(minWidth, Math.round(width)))
 }
 
 /**
@@ -90,11 +93,14 @@ function useResourceListAutoCollapse({
   rootRef: RefObject<HTMLDivElement | null>
 }) {
   const rightPanelState = useOptionalRightPanelState()
-  const [storedListWidth] = usePersistCache('ui.chat.sidebar.width')
+  const [storedListWidth] = useWindowScopedPersistCache(
+    RESOURCE_LIST_PANE_CACHE_KEY,
+    RESOURCE_LIST_PANE_WINDOW_CACHE_KEY
+  )
   // The prediction must size the pane that is actually presented; a list and an artifact
   // have different widths, and reading the wrong one strands the list collapsed.
   const paneProfile = rightPanelState?.activePaneWidth ?? getRightPaneWidthPolicy()
-  const [storedPaneWidth] = usePersistCache(paneProfile.cacheKey)
+  const [storedPaneWidth] = useWindowScopedPersistCache(paneProfile.cacheKey, paneProfile.windowCacheKey)
 
   const dockedPaneOpen = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
   // `fullWidthActive` is host-reported one commit late; `presentationMaximized` and
@@ -103,10 +109,10 @@ function useResourceListAutoCollapse({
   // lands (the list must not open/close along with full-width phases).
   const frozen = Boolean(
     rightPanelState?.fullWidthActive ||
-      rightPanelState?.presentationMaximized ||
-      rightPanelState?.layoutAnimationPending ||
-      rightPanelState?.paneResizing ||
-      listResizing
+    rightPanelState?.presentationMaximized ||
+    rightPanelState?.layoutAnimationPending ||
+    rightPanelState?.paneResizing ||
+    listResizing
   )
   const userOpenSeq = rightPanelState?.userOpenSeq ?? 0
 

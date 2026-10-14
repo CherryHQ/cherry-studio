@@ -37,7 +37,7 @@ describe('paddleocr client upload', () => {
       status: 200,
       json: async () => ({ code: 0, data: { jobId: 'job-1' } }),
       text: async () => ''
-    } as never)
+    })
   })
 
   afterAll(async () => {

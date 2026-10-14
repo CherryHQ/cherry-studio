@@ -1,3 +1,7 @@
+import crypto from 'crypto'
+import fs from 'fs/promises'
+import path from 'path'
+
 /**
  * Generate React components from SVG files using @svgr/core
  *
@@ -11,11 +15,9 @@
  *   --type=models     generate model icons, avatars, barrels, and loaders
  */
 import { transform } from '@svgr/core'
-import crypto from 'crypto'
-import fs from 'fs/promises'
-import path from 'path'
 
 import { generateMeta } from './codegen'
+import { detectHasBackground } from './icons-generate-avatars'
 import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, type LogoType } from './svg-utils'
 
 export type IconType = 'icons' | 'providers' | 'models'
@@ -336,7 +338,8 @@ async function generateLogoDirDual(
     outPath: path.join(logoDir, 'meta.ts'),
     dirName,
     colorPrimary,
-    colorScheme: 'color'
+    colorScheme: 'color',
+    artworkKind: detectHasBackground(pair.light) ? 'tile' : undefined
   })
 }
 

@@ -6,17 +6,39 @@
  * than a stub.
  */
 
+import type { Editor, JSONContent } from '@tiptap/core'
+
 import {
   getComposerCursorTextOffset,
   getComposerInputText,
-  getComposerPositionAtTextOffset
+  getComposerPositionAtTextOffset,
+  getComposerTextOffset
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
-import type { Editor, JSONContent } from '@tiptap/core'
 
+import { serializeComposerDocument } from './composerDraft'
 import { createComposerPlainTextContent } from './composerTokenMarkers'
+import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
+
+export function appendComposerText(editor: Editor, text: string): boolean {
+  if (editor.isDestroyed) return false
+  if (!text) return true
+  const current = serializeComposerDocument(editor).text
+  const appended = current ? `\n${text}` : text
+  return editor.commands.insertContentAt(editor.state.doc.content.size - 1, createComposerPlainTextContent(appended))
+}
+
+export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
+  const transaction = editor.state.tr
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name === COMPOSER_TOKEN_NODE_NAME && node.attrs.id === token.id) {
+      transaction.setNodeMarkup(position, undefined, { ...node.attrs, ...token })
+    }
+  })
+  if (transaction.docChanged) editor.view.dispatch(transaction)
+}
 
 export function insertComposerTokenAtCursor(
   editor: Editor,
@@ -61,6 +83,7 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
   return {
     getText: () => getComposerInputText(editor),
     getCursorOffset: () => getComposerCursorTextOffset(editor),
+    getSelectionEndOffset: () => getComposerTextOffset(editor, editor.state.selection.to),
     insertText: (insertedText, options) => {
       editor
         .chain()

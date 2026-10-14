@@ -1,25 +1,30 @@
 import type * as fsPromises from 'node:fs/promises'
 
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { closeMock, openMock, readMock } = vi.hoisted(() => ({
+import type { AbsoluteFilePath } from '@shared/types/file'
+
+const { closeMock, openMock, readMock, lstatMock, realpathMock, statMock } = vi.hoisted(() => ({
   closeMock: vi.fn(),
   openMock: vi.fn(),
-  readMock: vi.fn()
+  readMock: vi.fn(),
+  lstatMock: vi.fn(),
+  realpathMock: vi.fn(),
+  statMock: vi.fn()
 }))
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof fsPromises>()
-  return { ...actual, open: openMock }
+  return { ...actual, open: openMock, lstat: lstatMock, realpath: realpathMock }
 })
 
-import { readChunk } from '../fs'
+import { readChunk, readTextFileWithinRoots } from '../fs'
 
 describe('readChunk cancellation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    openMock.mockResolvedValue({ close: closeMock, read: readMock })
+    vi.resetAllMocks()
+    closeMock.mockResolvedValue(undefined)
+    openMock.mockResolvedValue({ close: closeMock, read: readMock, stat: statMock })
   })
 
   it('settles on abort without waiting for an in-flight FileHandle.read', async () => {
@@ -58,5 +63,46 @@ describe('readChunk cancellation', () => {
 
     resolveOpen({ close: closeMock, read: readMock })
     await vi.waitFor(() => expect(closeMock).toHaveBeenCalledOnce())
+  })
+
+  it('closes the handle when abort arrives after open wins the race', async () => {
+    const controller = new AbortController()
+    openMock.mockImplementation(() => {
+      const opening = Promise.resolve({ close: closeMock, read: readMock })
+      void opening.then(() => queueMicrotask(() => controller.abort()))
+      return opening
+    })
+
+    await expect(readChunk('/notes/opened.md' as AbsoluteFilePath, 0, 4, controller.signal)).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    expect(readMock).not.toHaveBeenCalled()
+    expect(closeMock).toHaveBeenCalledOnce()
+  })
+
+  it.each([1, 2])('cancels while snapshot %s verification is stalled and starts handle cleanup', async (snapshot) => {
+    const fileStat = { dev: 1, ino: 2, size: 4, mtimeMs: 0, isFile: () => true }
+    lstatMock.mockResolvedValue(fileStat)
+    realpathMock.mockImplementation(async (target: string) => target)
+    statMock.mockResolvedValue(fileStat)
+    let resolveStat!: (value: typeof fileStat) => void
+    const pendingStat = new Promise<typeof fileStat>((resolve) => {
+      resolveStat = resolve
+    })
+    if (snapshot === 2) statMock.mockResolvedValueOnce(fileStat)
+    statMock.mockReturnValueOnce(pendingStat)
+    closeMock.mockImplementationOnce(() => pendingStat.then(() => undefined))
+    const controller = new AbortController()
+    const operation = readTextFileWithinRoots('/notes/pending.md' as AbsoluteFilePath, ['/notes' as AbsoluteFilePath], {
+      maxBytes: 4,
+      signal: controller.signal
+    })
+    await vi.waitFor(() => expect(statMock).toHaveBeenCalledTimes(snapshot))
+    controller.abort()
+
+    await expect(operation).rejects.toMatchObject({ name: 'AbortError' })
+    expect(closeMock).toHaveBeenCalledTimes(snapshot)
+    resolveStat(fileStat)
+    await expect(closeMock.mock.results[0].value).resolves.toBeUndefined()
   })
 })

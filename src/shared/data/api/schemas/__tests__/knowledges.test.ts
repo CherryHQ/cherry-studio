@@ -9,7 +9,6 @@ import {
   isCompletedVectorKnowledgeBase,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KnowledgeAddItemInputSchema,
-  type KnowledgeBase,
   KnowledgeBaseSchema,
   KnowledgeItemSchema,
   RestoreKnowledgeBaseSchema
@@ -749,7 +748,7 @@ describe('isCompletedKnowledgeBase', () => {
       isCompletedKnowledgeBase({
         ...completedBase,
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
-      } as KnowledgeBase)
+      })
     ).toBe(false)
   })
 })
@@ -786,9 +785,9 @@ describe('isCompletedVectorKnowledgeBase', () => {
   })
 
   it('rejects illegal vector states the schema would never produce', () => {
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: null } as KnowledgeBase)).toBe(false)
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: 0 } as KnowledgeBase)).toBe(false)
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null } as KnowledgeBase)).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: null })).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: 0 })).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null })).toBe(false)
   })
 
   it('rejects a failed base', () => {
@@ -819,6 +818,14 @@ describe('ListKnowledgeBasesQuerySchema', () => {
     })
     expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 2, limit: 20 }).success).toBe(false)
     expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
+  })
+
+  it('accepts exact ids up to the collection limit', () => {
+    const ids = Array.from({ length: KNOWLEDGE_BASES_MAX_LIMIT }, (_, index) => `base-${index}`)
+
+    expect(ListKnowledgeBasesQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
   })
 
   it('accepts sort and updatedAtFrom query fields', () => {

@@ -1,11 +1,7 @@
 export type { ModelSelectorTag } from './filters'
 export { useModelTagFilter } from './filters'
 export { ModelSelector } from './ModelSelector'
-export {
-  MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
-  ModelSelectorRow,
-  ModelSelectorRowActionButton
-} from './ModelSelectorRow'
+export { MODEL_SELECTOR_ROW_CHECKBOX_CLASS, ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 export type {
   FlatListItem,
   ModelSelectorAlign,

@@ -1,7 +1,8 @@
-import { FILE_TYPE } from '@renderer/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { FILE_TYPE } from '@renderer/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { useMessageLeafCapabilities } from '../useMessageLeafCapabilities'
 

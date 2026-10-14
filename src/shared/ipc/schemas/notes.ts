@@ -1,5 +1,6 @@
-import type { NotesSearchResult, NotesTreeNode } from '@shared/types/note'
 import * as z from 'zod'
+
+import type { NotesSearchResult, NotesTreeNode } from '@shared/types/note'
 
 import { defineRoute } from '../define'
 import { validateNotesSearchTree } from './notesSearchValidation'
@@ -64,7 +65,6 @@ const notesSearchResultSchema: z.ZodType<NotesSearchResult> = z.strictObject({
   type: z.enum(['folder', 'file', 'hint']),
   treePath: z.string(),
   externalPath: z.string(),
-  children: z.array(notesTreeNodeSchema).optional(),
   isStarred: z.boolean().optional(),
   expanded: z.boolean().optional(),
   createdAt: z.string(),

@@ -1,10 +1,11 @@
+import { CheckCircle2, CircleAlert, CircleX, Info, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { healthCheckErrorToDisplayString } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { CheckCircle2, CircleAlert, CircleX, Info, Loader2 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import ApiKeyCheckResults from './ApiKeyCheckResults'
 

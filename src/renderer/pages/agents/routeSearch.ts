@@ -1,17 +1,23 @@
-export const MESSAGE_VIEW = 'message' as const
-
 export type AgentRouteSearch = {
   agentId?: string
-  intent?: 'feedback'
+  intent?: 'feedback' | 'skill'
   sessionId?: string
-  view?: typeof MESSAGE_VIEW
+  forkReturnSessionId?: string
+  skillId?: string
 }
 
 export function parseAgentRouteSearch(search: Record<string, unknown>): AgentRouteSearch {
   const agentId = typeof search.agentId === 'string' ? search.agentId : undefined
-  const intent = search.intent === 'feedback' ? 'feedback' : undefined
+  const intent = search.intent === 'feedback' || search.intent === 'skill' ? search.intent : undefined
   const sessionId = typeof search.sessionId === 'string' ? search.sessionId : undefined
-  const view = search.view === MESSAGE_VIEW ? MESSAGE_VIEW : undefined
+  const forkReturnSessionId = typeof search.forkReturnSessionId === 'string' ? search.forkReturnSessionId : undefined
+  const skillId = intent === 'skill' && typeof search.skillId === 'string' ? search.skillId : undefined
 
-  return { agentId, intent, sessionId, view }
+  return {
+    agentId,
+    intent,
+    sessionId,
+    ...(forkReturnSessionId ? { forkReturnSessionId } : {}),
+    ...(skillId ? { skillId } : {})
+  }
 }

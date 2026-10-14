@@ -46,10 +46,11 @@ import path from 'node:path'
 import { addAbortSignal, Readable, Writable } from 'node:stream'
 import { finished, pipeline } from 'node:stream/promises'
 
+import mime from 'mime'
+
 import { loggerService } from '@logger'
 import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import mime from 'mime'
 
 import { createContentHasher } from './contentHash'
 const logger = loggerService.withContext('utils/file/fs')
@@ -110,28 +111,10 @@ export async function readChunk(
   length: number,
   signal?: AbortSignal
 ): Promise<Uint8Array<ArrayBuffer>> {
-  signal?.throwIfAborted()
-  const openOperation = fsOpen(path, 'r')
-  let fileHandle: FileHandle
-  try {
-    fileHandle = await waitForAbort(openOperation, signal)
-  } catch (error) {
-    // A cancellation can win while open(2) is still pending. The promise is
-    // still observed so a handle that arrives later is closed promptly.
-    if (signal?.aborted) {
-      void openOperation.then(
-        (lateHandle) =>
-          lateHandle.close().catch((closeError) => {
-            logger.warn('readChunk: failed to close a late-opened file handle', { path, closeError })
-          }),
-        () => undefined
-      )
-    }
-    throw error
-  }
-  signal?.throwIfAborted()
+  const fileHandle = await openReadHandle(path, signal)
   let closeInBackground = false
   try {
+    signal?.throwIfAborted()
     const buffer = new Uint8Array(length)
     let totalBytesRead = 0
     while (totalBytesRead < length) {
@@ -144,10 +127,7 @@ export async function readChunk(
     }
     return totalBytesRead === buffer.byteLength ? buffer : buffer.slice(0, totalBytesRead)
   } catch (error) {
-    // FileHandle.close() waits for in-flight reads. Do not make an aborted caller wait for a
-    // filesystem operation that the Node FileHandle API itself cannot cancel; close the handle
-    // as soon as that operation settles instead. waitForAbort always observes the read promise,
-    // so neither a late read failure nor a close failure becomes an unhandled rejection.
+    // FileHandle.close waits for uncancellable reads; cancellation must not wait for it.
     if (signal?.aborted) {
       closeInBackground = true
       void fileHandle.close().catch((closeError) => {
@@ -156,9 +136,27 @@ export async function readChunk(
     }
     throw error
   } finally {
-    if (!closeInBackground) {
-      await fileHandle.close()
+    if (!closeInBackground) await fileHandle.close()
+  }
+}
+
+async function openReadHandle(path: AbsoluteFilePath, signal?: AbortSignal): Promise<FileHandle> {
+  signal?.throwIfAborted()
+  const openOperation = fsOpen(path, 'r')
+  try {
+    return await waitForAbort(openOperation, signal)
+  } catch (error) {
+    // Ownership transfers only on success; otherwise close any late-opened handle.
+    if (signal?.aborted) {
+      void openOperation.then(
+        (lateHandle) =>
+          lateHandle.close().catch((closeError) => {
+            logger.warn('Failed to close a late-opened file handle', { path, closeError })
+          }),
+        () => undefined
+      )
     }
+    throw error
   }
 }
 
@@ -261,16 +259,23 @@ function tmpNameFor(target: string): string {
 /**
  * Whether an errno from a directory-fsync attempt should be silently
  * swallowed instead of warn-logged. Only codes that mean "this FS semantically
- * rejects directory fsync" qualify — EINVAL / EISDIR / ENOTSUP all come from
- * Windows, FUSE, or network mounts that don't expose dir-handle sync. EPERM /
- * EACCES intentionally do NOT qualify: those usually mean the userData
+ * rejects directory fsync" qualify — EINVAL / EISDIR / ENOTSUP come from
+ * POSIX systems, FUSE, or network mounts that don't expose dir-handle sync.
+ * On Windows, fsync on a directory handle always fails with EPERM
+ * (FlushFileBuffers on a directory handle → ERROR_ACCESS_DENIED → Node maps
+ * to EPERM), so EPERM / EACCES additionally qualify there. On other platforms
+ * EPERM / EACCES intentionally do NOT qualify: those usually mean the userData
  * directory's ACL drifted (sandbox containment shift, SELinux/AppArmor
  * tightening, manual chown), and silently skipping the dashboard signal would
  * mask the regression. Exported for direct unit coverage of the classification.
  * @internal
  */
-export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
-  return code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP'
+export function shouldSilenceFsyncDirError(
+  code: string | undefined,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP') return true
+  return platform === 'win32' && (code === 'EPERM' || code === 'EACCES')
 }
 
 /**
@@ -410,13 +415,19 @@ export interface ReadableFileSnapshot {
  * stream reads through the already-open handle and never follows a later path
  * replacement.
  */
-export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promise<ReadableFileSnapshot> {
-  const pathStat = await fsLstat(target)
+export async function openReadableFileSnapshot(
+  target: AbsoluteFilePath,
+  signal?: AbortSignal
+): Promise<ReadableFileSnapshot> {
+  signal?.throwIfAborted()
+  const pathStat = await waitForAbort(fsLstat(target), signal)
   if (!pathStat.isFile()) throw new Error('Snapshot source is not a regular file')
 
-  const handle: FileHandle = await fsOpen(target, 'r')
+  const handle = await openReadHandle(target, signal)
   try {
-    const handleStat = await handle.stat()
+    signal?.throwIfAborted()
+    const handleStat = await waitForAbort(handle.stat(), signal)
+    signal?.throwIfAborted()
     if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
       throw new Error('Snapshot source changed before it could be opened')
     }
@@ -437,7 +448,10 @@ export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promis
       close: () => handle.close()
     }
   } catch (error) {
-    await handle.close().catch(() => undefined)
+    const closing = handle.close().catch((closeError) => {
+      logger.warn('Failed to close a snapshot file handle', { target, closeError })
+    })
+    if (!signal?.aborted) await closing
     throw error
   }
 }
@@ -473,14 +487,14 @@ export async function readTextFileWithinRoots(
   const resolvedBefore = AbsoluteFilePathSchema.parse(await waitForAbort(fsRealpath(target), signal))
   if (!roots.some((root) => isSameOrInsideResolved(resolvedBefore, root))) return null
 
-  const source = await openReadableFileSnapshot(resolvedBefore)
+  const source = await openReadableFileSnapshot(resolvedBefore, signal)
   try {
     if (source.size > maxBytes) return null
 
     const resolvedAfter = AbsoluteFilePathSchema.parse(await waitForAbort(fsRealpath(target), signal))
     if (!roots.some((root) => isSameOrInsideResolved(resolvedAfter, root))) return null
 
-    const verifier = await openReadableFileSnapshot(resolvedAfter)
+    const verifier = await openReadableFileSnapshot(resolvedAfter, signal)
     try {
       if (source.dev !== verifier.dev || source.ino !== verifier.ino) return null
     } finally {
@@ -977,6 +991,12 @@ export async function mkdir(target: AbsoluteFilePath): Promise<void> {
 
 /** Ensure a directory exists, creating any missing ancestors. Idempotent. */
 export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
+  const resolved = path.resolve(target)
+  if (resolved === path.parse(resolved).root) {
+    // Windows rejects recursive mkdir on volume roots, even when they exist.
+    await fsStat(resolved)
+    return
+  }
   await fsMkdirPromise(target, { recursive: true })
 }
 

@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { makeModel } from '@main/ai/__tests__/fixtures/model'
 import { makeProvider } from '@main/ai/__tests__/fixtures/provider'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { InputParamsMap } from '../../adapters'
 

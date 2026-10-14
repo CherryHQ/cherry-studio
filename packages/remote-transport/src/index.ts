@@ -1,0 +1,9 @@
+export { createDeviceIdentity, deviceIdentityId } from './identity'
+export { acceptSecureChannel, connectSecureChannel } from './channel'
+export type { ChannelOptions, SecureChannel } from './channel'
+export { RemoteSocketStream } from './socket'
+export type { RemoteSocket } from './socket'
+export { RemoteRpcError, RemoteRpcServer } from './rpc'
+
+export { createNativeNoiseCrypto } from './crypto'
+export type { NativeCrypto, NoiseCrypto } from './crypto'

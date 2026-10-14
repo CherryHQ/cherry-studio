@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('usePromptProcessor')
 

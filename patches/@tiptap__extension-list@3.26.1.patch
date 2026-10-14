@@ -1,0 +1,114 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 99f34e69b6cc1a2539c62cb3689601c413138df7..38bf560c76d2099f9b6dfa6a84ee76f24db241ef 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -631,6 +631,32 @@ var import_core10 = require("@tiptap/core");
+ // src/ordered-list/utils.ts
+ var ORDERED_LIST_ITEM_REGEX = /^(\s*)(\d+)\.\s+(.*)$/;
+ var INDENTED_LINE_REGEX = /^\s/;
++// Cherry Studio perf patch (#20358): marked invokes every custom block tokenizer at every block
++// boundary with the full remaining source. Both list tokenizers split the whole remaining source
++// before validating line 0, which makes parsing O(blocks x document size). These first-line guards
++// return early when the tokenizer cannot possibly match, restoring linear cost. Semantics are
++// unchanged: collectOrderedListItems produces no items unless line 0 matches, and
++// parseIndentedBlocks returns undefined unless the first non-blank line matches the item pattern.
++function firstLineOf(src) {
++  const nl = src.indexOf("\n");
++  return nl === -1 ? src : src.slice(0, nl);
++}
++function startsWithOrderedListItem(src) {
++  return ORDERED_LIST_ITEM_REGEX.test(firstLineOf(src));
++}
++function startsWithTaskListItem(src) {
++  let start = 0;
++  while (start < src.length) {
++    let nl = src.indexOf("\n", start);
++    if (nl === -1) nl = src.length;
++    const line = src.slice(start, nl);
++    if (line.trim() !== "") {
++      return /^(\s*)([-+*])\s+\[([ xX])\]\s+(.*)$/.test(line);
++    }
++    start = nl + 1;
++  }
++  return false;
++}
+ function isBlockContentLine(line) {
+   const trimmedLine = line.trimStart();
+   return (
+@@ -879,6 +905,9 @@ var OrderedList = import_core10.Node.create({
+     },
+     tokenize: (src, _tokens, lexer) => {
+       var _a;
++      if (!startsWithOrderedListItem(src)) {
++        return void 0;
++      }
+       const lines = src.split("\n");
+       const [listItems, consumed] = collectOrderedListItems(lines);
+       if (listItems.length === 0) {
+@@ -1190,6 +1219,9 @@ var TaskList = import_core12.Node.create({
+       return index !== void 0 ? index : -1;
+     },
+     tokenize(src, tokens, lexer) {
++      if (!startsWithTaskListItem(src)) {
++        return void 0;
++      }
+       const parseTaskListContent = (content) => {
+         const nestedResult = (0, import_core12.parseIndentedBlocks)(
+           content,
+diff --git a/dist/index.js b/dist/index.js
+index 6fc33ffa43404467653435353c6361114bbd1e24..d0c41f24eadfe097a26b8ace5fc3843b0956e846 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -601,6 +601,32 @@ import { mergeAttributes as mergeAttributes3, Node as Node3, wrappingInputRule a
+ // src/ordered-list/utils.ts
+ var ORDERED_LIST_ITEM_REGEX = /^(\s*)(\d+)\.\s+(.*)$/;
+ var INDENTED_LINE_REGEX = /^\s/;
++// Cherry Studio perf patch (#20358): marked invokes every custom block tokenizer at every block
++// boundary with the full remaining source. Both list tokenizers split the whole remaining source
++// before validating line 0, which makes parsing O(blocks x document size). These first-line guards
++// return early when the tokenizer cannot possibly match, restoring linear cost. Semantics are
++// unchanged: collectOrderedListItems produces no items unless line 0 matches, and
++// parseIndentedBlocks returns undefined unless the first non-blank line matches the item pattern.
++function firstLineOf(src) {
++  const nl = src.indexOf("\n");
++  return nl === -1 ? src : src.slice(0, nl);
++}
++function startsWithOrderedListItem(src) {
++  return ORDERED_LIST_ITEM_REGEX.test(firstLineOf(src));
++}
++function startsWithTaskListItem(src) {
++  let start = 0;
++  while (start < src.length) {
++    let nl = src.indexOf("\n", start);
++    if (nl === -1) nl = src.length;
++    const line = src.slice(start, nl);
++    if (line.trim() !== "") {
++      return /^(\s*)([-+*])\s+\[([ xX])\]\s+(.*)$/.test(line);
++    }
++    start = nl + 1;
++  }
++  return false;
++}
+ function isBlockContentLine(line) {
+   const trimmedLine = line.trimStart();
+   return (
+@@ -849,6 +875,9 @@ var OrderedList = Node3.create({
+     },
+     tokenize: (src, _tokens, lexer) => {
+       var _a;
++      if (!startsWithOrderedListItem(src)) {
++        return void 0;
++      }
+       const lines = src.split("\n");
+       const [listItems, consumed] = collectOrderedListItems(lines);
+       if (listItems.length === 0) {
+@@ -1166,6 +1195,9 @@ var TaskList = Node5.create({
+       return index !== void 0 ? index : -1;
+     },
+     tokenize(src, tokens, lexer) {
++      if (!startsWithTaskListItem(src)) {
++        return void 0;
++      }
+       const parseTaskListContent = (content) => {
+         const nestedResult = parseIndentedBlocks(
+           content,

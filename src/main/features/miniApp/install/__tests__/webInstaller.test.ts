@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { miniAppGrantTable, miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { miniAppGrantTable, miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 
 import type * as HttpSourceModule from '../httpSource'
 import type * as InstallerModule from '../installer'
@@ -88,9 +89,8 @@ vi.mock('../archive', () => ({
   })
 }))
 
-const { applyUpdate, checkForUpdate, previewMiniAppUrl, rollbackUpdate, REVIEW_TTL_MS } = await import(
-  '../webInstaller'
-)
+const { applyUpdate, checkForUpdate, previewMiniAppUrl, rollbackUpdate, REVIEW_TTL_MS } =
+  await import('../webInstaller')
 const { confirmPendingInstall, previewUrlForInstall: previewUrlRaw } = await import('../installFlow')
 type InstallPreviewSummary = Awaited<ReturnType<typeof previewUrlRaw>>
 /** The install card — what every fresh-database case below gets; the install-over cases read the union. */

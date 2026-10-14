@@ -1,4 +1,18 @@
 import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Circle,
+  CircleAlert,
+  CircleX,
+  Eye,
+  EyeOff,
+  LoaderCircle
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Button,
   Dialog,
   DialogContent,
@@ -16,19 +30,7 @@ import { joinApiKeyString } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Circle,
-  CircleAlert,
-  CircleX,
-  Eye,
-  EyeOff,
-  LoaderCircle
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { matchesPreset } from '@shared/utils/provider'
 
 import { ProviderAvatar } from '../components/ProviderAvatar'
 import { mergeProviderApiKeyEntries, parseProviderApiKeys } from '../hooks/providerSetting/useProviderApiKey'
@@ -40,6 +42,7 @@ import {
   useProviderModelPullReconcile
 } from '../ModelList'
 import { ProviderHelpLink, providerListClasses } from '../primitives/ProviderSettingsPrimitives'
+import DoubaoSetupGuide from '../ProviderSpecific/DoubaoSetupGuide'
 import { checkApi, getModelHealthCheckSkipReason } from '../utils/healthCheck'
 import { getProviderSetupErrorDetails, persistProviderModels } from '../utils/providerModelSetup'
 
@@ -338,57 +341,6 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     })
   }, [modelListView.filteredModels])
 
-  const addSelectedModels = useCallback(async () => {
-    if (!provider || selectedModels.length === 0 || isBusy) {
-      return
-    }
-
-    setBusyState('creating-models')
-    setError(null)
-    setRequiresManualConfirmation(false)
-    setSetupSucceeded(false)
-    setCompletedVerificationSteps(new Set())
-    modelsPersistedRef.current = false
-    probeSucceededModelIdRef.current = null
-
-    try {
-      await keepProviderDisabled()
-      await persistProviderModels({
-        provider,
-        selectedModels,
-        localModels,
-        knownModels: persistedModelsRef.current.values(),
-        createModels,
-        updateModels,
-        onPersisted: (models) => {
-          for (const model of models) persistedModelsRef.current.set(model.id, model)
-        }
-      })
-      modelsPersistedRef.current = true
-    } catch (cause) {
-      setBusyState(null)
-      setError(createError('create', 'settings.models.manage.operation_failed', cause))
-      return
-    }
-
-    setCompletedVerificationSteps(new Set(['models']))
-    if (!probeModel) {
-      setRequiresManualConfirmation(true)
-    }
-    setBusyState(null)
-    setStep('verification')
-  }, [
-    createError,
-    createModels,
-    isBusy,
-    keepProviderDisabled,
-    localModels,
-    probeModel,
-    provider,
-    selectedModels,
-    updateModels
-  ])
-
   const verifyAndEnable = useCallback(async () => {
     if (!probeModel || !modelsPersistedRef.current || isBusy) {
       return
@@ -430,6 +382,60 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
       setError(createError('enable', 'settings.provider.api_setup.enable_failed', cause))
     }
   }, [createError, enableProvider, isBusy, probeModel, verificationApiKey])
+
+  const addSelectedModels = useCallback(async () => {
+    if (!provider || selectedModels.length === 0 || isBusy) {
+      return
+    }
+
+    setBusyState('creating-models')
+    setError(null)
+    setRequiresManualConfirmation(false)
+    setSetupSucceeded(false)
+    setCompletedVerificationSteps(new Set())
+    modelsPersistedRef.current = false
+    probeSucceededModelIdRef.current = null
+
+    try {
+      await keepProviderDisabled()
+      await persistProviderModels({
+        provider,
+        selectedModels,
+        localModels,
+        knownModels: persistedModelsRef.current.values(),
+        createModels,
+        updateModels,
+        onPersisted: (models) => {
+          for (const model of models) persistedModelsRef.current.set(model.id, model)
+        }
+      })
+      modelsPersistedRef.current = true
+    } catch (cause) {
+      setBusyState(null)
+      setError(createError('create', 'settings.models.manage.operation_failed', cause))
+      return
+    }
+
+    setCompletedVerificationSteps(new Set(['models']))
+    setStep('verification')
+    if (!probeModel) {
+      setRequiresManualConfirmation(true)
+      setBusyState(null)
+      return
+    }
+    await verifyAndEnable()
+  }, [
+    createError,
+    createModels,
+    isBusy,
+    keepProviderDisabled,
+    localModels,
+    probeModel,
+    provider,
+    selectedModels,
+    updateModels,
+    verifyAndEnable
+  ])
 
   const returnToModels = useCallback(() => {
     if (isBusy) {
@@ -500,12 +506,8 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
           showCloseButton={step !== 'verification' || !isBusy}
           size="lg"
           className={cn(
-            'gap-5 transition-[height] duration-150 ease-out [interpolate-size:allow-keywords] motion-reduce:transition-none [&_[data-slot=dialog-close]]:top-7',
-            step === 'models' &&
-              !isModelListLoading &&
-              !hasBlockingModelError &&
-              availableModels.length > 0 &&
-              'h-[min(720px,calc(100vh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto]'
+            'gap-5 [&_[data-slot=dialog-close]]:top-7',
+            step === 'models' && 'h-[min(720px,calc(100vh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto]'
           )}>
           <DialogHeader className="pr-8">
             <div className="flex min-w-0 items-center gap-2">
@@ -545,6 +547,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
           {step === 'api-key' ? (
             <div className="space-y-4">
+              {provider && matchesPreset(provider, 'doubao') ? <DoubaoSetupGuide providerId={providerId} /> : null}
               <div className="space-y-2">
                 <div className="relative">
                   <Input
@@ -602,7 +605,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                 <div
                   role="status"
                   aria-live="polite"
-                  className="flex min-h-12 items-center justify-center gap-2 text-muted-foreground text-sm">
+                  className="flex min-h-12 flex-1 items-center justify-center gap-2 text-muted-foreground text-sm">
                   <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden />
                   {t('common.loading')}
                 </div>

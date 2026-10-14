@@ -1,7 +1,8 @@
-import { ipcApi } from '@renderer/ipc'
-import type { NotesSearchOptions, NotesSearchResult, NotesTreeNode } from '@shared/types/note'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
+
+import { ipcApi } from '@renderer/ipc'
+import type { NotesSearchOptions, NotesSearchResult, NotesTreeNode } from '@shared/types/note'
 
 export interface UseFullTextSearchOptions extends NotesSearchOptions {
   debounceMs?: number

@@ -1,10 +1,11 @@
+import { useCallback } from 'react'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { useCallback } from 'react'
 
 import { chunkArray } from '../utils/chunkArray'
 import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../utils/modelSync'
@@ -56,7 +57,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
       logger.info('Fetching remote provider models for sync', {
         providerId
       })
-      const resolvedModels = await fetchResolvedProviderModels(providerId)
+      const { models: resolvedModels } = await fetchResolvedProviderModels(providerId)
       if (resolvedModels.length === 0) {
         logger.info('No remote provider models were resolved for sync', {
           providerId

@@ -1,3 +1,6 @@
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -5,8 +8,6 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { resolveLaunchModelId } from '../cliConfig'
 import { useManagedToolStatus } from './useManagedToolStatus'
@@ -123,9 +124,7 @@ export function useDeepSeekHarnessController({
         openWebUi(url)
         return
       }
-      const current = await ipcApi.request('deepseek_harness.get_status')
-      if (current.status !== 'running' || !current.url) throw new Error('DeepSeek Harness Web UI is not running')
-      openWebUi(current.url)
+      throw new Error('DeepSeek Harness Web UI is not running')
     } catch (error) {
       logger.error('Failed to open DeepSeek Harness Web UI', error as Error)
       toast.error(t('code.launch.error'))

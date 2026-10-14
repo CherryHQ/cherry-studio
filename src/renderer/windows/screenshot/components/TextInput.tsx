@@ -9,10 +9,11 @@
  * by a non-composing keydown, or by the next composition starting. A blur rejects it.
  */
 
-import { ipcApi } from '@renderer/ipc'
-import { isMac } from '@renderer/utils/platform'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
+
+import { ipcApi } from '@renderer/ipc'
+import { isMac } from '@renderer/utils/platform'
 
 import { Z_INDEX } from '../constants'
 import type { Point, SelectionRect } from '../types'

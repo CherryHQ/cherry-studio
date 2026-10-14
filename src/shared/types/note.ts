@@ -28,7 +28,7 @@ export interface NotesSearchMatch {
   context: string
 }
 
-export interface NotesSearchResult extends NotesTreeNode {
+export interface NotesSearchResult extends Omit<NotesTreeNode, 'children'> {
   matchType: 'filename' | 'content' | 'both'
   matches?: NotesSearchMatch[]
   score: number

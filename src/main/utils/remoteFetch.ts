@@ -11,10 +11,13 @@ export const DEFAULT_REMOTE_FETCH_TIMEOUT_MS = 30000
 export const DEFAULT_REMOTE_FETCH_MAX_BYTES = 1024 * 1024
 
 export type FetchRemoteTextOptions = {
+  readonly method?: 'GET' | 'HEAD'
+  readonly allowPrivateNetwork?: boolean
   readonly headers?: HeadersInit
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
   readonly maxBytes?: number
+  readonly byteBudget?: { remaining: number }
   readonly maxRedirects?: number
 }
 
@@ -62,7 +65,7 @@ function getRequestOptions(
     hostname: getRequestHostname(parsedUrl.hostname),
     port: parsedUrl.port || (isHttps ? 443 : 80),
     path: `${parsedUrl.pathname}${parsedUrl.search}`,
-    method: 'GET',
+    method: options.method ?? 'GET',
     headers: buildRequestHeaders(options.headers, parsedUrl.host),
     lookup: createLookup(target),
     agent: false,
@@ -97,15 +100,16 @@ function buildSignal(options: FetchRemoteTextOptions): AbortSignal {
   return options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
 }
 
-async function fetchRemoteTextFromUrl(
+async function fetchRemoteResponse(
   url: string,
   options: ResolvedFetchRemoteTextOptions,
   signal: AbortSignal,
   redirectsRemaining: number
-): Promise<string> {
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
   const target = await resolveRemoteFetchUrl(url, {
     signal,
-    allowPrivateNetwork: application.get('PreferenceService').get('app.fetch.allow_private_network')
+    allowPrivateNetwork:
+      options.allowPrivateNetwork ?? application.get('PreferenceService').get('app.fetch.allow_private_network')
   })
   const requestOptions = getRequestOptions(target, options, signal)
   const request = target.url.startsWith('https:') ? httpsRequest : httpRequest
@@ -154,10 +158,7 @@ async function fetchRemoteTextFromUrl(
         settled = true
         response.resume()
         response.destroy()
-        void fetchRemoteTextFromUrl(redirectUrl.toString(), options, signal, redirectsRemaining - 1).then(
-          resolve,
-          reject
-        )
+        void fetchRemoteResponse(redirectUrl.toString(), options, signal, redirectsRemaining - 1).then(resolve, reject)
         return
       }
 
@@ -169,7 +170,7 @@ async function fetchRemoteTextFromUrl(
       }
 
       const contentLength = parseContentLength(response.headers)
-      if (contentLength !== undefined && contentLength > maxBytes) {
+      if (options.method !== 'HEAD' && contentLength !== undefined && contentLength > maxBytes) {
         response.resume()
         response.destroy()
         fail(new Error(`Remote response too large: ${contentLength} bytes exceeds ${maxBytes} bytes`))
@@ -193,6 +194,14 @@ async function fetchRemoteTextFromUrl(
           return
         }
 
+        if (options.byteBudget) {
+          if (buffer.length > options.byteBudget.remaining) {
+            response.destroy()
+            fail(new Error('Remote responses exceeded the shared byte budget'))
+            return
+          }
+          options.byteBudget.remaining -= buffer.length
+        }
         chunks.push(buffer)
       })
 
@@ -202,7 +211,7 @@ async function fetchRemoteTextFromUrl(
         }
 
         settled = true
-        resolve(Buffer.concat(chunks).toString('utf8'))
+        resolve({ body: Buffer.concat(chunks), headers: response.headers })
       })
 
       response.on('aborted', () => fail(new Error('Remote response aborted before completion')))
@@ -220,6 +229,14 @@ async function fetchRemoteTextFromUrl(
  * DNS address. Redirects are opt-in and response bodies are bounded.
  */
 export async function fetchRemoteText(url: string, options: FetchRemoteTextOptions = {}): Promise<string> {
+  return (await fetchRemoteBytes(url, options)).body.toString('utf8')
+}
+
+/** Fetch bounded binary data using the same DNS, redirect and cancellation policy as text. */
+export async function fetchRemoteBytes(
+  url: string,
+  options: FetchRemoteTextOptions = {}
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
   const maxRedirects = options.maxRedirects ?? 0
   if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) {
     throw new Error('maxRedirects must be a non-negative safe integer')
@@ -227,5 +244,5 @@ export async function fetchRemoteText(url: string, options: FetchRemoteTextOptio
 
   const signal = buildSignal(options)
   const requestOptions: ResolvedFetchRemoteTextOptions = { ...options, headers: new Headers(options.headers) }
-  return fetchRemoteTextFromUrl(url, requestOptions, signal, maxRedirects)
+  return fetchRemoteResponse(url, requestOptions, signal, maxRedirects)
 }

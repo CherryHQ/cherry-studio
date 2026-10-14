@@ -1,3 +1,6 @@
+import { isEqual } from 'es-toolkit/compat'
+import { vi } from 'vitest'
+
 import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type {
   InferSharedCacheValue,
@@ -7,8 +10,6 @@ import type {
   SharedCacheKey
 } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'es-toolkit/compat'
-import { vi } from 'vitest'
 
 /**
  * Mock CacheService for main process testing
@@ -169,6 +170,10 @@ export class MockMainCacheService {
 
   public hasPersist = vi.fn(<K extends MainPersistCacheKey>(key: K): boolean => {
     return mockPersistCache.has(key) && !isEqual(mockPersistCache.get(key), DefaultMainPersistCache[key])
+  })
+
+  public deletePersist = vi.fn(<K extends MainPersistCacheKey>(key: K): void => {
+    this.setPersist(key, DefaultMainPersistCache[key])
   })
 
   // ============ Subscription Methods ============

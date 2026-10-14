@@ -1,5 +1,6 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { createContext, use } from 'react'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 export type FilePreviewFileOpener = (filePath: AbsoluteFilePath) => void | Promise<void>
 

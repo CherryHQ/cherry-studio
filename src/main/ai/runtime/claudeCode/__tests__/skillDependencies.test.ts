@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   findExecutableInEnv: vi.fn<(name: string) => Promise<string | null>>(),
-  getByFolderName: vi.fn(() => null as unknown),
+  getByFolderName: vi.fn(() => null),
   listAll: vi.fn<() => Array<{ folderName: string; name: string }>>(),
   getInstalledSkillDirectory: vi.fn(() => ''),
   skillPluginDirectory: { value: '/nonexistent-claude-root' }
@@ -163,6 +163,20 @@ describe('checkSkillRuntimeDependencies', () => {
 
     expect(result.deny).toBeUndefined()
     expect(result.warning).toContain('the executables "pnpm", "bunx"')
+    expect(result.warning).not.toContain('"npx"')
+  })
+
+  it('warns instead of rejecting when an executable lookup fails', async () => {
+    const workdir = await writeWorkspaceSkill('local-skill', 'allowed-tools: Bash(jq:*), Bash(npx:*)\n')
+    mocks.findExecutableInEnv.mockImplementation(async (name) => {
+      if (name === 'jq') throw new Error("Timed out resolving command 'jq'")
+      return '/usr/bin/npx'
+    })
+
+    const result = await checkSkillRuntimeDependencies('local-skill', workdir, new Map())
+
+    expect(result.deny).toBeUndefined()
+    expect(result.warning).toContain('the executable "jq"')
     expect(result.warning).not.toContain('"npx"')
   })
 

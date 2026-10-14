@@ -1,11 +1,12 @@
+import type { CSSProperties, MouseEventHandler, ReactNode } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Combobox, type ComboboxOption, Skeleton } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
 import type { TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import type { CSSProperties, MouseEventHandler, ReactNode } from 'react'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export type LanguageOption = {
   value: TranslateSourceLanguage

@@ -1,9 +1,11 @@
+import fs from 'fs'
+import path from 'path'
+
+import { net, safeStorage } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { mergeHeaders } from '@main/utils/http'
-import { net, safeStorage } from 'electron'
-import fs from 'fs'
-import path from 'path'
 
 const logger = loggerService.withContext('CopilotService')
 
