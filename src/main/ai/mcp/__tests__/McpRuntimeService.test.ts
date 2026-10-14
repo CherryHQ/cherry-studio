@@ -290,7 +290,8 @@ describe('McpRuntimeService connection ownership', () => {
   it('shares a failed health probe and backs off before creating one replacement for concurrent callers', async () => {
     const service = new McpRuntimeService()
     const health = createDeferred<void>()
-    const stale = { health: vi.fn(() => health.promise), close: vi.fn().mockResolvedValue(undefined) }
+    const closing = createDeferred<void>()
+    const stale = { health: vi.fn(() => health.promise), close: vi.fn(() => closing.promise) }
     const tools = [{ name: 'ready', inputSchema: { type: 'object' } }]
     const connection = { era: 'modern', listTools: vi.fn().mockResolvedValue(tools) }
     ;(service as any).connections.set(service.getServerKey(server), stale)
@@ -301,13 +302,14 @@ describe('McpRuntimeService connection ownership', () => {
     const failure = new SdkError(SdkErrorCode.RequestTimeout, 'connection is stale')
     const failed = expect(Promise.all([first, second])).rejects.toBe(failure)
     health.reject(failure)
-    await failed
-    expect(stale.health).toHaveBeenCalledTimes(1)
-    expect(stale.close).toHaveBeenCalledTimes(1)
-    expect(create).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(stale.close).toHaveBeenCalledTimes(1))
     const retryAt = (service as any).connectFailures.get(service.getServerKey(server)).retryAt
     const now = vi.spyOn(Date, 'now').mockReturnValue(retryAt)
     try {
+      closing.resolve()
+      await failed
+      expect(stale.health).toHaveBeenCalledTimes(1)
+      expect(create).not.toHaveBeenCalled()
       await expect(Promise.all([service.listTools(server.id), service.listTools(server.id)])).resolves.toEqual([
         tools,
         tools

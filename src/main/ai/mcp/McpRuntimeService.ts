@@ -543,7 +543,7 @@ export class McpRuntimeService extends BaseService {
         await this.closeConnection(serverKey, existing).catch((closeError) => {
           getServerLogger(server).warn('Failed to close unhealthy MCP connection', { error: closeError })
         })
-        return undefined
+        throw error
       }
       assertCurrent()
       this.connectFailures.delete(serverKey)
