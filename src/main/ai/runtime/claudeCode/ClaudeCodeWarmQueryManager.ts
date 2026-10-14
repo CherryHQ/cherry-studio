@@ -242,7 +242,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (!entry) return false
     this.entries.delete(oldestKey)
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
-    this.releaseWarmQueryCapAndClose(entry)
+    this.releaseWarmQueryCapAndClose(oldestKey, entry)
     return true
   }
 
