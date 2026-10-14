@@ -27,11 +27,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/components/LazyCodeEditor', () => ({
-  LazyCodeEditor:     ({ value, onChange }: ComponentProps<'textarea'> & { onChange: (value: string) => void }) => (
-      <textarea aria-label="server config" value={value} onChange={(event) => onChange(event.target.value)} />
-    )
+  LazyCodeEditor: ({ value, onChange }: ComponentProps<'textarea'> & { onChange: (value: string) => void }) => (
+    <textarea aria-label="server config" value={value} onChange={(event) => onChange(event.target.value)} />
+  )
 }))
-
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {

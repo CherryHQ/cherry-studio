@@ -22,11 +22,11 @@ import {
   FormMessage,
   Label
 } from '@cherrystudio/ui'
-import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
