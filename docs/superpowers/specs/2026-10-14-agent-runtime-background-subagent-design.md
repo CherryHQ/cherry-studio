@@ -55,7 +55,7 @@ L4 给 Pi 运行时加了前台子代理：`subagent({ description, prompt, fork
 | D7 | 一个标识：子会话 id 就是 `randomUUID()`；宿主 API 叫 `sessionId`，模型参数叫 `id` | L4 的 `父 id.UUID` 前缀不可靠：Cherry 的 Pi 会话 id 会变（resume token、fork checkpoint） |
 | D8 | 架构：包负责运行表、通知队列、投递时机；宿主负责持久化、取回、界面、停止按钮 | 投递规则都依赖 settle，只有包看得到；包内测试能端到端覆盖 |
 | D9 | 用户可以把运行中的前台子代理转到后台：父代理的这次调用立即返回，子代理在同一个会话里接着跑，结束后走通知 | Claude Code（Ctrl+B，2.1.178 起不再重跑）、OpenCode（ctrl+b）、Cursor SDK 都有；统一的运行器让它只是"换一个结果接收方" |
-| D10 | 派出时可以指定模型：`model` 只能取宿主给出的模型列表里的 key；fork 不能换模型；续接沿用首次的模型 | 模型参数各家都在收紧：Codex 要求用户明确要求才设（#41165），OpenCode 写 "NEVER set this unless the user explicitly asks"，VS Code 不允许超出主模型的计费档（#292452） |
+| D10 | 子代理的模型：默认用智能体设置里的"子代理模型"（不设就跟随主模型）；用户口头点名时，模型把名字填进 `model`，在用户已启用、支持工具调用的模型里解析；只有唯一候选才直接用，多个候选（同一模型在多个 provider 下）就让用户选一次；fork 不能换模型；续接沿用首次的模型 | Cherry 是聚合平台，模型可能有几百个、同名模型分属多个 provider，不能列进工具描述；Cursor 内置 agent 靠口头指定、自定义 agent 在定义里写模型；Codex 有 `default_subagent_model`；各家都要求只在用户要求时才设模型（Codex #41165、OpenCode "NEVER set this unless the user explicitly asks"） |
 
 产品默认（用户未反对即采用）：
 
@@ -89,7 +89,7 @@ interface SubagentRecord {
   description: string
   fork: boolean
   background: boolean             // 最近一次运行是否在后台（续接总在后台）
-  modelKey: string                // 派出时用的模型 key（`model` 参数，或父会话当前模型），续接时交给宿主还原
+  modelKey: string                // 实际用的模型 key（`model` 解析出的、宿主默认的子代理模型或父会话当前模型），续接时交给宿主还原
   run: number                     // 第几次运行，从 1 起；每次续接 +1
   status: 'running' | 'awaiting_approval' | 'finished'
   outcome?: SubagentOutcome       // finished 时有
@@ -138,15 +138,18 @@ interface SubagentPort {
   onApproval?(listener: (event: ToolApprovalEvent) => void): () => void
   /** 同一父会话同时运行的后台子代理上限，默认 20（Claude Code 的默认值）。 */
   maxBackground?: number
-  /** 模型可以给子代理指定的模型；不提供则 `subagent` 没有 `model` 参数。 */
-  models?: readonly SubagentModelOption[]
+  /**
+   * 按用户说的名字找模型：只返回已启用且支持工具调用的模型。不提供则 `subagent` 没有 `model` 参数。
+   * 选择规则在包里（6.7），宿主只负责匹配。
+   */
+  findModels?(query: string): Promise<readonly SubagentModelCandidate[]>
 }
 
-interface SubagentModelOption {
-  /** 模型传的值，也是 Subagent.modelKey；与 transcript 里的 modelKey 同一套。 */
-  key: string
-  /** 写进工具描述，告诉模型什么时候用它，例如"快、便宜，适合检索和整理"。 */
-  description: string
+interface SubagentModelCandidate {
+  key: string          // 唯一：一个 provider 下的一个模型，也是 transcript 里 modelKey 的取值
+  provider: string     // 显示名，例如 "OpenRouter"
+  model: string        // 显示名，例如 "Claude Sonnet 4.5"
+  exact: boolean       // query 与 provider + 模型名、或模型名完全相同
 }
 
 interface Subagent {
@@ -156,14 +159,18 @@ interface Subagent {
   description: string
   fork: boolean
   background: boolean
-  modelKey: string             // 首次：`model` 参数，没给就是父会话当前模型的 key；续接：origin 里记的 key
+  /** 首次：`model` 参数解析出的 key，没给就不设（由宿主用默认子代理模型）；续接：origin 里记的 key。 */
+  modelKey?: string
 }
 
 interface SubagentSessionOptions {
   extensionFactories?: ExtensionFactory[]
   onEvent?: (event: AgentRuntimeEvent) => void
   onSessionCreated?: (session: AgentSession) => void
-  /** 按 Subagent.modelKey 给出的模型；modelKey 不是父会话当前模型时必须给，否则这次派出或续接失败。 */
+  /**
+   * 子代理用的模型。设了 Subagent.modelKey 就必须给这个 key 的模型，否则这次派出或续接失败；
+   * 没设时宿主可给智能体设置里的默认子代理模型，不给就跟随父会话当前模型。实际用的 key 记进 origin。
+   */
   model?: AgentRuntimeModel
 }
 
@@ -212,7 +219,7 @@ interface AgentRuntimeSession {
 参数在 L4 基础上加两个：
 
 - `background?: boolean`，默认 false。工具描述补充用法：需要结果才能往下走就用前台；确实有独立的事可做才用后台。
-- `model?: string`，只在宿主提供了 `SubagentPort.models` 时出现，取值限定为这些 key（schema 用枚举）。工具描述逐条列出每个模型的 `description`，并写明：只在用户要求、或任务明显更适合某个列出的模型时才设置，否则不填，沿用当前模型。与 `fork: true` 同时出现时报错 `A fork shares this conversation's prompt cache and must use the current model; drop model or fork.`（换模型会让 fork 共享的前缀缓存失效）。
+- `model?: string`，只在宿主提供了 `SubagentPort.findModels` 时出现，自由文本，工具描述里不列模型。描述写明：只在用户（或智能体指令）点名了模型时才填，照用户说的写，可以带 provider，例如 `OpenRouter Claude Sonnet 4.5`；没点名就不填。解析规则见 6.7。与 `fork: true` 同时出现时报错 `A fork shares this conversation's prompt cache and must use the current model; drop model or fork.`（换模型会让 fork 共享的前缀缓存失效）。
 
 返回给模型：
 
@@ -256,7 +263,7 @@ L4 的 `run()` 抽成 `runSubagent(child, prompt, options)`，保留：从 `mess
 
 ### 6.2 前台
 
-行为与 L4 相同，差别只有：子会话 id 改为 `randomUUID()`；`Subagent` 多了 `description`、`background: false`、`modelKey`；起始条目先经 `onEvent` 发出（8.1）；结果末尾带 id。前台结束后子会话照旧销毁；以后续接时从宿主取回重建。
+行为与 L4 相同，差别只有：子会话 id 改为 `randomUUID()`；`Subagent` 多了 `description`、`background: false`、`modelKey?`；起始条目先经 `onEvent` 发出（8.1）；结果末尾带 id。前台结束后子会话照旧销毁；以后续接时从宿主取回重建。
 
 ### 6.3 后台
 
@@ -293,12 +300,21 @@ L4 的 `run()` 抽成 `runSubagent(child, prompt, options)`，保留：从 `mess
 - 并发上限不阻止转后台（子代理本来就在跑），但计入之后的上限判断。
 - 宿主可以选择在用户于前台子代理运行期间发消息时自动转后台（Cursor SDK 的做法），否则用户消息要等这批工具结束才进来；是否这样做由宿主决定，包只提供方法。
 
-### 6.7 指定模型
+### 6.7 子代理的模型
 
-- 派出时 `model` 给了：校验在 `SubagentPort.models` 里；`Subagent.modelKey` 取这个值；`configure` 必须为它返回 `model`，否则这次派出失败，错误说明宿主没有给出该模型。
-- 没给：`modelKey` 取父会话当前模型的 key，`configure` 可以不返回 `model`。
-- 续接：`modelKey` 取 origin 里记的值（首次派出时用的），宿主据此返回同一个模型（Claude Code 2.1.211 修过续接丢模型）。
-- 用量照常按子代理实际使用的模型记账，通知 `details` 里的 `usage` 已含费用。
+**默认**：宿主在 `configure` 里给出智能体设置的"子代理模型"；没设就跟随父会话当前模型。用户在设置里选的是某个 provider 下的具体模型，没有歧义。
+
+**口头指定**：用户在对话里或智能体指令里点名模型，主模型把名字填进 `model`。派出前（后台也一样，先定模型再派出），包调 `port.findModels(model)` 并按下面的规则选：
+
+1. 没有候选：报错 `No enabled model with tool support matches "<model>". Similar: <最多 5 个相近的 provider / model>`。
+2. 恰好一个候选：用它。用户把 provider 和模型都说准时，自然只剩一个。
+3. 多个候选（例如同一个模型在多个 provider 下各有一个）：不替用户挑，报错并列出候选 `Several models match "<model>": <provider / model，逐行>. Ask the user which one to use, then call subagent again with the provider and model name.`。主模型用 `AskUserQuestion` 问用户一次，再带上准确的 provider 和模型名重新派出。
+
+选中的候选 `key` 作为 `Subagent.modelKey` 交给 `configure`，宿主必须为它返回 `model`，否则派出失败。
+
+**续接**：`modelKey` 取 origin 里记的值（首次实际用的模型），宿主据此返回同一个模型（Claude Code 2.1.211 修过续接丢模型）。
+
+用量照常按子代理实际用的模型记账，通知 `details` 里的 `usage` 已含费用。Task 卡片显示子代理实际用的 provider 和模型。
 
 ## 7. 通知与自动轮
 
@@ -460,18 +476,18 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 2. 有后台子代理在运行时，不销毁、不重建父会话。宿主现有逻辑在有后台工作时推迟重建（`AgentSessionRuntimeService.ts:1706`），把 `subagents` 事件映射到 `background-work-state` 即可沿用。
 3. 把 `subagents` 事件映射到现有的 `background-tasks`（任务标签条）与 `background-work-state`；停止按钮（`ai.agent.session.stop_background_task`）调用 `stopSubagent(sessionId)`，`taskId` 即 `sessionId`。
 4. 子代理 transcript 按 `sessionId` 持久化（含起始条目），实现 `SubagentPort.load`；父子关系用 Cherry 会话 id 记录；删父会话时一并删除。
-5. `configure` 对同一个子代理（首次与续接）返回一致的扩展；`modelKey` 不是父会话当前模型时按它返回 `model`。
+5. `configure` 对同一个子代理（首次与续接）返回一致的扩展；设了 `modelKey` 时必须按它返回 `model`。
 6. 审批：按第 10 节；实现 `SubagentPort.onApproval`，与 `GoalPort.onApproval` 接同一个审批注册表；goal 只收父会话自己的工具调用（11.5）。
 7. 通知轮渲染为自主轮（`background-work`），通知消息不渲染成用户气泡；`details` 可用于在轮次头显示"子代理 X 已完成"。
 8. 父会话界面显示子代理花费（`details.subagents[].usage`），不让子代理花费隐身（OpenCode #45417）。
-9. 想让模型能给子代理指定模型，就提供 `SubagentPort.models`（key 加一句用途说明）；列表在建会话时读一次，变更后随会话重建生效。建议只列与当前模型同一计费档或更便宜的模型（VS Code #292452 的教训）。
+9. 模型：智能体设置里加"子代理模型"（默认跟随主模型），`configure` 在 `modelKey` 未设时返回它；实现 `SubagentPort.findModels`，只在已启用、支持工具调用的模型里按 provider 名、模型名匹配，标出完全匹配；Task 卡片显示实际用的 provider 和模型。
 10. 前台子代理运行时，在它的 Task 卡片上提供"转到后台"，调用 `backgroundSubagent(sessionId)`；可选：用户在此期间发消息时自动转后台。
 
 ## 14. 对 L4 / L5 的改动
 
 | 层 | 改动 |
 |---|---|
-| L4 | `subagent` 加 `background?`、`model?`；前台转后台（6.6）；子会话 id 改为 `randomUUID()`（去掉父前缀）；`Subagent` 加 `description`、`background`、`modelKey`、`continuedBy?`；`SubagentDetails` 改为前台/后台联合；`run()` 抽到 `subagentRun.ts`；起始条目经 `onEvent` 发出；前台结果末尾带 id；origin 条目加 `description`、`modelKey`；fork 子代理调用 `message_subagent` / `stop_subagent` 报错；README 子代理一节重写 |
+| L4 | `subagent` 加 `background?`、`model?`；前台转后台（6.6）；子会话 id 改为 `randomUUID()`（去掉父前缀）；`Subagent` 加 `description`、`background`、`modelKey?`、`continuedBy?`；`SubagentDetails` 改为前台/后台联合；`run()` 抽到 `subagentRun.ts`；起始条目经 `onEvent` 发出；前台结果末尾带 id；origin 条目加 `description`、`modelKey`（实际用的模型）；fork 子代理调用 `message_subagent` / `stop_subagent` 报错；README 子代理一节重写 |
 | L5 | 删除 `GoalPort.hasRunningSubagents` 与 `waiting_subagents`，改为 11.1 的等待；`GoalApprovalEvent` 改名 `ToolApprovalEvent` 并移到 `ports.ts`；settle 时见到通知条目让路（11.2）；通知轮的身份（11.3）；子代理用量与预算（11.4）；审批事件只认父会话 branch 上的调用（11.5）；goal 激活且已武装时通知轮的用量计入预算（11.3）；`/goal` 状态显示等待中的子代理；README goal 一节相应更新 |
 | L2 | `AgentRuntimeEvent` 加 `subagents`；`AgentRuntimeSession` 加 `prompt`、`compact`、`stopSubagent`、`backgroundSubagent` |
 
@@ -512,9 +528,13 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 | `details.sessionId` 等于 `configure` 收到的 `sessionId`，是 UUID | id 形式回退 |
 | `backgroundSubagent`：前台调用立即返回"被用户转到后台"，子代理在同一个会话里接着跑完（请求不重来），结束后发通知；之后中止父代理这一轮不影响它 | 转后台时重跑；转后台后仍随父回合中止；不发通知 |
 | `backgroundSubagent` 对后台、已结束或不存在的子代理返回 false | 重复接管 |
-| 指定 `model`：`configure` 收到该 `modelKey`；不在列表里的值被 schema 拒绝；与 `fork: true` 同时出现报错；宿主没为它返回 `model` 时派出失败 | 用了父会话模型；fork 换模型破坏前缀缓存；静默回退到父模型 |
+| 指定 `model` 且只有一个候选：`configure` 收到该 `modelKey`；宿主没为它返回 `model` 时派出失败 | 用了父会话模型；静默回退 |
+| 指定 `model` 有多个候选（同一模型在两个 provider 下）：不派出，报错列出两个候选；带上 provider 后只剩一个，派出成功 | 替用户挑了一个 provider |
+| 指定 `model` 没有候选：报错并列出相近的名字 | 静默回退到父模型 |
+| `model` 与 `fork: true` 同时出现报错 | fork 换模型破坏前缀缓存 |
+| 未指定 `model`：宿主返回的默认子代理模型被采用，其 key 记进 origin；宿主不返回时跟随父会话模型 | 默认模型不生效；origin 没记实际模型 |
 | 续接指定过模型的子代理：`configure` 收到首次的 `modelKey` | 续接换了模型 |
-| 未提供 `SubagentPort.models` 时工具没有 `model` 参数 | 模型能指定宿主没有开放的模型 |
+| 未提供 `SubagentPort.findModels` 时工具没有 `model` 参数 | 宿主不支持时模型仍能填模型 |
 
 ## 16. 风险与已知缺口
 
