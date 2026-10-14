@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { useCacheSelector, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
+import { usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -53,6 +53,7 @@ import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
+import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -1852,14 +1853,7 @@ const TopicRow = memo(function TopicRow({
   topicsLength
 }: TopicRowProps) {
   const { t } = useTranslation()
-  const isRenaming = useCacheSelector(
-    ['topic.renaming'] as const,
-    ([topicIds]) => topicIds?.includes(topic.id) ?? false
-  )
-  const isNewlyRenamed = useCacheSelector(
-    ['topic.newly_renamed'] as const,
-    ([topicIds]) => topicIds?.includes(topic.id) ?? false
-  )
+  const { isRenaming, isNewlyRenamed } = useTopicRenameState(topic.id)
   const rightPanelState = useOptionalRightPanelState()
   const rightPanelActions = useOptionalRightPanelActions()
   const actions = useResourceListActions()

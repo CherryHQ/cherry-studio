@@ -1,4 +1,4 @@
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -133,9 +133,8 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', async () => ({
-  useCache: hookMocks.useCache,
-  useCacheSelector: (await import('@test-mocks/renderer/useCache')).mockUseCacheSelector
+vi.mock('@renderer/data/hooks/useCache', () => ({
+  useCache: hookMocks.useCache
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -468,7 +467,7 @@ let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(async () => {
-    MockUseCacheUtils.resetMocks()
+    MockCacheUtils.resetMocks()
     hookMocks.isMac = false
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     MockUseDataApiUtils.resetMocks()
@@ -1451,7 +1450,7 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('disables automatic rename only for the topic already being renamed', () => {
-    MockUseCacheUtils.setCacheValue('topic.renaming', ['topic-alpha'])
+    MockCacheUtils.triggerCacheChange('topic.renaming', ['topic-alpha'])
     setupAssistantHistory({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })]
     })

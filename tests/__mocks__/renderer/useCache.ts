@@ -175,19 +175,6 @@ export const mockUseCache = vi.fn(
 )
 
 /**
- * Mock read-only memory-cache selector. Like the other hook mocks, it projects
- * the current state for the render; reactive subscription behavior is covered
- * by the real hook contract tests.
- */
-export const mockUseCacheSelector = vi.fn(
-  <Selection>(
-    keys: readonly UseCacheKey[],
-    selector: (values: readonly any[]) => Selection,
-    _isEqual?: (a: Selection, b: Selection) => boolean
-  ): Selection => selector(keys.map((key) => mockMemoryCache.get(key)))
-)
-
-/**
  * Mock useSharedCache hook (shared cache)
  */
 export const mockUseSharedCache = vi.fn(
@@ -291,7 +278,6 @@ export const mockUsePersistCache = vi.fn(
  */
 export const MockUseCache = {
   useCache: mockUseCache,
-  useCacheSelector: mockUseCacheSelector,
   useSharedCache: mockUseSharedCache,
   useSharedCacheValue: mockUseSharedCacheValue,
   useSharedCacheSelector: mockUseSharedCacheSelector,
@@ -307,7 +293,6 @@ export const MockUseCacheUtils = {
    */
   resetMocks: () => {
     mockUseCache.mockClear()
-    mockUseCacheSelector.mockClear()
     mockUseSharedCache.mockClear()
     mockUseSharedCacheValue.mockClear()
     mockUseSharedCacheSelector.mockClear()

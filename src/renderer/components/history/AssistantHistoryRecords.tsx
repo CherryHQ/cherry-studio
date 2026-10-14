@@ -8,10 +8,10 @@ import type { TopicActionContext } from '@renderer/components/chat/actions/topic
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { useCacheSelector } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
+import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -71,7 +71,7 @@ function AssistantHistoryRowState({
   topicId: string
   children: (state: HistoryRowState) => ReactElement
 }) {
-  const isRenaming = useCacheSelector(['topic.renaming'] as const, ([topicIds]) => topicIds?.includes(topicId) ?? false)
+  const { isRenaming } = useTopicRenameState(topicId)
   return children({ isRenaming })
 }
 

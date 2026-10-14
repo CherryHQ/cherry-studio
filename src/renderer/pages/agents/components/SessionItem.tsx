@@ -19,8 +19,8 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
-import { useCacheSelector } from '@renderer/data/hooks/useCache'
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
+import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
@@ -90,11 +90,7 @@ const SessionItem = ({
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
-  const isRenaming = useCacheSelector(['topic.renaming'] as const, ([topicIds]) => topicIds?.includes(topicId) ?? false)
-  const isNewlyRenamed = useCacheSelector(
-    ['topic.newly_renamed'] as const,
-    ([topicIds]) => topicIds?.includes(topicId) ?? false
-  )
+  const { isRenaming, isNewlyRenamed } = useTopicRenameState(topicId)
   const {
     status,
     awaitingApprovalAnchors,
