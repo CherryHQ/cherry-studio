@@ -164,7 +164,7 @@ describe('McpSettings', () => {
     })
     await waitFor(() => expect(popup.error).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('switch')).not.toBeDisabled()
-    expect(screen.getByRole('switch')).toBeChecked()
+    expect(mocks.updateMcpServer).toHaveBeenCalledWith({ body: { isActive: true } })
   })
 
   it('consumes protocol auto-enable and shows the run confirmation once without enabling when canceled', async () => {
