@@ -916,6 +916,44 @@ describe('AgentService', () => {
       const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.mcps).toEqual([])
     })
+
+    it('migrates denial rules when a mount change reallocates keys', async () => {
+      // A's configured name equals unmounted B's id, so A holds that key and the denial
+      // `mcp__id-b__run` targets A. Mounting B (name `other`) reserves B's id and moves A onto
+      // its own id — the saved denial must follow A instead of translating onto B's tools.
+      await insertMcpServer('id-a', 'id-b')
+      await insertMcpServer('id-b', 'other')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Migrate',
+        model: TEST_MODEL_ID,
+        mcps: ['id-a'],
+        disabledTools: ['mcp__id-b__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['id-a', 'id-b'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.disabledTools).toEqual(['mcp__id-a__run'])
+    })
+
+    it('leaves an explicitly submitted disabledTools list untouched on a mount change', async () => {
+      await insertMcpServer('id-a', 'id-b')
+      await insertMcpServer('id-b', 'other')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Submit',
+        model: TEST_MODEL_ID,
+        mcps: ['id-a'],
+        disabledTools: ['mcp__id-b__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['id-a', 'id-b'], disabledTools: ['Bash'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      // A PATCH carrying disabledTools owns the list — migration must not override it.
+      expect(reloaded?.disabledTools).toEqual(['Bash'])
+    })
   })
 
   describe('knowledgeBaseIds round-trip', () => {

@@ -8,6 +8,7 @@ import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -24,6 +25,7 @@ import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
+import { migrateAgentDisabledToolsForAllocationChange } from '@shared/ai/tools/mcpToolName'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -38,6 +40,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { CHERRY_MCP_SERVER } from '@shared/utils/mcp'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('AgentService')
@@ -782,9 +785,39 @@ export class AgentService {
           if (newKnowledgeBaseIds !== undefined) {
             this.assertKnowledgeBasesExistTx(tx, newKnowledgeBaseIds)
           }
-          this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
+            // A mount change reallocates record keys like a rename does: a newly mounted id is
+            // reserved up front, so a sibling whose configured name equals that id is displaced
+            // onto its own id — orphaning saved `mcp__<key>__<tool>` denials (the exact-match
+            // policy would let the disabled tool execute, while the displaced key resolves onto
+            // the newcomer). Migrate the stored rules onto the post-change allocation; a PATCH
+            // that submits `disabledTools` owns the list and skips migration.
+            const mountSnapshot = (mcpIds: readonly string[]) =>
+              mcpIds.map((mcpId) => {
+                const [mountedRow] = tx
+                  .select({ name: mcpServerTable.name })
+                  .from(mcpServerTable)
+                  .where(eq(mcpServerTable.id, mcpId))
+                  .limit(1)
+                  .all()
+                return mountedRow ? { mcpId, name: mountedRow.name } : { mcpId }
+              })
+            const oldMountedServers = tx
+              .select({ mcpServerId: agentMcpServerTable.mcpServerId })
+              .from(agentMcpServerTable)
+              .where(eq(agentMcpServerTable.agentId, id))
+              .orderBy(asc(agentMcpServerTable.createdAt))
+              .all()
+              .map(({ mcpServerId }) => mcpServerId)
+            if (updates.disabledTools === undefined && oldMountedServers.length > 0) {
+              const migrated = migrateAgentDisabledToolsForAllocationChange(current.disabledTools ?? [], {
+                oldMountedServers: mountSnapshot(oldMountedServers),
+                newMountedServers: mountSnapshot(newMcps),
+                reservedKeys: [...Object.values(CHERRY_MCP_SERVER)]
+              })
+              if (migrated) updateData.disabledTools = migrated
+            }
             tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.agentId, id)).run()
             if (newMcps.length > 0) {
               tx.insert(agentMcpServerTable)
@@ -792,6 +825,7 @@ export class AgentService {
                 .run()
             }
           }
+          this.updateAgentTx(tx, id, updateData)
           // Replace knowledge base associations if provided
           if (newKnowledgeBaseIds !== undefined) {
             tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id)).run()

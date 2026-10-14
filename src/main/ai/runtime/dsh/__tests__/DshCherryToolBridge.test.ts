@@ -190,6 +190,43 @@ describe('DshCherryToolBridge', () => {
     await bridge.close()
   })
 
+  it('resolves a mixed-case rename copy through the camelized lossy base', async () => {
+    // `Old server`/`get_time` registers the lossy `mcp__oldServer__getTime_<hash>`; renaming to
+    // the wire-safe mixed-case `GitHub` registers the plain `mcp__GitHub__get_time`. The
+    // migration's camelized copy strips onto the lossy base the bridge indexes for the renamed
+    // pair — a raw-target copy (`mcp__GitHub__getTime_<hash>`) would match nothing by itself.
+    const server = createServer([tool('get_time')], async () => ({ content: [{ type: 'text', text: 'ok' }] }))
+    const bridge = await buildDshCherryToolBridge(
+      { only: { name: 'GitHub', connect: server.connect } },
+      bridgeOptions()
+    )
+
+    expect(bridge.tools.map(({ name }) => name)).toEqual(['mcp__GitHub__get_time'])
+    const { translateMcpToolRulesToRuntimeNames } = await import('@shared/ai/tools/mcpToolName')
+    const migrated = 'mcp__github__getTime_87ba361c225f'
+    expect(translateMcpToolRulesToRuntimeNames([migrated], new Map(), bridge.ruleNames)).toEqual([
+      'mcp__GitHub__get_time'
+    ])
+    await bridge.close()
+  })
+
+  it('resolves a truncated fragment copy onto the shortened allocation through prefix matching', async () => {
+    // A 53-char tool keyed `github` registers the lossy `mcp__github__` + 37 chars + hash;
+    // renaming to the shorter `docs` registers `mcp__docs__` + 39 chars + hash. A copy carrying
+    // the 37-char fragment can never hit the new base exactly — the registered identity
+    // extending the stripped fragment must resolve (over-blocking beats letting the disabled
+    // tool execute).
+    const server = createServer([tool('a'.repeat(53))], async () => ({ content: [{ type: 'text', text: 'ok' }] }))
+    const bridge = await buildDshCherryToolBridge({ only: { name: 'docs', connect: server.connect } }, bridgeOptions())
+
+    const runtimeName = bridge.tools.map(({ name }) => name)[0]
+    expect(runtimeName).toBe(`mcp__docs__${'a'.repeat(39)}_b1aa6d3525dd`)
+    const { translateMcpToolRulesToRuntimeNames } = await import('@shared/ai/tools/mcpToolName')
+    const migrated = `mcp__docs__${'a'.repeat(37)}_4f7413c24ae4`
+    expect(translateMcpToolRulesToRuntimeNames([migrated], new Map(), bridge.ruleNames)).toEqual([runtimeName])
+    await bridge.close()
+  })
+
   it('keeps colliding name-form rule keys resolvable per pair and by pre-name aliases', async () => {
     // `docs` exposing `search__all` and `docs__search` exposing `all` flatten to the same
     // rule string; every registered identity must stay reachable — per (server, raw tool)

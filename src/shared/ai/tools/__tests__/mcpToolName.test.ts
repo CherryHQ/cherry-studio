@@ -4,6 +4,7 @@ import {
   buildFunctionCallToolName,
   buildMcpToolName,
   generateMcpToolFunctionName,
+  migrateAgentDisabledToolsForAllocationChange,
   migrateAgentDisabledToolsForServerRename,
   migrateDisabledToolsForServerRename,
   parseFunctionCallToolName,
@@ -440,6 +441,28 @@ describe('translateMcpToolRulesToRuntimeNames', () => {
       savedDenial
     ])
   })
+
+  it('resolves a truncated fragment copy onto identities extending it after a shortening rename', () => {
+    // A 53-char tool keyed `github` registers the lossy `mcp__github__` + 37 chars + hash (the
+    // 50-char base). Renaming the server to the shorter `docs` makes the new lossy base keep 39
+    // tool chars, so a copy carrying the 37-char fragment can never hit it exactly — the
+    // stripped fragment is a strict prefix of the new base, and the registered identity
+    // extending it must resolve (over-blocking beats an executable disabled tool).
+    const lossyBase = `mcp__docs__${'a'.repeat(39)}`
+    const runtimeName = `${lossyBase}_c0ffee123456`
+    const map = new Map([[lossyBase, [runtimeName]]])
+    const rule = `mcp__docs__${'a'.repeat(37)}_4f7413c24ae4`
+    expect(translateMcpToolRulesToRuntimeNames([rule], new Map(), map)).toEqual([runtimeName])
+  })
+
+  it('does not prefix-scan rules without a disambiguator tail', () => {
+    // A plain name-form miss is a rule for a server/tool that is not mounted: prefix-scanning
+    // it would blanket-deny longer unrelated tools sharing the prefix.
+    const lossyBase = `mcp__docs__${'a'.repeat(39)}`
+    const map = new Map([[lossyBase, [`${lossyBase}_c0ffee123456`]]])
+    const rule = `mcp__docs__${'a'.repeat(37)}`
+    expect(translateMcpToolRulesToRuntimeNames([rule], new Map(), map)).toEqual([rule])
+  })
 })
 
 describe('migrateDisabledToolsForServerRename', () => {
@@ -626,7 +649,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
 
   it('rewrites a displaced sibling hashed entry onto the sibling stripped base', () => {
     // B's denial was saved under a hashed runtime name keyed `github`; when A takes the key,
-    // the copy must follow B's id key, not stay on A's new name.
+    // the copy must follow B's id key, not stay on A's new name. Both key forms are copied
+    // (camelized first, raw second): the camelized copy strips onto the lossy base the bridge
+    // indexes for the pair, the raw copy heads the plain name-form.
     const entry = 'mcp__github__run_4f7413c24ae4'
     expect(
       migrateAgentDisabledToolsForServerRename([entry], {
@@ -638,6 +663,62 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual([entry, 'mcp__srv-b__run_4f7413c24ae4'])
+    ).toEqual([entry, 'mcp__srvB__run_4f7413c24ae4', 'mcp__srv-b__run_4f7413c24ae4'])
+  })
+
+  it('copies lossy-hashed entries onto both raw and camelized forms of a wire-safe destination', () => {
+    // `Old server`/`get_time` registers the lossy `mcp__oldServer__getTime_<hash>`; renaming to
+    // the wire-safe mixed-case `GitHub` registers the plain `mcp__GitHub__get_time`. The
+    // raw-target copy keeps heading that name-form, and the camelized copy strips onto the
+    // lossy base the bridge indexes for normalized pairs — either interpretation alone lets
+    // the explicitly disabled tool execute under the missed registration.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__oldServer__getTime_4f7413c24ae4'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'Old server' }],
+        renamedServerId: 'srv-1',
+        toName: 'GitHub',
+        reservedKeys: RESERVED
+      })
+    ).toEqual([
+      'mcp__oldServer__getTime_4f7413c24ae4',
+      'mcp__github__getTime_4f7413c24ae4',
+      'mcp__GitHub__getTime_4f7413c24ae4'
+    ])
+  })
+})
+
+describe('migrateAgentDisabledToolsForAllocationChange', () => {
+  const RESERVED = ['skills', 'assistant', 'agent-memory']
+  const idA = '11111111-2222-3333-4444-555555555555'
+  const idB = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+
+  it('follows a mounted server displaced onto its id by a new mount reserving the shared name', () => {
+    // A's configured name equals unmounted B's id, so A's key is that id and disabling A.run
+    // saved `mcp__<B id>__run`. Mounting B (name `other`) reserves B's id and moves A onto A's
+    // id — the denial must follow A, or A's tool executes while B's run is blocked in its
+    // place (the saved string resolves through B's pre-name alias).
+    expect(
+      migrateAgentDisabledToolsForAllocationChange([`mcp__${idB}__run`], {
+        oldMountedServers: [{ mcpId: idA, name: idB }],
+        newMountedServers: [
+          { mcpId: idA, name: idB },
+          { mcpId: idB, name: 'other' }
+        ],
+        reservedKeys: RESERVED
+      })
+    ).toEqual([`mcp__${idA}__run`])
+  })
+
+  it('returns undefined when the allocation is stable across the mount change', () => {
+    expect(
+      migrateAgentDisabledToolsForAllocationChange(['mcp__other__run'], {
+        oldMountedServers: [{ mcpId: idA, name: 'docs' }],
+        newMountedServers: [
+          { mcpId: idA, name: 'docs' },
+          { mcpId: idB, name: 'github' }
+        ],
+        reservedKeys: RESERVED
+      })
+    ).toBeUndefined()
   })
 })

@@ -252,6 +252,18 @@ export function translateMcpToolRulesToRuntimeNames(
     if (stripped !== candidate) {
       const baseNames = runtimeNameByRule.get(stripped)
       if (baseNames) return [...new Set([...baseNames, ...candidates])]
+      // A copy rebuilt from a truncated fragment cannot always land on the new allocation's
+      // base: a shortening rename leaves the stripped fragment a strict prefix of the base the
+      // runtime indexes for the pair. Every registered identity extending the fragment
+      // resolves — over-blocking beats letting an explicitly disabled tool execute (the same
+      // policy as flattened name-form keys). Only disambiguator-tailed strings scan: a plain
+      // name-form miss names an unmounted server, and prefix-matching it would blanket-deny
+      // longer unrelated tools sharing the prefix.
+      const extended: string[] = []
+      for (const [registered, names] of runtimeNameByRule) {
+        if (registered.length > stripped.length && registered.startsWith(stripped)) extended.push(...names)
+      }
+      if (extended.length > 0) return [...new Set([...extended, ...candidates])]
     }
     return candidates.size > 0 ? [...candidates] : [candidate]
   })
@@ -409,24 +421,77 @@ export function migrateAgentDisabledToolsForServerRename(
     const newKey = newKeys.get(mcpId)
     if (newKey !== undefined && newKey !== oldKey) rewrites.push({ fromKey: oldKey, toKey: newKey })
   }
+  return applyAgentKeyRewrites(disabledTools, rewrites)
+}
 
-  // A hashed tail marks a lossy/collision runtime name: the hash binds the old pair, so only the
-  // stripped base survives the rename. The copy lands on `mcp__<target>__<fragment>` truncated
-  // to 50 with the tail re-attached, so the tail-stripped copy sits exactly on a base the
-  // runtime indexes for the live pair. The target is the raw new key when it can head a
-  // registered runtime name (plain wire-safe registrations index their name-form verbatim) and
-  // the camelized key otherwise (lossy registrations are built from the camelized form).
-  const rewriteHashed = (toolPart: string, targetKey: string): string => {
-    const target = /^[A-Za-z_][A-Za-z0-9_-]*$/.test(targetKey) ? targetKey : toCamelCase(targetKey)
+export interface AgentAllocationChangeInput {
+  /**
+   * This agent's mounted servers with their configured (pre-change) names, in allocation order.
+   */
+  oldMountedServers: ReadonlyArray<MountedServerRef>
+  /** The same agent's mounted servers after the change, in allocation order. */
+  newMountedServers: ReadonlyArray<MountedServerRef>
+  /** Keys no user server may claim (built-in server names; mounted ids are reserved per set). */
+  reservedKeys: readonly string[]
+}
+
+/**
+ * Migrate one agent's saved denial rules after its mount set changed. A mount change reallocates
+ * record keys the same way a rename does: a newly mounted server reserves its sanitized id up
+ * front, so a sibling whose configured name equals that id is displaced onto its own id — and a
+ * saved rule keyed by the displaced key would then resolve through the newcomer's pre-name
+ * alias, blocking the wrong server's tool while the explicitly disabled one executes. Compare
+ * the complete before/after allocations and rewrite every mounted server whose record key
+ * changed; a stable allocation returns undefined.
+ */
+export function migrateAgentDisabledToolsForAllocationChange(
+  disabledTools: readonly string[],
+  input: AgentAllocationChangeInput
+): string[] | undefined {
+  const allocation = (servers: ReadonlyArray<MountedServerRef>) =>
+    allocateMountedServerKeys(servers, [
+      ...input.reservedKeys,
+      ...servers.map(({ mcpId }) => sanitizeAgentServerKey(mcpId))
+    ])
+  const oldKeys = allocation(input.oldMountedServers)
+  const newKeys = allocation(input.newMountedServers)
+  const rewrites: Array<{ fromKey: string; toKey: string }> = []
+  for (const [mcpId, oldKey] of oldKeys) {
+    const newKey = newKeys.get(mcpId)
+    if (newKey !== undefined && newKey !== oldKey) rewrites.push({ fromKey: oldKey, toKey: newKey })
+  }
+  if (rewrites.length === 0) return undefined
+  return applyAgentKeyRewrites(disabledTools, rewrites)
+}
+
+/**
+ * Rewrite saved entries onto the keys a new allocation hands out. Hashed tails mark lossy or
+ * collision runtime names whose hash binds the old pair, so only the stripped base survives:
+ * each copy lands on `mcp__<target>__<fragment>` truncated to 50 with the tail re-attached, on
+ * every base form the runtime indexes — the raw key when it can head a registered name (plain
+ * wire-safe registrations index their name-form verbatim, including collision names carrying a
+ * raw tool fragment) and the camelized key (lossy registrations are built from the camelized
+ * form, and mixed-case destinations register plain names the camelized fragment can never
+ * key). The original is kept — it can simultaneously be another server's exact denial. Plain
+ * entries move verbatim onto the new key.
+ */
+function applyAgentKeyRewrites(
+  disabledTools: readonly string[],
+  rewrites: ReadonlyArray<{ fromKey: string; toKey: string }>
+): string[] | undefined {
+  const rewriteHashed = (toolPart: string, targetKey: string): string[] => {
+    const targets = new Set<string>([toCamelCase(targetKey)])
+    if (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(targetKey)) targets.add(targetKey)
+    const tail = toolPart.slice(toolPart.length - 13)
     const fragment = toolPart.slice(0, toolPart.length - 13)
-    return `mcp__${target}__${fragment}`.slice(0, 50) + toolPart.slice(toolPart.length - 13)
+    return [...targets].map((target) => `mcp__${target}__${fragment}`.slice(0, 50) + tail)
   }
 
   let changed = false
   const seen = new Set(disabledTools)
   const migrated: string[] = []
   for (const entry of disabledTools) {
-    let replacement: string | undefined
+    let replacements: string[] | undefined
     let keepOriginal = false
     if (entry.startsWith('mcp__')) {
       const rest = entry.slice('mcp__'.length)
@@ -439,21 +504,24 @@ export function migrateAgentDisabledToolsForServerRename(
           ? undefined
           : rewrites.find(({ fromKey: key }) => serverPart === toCamelCase(key) && toCamelCase(key) !== key)
         if (matched && /_[0-9a-f]{12}$/.test(toolPart)) {
-          replacement = rewriteHashed(toolPart, matched.toKey)
+          replacements = rewriteHashed(toolPart, matched.toKey)
           keepOriginal = true
         } else if (matched) {
-          replacement = `mcp__${matched.toKey}__${toolPart}`
+          replacements = [`mcp__${matched.toKey}__${toolPart}`]
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
-          replacement = rewriteHashed(toolPart, lossyMatched.toKey)
+          replacements = rewriteHashed(toolPart, lossyMatched.toKey)
           keepOriginal = true
         }
       }
     }
-    if (replacement !== undefined && replacement !== entry && !seen.has(replacement)) {
-      seen.add(replacement)
+    const fresh = replacements?.filter((replacement) => replacement !== entry && !seen.has(replacement)) ?? []
+    if (fresh.length > 0) {
       changed = true
       if (keepOriginal) migrated.push(entry)
-      migrated.push(replacement)
+      for (const replacement of fresh) {
+        seen.add(replacement)
+        migrated.push(replacement)
+      }
       continue
     }
     migrated.push(entry)
