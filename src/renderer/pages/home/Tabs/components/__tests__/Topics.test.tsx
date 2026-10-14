@@ -1,9 +1,10 @@
 import type * as DndKitUtilities from '@dnd-kit/utilities'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import type * as SessionHoverPreviewModule from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
@@ -17,6 +18,18 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
+
+// Metadata tests isolate the preview; its real hover lifecycle has dedicated coverage.
+vi.mock('@renderer/components/chat/resourceList/SessionHoverPreview', async (importOriginal) => ({
+  ...(await importOriginal<typeof SessionHoverPreviewModule>()),
+  SessionHoverPreviewGroup: ({ children }: { children: ReactNode }) => children,
+  SessionHoverPreview: ({ children, content }: { children: ReactNode; content: ReactNode }) => (
+    <>
+      {children}
+      <div data-slot="hover-card-content">{content}</div>
+    </>
+  )
+}))
 
 const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
@@ -388,6 +401,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.topics.group.earlier') return 'Earlier'
         if (key === 'chat.topics.group.unknown_assistant') return 'Unlinked Assistant'
         if (key === 'chat.topics.group.show_more') return 'Show more conversations'
+        if (key === 'chat.topics.hover.last_activity') return `Last activity: ${options?.time ?? ''}`
         if (key === 'chat.topics.group.collapse') return 'Collapse conversations'
         if (key === 'chat.topics.group.collapse_all') return 'Collapse all'
         if (key === 'chat.topics.group.expand_all') return 'Expand all'
@@ -753,6 +767,9 @@ function renderTopicList({
   const view = render(renderNode(revealRequest, activeTopic, initiallyCollapsed))
   return {
     ...view,
+    // Deliberately not RTL's `getByText`: a row's hover card repeats its title, so the raw
+    // query is ambiguous. `getByRowText` resolves to the row and errors on a second match.
+    getByText: getByRowText,
     clearActiveTopic,
     onAddAssistant,
     onNewTopic,
@@ -766,8 +783,57 @@ function renderTopicList({
   }
 }
 
+/**
+ * A row's hover card repeats its title, so the test HoverCard renders that title a second time.
+ * Lookups here always want the row itself, never the card copy.
+ */
+function outsideHoverCard(matches: HTMLElement[]) {
+  return matches.filter((node) => node.closest('[data-slot="hover-card-content"]') === null)
+}
+
+function theOnlyOutsideHoverCard(matches: HTMLElement[], name: string | RegExp) {
+  const outside = outsideHoverCard(matches)
+  if (outside.length !== 1) {
+    throw new Error(`Expected exactly one "${name}" outside a hover card, found ${outside.length}`)
+  }
+  return outside[0]
+}
+
+function getByRowText(name: string | RegExp): HTMLElement {
+  return theOnlyOutsideHoverCard(screen.getAllByText(name), name)
+}
+
+/** Row-scoped variant: the card now renders inside the row, so scope before filtering. */
+function getRowText(row: HTMLElement, name: string | RegExp): HTMLElement {
+  return theOnlyOutsideHoverCard(within(row).getAllByText(name), name)
+}
+
+function queryRowText(row: HTMLElement, name: string | RegExp): HTMLElement | null {
+  return outsideHoverCard(within(row).queryAllByText(name))[0] ?? null
+}
+
+function queryByRowText(name: string | RegExp): HTMLElement | null {
+  const matches = outsideHoverCard(screen.queryAllByText(name))
+  if (matches.length > 1) {
+    throw new Error(`Expected at most one "${name}" outside a hover card, found ${matches.length}`)
+  }
+  return matches.length > 0 ? matches[0] : null
+}
+
+async function findByRowText(name: string) {
+  return waitFor(() => getByRowText(name))
+}
+
+function getHoverCards() {
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-slot="hover-card-content"]'))
+}
+
+function findHoverCard(title: string) {
+  return getHoverCards().find((card) => card.textContent?.includes(title))
+}
+
 function getTopicRow(topicName: string) {
-  const row = screen.getByText(topicName).closest('[data-testid="topic-list-row"]')
+  const row = getByRowText(topicName).closest('[data-testid="topic-list-row"]')
   expect(row).toBeInTheDocument()
   return row as HTMLElement
 }
@@ -1060,12 +1126,12 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { getByText, setActiveTopic } = renderTopicList()
 
-    expect(screen.getByText('Pinned')).toBeInTheDocument()
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Yesterday')).toBeInTheDocument()
-    expect(screen.getByText('This week')).toBeInTheDocument()
-    expect(screen.getByText('Earlier')).toBeInTheDocument()
-    expect(screen.getByText('Beta pinned')).toBeInTheDocument()
+    expect(getByRowText('Pinned')).toBeInTheDocument()
+    expect(getByRowText('Today')).toBeInTheDocument()
+    expect(getByRowText('Yesterday')).toBeInTheDocument()
+    expect(getByRowText('This week')).toBeInTheDocument()
+    expect(getByRowText('Earlier')).toBeInTheDocument()
+    expect(getByRowText('Beta pinned')).toBeInTheDocument()
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()
@@ -1078,7 +1144,7 @@ describe('Topics', () => {
       getTopicRow('Gamma topic').querySelector('[data-resource-list-leading-slot="true"]') ?? null
     ).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Gamma topic'))
+    fireEvent.click(getByRowText('Gamma topic'))
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
   })
 
@@ -1111,10 +1177,73 @@ describe('Topics', () => {
     const { setActiveTopic } = renderTopicList()
 
     // Everything falls into one time bucket, so the list drops the redundant "Today" header.
-    expect(screen.queryByText('Today')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByTitle('chat.conversation.new'))
+    expect(queryByRowText('Today')).not.toBeInTheDocument()
+    fireEvent.click(getRowText(screen.getByTestId('topic-list-row'), 'chat.conversation.new'))
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-empty', name: '' }))
+  })
+
+  it('shows the full name and last activity time on a conversation row hover card', () => {
+    const longTitle = 'A conversation name long enough that the truncated row can never show it in full'
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-hover',
+              name: longTitle,
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              createdAt: '2026-01-02T08:15:00.000Z',
+              updatedAt: '2026-01-03T09:20:00.000Z',
+              lastActivityAt: '2026-03-05T06:30:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    renderTopicList()
+    const hoverCard = findHoverCard(longTitle)
+
+    expect(hoverCard).toBeDefined()
+    expect(hoverCard).toHaveTextContent(longTitle)
+    expect(hoverCard).toHaveTextContent('Last activity: 2026-03-05 06:30')
+    // The card reports when the conversation was last active, not when it was created or renamed.
+    expect(hoverCard).not.toHaveTextContent('2026-01-02')
+    expect(hoverCard).not.toHaveTextContent('2026-01-03')
+  })
+
+  it('drops the hover card while a conversation is renamed inline', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [createApiTopic({ id: 'topic-rename-hover', name: 'Renamable topic', assistantId: 'assistant-1' })]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    const { getByText } = renderTopicList()
+    expect(findHoverCard('Renamable topic')).toBeDefined()
+
+    fireEvent.doubleClick(getByText('Renamable topic'))
+
+    // A card would sit on top of the rename input the user is typing into.
+    expect(findHoverCard('Renamable topic')).toBeUndefined()
   })
 
   it('clears the active topic after deleting the final remaining topic', async () => {
@@ -1277,7 +1406,7 @@ describe('Topics', () => {
     expect(emptyStateTexts).toHaveLength(2)
     expect(screen.queryByRole('heading', { name: 'No conversations' })).not.toBeInTheDocument()
     expect(
-      screen.queryByText('Create a chat and it will stay here so you can continue with its context later.')
+      queryByRowText('Create a chat and it will stay here so you can continue with its context later.')
     ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Assistant' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'chat.conversation.new' })).toHaveLength(2)
@@ -1350,8 +1479,8 @@ describe('Topics', () => {
       presentation: 'right-panel'
     })
 
-    expect(screen.getByText('Default topic')).toBeInTheDocument()
-    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(getByRowText('Default topic')).toBeInTheDocument()
+    expect(queryByRowText('Alpha topic')).not.toBeInTheDocument()
   })
 
   it('keeps right panel groups fully expanded without collapse controls', () => {
@@ -1369,13 +1498,13 @@ describe('Topics', () => {
 
     renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(getByRowText('Today')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { expanded: true })).not.toBeInTheDocument()
-    expect(screen.queryByText('Show more conversations')).not.toBeInTheDocument()
-    expect(screen.queryByText('Collapse conversations')).not.toBeInTheDocument()
-    expect(screen.getByText('Topic 1')).toBeInTheDocument()
-    expect(screen.getByText('Topic 6')).toBeInTheDocument()
+    expect(queryByRowText('Show more conversations')).not.toBeInTheDocument()
+    expect(queryByRowText('Collapse conversations')).not.toBeInTheDocument()
+    expect(getByRowText('Topic 1')).toBeInTheDocument()
+    expect(getByRowText('Topic 6')).toBeInTheDocument()
   })
 
   it('forces time grouping in the right panel even when the assistant display mode is stored', () => {
@@ -1383,7 +1512,7 @@ describe('Topics', () => {
     // switch and must ignore the stored display mode, grouping strictly by time.
     renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
 
-    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(getByRowText('Today')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Alpha Assistant' })).not.toBeInTheDocument()
   })
 
@@ -1447,18 +1576,18 @@ describe('Topics', () => {
 
     const { getByText, rerenderTopicList } = renderTopicList()
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
-    expect(screen.queryByText('Alpha topic')).toBeInTheDocument()
+    expect(queryByRowText('Alpha topic')).toBeInTheDocument()
 
     const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
     fireEvent.click(alphaRow?.querySelector('[aria-label="Pin Conversation"]') as Element)
     await vi.waitFor(() => expect(pinMutationMocks.createPin).toHaveBeenCalled())
 
     expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
-    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(queryByRowText('Alpha topic')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     rerenderTopicList()
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(getByRowText('Alpha topic')).toBeInTheDocument()
   })
 
   it('keeps pin actions in the topic context menu and changes topic position from the menu', async () => {
@@ -1855,7 +1984,7 @@ describe('Topics', () => {
     fireEvent.change(input, { target: { value: 'Renamed topic' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
-    expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
+    expect(await findByRowText('Renamed topic')).toBeInTheDocument()
     await vi.waitFor(() =>
       expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
         name: 'Renamed topic',
@@ -1900,14 +2029,14 @@ describe('Topics', () => {
       isNameManuallyEdited: true
     })
 
-    expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
-    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(await findByRowText('Renamed topic')).toBeInTheDocument()
+    expect(queryByRowText('Alpha topic')).not.toBeInTheDocument()
 
     await act(async () => {
       pendingUpdate.reject(new Error('rename failed'))
     })
 
-    expect(await screen.findByText('Alpha topic')).toBeInTheDocument()
+    expect(await findByRowText('Alpha topic')).toBeInTheDocument()
     expect(toast.error).toHaveBeenCalledWith('Error: rename failed')
     expect(toast.success).not.toHaveBeenCalled()
   })
@@ -2050,7 +2179,7 @@ describe('Topics', () => {
       activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' })
     })
 
-    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const topicRow = getByRowText('A1 Second').closest('[role="option"]')
     deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
@@ -2106,7 +2235,7 @@ describe('Topics', () => {
       activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' })
     })
 
-    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const topicRow = getByRowText('A1 Second').closest('[role="option"]')
     deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
@@ -2144,7 +2273,7 @@ describe('Topics', () => {
       assistantTopicsSource
     })
 
-    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const topicRow = getByRowText('A1 Second').closest('[role="option"]')
     deleteTopicRow(topicRow as HTMLElement)
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
 
@@ -2197,7 +2326,7 @@ describe('Topics', () => {
       assistantTopicsSource
     })
 
-    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const topicRow = getByRowText('A1 Second').closest('[role="option"]')
     deleteTopicRow(topicRow as HTMLElement)
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
 
@@ -2234,7 +2363,7 @@ describe('Topics', () => {
       initiallyCollapsed: true
     })
 
-    const topicRow = screen.getByText('A1 First').closest('[role="option"]')
+    const topicRow = getByRowText('A1 First').closest('[role="option"]')
     deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-first'))
@@ -2292,7 +2421,7 @@ describe('Topics', () => {
       activeTopic: createRendererTopic({ id: 'topic-a1', assistantId: 'assistant-1', name: 'A1 Only' })
     })
 
-    const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
+    const topicRow = getByRowText('A1 Only').closest('[role="option"]')
     deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
@@ -2415,7 +2544,7 @@ describe('Topics', () => {
       activeTopic: createRendererTopic({ id: 'topic-a1-only', assistantId: 'assistant-1', name: 'A1 Only' })
     })
 
-    const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
+    const topicRow = getByRowText('A1 Only').closest('[role="option"]')
     deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
@@ -2427,14 +2556,15 @@ describe('Topics', () => {
 
   it('renders only the title field in sidebar topic rows', () => {
     renderTopicList()
+    const row = getTopicRow('Alpha topic')
 
     // One rule for both themes: titles sit at `foreground`, no per-theme override.
-    expect(screen.getByText('Alpha topic')).toHaveClass('text-foreground')
-    expect(screen.getByText('Alpha topic')).not.toHaveClass('dark:text-muted-foreground')
-    expect(screen.queryByText('2026/01/03 01:00')).not.toBeInTheDocument()
-    expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
-    expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
-    expect(screen.queryByText(/^Prompt:/)).not.toBeInTheDocument()
+    expect(getByRowText('Alpha topic')).toHaveClass('text-foreground')
+    expect(getByRowText('Alpha topic')).not.toHaveClass('dark:text-muted-foreground')
+    // The last-activity date lives on the hover card, which the mock renders inside the row —
+    // the row's own content stays title-only.
+    expect(queryRowText(row, /Last activity:/)).not.toBeInTheDocument()
+    expect(queryRowText(row, /^Prompt:/)).not.toBeInTheDocument()
   })
 
   it('rerenders only the previous and next active topic rows when selection changes', () => {
@@ -2711,19 +2841,19 @@ describe('Topics', () => {
 
       renderTopicList()
 
-      expect(screen.getByText(displayMode === 'time' ? 'Topic 50' : 'Topic 5')).toBeInTheDocument()
-      expect(screen.queryByText(displayMode === 'time' ? 'Topic 51' : 'Topic 6')).not.toBeInTheDocument()
+      expect(getByRowText(displayMode === 'time' ? 'Topic 50' : 'Topic 5')).toBeInTheDocument()
+      expect(queryByRowText(displayMode === 'time' ? 'Topic 51' : 'Topic 6')).not.toBeInTheDocument()
 
       await user.click(screen.getByRole('button', { name: 'Show more conversations' }))
 
-      expect(screen.getByText('Topic 56')).toBeInTheDocument()
+      expect(getByRowText('Topic 56')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Show more conversations' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
 
       await user.click(screen.getByRole('button', { name: 'Collapse conversations' }))
 
-      expect(screen.getByText(displayMode === 'time' ? 'Topic 50' : 'Topic 5')).toBeInTheDocument()
-      expect(screen.queryByText(displayMode === 'time' ? 'Topic 51' : 'Topic 6')).not.toBeInTheDocument()
+      expect(getByRowText(displayMode === 'time' ? 'Topic 50' : 'Topic 5')).toBeInTheDocument()
+      expect(queryByRowText(displayMode === 'time' ? 'Topic 51' : 'Topic 6')).not.toBeInTheDocument()
     }
   )
 
@@ -2770,7 +2900,7 @@ describe('Topics', () => {
 
     rerenderTopicList(undefined, createRendererTopic({ id: 'topic-51', name: 'Topic 51' }))
 
-    expect(screen.getByText('Topic 51')).toBeInTheDocument()
+    expect(getByRowText('Topic 51')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
   })
 
@@ -2817,14 +2947,14 @@ describe('Topics', () => {
       })
     })
 
-    expect(screen.getByText('Alpha topic 1')).toBeInTheDocument()
-    expect(screen.getByText('Beta topic 1')).toBeInTheDocument()
+    expect(getByRowText('Alpha topic 1')).toBeInTheDocument()
+    expect(getByRowText('Beta topic 1')).toBeInTheDocument()
     expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
 
     // The assistant header exposes history and bulk expand/collapse actions from the filter menu.
     expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Display mode'))
-    const displayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    const displayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
     expect(displayModeMenu).not.toBeNull()
     fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Collapse all' }))
 
@@ -2970,8 +3100,8 @@ describe('Topics', () => {
     rerenderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(queryByRowText('Beta pinned')).not.toBeInTheDocument()
+    expect(getByRowText('Alpha topic')).toBeInTheDocument()
   })
 
   it('restores and persists collapsed topic groups from cache', () => {
@@ -2985,8 +3115,8 @@ describe('Topics', () => {
     const { rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
-    expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
+    expect(getByRowText('Alpha topic')).toBeInTheDocument()
+    expect(queryByRowText('Beta pinned')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Today' }))
     expect(getTopicGroupExpansionCache().time).toContain('topic:time:today')
@@ -3007,8 +3137,8 @@ describe('Topics', () => {
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Display mode'))
-    expect(screen.getByText('Display mode')).toBeInTheDocument()
-    const displayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    expect(getByRowText('Display mode')).toBeInTheDocument()
+    const displayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
     expect(displayModeMenu).not.toBeNull()
     expect(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
     expect(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
@@ -3020,7 +3150,7 @@ describe('Topics', () => {
     })
 
     fireEvent.click(screen.getByLabelText('Display mode'))
-    const reopenedDisplayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    const reopenedDisplayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
     expect(reopenedDisplayModeMenu).not.toBeNull()
     fireEvent.click(within(reopenedDisplayModeMenu as HTMLElement).getByRole('button', { name: 'History' }))
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
@@ -3055,7 +3185,7 @@ describe('Topics', () => {
     renderTopicList()
 
     fireEvent.click(screen.getByLabelText('Display mode'))
-    const displayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    const displayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
     expect(displayModeMenu).not.toBeNull()
 
     fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Assistant' }))
@@ -3099,14 +3229,14 @@ describe('Topics', () => {
 
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
-    expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
-    expect(screen.getByText('Beta Assistant')).toBeInTheDocument()
-    expect(screen.getByText('No conversations')).toBeInTheDocument()
-    expect(screen.getByText('First page topic')).toBeInTheDocument()
+    expect(getByRowText('Alpha Assistant')).toBeInTheDocument()
+    expect(getByRowText('Beta Assistant')).toBeInTheDocument()
+    expect(getByRowText('No conversations')).toBeInTheDocument()
+    expect(getByRowText('First page topic')).toBeInTheDocument()
     expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(1)
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(0)
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(0)
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    expect(getByRowText('Loading...')).toBeInTheDocument()
   })
 
   it('reveals a history-selected topic hidden by show-more', async () => {
@@ -3135,12 +3265,12 @@ describe('Topics', () => {
     const { rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
+    expect(queryByRowText('Topic 51')).not.toBeInTheDocument()
 
     rerenderTopicList({ itemId: 'topic-51', requestId: 1, clearFilters: true, clearQuery: true })
 
-    expect(await screen.findByText('Topic 51')).toBeInTheDocument()
-    const revealedRow = screen.getByText('Topic 51').closest('[role="option"]')
+    expect(await findByRowText('Topic 51')).toBeInTheDocument()
+    const revealedRow = getByRowText('Topic 51').closest('[role="option"]')
     expect(revealedRow).not.toBeNull()
     expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
@@ -3212,7 +3342,7 @@ describe('Topics', () => {
       'aria-expanded',
       'false'
     )
-    expect(screen.queryByText('Topic A')).not.toBeInTheDocument()
+    expect(queryByRowText('Topic A')).not.toBeInTheDocument()
   })
 
   it('renders assistant groups and creates topics with the selected assistant payload', () => {
@@ -3347,7 +3477,7 @@ describe('Topics', () => {
       'aria-expanded',
       'true'
     )
-    expect(screen.getByText('No conversations')).toBeInTheDocument()
+    expect(getByRowText('No conversations')).toBeInTheDocument()
     expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
       'aria-expanded',
       'false'
@@ -3360,10 +3490,10 @@ describe('Topics', () => {
       'aria-expanded',
       'false'
     )
-    expect(screen.queryByText('Pinned unknown')).not.toBeInTheDocument()
-    expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
-    expect(screen.queryByText('Known beta')).not.toBeInTheDocument()
-    expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
+    expect(queryByRowText('Pinned unknown')).not.toBeInTheDocument()
+    expect(queryByRowText('Known alpha')).not.toBeInTheDocument()
+    expect(queryByRowText('Known beta')).not.toBeInTheDocument()
+    expect(queryByRowText('Default topic')).not.toBeInTheDocument()
     const unlinkedAssistantHeader = screen.getByRole('button', { name: 'Unlinked Assistant' }).closest('div')
     expect(unlinkedAssistantHeader?.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
 
@@ -3390,7 +3520,7 @@ describe('Topics', () => {
     rerenderTopicList(undefined, defaultTopic)
     fireEvent.click(screen.getByRole('button', { name: 'Unlinked Assistant' }))
     rerenderTopicList(undefined, defaultTopic)
-    expect(screen.getByText('Default topic').closest('[data-resource-list-item-row="true"]')).toHaveAttribute(
+    expect(getByRowText('Default topic').closest('[data-resource-list-item-row="true"]')).toHaveAttribute(
       'data-resource-list-group-header-icon-visible',
       'true'
     )
@@ -3897,7 +4027,7 @@ describe('Topics', () => {
     expect(getTopicRow('Alpha topic')).not.toHaveAttribute('data-selected')
 
     fireEvent.click(screen.getByLabelText('Display mode'))
-    const displayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    const displayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
     expect(displayModeMenu).not.toBeNull()
 
     fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Manage Assistants' }))
@@ -3996,12 +4126,12 @@ describe('Topics', () => {
       'aria-expanded',
       'false'
     )
-    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(queryByRowText('Alpha topic')).not.toBeInTheDocument()
     expect(groupChevron(screen.getByRole('button', { name: 'Beta Assistant' }))).toHaveAttribute(
       'aria-expanded',
       'true'
     )
-    expect(screen.getByText('Gamma topic')).toBeInTheDocument()
+    expect(getByRowText('Gamma topic')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
     // Expanding Alpha clears the assistant collapse list; time groups stay untouched.

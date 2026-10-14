@@ -23,6 +23,7 @@ import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import { getErrorMessage } from '@renderer/utils/error'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
@@ -263,7 +264,10 @@ const AgentHistoryRecords = ({
   const matchesSearch = useCallback(
     (session: SessionListItem, keywords: string) => {
       const agent = session.agentId ? agentById.get(session.agentId) : undefined
-      return [session.name, session.description, agent?.name].some((value) => value?.toLowerCase().includes(keywords))
+      return (
+        [session.name, agent?.name].some((value) => value && matchesSearchText(value, keywords)) ||
+        Boolean(session.description?.toLowerCase().includes(keywords))
+      )
     },
     [agentById]
   )

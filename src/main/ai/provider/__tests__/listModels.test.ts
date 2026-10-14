@@ -584,6 +584,88 @@ describe('listModels — geminiFetcher API key transport', () => {
     expect(models[0].name).toBe('Gemini 2.0 Flash')
   })
 
+  it.each(['embedContent', 'batchEmbedContents', 'asyncBatchEmbedContent'])(
+    'identifies unregistered embedding models from %s support',
+    async (method) => {
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: {
+          models: [
+            { name: 'models/gemini-embedding-2-preview', supportedGenerationMethods: [method, 'countTokens'] },
+            { name: 'models/new-vector-model', supportedGenerationMethods: [method] }
+          ]
+        }
+      })
+
+      const { models } = await listModels(makeGeminiProvider())
+
+      expect(models).toHaveLength(2)
+      for (const model of models) {
+        expect(model.capabilities).toEqual([MODEL_CAPABILITY.EMBEDDING])
+        expect(model.outputModalities).toEqual([MODALITY.VECTOR])
+        expect(model.supportsStreaming).toBe(false)
+      }
+    }
+  )
+
+  it('classifies image prediction and content generation', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        models: [
+          { name: 'models/new-image-model', supportedGenerationMethods: ['predict'] },
+          { name: 'models/new-chat-model', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/batch-chat-model', supportedGenerationMethods: ['batchGenerateContent'] }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeGeminiProvider())
+
+    expect(models).toHaveLength(3)
+    expect(models[0]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      outputModalities: [MODALITY.IMAGE],
+      supportsStreaming: false
+    })
+    for (const model of models.slice(1)) {
+      expect(model.capabilities).toEqual([])
+      expect(model.supportsStreaming).toBe(true)
+    }
+  })
+
+  it('omits models whose advertised methods have no supported generation path', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        models: [
+          { name: 'models/answer-only', supportedGenerationMethods: ['generateAnswer'] },
+          { name: 'models/tokens-only', supportedGenerationMethods: ['countTokens'] },
+          { name: 'models/music', supportedGenerationMethods: ['bidiGenerateMusic'] },
+          { name: 'models/live', supportedGenerationMethods: ['generateContent', 'bidiGenerateContent'] }
+        ]
+      }
+    })
+
+    expect((await listModels(makeGeminiProvider())).models).toEqual([])
+  })
+
+  it.each([
+    { supportedGenerationMethods: undefined },
+    { supportedGenerationMethods: [] },
+    { supportedGenerationMethods: ['generateContent', 'countTokens'] }
+  ])(
+    'does not infer embedding without an embedding method: $supportedGenerationMethods',
+    async ({ supportedGenerationMethods }) => {
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: { models: [{ name: 'models/embedding-in-name-only', supportedGenerationMethods }] }
+      })
+
+      const { models } = await listModels(makeGeminiProvider())
+
+      expect(models).toHaveLength(1)
+      expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.EMBEDDING)
+      expect(models[0].outputModalities).toBeUndefined()
+    }
+  )
+
   it('drops audio and video generation models, keeping chat, image, and embedding models', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {

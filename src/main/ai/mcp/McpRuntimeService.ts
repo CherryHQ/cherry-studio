@@ -199,7 +199,7 @@ function getServerLogger(server: McpServer, extra?: Record<string, unknown>) {
 
 /**
  * Shrink tool-result images to the model-bound edge cap before any consumer (Cherry chat, pi,
- * dsh, claude bridge) sees them. An unusable image degrades to a text block: the result lands
+ * Claude bridge) sees them. An unusable image degrades to a text block: the result lands
  * in durable session history, so failing the call would strand the turn over one screenshot.
  */
 async function clampToolResultImages(

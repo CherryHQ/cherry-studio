@@ -64,6 +64,7 @@ const NotesPage: FC = () => {
   const { t } = useTranslation()
   const { showWorkspace } = useShowWorkspace()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
+  const voiceNoteId = useMemo(() => (activeFilePath ? crypto.randomUUID() : undefined), [activeFilePath])
   const { notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
@@ -1124,6 +1125,7 @@ const NotesPage: FC = () => {
           ) : (
             <NotesEditor
               activeNodeId={editorNodeId}
+              voiceNoteId={activeNode?.type === 'file' ? voiceNoteId : undefined}
               currentContent={currentContent}
               contentLoadError={contentLoadError}
               tokenCount={tokenCount}

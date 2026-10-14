@@ -5,14 +5,21 @@ import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 import { forkPiSession } from './piFork'
+import type * as PiMcpExtension from './piMcpExtension'
+import { buildPiMcpToolName } from './piMcpExtension'
 import type * as PiSdk from './piSdk'
 
 const PI_ROOT = '/cherry/Data/Agents/.pi'
@@ -72,6 +79,7 @@ const mocks = vi.hoisted(() => ({
   buildAgentMcpServers: vi.fn(),
   warmMcpToolCatalogs: vi.fn(),
   createPiMcpExtension: vi.fn(),
+  listMcpTools: vi.fn(),
   closeMcpBridge: vi.fn(),
   // pi fakes / captures
   subscribeCb: undefined as ((event: AgentSessionEvent) => void) | undefined,
@@ -122,7 +130,7 @@ vi.mock('@application', async () => {
   const { createMockApplication } = await import('@test-mocks/main/application')
   const application = createMockApplication({
     IpcApiService: { broadcast: mocks.broadcast },
-    McpCatalogService: { listTools: () => [] }
+    McpCatalogService: { listTools: mocks.listMcpTools }
   } as never)
   return {
     application: {
@@ -168,10 +176,9 @@ vi.mock('@main/ai/agents/prompt', () => ({
 }))
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
 // only how the complete server set becomes customTools and how the approval gate treats those names.
-vi.mock('./piMcpExtension', () => ({
-  createPiMcpExtension: mocks.createPiMcpExtension,
-  buildPiMcpToolName: (serverName: string, toolName: string) =>
-    `mcp__${serverName}__${toolName}`.replace(/[^A-Za-z0-9_]/g, '_')
+vi.mock('./piMcpExtension', async (importOriginal) => ({
+  ...(await importOriginal<typeof PiMcpExtension>()),
+  createPiMcpExtension: mocks.createPiMcpExtension
 }))
 vi.mock('./modelInjection', () => ({
   resolvePiProviderInjectionForSession: mocks.resolveInjection,
@@ -332,6 +339,7 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.getToolDefinition.mockReset()
+  mocks.listMcpTools.mockReturnValue([])
 
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
@@ -1002,6 +1010,7 @@ describe('PiRuntimeConnection', () => {
         invocation: {
           requestId: 'pi-agent:sess-1:response-1',
           model: 'm',
+          pricingSnapshot: null,
           messageAssociation: 'current-turn',
           usage: {
             inputTokens: 15,
@@ -1863,6 +1872,113 @@ describe('PiRuntimeConnection', () => {
   })
 
   describe('MCP bridging', () => {
+    describe('persisted DSH restrictions', () => {
+      beforeAll(() => {
+        mocks.readFileSync.mockImplementation(actualReadFileSync)
+      })
+      const dbh = setupTestDatabase()
+      const serverId = '12345678-1234-4234-8234-123456789abc'
+
+      function migrateRestriction(legacyName: string, toolName: string, servers = [{ id: serverId, name: 'github' }]) {
+        dbh.db.insert(mcpServerTable).values(servers).run()
+        dbh.db
+          .insert(agentTable)
+          .values({
+            id: 'agent-1',
+            type: 'dsh',
+            name: 'Existing DSH agent',
+            instructions: '',
+            orderKey: 'a0',
+            configuration: { permission_mode: 'bypassPermissions' },
+            disabledTools: [legacyName]
+          })
+          .run()
+        queueRetiredAgentRuntimeMigration(dbh.db)
+        const agent = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1')).get()!
+        expect(agent.type).toBe('pi')
+        expect(agent.disabledTools).toEqual([`legacy-dsh:${legacyName}`])
+        mocks.getAgent.mockReturnValue({ ...agent, model: 'p::m', mcps: servers.map((server) => server.id) })
+        const snapshotFactory = mocks.captureConnectionSnapshot.getMockImplementation()!
+        mocks.captureConnectionSnapshot.mockImplementation(async (...args: unknown[]) => ({
+          ...(await snapshotFactory(...args)),
+          mcpServerSnapshots: new Map(
+            dbh.db
+              .select()
+              .from(mcpServerTable)
+              .all()
+              .map((server) => [server.id, server])
+          )
+        }))
+        mocks.listMcpTools.mockReturnValue([{ name: toolName }])
+      }
+
+      it.each([
+        ['search_issues', 'mcp__12345678-1234-4234-8234-123456789abc__search_issues'],
+        ['123tool', 'mcp__12345678-1234-4234-8234-123456789abc__123tool'],
+        [`search_issues_${'x'.repeat(70)}`, 'mcp___12345678123442348234123456789abc__searchIssu_deeb2a39f437']
+      ])('starts and enforces the migrated ID restriction for %s', async (toolName, oldName) => {
+        migrateRestriction(oldName, toolName)
+        const piName = buildPiMcpToolName(serverId, toolName)
+        const conn = await new PiRuntimeConnection(input).start()
+        try {
+          expect(mocks.createOpts?.excludeTools).toContain(piName)
+          await expect(
+            gateHandler()({ type: 'tool_call', toolName: piName, toolCallId: 'blocked', input: {} }, {})
+          ).resolves.toMatchObject({ block: true })
+        } finally {
+          await conn.close()
+        }
+      })
+
+      it('keeps an ID restriction scoped when two servers share a display name', async () => {
+        const secondId = '87654321-4321-4321-8321-abcdefabcdef'
+        migrateRestriction(`mcp__${serverId}__search_issues`, 'search_issues', [
+          { id: serverId, name: 'shared' },
+          { id: secondId, name: 'shared' }
+        ])
+        const conn = await new PiRuntimeConnection(input).start()
+        try {
+          expect(mocks.createOpts?.excludeTools).toContain(buildPiMcpToolName(serverId, 'search_issues'))
+          expect(mocks.createOpts?.excludeTools).not.toContain(buildPiMcpToolName(secondId, 'search_issues'))
+        } finally {
+          await conn.close()
+        }
+      })
+
+      it('preserves an unambiguous migrated display-name restriction', async () => {
+        migrateRestriction('mcp__github__search_issues', 'search_issues')
+        const conn = await new PiRuntimeConnection(input).start()
+        try {
+          expect(mocks.createOpts?.excludeTools).toContain(buildPiMcpToolName(serverId, 'search_issues'))
+        } finally {
+          await conn.close()
+        }
+      })
+
+      it('prefers a server ID over another server display-name alias', async () => {
+        const secondId = '87654321-4321-4321-8321-abcdefabcdef'
+        migrateRestriction(`mcp__${serverId}__search_issues`, 'search_issues', [
+          { id: serverId, name: 'github' },
+          { id: secondId, name: serverId }
+        ])
+        const conn = await new PiRuntimeConnection(input).start()
+        try {
+          expect(mocks.createOpts?.excludeTools).toContain(buildPiMcpToolName(serverId, 'search_issues'))
+          expect(mocks.createOpts?.excludeTools).not.toContain(buildPiMcpToolName(secondId, 'search_issues'))
+        } finally {
+          await conn.close()
+        }
+      })
+
+      it('refuses an ambiguous migrated display-name restriction', async () => {
+        migrateRestriction('mcp__shared__search_issues', 'search_issues', [
+          { id: serverId, name: 'shared' },
+          { id: '87654321-4321-4321-8321-abcdefabcdef', name: 'shared' }
+        ])
+        await expect(new PiRuntimeConnection(input).start()).rejects.toThrow('could not be mapped')
+      })
+    })
+
     it('blocks a legacy disabled alias using the actual registered tool identity', async () => {
       const serverId = '12345678-1234-4234-8234-123456789abc'
       const serverName = 'my-server'
@@ -1887,6 +2003,26 @@ describe('PiRuntimeConnection', () => {
       await expect(
         gateHandler()({ type: 'tool_call', toolName: nativeName, toolCallId: 'blocked', input: {} }, {})
       ).resolves.toMatchObject({ block: true })
+    })
+    it('preserves a migrated built-in MCP prohibition', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        disabledTools: ['legacy-dsh:mcp__skills__install_skill']
+      })
+      const conn = await new PiRuntimeConnection(input).start()
+      await expect(
+        gateHandler()(
+          { type: 'tool_call', toolName: 'mcp__skills__install_skill', toolCallId: 'blocked', input: {} },
+          {}
+        )
+      ).resolves.toMatchObject({ block: true })
+      await conn.close()
+    })
+
+    it('refuses to open tools if an old MCP prohibition cannot be resolved', async () => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['legacy-dsh:mcp__missing__tool'] })
+      await expect(new PiRuntimeConnection(input).start()).rejects.toThrow()
     })
     function gateHandler(): (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined> {
       const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
