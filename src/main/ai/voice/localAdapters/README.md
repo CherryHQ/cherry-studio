@@ -19,6 +19,7 @@ inside the stream, multiple tracks, video, encryption, attachments and non-Opus
 codecs are rejected. ts-ebml 3.0.2 cannot read signed integers wider than six bytes;
 those encodings fail with `VOICE_AUDIO_INVALID`, including an eight-byte padding
 field. This is a bounded MediaRecorder input contract, not a general media importer.
+Canonical WAV is separate: `inspectCanonicalWav` rejects more than 32 MiB with `invalid_audio` and does not apply the five-minute cap.
 
 Limits: 32 MiB encoded input, five minutes decoded audio, 200,000 metadata elements,
 and libopus's packet buffer limit. The adapter supplies a 30-second decoding timeout;

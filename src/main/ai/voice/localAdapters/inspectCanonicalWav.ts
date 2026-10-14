@@ -7,6 +7,9 @@ const BYTE_RATE = 32_000
 const BLOCK_ALIGN = 2
 const BITS_PER_SAMPLE = 16
 
+/** Matches the WebM encoded-input ceiling. Media chunks stay below it; the five-minute cap does not apply here. */
+const MAX_CANONICAL_WAV_BYTES = 32 * 1024 * 1024
+
 function matchesTag(audio: Uint8Array, offset: number, tag: string): boolean {
   return tag.split('').every((character, index) => audio[offset + index] === character.charCodeAt(0))
 }
@@ -16,6 +19,7 @@ function invalidAudio(): never {
 }
 
 export function inspectCanonicalWav(audio: Uint8Array): { durationSeconds: number } {
+  if (audio.byteLength > MAX_CANONICAL_WAV_BYTES) invalidAudio()
   if (audio.byteLength < 12) invalidAudio()
   const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength)
   if (

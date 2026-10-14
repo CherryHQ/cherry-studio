@@ -63,6 +63,27 @@ function wavWithOddMetadataChunk(): Buffer {
   changed.writeUInt32LE(changed.length - 8, 4)
   return changed
 }
+
+const CANONICAL_WAV_HEADER_BYTES = 44
+const CANONICAL_WAV_BYTE_RATE = 32_000
+
+function canonicalPcmWav(dataBytes: number): Buffer {
+  const audio = Buffer.alloc(CANONICAL_WAV_HEADER_BYTES + dataBytes)
+  audio.write('RIFF', 0, 'ascii')
+  audio.writeUInt32LE(audio.length - 8, 4)
+  audio.write('WAVE', 8, 'ascii')
+  audio.write('fmt ', 12, 'ascii')
+  audio.writeUInt32LE(16, 16)
+  audio.writeUInt16LE(1, 20)
+  audio.writeUInt16LE(1, 22)
+  audio.writeUInt32LE(16_000, 24)
+  audio.writeUInt32LE(CANONICAL_WAV_BYTE_RATE, 28)
+  audio.writeUInt16LE(2, 32)
+  audio.writeUInt16LE(16, 34)
+  audio.write('data', 36, 'ascii')
+  audio.writeUInt32LE(dataBytes, 40)
+  return audio
+}
 const capabilities = {
   operation: 'capabilities',
   result: {
@@ -106,7 +127,9 @@ beforeEach(async () => {
       }
     }
     if (request.operation === 'transcribe') {
-      expect(await readFile(request.inputPath)).toEqual(expectedTranscriptionInput)
+      const written = await readFile(request.inputPath)
+      // vitest toEqual enumerates every index and cannot compare a 32 MiB buffer.
+      expect(written.equals(expectedTranscriptionInput)).toBe(true)
       return { operation: 'transcribe', result: { locale: 'en_US', text: 'private transcript' } }
     }
     return { operation: 'install_asr_assets', result: { status: 'installed', locale: 'en_US' } }
@@ -278,6 +301,30 @@ describe('local Apple adapters', () => {
     ).rejects.toMatchObject({ reason: 'invalid_audio' })
     expect(mocks.decode).not.toHaveBeenCalled()
     expect(mocks.nativeRequest).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('rejects a canonical WAV above 32 MiB before scratch or native transcription', async () => {
+    const audio = canonicalPcmWav(32 * 1024 * 1024 + 2 - CANONICAL_WAV_HEADER_BYTES)
+    await expect(
+      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({ audio, mediaType: 'audio/wav' })
+    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.nativeRequest).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('transcribes a canonical WAV of exactly 32 MiB', async () => {
+    const audio = canonicalPcmWav(32 * 1024 * 1024 - CANONICAL_WAV_HEADER_BYTES)
+    expect(audio.length).toBe(32 * 1024 * 1024)
+    expectedTranscriptionInput = audio
+    const result = await createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, { language: 'en-US' }).doGenerate({
+      audio,
+      mediaType: 'audio/wav'
+    })
+    expect(result.durationInSeconds).toBeGreaterThan(300)
+    expect(result.durationInSeconds).toBe((32 * 1024 * 1024 - CANONICAL_WAV_HEADER_BYTES) / CANONICAL_WAV_BYTE_RATE)
+    expect(mocks.decode).not.toHaveBeenCalled()
     expect(await readdir(directory)).toEqual([])
   })
 
