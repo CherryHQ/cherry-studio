@@ -301,18 +301,15 @@ describe('DoctorAgentConsultation', () => {
 it('offers Agent-entitled cloud models, excludes chat-only models, and disables exhausted models', async () => {
   const originalModels = mocks.models
   const originalProviders = mocks.providers
-  const cloudModels = ['agent-only', 'chat-only', 'exhausted'].map(
-    (name) =>
-      ({
-        id: `cherryai-subscription::${name}`,
-        providerId: 'cherryai-subscription',
-        name,
-        capabilities: [],
-        supportsStreaming: true,
-        isHidden: false,
-        isEnabled: true
-      }) as Model
-  )
+  const cloudModels: Model[] = ['agent-only', 'chat-only', 'exhausted'].map((name) => ({
+    id: `cherryai-subscription::${name}`,
+    providerId: 'cherryai-subscription',
+    name,
+    capabilities: [],
+    supportsStreaming: true,
+    isHidden: false,
+    isEnabled: true
+  }))
   mocks.models = cloudModels
   mocks.providers = [{ id: 'cherryai-subscription', name: 'Cloud', isEnabled: true }]
   mocks.syncCloudModels.mockResolvedValue({
