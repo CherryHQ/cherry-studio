@@ -359,8 +359,10 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       subagents?.guardBackground(() =>
         runtime.goal?.phase === 'active' && runtime.goal.armed && usedUp() ? BUDGET_REFUSAL : undefined
       )
+      const ownSessionId = ctx.sessionManager.getSessionId()
       unsubscribeApproval = port.onApproval?.((event) => {
         // The host's registry also reports the subagents' calls; only this session's are the goal's.
+        if ((event.sessionId ?? ownSessionId) !== ownSessionId) return
         if (!runtime.goal || !runtime.inGoalRound || !runtime.ownCalls.has(event.toolCallId)) return
         if (event.kind === 'denied')
           runtime.stopRequest = { code: 'approval_denied', message: `tool call ${event.toolCallId} was denied` }

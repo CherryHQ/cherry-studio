@@ -97,6 +97,52 @@ describe('subagent approvals', () => {
     ])
   })
 
+  // Breaks when the parent's own approval shows a subagent as waiting because the subagent runs a
+  // call of the same id: an event that names its session belongs to that session only.
+  it("does not show a subagent waiting for the parent's approval under the same call id", async () => {
+    const hub = approvalHub()
+    const working = gate()
+    const slow = defineTool({
+      name: 'slow',
+      label: 'Slow',
+      description: 'Takes a while',
+      parameters: Type.Object({}),
+      execute: () => working.wait({ content: [{ type: 'text', text: 'slow done' }], details: undefined })
+    })
+    const parentApproval: ExtensionFactory = (pi) => {
+      pi.on('tool_call', (event, ctx) => {
+        const sessionId = ctx.sessionManager.getSessionId()
+        hub.emit({ kind: 'pending', toolCallId: event.toolCallId, sessionId })
+        hub.emit({ kind: 'granted', toolCallId: event.toolCallId, sessionId })
+        return undefined
+      })
+    }
+    const recording = recordingSubagentPort()
+    const parent = hostStore()
+    const { model } = routedModel(({ userText, lastText, humanText }) => {
+      if (userText.includes('TASK-A'))
+        return lastText.includes('TASK-A') ? [toolCallPart('x_1', 'slow'), finish('tool-calls')] : reply('REPORT-A')
+      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Do the risky thing') return [toolCallPart('x_1', 'risky'), finish('tool-calls')]
+      return reply('OK.')
+    })
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [risky, slow],
+      subagents: { ...recording.port, onApproval: hub.onApproval },
+      extensionFactories: [parentApproval],
+      onEvent: parent.onEvent
+    })
+    await session.prompt('Check A in the background')
+    await working.reached
+
+    await session.prompt('Do the risky thing')
+    working.open()
+    await waitFor(() => subagentViews(parent.events).some((views) => views[0]?.status === 'finished'))
+
+    expect(subagentViews(parent.events).map((views) => views[0].status)).toEqual(['running', 'finished'])
+  })
+
   // Breaks when a fork takes the approval subscription meant for its parent, or the parent keeps it
   // after shutdown (the host would hold every listener).
   it('subscribes once per parent session and releases at shutdown', async () => {

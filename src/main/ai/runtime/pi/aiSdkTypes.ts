@@ -60,4 +60,9 @@ export interface ModelCallSideChannel {
 export interface ToolApprovalEvent {
   kind: 'pending' | 'granted' | 'denied' | 'unavailable'
   toolCallId: string
+  /**
+   * The Pi session the call runs in (`ctx.sessionManager.getSessionId()` in the approval extension;
+   * a subagent's is its `sessionId`). Without it, sessions are told apart by call id alone.
+   */
+  sessionId?: string
 }

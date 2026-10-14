@@ -91,7 +91,9 @@ export interface AgentRuntimeSession {
   dispose(): Promise<void>
   /**
    * `session.prompt`, for every user turn the host starts: while it prepares, Pi reports the session
-   * idle, and a background result must not start a run then.
+   * idle, and a background result must not start a run then. Called while a run settles (from
+   * `onEvent`'s `turn-complete`), it runs once that settle and any run Pi started meanwhile are over,
+   * and resolves or rejects as that prompt does.
    */
   prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
   /** `session.compact`, for every manual compaction the host starts, for the same reason. */
@@ -184,6 +186,15 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     options.onEvent ?? (() => {})
   )
 
+  // Pi defers a prompt made while it dispatches agent_settled and returns before it runs; `held` waits instead.
+  let settling: { over: Promise<void>; end: () => void } | undefined
+  const settleWatch: ExtensionFactory = (pi) => {
+    pi.on('agent_settled', () => {
+      let end!: () => void
+      settling = { over: new Promise((resolve) => (end = resolve)), end }
+    })
+  }
+
   const { compaction } = options
   const subagents =
     options.subagents &&
@@ -203,6 +214,8 @@ export async function createAgentRuntimeSession<TRequestOptions>(
       offload: options.offload
     })
   const extensionFactories = [
+    // First, so the watch covers every other extension's agent_settled handler.
+    settleWatch,
     // Before every host `tool_call` handler (an approval prompt), so none sees a call Pi will not run.
     invalidToolCallGuard,
     ...(compaction?.summarize
@@ -256,7 +269,12 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
     customTools: options.tools ?? []
   })
-  session.subscribe((event) => tap.handle(event))
+  session.subscribe((event) => {
+    tap.handle(event)
+    if (event.type !== 'agent_settled') return
+    settling?.end()
+    settling = undefined
+  })
   // State entries are in the session before extensions bind, so `session_start` sees them.
   await session.bindExtensions({})
   const baseTools = session.getActiveToolNames()
@@ -266,6 +284,11 @@ export async function createAgentRuntimeSession<TRequestOptions>(
   const held = async (run: () => Promise<unknown>) => {
     const release = subagents?.controls.hold() ?? (() => {})
     try {
+      if (settling) {
+        await settling.over
+        // A run Pi deferred during the settle (a notification) goes first, as Pi would order them.
+        await session.waitForIdle()
+      }
       await run()
     } finally {
       release()

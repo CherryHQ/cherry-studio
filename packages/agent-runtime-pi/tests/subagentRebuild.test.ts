@@ -1,6 +1,6 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
-import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import { SUBAGENT_STATUS_TYPE } from '../src'
@@ -79,6 +79,105 @@ describe('subagents after a rebuild', () => {
     })
     await again.prompt('And now?')
     expect(lastTwoTexts(calls.at(-1)!)[1]).toBe('And now?')
+  })
+
+  // Breaks when a run that completed just as the parent closes is recorded as cut off: its report is
+  // lost, and the rebuilt parent tells the model it was interrupted.
+  it('keeps the result of a run that completed as the parent closes', async () => {
+    const cwd = tempDir('cwd')
+    const childClosing = gate()
+    const host = storingSubagentPort(() => ({
+      extensionFactories: [
+        (pi) => {
+          pi.on('session_shutdown', () => childClosing.wait(undefined))
+        }
+      ]
+    }))
+    const { model, calls } = routedModel(({ userText, humanText }) => {
+      if (userText.includes('TASK-A')) return reply('REPORT-A')
+      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      return reply('OK.')
+    })
+    const first = hostStore()
+    const before = await createTestSession({
+      cwd,
+      port: streamTextPort(model).port,
+      subagents: host.port,
+      onEvent: first.onEvent
+    })
+    await before.prompt('Check A in the background')
+    // A has answered; its session is shutting down when the parent closes.
+    await childClosing.reached
+    const disposed = before.dispose()
+    childClosing.open()
+    await disposed
+
+    const rebuilt = await createTestSession({
+      cwd,
+      port: streamTextPort(model).port,
+      subagents: host.port,
+      transcript: plain(first.entries)
+    })
+    await rebuilt.prompt('Where were we?')
+
+    expect(subagentStates(first.entries).map((state) => [state.status, state.outcome])).toEqual([
+      ['running', undefined],
+      ['finished', 'completed']
+    ])
+    expect(lastTwoTexts(calls.at(-1)!)).toEqual([
+      'Where were we?',
+      `${NOTE}\n\n- "Check A" (id: ${host.subagents[0].sessionId}) completed:\n  REPORT-A`
+    ])
+  })
+
+  // Spec §7.5. Breaks when what a rebuild restores rides only with a prompt: the turns a command starts
+  // (`/goal resume` after a restart) would never tell the model that its subagent was cut off.
+  it('reports an interrupted run at the settle of a turn a command starts after a rebuild, once', async () => {
+    const cwd = tempDir('cwd')
+    const held = gate()
+    const host = storingSubagentPort()
+    const roundCommand: ExtensionFactory = (pi) => {
+      pi.registerCommand('round', {
+        description: 'Starts a turn of its own, like /goal resume',
+        handler: async () => {
+          pi.sendMessage({ customType: 'test.round', content: 'ROUND', display: false }, { triggerTurn: true })
+        }
+      })
+    }
+    const { model, calls } = routedModel(({ userText, humanText }) => {
+      if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
+      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      return reply('OK.')
+    })
+    const first = hostStore()
+    const before = await createTestSession({
+      cwd,
+      port: streamTextPort(model).port,
+      subagents: host.port,
+      onEvent: first.onEvent
+    })
+    await before.prompt('Check A in the background')
+    await held.reached
+    await before.dispose()
+
+    const rebuilt = await createTestSession({
+      cwd,
+      port: streamTextPort(model).port,
+      subagents: host.port,
+      extensionFactories: [roundCommand],
+      transcript: plain(first.entries)
+    })
+    const sent = calls.length
+    for (let turn = 0; turn < 2; turn++) {
+      await rebuilt.prompt('/round')
+      await rebuilt.session.waitForIdle()
+    }
+
+    expect(calls.slice(sent).map((call) => call.lastText)).toEqual([
+      'ROUND',
+      `${NOTE}\n\n- "Check A" (id: ${host.subagents[0].sessionId}) was interrupted (the app closed while it was running). Continue it with message_subagent if the work is still needed.`,
+      'ROUND'
+    ])
   })
 
   // Breaks when an interrupted subagent cannot be continued after a rebuild, or continues without

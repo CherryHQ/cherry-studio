@@ -30,12 +30,13 @@ export interface RoutedCall {
   options: LanguageModelV3CallOptions
 }
 
-const NOTIFICATION_HEAD = 'Background subagent update'
+/** The first line of every notification the parent's model gets. */
+export const NOTE = 'Background subagent update (automatic message, not from the user):'
 
 function humanTextOf(prompt: LanguageModelV3Message[]): string {
   const trailing: string[] = []
   for (let i = prompt.length - 1; i >= 0 && prompt[i].role === 'user'; i--) trailing.unshift(userTextOf(prompt[i]))
-  return trailing.find((text) => !text.startsWith(NOTIFICATION_HEAD)) ?? ''
+  return trailing.find((text) => !text.startsWith(NOTE)) ?? ''
 }
 
 const userTextOf = (message: LanguageModelV3Message) =>
@@ -177,6 +178,29 @@ export function toolResultOf(session: AgentSession, toolCallId: string): ToolRes
   )
   if (!result) throw new Error(`no result for ${toolCallId}`)
   return result
+}
+
+const untilAborted = (signal: AbortSignal | undefined) =>
+  new Promise<void>((resolve) => {
+    if (signal?.aborted) resolve()
+    else signal?.addEventListener('abort', () => resolve(), { once: true })
+  })
+
+/** `work`: a subagent tool that runs until its run is stopped; `reached` resolves once it runs. */
+export function untilStopped() {
+  const started = gate()
+  const tool = defineTool({
+    name: 'work',
+    label: 'Work',
+    description: 'Works until stopped',
+    parameters: Type.Object({}),
+    async execute(_id, _params, signal) {
+      void started.wait(undefined)
+      await untilAborted(signal)
+      return { content: [{ type: 'text', text: 'stopped working' }], details: undefined }
+    }
+  })
+  return { tool, reached: started.reached }
 }
 
 export const noteTool = defineTool({

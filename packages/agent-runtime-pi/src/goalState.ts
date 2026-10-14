@@ -3,7 +3,13 @@ import { randomUUID } from 'node:crypto'
 import type { AssistantMessage, ToolResultMessage, Usage } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 
-import type { SubagentDetails } from './subagent'
+import {
+  MESSAGE_SUBAGENT_TOOL_NAME,
+  STOP_SUBAGENT_TOOL_NAME,
+  type SubagentDetails,
+  type SubagentMessageDetails,
+  type SubagentStopDetails
+} from './subagent'
 import { SUBAGENT_NOTIFICATION_TYPE, type SubagentNotificationDetails } from './subagentDelivery'
 import { SUBAGENT_TOOL_NAME } from './subagentRun'
 
@@ -349,10 +355,21 @@ export function unadmittedRounds(entries: readonly SessionEntry[]): Set<string> 
 
 const requestTokens = (usage: Usage) => usage.input + usage.output + usage.cacheRead + usage.cacheWrite
 
-/** The id of the subagent a `subagent` result started in, or moved to, the background. */
-function launchedInBackground(result: ToolResultMessage): string | undefined {
-  const details = result.details as SubagentDetails | undefined
-  return result.toolName === SUBAGENT_TOOL_NAME && details?.background === true ? details.sessionId : undefined
+/** The id of the subagent whose background run a result started: a launch, a move or a continuation. */
+function backgroundRunId(result: ToolResultMessage): string | undefined {
+  if (result.toolName === SUBAGENT_TOOL_NAME) {
+    const details = result.details as SubagentDetails | undefined
+    return details?.background === true ? details.sessionId : undefined
+  }
+  if (result.toolName !== MESSAGE_SUBAGENT_TOOL_NAME) return undefined
+  const details = result.details as SubagentMessageDetails | undefined
+  return details?.continued === true ? details.sessionId : undefined
+}
+
+/** The run a `stop_subagent` result stopped, with its usage; no notification follows to carry it. */
+function stoppedRun(result: ToolResultMessage): Extract<SubagentStopDetails, { stopped: true }> | undefined {
+  const details = result.details as SubagentStopDetails | undefined
+  return result.toolName === STOP_SUBAGENT_TOOL_NAME && details?.stopped === true ? details : undefined
 }
 
 interface GoalBranch {
@@ -360,7 +377,7 @@ interface GoalBranch {
   counted: Array<GoalUsage & { goalId: string }>
   /** Background subagents by the goal whose round started them. */
   owners: Map<string, string>
-  /** Finished background runs that reached the model, with their usage. */
+  /** Finished background runs whose result reached the model (a notification, a `stop_subagent` result). */
   deliveries: Array<{ sessionId: string; usage: Usage }>
 }
 
@@ -417,12 +434,14 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
           if (block.type === 'toolCall') calls.set(block.id, { goalId, inRound: turn === 'round' })
         if (goalId) branch.counted.push({ goalId, tokens: requestTokens(message.usage), usd: message.usage.cost.total })
       } else if (message.role === 'toolResult') {
+        const stopped = stoppedRun(message)
+        if (stopped) branch.deliveries.push({ sessionId: stopped.sessionId, usage: stopped.usage })
         const call = calls.get(message.toolCallId)
         if (!call?.goalId) continue
         if (message.usage)
           branch.counted.push({ goalId: call.goalId, tokens: message.usage.totalTokens, usd: message.usage.cost.total })
-        const launched = call.inRound ? launchedInBackground(message) : undefined
-        if (launched) branch.owners.set(launched, call.goalId)
+        const started = call.inRound ? backgroundRunId(message) : undefined
+        if (started) branch.owners.set(started, call.goalId)
       }
     }
   }
