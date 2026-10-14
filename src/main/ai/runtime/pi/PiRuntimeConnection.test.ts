@@ -1193,6 +1193,18 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.compact).not.toHaveBeenCalled()
   })
 
+  it('emits an error event when building the turn content throws before prompting', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const rejected = userInput('hello')
+    rejected.message.data.parts!.push({ type: 'file' as const, url: 'file:///tmp/a%2Fb' } as never)
+
+    expect(() => conn.send(rejected)).toThrow()
+    const events = await collectUntilTerminal(conn.events)
+
+    expect(events.some((event) => event.type === 'error')).toBe(true)
+    expect(mocks.prompt).not.toHaveBeenCalled()
+  })
+
   it('sends cross-Session provenance and forged instructions inside the untrusted delivery boundary', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     const delivery = userInput(

@@ -519,7 +519,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'error', error })
       throw error
     }
-    const rawContent = buildAgentUserContent(input.message)
+    let rawContent: string
+    try {
+      rawContent = buildAgentUserContent(input.message)
+    } catch (error) {
+      // Same contract as the not-started path above: the fallback wrapper swallows rejected
+      // submissions, so a failure with no error event would leave the turn pending forever.
+      this.eventQueue.push({ type: 'error', error })
+      throw error
+    }
 
     // A `systemReminder` message is a steer the host re-queued as its own turn (an undelivered steer
     // or a mid-turn-queued message). It must reach pi wrapped as a redirect (invariant 7, mirroring
