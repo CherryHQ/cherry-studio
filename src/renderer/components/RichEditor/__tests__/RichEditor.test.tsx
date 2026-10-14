@@ -1,5 +1,7 @@
-import { render } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { RichEditorRef } from '../types'
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeShikiTheme: 'one-light' })
@@ -21,5 +23,20 @@ describe('RichEditor accessibility', () => {
     const { container } = render(<RichEditor initialContent="" autoFocus={false} />)
 
     expect(container.querySelector('[contenteditable="true"]')).not.toHaveAttribute('aria-label')
+  })
+
+  it('reads the live selection and exposes the current draft immediately after edits', async () => {
+    const editorRef: { current: RichEditorRef | null } = { current: null }
+    render(<RichEditor ref={editorRef} initialContent="alpha beta" autoFocus={false} />)
+    await waitFor(() => expect(editorRef.current?.getMarkdown()).toBe('alpha beta'))
+
+    act(() => editorRef.current?.executeCommand('setTextSelection', { from: 7, to: 11 }))
+    expect(editorRef.current?.getSelection()).toEqual({ from: 7, to: 11, text: 'beta' })
+
+    act(() => {
+      editorRef.current?.insertText('fresh')
+      expect(editorRef.current?.getMarkdown()).toBe('alpha fresh')
+    })
+    expect(editorRef.current?.getSelection()).toEqual({ from: 12, to: 12, text: '' })
   })
 })

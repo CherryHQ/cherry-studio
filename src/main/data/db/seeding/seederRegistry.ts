@@ -11,6 +11,7 @@ import { LongTextPastePreferenceUpgradeSeeder } from './seeders/longTextPastePre
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
+import { RetiredAgentRuntimeSeeder } from './seeders/RetiredAgentRuntimeSeeder'
 import { SidebarShortcutMigrationSeeder } from './seeders/sidebarShortcutMigrationSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceUpgradeSeeder'
@@ -25,8 +26,10 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
  * No changes to DbService needed.
  */
 export const seeders: ISeeder[] = [
+  new RetiredAgentRuntimeSeeder(),
   new BrowserCapabilityUpgradeSeeder(),
   new LegacyFileCleanupPolicySeeder(),
+  new PresetProviderSeeder(),
   new CherryAiDefaultModelSeeder(),
   new CherryAssistantSeeder(),
   new CherrySupportSeeder(),
@@ -36,7 +39,6 @@ export const seeders: ISeeder[] = [
   new SidebarShortcutMigrationSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
-  new PresetProviderSeeder(),
   new LocalModelSeeder(),
   new MiniAppSeeder(),
   new BuiltinMcpServerSeeder()
