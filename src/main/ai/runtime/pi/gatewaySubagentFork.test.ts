@@ -130,13 +130,14 @@ describe('subagent fork', () => {
   })
 
   // Breaks when a fork can start or address subagents (it would manage its parent's subagents).
-  it('rejects subagent and message_subagent calls made inside a fork', async () => {
+  it('rejects subagent, message_subagent and stop_subagent calls made inside a fork', async () => {
     const { model, calls } = routedModel(({ userText, lastRole }) => {
       if (userText.includes('TASK-A'))
         return lastRole === 'user'
           ? [
               subagentCall('call_nested', { description: 'Nested', prompt: 'TASK-NESTED' }),
               toolCallPart('call_message', 'message_subagent', { id: 'any', message: 'hello' }),
+              toolCallPart('call_stop', 'stop_subagent', { id: 'any' }),
               finish('tool-calls')
             ]
           : [...textParts('r', 'REPORT-A'), finish('stop')]
@@ -150,10 +151,11 @@ describe('subagent fork', () => {
     await session.prompt('Check module A')
 
     expect(host.subagents.map((subagent) => subagent.parentToolCallId)).toEqual(['call_a'])
-    const refused = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1]).slice(-2)
+    const refused = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1]).slice(-3)
     expect(refused.map((part) => [part.toolCallId, outputText(part.output)])).toEqual([
       ['call_nested', 'Subagents cannot start or manage subagents.'],
-      ['call_message', 'Subagents cannot start or manage subagents.']
+      ['call_message', 'Subagents cannot start or manage subagents.'],
+      ['call_stop', 'Subagents cannot start or manage subagents.']
     ])
   })
 
