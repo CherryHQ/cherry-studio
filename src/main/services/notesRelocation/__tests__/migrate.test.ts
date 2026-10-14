@@ -406,7 +406,6 @@ describe('notesRelocation', () => {
 
   it('allows an app-data sibling directory whose name extends the app-data folder name', async () => {
     const source = path.join(tempRoot, 'source-notes-sibling')
-    const appDataRoot = path.join(tempRoot, 'appdata')
     const target = path.join(tempRoot, 'appdata-notes')
     fs.mkdirSync(source)
     fs.mkdirSync(target)
