@@ -882,12 +882,17 @@ class ModelService {
         const declaredReasoning = model.capabilities.includes(MODEL_CAPABILITY.REASONING)
         if (registryModel) {
           reasoning = registryModel.reasoning
-        } else if (model.reasoning?.controls?.length && declaredReasoning) {
-          // Reproject a persisted descriptor only while the user still declares
-          // the capability — removing reasoning in Edit Model must disarm the
-          // synthetic fallback stored at create time (#19761).
-          reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
+          // Regenerate the synthetic controls from the CURRENT endpoint instead of
+          // re-projecting the descriptor stored at create time: the stored tiers are
+          // creation-time vocabulary, so a provider endpoint switch
+          // (anthropic-messages → ollama-chat) kept offering `max` — a tier
+          // Ollama's wire echoes verbatim into `think`, which the SDK rejects.
+          // Reasoning is not hand-editable (absent from UPDATE_MODEL_FIELD_MAP), so
+          // nothing user-authored is lost by regenerating; catalog and registry
+          // descriptors took the branch above. The id heuristics still win over the
+          // manual fallback, and removing the capability in Edit Model disarms the
+          // manual fallback via declaredReasoning (#19761).
           reasoning =
             inferCustomModelReasoning(modelId, reasoningProfile.wire, { declaredReasoning }) ??
             manualDeclaredReasoning(reasoningProfile.format, reasoningProfile.wire, declaredReasoning)

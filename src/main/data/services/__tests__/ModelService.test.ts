@@ -60,6 +60,13 @@ const OLLAMA_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningP
   }
 }
 
+// An anthropic-format endpoint carries the full manual effort ladder; the wire shape
+// mirrors the effort/off modes the projection filters against.
+const ANTHROPIC_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'anthropic' as const,
+  wire: OPENAI_CHAT_REASONING_PROFILE.wire
+}
+
 beforeEach(() => {
   resolveModelMock.mockReset()
   resolveModelMock.mockReturnValue({
@@ -937,6 +944,7 @@ describe('ModelService — manual reasoning capability projects effort controls'
         registryData: {
           presetModel: {
             id: 'claude-sonnet-5',
+            name: 'Claude Sonnet 5',
             capabilities: [MODEL_CAPABILITY.REASONING],
             reasoning: {
               controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
@@ -967,7 +975,7 @@ describe('ModelService — manual reasoning capability projects effort controls'
           supportsStreaming: true
         },
         registryData: {
-          presetModel: { id: 'cosmos-reason2-8b', capabilities: [MODEL_CAPABILITY.REASONING] },
+          presetModel: { id: 'cosmos-reason2-8b', name: 'Cosmos Reason 2 8B', capabilities: [MODEL_CAPABILITY.REASONING] },
           registryOverride: null,
           // NVIDIA's default wire explicitly disables reasoning parameters.
           reasoningProfile: { format: 'openai-chat', wire: { disabled: true } }
@@ -1003,6 +1011,46 @@ describe('ModelService — manual reasoning capability projects effort controls'
     const [model] = modelService.list({ providerId: 'openai' })
     expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
     expect(model.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
+  it('regenerates the stored descriptor for the active endpoint when the provider switches format', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+
+    // Created under an anthropic-format endpoint, the synthetic fallback stores the
+    // creation-time vocabulary, `max` included.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+    modelService.create([
+      {
+        dto: {
+          providerId: 'acme',
+          modelId: 'acme-thinker:latest',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // The provider's endpoint later switches to ollama-chat, whose wire echoes the
+    // selected effort verbatim into `think` — the stored `max` tier would go out
+    // as `{ think: 'max' }`, which the SDK rejects. The descriptor must be
+    // regenerated for the active endpoint, not re-projected.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    })
+    const [model] = modelService.list({ providerId: 'acme' })
+    const efforts = model.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('xhigh')
+    expect(efforts).not.toContain('minimal')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
   })
 
   it('leaves models without the reasoning capability untouched', async () => {
