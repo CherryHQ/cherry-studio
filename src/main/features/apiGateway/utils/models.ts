@@ -93,10 +93,10 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   }
 }
 
-/** Resolve a `providerId:apiModelId`; Cherry Cloud models require an authenticated internal Work request. */
+/** Resolve a `providerId:apiModelId`; Cherry Cloud models require an authenticated internal request. */
 export async function resolveGatewayModelAddress(
   modelAddress: string,
-  allowInternalAgent = false
+  internalFeature?: 'agent' | 'translate'
 ): Promise<ResolvedGatewayModelAddress> {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
@@ -119,25 +119,25 @@ export async function resolveGatewayModelAddress(
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 
-  let availableCloudAgentModelIds: Set<UniqueModelId> | undefined
+  let availableCloudModelIds: Set<UniqueModelId> | undefined
   if (isManagedCherryCloudModel(providerId)) {
-    if (allowInternalAgent) {
+    if (internalFeature) {
       try {
         const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
-        availableCloudAgentModelIds = new Set(availability.availableModelIdsByFeature.agent)
+        availableCloudModelIds = new Set(availability.availableModelIdsByFeature[internalFeature])
       } catch (error) {
         throw gatewayModelError('Cherry Cloud model permissions are temporarily unavailable', 503, error)
       }
     }
   }
 
-  const isRoutableModel = allowInternalAgent ? isGatewayRoutableModel : isPublicGatewayRoutableModel
+  const isRoutableModel = internalFeature ? isGatewayRoutableModel : isPublicGatewayRoutableModel
   const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
     if (!isRoutableModel(candidate)) return false
     const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
     return candidateApiModelId === apiModelId
   })
-  if (!model || (availableCloudAgentModelIds && !availableCloudAgentModelIds.has(model.id))) {
+  if (!model || (availableCloudModelIds && !availableCloudModelIds.has(model.id))) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
+import { BaseService } from '@main/core/lifecycle'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 
@@ -41,6 +42,8 @@ vi.mock('@application', () => ({
         return {
           getAgentSessionId: vi.fn(),
           resolveAgentSessionUsage: vi.fn(),
+          isTranslationCredential: (headers: Headers, model: unknown) =>
+            translationGateway?.isTranslationCredential(headers, model) ?? false,
           isInternalAgentRequest: mockIsInternalAgentRequest
         }
       }
@@ -83,6 +86,7 @@ import { ApiGatewayService } from '../ApiGatewayService'
 import { processMessage } from '../proxyStream'
 
 beforeEach(() => {
+  BaseService.resetInstances()
   vi.clearAllMocks()
   captured.opts = undefined
   mockGetProvider.mockImplementation(() => {
@@ -132,6 +136,8 @@ async function resolveValid(model: string): Promise<string | undefined> {
   await promise
   return uniqueModelId
 }
+
+let translationGateway: ApiGatewayService | undefined
 
 describe('processMessage model-id parsing', () => {
   it('rejects a missing model field', async () => {
@@ -324,4 +330,60 @@ describe('processMessage model-id parsing', () => {
     ).rejects.toThrow(/not available through the API gateway/)
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
+})
+
+describe('PDF translation admission', () => {
+  it('routes a model-scoped translation credential with translate rather than agent admission', async () => {
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'translate-only', 'translate-only', CHERRY_CLOUD_MODEL_GROUP)
+    mockSyncEntitledModelsIfStale.mockResolvedValue({
+      availableModelIdsByFeature: {
+        agent: [],
+        chat: [],
+        translate: [createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translate-only')]
+      },
+      quotaExhaustedModelIds: []
+    })
+    translationGateway = new ApiGatewayService()
+    const credential = translationGateway.createTranslationCredential(`${CHERRY_CLOUD_PROVIDER_ID}:translate-only`)
+    try {
+      const responsePromise = processMessage({
+        params: {
+          model: `${CHERRY_CLOUD_PROVIDER_ID}:translate-only`,
+          messages: [{ role: 'user', content: 'translate' }]
+        },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ authorization: `Bearer ${credential.apiKey}` })
+      })
+      await vi.waitFor(() => expect(captured.opts).toBeDefined())
+      expect(captured.opts).toMatchObject({ modelUsageFeature: 'translate' })
+      expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
+      void captured.opts!.listener!.onDone({} as any)
+      await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
+    } finally {
+      credential.dispose()
+      translationGateway = undefined
+    }
+  })
+})
+
+it('rejects an Agent-only cloud model even with a valid translation credential', async () => {
+  mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+  translationGateway = new ApiGatewayService()
+  const address = `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`
+  const credential = translationGateway.createTranslationCredential(address)
+  try {
+    await expect(
+      processMessage({
+        params: { model: address, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ authorization: `Bearer ${credential.apiKey}` })
+      })
+    ).rejects.toMatchObject({ status: 400 })
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+  } finally {
+    credential.dispose()
+    translationGateway = undefined
+  }
 })

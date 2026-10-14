@@ -292,7 +292,7 @@ describe('api gateway model listing', () => {
       )
 
       await expect(
-        resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true)
+        resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, 'agent')
       ).resolves.toMatchObject({
         model: cloudModel
       })
@@ -302,7 +302,7 @@ describe('api gateway model listing', () => {
     it('does not treat conversation availability as Work availability', async () => {
       mocks.availableCloudModelIds.chat.add(cloudModel.id)
 
-      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true)).rejects.toThrow(
+      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, 'agent')).rejects.toThrow(
         'not available through the API gateway'
       )
       expect(mocks.syncEntitledModelsIfStale).toHaveBeenCalledOnce()

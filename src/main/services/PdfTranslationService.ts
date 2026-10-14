@@ -221,6 +221,7 @@ export class PdfTranslationService extends BaseService {
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
     const gateway = application.get('ApiGatewayService')
     let gatewayLeaseAcquired = false
+    let translationCredential: { apiKey: string; dispose: () => void } | undefined
 
     try {
       // Register the job as the first in-try statement so the `finally` cleanup (delete + temp
@@ -246,7 +247,8 @@ export class PdfTranslationService extends BaseService {
       gatewayLeaseAcquired = true
       this.throwIfCancelled(job)
 
-      const apiKey = await gateway.ensureValidApiKey()
+      translationCredential = gateway.createTranslationCredential(gatewayModelId)
+      const { apiKey } = translationCredential
       const config = gateway.getCurrentConfig()
       const baseUrl = `${gatewayClientOrigin(config.host, config.port)}/v1`
 
@@ -278,6 +280,7 @@ export class PdfTranslationService extends BaseService {
       }
       throw error
     } finally {
+      translationCredential?.dispose()
       this.activeJobs.delete(request.jobId)
       // Unconditional: on success the artifact already lives in FileManager, on failure
       // there is nothing worth keeping. Nobody outside this method reads the temp dir.
