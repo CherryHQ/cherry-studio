@@ -324,13 +324,16 @@ export function useFileEditSession(
     return () => {
       debouncedWrite.cancel()
       const model = modelRef.current
-      if (model && !model.conflict && model.draft !== model.snapshot.content) {
-        const persistDepartingEdits = model.writeTask.run(async () => {
-          await (runWritesRef.current?.(model) ?? Promise.resolve())
+      if (model && (model.conflict || model.draft !== model.snapshot.content)) {
+        const persistDepartingEdits = (async () => {
           if (!model.conflict && model.draft !== model.snapshot.content) {
+            requestWrite(model, { force: true })
+          }
+          await model.writeTask.promise
+          if (model.conflict || model.draft !== model.snapshot.content) {
             throw model.lastWriteError ?? new Error('Pending edit could not be saved')
           }
-        })
+        })()
         if (trackDepartingWritesForRelocation) {
           trackDepartingNotesFileWrite(persistDepartingEdits)
         } else {

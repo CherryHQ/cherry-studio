@@ -389,6 +389,27 @@ describe('notesRelocation', () => {
     await expect(assertNotesRelocationPaths(source, target)).rejects.toThrow()
   })
 
+  it.runIf(process.platform === 'darwin')(
+    'rejects an app-data destination that only differs by path segment casing',
+    async () => {
+      const source = path.join(tempRoot, 'source-notes-appdata-case')
+      const appDataRoot = path.join(tempRoot, 'AppData')
+      const target = path.join(tempRoot, 'appdata', 'notes-export')
+      fs.mkdirSync(source)
+      fs.mkdirSync(appDataRoot)
+      fs.mkdirSync(target, { recursive: true })
+      fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+      vi.spyOn(application, 'getPath').mockImplementation((key: string) => {
+        if (key === 'feature.notes.data') return defaultNotesDir
+        if (key === 'sys.appdata') return appDataRoot
+        if (key === 'feature.files.data') return path.join(tempRoot, 'files')
+        throw new Error(`unexpected path key: ${key}`)
+      })
+
+      await expect(assertNotesRelocationPaths(source, target)).rejects.toThrow()
+    }
+  )
+
   it('rejects a source directory that contains symbolic links', async () => {
     const source = path.join(tempRoot, 'source-notes-symlink')
     const target = path.join(tempRoot, 'target-notes-symlink')

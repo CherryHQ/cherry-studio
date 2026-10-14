@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { isLinux, isWin } from '@main/core/platform'
+import { isSameOrInside } from '@main/utils/file'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 export class NotesRelocationValidationError extends Error {
@@ -140,17 +141,15 @@ function assertNotesTargetDirectory(dirPath: string): void {
     invalid('invalid_target', `target is not a directory: ${dirPath}`)
   }
 
-  const physicalPath = normalizeForCompare(resolveExistingAncestor(dirPath).effectivePath)
-  const appDataPath = normalizeForCompare(realPath(application.getPath('sys.appdata')))
-  const filesDir = normalizeForCompare(realPath(application.getPath('feature.files.data')))
-  const defaultNotesDir = normalizeForCompare(realPath(application.getPath('feature.notes.data')))
+  const physicalPath = path.resolve(resolveExistingAncestor(dirPath).effectivePath)
+  const appDataPath = path.resolve(realPath(application.getPath('sys.appdata')))
+  const filesDir = path.resolve(realPath(application.getPath('feature.files.data')))
+  const defaultNotesDir = path.resolve(realPath(application.getPath('feature.notes.data')))
 
   if (
-    physicalPath === filesDir ||
-    isPathInside(physicalPath, filesDir) ||
-    physicalPath === defaultNotesDir ||
-    physicalPath === appDataPath ||
-    isPathInside(physicalPath, appDataPath)
+    isSameOrInside(physicalPath, filesDir) ||
+    isSameOrInside(physicalPath, defaultNotesDir) ||
+    isSameOrInside(physicalPath, appDataPath)
   ) {
     invalid('invalid_target', `target is a protected directory: ${dirPath}`)
   }

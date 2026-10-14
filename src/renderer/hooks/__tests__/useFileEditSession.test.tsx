@@ -793,4 +793,44 @@ describe('useFileEditSession', () => {
     expect(writeCalls()).toHaveLength(0)
     expect(suppressAutosave).toHaveBeenCalled()
   })
+
+  it('rejects a departing relocation flush when unmount cannot persist a dirty draft', async () => {
+    vi.useFakeTimers()
+    try {
+      const diskFull = new Error('disk full')
+      let rejectWrite!: (error: Error) => void
+      const hangingWrite = new Promise<never>((_, reject) => {
+        rejectWrite = reject
+      })
+      void hangingWrite.catch(() => undefined)
+
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('clean\n')))
+      const { result, unmount } = renderHook(
+        () => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }),
+        { wrapper }
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      act(() => result.current.setDraft('dirty\n'))
+
+      ipcMocks.request.mockImplementation((route: string) => {
+        if (route === 'file.write_if_unchanged') {
+          return hangingWrite
+        }
+        return Promise.reject(new Error(`unexpected route: ${route}`))
+      })
+
+      await act(async () => {
+        unmount()
+      })
+
+      const { flushAllNotesEdits } = await import('../notesFileEditFlush')
+      const flushPromise = flushAllNotesEdits()
+      rejectWrite(diskFull)
+      await expect(flushPromise).rejects.toBe(diskFull)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

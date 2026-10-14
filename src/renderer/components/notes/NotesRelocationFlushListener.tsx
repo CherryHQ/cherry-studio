@@ -37,13 +37,20 @@ export const NotesRelocationFlushListener: FC = () => {
     let ok = true
     let lockedForThisFlush = false
     let barrierEpochAtFlushLock = 0
-    const releaseFlushLock = () => {
+    let acknowledgedThisRequest = false
+    const releaseFlushLock = async (afterAck: boolean) => {
       if (!lockedForThisFlush) {
         return
       }
       lockedForThisFlush = false
       if (barrierEpochAtFlushLock !== getNotesRelocationBarrierEpoch()) {
         return
+      }
+      if (!afterAck) {
+        const { pending } = await ipcApi.request('app.notes_relocation.flush_edits_pending', { requestId })
+        if (!pending) {
+          return
+        }
       }
       releaseOneNotesRelocationEditLock()
     }
@@ -66,14 +73,19 @@ export const NotesRelocationFlushListener: FC = () => {
     try {
       const { pending } = await ipcApi.request('app.notes_relocation.flush_edits_pending', { requestId })
       if (!pending) {
-        releaseFlushLock()
+        await releaseFlushLock(false)
         return
       }
       await ipcApi.request('app.notes_relocation.flush_edits_ack', { requestId, ok })
-      releaseFlushLock()
+      acknowledgedThisRequest = true
+      await releaseFlushLock(true)
     } catch (error) {
       logger.error('Failed to acknowledge notes edit flush', error as Error)
-      releaseFlushLock()
+      if (acknowledgedThisRequest) {
+        await releaseFlushLock(true)
+      } else {
+        await releaseFlushLock(false)
+      }
     }
   })
 
