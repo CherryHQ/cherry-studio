@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { Type } from '@earendil-works/pi-ai'
 import type { AgentSession, AgentToolResult, ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
 
+import type { AgentRuntimeSession } from './session'
+import { DEFAULT_MAX_BACKGROUND, SUBAGENT_STATE_TYPE, SubagentRegistry } from './subagentRegistry'
 import {
   type CreateSubagentSession,
   forkTranscript,
@@ -33,6 +35,8 @@ export interface SubagentPort {
    * `extensionFactories` must yield the parent's tools: the same tools, in the same order.
    */
   configure(subagent: Subagent): SubagentSessionOptions | Promise<SubagentSessionOptions>
+  /** Background subagents one parent session may run at once; default 20 (Claude Code's default). */
+  maxBackground?: number
 }
 
 /** The subagent about to be created. */
@@ -79,6 +83,8 @@ export interface SubagentToolOptions {
   parentTranscript: () => readonly TranscriptEntry[]
   /** Key of the parent's model, recorded as the model a subagent runs on. */
   parentModelKey: string
+  /** The parent's `onEvent`. */
+  emit: (event: AgentRuntimeEvent) => void
 }
 
 const DESCRIPTION = [
@@ -86,7 +92,8 @@ const DESCRIPTION = [
   '- By default the subagent starts with an empty context: put everything it needs in the prompt.',
   '- With fork: true it starts from this conversation as it is now, so the prompt needs only what is new.',
   '- Start independent subagents together in one message; they run at the same time.',
-  '- You see the final report, not the intermediate steps.'
+  '- You see the final report, not the intermediate steps.',
+  '- Run it in the foreground when you need its result to go on. Use background: true only when you have independent work to do meanwhile; you are notified when it finishes.'
 ].join('\n')
 
 const PREAMBLE =
@@ -113,6 +120,9 @@ function runText(result: RunResult): string {
   return lines.join('\n')
 }
 
+const startedText = (sessionId: string) =>
+  `Subagent started in the background (id: ${sessionId}). You will be notified when it finishes. Do not wait, poll or guess its result, and do not redo its work or edit the files it is working on. Continue with independent work, or end your turn.`
+
 const notStarted = (sessionId: string, fork: boolean): AgentToolResult<SubagentDetails> => ({
   content: [text('The subagent was not started because the turn was aborted.')],
   details: { sessionId, fork, background: false, outcome: 'aborted' },
@@ -126,6 +136,12 @@ const parameters = Type.Object({
     Type.Boolean({
       description: 'Start from this conversation as it is now instead of an empty context. Default false.'
     })
+  ),
+  background: Type.Optional(
+    Type.Boolean({
+      description:
+        'Return at once and let the subagent work in the background; you are notified when it finishes. Default false.'
+    })
   )
 })
 
@@ -134,9 +150,17 @@ export function subagentExtension({
   port,
   createSession,
   parentTranscript,
-  parentModelKey
+  parentModelKey,
+  emit
 }: SubagentToolOptions): ExtensionFactory {
   return (pi) => {
+    const registry = new SubagentRegistry({
+      appendState: (state) => pi.appendEntry(SUBAGENT_STATE_TYPE, state),
+      emit,
+      maxBackground: port.maxBackground ?? DEFAULT_MAX_BACKGROUND
+    })
+    pi.on('session_shutdown', () => registry.close())
+
     pi.registerTool({
       name: SUBAGENT_TOOL_NAME,
       label: 'Subagent',
@@ -149,18 +173,44 @@ export function subagentExtension({
         const prompt = params.prompt.trim()
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
         const fork = params.fork ?? false
+        const background = params.background ?? false
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
           sessionId: randomUUID(),
           description,
           fork,
-          background: false
+          background
         }
-        // Built before `configure`, so a failure building the fork transcript never reaches the host.
-        const prefix = fork ? forkTranscript(parentTranscript(), toolCallId) : []
-        const options = await port.configure(subagent)
-        if (signal?.aborted) return notStarted(subagent.sessionId, fork)
-        const child = await openChild({ subagent, options, prefix, parentModelKey, createSession })
+        const release = background ? registry.reserveBackground() : () => {}
+        let child: AgentRuntimeSession
+        try {
+          // Built before `configure`, so a failure building the fork transcript never reaches the host.
+          const prefix = fork ? forkTranscript(parentTranscript(), toolCallId) : []
+          const options = await port.configure(subagent)
+          // A background subagent does not belong to the turn, so the turn's abort does not cancel it.
+          if (!background && signal?.aborted) return notStarted(subagent.sessionId, fork)
+          child = await openChild({ subagent, options, prefix, parentModelKey, createSession })
+        } finally {
+          release()
+        }
+        if (background) {
+          registry.startBackground(
+            {
+              sessionId: subagent.sessionId,
+              parentToolCallId: toolCallId,
+              description,
+              fork,
+              background,
+              modelKey: parentModelKey,
+              run: 1,
+              status: 'running'
+            },
+            child,
+            taskText(prompt)
+          )
+          const details: SubagentDetails = { sessionId: subagent.sessionId, fork, background: true }
+          return { content: [text(startedText(subagent.sessionId))], details }
+        }
         try {
           const run = new AbortController()
           const onAbort = () => run.abort()
