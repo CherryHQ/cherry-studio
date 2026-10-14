@@ -1,6 +1,7 @@
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { isSystemProvider, type Provider } from '@renderer/types/provider'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 /**
  * 判断一个字符串是否包含由另一个字符串表示的 keywords
@@ -23,7 +24,7 @@ export function includeKeywords(target: string, keywords: string | string[]): bo
   if (!target || typeof target !== 'string') return false
   const targetLower = target.toLowerCase()
 
-  return nonEmptyKeywords.every((keyword) => targetLower.includes(keyword.toLowerCase()))
+  return nonEmptyKeywords.every((keyword) => matchesSearchText(targetLower, keyword))
 }
 
 /**

@@ -17,6 +17,11 @@ interface Size {
   width: number
 }
 
+interface PinchState {
+  span: number
+  zoom: number
+}
+
 interface DragState {
   offsetX: number
   offsetY: number
@@ -40,6 +45,14 @@ export interface ImagePreviewViewportProps extends Omit<React.HTMLAttributes<HTM
 const EMPTY_SIZE: Size = { height: 0, width: 0 }
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const getItemKey = (item: ImagePreviewItem) => `${item.id}\0${item.src}`
+const touchSpan = (points: Map<number, { x: number; y: number }>) => {
+  const [first, second] = [...points.values()]
+  return {
+    span: Math.hypot(first.x - second.x, first.y - second.y),
+    midX: (first.x + second.x) / 2,
+    midY: (first.y + second.y) / 2
+  }
+}
 
 const getGeometry = (
   imageSize: Size,
@@ -91,6 +104,8 @@ export function ImagePreviewViewport({
 }: ImagePreviewViewportProps) {
   const viewportRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
+  const touchPointsRef = React.useRef(new Map<number, { x: number; y: number }>())
+  const pinchRef = React.useRef<PinchState | null>(null)
   const [isDragging, setIsDragging] = React.useState(false)
   const [viewportSize, setViewportSize] = React.useState<Size>(EMPTY_SIZE)
   const [loadedImage, setLoadedImage] = React.useState<{ itemKey: string; size: Size } | null>(null)
@@ -160,10 +175,41 @@ export function ImagePreviewViewport({
     [transform.zoom, zoomAt]
   )
 
+  // Touch points are tracked in the capture phase because the image stops propagation of its own presses
+  // and a second finger may land beside the image.
+  const handleTouchPointerDown = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== 'touch') return
+      touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      if (touchPointsRef.current.size !== 2) return
+      dragRef.current = null
+      setIsDragging(false)
+      pinchRef.current = { span: touchSpan(touchPointsRef.current).span, zoom: transform.zoom }
+    },
+    [transform.zoom]
+  )
+
+  const handleTouchPointerMove = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!touchPointsRef.current.has(event.pointerId)) return
+      touchPointsRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      const pinch = pinchRef.current
+      if (!pinch || touchPointsRef.current.size !== 2) return
+      const { span, midX, midY } = touchSpan(touchPointsRef.current)
+      if (pinch.span > 0) zoomAt((pinch.zoom * span) / pinch.span, midX, midY)
+    },
+    [zoomAt]
+  )
+
+  const handleTouchPointerEnd = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    touchPointsRef.current.delete(event.pointerId)
+    if (touchPointsRef.current.size < 2) pinchRef.current = null
+  }, [])
+
   const handlePointerDown = React.useCallback(
     (event: React.PointerEvent<HTMLImageElement>) => {
       event.stopPropagation()
-      if (event.button !== 0 || !canPan) return
+      if (event.button !== 0 || !canPan || pinchRef.current) return
 
       dragRef.current = {
         offsetX: transform.offsetX,
@@ -252,6 +298,10 @@ export function ImagePreviewViewport({
       onClick={(event) => {
         if (event.target === event.currentTarget) onBackdropClick?.()
       }}
+      onPointerCancelCapture={handleTouchPointerEnd}
+      onPointerDownCapture={handleTouchPointerDown}
+      onPointerMoveCapture={handleTouchPointerMove}
+      onPointerUpCapture={handleTouchPointerEnd}
       onWheel={handleWheel}>
       {actionContext && actions.length > 0 ? (
         <ImagePreviewContextMenu actions={actions} context={actionContext} item={item} onActionError={onActionError}>

@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
@@ -816,7 +817,7 @@ describe('buildAgentParams standard model parameters', () => {
       }
     )
 
-    it.each(['gemini::gemini-3-pro', 'anthropic::claude-opus-4-7-20260101'] as const)(
+    it.each(['gemini::gemini-3-pro', 'gemini::gemini-4-argon', 'anthropic::claude-opus-4-7-20260101'] as const)(
       'preserves the sampling family policy for gateway requests to %s',
       async (id) => {
         const { options } = await buildAgentParams({
@@ -1908,12 +1909,91 @@ describe('buildAgentParams native-dialect resolution for catalog-backed custom r
     expect(config).not.toHaveProperty('thinkingBudget')
   })
 
+  it('keeps custom Gemini 4 rows on the level dialect despite stale budget metadata', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-4-argon')
+    expect(options.google?.thinkingConfig).toMatchObject({ thinkingLevel: 'high' })
+    expect(options.google?.thinkingConfig).not.toHaveProperty('thinkingBudget')
+  })
+
   it('leaves Claude 4.6+ on the adaptive dialect', async () => {
     const options = await buildFor(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic', 'claude-opus-4-6')
     const thinking = options.anthropic?.thinking as { type?: string; budgetTokens?: number } | undefined
     expect(thinking?.type).toBe('adaptive')
     expect(thinking?.budgetTokens).toBeUndefined()
   })
+})
+
+describe('buildAgentParams Gemini 4 requests', () => {
+  it.each(['low', 'medium', 'high', undefined] as const)(
+    'serializes thinking=%s without sampling, budget, or explicit cache fields',
+    async (effort) => {
+      let body: Record<string, any> | undefined
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: {
+          providerId: 'google',
+          providerSettings: {
+            fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+              body = JSON.parse(String(init?.body))
+              throw new Error('request captured')
+            }
+          }
+        },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const provider = makeProvider({
+        id: 'gemini',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+      })
+      const result = await buildAgentParams({
+        request: {
+          conversation: CONVERSATION,
+          callOverrides: {
+            temperature: 0.7,
+            topP: 0.9,
+            topK: 40,
+            maxOutputTokens: 131_072,
+            providerOptions: { google: { cachedContent: 'cachedContents/old' } }
+          }
+        },
+        signal: undefined,
+        provider,
+        model: makeModel({
+          id: 'gemini::gemini-4-argon',
+          providerId: 'gemini',
+          apiModelId: 'gemini-4-argon',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          reasoning: {
+            controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }],
+            defaultEffort: 'medium',
+            selectableEfforts: ['low', 'medium', 'high']
+          }
+        }),
+        assistant: makeAssistant({ settings: { reasoning_effort: effort } })
+      })
+      const sdkModel = createGoogleGenerativeAI({
+        apiKey: 'test-key',
+        baseURL: 'https://gemini.test/v1beta',
+        fetch: result.sdkConfig.providerSettings.fetch
+      })('gemini-4-argon')
+      await expect(
+        sdkModel.doGenerate({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+          temperature: result.options.temperature,
+          topP: result.options.topP,
+          topK: result.options.topK,
+          maxOutputTokens: result.options.maxOutputTokens,
+          providerOptions: result.options.providerOptions
+        })
+      ).rejects.toThrow('request captured')
+      expect(body?.generationConfig).toMatchObject({ maxOutputTokens: 131_072 })
+      if (effort) expect(body?.generationConfig.thinkingConfig).toMatchObject({ thinkingLevel: effort })
+      else expect(body?.generationConfig).not.toHaveProperty('thinkingConfig')
+      for (const name of ['temperature', 'topP', 'topK']) expect(body?.generationConfig).not.toHaveProperty(name)
+      expect(body?.generationConfig.thinkingConfig ?? {}).not.toHaveProperty('thinkingBudget')
+      expect(body).not.toHaveProperty('cachedContent')
+    }
+  )
 })
 
 describe('buildAgentParams retained context', () => {

@@ -779,6 +779,12 @@
             "type": "openai-chat"
           }
         },
+        "openai-image-edit": {
+          "adapterFamily": "newapi"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "newapi"
+        },
         "openai-responses": {
           "adapterFamily": "newapi"
         }
@@ -831,6 +837,30 @@
         }
       },
       "name": "LM Studio"
+    },
+    {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "LiteLLM - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:4000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "litellm",
+      "metadata": {
+        "website": {
+          "apiKey": "https://docs.litellm.ai/docs/proxy/virtual_keys",
+          "docs": "https://docs.litellm.ai/docs/proxy/quick_start",
+          "official": "https://www.litellm.ai/"
+        }
+      },
+      "name": "LiteLLM"
     },
     {
       "availableInEditions": ["global"],
@@ -2688,5 +2718,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a97aae2405a78d18"
+  "version": "932c0006165e4fcb"
 }

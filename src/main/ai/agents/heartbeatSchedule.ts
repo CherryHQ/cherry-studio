@@ -18,14 +18,17 @@ import {
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import { clampHeartbeatIntervalMinutes, isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
+import {
+  clampHeartbeatIntervalMinutes,
+  isHeartbeatEnabled,
+  normalizeHeartbeatTimeoutMinutes
+} from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type JobScheduleSnapshot, type Trigger, triggersEqual } from '@shared/data/api/schemas/jobs'
 
 import { agentDataDirectoryPath, assertAgentStoragePath } from './agentDataDirectory'
-import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { ensureHeartbeatFile, HeartbeatFileNotRegularError } from './heartbeat'
 
 const logger = loggerService.withContext('HeartbeatSchedule')
@@ -326,7 +329,7 @@ export async function syncHeartbeatSchedule(
   const jobInputTemplate: HeartbeatJobInputTemplate = {
     agentId,
     prompt: HEARTBEAT_PROMPT_SENTINEL,
-    timeoutMinutes: DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
+    timeoutMinutes: normalizeHeartbeatTimeoutMinutes(config.heartbeat_timeout_minutes),
     reuseRevision: 0
   }
 
