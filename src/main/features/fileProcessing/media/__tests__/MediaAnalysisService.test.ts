@@ -180,6 +180,44 @@ describe('MediaAnalysisService', () => {
     )
   })
 
+  it('keeps useful video OCR when no ASR model is configured', async () => {
+    runtime.config = {
+      ...runtime.config,
+      asr: null,
+      ocr: {
+        processor: {
+          id: 'system',
+          type: 'builtin',
+          capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+        },
+        identity: { processorId: 'system', modelId: '', apiHost: '', optionsJson: '{}' }
+      }
+    }
+    runtime.probe.mockResolvedValue({
+      durationMs: 10_000,
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir }) => {
+      const path = join(outputDir, 'frame.jpg')
+      await writeFile(path, Buffer.from('jpeg'))
+      return { frames: [{ path, timestampMs: 4_000 }] }
+    })
+    runtime.ocrImage.mockResolvedValue('Agenda')
+
+    const analysis = await service.analyze(file)
+    expect(analysis.audio).toBeUndefined()
+    expect(analysis.visuals).toEqual([{ timestampMs: 4_000, ocrText: 'Agenda' }])
+    expect(analysis.warnings).toContain('audio_transcription_failed')
+  })
+
+  it('rejects audio-only media when no ASR model is configured', async () => {
+    runtime.config = { ...runtime.config, asr: null }
+    await expect(service.analyze(file)).rejects.toMatchObject({ code: 'unusable_media_analysis' })
+  })
+
   it('treats no_speech as a successful empty transcription', async () => {
     runtime.transcribe.mockRejectedValue(new VoiceRuntimeError('no_speech'))
     const analysis = await service.analyze(file)
