@@ -248,7 +248,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
-      return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
+      return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined, ctx)
     }
 
     // steer-continuation answers a steer user message persisted while a turn was live — a fresh
@@ -410,19 +410,22 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models, containerTraceId)
     try {
-      const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
-        topicId: req.topicId,
-        userMessage: userMessageInput,
-        siblingsGroupId,
-        preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
-        placeholders: turnRootSpans.map(({ model }) => ({
-          role: 'assistant',
-          data: { parts: [], turnOptions, modelSelection },
-          status: 'pending',
-          modelId: model.id,
-          messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
-        }))
-      })
+      const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders(
+        {
+          topicId: req.topicId,
+          userMessage: userMessageInput,
+          siblingsGroupId,
+          preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
+          placeholders: turnRootSpans.map(({ model }) => ({
+            role: 'assistant',
+            data: { parts: [], turnOptions, modelSelection },
+            status: 'pending',
+            modelId: model.id,
+            messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
+          }))
+        },
+        { beforePersist: ctx.beforePersist, onPersist: ctx.onPersist }
+      )
 
       const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
       if (shouldAutoNameInitialTurn) {
@@ -662,7 +665,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async prepareContinueDispatch(
     subscriber: StreamListener,
     req: MainContinueConversationRequest,
-    assistantId: string | undefined
+    assistantId: string | undefined,
+    ctx: DispatchContext
   ): Promise<PreparedDispatch> {
     const anchor = messageService.getById(req.parentAnchorId)
     if (anchor.role !== 'assistant') {
@@ -689,6 +693,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
     const [{ span: rootSpan }] = turnRootSpans
     try {
+      ctx.beforePersist?.()
       messageService.update(req.parentAnchorId, {
         data: { ...anchor.data, parts: updatedParts },
         status: 'pending'

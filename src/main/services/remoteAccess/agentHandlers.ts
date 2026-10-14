@@ -337,7 +337,7 @@ export function registerAgentMethods(
   })
   on('agent.sessions.subscribe', (params) => {
     getSession(params.sessionId)
-    return subscriptions.subscribe(params)
+    return subscriptions.subscribeSession(params)
   })
   on('agent.checkpoints.read', (params) => subscriptions.readCheckpoint(params))
   on('agent.subscriptions.activate', (params) => {

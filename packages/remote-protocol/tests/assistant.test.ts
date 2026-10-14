@@ -1,0 +1,195 @@
+import { createHash } from 'node:crypto'
+
+import { describe, expect, it } from 'vitest'
+
+import {
+  applyAssistantEvents,
+  assistantMethods,
+  encodeAssistantCheckpointPage,
+  encodeAssistantCommand,
+  installAssistantCheckpoint,
+  type AssistantBatch,
+  type AssistantCheckpointPage,
+  type AssistantProjection
+} from '../src/assistant'
+
+const integrity = { sha256: (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex') }
+const state = (): AssistantProjection => ({
+  cursor: { topicId: 'topic', streamEpoch: 'epoch', seq: '0' },
+  topic: {
+    topicId: 'topic',
+    assistantId: 'assistant',
+    parentAnchorId: null,
+    historyRevision: '1',
+    activeExecutionIds: [],
+    title: 'Conversation',
+    updatedAt: '2026-10-14T00:00:00Z'
+  },
+  messages: {},
+  parts: {},
+  executions: {},
+  interactions: {}
+})
+const batch = (events: AssistantBatch['events']): AssistantBatch => ({
+  subscriptionId: 'sub',
+  topicId: 'topic',
+  streamEpoch: 'epoch',
+  events
+})
+
+describe('Assistant remote contract', () => {
+  it('requires explicit branch, configuration and history state and refuses controls outside the first increment', () => {
+    const valid = {
+      commandId: 'command',
+      topicId: 'topic',
+      assistantId: 'assistant',
+      expectedAssistantRevision: 'a'.repeat(64),
+      parentAnchorId: null,
+      expectedHistoryRevision: '1',
+      text: 'Hello'
+    }
+    const schema = assistantMethods['assistant.messages.send'].params
+    expect(schema.safeParse(valid).success).toBe(true)
+    for (const field of ['parentAnchorId', 'expectedHistoryRevision', 'expectedAssistantRevision']) {
+      const incomplete = { ...valid } as Record<string, unknown>
+      delete incomplete[field]
+      expect(schema.safeParse(incomplete).success).toBe(false)
+    }
+    expect(schema.safeParse({ ...valid, text: ' ' }).success).toBe(false)
+    expect(schema.safeParse({ ...valid, modelId: 'other' }).success).toBe(false)
+    expect(schema.safeParse({ ...valid, attachments: [] }).success).toBe(false)
+    const encoded = encodeAssistantCommand('assistant.messages.send', valid)
+    expect(encodeAssistantCommand('assistant.messages.send', { ...valid, commandId: 'retry-id' })).toEqual(encoded)
+    expect(encodeAssistantCommand('assistant.messages.send', { ...valid, parentAnchorId: 'new-branch' })).not.toEqual(
+      encoded
+    )
+  })
+
+  it('keeps simultaneous model replies separate and applies replay atomically with UTF-8 offsets', () => {
+    const original = state()
+    const initial = batch([
+      {
+        seq: '1',
+        kind: 'message.updated',
+        message: {
+          messageId: 'one',
+          parentId: 'question',
+          revision: '1',
+          role: 'assistant',
+          status: 'pending',
+          partIds: ['one:text']
+        }
+      },
+      {
+        seq: '2',
+        kind: 'message.updated',
+        message: {
+          messageId: 'two',
+          parentId: 'question',
+          revision: '2',
+          role: 'assistant',
+          status: 'pending',
+          partIds: ['two:text']
+        }
+      },
+      {
+        seq: '3',
+        kind: 'part.updated',
+        messageId: 'one',
+        part: {
+          partId: 'one:text',
+          revision: '3',
+          kind: 'text',
+          state: 'streaming',
+          content: { text: '你' },
+          executionId: 'run-one'
+        }
+      },
+      {
+        seq: '4',
+        kind: 'part.updated',
+        messageId: 'two',
+        part: {
+          partId: 'two:text',
+          revision: '4',
+          kind: 'text',
+          state: 'streaming',
+          content: { text: 'Another answer' },
+          executionId: 'run-two'
+        }
+      },
+      {
+        seq: '5',
+        kind: 'part.append',
+        messageId: 'one',
+        partId: 'one:text',
+        baseRevision: '3',
+        revision: '5',
+        offsetUtf8: '3',
+        text: '好'
+      }
+    ])
+    const result = applyAssistantEvents(original, initial, {}, integrity)
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(result.reason)
+    expect(result.projection.parts['one:text']).toMatchObject({ executionId: 'run-one', content: { text: '你好' } })
+    expect(result.projection.parts['two:text']).toMatchObject({
+      executionId: 'run-two',
+      content: { text: 'Another answer' }
+    })
+    expect(original.parts).toEqual({})
+    expect(applyAssistantEvents(result.projection, initial, {}, integrity)).toMatchObject({
+      ok: true,
+      cursor: { seq: '5' }
+    })
+    expect(
+      applyAssistantEvents(
+        result.projection,
+        batch([{ seq: '7', kind: 'message.removed', messageId: 'one' }]),
+        {},
+        integrity
+      )
+    ).toEqual({ ok: false, reason: 'gap' })
+    expect(result.projection.messages.one).toBeDefined()
+  })
+
+  it('rejects altered or incomplete checkpoints before publishing a replacement projection', () => {
+    const page: AssistantCheckpointPage = {
+      checkpointId: 'checkpoint',
+      pageIndex: 0,
+      items: [{ kind: 'topic', value: state().topic }],
+      nextCursor: null,
+      pageDigest: '0'.repeat(64)
+    }
+    const bytes = encodeAssistantCheckpointPage(page)
+    page.pageDigest = integrity.sha256(bytes)
+    const descriptor = {
+      checkpointId: page.checkpointId,
+      cursor: state().cursor,
+      historyRevision: '1',
+      pageCount: 1,
+      byteLength: String(bytes.length),
+      sha256: integrity.sha256(bytes),
+      expiresAt: '2026-10-14T00:05:00Z'
+    }
+    expect(installAssistantCheckpoint(descriptor, [page], integrity)).toMatchObject({
+      ok: true,
+      projection: { topic: state().topic }
+    })
+    expect(installAssistantCheckpoint(descriptor, [], integrity)).toEqual({ ok: false, reason: 'incomplete' })
+    expect(
+      installAssistantCheckpoint(
+        descriptor,
+        [{ ...page, items: [{ kind: 'topic', value: { ...state().topic, title: 'Tampered' } }] }],
+        integrity
+      )
+    ).toEqual({ ok: false, reason: 'digest' })
+    expect(
+      installAssistantCheckpoint(
+        { ...descriptor, cursor: { ...descriptor.cursor, topicId: 'another' } },
+        [page],
+        integrity
+      )
+    ).toEqual({ ok: false, reason: 'invalid' })
+  })
+})

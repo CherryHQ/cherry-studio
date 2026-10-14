@@ -20,12 +20,14 @@
 
 import { AGENT_SESSION_MESSAGE_FTS_STATEMENTS } from './schemas/agentSessionMessage'
 import { MESSAGE_FTS_STATEMENTS } from './schemas/message'
+import { TOPIC_REMOTE_REVISION_STATEMENTS } from './schemas/topic'
 
 /**
  * All custom SQL statements to run after migrations
  */
 export const CUSTOM_SQL_STATEMENTS: string[] = [
   ...MESSAGE_FTS_STATEMENTS,
-  ...AGENT_SESSION_MESSAGE_FTS_STATEMENTS
+  ...AGENT_SESSION_MESSAGE_FTS_STATEMENTS,
+  ...TOPIC_REMOTE_REVISION_STATEMENTS
   // Add more custom SQL arrays here as needed
 ]

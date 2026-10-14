@@ -25,6 +25,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { toContentRole, type Message } from '@shared/data/types/message'
 import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
@@ -43,7 +44,7 @@ export const inputDigest = (input: unknown): string => sha256(utf8(JSON.stringif
 export type PartContent = { text: string } | { ref: ContentRef }
 
 export function contentOf(contentId: string, revision: string, text: string): PartContent {
-  if (text.length <= INLINE_TEXT_LIMIT) return { text }
+  if (text.length <= INLINE_TEXT_LIMIT && Buffer.byteLength(JSON.stringify(text)) <= 8192) return { text }
   const bytes = utf8(text)
   return {
     ref: { contentId, revision, byteLength: String(bytes.length), mediaType: 'text/plain', sha256: sha256(bytes) }
@@ -116,8 +117,11 @@ function dataPart(partId: string, revision: string, name: string, value: unknown
 }
 
 /** Persisted parts get index-based IDs; live parts use stream IDs and are tombstoned once history commits. */
-export function projectPersistedParts(message: AgentSessionMessageEntity): ProjectedPart[] {
-  const revision = revisionOf(message.updatedAt)
+export function projectPersistedParts(
+  message: Pick<Message, 'id' | 'data' | 'modelId' | 'updatedAt'>,
+  revision = revisionOf(message.updatedAt),
+  files = true
+): ProjectedPart[] {
   const projected: ProjectedPart[] = []
   ;(message.data.parts ?? []).forEach((part: CherryMessagePart, index) => {
     const partId = `${message.id}:${index}`
@@ -128,7 +132,7 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
           revision,
           kind: part.type,
           content: contentOf(partId, revision, part.text),
-          state: 'completed'
+          state: part.state === 'streaming' ? 'streaming' : 'completed'
         },
         text: part.text
       })
@@ -146,8 +150,14 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
         },
         text: input
       })
-      if (part.state === 'output-available' || part.state === 'output-error') {
-        const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
+      if (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied') {
+        const output = JSON.stringify(
+          part.state === 'output-error'
+            ? part.errorText
+            : part.state === 'output-denied'
+              ? 'denied'
+              : (part.output ?? null)
+        )
         projected.push({
           part: {
             partId: `${partId}:out`,
@@ -156,7 +166,7 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
             toolName: getToolName(part),
             toolCallId: part.toolCallId,
             content: contentOf(`${partId}:out`, revision, output),
-            state: part.state === 'output-error' ? 'failed' : 'completed'
+            state: part.state === 'output-error' || part.state === 'output-denied' ? 'failed' : 'completed'
           },
           text: output
         })
@@ -168,7 +178,7 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
       )
     } else if (part.type === 'file') {
       const metadata = readCherryMeta(part)?.remoteAttachment
-      if (metadata && readCherryMeta(part)?.fileEntryId) {
+      if (files && metadata && readCherryMeta(part)?.fileEntryId) {
         projected.push({
           text: '',
           part: {
@@ -217,7 +227,11 @@ export function toMessageModel(
   return result.success ? result.data : undefined
 }
 
-export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+export function toMessage(
+  message: Pick<Message, 'id' | 'role' | 'data' | 'stats' | 'modelId' | 'messageSnapshot' | 'status' | 'updatedAt'>,
+  revision = revisionOf(message.updatedAt),
+  partIds?: string[]
+): AgentMessage {
   const usage = toMessageUsage(message.stats)
   const model = toMessageModel(message)
   const error = message.data.parts?.find((part) => part.type === 'data-error')
@@ -225,9 +239,9 @@ export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
     messageId: message.id,
     ...(usage ? { usage } : {}),
     ...(model ? { model } : {}),
-    revision: revisionOf(message.updatedAt),
-    role: message.role,
-    partIds: projectPersistedParts(message).map(({ part }) => part.partId),
+    revision,
+    role: toContentRole(message.role),
+    partIds: partIds ?? projectPersistedParts(message, revision).map(({ part }) => part.partId),
     status: message.status,
     ...(message.status === 'error'
       ? {

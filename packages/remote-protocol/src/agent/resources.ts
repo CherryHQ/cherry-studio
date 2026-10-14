@@ -184,6 +184,7 @@ export const commandReceiptSchema = z.looseObject({
   status: z.enum(['accepted', 'applied', 'rejected', 'interrupted']),
   admittedAt: timestamp,
   sessionId: opaqueId.optional(),
+  topicId: opaqueId.optional(),
   executionId: opaqueId.optional(),
   result: z.json().optional(),
   error: remoteFailureSchema.optional()

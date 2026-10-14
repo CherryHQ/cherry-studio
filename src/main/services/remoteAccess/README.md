@@ -6,6 +6,30 @@ service owns encrypted WebSocket connections, pairing invitations and delivery.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
 
+Assistant access adds an independent grant on negotiated wire protocol 2. Version 1
+continues to see only Agent/configuration grants; adding Assistant access preserves
+their grant IDs and existing version-1 tokens. Assistant-only devices do not receive
+provider credentials. Device settings can revoke each grant independently.
+
+`assistantHandlers.ts` owns the `assistant.*` routes, `assistantQueries.ts` owns current-branch
+read projections, and `assistantJournal.ts` observes the existing chat stream manager.
+`RemoteSubscriptions.ts` supplies the shared prepare/activate/ack flow without converting
+Assistant topics into Agent sessions. The two domains share connection subscription limits
+and desktop checkpoint/replay budgets. See the [portable contract](../../../../packages/remote-protocol/README.md#assistant-access).
+
+Assistant topic creation commits with its receipt. The persistent chat provider reserves
+user/assistant messages and command identities in one transaction before activation.
+Admission rechecks authorization, selected Assistant/configuration, branch/history and
+busy state under the stream manager's topic lock; remote sends do not enter the steering
+queue. Visible topic/message writes advance a durable history revision through DB triggers.
+
+Ordinary tool approval runs through `AiStreamManager.respondAssistantToolApproval`, using
+either a window listener or a topic journal. The same topic lock serializes desktop and
+remote decisions. Receipt association commits with the decision before continuation.
+Inputs are immutable from Mobile; question forms, OAuth, elicitation and browser confirmations
+remain desktop interactions. Current-branch history includes immutable author/model identity
+and attachment metadata, with bounded text/tool content reads.
+
 The remote stream listener coalesces adjacent deltas for the same message and part for
 up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending
 text first. Appends maintain UTF-8 offsets incrementally; completion still verifies the

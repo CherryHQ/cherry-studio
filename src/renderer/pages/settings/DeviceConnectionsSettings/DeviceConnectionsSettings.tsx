@@ -47,7 +47,8 @@ import { MobileAppShowcase } from './MobileAppShowcase'
 const LAN_HOST = '0.0.0.0'
 const CAPABILITY_LABEL = {
   configuration: 'deviceConnections.capabilities.configuration',
-  agent: 'deviceConnections.capabilities.agent'
+  agent: 'deviceConnections.capabilities.agent',
+  assistant: 'deviceConnections.capabilities.assistant'
 } as const
 
 type Invitation = OutputFor<'api_gateway.remote.create_invitation'>
@@ -91,6 +92,7 @@ const DeviceConnectionsSettings: FC = () => {
   const [isCreatingInvitation, setIsCreatingInvitation] = useState(false)
   const [isUpdatingLan, setIsUpdatingLan] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
+  const [revokingCapability, setRevokingCapability] = useState<string>()
   const invitationRequestId = useRef(0)
   const claimRequestId = useRef(0)
 
@@ -101,6 +103,18 @@ const DeviceConnectionsSettings: FC = () => {
     setClaims([])
     setIsCreatingInvitation(false)
   }, [])
+
+  const revokeCapability = async (deviceId: string, capability: RemoteCapability) => {
+    setRevokingCapability(`${deviceId}:${capability}`)
+    try {
+      await ipcApi.request('api_gateway.remote.revoke_capability', { deviceId, capability })
+      await refetchDevices()
+    } catch {
+      toast.error(t('common.delete_failed'))
+    } finally {
+      setRevokingCapability(undefined)
+    }
+  }
 
   const refreshClaims = useCallback(async () => {
     if (!connectionReady || !pairingActive) return
@@ -514,6 +528,23 @@ const DeviceConnectionsSettings: FC = () => {
                                 {device.remoteAccess.capabilities.map((capability) => (
                                   <Badge key={capability} variant="outline">
                                     {t(CAPABILITY_LABEL[capability])}
+                                    <Tooltip
+                                      content={t('deviceConnections.devices.revokeCapability', {
+                                        capability: t(CAPABILITY_LABEL[capability])
+                                      })}>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="ml-1"
+                                        disabled={Boolean(revokingCapability)}
+                                        loading={revokingCapability === `${device.id}:${capability}`}
+                                        aria-label={t('deviceConnections.devices.revokeCapability', {
+                                          capability: t(CAPABILITY_LABEL[capability])
+                                        })}
+                                        onClick={() => void revokeCapability(device.id, capability)}>
+                                        <Trash2 size={12} />
+                                      </Button>
+                                    </Tooltip>
                                   </Badge>
                                 ))}
                               </div>

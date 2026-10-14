@@ -21,7 +21,14 @@ import { getProviderExportPayload } from '@main/features/apiGateway/providerExpo
 import { registerAgentMethods } from './agentHandlers'
 import type { RemoteAgentHub } from './agentJournal'
 import { AgentSubscriptions } from './agentSubscriptions'
+import {
+  createAssistantSubscriptions,
+  registerAssistantMethods,
+  type AssistantSubscriptions
+} from './assistantHandlers'
+import { RemoteAssistantHub } from './assistantJournal'
 import type { RemotePairing } from './RemotePairing'
+import type { SnapshotBudget } from './RemoteSubscriptions'
 import { type RemoteTokens, sameAuthorization } from './RemoteTokens'
 
 const logger = loggerService.withContext('RemoteConnection')
@@ -35,6 +42,7 @@ export class RemoteConnection {
   private exported?: { exportId: string; bytes: Buffer; expiresAt: number }
   private writes: Promise<void> = Promise.resolve()
   private readonly subscriptions: AgentSubscriptions
+  private readonly assistantSubscriptions: AssistantSubscriptions
 
   constructor(
     readonly channel: SecureChannel,
@@ -42,9 +50,26 @@ export class RemoteConnection {
     tokens: RemoteTokens,
     onClaim: () => void,
     private readonly hub: RemoteAgentHub,
-    getEndpoints: () => Promise<{ desktopIdentity: string; endpoints: DirectEndpoint[] }>
+    getEndpoints: () => Promise<{ desktopIdentity: string; endpoints: DirectEndpoint[] }>,
+    assistantHub = new RemoteAssistantHub(),
+    snapshots: SnapshotBudget = { bytes: 0 }
   ) {
-    this.subscriptions = new AgentSubscriptions(hub, (notification) => this.send(notification))
+    const budget = { count: 0, snapshots }
+    this.subscriptions = new AgentSubscriptions(hub, (notification) => this.send(notification), budget)
+    this.assistantSubscriptions = createAssistantSubscriptions(
+      assistantHub,
+      (notification) => this.send(notification),
+      budget
+    )
+    registerAssistantMethods(
+      this.rpc,
+      {
+        requireAssistant: () => this.requireCapability('assistant'),
+        afterReply: (fn) => setImmediate(fn)
+      },
+      assistantHub,
+      this.assistantSubscriptions
+    )
     // The reply is queued on the write chain in a microtask; setImmediate runs after it, keeping events behind the response.
     registerAgentMethods(
       this.rpc,
@@ -65,6 +90,7 @@ export class RemoteConnection {
       this.hello = true
       return {
         protocolVersion: channel.protocolVersion,
+        ...(channel.protocolVersion >= 2 ? { assistantVersion: 1 as const } : {}),
         agentFailureVersion: 1,
         agentUploadsVersion: 1,
         agentUploadChecksum: 'sha256' as const,
@@ -83,8 +109,11 @@ export class RemoteConnection {
     })
     const authenticate = (deviceId: string, accessToken?: string) => {
       this.requireHello()
-      const authorization = apiGatewayPairedDeviceService.getRemoteAuthorization(deviceId, channel.remoteIdentity)
-      if (!authorization) throw new RemoteRpcError('UNAUTHENTICATED', 'Device has no approved capabilities')
+      const stored = apiGatewayPairedDeviceService.getRemoteAuthorization(deviceId, channel.remoteIdentity)
+      if (!stored) throw new RemoteRpcError('UNAUTHENTICATED', 'Device has no approved capabilities')
+      const authorization = this.visibleAuthorization(stored)
+      if (!authorization.grants.length)
+        throw new RemoteRpcError('UPGRADE_REQUIRED', 'Assistant access requires protocol version 2')
       if (accessToken) tokens.validate(accessToken, deviceId, channel.remoteIdentity, authorization)
       const result = tokens.issue(deviceId, channel.remoteIdentity, authorization)
       this.authentication = { deviceId, authorization, expiresAt: Date.parse(result.expiresAt) }
@@ -117,6 +146,8 @@ export class RemoteConnection {
       this.requireHello()
       if (this.authentication)
         throw new RemoteRpcError('INVALID_CONNECTION_STATE', 'Connection is already authenticated')
+      if (channel.protocolVersion < 2 && input.capabilities.includes('assistant'))
+        throw new RemoteRpcError('UPGRADE_REQUIRED', 'Assistant pairing requires protocol version 2')
       const result = pairing.claimInvitation(channel.remoteIdentity, input)
       onClaim()
       return result
@@ -197,6 +228,8 @@ export class RemoteConnection {
   }
 
   requireCapability(domain: RemoteCapability): { deviceId: string; grantId: string } {
+    if (domain === 'assistant' && this.channel.protocolVersion < 2)
+      throw new RemoteRpcError('UPGRADE_REQUIRED', 'Assistant access requires protocol version 2')
     const auth = this.requireAuthentication()
     const grant = auth.authorization.grants.find((value) => value.domain === domain)
     if (!grant) throw new RemoteRpcError('FORBIDDEN', 'Capability was not approved during pairing')
@@ -214,7 +247,7 @@ export class RemoteConnection {
     if (auth.expiresAt + (refresh ? remoteLimits.refreshGraceMs : 0) <= Date.now())
       throw new RemoteRpcError('TOKEN_EXPIRED', 'Device token expired')
     const current = apiGatewayPairedDeviceService.getRemoteAuthorization(auth.deviceId, this.channel.remoteIdentity)
-    if (!current || !sameAuthorization(current, auth.authorization))
+    if (!current || !sameAuthorization(this.visibleAuthorization(current), auth.authorization))
       throw new RemoteRpcError('GRANT_REVOKED', 'Device authorization changed')
     return auth
   }
@@ -222,9 +255,15 @@ export class RemoteConnection {
   checkAuthorization(refresh = true): void {
     if (this.authentication) this.requireAuthentication(refresh)
   }
+  private visibleAuthorization(authorization: RemoteAuthorization): RemoteAuthorization {
+    return this.channel.protocolVersion >= 2
+      ? authorization
+      : { grants: authorization.grants.filter((grant) => grant.domain !== 'assistant') }
+  }
   sweep(): void {
     this.checkAuthorization()
     this.subscriptions.sweep()
+    this.assistantSubscriptions.sweep()
   }
   isAuthenticated(): boolean {
     return this.authentication !== undefined
@@ -240,6 +279,7 @@ export class RemoteConnection {
   }
   dispose(): void {
     this.subscriptions.dispose()
+    this.assistantSubscriptions.dispose()
     this.exported = undefined
     this.authentication = undefined
   }

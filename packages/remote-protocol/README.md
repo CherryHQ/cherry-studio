@@ -1,8 +1,9 @@
 # Remote protocol
 
-Portable schemas and pure Agent recovery functions shared by Desktop and Mobile.
+Portable schemas and pure Agent/Assistant recovery functions shared by Desktop and Mobile.
 The root owns JSON-RPC and connection contracts. Agent and configuration transfer
 have separate exports; neither owns sockets, keys, persistence or reconnection.
+
 The root also owns the shared discovery service type, TXT format and fixed WebSocket
 path. These are Cherry peer interoperability contracts, not listener or routing policy.
 
@@ -97,3 +98,48 @@ They must never replace expired upload references inside an already submitted co
 
 Uploaded file history uses a revision-bound content reference, never a desktop filesystem path.
 Content pages are read under the current Agent grant and checked against the complete digest.
+
+## Assistant access
+
+`./assistant` exports the Assistant schemas, command encoding, checkpoint installation,
+and event reducer. Desktop advertises `connection.hello.assistantVersion: 1` only on
+wire protocol 2. New clients offer `[2, 1]` and require version 2 plus this capability
+before requesting Assistant authorization. Protocol 1 retains its two-domain
+authorization view during pairing, authentication and refresh, even when the device
+also has an Assistant grant. Package versions and wire versions remain independent.
+
+An `assistant` grant authorizes all active desktop Assistants and existing topic history.
+It does not authorize provider credential export. Approval adds missing grants while
+preserving existing IDs; revocation removes only the requested capability.
+
+The first contract supports text with the desktop Assistant's default model, current-branch
+history, independent model/message stream identity, expected-execution cancellation,
+and ordinary approval/denial. Uploads, model selection, branch editing and configuration
+mutation are excluded. Question forms, MCP OAuth, elicitation and browser confirmation
+require the desktop; interaction resources state whether a decision is remotely answerable.
+
+Read `assistant.topics.get` before paging messages. Every history/part/content read carries
+the selected `parentAnchorId` and `historyRevision`; cursors additionally bind the grant.
+History pages start with the latest messages and keep chronological order within each page.
+The current branch includes its multi-model reply groups, identified by `replyGroupId`;
+ordinary sibling branches remain outside the view.
+Message revisions use the view's history revision, so any visible mutation invalidates
+its content references. Messages preserve their producing Assistant and model snapshots.
+Historical attachments expose metadata only.
+Message headers carry `partCount`; historical headers leave `partIds` empty and clients
+page through `assistant.parts.list`. Live part events and checkpoint items rebuild the
+ordered part IDs, keeping large tool transcripts out of individual message headers.
+
+Create/send/cancel/respond use stable command IDs and `assistant.commands.get` for uncertain
+outcomes. A receipt records admission independently of runtime and persistence results.
+An interrupted command is never automatically replayed. Sends also name the expected
+Assistant configuration, branch anchor and history revision; stale or busy sends conflict.
+Approval responses bind the message, execution, view/configuration revisions and input digest.
+
+Subscribe, read and verify checkpoint pages, then activate with the checkpoint cursor.
+Alternatively, reconnect with the last applied cursor and replay the retained suffix.
+`applyAssistantEvents` applies a batch atomically; fetch and verify referenced content before
+retrying a `content` result. Acknowledge only applied cursors. Gaps/epoch changes and
+`assistant.subscriptions.resetRequired` require a fresh checkpoint. Closing a subscription
+does not cancel desktop execution. Terminal events distinguish saved results from
+persistence failures; refresh history after a durable terminal result.

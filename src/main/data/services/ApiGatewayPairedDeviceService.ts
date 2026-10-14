@@ -39,6 +39,7 @@ function authorizationFor(row: ApiGatewayPairedDeviceRow): RemoteAuthorization {
   const grants: RemoteAuthorization['grants'] = []
   if (row.configurationGrantId) grants.push({ domain: 'configuration', grantId: row.configurationGrantId })
   if (row.agentGrantId) grants.push({ domain: 'agent', grantId: row.agentGrantId })
+  if (row.assistantGrantId) grants.push({ domain: 'assistant', grantId: row.assistantGrantId })
   return { grants }
 }
 
@@ -75,8 +76,10 @@ export class ApiGatewayPairedDeviceService {
       const values = {
         ...metadata,
         peerIdentity: input.peerIdentity,
-        configurationGrantId: capabilities.includes('configuration') ? randomUUID() : null,
-        agentGrantId: capabilities.includes('agent') ? randomUUID() : null
+        configurationGrantId:
+          existing?.configurationGrantId ?? (capabilities.includes('configuration') ? randomUUID() : null),
+        agentGrantId: existing?.agentGrantId ?? (capabilities.includes('agent') ? randomUUID() : null),
+        assistantGrantId: existing?.assistantGrantId ?? (capabilities.includes('assistant') ? randomUUID() : null)
       }
       return existing
         ? tx
@@ -106,7 +109,11 @@ export class ApiGatewayPairedDeviceService {
   }
 
   revokeRemoteCapability(deviceId: string, capability: RemoteCapability): void {
-    const values = capability === 'agent' ? { agentGrantId: null } : { configurationGrantId: null }
+    const values = {
+      agent: { agentGrantId: null },
+      configuration: { configurationGrantId: null },
+      assistant: { assistantGrantId: null }
+    }[capability]
     const row = this.db
       .update(apiGatewayPairedDeviceTable)
       .set(values)

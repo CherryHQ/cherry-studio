@@ -1,10 +1,11 @@
 /** Finalizes a pending assistant placeholder without writing usage/cost. */
 
 import { messageService } from '@main/data/services/MessageService'
+import { topicService } from '@main/data/services/TopicService'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { AssistantTurnOptions, CherryUIMessage } from '@shared/data/types/message'
 
-import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
+import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../PersistenceBackend'
 import { trimOversizedToolOutputs } from '../trimToolOutputs'
 
 export interface MessageServiceBackendOptions {
@@ -27,13 +28,13 @@ export class MessageServiceBackend implements PersistenceBackend {
     this.afterPersist = opts.afterPersist
   }
 
-  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+  async persistAssistant(input: PersistAssistantInput): Promise<PersistedAssistant> {
     const { finalMessage, status, runtimeStats } = input
     // Offload oversized tool outputs BEFORE the synchronous finalize tx (the
     // FileManager write is async); the tx then writes the envelope data and
     // its tool_output file refs together.
     const parts = await trimOversizedToolOutputs(finalMessage?.parts ?? [], this.opts.contextSettingsOverride)
-    messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
+    const message = messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data: {
         parts,
         ...(this.opts.turnOptions ? { turnOptions: this.opts.turnOptions } : {})
@@ -41,6 +42,8 @@ export class MessageServiceBackend implements PersistenceBackend {
       status,
       runtimeStats
     })
+    const revision = topicService.getRemoteHistoryRevision(message.topicId)
+    return { messageId: message.id, messageRevision: revision, historyRevision: revision }
   }
 
   /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */

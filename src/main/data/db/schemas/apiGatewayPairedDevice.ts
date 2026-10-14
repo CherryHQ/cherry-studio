@@ -13,6 +13,7 @@ export const apiGatewayPairedDeviceTable = sqliteTable(
     peerIdentity: text(),
     configurationGrantId: text(),
     agentGrantId: text(),
+    assistantGrantId: text(),
     ...createUpdateTimestamps
   },
   (t) => [uniqueIndex('api_gateway_paired_device_peer_identity_unique_idx').on(t.peerIdentity)]

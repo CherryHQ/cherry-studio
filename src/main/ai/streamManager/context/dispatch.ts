@@ -17,7 +17,7 @@ import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspac
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
-import type { ChatContextProvider } from './ChatContextProvider'
+import type { ChatContextProvider, DispatchContext } from './ChatContextProvider'
 import { persistentChatContextProvider } from './PersistentChatContextProvider'
 import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
 
@@ -88,7 +88,8 @@ const providers: readonly ChatContextProvider[] = [
 export async function dispatchStreamRequest(
   manager: AiStreamManager,
   subscriber: StreamListener,
-  req: MainDispatchRequest
+  req: MainDispatchRequest,
+  admission: Omit<DispatchContext, 'hasLiveStream'> = {}
 ): Promise<AiStreamOpenResponse> {
   const provider = providers.find((p) => p.canHandle(req.topicId))
   if (!provider) {
@@ -105,6 +106,7 @@ export async function dispatchStreamRequest(
   // submit rather than letting the message be silently swallowed. Either way `prepareDispatch` must
   // observe liveness.
   const hasLiveStream = manager.hasLiveStream(req.topicId)
+  admission.beforePersist?.()
 
   // An approval `continue-conversation` must never race a live stream: `send` would take the inject
   // branch and discard `prepared.models`, so the approved tool never executes and the anchor row is
@@ -115,17 +117,19 @@ export async function dispatchStreamRequest(
       topicId: req.topicId
     })
   }
-  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
-    if (isAgentSessionWorkspaceError(error)) {
-      return {
-        blocked: {
-          reason: 'agent-session-workspace' as const,
-          message: error.message
+  const prepared = await provider
+    .prepareDispatch(subscriber, req, { ...admission, hasLiveStream })
+    .catch((error: unknown) => {
+      if (isAgentSessionWorkspaceError(error)) {
+        return {
+          blocked: {
+            reason: 'agent-session-workspace' as const,
+            message: error.message
+          }
         }
       }
-    }
-    throw error
-  })
+      throw error
+    })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
   }
@@ -201,6 +205,7 @@ export async function dispatchStreamRequest(
           }
         : undefined
 
+  admission.beforeActivate?.()
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,
