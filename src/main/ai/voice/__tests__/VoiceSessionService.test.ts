@@ -23,6 +23,7 @@ import {
   TranscriptionLanguageSource,
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
+  FUNASR_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
@@ -1865,6 +1866,62 @@ describe('VoiceSessionService file and admission contract', () => {
       (media as unknown as { stores: Map<string, Map<string, unknown>> }).stores.get(MediaKind.Audio)?.size ?? 0
     ).toBe(0)
     expect(fileEntryService.findMany()).toHaveLength(0)
+  })
+
+  it('missing resources retain input without invoking inference or substituting another model', async () => {
+    const input = { ...(await recording()), modelId: FUNASR_MODEL_ID, language: undefined }
+    native.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('model_required'))
+    await expect(service.transcribe(a, input)).rejects.toMatchObject({ reason: 'model_required' })
+    expect((await files.read(input.fileEntryId, { encoding: 'binary' })).content).toEqual(webm)
+    await service.discard(a, input.sessionId)
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+  })
+
+  it('runs ready FunASR through AiService with the same owned FileEntry and no fallback', async () => {
+    const input = { ...(await recording()), modelId: FUNASR_MODEL_ID, language: undefined }
+
+    await expect(service.transcribe(a, input)).resolves.toMatchObject({ text: 'private-transcript' })
+
+    expect(native.transcribe).toHaveBeenCalledOnce()
+    expect(native.transcribe).toHaveBeenCalledWith(
+      FUNASR_MODEL_ID,
+      webm,
+      { language: undefined },
+      expect.any(AbortSignal)
+    )
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
+  })
+
+  it('omits a stale language when the implicit platform default is FunASR', async () => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: 'linux' },
+        arch: { value: 'x64' }
+      })
+    )
+    const input = {
+      ...(await recording()),
+      modelId: undefined,
+      language: { source: TranscriptionLanguageSource.Interface, locale: 'en-US' }
+    }
+
+    await expect(service.transcribe(a, input)).resolves.toMatchObject({ text: 'private-transcript' })
+
+    expect(native.transcribe).toHaveBeenCalledWith(
+      FUNASR_MODEL_ID,
+      webm,
+      { language: undefined },
+      expect.any(AbortSignal)
+    )
+    const operationLogs = mockMainLoggerService.debug.mock.calls.filter(([message]) =>
+      ['Voice operation started', 'Voice operation settled'].includes(message)
+    )
+    expect(operationLogs).toHaveLength(2)
+    expect(operationLogs.map(([, metadata]) => metadata)).toEqual([
+      expect.objectContaining({ modelId: FUNASR_MODEL_ID, locale: undefined }),
+      expect.objectContaining({ modelId: FUNASR_MODEL_ID, locale: undefined })
+    ])
   })
 
   it('never logs source text, transcript, bytes or physical paths on success and failure', async () => {

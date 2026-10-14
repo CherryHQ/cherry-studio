@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
+  FUNASR_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
   TranscriptionLanguageSource,
@@ -14,11 +15,14 @@ import { describeVoiceModel, listVoiceModels, resolveTranscriptionRequest } from
 
 describe('device-scoped voice catalog and request policy', () => {
   it.each([
-    [{ platform: 'darwin', arch: 'arm64', majorVersion: 26 }, [APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID]],
-    [{ platform: 'win32', arch: 'x64' }, [WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID]],
-    [{ platform: 'linux', arch: 'x64' }, []],
+    [
+      { platform: 'darwin', arch: 'arm64', majorVersion: 26 },
+      [APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID]
+    ],
+    [{ platform: 'win32', arch: 'x64' }, [WINDOWS_ASR_MODEL_ID, WINDOWS_TTS_MODEL_ID, FUNASR_MODEL_ID]],
+    [{ platform: 'linux', arch: 'x64' }, [FUNASR_MODEL_ID]],
     [{ platform: 'win32', arch: 'arm64' }, []],
-    [{ platform: 'darwin', arch: 'arm64', majorVersion: 12 }, []]
+    [{ platform: 'darwin', arch: 'arm64', majorVersion: 12 }, [FUNASR_MODEL_ID]]
   ])('offers only runnable models on %j', (environment, expected) => {
     const catalog = listVoiceModels(environment)
     expect(catalog.models.map((model) => model.id).sort()).toEqual([...expected].sort())
@@ -43,6 +47,23 @@ describe('device-scoped voice catalog and request policy', () => {
     expect(
       describeVoiceModel(APPLE_ASR_MODEL_ID, { platform: 'darwin', majorVersion: 26 }).model?.resourceOperations
     ).toContain(VoiceResourceOperation.InstallLocale)
+  })
+
+  it('drops interface locale intent for automatic detection but rejects an explicit locale', () => {
+    const environment = { platform: 'linux', arch: 'x64' }
+    expect(
+      resolveTranscriptionRequest(
+        { language: { source: TranscriptionLanguageSource.Interface, locale: 'ja-JP' } },
+        environment
+      )
+    ).toMatchObject({ modelId: FUNASR_MODEL_ID, options: { language: undefined } })
+    expect(() =>
+      resolveTranscriptionRequest(
+        { modelId: FUNASR_MODEL_ID, language: { source: TranscriptionLanguageSource.Explicit, locale: 'ja-JP' } },
+        environment
+      )
+    ).toThrow('invalid_request')
+    expect(() => resolveTranscriptionRequest({ modelId: APPLE_ASR_MODEL_ID }, environment)).toThrow('unsupported')
   })
 
   it('resolves supported locale intent without substituting English', () => {

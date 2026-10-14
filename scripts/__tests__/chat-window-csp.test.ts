@@ -11,7 +11,8 @@ const CHAT_WINDOW_HTML_PATHS = [
 ]
 const VOICE_PLAYBACK_WINDOW_HTML_PATHS = [
   'src/renderer/windows/main/index.html',
-  'src/renderer/windows/subWindow/index.html'
+  'src/renderer/windows/subWindow/index.html',
+  'src/renderer/windows/selection/action/index.html'
 ]
 
 const readDirectives = (relativePath: string) => {
@@ -33,7 +34,7 @@ describe('chat window content security policies', () => {
     const mediaSources = directives?.find(([directive]) => directive === 'media-src')
     const defaultSources = directives?.find(([directive]) => directive === 'default-src')
 
-    expect(mediaSources).toContain('blob:')
-    expect(defaultSources).not.toContain('blob:')
+    expect(mediaSources).toContain('cherry-media:')
+    expect(defaultSources).not.toContain('cherry-media:')
   })
 })

@@ -21,10 +21,10 @@ describe('local voice model facts and default resolution', () => {
   })
 
   it('recommends a native system engine before requiring a model download', () => {
-    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 12 })).toBeUndefined()
-    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'x64', majorVersion: 12 })).toBeUndefined()
-    expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'x64' })).toBeUndefined()
-    expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'arm64' })).toBeUndefined()
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 12 })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'x64', majorVersion: 12 })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'x64' })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'arm64' })).toBe(FUNASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'x64' })).toBe(WINDOWS_ASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'arm64' })).toBeUndefined()
   })
@@ -41,10 +41,12 @@ describe('local voice model facts and default resolution', () => {
     )
   })
 
-  it('does not recommend an unavailable engine when system support is unknown', () => {
+  it('uses FunASR when Apple support is unknown but the native platform is supported', () => {
     expect(resolveDefaultAsrModel({ platform: 'darwin' })).toBeUndefined()
-    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: Number.NaN })).toBeUndefined()
-    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 0 })).toBeUndefined()
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: Number.NaN })).toBe(
+      FUNASR_MODEL_ID
+    )
+    expect(resolveDefaultAsrModel({ platform: 'darwin', arch: 'arm64', majorVersion: 0 })).toBe(FUNASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'linux' })).toBeUndefined()
     expect(resolveDefaultAsrModel({ platform: 'freebsd', arch: 'x64' })).toBeUndefined()
   })

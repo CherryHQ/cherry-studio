@@ -142,6 +142,7 @@ export class SpeechPlaybackService {
   private unsubscribeInterruptions?: () => void
   private lifecycleGeneration = 0
   private interruptionGeneration = 0
+  private autoReadGeneration = 0
 
   constructor(options: SpeechPlaybackServiceOptions = {}) {
     this.voice = options.voice ?? voiceService
@@ -206,6 +207,7 @@ export class SpeechPlaybackService {
 
     const generation = this.lifecycleGeneration
     const interruptionGeneration = this.interruptionGeneration
+    const autoReadGeneration = this.autoReadGeneration
     let startedRun: PlaybackRun | undefined = undefined
     const abort = (): void => {
       if (startedRun) void this.terminate(startedRun, true).catch(() => undefined)
@@ -216,7 +218,8 @@ export class SpeechPlaybackService {
       if (
         input.signal?.aborted ||
         generation !== this.lifecycleGeneration ||
-        interruptionGeneration !== this.interruptionGeneration
+        interruptionGeneration !== this.interruptionGeneration ||
+        (input.trigger === 'auto_read' && autoReadGeneration !== this.autoReadGeneration)
       ) {
         throw new VoiceDomainError('aborted')
       }
@@ -286,6 +289,13 @@ export class SpeechPlaybackService {
     if (run.cleanup) return run.cleanup
     if (!retryingCleanup && run.cleanupError) throw run.cleanupError
     await this.terminate(run, true)
+  }
+
+  async stopAutoRead(): Promise<boolean> {
+    this.autoReadGeneration += 1
+    const runs = [...this.runs.values()].filter((run) => run.trigger === 'auto_read')
+    await Promise.all(runs.map((run) => this.terminate(run, true)))
+    return runs.length > 0
   }
 
   async control(
