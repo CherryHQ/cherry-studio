@@ -53,8 +53,8 @@ export class PiInvalidConnectionSnapshotError extends Error {}
 
 /**
  * Capture every reconcilable fact consumed while constructing a Pi connection.
- * Prompt files intentionally remain connection-lifetime snapshots: changing them
- * does not invalidate a warm connection or its provider prompt cache.
+ * Workspace prompt files remain connection-lifetime snapshots. Agent identity
+ * files refresh through the turn hook without invalidating the warm connection.
  * The effective agent language (per-agent `configuration.language` or global
  * `agent.language` preference) is a rebuild fact: changing it invalidates the
  * warm connection so the new language instruction is baked into the next
@@ -101,7 +101,7 @@ export async function capturePiConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-  const gatewayCredentials = usesPiGateway(provider) ? gatewayCredentialsFingerprint() : null
+  const gatewayCredentials = usesPiGateway(provider, model) ? gatewayCredentialsFingerprint() : null
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const signature = createHash('sha256')
     .update(
@@ -121,6 +121,7 @@ export async function capturePiConnectionSnapshot(
           linkedChannel,
           notificationContext,
           browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+          computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
           gatewayCredentials

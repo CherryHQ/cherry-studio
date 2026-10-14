@@ -779,6 +779,12 @@
             "type": "openai-chat"
           }
         },
+        "openai-image-edit": {
+          "adapterFamily": "newapi"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "newapi"
+        },
         "openai-responses": {
           "adapterFamily": "newapi"
         }
@@ -2712,5 +2718,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "3416349586ffa541"
+  "version": "932c0006165e4fcb"
 }

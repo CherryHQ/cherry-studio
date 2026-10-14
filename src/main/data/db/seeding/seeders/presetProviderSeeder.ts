@@ -1,10 +1,19 @@
+import { asc, desc, eq, ne } from 'drizzle-orm'
+
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
+import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
+import { loggerService } from '@logger'
 import type { AuthConfig } from '@shared/data/types/provider'
 
 import type { DbType, ISeeder } from '../../types'
+
+const logger = loggerService.withContext('PresetProviderSeeder')
+const SEEDER_REVISION = 1
+const LEGACY_INVALID_ORDER_KEY = 'zz'
 
 /**
  * Seed rows are DELTA rows: registry-owned connection config
@@ -57,7 +66,7 @@ export class PresetProviderSeeder implements ISeeder {
   }
 
   get version(): string {
-    return this.getLoader().getProvidersVersion()
+    return `${this.getLoader().getProvidersVersion()}:${SEEDER_REVISION}`
   }
 
   run(db: DbType): void {
@@ -68,10 +77,42 @@ export class PresetProviderSeeder implements ISeeder {
       throw new Error('PresetProviderSeeder: failed to load registry providers', { cause: error })
     }
 
-    if (rawProviders.length === 0) return
-
     const rows = rawProviders.map(toDbRow)
 
-    db.transaction((tx) => providerService.batchUpsertTx(tx, rows))
+    db.transaction((tx) => {
+      const invalidProviders = tx
+        .select({ providerId: userProviderTable.providerId })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.orderKey, LEGACY_INVALID_ORDER_KEY))
+        .orderBy(asc(userProviderTable.providerId))
+        .all()
+
+      if (invalidProviders.length > 0) {
+        const [lastValidProvider] = tx
+          .select({ orderKey: userProviderTable.orderKey })
+          .from(userProviderTable)
+          .where(ne(userProviderTable.orderKey, LEGACY_INVALID_ORDER_KEY))
+          .orderBy(desc(userProviderTable.orderKey))
+          .limit(1)
+          .all()
+        const repairedKeys = generateOrderKeySequenceBetween(
+          lastValidProvider?.orderKey ?? null,
+          null,
+          invalidProviders.length
+        )
+
+        invalidProviders.forEach((provider, index) => {
+          tx.update(userProviderTable)
+            .set({ orderKey: repairedKeys[index] })
+            .where(eq(userProviderTable.providerId, provider.providerId))
+            .run()
+        })
+        logger.warn('Repaired legacy provider order keys', { count: invalidProviders.length })
+      }
+
+      if (rows.length > 0) {
+        providerService.batchUpsertTx(tx, rows)
+      }
+    })
   }
 }

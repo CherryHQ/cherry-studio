@@ -30,10 +30,6 @@ const TOOL_BINDINGS = {
     pathFields: { write: 'path', edit: 'path' },
     shellFields: { bash: 'command' },
     normalizeStructuredPath: normalizePiNativePathInput
-  },
-  dsh: {
-    pathFields: { write: 'file_path', edit: 'file_path' },
-    shellFields: { bash: 'command', pwsh: 'command' }
   }
 } satisfies Record<AgentType, ToolBinding>
 
