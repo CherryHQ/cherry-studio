@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -70,40 +70,57 @@ describe('Agent Lifecycle workspace cleanup', () => {
     return session
   }
 
-  it.each(['recycle-bin', 'active-session', 'agent'] as const)(
-    'preserves additional roots while deleting unclaimed system directories through %s',
-    async (source) => {
-      const shared = createSystemSession()
-      const unclaimed = createSystemSession()
-      const workspace = agentWorkspaceService.findOrCreateByPath(path.join(root, 'user'))
-      agentWorkspaceService.update(workspace.id, { additionalDirectories: [shared.workspace.path] })
-      const lifecycle = new AgentLifecycleService()
-      const sessionIds = [shared.id, unclaimed.id]
+  it.each(
+    (['recycle-bin', 'active-session', 'agent'] as const).flatMap((source) =>
+      ['.', 'project'].map((relative) => ({ source, relative }))
+    )
+  )('preserves additional roots at $relative through $source and a later sweep', async ({ source, relative }) => {
+    const shared = createSystemSession()
+    const unclaimed = createSystemSession()
+    const claimedDirectory = path.join(shared.workspace.path, relative)
+    mkdirSync(claimedDirectory, { recursive: true })
+    const claimedFile = path.join(claimedDirectory, 'keep.txt')
+    writeFileSync(claimedFile, 'Workspace contents')
+    const workspace = agentWorkspaceService.findOrCreateByPath(path.join(root, 'user'))
+    agentWorkspaceService.update(workspace.id, { additionalDirectories: [claimedDirectory] })
+    const lifecycle = new AgentLifecycleService()
+    const sessionIds = [shared.id, unclaimed.id]
 
-      if (source === 'recycle-bin') {
-        await lifecycle.archiveSessions(sessionIds)
-        expect(readFileSync(path.join(shared.workspace.path, 'keep.txt'), 'utf8')).toBe('Workspace contents')
-        expect(existsSync(unclaimed.workspace.path)).toBe(true)
-        await lifecycle.purgeSessions(sessionIds)
-      } else if (source === 'active-session') {
-        await lifecycle.deleteActiveSessionsPermanently(sessionIds)
-      } else {
-        await lifecycle.deleteActiveAgentPermanently('agent', true)
-      }
-
-      expect(dbh.db.select().from(agentSessionTable).all()).toEqual([])
-      expect(
-        dbh.db
-          .select()
-          .from(agentWorkspaceTable)
-          .all()
-          .map((row) => row.id)
-      ).toEqual([workspace.id])
-      expect(agentWorkspaceService.getById(workspace.id).additionalDirectories).toEqual([shared.workspace.path])
+    if (source === 'recycle-bin') {
+      await lifecycle.archiveSessions(sessionIds)
       expect(readFileSync(path.join(shared.workspace.path, 'keep.txt'), 'utf8')).toBe('Workspace contents')
-      expect(existsSync(unclaimed.workspace.path)).toBe(false)
+      expect(existsSync(unclaimed.workspace.path)).toBe(true)
+      await lifecycle.purgeSessions(sessionIds)
+    } else if (source === 'active-session') {
+      await lifecycle.deleteActiveSessionsPermanently(sessionIds)
+    } else {
+      await lifecycle.deleteActiveAgentPermanently('agent', true)
     }
-  )
+
+    expect(dbh.db.select().from(agentSessionTable).all()).toEqual([])
+    expect(
+      dbh.db
+        .select()
+        .from(agentWorkspaceTable)
+        .all()
+        .map((row) => row.id)
+    ).toEqual([workspace.id])
+    expect(agentWorkspaceService.getById(workspace.id).additionalDirectories).toEqual([claimedDirectory])
+    expect(readFileSync(claimedFile, 'utf8')).toBe('Workspace contents')
+    expect(existsSync(unclaimed.workspace.path)).toBe(false)
+
+    const stale = new Date(Date.now() - 60 * 60 * 1000)
+    for (const entry of [
+      claimedFile,
+      claimedDirectory,
+      path.join(shared.workspace.path, 'keep.txt'),
+      shared.workspace.path
+    ]) {
+      utimesSync(entry, stale, stale)
+    }
+    await lifecycle.sweepOrphans()
+    expect(readFileSync(claimedFile, 'utf8')).toBe('Workspace contents')
+  })
 
   it('preserves a main root registered while the deleted session runtime closes', async () => {
     const session = createSystemSession()

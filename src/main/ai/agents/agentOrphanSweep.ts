@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
+import { isOutsidePath } from '@main/utils/file'
 
 const logger = loggerService.withContext('AgentOrphanSweep')
 
@@ -67,13 +68,11 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       .all()
       .map((row) => row.id)
   )
-  const claimedWorkspaces = new Set(
-    db
-      .select({ path: agentWorkspaceTable.path, additionalDirectories: agentWorkspaceTable.additionalDirectories })
-      .from(agentWorkspaceTable)
-      .all()
-      .flatMap((row) => [row.path, ...row.additionalDirectories].map((directory) => path.resolve(directory)))
-  )
+  const claimedWorkspaces = db
+    .select({ path: agentWorkspaceTable.path, additionalDirectories: agentWorkspaceTable.additionalDirectories })
+    .from(agentWorkspaceTable)
+    .all()
+    .flatMap((row) => [row.path, ...row.additionalDirectories])
 
   const removed: string[] = []
   let agentDirs = 0
@@ -94,7 +93,7 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       signal?.throwIfAborted()
       if (!sessionEntry.isDirectory()) continue
       const sessionDir = path.resolve(dateDir, sessionEntry.name)
-      if (claimedWorkspaces.has(sessionDir)) continue
+      if (claimedWorkspaces.some((directory) => !isOutsidePath(path.relative(sessionDir, directory)))) continue
       if (await reclaim(sessionDir, removed, options)) workspaceDirs++
     }
     await removeIfEmpty(dateDir, removed)

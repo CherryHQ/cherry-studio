@@ -9,6 +9,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isOutsidePath } from '@main/utils/file'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
@@ -413,7 +414,7 @@ export class AgentLifecycleService extends BaseService {
           .list({ includeSystem: true })
           .some((workspace) =>
             [workspace.path, ...workspace.additionalDirectories].some(
-              (directory) => path.relative(directory, workspacePath) === ''
+              (directory) => !isOutsidePath(path.relative(workspacePath, directory))
             )
           )
         if (claimed) continue
