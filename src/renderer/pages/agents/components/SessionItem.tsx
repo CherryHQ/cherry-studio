@@ -19,8 +19,8 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
-import { useCache } from '@renderer/data/hooks/useCache'
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
+import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
@@ -90,8 +90,7 @@ const SessionItem = ({
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
-  const [renamingTopics] = useCache('topic.renaming')
-  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
+  const { isRenaming, isNewlyRenamed } = useTopicRenameState(topicId)
   const {
     status,
     awaitingApprovalAnchors,
@@ -102,8 +101,6 @@ const SessionItem = ({
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
-  const isRenaming = renamingTopics?.includes(topicId) === true
-  const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
   // The row truncates its title, so the hover card carries the full name, when the session
   // was last active, and the workspace it runs in (absent for system workspaces).
