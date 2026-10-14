@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto'
 import type { AssistantMessage, ToolResultMessage, Usage } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 
+import type { SubagentDetails } from './subagent'
+import { SUBAGENT_NOTIFICATION_TYPE, type SubagentNotificationDetails } from './subagentDelivery'
+import { SUBAGENT_TOOL_NAME } from './subagentRun'
+
 export const GOAL_STATE_TYPE = 'cherry.goal'
 export const GOAL_ROUND_TYPE = 'cherry.goal-round'
 /** Feedback of a `/goal` command for the UI; never sent to the model. */
@@ -20,7 +24,6 @@ export type GoalStopCode =
   | 'approval_denied'
   | 'awaiting_approval'
   | 'needs_user_input'
-  | 'waiting_subagents'
   | 'provider_error'
   | 'aborted'
   | 'paused_by_user'
@@ -45,7 +48,7 @@ export interface GoalSnapshot {
   objective: string
   phase: GoalPhase
   roundsStarted: number
-  /** What {@link goalProgress} reported when this snapshot was written, for the host's display; never read back. */
+  /** Rounds in which a non-read tool call succeeded or the reply changed; the fallback completion check reads it. */
   progressRounds: number
   maxGoalRounds: number
   budget?: GoalBudget
@@ -243,15 +246,9 @@ export function admitRound(goal: GoalSnapshot, round: Pick<RoundDetails, 'id' | 
   })
 }
 
-/** What the branch shows of a goal: its usage (spec §6.1) and its rounds' progress (spec §7.2). */
-export interface GoalCounts {
-  usage: GoalUsage
-  progress: GoalProgress
-}
-
-/** `goal` with the counts the branch shows (no revision bump). */
-export function withCounts(goal: GoalSnapshot, { usage, progress }: GoalCounts): GoalSnapshot {
-  return { ...goal, tokensUsed: usage.tokens, costUsed: usage.usd, progressRounds: progress.progressRounds }
+/** The snapshot to write: `goal` with the usage the branch shows now (no revision bump). */
+export function withUsage(goal: GoalSnapshot, usage: GoalUsage): GoalSnapshot {
+  return { ...goal, tokensUsed: usage.tokens, costUsed: usage.usd }
 }
 
 export interface RoundDetails {
@@ -294,15 +291,30 @@ export function currentGoal(entries: readonly SessionEntry[]): GoalSnapshot | un
 
 const isRoundMessage = (entry: SessionEntry): entry is Extract<SessionEntry, { type: 'custom_message' }> =>
   entry.type === 'custom_message' && entry.customType === GOAL_ROUND_TYPE
+const isNotification = (entry: SessionEntry) =>
+  entry.type === 'custom_message' && entry.customType === SUBAGENT_NOTIFICATION_TYPE
 
-/** True when the last user-side input on the branch came from a person, not from a goal round. */
-export function isHumanTurn(entries: readonly SessionEntry[]): boolean {
+/**
+ * What started the turn the branch ends in: a person, a goal round, or a background-subagent
+ * notification (spec §11.3). A notification that rode with a person's message is part of their turn.
+ */
+export function turnStarter(entries: readonly SessionEntry[]): 'human' | 'round' | 'notification' {
+  let notification = false
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]
-    if (isRoundMessage(entry)) return false
-    if (entry.type === 'message' && entry.message.role === 'user') return true
+    if (isRoundMessage(entry)) return 'round'
+    if (isNotification(entry)) notification = true
+    else if (entry.type === 'message') {
+      if (entry.message.role === 'user') return 'human'
+      if (notification) return 'notification'
+    }
   }
-  return true
+  return notification ? 'notification' : 'human'
+}
+
+/** True when the last user-side input on the branch came from a person, not from a goal round or a notification. */
+export function isHumanTurn(entries: readonly SessionEntry[]): boolean {
+  return turnStarter(entries) === 'human'
 }
 
 /**
@@ -337,132 +349,103 @@ export function unadmittedRounds(entries: readonly SessionEntry[]): Set<string> 
 
 const requestTokens = (usage: Usage) => usage.input + usage.output + usage.cacheRead + usage.cacheWrite
 
+/** The id of the subagent a `subagent` result started in, or moved to, the background. */
+function launchedInBackground(result: ToolResultMessage): string | undefined {
+  const details = result.details as SubagentDetails | undefined
+  return result.toolName === SUBAGENT_TOOL_NAME && details?.background === true ? details.sessionId : undefined
+}
+
+interface GoalBranch {
+  /** Usage the branch shows, each piece with the goal it counts toward. */
+  counted: Array<GoalUsage & { goalId: string }>
+  /** Background subagents by the goal whose round started them. */
+  owners: Map<string, string>
+  /** Finished background runs that reached the model, with their usage. */
+  deliveries: Array<{ sessionId: string; usage: Usage }>
+}
+
 /**
- * Spec §6.1: each piece of usage on the branch that counts toward a goal, with that goal's id. A
- * request counts when it was made in one of the goal's admitted rounds while the goal was active,
- * judged where its input ends (state written while it ran, a `/goal pause`, does not change that);
- * the usage a tool result reports (a subagent's requests) counts with the request that made its call.
+ * Spec §6.1, background subagent spec §11.3–11.4: the branch read once, so a live session and its
+ * rebuild agree. A request counts toward goal G when G was active then and the request was made in
+ * one of G's admitted rounds or, with G armed, in a turn a subagent notification started (one that
+ * rode with a person's message or a round's start belongs to that turn). A tool result's usage counts
+ * with the request that made its call, and a background subagent that call started in G's round is G's.
  */
-function* countedUsage(entries: readonly SessionEntry[]): Generator<GoalUsage & { goalId: string }> {
+function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
+  const branch: GoalBranch = { counted: [], owners: new Map(), deliveries: [] }
   const stale = unadmittedRounds(entries)
   let goal: GoalSnapshot | undefined
-  // The goal whose admitted round the branch is in: a person's message, any round message or another goal ends it.
+  let turn: 'human' | 'round' | 'notification' = 'human'
+  // The goal whose admitted round the branch is in; another goal's snapshot ends it.
   let round: string | undefined
-  // The goal a request whose input ends at the last message entry counts toward.
-  let requestGoal: string | undefined
-  const callsFor = new Map<string, string | undefined>()
+  // No reply since the turn started: a notification now rides with that start.
+  let starting = false
+  const calls = new Map<string, { goalId: string | undefined; inRound: boolean }>()
   for (const entry of entries) {
     if (isGoalState(entry)) {
       const data = entry.data as GoalSnapshot | GoalCleared
       goal = 'cleared' in data ? undefined : data
       if (goal?.id !== round) round = undefined
-      continue
-    }
-    if (entry.type !== 'message' && entry.type !== 'custom_message') continue
-    if (entry.type === 'message' && entry.message.role === 'assistant') {
-      const { message } = entry
-      for (const block of message.content) if (block.type === 'toolCall') callsFor.set(block.id, requestGoal)
-      if (requestGoal)
-        yield { goalId: requestGoal, tokens: requestTokens(message.usage), usd: message.usage.cost.total }
-      continue
-    }
-    if (isRoundMessage(entry)) {
+    } else if (entry.type === 'custom_message' && entry.customType === GOAL_ROUND_TYPE) {
       const details = entry.details as RoundDetails
+      turn = 'round'
       round = stale.has(details.id) ? undefined : details.goalId
-    } else if (entry.type === 'message') {
-      const { message } = entry
-      if (message.role === 'user') round = undefined
-      else if (message.role === 'toolResult') {
-        const counted = callsFor.get(message.toolCallId)
-        if (counted && message.usage)
-          yield { goalId: counted, tokens: message.usage.totalTokens, usd: message.usage.cost.total }
+      starting = true
+    } else if (entry.type === 'custom_message' && entry.customType === SUBAGENT_NOTIFICATION_TYPE) {
+      if (!starting) {
+        turn = 'notification'
+        round = undefined
+        starting = true
       }
-    }
-    requestGoal = round !== undefined && goal?.id === round && goal.phase === 'active' ? round : undefined
-  }
-}
-
-/** What goal `goalId` has used, from the branch alone, so a live session and its rebuild agree (spec §6.1). */
-export function goalUsage(entries: readonly SessionEntry[], goalId: string): GoalUsage {
-  const used = { tokens: 0, usd: 0 }
-  for (const item of countedUsage(entries)) {
-    if (item.goalId !== goalId) continue
-    used.tokens += item.tokens
-    used.usd += item.usd
-  }
-  return used
-}
-
-/** A goal's rounds as the branch shows them (spec §7.2). */
-export interface GoalProgress {
-  /** Rounds that moved the objective, the running one so far included. */
-  progressRounds: number
-  /** Rounds in a row that did not, since a person spoke or the goal was armed; the running one counts as ended. */
-  noProgressRounds: number
-}
-
-/**
- * Spec §7.2, from the branch alone: a round moves the objective when one of its tool results
- * succeeded and does more than read or bookkeep, or its last text-bearing reply (not one cut off by
- * the output limit) differs from the previous round's. A round runs from its admitted message to the
- * next round message, a person's message or a snapshot that stops or disarms the goal; a round the
- * user aborted counts for nothing.
- */
-export function goalProgress(entries: readonly SessionEntry[], goalId: string): GoalProgress {
-  const stale = unadmittedRounds(entries)
-  const progress: GoalProgress = { progressRounds: 0, noProgressRounds: 0 }
-  let previousText: string | undefined
-  let round: { tools: boolean; text: string | undefined } | undefined
-  let running = false
-  const endRound = (counts: boolean) => {
-    if (round && counts) {
-      const moved = round.tools || (round.text !== undefined && round.text !== previousText)
-      if (round.text !== undefined) previousText = round.text
-      progress.noProgressRounds = moved ? 0 : progress.noProgressRounds + 1
-      if (moved) progress.progressRounds++
-    }
-    round = undefined
-  }
-  for (const entry of entries) {
-    if (isGoalState(entry)) {
-      const data = entry.data as GoalSnapshot | GoalCleared
-      if (data.id !== goalId) continue
-      const nowRunning = !('cleared' in data) && data.phase === 'active' && data.armed
-      if (!nowRunning) endRound(!('cleared' in data) && data.lastStop?.code !== 'aborted')
-      // Arming the goal (create, resume) starts the comparison and the streak over.
-      else if (!running) {
-        previousText = undefined
-        progress.noProgressRounds = 0
-      }
-      running = nowRunning
-    } else if (isRoundMessage(entry)) {
-      // The settle that committed it ended the running round, whether this one runs or not.
-      endRound(true)
-      const details = entry.details as RoundDetails
-      if (details.goalId === goalId && !stale.has(details.id)) round = { tools: false, text: undefined }
+      for (const item of (entry.details as SubagentNotificationDetails).subagents)
+        branch.deliveries.push({ sessionId: item.sessionId, usage: item.usage })
     } else if (entry.type === 'message') {
       const { message } = entry
       if (message.role === 'user') {
-        endRound(true)
-        progress.noProgressRounds = 0
-      } else if (!round) continue
-      else if (message.role === 'toolResult') round.tools ||= isProgressResult(message)
-      else if (message.role === 'assistant' && message.stopReason !== 'length') {
-        const text = assistantText(message)
-        if (text) round.text = text
+        turn = 'human'
+        round = undefined
+        starting = true
+        continue
+      }
+      starting = false
+      if (message.role === 'assistant') {
+        const counts =
+          goal?.phase === 'active' &&
+          ((turn === 'round' && round === goal.id) || (turn === 'notification' && goal.armed))
+        const goalId = counts ? goal!.id : undefined
+        for (const block of message.content)
+          if (block.type === 'toolCall') calls.set(block.id, { goalId, inRound: turn === 'round' })
+        if (goalId) branch.counted.push({ goalId, tokens: requestTokens(message.usage), usd: message.usage.cost.total })
+      } else if (message.role === 'toolResult') {
+        const call = calls.get(message.toolCallId)
+        if (!call?.goalId) continue
+        if (message.usage)
+          branch.counted.push({ goalId: call.goalId, tokens: message.usage.totalTokens, usd: message.usage.cost.total })
+        const launched = call.inRound ? launchedInBackground(message) : undefined
+        if (launched) branch.owners.set(launched, call.goalId)
       }
     }
   }
-  endRound(true)
-  return progress
+  return branch
 }
 
-/** The counts of goal `goalId`, with `next` taken as written when given (an abort's snapshot drops its round). */
-export function goalCounts(entries: readonly SessionEntry[], goalId: string, next?: GoalSnapshot): GoalCounts {
-  const branch: readonly SessionEntry[] = next
-    ? [...entries, { type: 'custom', customType: GOAL_STATE_TYPE, data: next, id: '', parentId: null, timestamp: '' }]
-    : entries
-  return { usage: goalUsage(branch, goalId), progress: goalProgress(branch, goalId) }
+/** What goal `goalId` has used, from the branch alone (spec §6.1). */
+export function goalUsage(entries: readonly SessionEntry[], goalId: string): GoalUsage {
+  const { counted, owners, deliveries } = readGoalBranch(entries)
+  const used = { tokens: 0, usd: 0 }
+  const add = (tokens: number, usd: number) => {
+    used.tokens += tokens
+    used.usd += usd
+  }
+  for (const item of counted) if (item.goalId === goalId) add(item.tokens, item.usd)
+  for (const { sessionId, usage } of deliveries)
+    if (owners.get(sessionId) === goalId) add(usage.totalTokens, usage.cost.total)
+  return used
+}
+
+/** The background subagents goal `goalId`'s rounds started (spec §11.4: they stop with its budget). */
+export function goalSubagents(entries: readonly SessionEntry[], goalId: string): string[] {
+  return [...readGoalBranch(entries).owners].flatMap(([sessionId, owner]) => (owner === goalId ? [sessionId] : []))
 }
 
 export function assistantText(message: AssistantMessage): string {
@@ -531,10 +514,10 @@ export function renderRoundPrompt(
   return [...head, ...body, '</goal_round>'].join('\n')
 }
 
-/** The model-facing view: the goal with the counts the branch shows now, its activation beside it. */
-export function goalView(goal: GoalSnapshot | undefined, counts: GoalCounts) {
+/** The model-facing view: the goal with the usage the branch shows now, its activation beside it. */
+export function goalView(goal: GoalSnapshot | undefined, usage: GoalUsage) {
   if (!goal) return { goal: null } as const
-  const { wrapUpDone: _wrapUpDone, admittedRound: _admittedRound, armed, ...view } = withCounts(goal, counts)
+  const { wrapUpDone: _wrapUpDone, admittedRound: _admittedRound, armed, ...view } = withUsage(goal, usage)
   void _wrapUpDone // Intentionally unused - the model-facing view omits the internal wrap-up flag
   void _admittedRound // Intentionally unused - the view omits round bookkeeping too
   return { goal: view, activation: armed ? ('armed' as const) : ('disarmed' as const) }
