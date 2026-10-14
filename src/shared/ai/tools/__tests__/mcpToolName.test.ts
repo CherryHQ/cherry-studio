@@ -334,6 +334,16 @@ describe('translateLegacyMcpToolRules', () => {
 describe('translateMcpToolRulesToRuntimeNames', () => {
   const byId = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Old server']])
 
+  it('resolves a rename-migrated truncated identity through the stripped-prefix scan', () => {
+    // A 60-char key truncates the lossy DSH name before the `__`; rename migration can only
+    // carry the fragment onto the new key's truncated form. The registered base of the new
+    // pair extends that fragment, so the denial must resolve onto the executable name.
+    const runtimeNames = new Map([['mcp__docs__run', ['mcp__docs__run']]])
+    expect(translateMcpToolRulesToRuntimeNames([`mcp__docs_abc123def456`], new Map(), runtimeNames)).toEqual([
+      'mcp__docs__run'
+    ])
+  })
+
   it('rewrites translated rules onto the bridge-registered runtime identity', () => {
     // `Old server` is not provider-safe: the executable tool carries the lossy hash suffix,
     // so the translated name-form rule must be replaced by the identity the bridge actually
@@ -563,7 +573,8 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     // `Old server` registers lossy (`mcp__oldServer__run_<hash>`); the hash binds the old pair,
     // so the rename copies the entry onto the new lossy base and keeps the original (which can
     // simultaneously be another server's exact denial). The runtime's stripped-base lookup
-    // resolves the copy onto the renamed pair.
+    // resolves the copy onto the renamed pair. Plain entries also carry the camelized
+    // configured-name form Pi resolves denials through (`New server` → `newServer`).
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__oldServer__run_4f7413c24ae4', 'mcp__Old server__other'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'Old server' }],
@@ -571,7 +582,12 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'New server',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__oldServer__run_4f7413c24ae4', 'mcp__newServer__run_4f7413c24ae4', 'mcp__New server__other'])
+    ).toEqual([
+      'mcp__oldServer__run_4f7413c24ae4',
+      'mcp__newServer__run_4f7413c24ae4',
+      'mcp__New server__other',
+      'mcp__newServer__other'
+    ])
   })
 
   it('truncates the copied lossy base to the allocator cap with the hash tail intact', () => {
@@ -684,6 +700,57 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       'mcp__github__getTime_4f7413c24ae4',
       'mcp__GitHub__getTime_4f7413c24ae4'
     ])
+  })
+
+  it('keeps every replacement when another original occupies its destination', () => {
+    // A (`docs`) mounts before B (`github`); both run tools are disabled. Renaming A to
+    // `github` hands the `github` key to A and bumps B onto its id. Deduping replacements
+    // against the ORIGINAL list suppresses A's replacement (B's original occupies it) while
+    // B's original itself moves away — leaving A's executable `mcp__github__run` undenied.
+    // All rewrites must be planned first and the final output deduped afterwards.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__docs__run', 'mcp__github__run'], {
+        mountedServers: [
+          { mcpId: 'srv-a', name: 'docs' },
+          { mcpId: 'srv-b', name: 'github' }
+        ],
+        renamedServerId: 'srv-a',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__github__run', 'mcp__srv-b__run'])
+  })
+
+  it('emits the camelized configured-name form Pi recognizes after a mixed-case rename', () => {
+    // A UUID-backed server named `skills` (reserved) keeps its denial under the raw id form;
+    // after renaming to `GitHub` the runtime registers `mcp__GitHub__run`, but Pi resolves
+    // denials through the camelized configured name (`mcp__github__run`) — without that alias
+    // in the list the explicitly disabled tool executes on Pi.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__srv-1__run'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'skills' }],
+        renamedServerId: 'srv-1',
+        toName: 'GitHub',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__GitHub__run', 'mcp__github__run'])
+  })
+
+  it('carries a truncated DSH identity onto the renamed key fragment', () => {
+    // A 60-char lowercase server name truncates the lossy DSH runtime name before the `__`
+    // delimiter, fusing key and tool into one unparseable prefix. The saved denial must still
+    // be recognized as the old key's truncation and rewritten onto the new key's fragment —
+    // the enforcement lookup's stripped-prefix scan resolves it onto the new identity from
+    // there.
+    const entry = `mcp__${'a'.repeat(45)}_abc123def456`
+    expect(
+      migrateAgentDisabledToolsForServerRename([entry, 'mcp__other__run'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'a'.repeat(60) }],
+        renamedServerId: 'srv-1',
+        toName: 'docs',
+        reservedKeys: RESERVED
+      })
+    ).toEqual([entry, 'mcp__docs_abc123def456', 'mcp__other__run'])
   })
 })
 

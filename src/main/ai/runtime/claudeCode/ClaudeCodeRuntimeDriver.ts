@@ -549,6 +549,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const applicableToolPolicy = deferPermissionMode
       ? { ...fresh.live.toolPolicy, permissionMode: baseline.live.toolPolicy.permissionMode }
       : fresh.live.toolPolicy
+    // A signature change means the active connection still serves the OLD allocation (a rename
+    // migrates the saved denials onto the new identities) while its replacement is deferred.
+    // The live gate must keep blocking the identities this connection actually exposes until
+    // that replacement lands; the post-rebuild connect update carries no preservation.
+    const needsRebuild = baseline.rebuildSignature !== fresh.rebuildSignature
     let patched = false
     // Apply the tool-policy facts that are safe for this turn BEFORE the rebuild verdict. Newly
     // disabled tools still tighten immediately; permission-mode changes wait for the next boundary.
@@ -562,19 +567,24 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         // Refresh only after the SDK confirms an applicable permission change. If the current turn
         // keeps its old mode, preserve that mode in the snapshot while still applying other policy
         // changes (for example, disabling a tool).
-        await this.toolPolicySnapshot?.update(
-          deferPermissionMode
-            ? {
-                ...agent,
-                configuration: {
-                  ...agent.configuration,
-                  permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
-                    | AgentPermissionMode
-                    | undefined
-                }
+        const snapshotAgent = deferPermissionMode
+          ? {
+              ...agent,
+              configuration: {
+                ...agent.configuration,
+                permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
+                  | AgentPermissionMode
+                  | undefined
               }
-            : agent
-        )
+            }
+          : agent
+        if (needsRebuild) {
+          await this.toolPolicySnapshot?.update(snapshotAgent, {
+            preserveDenied: baseline.live.toolPolicy.disabledTools
+          })
+        } else {
+          await this.toolPolicySnapshot?.update(snapshotAgent)
+        }
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'
@@ -586,7 +596,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       patched = true
     }
 
-    if (baseline.rebuildSignature !== fresh.rebuildSignature) {
+    if (needsRebuild) {
       logger.info('Connection configuration requires rebuild', {
         sessionId: this.input.sessionId,
         changedFacts: getChangedRebuildFacts(baseline, fresh),

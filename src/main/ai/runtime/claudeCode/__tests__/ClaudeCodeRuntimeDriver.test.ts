@@ -3223,6 +3223,48 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
       void connection.close()
     })
+
+    it('preserves baseline denials while a replacement connection is pending', async () => {
+      // The active connection was built while `mcp__docs__run` was denied; the rename migrates
+      // the saved rule onto `mcp__github__run` and changes spawn-frozen facts. The live update
+      // must carry the baseline denials so the old connection keeps blocking the identity it
+      // still serves until the deferred rebuild replaces it.
+      const snapshot = makeSnapshot('default')
+      const updatedAgent = { id: 'agent-1', disabledTools: ['mcp__github__run'], configuration: {} }
+      mocks.getAgent.mockReturnValue(updatedAgent)
+      mocks.buildRequest.mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: ['mcp__docs__run'], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      const queryQueue = createAsyncQueue<any>()
+      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn(), setPermissionMode: vi.fn() }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+
+      mocks.deriveConfig.mockResolvedValue({
+        ok: true,
+        config: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: ['mcp__github__run'], mcps: ['srv-1'] } }
+        }
+      })
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+
+      expect(snapshot.update).toHaveBeenCalledWith(updatedAgent, { preserveDenied: ['mcp__docs__run'] })
+
+      void connection.close()
+    })
   })
 
   it('salvages a truncated SDK stream into a completed turn instead of erroring', async () => {

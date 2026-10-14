@@ -118,6 +118,22 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__old__run')).toBe(false)
   })
 
+  it('keeps preserved denials blocking until an update drops the preservation', async () => {
+    // A rename migrates the saved rule onto the new identity while the replacement connection
+    // is deferred: the ACTIVE connection still serves the old name, so the live gate must keep
+    // blocking it. A post-rebuild update carries no preservation and releases the stale name.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['mcp__docs__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    await snapshot.update(makeAgent(['mcp__github__run']), { preserveDenied: ['mcp__docs__run'] })
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    await snapshot.update(makeAgent(['mcp__github__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(false)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))

@@ -377,6 +377,18 @@ export interface AgentServerRenameMigrationInput {
   reservedKeys: readonly string[]
 }
 
+interface AgentKeyRewrite {
+  fromKey: string
+  toKey: string
+  /**
+   * Camelized form of the renamed server's new configured name, set only when that name won
+   * its allocation and camelizes differently: Pi resolves denials through the camelized
+   * configured name (`GitHub` → `mcp__github__run`), so the rewrite must carry that alias or
+   * the runtime-independent migration would strip Pi's only surviving form.
+   */
+  camelToKey?: string
+}
+
 /**
  * Migrate one agent's saved denial rules after a mounted server was renamed. Unlike
  * {@link migrateDisabledToolsForServerRename} (server-level rules keyed by the configured name),
@@ -416,10 +428,21 @@ export function migrateAgentDisabledToolsForServerRename(
   // The rename can displace more than the renamed server: a sibling whose claimed key is taken
   // by the renamed server's new name falls back to its id, orphaning its own denials. Compare
   // the complete allocations and migrate every mounted server whose record key changed.
-  const rewrites: Array<{ fromKey: string; toKey: string }> = []
+  const rewrites: AgentKeyRewrite[] = []
   for (const [mcpId, oldKey] of oldKeys) {
     const newKey = newKeys.get(mcpId)
-    if (newKey !== undefined && newKey !== oldKey) rewrites.push({ fromKey: oldKey, toKey: newKey })
+    if (newKey === undefined || newKey === oldKey) continue
+    // Pi's camelized alias derives from the configured name, so the extra form is only
+    // meaningful for the renamed server itself, when its new name actually won its allocation
+    // (and camelizes differently). Displaced siblings fall back to their id, which Pi already
+    // matches through its raw-identity check.
+    const camelToKey =
+      mcpId === input.renamedServerId &&
+      newKey === sanitizeAgentServerKey(input.toName) &&
+      toCamelCase(input.toName) !== newKey
+        ? toCamelCase(input.toName)
+        : undefined
+    rewrites.push({ fromKey: oldKey, toKey: newKey, camelToKey })
   }
   return applyAgentKeyRewrites(disabledTools, rewrites)
 }
@@ -465,19 +488,30 @@ export function migrateAgentDisabledToolsForAllocationChange(
 }
 
 /**
- * Rewrite saved entries onto the keys a new allocation hands out. Hashed tails mark lossy or
- * collision runtime names whose hash binds the old pair, so only the stripped base survives:
- * each copy lands on `mcp__<target>__<fragment>` truncated to 50 with the tail re-attached, on
- * every base form the runtime indexes — the raw key when it can head a registered name (plain
- * wire-safe registrations index their name-form verbatim, including collision names carrying a
- * raw tool fragment) and the camelized key (lossy registrations are built from the camelized
- * form, and mixed-case destinations register plain names the camelized fragment can never
- * key). The original is kept — it can simultaneously be another server's exact denial. Plain
- * entries move verbatim onto the new key.
+ * Rewrite saved entries onto the keys a new allocation hands out. Every entry's replacements
+ * are planned against the original list BEFORE anything is emitted, and the final output is
+ * deduped afterwards: deduping during the walk lets one rule's not-yet-processed original
+ * suppress another entry's required replacement while that original itself moves away,
+ * silently re-enabling the displaced tool.
+ *
+ * Hashed tails mark lossy or collision runtime names whose hash binds the old pair, so only
+ * the stripped base survives: each copy lands on `mcp__<target>__<fragment>` truncated to 50
+ * with the tail re-attached, on every base form the runtime indexes — the raw key when it can
+ * head a registered name (plain wire-safe registrations index their name-form verbatim,
+ * including collision names carrying a raw tool fragment) and the camelized key (lossy
+ * registrations are built from the camelized form, and mixed-case destinations register plain
+ * names the camelized fragment can never key). The original is kept — it can simultaneously
+ * be another server's exact denial. Plain entries move verbatim onto the new key (plus the
+ * camelized alias a `camelToKey` rewrite carries).
+ *
+ * A truncated DSH identity (`mcp__<50 fused chars>_<12hex>` — a long server key pushes the
+ * `__` delimiter and the tool fragment past the retention cap, so no delimiter survives) is
+ * recognized as the old key's truncation and rewritten onto the new key's fragment; the
+ * enforcement lookup's stripped-prefix scan resolves it onto the new identity from there.
  */
 function applyAgentKeyRewrites(
   disabledTools: readonly string[],
-  rewrites: ReadonlyArray<{ fromKey: string; toKey: string }>
+  rewrites: ReadonlyArray<AgentKeyRewrite>
 ): string[] | undefined {
   const rewriteHashed = (toolPart: string, targetKey: string): string[] => {
     const targets = new Set<string>([toCamelCase(targetKey)])
@@ -487,10 +521,7 @@ function applyAgentKeyRewrites(
     return [...targets].map((target) => `mcp__${target}__${fragment}`.slice(0, 50) + tail)
   }
 
-  let changed = false
-  const seen = new Set(disabledTools)
-  const migrated: string[] = []
-  for (const entry of disabledTools) {
+  const planned = disabledTools.map((entry) => {
     let replacements: string[] | undefined
     let keepOriginal = false
     if (entry.startsWith('mcp__')) {
@@ -508,23 +539,46 @@ function applyAgentKeyRewrites(
           keepOriginal = true
         } else if (matched) {
           replacements = [`mcp__${matched.toKey}__${toolPart}`]
+          if (matched.camelToKey) replacements.push(`mcp__${matched.camelToKey}__${toolPart}`)
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = rewriteHashed(toolPart, lossyMatched.toKey)
           keepOriginal = true
         }
+      } else if (/_[0-9a-f]{12}$/.test(rest) && rest.length > 13) {
+        // Truncated before the server/tool delimiter: the fused prefix is all that survives of
+        // the key. A prefix match on the old key's camelized form identifies the owner (a key
+        // that fit entirely would have kept the `__`); the fragment maps onto the new key's
+        // equally truncated fragment, and the tail rides along for the prefix scan.
+        const fragment = rest.slice(0, rest.length - 13)
+        const tail = rest.slice(rest.length - 13)
+        const matched = rewrites.find(({ fromKey }) => toCamelCase(fromKey).startsWith(fragment))
+        if (matched) {
+          const targets = new Set<string>([toCamelCase(matched.toKey)])
+          if (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(matched.toKey)) targets.add(matched.toKey)
+          replacements = [...targets].map((target) => `mcp__${target.slice(0, fragment.length)}${tail}`)
+          keepOriginal = true
+        }
       }
     }
-    const fresh = replacements?.filter((replacement) => replacement !== entry && !seen.has(replacement)) ?? []
-    if (fresh.length > 0) {
-      changed = true
-      if (keepOriginal) migrated.push(entry)
-      for (const replacement of fresh) {
-        seen.add(replacement)
-        migrated.push(replacement)
-      }
+    return { entry, replacements: replacements?.filter((replacement) => replacement !== entry) ?? [], keepOriginal }
+  })
+
+  let changed = false
+  const migrated: string[] = []
+  const emitted = new Set<string>()
+  for (const { entry, replacements, keepOriginal } of planned) {
+    const push = (value: string) => {
+      if (emitted.has(value)) return
+      emitted.add(value)
+      migrated.push(value)
+    }
+    if (replacements.length === 0) {
+      push(entry)
       continue
     }
-    migrated.push(entry)
+    changed = true
+    if (keepOriginal) push(entry)
+    for (const replacement of replacements) push(replacement)
   }
   return changed ? migrated : undefined
 }

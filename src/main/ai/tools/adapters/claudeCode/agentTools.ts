@@ -157,7 +157,16 @@ export interface ClaudeAgentToolPolicySnapshot {
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
   update(
     agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>,
-    options?: { serverNameById?: ReadonlyMap<string, string> }
+    options?: {
+      serverNameById?: ReadonlyMap<string, string>
+      /**
+       * Denial names the ACTIVE connection still serves: a rename migrates the saved rules
+       * while the replacement connection is deferred, so the live gate must keep blocking the
+       * old identities until that replacement lands. A post-rebuild update carries none and
+       * releases them.
+       */
+      preserveDenied?: readonly string[]
+    }
   ): Promise<void>
 }
 
@@ -183,7 +192,10 @@ export async function createClaudeAgentToolPolicySnapshot(
   // pre-rename name while the executable tool answers to the new one.
   let serverNameById = options.serverNameById
 
-  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
+  const rebuild = async (
+    nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>,
+    preserveDenied?: readonly string[]
+  ) => {
     // `update()` is fire-and-forget and unserialized, so two rebuilds can overlap. Guard with a
     // sequence so an older slow rebuild that resolves AFTER a newer one can't clobber the newer
     // policy's `disallowed`/`descriptors` (which would re-enable a just-disabled tool).
@@ -209,12 +221,13 @@ export async function createClaudeAgentToolPolicySnapshot(
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
     // user opt-out + dependency cascade). Legacy id-keyed rules are rewritten first so a denial
     // saved under the pre-#21322 namespace still blocks its name-keyed tool.
-    disallowed = new Set(
-      resolveDisallowedTools(
+    disallowed = new Set([
+      ...(preserveDenied ?? []),
+      ...resolveDisallowedTools(
         { disabledTools: translateLegacyMcpToolRules(nextAgent.disabledTools, serverNameById) },
         options.conditionContext
       )
-    )
+    ])
   }
 
   await rebuild(agent)
@@ -250,7 +263,7 @@ export async function createClaudeAgentToolPolicySnapshot(
 
     update(agent, nextOptions) {
       if (nextOptions?.serverNameById) serverNameById = nextOptions.serverNameById
-      return rebuild(agent)
+      return rebuild(agent, nextOptions?.preserveDenied)
     }
   }
 }
