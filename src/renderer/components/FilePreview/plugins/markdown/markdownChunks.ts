@@ -145,7 +145,7 @@ function htmlBlockTerminator(line: string): RegExp | null {
  * A footnote definition, which owns its indented lines. Indent is counted in columns: a tab spans
  * four of them, so a tab-indented label sits in indented code where no definition opens.
  */
-const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^[^\]]+\]:/
+const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^[^\]]+\]:(.*)$/
 
 /** An ATX heading: up to three columns of indent, one to six `#`, then the heading's text. */
 const ATX_HEADING = /^ {0,3}#{1,6}[ \t]+(.*?)[ \t]*#*[ \t]*$/
@@ -982,6 +982,20 @@ function continuesDefinitionAfterBlank(line: string | undefined): boolean {
 }
 
 /**
+ * Whether a line a footnote definition holds leaves a paragraph of its own open — the state a lazy
+ * line below continues. The parser measures the line's blocks from the four columns the footnote
+ * holds its content at: a container opening there keeps the paragraph it starts, a complete block
+ * closes the one before it, and anything else is that paragraph's own prose.
+ */
+function continuesFootnoteParagraph(carried: string): boolean {
+  const view = afterColumns(4, pastQuoteMarkers(carried).content)
+  if (!/\S/.test(view)) return false
+  if (!startsBlock(view)) return true
+  if (LIST_ITEM.test(view)) return !EMPTY_LIST_ITEM.test(view)
+  return QUOTE_START.test(view)
+}
+
+/**
  * The bare text of a link reference definition and the lines it covers, or null when the line opens
  * none. The destination may sit a line below the label and the title a line below that, but nothing
  * may follow the destination except the title — so `[label]:\ntext` is a paragraph and
@@ -1313,6 +1327,10 @@ export function splitMarkdownChunks(
   // Whether the open definition spans a blank line inside its container: past one, the parser holds
   // a continuation to four columns measured inside the container.
   let sawBlankInDefinition = false
+  // Whether the open footnote definition holds a paragraph a lazy line below continues. The parser
+  // reads a line the note's four columns fall short of as that paragraph's own, so the line belongs
+  // to the definition wherever the reference to it renders.
+  let footnoteParagraphOpen = false
   /**
    * The fenced code block open behind an enclosing container, or null. A fence opened behind quote
    * or list markers (`- ``` `, `> - ``` `) is content that block holds, so its lines reach
@@ -1485,11 +1503,40 @@ export function splitMarkdownChunks(
         : indentedCode || (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
     // A blank line the definition spans — a bare one, or the definition's own container markers on
     // a line of their own (`>`), which is blank the way the parser sees it — ends no container, so
-    // it has to be remembered for the continuation line that follows it.
+    // it has to be remembered for the continuation line that follows it. Either kind ends the
+    // paragraph a lazy line below would continue.
+    if (blank && inDefinition && footnoteDefinition) footnoteParagraphOpen = false
     if (definitionContainer && insideContainer !== null && (blank || insideContainer.trim() === '')) {
       sawBlankInDefinition = true
+      footnoteParagraphOpen = false
     }
-    if (inDefinition && indentedContinuation && (!blank || footnoteDefinition)) {
+    // A line the note's four columns fall short of can still continue the paragraph the note holds
+    // — lazily, the way the parser reads it: the container's markers dropped outright, and no block
+    // of the line's own. It belongs to the definition, so the note renders whole in the chunk that
+    // references it, not just in the one its lines landed in.
+    const footnoteLazyContent = (() => {
+      if (!inDefinition || !footnoteDefinition || !footnoteParagraphOpen || blank || indentedContinuation)
+        return undefined
+      if (activeDefinitionContainer) {
+        const stripped = stripDefinitionContainer(line, activeDefinitionContainer)
+        if (stripped !== null) return endsLazyParagraph(stripped) ? undefined : stripped
+        // A line short of the container is lazy the same way, its markers dropped outright — and
+        // the walk it takes past the markers is what rejects one the definition cannot follow.
+        return continuation(
+          line,
+          activeDefinitionContainer.quotes,
+          activeDefinitionContainer.quoteColumns,
+          activeDefinitionContainer.labelColumn
+        )
+      }
+      return endsLazyParagraph(line) ? undefined : line
+    })()
+    if (
+      inDefinition &&
+      (indentedContinuation ||
+        (footnoteLazyContent !== undefined && !FOOTNOTE_DEFINITION_START.test(footnoteLazyContent))) &&
+      (!blank || footnoteDefinition)
+    ) {
       // Continuation lines behind the definition's container carry its markers (`>` on a quoted
       // definition's blank line, or `>` plus indentation on its paragraphs). The definition was
       // carried without that container, so its lines lose it too: markers strip away and the
@@ -1501,18 +1548,22 @@ export function splitMarkdownChunks(
         // the definition's paragraphs across it, and `>` alone would start a quote block of its own.
         definitions.push(carried.trim() === '' ? '' : carried)
         definitionLines += 1
+        if (carried.trim() !== '') footnoteParagraphOpen = continuesFootnoteParagraph(carried)
         continue
       }
       definitions.push(line)
       definitionLines += 1
+      footnoteParagraphOpen = continuesFootnoteParagraph(line)
       continue
     }
-    if (!containerHoldsCode && FOOTNOTE_DEFINITION_START.test(uncontained)) {
+    const footnoteStart = containerHoldsCode ? null : FOOTNOTE_DEFINITION_START.exec(uncontained)
+    if (footnoteStart) {
       definitions.push(uncontained)
       definitionLines += 1
       inDefinition = true
       footnoteDefinition = true
       sawBlankInDefinition = false
+      footnoteParagraphOpen = continuesFootnoteParagraph(footnoteStart[1])
       // The definition keeps the container it was written behind: its continuation lines must
       // lose that container the same way the opening line did, or the carried prefix holds only
       // the first line and a truncated copy shadows the complete definition.

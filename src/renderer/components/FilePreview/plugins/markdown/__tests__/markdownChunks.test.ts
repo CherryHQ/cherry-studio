@@ -850,6 +850,42 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('carries a footnote definition whose opening paragraph wraps without indent', () => {
+    // A line the note's four columns fall short of still continues its paragraph lazily; dropping
+    // it truncated the footnote in every chunk that references it.
+    const content = ['[^n]: first', 'second', '', 'filler paragraph that spends the budget', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^n]: first\nsecond')
+    }
+  })
+
+  it('carries a lazy line that continues a quoted footnote definition without its marker', () => {
+    const content = ['> [^n]: first', 'second', '', 'filler paragraph that spends the budget', '', 'see [^n]'].join(
+      '\n'
+    )
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[^n]: first\nsecond')
+    }
+    expect(chunks.filter((chunk) => chunk.text.includes('> [^n]'))).toHaveLength(1)
+  })
+
+  it('does not carry a lazy line a blank line takes out of the footnote definition', () => {
+    // Laziness continues an open paragraph; past a blank the line starts a block of its own.
+    const content = ['[^n]: first', '', 'second', '', 'see [^n]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('second'))).toHaveLength(1)
+  })
+
   it('does not carry a code block that only follows a link definition', () => {
     // A footnote definition owns its indented lines; a link definition ends with its line run.
     const content = ['[label]: https://example.com', '', '    indented body', '', 'see [label]'].join('\n')
