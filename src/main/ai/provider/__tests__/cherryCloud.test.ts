@@ -16,8 +16,7 @@ vi.mock('@application', async () =>
   (await import('@test-mocks/main/application')).mockApplicationFactory({ CherryCloudService: mocks } as never)
 )
 
-const { buildCherryCloudProviderConfig } = await import('../cherryCloud')
-const { ModelUnavailableError } = await import('../ModelUnavailableError')
+const { buildCherryCloudProviderConfig, ModelUnavailableError } = await import('../cherryCloud')
 
 const MODEL_ID = `${CHERRY_CLOUD_PROVIDER_ID}::cloud-model` as const
 

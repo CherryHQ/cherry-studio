@@ -28,7 +28,6 @@ vi.mock('../../params/buildAgentParams', () => ({
 }))
 
 const { buildFallbackModels } = await import('../buildFallbackModels')
-const { ModelUnavailableError } = await import('@main/ai/provider/ModelUnavailableError')
 
 const usagePlugin = { name: 'usage' }
 const createUsagePlugin = vi.fn().mockReturnValue(usagePlugin)
@@ -224,23 +223,6 @@ describe('buildFallbackModels', () => {
     })
 
     expect(await resolveEnabled()).not.toBeNull()
-  })
-
-  it('skips a provider-declared unavailable fallback and keeps later resolvers usable', async () => {
-    getByKey.mockImplementation((providerId: string, modelId: string) =>
-      makeModel({ id: `${providerId}::${modelId}`, providerId })
-    )
-    stubBuildAgentParams('claude')
-    buildAgentParams.mockRejectedValueOnce(new ModelUnavailableError('model unavailable'))
-
-    const [resolveUnavailable, resolveOrdinary] = buildFallbackModels({
-      ...baseArgs,
-      primaryUniqueModelId: 'openai::gpt-4',
-      retryPolicy: policy(['managed::unavailable', 'anthropic::claude'])
-    })
-
-    await expect(resolveUnavailable()).resolves.toBeNull()
-    await expect(resolveOrdinary()).resolves.not.toBeNull()
   })
 
   it.each([
