@@ -662,9 +662,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // Invalidate any send still materializing attachments: its prompt is not in the CLI yet, so it
     // must never be admitted behind this stop.
     this.sendSequence++
+    const adapter = this.adapter
     // A warm connection whose turn already settled has nothing to interrupt: report success so
     // the stop keeps the preserved runtime instead of falling back to the teardown.
-    if (this.adapter?.isTurnActive !== true) return true
+    if (adapter?.isTurnActive !== true) return true
+    // Latch the generation this stop interrupts: the connection-wide turn flag is re-armed by
+    // background content opening a successor generation, whose lifetime must not decide the verdict.
+    const interruptedGeneration = adapter.turnGeneration
     logger.info('Gracefully interrupting Claude Code turn', { sessionId: this.input.sessionId })
     const acknowledged = await Promise.race([
       query.interrupt().then(
@@ -680,10 +684,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // The interrupt control response only says the CLI took the request; wait (bounded) for the
     // SDK's interrupt-truncated result so the host only trusts a turn that actually settled.
     const deadline = Date.now() + GRACEFUL_TURN_SETTLE_TIMEOUT_MS
-    while (this.adapter?.isTurnActive === true && Date.now() < deadline) {
+    while (adapter.isGenerationActive(interruptedGeneration) && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, GRACEFUL_TURN_SETTLE_POLL_MS))
     }
-    return this.adapter?.isTurnActive !== true
+    return !adapter.isGenerationActive(interruptedGeneration)
   }
 
   close(): Promise<void> {
