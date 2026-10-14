@@ -76,6 +76,7 @@ const babeldocStreamEventSchema = z.discriminatedUnion('type', [
 const SIDECAR_ENV_KEYS = new Set([
   'ALL_PROXY',
   'COMSPEC',
+  'CURL_CA_BUNDLE',
   'HTTPS_PROXY',
   'HTTP_PROXY',
   'LANG',
@@ -83,6 +84,7 @@ const SIDECAR_ENV_KEYS = new Set([
   'NO_PROXY',
   'PATH',
   'PATHEXT',
+  'REQUESTS_CA_BUNDLE',
   'SSL_CERT_DIR',
   'SSL_CERT_FILE',
   'SYSTEMROOT',
@@ -157,6 +159,23 @@ const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost:
   if (!hosts.includes(host)) hosts.push(host)
   const noProxy = hosts.join(',')
   return { ...proxyEnv, NO_PROXY: noProxy, no_proxy: noProxy }
+}
+
+/**
+ * requests/urllib3 (which fetches the sidecar's tiktoken and asset files) ignores SSL_CERT_FILE and
+ * trusts only REQUESTS_CA_BUNDLE / CURL_CA_BUNDLE, else certifi's bundle — so point both at the bundle
+ * the user exported from the platform trust store. An explicit value of their own still wins.
+ */
+const buildSidecarCaBundleEnv = (allowedEnv: Record<string, string>): Record<string, string> => {
+  const getNonEmptyEnv = (name: string): string | undefined =>
+    Object.entries(allowedEnv).find(([key, value]) => key.toUpperCase() === name && value.trim())?.[1]
+  const sslCertFile = getNonEmptyEnv('SSL_CERT_FILE')
+  if (!sslCertFile) return {}
+
+  return {
+    ...(getNonEmptyEnv('REQUESTS_CA_BUNDLE') ? {} : { REQUESTS_CA_BUNDLE: sslCertFile }),
+    ...(getNonEmptyEnv('CURL_CA_BUNDLE') ? {} : { CURL_CA_BUNDLE: sslCertFile })
+  }
 }
 
 @Injectable('PdfTranslationService')
@@ -590,6 +609,7 @@ export class PdfTranslationService extends BaseService {
     const runtimeHome = application.getPath('feature.pdf_translation.babeldoc')
     return mergeBinaryExecutionEnv({
       ...allowedEnv,
+      ...buildSidecarCaBundleEnv(allowedEnv),
       ...buildSidecarProxyEnv(allowedEnv.NO_PROXY ?? allowedEnv.no_proxy, new URL(gatewayBaseUrl).hostname),
       HOME: runtimeHome,
       USERPROFILE: runtimeHome,
