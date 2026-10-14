@@ -141,33 +141,35 @@ export function scopedPage<T>(
 }
 
 export function listAssistants(grantId: string, cursor?: string, limit = 20) {
-  const scope = `assistants:${grantId}:${limit}`
+  const scope = `assistants:offset:${grantId}:${limit}`
+  const sign = (offset: number) => `${offset}.${sha256(utf8(`${scope}:${offset}`))}`
   const offset = cursor === undefined ? 0 : Number(cursor.split('.')[0])
-  if (
-    !Number.isSafeInteger(offset) ||
-    offset < 0 ||
-    (cursor && cursor !== `${offset}.${sha256(utf8(`${scope}:${offset}`))}`)
-  )
+  if (!Number.isSafeInteger(offset) || offset < 0 || (cursor !== undefined && cursor !== sign(offset)))
     throw new RemoteRpcError('REVISION_EXPIRED', 'Assistant cursor belongs to another grant')
-  const page = assistantDataService.list({ page: offset + 1, limit, sortBy: 'updatedAt', sortOrder: 'desc' })
-  return {
-    items: page.items.map((assistant) => {
-      const identity = toMessageModel({ modelId: assistant.modelId })
-      const emoji = assistant.emoji?.trim()
-      const named = identity
-        ? modelSummarySchema.safeParse({ ...identity, name: assistant.modelName || identity.name })
-        : undefined
-      return {
-        assistantId: assistant.id,
-        name: assistant.name.slice(0, 4096),
-        ...(emoji && emoji.length <= 64 ? { emoji } : {}),
-        model: named?.success ? named.data : (identity ?? null),
-        configurationRevision: assistantRevision(assistant),
-        available: Boolean(configuredModel(assistant))
-      }
-    }),
-    nextCursor: (offset + 1) * limit < page.total ? `${offset + 1}.${sha256(utf8(`${scope}:${offset + 1}`))}` : null
-  }
+  const page = assistantDataService.list({
+    page: Math.floor(offset / limit) + 1,
+    limit,
+    sortBy: 'updatedAt',
+    sortOrder: 'desc'
+  })
+  const projected = page.items.slice(offset % limit).map((assistant) => {
+    const identity = toMessageModel({ modelId: assistant.modelId })
+    const emoji = assistant.emoji?.trim()
+    const named = identity
+      ? modelSummarySchema.safeParse({ ...identity, name: assistant.modelName || identity.name })
+      : undefined
+    return {
+      assistantId: assistant.id,
+      name: assistant.name.slice(0, 4096),
+      ...(emoji && emoji.length <= 64 ? { emoji } : {}),
+      model: named?.success ? named.data : (identity ?? null),
+      configurationRevision: assistantRevision(assistant),
+      available: Boolean(configuredModel(assistant))
+    }
+  })
+  const { items } = scopedPage(projected, scope, undefined, limit)
+  const next = offset + items.length
+  return { items, nextCursor: next < page.total ? sign(next) : null }
 }
 
 export function listAssistantTopics(

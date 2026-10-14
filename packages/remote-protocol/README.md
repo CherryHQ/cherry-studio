@@ -123,6 +123,8 @@ the selected `parentAnchorId` and `historyRevision`; cursors additionally bind t
 History pages start with the latest messages and keep chronological order within each page.
 The current branch includes its multi-model reply groups, identified by `replyGroupId`;
 ordinary sibling branches remain outside the view.
+Catalog pages are bounded by both item count and encoded byte size. Treat their cursors as opaque;
+the next cursor advances only over returned entries, including when a byte limit shortens the page.
 Message revisions use the view's history revision, so any visible mutation invalidates
 its content references. Messages preserve their producing Assistant and model snapshots.
 Historical attachments expose metadata only.

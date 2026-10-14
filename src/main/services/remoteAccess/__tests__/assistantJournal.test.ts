@@ -336,6 +336,74 @@ describe('Assistant live recovery', () => {
     )
   })
 
+  it('attaches before a leftover chunk timer publishes the next short turn', async () => {
+    vi.useFakeTimers()
+    try {
+      const { topic, one, firstModel } = seed()
+      journal!.onChunk()
+      const user = messageService.create(topic.id, {
+        role: 'user',
+        parentId: one.id,
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Short queued question' }] }
+      })
+      const reply = messageService.create(topic.id, {
+        role: 'assistant',
+        parentId: user.id,
+        status: 'pending',
+        data: { parts: [] }
+      })
+      fake.state.listeners.clear()
+      fake.state.snapshot = {
+        ...fake.state.snapshot!,
+        listenerIds: [],
+        executions: [
+          {
+            ...fake.state.snapshot!.executions[0],
+            attemptId: 3,
+            anchorMessageId: reply.id,
+            finalMessage: {
+              id: reply.id,
+              role: 'assistant',
+              parts: [{ type: 'text', text: 'Short answer', state: 'streaming' }]
+            }
+          }
+        ]
+      }
+      await vi.advanceTimersByTimeAsync(50)
+      messageService.finalizeAssistantMessage(reply.id, {
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Short answer' }] }
+      })
+      fake.state.snapshot = {
+        ...fake.state.snapshot,
+        executions: [{ ...fake.state.snapshot.executions[0], status: 'done' }]
+      }
+      const revision = topicService.getRemoteHistoryRevision(topic.id)
+      for (const listener of fake.state.listeners)
+        await listener.onDone({
+          status: 'success',
+          attemptId: 3,
+          anchorMessageId: reply.id,
+          modelId: firstModel,
+          finalMessage: { id: reply.id, role: 'assistant', parts: [{ type: 'text', text: 'Short answer' }] },
+          persistence: {
+            status: 'saved',
+            message: { messageId: reply.id, messageRevision: revision, historyRevision: revision }
+          }
+        })
+      const projection = baseline()
+      expect(Object.values(projection.executions)).toEqual(
+        expect.arrayContaining([expect.objectContaining({ messageId: reply.id, status: 'completed', durable: true })])
+      )
+      expect(projection.messages[reply.id]).toBeUndefined()
+    } finally {
+      journal?.dispose()
+      journal = undefined
+      vi.useRealTimers()
+    }
+  })
+
   it('replaces parts when retry reuses a non-durable message without merging execution identities', () => {
     const { one, firstModel } = seed()
     const before = baseline().parts[`${one.id}:live:0`].executionId

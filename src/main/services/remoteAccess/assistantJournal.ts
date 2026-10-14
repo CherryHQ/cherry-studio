@@ -98,10 +98,6 @@ export class TopicJournal implements StreamListener {
   }
 
   poll(): void {
-    const manager = application.get('AiStreamManager')
-    if (manager.hasLiveStream(this.topicId) && !manager.inspect(this.topicId)?.listenerIds.includes(this.id)) {
-      manager.addListener(this.topicId, this)
-    }
     this.flush()
     this.trimReplay(remoteLimits.replayBytes)
   }
@@ -130,6 +126,8 @@ export class TopicJournal implements StreamListener {
   private flush(): void {
     const manager = application.get('AiStreamManager')
     const snapshot = manager.inspect(this.topicId)
+    if (manager.hasLiveStream(this.topicId) && !snapshot?.listenerIds.includes(this.id))
+      manager.addListener(this.topicId, this)
     for (const execution of snapshot?.executions ?? []) {
       if (!execution.anchorMessageId) continue
       const executionId = this.executionId(execution.attemptId, execution.anchorMessageId)

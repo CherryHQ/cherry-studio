@@ -33,7 +33,8 @@ the transaction committing the decision, pending status and receipt association 
 Inputs are immutable from Mobile; question forms, OAuth, elicitation and browser confirmations
 remain desktop interactions. Current-branch history includes immutable author/model identity
 and attachment metadata, with bounded text/tool content reads.
-Each poll checks the current stream's listener IDs, so chained desktop turns reattach the journal.
+Every refresh checks the current stream's listener IDs before publishing execution state,
+including delayed chunk callbacks and checkpoints, so short chained turns retain terminal delivery.
 
 The remote stream listener coalesces adjacent deltas for the same message and part for
 up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending

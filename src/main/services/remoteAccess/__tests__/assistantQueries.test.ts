@@ -12,9 +12,11 @@ import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { topicService } from '@data/services/TopicService'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
+import { sha256, utf8 } from '../agentQueries'
 import {
   assertView,
   getAssistantTopic,
+  listAssistants,
   listAssistantMessages,
   listAssistantParts,
   persistedAssistantInteractions,
@@ -48,6 +50,42 @@ describe('Assistant remote branch and durable admission', () => {
     })
     return { topic, user, answer }
   }
+
+  it.each([3, 20, 100])('bounds long Assistant catalogs by bytes without skipping unsent rows at limit %s', (limit) => {
+    const ids = Array.from({ length: 24 }, (_, index) => `assistant-${String(index).padStart(2, '0')}`)
+    dbh.db
+      .insert(assistantTable)
+      .values(
+        ids.map((id) => ({
+          id,
+          name: '长'.repeat(4096),
+          emoji: '🍒',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: id,
+          updatedAt: 1000
+        }))
+      )
+      .run()
+    const read: string[] = []
+    const legacyCursor = `1.${sha256(utf8(`assistants:grant:${limit}:1`))}`
+    expect(() => listAssistants('grant', legacyCursor, limit)).toThrow('another grant')
+    let cursor: string | null = null
+    do {
+      const page = listAssistants('grant', cursor ?? undefined, limit)
+      expect(page.items.length).toBeGreaterThan(0)
+      expect(page.items.length).toBeLessThanOrEqual(limit)
+      expect(Buffer.byteLength(JSON.stringify({ jsonrpc: '2.0', id: 'catalog', result: page }))).toBeLessThan(65_536)
+      read.push(...page.items.map((item) => item.assistantId))
+      if (page.nextCursor) {
+        expect(Number(page.nextCursor.split('.')[0])).toBe(read.length)
+        expect(() => listAssistants('other-grant', page.nextCursor!, limit)).toThrow('another grant')
+      }
+      expect(read.length).toBeLessThanOrEqual(ids.length)
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(read).toEqual(ids)
+    expect(new Set(read).size).toBe(ids.length)
+  })
 
   it('reads only the selected branch and invalidates cursors for grants, edits and branch switches', () => {
     const { topic, user, answer } = seed()
