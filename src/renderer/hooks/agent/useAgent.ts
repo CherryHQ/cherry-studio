@@ -6,8 +6,12 @@
  * configuration) lives here, not on sessions.
  */
 
-import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
+import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
@@ -15,13 +19,9 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
-
 type UpdateAgentModelInput = {
   agentId: string
   modelId: UniqueModelId
@@ -63,17 +63,25 @@ export const useAgent = (id: string | null) => {
 /**
  * List + mutate all agents. Plain deletion removes the agent only; sessions are
  * preserved as orphaned history unless a caller explicitly requests session deletion.
+ *
+ * @param options.enabled - Skip the list query when the caller has nothing to render
+ *   for it (mutations stay usable). Defaults to `true`.
  */
-export const useAgents = () => {
+export const useAgents = (options: { enabled?: boolean } = {}) => {
   const { t } = useTranslation()
-  const { data, isLoading, error, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
-  const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
+  const enabled = options.enabled ?? true
+  const { data, isLoading, error, refetch } = useQuery('/agents', {
+    enabled,
+    query: { limit: AGENTS_MAX_LIMIT }
+  })
+  useDataChange(enabled ? '/agents' : [], () => void refetch())
+  const agents = useMemo<AgentEntity[]>(() => data?.items ?? [], [data])
   const invalidate = useInvalidateCache()
 
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
-        const result = await createAgentAndRefresh(form as unknown as CreateAgentCommand, () => invalidate('/agents'))
+        const result = await createAgentAndRefresh(form, () => invalidate('/agents'))
         toast.success(t('common.add_success'))
         return { success: true, data: result }
       } catch (error) {
@@ -85,19 +93,16 @@ export const useAgents = () => {
     [invalidate, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/pins']
-  })
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
-        await deleteTrigger({ params: { agentId: id } })
+        await deleteAgentAndRefresh(id, invalidate)
         toast.success(t('common.delete_success'))
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [deleteTrigger, t]
+    [invalidate, t]
   )
 
   return { agents, error, isLoading, addAgent, deleteAgent, refetch }
@@ -123,7 +128,7 @@ export const useUpdateAgent = () => {
         }
 
         return {
-          ...(result as unknown as AgentEntity),
+          ...result,
           configuration: parseAgentConfiguration(result.configuration, { entityId: result.id, entityType: 'agent' })
         }
       } catch (error) {

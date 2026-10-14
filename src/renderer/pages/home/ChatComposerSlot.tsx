@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
@@ -25,7 +27,7 @@ interface ChatComposerSlotBaseProps {
       userMessageParts?: CherryMessagePart[]
       chatTarget?: ComposerChatTarget
     }
-  ) => Promise<void>
+  ) => Promise<boolean>
   chatTarget: ComposerChatTarget
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
@@ -39,7 +41,7 @@ type ChatComposerSlotProps =
   | (ChatComposerSlotBaseProps & { placement: 'home'; sendDisabled?: never })
   | (ChatComposerSlotBaseProps & { placement: 'docked'; sendDisabled?: boolean })
 
-export default function ChatComposerSlot({
+function ChatComposerSlot({
   placement,
   topic,
   contextUsage,
@@ -94,3 +96,5 @@ export default function ChatComposerSlot({
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
+
+export default memo(ChatComposerSlot)

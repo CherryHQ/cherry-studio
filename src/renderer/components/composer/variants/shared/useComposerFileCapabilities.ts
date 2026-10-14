@@ -1,7 +1,9 @@
+import { useMemo } from 'react'
+
+import { anyFileExt } from '@renderer/utils/file'
 import { isAudioModel, isAudioModels, isVideoModel, isVideoModels } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
-import { useMemo } from 'react'
 
 export interface ComposerFileCapabilities {
   canAddImageFile: boolean
@@ -59,10 +61,12 @@ export function useComposerFileCapabilities(
     // Agent reads attachments from disk by path → all file types, any active model.
     if (!isChatSurface) {
       const enabled = fallbackModel != null
+      // The modality lists stay for callers that read them as a catalog (dialog
+      // filters, image-paste detection); `anyFileExt` is what lifts the filter.
       return {
         canAddImageFile: enabled,
         canAddTextFile: enabled,
-        supportedExts: enabled ? [...ALL_FILE_EXTS] : []
+        supportedExts: enabled ? [...ALL_FILE_EXTS, anyFileExt] : []
       }
     }
 

@@ -1,9 +1,10 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import ActionWindow from '../ActionWindow'
 
@@ -103,6 +104,19 @@ describe('ActionWindow surface', () => {
     expect(windowFrame).toHaveClass('bg-popover')
     expect(windowFrame).not.toHaveClass('bg-background')
     expect(windowFrame).toHaveStyle({ opacity: '1' })
+  })
+
+  it('lets the action body shrink so long result content cannot blow out the panel', () => {
+    // Contract: the overflow-hidden shell clips descendants unless every flex
+    // child between it and the result can shrink below min-content width.
+    const { container } = render(<ActionWindow />)
+    const windowFrame = container.firstElementChild
+    const bodyScroller = windowFrame?.querySelector(':scope > .overflow-auto')
+    const content = bodyScroller?.firstElementChild
+
+    expect(windowFrame).toHaveClass('overflow-hidden')
+    expect(bodyScroller).toHaveClass('min-w-0')
+    expect(content).toHaveClass('min-w-0', 'flex-1')
   })
 
   it('keeps applying the configured opacity below 100%', () => {

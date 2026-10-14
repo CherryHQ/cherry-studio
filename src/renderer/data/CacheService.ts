@@ -17,6 +17,8 @@
  * @see {@link CacheService} For implementation details
  */
 
+import { isEqual } from 'es-toolkit/compat'
+
 import { loggerService } from '@logger'
 import type {
   InferSharedCacheValue,
@@ -35,7 +37,6 @@ import type {
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'es-toolkit/compat'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
@@ -87,7 +88,7 @@ export type CacheSetStateAction<T> = T | ((prev: ReadonlyValue<T>) => T)
  *
  * Features:
  * - All APIs are synchronous (including shared cache via local copy)
- * - TTL lazy cleanup (check on get, not timer-based)
+ * - Memory TTL cleanup on expiry; shared TTL follows the main process
  * - Hook reference tracking (prevent deletion of active hooks)
  * - Unified sync mechanism for shared and persist
  * - Type-safe persist cache with predefined schema
@@ -105,6 +106,8 @@ export class CacheService {
   private subscribers = new Map<string, Set<CacheSubscriber>>()
 
   // Persist cache debounce
+  private memoryExpiryTimer?: ReturnType<typeof setTimeout>
+  private memoryExpiryDeadline = Infinity
   private persistSaveTimer?: NodeJS.Timeout
   private persistDirty = false
   private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
@@ -283,6 +286,7 @@ export class CacheService {
       const newExpireAt = ttl ? Date.now() + ttl : undefined
       if (!Object.is(existingEntry.expireAt, newExpireAt)) {
         existingEntry.expireAt = newExpireAt
+        this.scheduleMemoryExpiry(newExpireAt)
         logger.verbose(`Updated TTL for memory cache key "${key}"`)
       } else {
         logger.verbose(`Skipped memory cache update for key "${key}" - value and TTL unchanged`)
@@ -296,8 +300,34 @@ export class CacheService {
     }
 
     this.memoryCache.set(key, entry)
+    this.scheduleMemoryExpiry(entry.expireAt)
     this.notifySubscribers(key)
     logger.verbose(`Updated memory cache for key "${key}"`)
+  }
+
+  private scheduleMemoryExpiry(expireAt: number | undefined): void {
+    if (expireAt === undefined || expireAt >= this.memoryExpiryDeadline) return
+    clearTimeout(this.memoryExpiryTimer)
+    this.memoryExpiryDeadline = expireAt
+    this.memoryExpiryTimer = setTimeout(
+      () => {
+        this.memoryExpiryTimer = undefined
+        this.memoryExpiryDeadline = Infinity
+        const expired: string[] = []
+        let next = Infinity
+        for (const [key, entry] of this.memoryCache) {
+          if (entry.expireAt === undefined) continue
+          if (entry.expireAt <= Date.now()) {
+            this.memoryCache.delete(key)
+            expired.push(key)
+          } else next = Math.min(next, entry.expireAt)
+        }
+        for (const key of expired) this.notifySubscribers(key)
+        if (next !== Infinity) this.scheduleMemoryExpiry(next)
+      },
+      Math.min(2 ** 31 - 1, Math.max(1, expireAt - Date.now()))
+    )
+    this.memoryExpiryTimer.unref?.()
   }
 
   /**
@@ -1111,7 +1141,7 @@ export class CacheService {
   }
 
   /**
-   * Schedule persist cache save with 200ms debounce to avoid excessive writes
+   * Schedule persist cache save with 350ms debounce to avoid excessive writes
    */
   private schedulePersistSave(): void {
     this.persistDirty = true
@@ -1207,6 +1237,9 @@ export class CacheService {
     }
 
     // Clear timers
+    clearTimeout(this.memoryExpiryTimer)
+    this.memoryExpiryTimer = undefined
+    this.memoryExpiryDeadline = Infinity
     if (this.persistSaveTimer) {
       clearTimeout(this.persistSaveTimer)
     }

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 
 const mocks = vi.hoisted(() => ({
   preferenceValues: {} as Partial<Record<string, PreferenceShortcutType>>,

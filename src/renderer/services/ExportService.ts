@@ -1,6 +1,15 @@
+import type { Client } from '@notionhq/client'
+import type { markdownToBlocks } from '@tryfabric/martian'
+import dayjs from 'dayjs'
+import DOMPurify from 'dompurify'
+import type { Blockquote } from 'mdast'
+import type { appendBlocks } from 'notion-helper'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import type { Client } from '@notionhq/client'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
@@ -11,13 +20,21 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
-import type { ExportableMessage } from '@renderer/types/messageExport'
+import type {
+  ExportableMessage,
+  ExportMessagesToObsidian,
+  MessageExportTarget,
+  MessageExportView
+} from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
-import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import {
+  captureScrollableAsBlob as captureScrollableAsBlobUtil,
+  captureScrollableAsDataUrl as captureScrollableAsDataUrlUtil
+} from '@renderer/utils/image'
+import { convertLatexMathToDollars, markdownToPlainText } from '@renderer/utils/markdown'
 import { stripCitationMarkers } from '@renderer/utils/message/citations'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
 import {
@@ -27,10 +44,18 @@ import {
   getThinkingContent,
   getToolCitationExport
 } from '@renderer/utils/message/find'
-import type { markdownToBlocks } from '@tryfabric/martian'
-import dayjs from 'dayjs'
-import DOMPurify from 'dompurify'
-import type { appendBlocks } from 'notion-helper'
+import type { ContentHash } from '@shared/data/types/file'
+import { AbsoluteFilePathSchema, type FileVersion } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
+
+import {
+  collectExportableImages,
+  hydrateDeferredImageOutputs,
+  type ImageExportMode,
+  type PendingImageWrite,
+  serializeMessagesWithImages,
+  writeImageAssets
+} from './markdownImageExport'
 
 const logger = loggerService.withContext('ExportService')
 
@@ -78,6 +103,34 @@ const getExportState = () => exportState
 const setExportingState = (isExporting: boolean) => {
   exportState = isExporting
 }
+
+type ScrollableCaptureRef = Parameters<typeof captureScrollableAsDataUrlUtil>[0]
+type ScrollableBlobCallback = Parameters<typeof captureScrollableAsBlobUtil>[1]
+
+// Image captures temporarily mutate renderer DOM and share the native capture
+// lifecycle, so their coordination belongs with the export runtime owner.
+export class ExportService {
+  private imageCaptureQueue = Promise.resolve()
+
+  private enqueueImageCapture<T>(capture: () => Promise<T>): Promise<T> {
+    const queuedCapture = this.imageCaptureQueue.then(capture)
+    this.imageCaptureQueue = queuedCapture.then(
+      () => undefined,
+      () => undefined
+    )
+    return queuedCapture
+  }
+
+  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef) {
+    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef))
+  }
+
+  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback) {
+    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func))
+  }
+}
+
+export const exportService = new ExportService()
 
 /**
  * 安全地处理思维链内容，保留安全的 HTML 标签如 <br>，移除危险内容
@@ -233,7 +286,8 @@ const createBaseMarkdown = async (
   message: ExportableMessage,
   includeReasoning: boolean = false,
   excludeCitations: boolean = false,
-  normalizeCitations: boolean = true
+  normalizeCitations: boolean = true,
+  rawContentOverride?: string
 ): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
   const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
   const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
@@ -252,15 +306,17 @@ const createBaseMarkdown = async (
       } else if (reasoningContent.startsWith('<think>')) {
         reasoningContent = reasoningContent.substring(7)
       }
+      // Must run before sanitizing turns `\n` into `<br>`: formulas and code blocks are only
+      // recognizable while the line structure is intact.
+      if (forceDollarMathInMarkdown) {
+        reasoningContent = convertLatexMathToDollars(reasoningContent)
+      }
       // 使用 DOMPurify 安全地处理思维链内容
       reasoningContent = sanitizeReasoningContent(reasoningContent)
       // The model cites its sources while reasoning too, but the `[N]` numbering below
       // belongs to the answer body — strip rather than resolve, so no internal marker
       // survives and no second, conflicting sequence appears.
       reasoningContent = stripCitationMarkers(reasoningContent)
-      if (forceDollarMathInMarkdown) {
-        reasoningContent = convertMathFormula(reasoningContent)
-      }
       reasoningSection = `<div style="border: 2px solid #dddddd; border-radius: 10px;">
   <details style="padding: 5px;">
     <summary>${i18n.t('common.reasoning_content')}</summary>
@@ -271,7 +327,13 @@ const createBaseMarkdown = async (
     }
   }
 
-  const rawContent = getComposerTextFromMessage(message, getMainTextContent(message))
+  // Image-bearing exports pass an interleaved text+image serialization here (already
+  // composer-token processed) and bypass the shared extraction — user messages would
+  // otherwise have their parts text re-extracted, dropping the images again.
+  const rawContent =
+    rawContentOverride !== undefined
+      ? rawContentOverride
+      : getComposerTextFromMessage(message, getMainTextContent(message))
   // Tool-derived citations live as `[cite:id]` markers in the text with no persisted
   // reference metadata, so resolve them to plain `[N]` here — otherwise the internal
   // marker leaks into the export and the sources list comes back empty. Messages that
@@ -279,7 +341,7 @@ const createBaseMarkdown = async (
   const { content, citation: toolCitation } = getToolCitationExport(message, rawContent)
   let citation = excludeCitations ? '' : getCitationContent(message) || toolCitation
 
-  let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
+  let processedContent = forceDollarMathInMarkdown ? convertLatexMathToDollars(content) : content
 
   // 处理引用标记
   if (excludeCitations) {
@@ -324,7 +386,11 @@ export async function getMessageTitle(message: ExportableMessage, length = 30): 
   return title
 }
 
-export const messageToMarkdown = async (message: ExportableMessage, excludeCitations?: boolean): Promise<string> => {
+export const messageToMarkdown = async (
+  message: ExportableMessage,
+  excludeCitations?: boolean,
+  rawContentOverride?: string
+): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
     standardizeCitationsInExport: 'data.export.markdown.standardize_citations'
@@ -334,14 +400,16 @@ export const messageToMarkdown = async (message: ExportableMessage, excludeCitat
     message,
     false,
     shouldExcludeCitations,
-    standardizeCitationsInExport
+    standardizeCitationsInExport,
+    rawContentOverride
   )
   return [titleSection, '', contentSection, citation].join('\n')
 }
 
 export const messageToMarkdownWithReasoning = async (
   message: ExportableMessage,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  rawContentOverride?: string
 ): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
@@ -352,7 +420,8 @@ export const messageToMarkdownWithReasoning = async (
     message,
     true,
     shouldExcludeCitations,
-    standardizeCitationsInExport
+    standardizeCitationsInExport,
+    rawContentOverride
   )
   return [titleSection, '', reasoningSection, contentSection, citation].join('\n')
 }
@@ -360,24 +429,33 @@ export const messageToMarkdownWithReasoning = async (
 export const messagesToMarkdown = async (
   messages: ExportableMessage[],
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  rawContentOverrides?: Map<string, string>
 ): Promise<string> => {
   const converter = exportReasoning ? messageToMarkdownWithReasoning : messageToMarkdown
-  const markdowns = await Promise.all(messages.map((message) => converter(message, excludeCitations)))
+  const markdowns = await Promise.all(
+    messages.map((message) => converter(message, excludeCitations, rawContentOverrides?.get(message.id)))
+  )
   return markdowns.join('\n---\n')
 }
 
 export const topicToMarkdown = async (
   topic: Topic,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  rawContentOverrides?: Map<string, string>,
+  messagesOverride?: ExportableMessage[]
 ): Promise<string> => {
   const topicName = `# ${topic.name}`
 
-  const messages = await getTopicMessages(topic.id)
+  // Callers that already read the topic (image export collects refs from a snapshot)
+  // pass it back so collection and rendering can never diverge mid-export.
+  const messages = messagesOverride ?? (await getTopicMessages(topic.id))
 
   if (messages && messages.length > 0) {
-    return topicName + '\n\n' + (await messagesToMarkdown(messages, exportReasoning, excludeCitations))
+    return (
+      topicName + '\n\n' + (await messagesToMarkdown(messages, exportReasoning, excludeCitations, rawContentOverrides))
+    )
   }
 
   return topicName
@@ -389,7 +467,7 @@ export const topicToPlainText = async (topic: Topic): Promise<string> => {
   const topicMessages = await getTopicMessages(topic.id)
 
   if (topicMessages && topicMessages.length > 0) {
-    return topicName + '\n\n' + messagesToPlainText(topicMessages)
+    return topicName + '\n\n' + (await messagesToPlainText(topicMessages))
   }
 
   return topicName
@@ -432,10 +510,143 @@ export const exportMarkdownContentAsFile = async (title: string, markdown: strin
   }
 }
 
+/** Containing directory of a saved file path, tolerating both path separators. */
+const dirOf = (filePath: string): string => {
+  const idx = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+  if (idx < 0) return filePath
+  const dir = filePath.slice(0, idx) || '/'
+  // A bare drive letter is not a usable directory — keep its separator ('C:\a.md' → 'C:\').
+  return /^[A-Za-z]:$/.test(dir) ? `${dir}\\` : dir
+}
+
+/**
+ * UI decision injected by the hook entry points (services must not import
+ * components or render UI — renderer-architecture §2). Null = the user cancelled;
+ * undefined = no implementation available (both abort).
+ */
+export type ImageModeChooser = (imageCount: number) => Promise<ImageExportMode | null | undefined>
+
+/**
+ * Image-mode gate for Markdown file exports: collect images, ask the user how to
+ * carry them via the injected chooser (only consulted when images exist), then
+ * serialize when a carrying mode is chosen. Returns null when the user cancels —
+ * the caller aborts without any file write.
+ */
+const buildMarkdownWithImages = async (
+  messages: ExportableMessage[],
+  build: (rawContentOverrides?: Map<string, string>) => Promise<string>,
+  chooseImageMode?: ImageModeChooser
+): Promise<{ markdown: string; pendingWrites: PendingImageWrite[] } | null> => {
+  // Deferred generate_image outputs hydrate once here so collection and
+  // serialization share one resolved snapshot.
+  const { messages: hydrated, unresolvedCount: deferredUnresolved } = await hydrateDeferredImageOutputs(messages)
+  const { refs, unresolvedCount } = await collectExportableImages(hydrated)
+  const unresolved = deferredUnresolved + unresolvedCount
+  if (refs.length === 0) {
+    if (unresolved > 0) {
+      toast.warning(i18n.t('chat.topics.export.image_mode.skipped', { count: unresolved }))
+    }
+    return { markdown: await build(), pendingWrites: [] }
+  }
+  // undefined = no chooser injected (service called without UI context); null = user cancelled.
+  const mode = chooseImageMode ? await chooseImageMode(refs.length) : undefined
+  if (mode === undefined) {
+    logger.warn('No image-mode chooser provided; aborting an image-bearing markdown export')
+    return null
+  }
+  if (mode === null || mode === 'none') {
+    return mode === null ? null : { markdown: await build(), pendingWrites: [] }
+  }
+  const { overrides, pendingWrites, skippedCount } = await serializeMessagesWithImages(hydrated, mode, refs)
+  const totalSkipped = skippedCount + unresolved
+  if (totalSkipped > 0) {
+    // Embed mode skips oversized OR unreadable images; folder mode has no size
+    // cap, so its skips (and collection failures) are purely availability.
+    const key =
+      mode === 'embed' ? 'chat.topics.export.image_mode.skipped_embed' : 'chat.topics.export.image_mode.skipped'
+    toast.warning(i18n.t(key, { count: totalSkipped }))
+  }
+  return { markdown: await build(overrides), pendingWrites }
+}
+
+const escapeAssetName = (fileName: string): string => fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Strips the failed images' assets/ links from the just-written .md; the atomic
+// conditional write refuses when the file changed since expectedVersion (user edits win).
+const repairDanglingImageLinks = async (
+  mdPath: string,
+  markdown: string,
+  failedFileNames: string[],
+  expectedVersion: FileVersion,
+  expectedContentHash: ContentHash | undefined
+): Promise<void> => {
+  let repaired = markdown
+  for (const fileName of failedFileNames) {
+    // 'g' clears every occurrence of a deduped asset name; the alt class excludes
+    // '[' and '\n' so a stray unpaired '![' in user text can never widen the match.
+    repaired = repaired.replace(
+      new RegExp(`!\\[[^\\][\\n]*\\]\\(assets/${escapeAssetName(fileName)}\\)\\n{0,2}`, 'g'),
+      ''
+    )
+  }
+  if (repaired === markdown) {
+    logger.warn('No dangling image links matched during the markdown repair', { mdPath, failedFileNames })
+    return
+  }
+  await ipcApi.request('file.write_if_unchanged', {
+    handle: createFilePathHandle(AbsoluteFilePathSchema.parse(mdPath)),
+    data: new TextEncoder().encode(repaired),
+    expectedVersion,
+    expectedContentHash
+  })
+}
+
+// Returns the version+hash pair only while the .md still holds exactly our markdown —
+// an external rewrite voids the repair; the hash closes same-second mtime ambiguity (FAT32/SMB/NFS).
+const readWrittenMarkdownVersion = async (
+  mdPath: string,
+  markdown: string
+): Promise<{ version: FileVersion; contentHash?: ContentHash } | null> => {
+  try {
+    const { content, version, contentHash } = await ipcApi.request('file.read', {
+      handle: createFilePathHandle(AbsoluteFilePathSchema.parse(mdPath)),
+      options: { mode: 'full', encoding: 'binary', withContentHash: true }
+    })
+    return new TextDecoder().decode(content) === markdown ? { version, contentHash } : null
+  } catch {
+    return null
+  }
+}
+
+/** Folder mode: write image assets next to the .md; failed images get their links stripped and warn. */
+const exportImageAssets = async (
+  mdPath: string,
+  markdown: string,
+  pendingWrites: PendingImageWrite[]
+): Promise<void> => {
+  if (pendingWrites.length === 0) return
+  const failed = await writeImageAssets(dirOf(mdPath), pendingWrites)
+  if (failed.length === 0) return
+  // Read back only on failure — the content-equality gate protects external
+  // rewrites, and the all-assets-succeeded path pays no extra IPC.
+  const snapshot = await readWrittenMarkdownVersion(mdPath, markdown)
+  if (snapshot) {
+    try {
+      await repairDanglingImageLinks(mdPath, markdown, failed, snapshot.version, snapshot.contentHash)
+    } catch (error) {
+      logger.warn('Failed to strip dangling image links from the exported markdown', { mdPath, error })
+    }
+  } else {
+    logger.warn('Skipped the dangling-link repair: the exported .md no longer holds this export', { mdPath })
+  }
+  toast.warning(i18n.t('chat.topics.export.image_mode.write_failed', { count: failed.length }))
+}
+
 export const exportTopicAsMarkdown = async (
   topic: Topic,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
@@ -448,9 +659,16 @@ export const exportTopicAsMarkdown = async (
   if (!markdownExportPath) {
     try {
       const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
-      const markdown = await topicToMarkdown(topic, exportReasoning, excludeCitations)
-      const result = await window.api.file.save(fileName, markdown)
+      const messages = await getTopicMessages(topic.id)
+      const built = await buildMarkdownWithImages(
+        messages ?? [],
+        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
+        chooseImageMode
+      )
+      if (!built) return
+      const result = await window.api.file.save(fileName, built.markdown)
       if (result) {
+        await exportImageAssets(result, built.markdown, built.pendingWrites)
         toast.success(i18n.t('message.success.markdown.export.specified'))
       }
     } catch (error: any) {
@@ -463,8 +681,16 @@ export const exportTopicAsMarkdown = async (
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
       const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
-      const markdown = await topicToMarkdown(topic, exportReasoning, excludeCitations)
-      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      const messages = await getTopicMessages(topic.id)
+      const built = await buildMarkdownWithImages(
+        messages ?? [],
+        (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
+        chooseImageMode
+      )
+      if (!built) return
+      const mdPath = markdownExportPath + '/' + fileName
+      await window.api.file.write(mdPath, built.markdown)
+      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       toast.error(i18n.t('message.error.markdown.export.preconf'))
@@ -478,55 +704,191 @@ export const exportTopicAsMarkdown = async (
 export const exportMessageAsMarkdown = async (
   message: ExportableMessage,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
+  await exportMessagesAsMarkdown([message], exportReasoning, undefined, chooseImageMode, excludeCitations)
+}
+
+export const exportMessagesAsMarkdown = async (
+  messages: ExportableMessage[],
+  exportReasoning?: boolean,
+  title?: string,
+  chooseImageMode?: ImageModeChooser,
+  excludeCitations?: boolean
+): Promise<boolean> => {
+  if (messages.length === 0) return false
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
-    return
+    return false
   }
 
   setExportingState(true)
+  let markdownExportPath: string | null = null
+  try {
+    markdownExportPath = await preferenceService.get('data.export.markdown.path')
+    const fileTitle = title?.trim() || (await getMessageTitle(messages[0]))
+    const timestamp = markdownExportPath ? ` ${dayjs().format('YYYY-MM-DD-HH-mm-ss')}` : ''
+    const fileName = removeSpecialCharactersForFileName(fileTitle) + timestamp + '.md'
+    const built = await buildMarkdownWithImages(
+      messages,
+      (overrides) => messagesToMarkdown(messages, exportReasoning, excludeCitations, overrides),
+      chooseImageMode
+    )
+    if (!built) return false
 
-  const markdownExportPath = await preferenceService.get('data.export.markdown.path')
-  if (!markdownExportPath) {
-    try {
-      const title = await getMessageTitle(message)
-      const fileName = removeSpecialCharactersForFileName(title) + '.md'
-      const markdown = exportReasoning
-        ? await messageToMarkdownWithReasoning(message, excludeCitations)
-        : await messageToMarkdown(message, excludeCitations)
-      const result = await window.api.file.save(fileName, markdown)
-      if (result) {
-        toast.success(i18n.t('message.success.markdown.export.specified'))
-      }
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.specified'))
-      logger.error('Failed to export message as markdown:', error)
-    } finally {
-      setExportingState(false)
-    }
-  } else {
-    try {
-      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const title = await getMessageTitle(message)
-      const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      const markdown = exportReasoning
-        ? await messageToMarkdownWithReasoning(message, excludeCitations)
-        : await messageToMarkdown(message, excludeCitations)
-      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
-      toast.success(i18n.t('message.success.markdown.export.preconf'))
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.preconf'))
-      logger.error('Failed to export message as markdown:', error)
-    } finally {
-      setExportingState(false)
+    const filePath = markdownExportPath
+      ? markdownExportPath + '/' + fileName
+      : await window.api.file.save(fileName, built.markdown)
+    if (!filePath) return false
+    if (markdownExportPath) await window.api.file.write(filePath, built.markdown)
+    await exportImageAssets(filePath, built.markdown, built.pendingWrites)
+    toast.success(
+      i18n.t(
+        markdownExportPath ? 'message.success.markdown.export.preconf' : 'message.success.markdown.export.specified'
+      )
+    )
+    return true
+  } catch (error) {
+    toast.error(
+      i18n.t(markdownExportPath ? 'message.error.markdown.export.preconf' : 'message.error.markdown.export.specified')
+    )
+    logger.error('Failed to export messages as markdown:', error as Error)
+    return false
+  } finally {
+    setExportingState(false)
+  }
+}
+
+export async function exportMessagesToTarget(
+  messages: MessageExportView[],
+  target: MessageExportTarget,
+  options: { title?: string; exportToObsidian: ExportMessagesToObsidian; chooseImageMode: ImageModeChooser }
+): Promise<boolean> {
+  if (messages.length === 0) return false
+  if (target === 'markdown' || target === 'markdown-reason') {
+    return exportMessagesAsMarkdown(messages, target === 'markdown-reason', options.title, options.chooseImageMode)
+  }
+  const title = options.title ?? (await getMessageTitle(messages[0]))
+  switch (target) {
+    case 'word':
+      return ipcApi.request('export.word.from_markdown', {
+        markdown: await messagesToMarkdown(messages),
+        fileName: removeSpecialCharactersForFileName(title)
+      })
+    case 'notion':
+      return exportMessagesToNotion(title, messages)
+    case 'yuque':
+      return (await exportMarkdownToYuque(title, await messagesToMarkdown(messages))) != null
+    case 'obsidian':
+      return options.exportToObsidian(title.replace(/\\/g, '_'), messages)
+    case 'joplin':
+      return (await exportMarkdownToJoplin(title, messages)) != null
+    case 'siyuan':
+      return exportMarkdownToSiyuan(title, await messagesToMarkdown(messages))
+  }
+}
+
+// GitHub-style alert marker (e.g. "[!NOTE]") leading the first paragraph inside a quote
+const ALERT_MARKER_RE = /^\[!([A-Za-z][\w-]*)\]/
+
+// Fixed alert-type → Notion callout icon/color pairs (issue #16388 spec)
+const ALERT_CALLOUT_MAP: Record<string, { emoji: string; color: string }> = {
+  NOTE: { emoji: '💡', color: 'blue_background' },
+  TIP: { emoji: '✅', color: 'green_background' },
+  IMPORTANT: { emoji: '⭐', color: 'purple_background' },
+  WARNING: { emoji: '⚠️', color: 'yellow_background' },
+  CAUTION: { emoji: '🚫', color: 'red_background' }
+}
+const UNKNOWN_ALERT_CALLOUT = { emoji: '📝', color: 'gray_background' }
+
+const stripLeadingNewline = (segment: any): any =>
+  segment?.text ? { ...segment, text: { ...segment.text, content: segment.text.content.replace(/^\n/, '') } } : segment
+
+// Detect alert quotes on the source mdast, mirroring the live renderer
+// (remark-github-blockquote-alert): the marker must lead the quote's first
+// paragraph as a plain text node. Source-level detection keeps provenance that
+// martian strips (raw HTML like <code>[!NOTE]</code> becomes plain text).
+const isAlertQuoteNode = (quote: Blockquote): boolean => {
+  const firstChild = quote.children?.[0]
+  if (firstChild?.type !== 'paragraph') {
+    return false
+  }
+  const firstNode = firstChild.children?.[0]
+  return firstNode?.type === 'text' && ALERT_MARKER_RE.test(firstNode.value)
+}
+
+// One flag per source blockquote in document order, consumed in the same order below.
+// The visitor must not return a value — visit treats numbers as index moves.
+const collectAlertQuoteFlags = (markdown: string): boolean[] => {
+  const flags: boolean[] = []
+  const tree = unified().use(remarkParse).parse(markdown)
+  visit(tree, 'blockquote', (node) => {
+    flags.push(isAlertQuoteNode(node))
+  })
+  return flags
+}
+
+// Drop the marker from the paragraph's rich text segments; marker may share a segment
+// with the body or occupy its own (e.g. marker-only paragraph).
+const stripAlertMarker = (segments: any[], markerLength: number): any[] => {
+  const [first, ...rest] = segments
+  const remainder = first.text.content.slice(markerLength).replace(/^\n/, '')
+  if (remainder) {
+    return [{ ...first, text: { ...first.text, content: remainder } }, ...rest]
+  }
+  return rest.length > 0 ? [stripLeadingNewline(rest[0]), ...rest.slice(1)] : []
+}
+
+const quoteToCallout = (block: any, isAlert: boolean): any => {
+  if (!isAlert) {
+    return block
+  }
+  const firstChild = block.quote?.children?.[0]
+  if (firstChild?.type !== 'paragraph') {
+    return block
+  }
+  const segments = firstChild.paragraph.rich_text ?? []
+  const match = ALERT_MARKER_RE.exec(segments[0]?.text?.content ?? '')
+  if (!match) {
+    return block
+  }
+  const style = ALERT_CALLOUT_MAP[match[1].toUpperCase()] ?? UNKNOWN_ALERT_CALLOUT
+  return {
+    object: 'block',
+    type: 'callout',
+    callout: {
+      rich_text: stripAlertMarker(segments, match[0].length),
+      icon: { type: 'emoji', emoji: style.emoji },
+      color: style.color,
+      children: block.quote.children.slice(1)
     }
   }
 }
 
+// Rewrite GitHub-style alert quotes ("> [!TYPE]") in martian output into native
+// Notion callout blocks; plain quotes are left untouched.
+export const rewriteAlertQuotesToCallouts = (blocks: any[], markdown: string): any[] => {
+  const alertFlags = collectAlertQuoteFlags(markdown)
+  let quoteIndex = 0
+  const rewriteBlock = (block: any): any => {
+    if (!block?.type) {
+      return block
+    }
+    // Consume the flag before recursing so nested quotes align with the
+    // source AST's document order (parents before children).
+    const rewritten = block.type === 'quote' ? quoteToCallout(block, alertFlags[quoteIndex++] === true) : block
+    const payload = rewritten[rewritten.type]
+    return Array.isArray(payload?.children)
+      ? { ...rewritten, [rewritten.type]: { ...payload, children: payload.children.map(rewriteBlock) } }
+      : rewritten
+  }
+  return blocks.map(rewriteBlock)
+}
+
 const convertMarkdownToNotionBlocks = async (markdown: string): Promise<any[]> => {
   const { markdownToBlocks } = await loadNotionDependencies()
-  return markdownToBlocks(markdown)
+  return rewriteAlertQuotesToCallouts(markdownToBlocks(markdown), markdown)
 }
 
 const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<any[]> => {
@@ -540,7 +902,7 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
     const processedContent = thinkingContent.replace(/<br\s*\/?>/g, '\n')
 
     // 使用 markdownToBlocks 处理思维链内容
-    const childrenBlocks = markdownToBlocks(processedContent)
+    const childrenBlocks = rewriteAlertQuotesToCallouts(markdownToBlocks(processedContent), processedContent)
 
     return [
       {
@@ -606,6 +968,19 @@ const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<a
   }
 }
 
+// Reasoning content comes from the message itself, not from the body markdown,
+// so callers can produce these blocks concurrently with the body conversion.
+const convertThinkingBlocksFor = async (message: ExportableMessage, reasoningEnabled: boolean): Promise<any[]> => {
+  if (!reasoningEnabled) {
+    return []
+  }
+  const thinkingContent = stripCitationMarkers(getThinkingContent(message))
+  if (!thinkingContent) {
+    return []
+  }
+  return convertThinkingToNotionBlocks(thinkingContent)
+}
+
 const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boolean> => {
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
@@ -646,7 +1021,12 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
         }
       }
     })
-    toast.loading({ title: i18n.t('message.loading.notion.preparing'), promise: responsePromise })
+    const preparingToastKey = 'notion-export:preparing'
+    toast.loading({
+      key: preparingToastKey,
+      title: i18n.t('message.loading.notion.preparing'),
+      promise: responsePromise.finally(() => toast.closeToast(preparingToastKey)).catch(() => undefined)
+    })
     const response = await responsePromise
 
     const exportPromise = appendBlocks({
@@ -654,7 +1034,20 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
       children: allBlocks,
       client: notion
     })
-    toast.loading({ title: i18n.t('message.loading.notion.exporting_progress'), promise: exportPromise })
+    const exportingToastKey = 'notion-export:exporting'
+    toast.loading({
+      key: exportingToastKey,
+      title: i18n.t('message.loading.notion.exporting_progress'),
+      promise: exportPromise.finally(() => toast.closeToast(exportingToastKey)).catch(() => undefined)
+    })
+    const result = await exportPromise
+    if ('error' in result || ('apiResponses' in result && result.apiResponses === null)) {
+      throw new Error(
+        'error' in result && typeof result.error === 'string' && result.error
+          ? result.error
+          : i18n.t('message.error.notion.export')
+      )
+    }
 
     toast.success(i18n.t('message.success.notion.export'))
     return true
@@ -705,28 +1098,25 @@ export const exportMessagesToNotion = async (title: string, messages: Exportable
 
     const titleBlocks = await convertMarkdownToNotionBlocks(`# ${title}`)
 
-    // 为每个消息创建blocks
-    const allBlocks: any[] = [...titleBlocks]
-
-    for (const message of messages) {
-      // 将单个消息转换为markdown
-      const messageMarkdown = await messageToMarkdown(message, excludeCitationsInExport)
-      const messageBlocks = await convertMarkdownToNotionBlocks(messageMarkdown)
-
-      if (notionExportReasoning) {
-        const thinkingContent = stripCitationMarkers(getThinkingContent(message))
-        if (thinkingContent) {
-          const thinkingBlocks = await convertThinkingToNotionBlocks(thinkingContent)
-          if (messageBlocks.length > 0) {
-            messageBlocks.splice(1, 0, ...thinkingBlocks)
-          } else {
-            messageBlocks.push(...thinkingBlocks)
-          }
+    // Body and reasoning conversions take independent inputs, so they run
+    // concurrently per message and across messages; map+Promise.all keeps input order.
+    const convertMessage = async (message: ExportableMessage): Promise<any[]> => {
+      const [messageBlocks, thinkingBlocks] = await Promise.all([
+        messageToMarkdown(message, excludeCitationsInExport).then(convertMarkdownToNotionBlocks),
+        convertThinkingBlocksFor(message, notionExportReasoning)
+      ])
+      if (thinkingBlocks.length > 0) {
+        if (messageBlocks.length > 0) {
+          messageBlocks.splice(1, 0, ...thinkingBlocks)
+        } else {
+          messageBlocks.push(...thinkingBlocks)
         }
       }
-
-      allBlocks.push(...messageBlocks)
+      return messageBlocks
     }
+
+    const messageBlocksList = await Promise.all(messages.map(convertMessage))
+    const allBlocks: any[] = [...titleBlocks, ...messageBlocksList.flat()]
 
     return executeNotionExport(title, allBlocks)
   })
@@ -955,19 +1345,18 @@ export const exportMarkdownToJoplin = async (
 
   setExportingState(true)
 
-  let content: string
-  if (typeof contentOrMessages === 'string') {
-    content = contentOrMessages
-  } else if (Array.isArray(contentOrMessages)) {
-    content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
-  } else {
-    // 单条Message
-    content = joplinExportReasoning
-      ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
-      : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
-  }
-
   try {
+    let content: string
+    if (typeof contentOrMessages === 'string') {
+      content = contentOrMessages
+    } else if (Array.isArray(contentOrMessages)) {
+      content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
+    } else {
+      content = joplinExportReasoning
+        ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
+        : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
+    }
+
     const baseUrl = joplinUrl.endsWith('/') ? joplinUrl : `${joplinUrl}/`
     const response = await fetch(`${baseUrl}notes?token=${joplinToken}`, {
       method: 'POST',
@@ -1006,7 +1395,7 @@ export const exportMarkdownToJoplin = async (
  * @param title 笔记标题
  * @param content 笔记内容
  */
-export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<void> => {
+export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<boolean> => {
   const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = await preferenceService.getMultiple({
     siyuanApiUrl: 'data.integration.siyuan.api_url',
     siyuanToken: 'data.integration.siyuan.token',
@@ -1016,12 +1405,12 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
 
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
-    return
+    return false
   }
 
   if (!siyuanApiUrl || !siyuanToken || !siyuanBoxId) {
     toast.error(i18n.t('message.error.siyuan.no_config'))
-    return
+    return false
   }
 
   setExportingState(true)
@@ -1056,9 +1445,11 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
     await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
 
     toast.success(i18n.t('message.success.siyuan.export'))
+    return true
   } catch (error) {
     logger.error('Failed to export to Siyuan:', error as Error)
     toast.error(i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''))
+    return false
   } finally {
     setExportingState(false)
   }
@@ -1188,36 +1579,40 @@ const exportNoteAsMarkdown = async (noteName: string, content: string): Promise<
   }
 }
 
-const getScrollableElement = (): HTMLElement | null => {
+const getScrollableElement = (noteId: string): HTMLElement | null => {
   const notesPage = document.querySelector('#notes-page')
   if (!notesPage) return null
 
-  const allDivs = notesPage.querySelectorAll('div')
+  const noteEditor = Array.from(notesPage.querySelectorAll<HTMLElement>('[data-note-id]')).find(
+    (element) => element.dataset.noteId === noteId
+  )
+  if (!noteEditor) return null
+
+  const allDivs = noteEditor.querySelectorAll('div')
   for (const div of Array.from(allDivs)) {
     const style = window.getComputedStyle(div)
     if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
       if (div.querySelector('.ProseMirror')) {
-        return div as HTMLElement
+        return div
       }
     }
   }
   return null
 }
 
-const getScrollableRef = (): { current: HTMLElement } | null => {
-  const element = getScrollableElement()
-  if (!element) {
-    toast.warning(i18n.t('notes.no_content_to_copy'))
-    return null
+const getScrollableRef = (noteId: string): ScrollableCaptureRef => ({
+  get current() {
+    const element = getScrollableElement(noteId)
+    if (!element) {
+      toast.warning(i18n.t('notes.no_content_to_copy'))
+    }
+    return element
   }
-  return { current: element }
-}
+})
 
-const exportNoteAsImageToClipboard = async (): Promise<void> => {
-  const scrollableRef = getScrollableRef()
-  if (!scrollableRef) return
-
-  await captureScrollableAsBlob(scrollableRef, async (blob) => {
+const exportNoteAsImageToClipboard = async (noteId: string): Promise<void> => {
+  const scrollableRef = getScrollableRef(noteId)
+  await exportService.captureScrollableAsBlob(scrollableRef, async (blob) => {
     if (blob) {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       toast.success(i18n.t('common.copied'))
@@ -1225,11 +1620,9 @@ const exportNoteAsImageToClipboard = async (): Promise<void> => {
   })
 }
 
-const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
-  const scrollableRef = getScrollableRef()
-  if (!scrollableRef) return
-
-  const dataUrl = await captureScrollableAsDataUrl(scrollableRef)
+const exportNoteAsImageFile = async (noteName: string, noteId: string): Promise<void> => {
+  const scrollableRef = getScrollableRef(noteId)
+  const dataUrl = await exportService.captureScrollableAsDataUrl(scrollableRef)
   if (dataUrl) {
     const fileName = removeSpecialCharactersForFileName(noteName)
     await window.api.file.saveImage(fileName, dataUrl)
@@ -1237,7 +1630,7 @@ const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
 }
 
 interface NoteExportOptions {
-  node: { name: string; externalPath: string }
+  node: { id: string; name: string; externalPath: string }
   platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'joplin' | 'siyuan' | 'copyImage' | 'exportImage'
 }
 
@@ -1247,9 +1640,9 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
 
     switch (platform) {
       case 'copyImage':
-        return await exportNoteAsImageToClipboard()
+        return await exportNoteAsImageToClipboard(node.id)
       case 'exportImage':
-        return await exportNoteAsImageFile(node.name)
+        return await exportNoteAsImageFile(node.name, node.id)
       case 'markdown':
         return await exportNoteAsMarkdown(node.name, content)
       case 'docx':

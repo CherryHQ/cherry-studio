@@ -1,17 +1,25 @@
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
-import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
-import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import { addSidebarShortcut, normalizeSidebarShortcutItems } from '@renderer/utils/sidebar'
+import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
+import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+
 import CodeCliPage from '../CodeCliPage'
+
+type MockCommandMenuItem = { type: string; id?: string; onSelect?: () => void }
 
 const {
   clearCliConfigMock,
   readCliConfigFilesMock,
   extractConnectionFromCliConfigDraftMock,
+  cliConfigConnectionMatchesProviderMock,
   writeCliConfigDraftMock,
   writeOwnLoginCliConfigDraftMock,
   useCodeCliMock,
@@ -29,13 +37,19 @@ const {
   navigateMock,
   openSettingsTabMock,
   ipcRequestMock,
+  ipcEventHandlers,
   versionStatusesMock,
+  versionStatusesResolvedState,
   mockProviders,
-  mockProviderConfigs
+  mockProviderConfigs,
+  providersLoadingState,
+  unsupportedProviderIds,
+  gatewayState
 } = vi.hoisted(() => ({
   clearCliConfigMock: vi.fn(),
   readCliConfigFilesMock: vi.fn(),
   extractConnectionFromCliConfigDraftMock: vi.fn(),
+  cliConfigConnectionMatchesProviderMock: vi.fn(),
   writeCliConfigDraftMock: vi.fn(),
   writeOwnLoginCliConfigDraftMock: vi.fn(),
   useCodeCliMock: vi.fn(),
@@ -53,9 +67,23 @@ const {
   navigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
   ipcRequestMock: vi.fn(),
+  ipcEventHandlers: new Map<string, (payload: unknown) => void>(),
   versionStatusesMock: vi.fn(),
+  versionStatusesResolvedState: { value: true },
   mockProviders: [] as Provider[],
-  mockProviderConfigs: {} as Record<string, CliProviderConfig>
+  mockProviderConfigs: {} as Record<string, CliProviderConfig>,
+  providersLoadingState: { value: false },
+  unsupportedProviderIds: new Set<string>(),
+  gatewayState: {
+    bundle: null as {
+      provider: Provider
+      apiKey: string | null
+      ensureRunning: ReturnType<typeof vi.fn>
+      getApiKey: ReturnType<typeof vi.fn>
+    } | null,
+    defaultModelId: undefined as string | undefined,
+    modelsById: new Map<string, { id: string; providerId: string; modelId: string; apiModelId: string; name: string }>()
+  }
 }))
 
 const provider = {
@@ -84,6 +112,9 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  // No `role` here: the real Alert derives it from `type` (`status` for anything but
+  // `error`), so hardcoding one would let assertions pin a role the component never emits.
+  Alert: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
   Button: ({
     variant,
     size,
@@ -135,6 +166,7 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SearchInput: ({
     value,
     placeholder,
@@ -143,7 +175,32 @@ vi.mock('@cherrystudio/ui', () => ({
     value: string
     placeholder?: string
     onChange: (event: { target: { value: string } }) => void
-  }) => <input type="search" value={value} placeholder={placeholder} onChange={onChange} />
+  }) => <input type="search" value={value} placeholder={placeholder} onChange={onChange} />,
+  Tooltip: ({ children }: { children: ReactNode }) => children
+}))
+
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({ children }: { children: ReactNode }) => children,
+  CommandPopupMenu: ({
+    children,
+    extraItems = []
+  }: {
+    children: ReactNode
+    extraItems?: readonly MockCommandMenuItem[]
+  }) => (
+    <div>
+      {children}
+      {extraItems.map((item) =>
+        item.type === 'item' && item.id && item.onSelect ? (
+          <button key={item.id} type="button" data-testid={`popup-${item.id}`} onClick={item.onSelect} />
+        ) : null
+      )}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/icons/CliIcon', () => ({
+  CliIcon: ({ id }: { id: string }) => <span data-testid={`cli-icon-${id}`} />
 }))
 
 vi.mock('@data/DataApiService', () => ({
@@ -157,22 +214,26 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
 }))
 
 vi.mock('../hooks/useApiGatewayProvider', () => ({
-  useApiGatewayProvider: () => null
+  useApiGatewayProvider: () => gatewayState.bundle
 }))
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() })
 }))
 
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: [...gatewayState.modelsById.values()], isLoading: false })
+}))
+
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: mockProviders })
+  useProviders: () => ({ providers: mockProviders, isLoading: providersLoadingState.value })
 }))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (...args: unknown[]) => ipcRequestMock(...args)
   },
-  useIpcOn: vi.fn()
+  useIpcOn: (event: string, handler: (payload: unknown) => void) => ipcEventHandlers.set(event, handler)
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -224,7 +285,7 @@ vi.mock('../cliConfig/parser', () => ({
 }))
 
 vi.mock('../cliConfig/providerMatching', () => ({
-  cliConfigConnectionMatchesProvider: () => true
+  cliConfigConnectionMatchesProvider: (...args: unknown[]) => cliConfigConnectionMatchesProviderMock(...args)
 }))
 
 // `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
@@ -234,10 +295,6 @@ vi.mock('../cliConfig/adapters', async (importOriginal) => ({
   // oxlint-disable-next-line consistent-type-imports
   ...(await importOriginal<typeof import('../cliConfig/adapters')>()),
   sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {}
-}))
-
-vi.mock('../components/CodeCliSidebar', () => ({
-  CodeCliSidebar: () => <div data-testid="code-cli-sidebar" />
 }))
 
 vi.mock('../components/ConfigList', () => ({
@@ -330,7 +387,12 @@ vi.mock('../components/configEditPanel/OwnLoginConfigPanel', () => ({
 }))
 
 vi.mock('../components/LaunchDialog', () => ({
-  LaunchDialog: () => null
+  LaunchDialog: ({ open, onLaunch }: { open: boolean; onLaunch: () => void }) =>
+    open ? (
+      <button type="button" onClick={onLaunch}>
+        launch tool
+      </button>
+    ) : null
 }))
 
 vi.mock('../components/VersionStatusCard', () => ({
@@ -363,7 +425,7 @@ vi.mock('../components/VersionStatusCard', () => ({
         </button>
       )}
       {onLaunch && (
-        <button type="button" onClick={onLaunch}>
+        <button type="button" disabled={!canLaunch} onClick={onLaunch}>
           start tool
         </button>
       )}
@@ -385,8 +447,11 @@ vi.mock('../constants/cliTools', () => ({
   CLI_TOOLS: [
     { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null },
     { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
+    { value: CodeCli.ANTIGRAVITY_CLI, label: 'Antigravity CLI', icon: () => null },
+    { value: CodeCli.GEMINI_CLI, label: 'Gemini CLI', icon: () => null },
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
+    { value: CodeCli.HERMES, label: 'Hermes', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
   ],
   PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
@@ -407,12 +472,14 @@ vi.mock('../hooks/useBinaryActions', () => ({
 }))
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => versionStatusesMock()
+  useCliVersionStatuses: () => ({ statuses: versionStatusesMock(), resolved: versionStatusesResolvedState.value })
 }))
 
 vi.mock('../hooks/useConfigMetadata', () => ({
   useConfigMetadata: () => ({
-    filterProviders: (providers: Provider[]) => providers,
+    filterProviders: (providers: Provider[]) => providers.filter((item) => !unsupportedProviderIds.has(item.id)),
+    filterProvidersForTool: (_toolId: CodeCli, providers: Provider[]) =>
+      providers.filter((item) => !unsupportedProviderIds.has(item.id)),
     makeModelFilter: () => () => true,
     resolveProviderMeta: (item: Provider, config?: CliProviderConfig) => ({
       providerName: item.name,
@@ -422,7 +489,8 @@ vi.mock('../hooks/useConfigMetadata', () => ({
       providerName: item.name,
       modelName: config?.modelId
     }),
-    gatewayModelsById: new Map()
+    gatewayModelsById: gatewayState.modelsById,
+    defaultGatewayModelId: gatewayState.defaultModelId
   })
 }))
 
@@ -467,21 +535,39 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
   return {
     [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
     [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
+    [CodeCli.ANTIGRAVITY_CLI]: { ...base, ...overrides[CodeCli.ANTIGRAVITY_CLI] },
+    [CodeCli.GEMINI_CLI]: {
+      ...base,
+      installed: false,
+      source: 'none',
+      ...overrides[CodeCli.GEMINI_CLI]
+    },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
     [CodeCli.DEEPSEEK_HARNESS]: { ...base, ...overrides[CodeCli.DEEPSEEK_HARNESS] },
+    [CodeCli.HERMES]: { ...base, ...overrides[CodeCli.HERMES] },
     [CodeCli.QODER_CLI]: { ...base, ...overrides[CodeCli.QODER_CLI] }
   }
 }
 
 describe('CodeCliPage', () => {
   beforeEach(() => {
+    MockUseCacheUtils.resetMocks()
     vi.clearAllMocks()
+    ipcEventHandlers.clear()
     mockProviders.splice(0, mockProviders.length, provider)
+    providersLoadingState.value = false
+    unsupportedProviderIds.clear()
+    mockPreferenceState.set('ui.sidebar_shortcut', normalizeSidebarShortcutItems([]))
+    gatewayState.bundle = null
+    gatewayState.defaultModelId = undefined
+    gatewayState.modelsById.clear()
     mockCodeCliState()
     versionStatusesMock.mockReturnValue(baseVersionStatuses())
+    versionStatusesResolvedState.value = true
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
+    cliConfigConnectionMatchesProviderMock.mockReturnValue(true)
     writeCliConfigDraftMock.mockResolvedValue(undefined)
     upsertProviderConfigMock.mockResolvedValue('anthropic')
     deleteProviderConfigMock.mockResolvedValue(undefined)
@@ -490,9 +576,168 @@ describe('CodeCliPage', () => {
     selectFolderMock.mockResolvedValue('/tmp/project')
     navigateMock.mockResolvedValue(undefined)
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
+      if (route === 'hermes_dashboard.start') return { success: true, url: 'http://127.0.0.1:49152' }
       return { success: true }
     })
+  })
+
+  it('shows Antigravity immediately while hiding Gemini until installation status is resolved', () => {
+    versionStatusesMock.mockReturnValue({})
+    versionStatusesResolvedState.value = false
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Antigravity CLI')).toBeInTheDocument()
+    expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
+  })
+
+  it('pins an installed CLI with its localized fallback label', async () => {
+    const user = userEvent.setup()
+    render(<CodeCliPage />)
+
+    await user.click(screen.getByTestId(`popup-code-cli.toggle-sidebar.${CodeCli.CLAUDE_CODE}`))
+
+    await waitFor(() =>
+      expect(mockPreferenceState.get('ui.sidebar_shortcut')).toContainEqual(
+        expect.objectContaining({
+          target: {
+            kind: 'resource',
+            locator: { providerId: 'core.code-cli', resourceId: CodeCli.CLAUDE_CODE }
+          },
+          fallbackLabel: 'Claude Code'
+        })
+      )
+    )
+  })
+
+  // A broken managed install is installed:false with no shim, so the `installed` filter hid the
+  // tool entirely — taking the Retry/Remove that repair or undo it out of reach for good.
+  it('keeps a broken Gemini installation reachable so it can be repaired or removed', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: false, source: 'none', applicationStatus: 'broken' }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps an uninstalled pinned Gemini CLI reachable from its sidebar deep link', () => {
+    mockPreferenceState.set(
+      'ui.sidebar_shortcut',
+      addSidebarShortcut(normalizeSidebarShortcutItems([]), {
+        kind: 'resource',
+        locator: { providerId: 'core.code-cli', resourceId: CodeCli.GEMINI_CLI }
+      })
+    )
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(baseVersionStatuses())
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  // The redirect used to bail whenever the status was absent, so a permanently failed read left
+  // a selected Gemini hidden AND unredirected — an empty pane with no way out.
+  it('falls back off a selected Gemini when the status read never produces one', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue({})
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
+  })
+
+  it('keeps a selected Gemini selected while its status is still unresolved', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue({})
+    versionStatusesResolvedState.value = false
+
+    render(<CodeCliPage />)
+
+    // Redirecting on an in-flight read would move an installed-Gemini user off it on every start.
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['system', 'mise'] as const)('shows an installed Gemini CLI from the %s snapshot', (source) => {
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+  })
+
+  it('falls back to the first visible tool after a selected Gemini installation is removed', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(baseVersionStatuses())
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
+    expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
+  })
+
+  it('shows the discontinuation notice only on the installed Gemini detail page', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise' }
+      })
+    )
+
+    const { unmount } = render(<CodeCliPage />)
+    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
+    unmount()
+
+    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
+    render(<CodeCliPage />)
+    expect(screen.queryByText('code.gemini_cli_discontinued')).not.toBeInTheDocument()
+  })
+
+  it('keeps launch, upgrade, and uninstall actions available for an installed Gemini CLI', () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.GEMINI_CLI,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new' } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise', current: '1.0.0', latest: '1.1.0', canUpgrade: true }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
+  })
+
+  it('offers official login and Unified Gateway cards for Antigravity', () => {
+    mockProviders.splice(0, mockProviders.length)
+    gatewayState.bundle = {
+      provider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider,
+      apiKey: null,
+      ensureRunning: vi.fn(),
+      getApiKey: vi.fn()
+    }
+    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: `toggle ${CLI_OWN_LOGIN_PROVIDER_ID}` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `toggle ${CLI_API_GATEWAY_PROVIDER_ID}` })).toBeInTheDocument()
   })
 
   it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {
@@ -529,6 +774,28 @@ describe('CodeCliPage', () => {
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 
+  it('opens Hermes Dashboard before the Gateway bootstrap when no default Gateway model exists', async () => {
+    const ensureRunning = vi.fn()
+    const getApiKey = vi.fn()
+    gatewayState.bundle = {
+      provider: { ...provider, id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Gateway' },
+      apiKey: 'gateway-key',
+      ensureRunning,
+      getApiKey
+    }
+    mockCodeCliState({ selectedCliTool: CodeCli.HERMES })
+    render(<CodeCliPage />)
+
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+    fireEvent.click(screen.getByText('start tool'))
+
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('hermes_dashboard.start'))
+    expect(ensureRunning).not.toHaveBeenCalled()
+    expect(getApiKey).not.toHaveBeenCalled()
+    expect(selectFolderMock).not.toHaveBeenCalled()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
+  })
+
   it('stores a DeepSeek Harness selection without writing config or starting external services', async () => {
     mockCodeCliState({ selectedCliTool: CodeCli.DEEPSEEK_HARNESS })
     render(<CodeCliPage />)
@@ -557,7 +824,6 @@ describe('CodeCliPage', () => {
       currentProviderId: 'anthropic'
     })
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
       if (route === 'deepseek_harness.start') return { success: true, url: 'http://127.0.0.1:43123' }
       return { success: true }
     })
@@ -588,11 +854,9 @@ describe('CodeCliPage', () => {
         [CodeCli.DEEPSEEK_HARNESS]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true }
       })
     )
-    ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') {
-        return { status: 'running', url: 'http://127.0.0.1:43123' }
-      }
-      return { success: true }
+    MockUseCacheUtils.setSharedCacheValue('feature.deepseek_harness.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:43123'
     })
 
     render(<CodeCliPage />)
@@ -611,6 +875,51 @@ describe('CodeCliPage', () => {
     expect(setCurrentProviderMock).not.toHaveBeenCalled()
     expect(screen.queryByTestId('config-panel')).not.toBeInTheDocument()
     expect(upgradeMock).not.toHaveBeenCalled()
+  })
+
+  it('locks Hermes Agent provider changes and upgrades while its web UI is running', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.HERMES,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
+    )
+    MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:49152'
+    })
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'configure anthropic' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeDisabled()
+    })
+  })
+
+  it('locks Hermes Agent provider actions from the shared status snapshot', async () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.HERMES,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
+    )
+    MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:49152'
+    })
+    render(<CodeCliPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'configure anthropic' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeDisabled()
+    })
   })
 
   it('enables the provider after saving detailed config from the pending dialog', async () => {
@@ -676,13 +985,187 @@ describe('CodeCliPage', () => {
     expect(reorderProvidersMock).not.toHaveBeenCalled()
   })
 
-  it('puts the provider selection hint on the disabled launch action', () => {
+  it('launches through the unified gateway with the default model when no provider is selected', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    const defaultModel = {
+      id: 'anthropic::claude-new',
+      providerId: 'anthropic',
+      modelId: 'claude-new',
+      apiModelId: 'claude-new',
+      name: 'Claude New'
+    }
+    const ensureRunning = vi.fn().mockResolvedValue(undefined)
+    const getApiKey = vi.fn().mockResolvedValue('cs-sk-default')
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getApiKey }
+    gatewayState.defaultModelId = defaultModel.id
+    gatewayState.modelsById.set(defaultModel.id, defaultModel)
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
     render(<CodeCliPage />)
 
     const versionCard = screen.getByTestId('version-status-card')
-    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
-    expect(versionCard).toHaveAttribute('data-can-launch', 'false')
-    expect(versionCard).toHaveAttribute('data-launch-disabled-hint', 'code.select_provider_before_launch')
+    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
+    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
+
+    fireEvent.click(screen.getByRole('button', { name: 'start tool' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'launch tool' }))
+
+    await waitFor(() => expect(getApiKey).toHaveBeenCalledOnce())
+    expect(ensureRunning).toHaveBeenCalledOnce()
+    expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
+      cliTool: CodeCli.OPEN_CODE,
+      modelId: defaultModel.id,
+      configBlob: undefined,
+      writePrimaryModel: true,
+      gateway: { provider: gatewayProvider, apiKey: 'cs-sk-default' }
+    })
+    expect(ipcRequestMock).toHaveBeenCalledWith('code_cli.run', {
+      mode: 'normal',
+      cliTool: CodeCli.OPEN_CODE,
+      model: 'claude-new',
+      providerId: 'anthropic',
+      gateway: true,
+      directory: '/tmp/project',
+      terminal: undefined
+    })
+  })
+
+  it('launches through the unified gateway when the saved provider is no longer supported', async () => {
+    const user = userEvent.setup()
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    const defaultModel = {
+      id: 'anthropic::claude-new',
+      providerId: 'anthropic',
+      modelId: 'claude-new',
+      apiModelId: 'claude-new',
+      name: 'Claude New'
+    }
+    const ensureRunning = vi.fn().mockResolvedValue(undefined)
+    const getApiKey = vi.fn().mockResolvedValue('cs-sk-default')
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getApiKey }
+    gatewayState.defaultModelId = defaultModel.id
+    gatewayState.modelsById.set(defaultModel.id, defaultModel)
+    unsupportedProviderIds.add(provider.id)
+    mockCodeCliState({
+      providerConfigs: { [provider.id]: { modelId: 'anthropic::kimi-k2.5', config: {} } },
+      currentProviderId: provider.id
+    })
+
+    render(<CodeCliPage />)
+
+    const startButton = screen.getByRole('button', { name: 'start tool' })
+    expect(startButton).toBeEnabled()
+    expect(screen.queryByText('anthropic::kimi-k2.5')).not.toBeInTheDocument()
+
+    await user.click(startButton)
+    await user.click(await screen.findByRole('button', { name: 'launch tool' }))
+
+    await waitFor(() => expect(getApiKey).toHaveBeenCalledOnce())
+    expect(ensureRunning).toHaveBeenCalledOnce()
+    expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
+      cliTool: CodeCli.CLAUDE_CODE,
+      modelId: defaultModel.id,
+      configBlob: undefined,
+      writePrimaryModel: true,
+      gateway: { provider: gatewayProvider, apiKey: 'cs-sk-default' }
+    })
+    expect(ipcRequestMock).toHaveBeenCalledWith('code_cli.run', {
+      mode: 'normal',
+      cliTool: CodeCli.CLAUDE_CODE,
+      model: 'claude-new',
+      providerId: 'anthropic',
+      gateway: true,
+      directory: '/tmp/project',
+      terminal: undefined
+    })
+  })
+
+  it('waits for provider loading before treating a saved provider as unsupported', () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    gatewayState.bundle = {
+      provider: gatewayProvider,
+      apiKey: null,
+      ensureRunning: vi.fn(),
+      getApiKey: vi.fn()
+    }
+    gatewayState.defaultModelId = 'anthropic::claude-new'
+    gatewayState.modelsById.set('anthropic::claude-new', {
+      id: 'anthropic::claude-new',
+      providerId: 'anthropic',
+      modelId: 'claude-new',
+      apiModelId: 'claude-new',
+      name: 'Claude New'
+    })
+    providersLoadingState.value = true
+    mockProviders.splice(0, mockProviders.length)
+    mockCodeCliState({
+      providerConfigs: { [provider.id]: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: provider.id
+    })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeDisabled()
+  })
+
+  it('does not re-read CLI config after fallback gateway connection state updates', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    const defaultModel = {
+      id: 'anthropic::claude-new',
+      providerId: 'anthropic',
+      modelId: 'claude-new',
+      apiModelId: 'claude-new',
+      name: 'Claude New'
+    }
+    let resolveFirstRead!: (files: CliConfigFileDraft[]) => void
+    const pendingRead = new Promise<CliConfigFileDraft[]>(() => {})
+    readCliConfigFilesMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<CliConfigFileDraft[]>((resolve) => {
+            resolveFirstRead = resolve
+          })
+      )
+      .mockReturnValue(pendingRead)
+    extractConnectionFromCliConfigDraftMock.mockReturnValue({ model: 'other-provider:other-model' })
+    cliConfigConnectionMatchesProviderMock.mockReturnValue(false)
+    gatewayState.bundle = {
+      provider: gatewayProvider,
+      apiKey: null,
+      ensureRunning: vi.fn(),
+      getApiKey: vi.fn()
+    }
+    gatewayState.defaultModelId = defaultModel.id
+    gatewayState.modelsById.set(defaultModel.id, defaultModel)
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
+    render(<CodeCliPage />)
+    expect(readCliConfigFilesMock).toHaveBeenCalledOnce()
+
+    resolveFirstRead(cliConfigFiles)
+    await waitFor(() => expect(extractConnectionFromCliConfigDraftMock).toHaveBeenCalledOnce())
+
+    expect(readCliConfigFilesMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens unified gateway configuration when no routable default model is available', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    gatewayState.bundle = {
+      provider: gatewayProvider,
+      apiKey: null,
+      ensureRunning: vi.fn().mockResolvedValue(undefined),
+      getApiKey: vi.fn().mockResolvedValue('cs-sk-default')
+    }
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
+    render(<CodeCliPage />)
+
+    const startButton = screen.getByRole('button', { name: 'start tool' })
+    expect(startButton).toBeEnabled()
+    fireEvent.click(startButton)
+
+    expect(await screen.findByTestId('config-panel')).toHaveAttribute('data-provider-id', CLI_API_GATEWAY_PROVIDER_ID)
+    expect(screen.queryByRole('button', { name: 'launch tool' })).not.toBeInTheDocument()
   })
 
   it('shows the Anthropic Messages endpoint hint for Claude Code provider setup', () => {
@@ -785,12 +1268,15 @@ describe('CodeCliPage', () => {
       currentProviderId: 'anthropic'
     })
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') return { status: 'running', url: 'http://127.0.0.1:43123' }
       if (route === 'deepseek_harness.stop') {
         events.push('stop')
         return { success: true }
       }
       return { success: true }
+    })
+    MockUseCacheUtils.setSharedCacheValue('feature.deepseek_harness.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:43123'
     })
     removeMock.mockImplementation(async () => {
       events.push('remove')

@@ -1,10 +1,11 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu } from '@renderer/components/command'
-import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { isValidElement, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu } from '@renderer/components/command'
+import { cn } from '@renderer/utils/style'
 
 import {
   type ResourceListGroup,
@@ -36,7 +37,7 @@ const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
  * short title as the section-header chevron.
  */
 const GROUP_HEADER_CHEVRON_SLOT_CLASS =
-  '-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-muted-foreground group-hover/resource-list-group:flex group-has-[:focus-visible]/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex'
+  '-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-muted-foreground group-hover/resource-list-group:flex group-has-[:focus-visible]/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex no-hover:flex'
 
 function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
@@ -127,7 +128,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           <ChevronRight
             aria-hidden="true"
             size={14}
-            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-hover/resource-list-section:block group-has-[:focus-visible]/resource-list-section:block"
+            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-hover/resource-list-section:block group-has-[:focus-visible]/resource-list-section:block no-hover:block"
             style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
           />
         </button>
@@ -139,7 +140,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
               '-mr-1 ml-auto flex shrink-0 items-center transition-opacity',
               sectionHeaderActionAlwaysVisible
                 ? 'pointer-events-auto opacity-100'
-                : 'pointer-events-none opacity-0 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100 has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100'
+                : 'pointer-events-none opacity-0 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100 has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100'
             )}>
             {sectionHeaderAction}
           </div>
@@ -167,7 +168,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
-  const groupHeaderClassName = meta.getGroupHeaderClassName?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
   // Default to `entity` explicitly: a list that declares no kinds at all reads as all-entity.
@@ -250,8 +250,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         !showsSelectedSurface && RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
         showsSelectedSurface && 'has-[:focus-visible]:bg-resource-list-row-selected',
         isBucketHeader && 'text-muted-foreground',
-        showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS,
-        groupHeaderClassName
+        showsSelectedSurface && RESOURCE_LIST_SELECTED_ROW_CLASS
       )}>
       {groupHeaderLeadingAction && (
         <div
@@ -334,7 +333,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           className={cn(
             '-ml-1.5 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 motion-reduce:transition-none',
             !hasLeadingSlot && '-mr-1',
-            'group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:grid-cols-[1fr] group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:grid-cols-[1fr] has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:grid-cols-[1fr] group-has-[:focus-visible]/resource-list-group:opacity-100'
+            'group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:grid-cols-[1fr] group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:grid-cols-[1fr] has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:grid-cols-[1fr] group-has-[:focus-visible]/resource-list-group:opacity-100 no-hover:pointer-events-auto no-hover:grid-cols-[1fr] no-hover:opacity-100'
           )}
           onClick={stopEventPropagation}
           onContextMenu={stopEventPropagation}
@@ -379,6 +378,32 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
 type GroupShowMoreProps = ComponentProps<'div'> & {
   groupId: string
   ref?: Ref<HTMLDivElement>
+}
+
+type GroupEmptyProps = ComponentProps<'div'> & {
+  ref?: Ref<HTMLDivElement>
+}
+
+export function GroupEmpty({ className, ref, style, ...props }: GroupEmptyProps) {
+  const meta = useResourceListMeta()
+
+  if (!meta.groupEmptyLabel) return null
+
+  return (
+    <div
+      ref={ref}
+      style={style}
+      className={cn(
+        'flex items-center pr-1.5 text-foreground-tertiary',
+        RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className,
+        RESOURCE_LIST_TEXT_START_PADDING_CLASS,
+        RESOURCE_LIST_LABEL_CLASS,
+        className
+      )}
+      {...props}>
+      {meta.groupEmptyLabel}
+    </div>
+  )
 }
 
 export function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {

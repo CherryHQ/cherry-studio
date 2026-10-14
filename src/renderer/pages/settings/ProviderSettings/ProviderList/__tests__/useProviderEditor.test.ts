@@ -1,7 +1,8 @@
-import type * as ImageUtils from '@renderer/utils/image'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ImageUtils from '@renderer/utils/image'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { useProviderEditor } from '../useProviderEditor'
 
@@ -149,7 +150,10 @@ describe('useProviderEditor', () => {
         name: 'My Provider',
         defaultChatEndpoint: endpoint
       })
-      expect(onProviderCreatedMock).toHaveBeenCalledWith('new-provider-id')
+      expect(onProviderCreatedMock).toHaveBeenCalledWith('new-provider-id', {
+        kind: 'custom',
+        hasApiKey: false
+      })
       expect(result.current.isOpen).toBe(false)
     })
 
@@ -235,7 +239,8 @@ describe('useProviderEditor', () => {
           name: 'Custom OpenAI Proxy',
           defaultChatEndpoint: endpoint,
           endpointConfigs: { [endpoint]: { baseUrl: 'https://proxy.example.com' } },
-          authConfig: { type: 'api-key' }
+          authConfig: { type: 'api-key' },
+          apiKeys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }]
         })
       })
 
@@ -244,7 +249,12 @@ describe('useProviderEditor', () => {
         name: 'Custom OpenAI Proxy',
         defaultChatEndpoint: endpoint,
         endpointConfigs: { [endpoint]: { baseUrl: 'https://proxy.example.com' } },
-        authConfig: { type: 'api-key' }
+        authConfig: { type: 'api-key' },
+        apiKeys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }]
+      })
+      expect(onProviderCreatedMock).toHaveBeenCalledWith('new-provider-id', {
+        kind: 'custom',
+        hasApiKey: true
       })
     })
 

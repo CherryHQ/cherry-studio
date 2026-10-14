@@ -1,10 +1,11 @@
+import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
+import type { ComponentType } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
 import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { ArrowUpDown, Boxes, BrainCircuit, Ear, Eye, Image, RotateCcw, Type, Video, Wrench } from 'lucide-react'
-import type { ComponentType } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ModelCapabilityToggle, ModelClassificationState, ModelInputModality, ModelPrimaryType } from './types'
 

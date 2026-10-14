@@ -2,9 +2,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
 
@@ -78,12 +79,12 @@ describe('systemImageToTextHandler', () => {
     ['jpeg', 'jpg', 'image/jpeg'],
     ['webp', 'webp', 'image/webp'],
     ['gif', 'gif', 'image/gif']
-  ])('transcodes a %s to PNG on Windows so the binding can decode it', async (format, ext, mime) => {
+  ] as const)('transcodes a %s to PNG on Windows so the binding can decode it', async (format, ext, mime) => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'system-ocr-test-'))
     try {
       const imagePath = path.join(tempDir, `scan.${ext}`)
       const bytes = await sharp({ create: { width: 8, height: 8, channels: 3, background: 'red' } })
-        .toFormat(format as keyof sharp.FormatEnum)
+        .toFormat(format)
         .toBuffer()
       await fs.writeFile(imagePath, bytes)
 
@@ -99,7 +100,7 @@ describe('systemImageToTextHandler', () => {
         if ((await sharp(image).metadata()).format !== 'png') {
           throw Object.assign(new Error('Could not recognize file (0x80070005)'), { code: 'GenericFailure' })
         }
-        return { text: 'ocr text', confidence: 1 }
+        return { text: 'ocr text', confidence: 1, lines: [] }
       })
 
       const result = await runHandler(
@@ -134,7 +135,7 @@ describe('systemImageToTextHandler', () => {
       let receivedImage: string | Uint8Array | undefined
       vi.mocked(recognize).mockImplementation(async (image) => {
         receivedImage = image
-        return { text: 'png text', confidence: 1 }
+        return { text: 'png text', confidence: 1, lines: [] }
       })
 
       const result = await runHandler(

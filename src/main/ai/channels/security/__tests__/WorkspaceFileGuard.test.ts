@@ -3,10 +3,11 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type * as MainFileUtils from '@main/utils/file'
 import { openReadableFileSnapshot } from '@main/utils/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveWorkspaceFile } from '../WorkspaceFileGuard'
 
@@ -56,6 +57,12 @@ describe('resolveWorkspaceFile', () => {
     await writeFile(path.join(workspace, 'pic.PNG'), 'x')
     const file = await resolveWorkspaceFile(workspace, 'pic.PNG')
     expect(file.media_type).toBe('image/png')
+  })
+
+  it('infers video MIME types for native channel delivery', async () => {
+    await writeFile(path.join(workspace, 'clip.mp4'), 'x')
+    const file = await resolveWorkspaceFile(workspace, 'clip.mp4')
+    expect(file.media_type).toBe('video/mp4')
   })
 
   it('falls back to octet-stream for unknown extensions', async () => {

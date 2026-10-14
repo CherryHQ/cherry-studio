@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { ResolvedMenuItem } from '@shared/types/command'
 import type { CommandId } from '@shared/utils/command'
-import { describe, expect, it, vi } from 'vitest'
 
 import { toElectronMenuTemplate } from '../nativeMenuAdapter'
 
@@ -86,7 +87,7 @@ describe('toElectronMenuTemplate', () => {
     )
     expect(template[2]).toEqual(expect.objectContaining({ role: 'quit', label: 'Quit Cherry Studio' }))
 
-    template[3].click?.({} as never, {} as never, {} as never)
+    template[3].click?.({} as never, {} as never, {})
     expect(customClick).toHaveBeenCalledTimes(1)
   })
 })

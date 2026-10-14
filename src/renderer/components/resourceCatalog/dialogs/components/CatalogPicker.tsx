@@ -1,6 +1,12 @@
+import { Plus } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
+  type ButtonVariant,
   Checkbox,
   Command,
   CommandGroup,
@@ -14,10 +20,6 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Plus } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export interface CatalogItem {
   id: string
@@ -38,14 +40,14 @@ function CatalogBadges({ item }: { item: CatalogItem }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {item.inactiveBadge ? (
-        <Badge className="h-4 border-warning-border bg-warning-subtle px-1.5 py-0 font-normal text-warning-subtle-foreground text-xs">
+        <Badge className="h-4 border-warning-border bg-warning-subtle px-1.5 py-0 text-xs font-normal text-warning-subtle-foreground">
           {item.inactiveBadge}
         </Badge>
       ) : null}
       {item.statusBadge ? (
         <Badge
           className={cn(
-            'h-4 border-0 px-1.5 py-0 font-normal text-xs',
+            'h-4 border-0 px-1.5 py-0 text-xs font-normal',
             item.statusBadgeClassName ?? 'bg-muted text-muted-foreground'
           )}>
           {item.statusBadge}
@@ -117,7 +119,7 @@ export const CatalogToggleGrid: FC<{
               <CatalogBadges item={item} />
             </div>
             {item.description ? (
-              <div className="mt-0.5 truncate text-muted-foreground text-xs" title={item.description}>
+              <div className="mt-0.5 truncate text-xs text-muted-foreground" title={item.description}>
                 {item.description}
               </div>
             ) : null}
@@ -193,6 +195,7 @@ export const AddCatalogPopover: FC<{
   footer?: ReactNode
   triggerClassName?: string
   triggerPosition?: 'start' | 'end'
+  triggerVariant?: ButtonVariant
   portalContainer?: HTMLElement | null
 }> = ({
   items,
@@ -206,6 +209,7 @@ export const AddCatalogPopover: FC<{
   footer,
   triggerClassName,
   triggerPosition = 'end',
+  triggerVariant = 'ghost',
   portalContainer
 }) => {
   const [open, setOpen] = useState(false)
@@ -251,12 +255,12 @@ export const AddCatalogPopover: FC<{
       <PopoverTrigger asChild>
         <Button
           type="button"
-          variant="ghost"
+          variant={triggerVariant}
           size="sm"
           disabled={disabled}
           className={cn(
             triggerPosition === 'end' && 'ml-auto',
-            'h-7 min-h-0 w-fit justify-start gap-1 rounded-md px-2 py-1 font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground disabled:opacity-30',
+            'h-7 min-h-0 w-fit justify-start gap-1 rounded-md px-2 py-1 text-xs font-normal text-muted-foreground shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:bg-accent/50 focus-visible:text-foreground disabled:opacity-30',
             triggerClassName
           )}>
           <Plus size={12} className="shrink-0" />
@@ -281,7 +285,7 @@ export const AddCatalogPopover: FC<{
           />
           <CommandList>
             {filteredOptions.length === 0 ? (
-              <div className="py-6 text-center text-muted-foreground text-sm">{emptyLabel}</div>
+              <div className="py-6 text-center text-sm text-muted-foreground">{emptyLabel}</div>
             ) : (
               <CommandGroup>
                 {filteredOptions.map((option) => (
@@ -299,7 +303,7 @@ export const AddCatalogPopover: FC<{
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-foreground">{option.item.name}</div>
                       {option.item.description ? (
-                        <div className="truncate text-muted-foreground text-xs">{option.item.description}</div>
+                        <div className="truncate text-xs text-muted-foreground">{option.item.description}</div>
                       ) : null}
                     </div>
                     <CatalogBadges item={option.item} />
@@ -309,12 +313,12 @@ export const AddCatalogPopover: FC<{
             )}
           </CommandList>
         </Command>
-        {footer ? <div className="overflow-hidden rounded-b-md border-border border-t bg-popover">{footer}</div> : null}
+        {footer ? <div className="overflow-hidden rounded-b-md border-t border-border bg-popover">{footer}</div> : null}
       </PopoverContent>
     </Popover>
   )
 }
 
 export function CatalogEmptyPlaceholder({ children }: { children: ReactNode }) {
-  return <div className="py-14 text-center text-foreground-tertiary text-xs">{children}</div>
+  return <div className="py-14 text-center text-xs text-foreground-tertiary">{children}</div>
 }

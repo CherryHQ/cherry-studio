@@ -64,7 +64,6 @@ describe('extractPdfText module loading', () => {
     expect(getTextMock).toHaveBeenCalled()
     expect(destroyMock).toHaveBeenCalled()
   })
-
   it('reads local PDF metadata through a file URL and destroys the parser', async () => {
     const getInfoMock = vi.fn(async () => ({ total: 3 }))
     const destroyMock = vi.fn(async () => undefined)

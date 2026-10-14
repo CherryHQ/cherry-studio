@@ -1,7 +1,8 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return importOriginal<typeof CherryStudioUi>()
@@ -14,7 +15,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as typeof ResizeObserver
+  }
 })
 
 const options = [
@@ -39,6 +40,36 @@ const renderSelector = (onChange = vi.fn()) => {
 }
 
 describe('KnowledgeBaseSelector', () => {
+  it('filters Chinese and mixed names by initials, shows no results and restores options on clear', async () => {
+    const user = userEvent.setup()
+    render(
+      <KnowledgeBaseSelector
+        aria-label="Select knowledge base"
+        options={[
+          { value: 'cn', label: 'API 知识库' },
+          { value: 'en', label: 'English Notes' }
+        ]}
+        placeholder="Choose"
+        searchPlaceholder="Search knowledge bases"
+        emptyText="No results"
+        onChange={vi.fn()}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Select knowledge base' }))
+    const search = screen.getByPlaceholderText('Search knowledge bases')
+    for (const query of ['知识', 'API', 'API ZSK']) {
+      await user.clear(search)
+      await user.type(search, query)
+      expect(screen.getByRole('option', { name: 'API 知识库' })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: 'English Notes' })).not.toBeInTheDocument()
+    }
+    await user.clear(search)
+    await user.type(search, 'zk')
+    expect(screen.getByText('No results')).toBeInTheDocument()
+    await user.clear(search)
+    expect(screen.getAllByRole('option')).toHaveLength(2)
+  })
+
   it('opens a trigger-width SelectorShell and filters by name', () => {
     renderSelector()
 

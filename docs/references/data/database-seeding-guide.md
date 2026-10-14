@@ -1,3 +1,11 @@
+---
+description: Seeding architecture - SeedRunner journal in app_state, execution policies, version strategies, adding seeders
+sources:
+  - src/main/data/db/seeding/SeedRunner.ts
+  - src/main/data/db/seeding/seederRegistry.ts
+  - src/main/data/db/types.d.ts
+---
+
 # Database Seeding Guide
 
 ## Overview
@@ -20,13 +28,13 @@ export interface ISeeder {
   readonly version: string     // Version string for change detection (property or getter)
   readonly description: string // Human-readable description for logging
   readonly executionPolicy?: SeedExecutionPolicy // Default: 'run-on-change' (see Execution Policies)
-  run(db: DbType): Promise<void> // Execute the seed operation
+  run(db: DbType): void          // Synchronous better-sqlite3 operation
 }
 ```
 
 **`SeedRunner`** (`src/main/data/db/seeding/SeedRunner.ts`)
 
-Reads journal entries from `app_state` (key = `seed:<name>`), compares version strings, skips if they match, calls `seeder.run(db)` if they differ, then writes the journal entry after the seeder returns. Skips `bootstrap-only` seeders once the bootstrap window is closed (see [Execution Policies](#execution-policies)), and writes the window marker after the first fully-successful pass. Each seeder owns its own transaction boundaries.
+Reads journal entries from `app_state` (key = `seed:<name>`), compares version strings, skips if they match, calls `seeder.run(db)` if they differ, then writes the journal entry after the seeder returns. Skips `bootstrap-only` seeders once the bootstrap window is closed (see [Execution Policies](#execution-policies)), and writes the window marker after the first fully-successful pass. The runner does not wrap seeders in a transaction; each seeder owns any transaction it needs.
 
 **`seeding/seederRegistry.ts`** (`src/main/data/db/seeding/seederRegistry.ts`)
 
@@ -124,11 +132,11 @@ Two steps. First pick the `executionPolicy` (see [Execution Policies](#execution
 
 ### 1. Create the seeder class
 
-Create a file in `src/main/data/db/seeding/` implementing `ISeeder`:
+Create a file in `src/main/data/db/seeding/seeders/` implementing `ISeeder`:
 
 ```typescript
-import type { DbType, ISeeder } from '../types'
-import { hashObject } from './hashObject'
+import type { DbType, ISeeder } from '../../types'
+import { hashObject } from '../hashObject'
 
 // The data source to seed
 import { MY_BUILTIN_DATA } from '@shared/data/presets/myData'
@@ -142,15 +150,15 @@ export class MyDataSeeder implements ISeeder {
     this.version = hashObject(MY_BUILTIN_DATA)
   }
 
-  async run(db: DbType): Promise<void> {
+  run(db: DbType): void {
     // Check existing data to ensure idempotency
-    const existing = await db.select({ id: myTable.id }).from(myTable)
+    const existing = db.select({ id: myTable.id }).from(myTable).all()
     const existingIds = new Set(existing.map((r) => r.id))
 
     const newRows = MY_BUILTIN_DATA.filter((d) => !existingIds.has(d.id))
 
     if (newRows.length > 0) {
-      await db.insert(myTable).values(newRows)
+      db.insert(myTable).values(newRows).run()
     }
   }
 }
@@ -161,7 +169,7 @@ export class MyDataSeeder implements ISeeder {
 Add the instance to the `seeders` array in `src/main/data/db/seeding/seederRegistry.ts`:
 
 ```typescript
-import { MyDataSeeder } from './myDataSeeder'
+import { MyDataSeeder } from './seeders/myDataSeeder'
 
 export const seeders: ISeeder[] = [
   new PreferenceSeeder(),
@@ -176,7 +184,12 @@ No changes to `DbService` are needed.
 ## Important Notes
 
 - **Idempotency**: Seed logic must check existing data before inserting. Users may have modified or deleted seeded records; the seeder should only insert records that do not already exist.
-- **Transaction boundaries**: Each seeder owns its own transaction. `SeedRunner` writes the journal only after `seeder.run(db)` resolves; if a seed throws, the journal is not written.
+- **Synchronous driver**: `ISeeder.run()` returns `void`. Do not mark it `async`
+  and do not `await` Drizzle calls; better-sqlite3 queries and transactions run
+  inline.
+- **Transaction boundaries**: Each seeder owns its own transaction. `SeedRunner`
+  writes the journal only after `seeder.run(db)` returns; if a seed throws, the
+  journal is not written.
 - **Phase**: Seeds run at `Phase.BeforeReady` during app initialization, before any services that depend on the seeded data are active.
 - **Journal storage**: Journal entries are stored in the `app_state` table with key prefix `seed:` and a JSON value containing `version`. The table's built-in `updatedAt` column serves as the applied-at timestamp. The `seed:` prefix follows the `app_state` key-naming convention — see [App State Overview](./app-state-overview.md).
 - **Journal vs marker**: the journal records actual `run()` executions only; a `bootstrap-only` seeder skipped outside the window gets no journal entry. The `seedRunner:bootstrapCompleted` marker is the sole authority on whether the bootstrap window is closed.

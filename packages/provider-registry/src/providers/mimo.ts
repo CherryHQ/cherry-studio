@@ -1,7 +1,7 @@
 import type { ReasoningSupport } from '../schemas/model'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
-import { modeWire } from './wires'
+import { EFFORT, modeWire } from './wires'
 
 const toggleSupport: ReasoningSupport = {
   controls: [{ kind: 'toggle', default: true }]
@@ -9,7 +9,11 @@ const toggleSupport: ReasoningSupport = {
 
 const chatWire: ReasoningWireProfile = modeWire('thinking.type', { off: 'disabled', auto: 'enabled' })
 
-const responsesWire: ReasoningWireProfile = modeWire('reasoningEffort', { off: 'none', auto: 'medium' })
+const responsesWire: ReasoningWireProfile = modeWire(
+  'reasoningEffort',
+  { off: 'none', auto: EFFORT },
+  { autoEffort: 'medium' }
+)
 
 // MiMo's Anthropic-compatible API enables thinking by default. Omitting the
 // auto mode preserves that default without making the Anthropic SDK inject a
@@ -19,6 +23,7 @@ const anthropicWire: ReasoningWireProfile = modeWire('thinking.type', { off: 'di
 export default defineProvider({
   id: 'mimo',
   name: 'Xiaomi MiMo',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
@@ -46,14 +51,16 @@ export default defineProvider({
     }
   },
   overrides: [
-    ...['mimo-v2-5', 'mimo-v2-5-pro'].map((modelId) => ({
-      modelId,
-      reasoningContracts: {
-        'anthropic-messages': { support: toggleSupport, wire: anthropicWire },
-        'openai-chat-completions': { support: toggleSupport, wire: chatWire },
-        'openai-responses': { support: toggleSupport, wire: responsesWire }
-      }
-    })),
+    ...['mimo-v2-5', 'mimo-v2-5-pro', 'mimo-v2-6-flash', 'mimo-v2-6-pro', 'mimo-v2-6-pro-ultraspeed'].map(
+      (modelId) => ({
+        modelId,
+        reasoningContracts: {
+          'anthropic-messages': { support: toggleSupport, wire: anthropicWire },
+          'openai-chat-completions': { support: toggleSupport, wire: chatWire },
+          'openai-responses': { support: toggleSupport, wire: responsesWire }
+        }
+      })
+    ),
     {
       modelId: 'mimo-v2-5-pro-ultraspeed',
       reasoningContracts: {

@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+
 import {
   ChatBottomOverlayInsetProvider,
   type ChatBottomOverlayInsets
@@ -8,8 +11,6 @@ import {
 } from '@renderer/components/chat/motion/composerDockMotion'
 import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode } from 'react'
-import { useLayoutEffect, useRef, useState } from 'react'
 
 const COMPOSER_MESSAGE_GAP_PX = 16
 
@@ -153,7 +154,7 @@ export default function ComposerDockTransitionFrame({
   }, [hasComposer, isDocked])
 
   return (
-    <div ref={rootRef} className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <div ref={rootRef} data-composer-stage="" className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <ChatBottomOverlayInsetProvider value={bottomOverlayInsets}>
         <div
           className={cn('flex h-full min-h-0 flex-1 flex-col overflow-hidden', !mainVisible && 'pointer-events-none')}
@@ -179,9 +180,11 @@ export default function ComposerDockTransitionFrame({
           // roots (ComposerSurface's NarrowLayout and the override composers).
           'pointer-events-none absolute inset-x-0 w-full',
           composerElevated ? 'z-50' : 'z-10',
-          isDocked ? 'bottom-0' : 'top-0 bottom-0 flex items-center pb-[12vh] has-[.inputbar-container.expanded]:pb-0'
+          isDocked
+            ? 'bottom-0'
+            : "top-0 bottom-0 flex flex-col before:min-h-0 before:flex-1 before:content-[''] after:min-h-0 after:flex-1 after:basis-[12vh] after:content-['']"
         )}>
-        <div className="w-full">
+        <div className="w-full shrink-0">
           <div
             ref={composerRef}
             data-composer-dock-surface=""

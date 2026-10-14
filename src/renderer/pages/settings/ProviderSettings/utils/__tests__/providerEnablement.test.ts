@@ -14,7 +14,7 @@ describe('enableProviderWhenModelsAvailable', () => {
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
   })
 
-  it('enables a disabled provider with pin-to-top when at least one model is available', async () => {
+  it('enables a disabled provider when at least one model is available', async () => {
     const enableProvider = vi.fn().mockResolvedValue(undefined)
 
     await enableProviderWhenModelsAvailable(disabledProvider, enableProvider, 2, 'test')
@@ -46,15 +46,15 @@ describe('enableProviderWhenModelsAvailable', () => {
     expect(enableProvider).not.toHaveBeenCalled()
   })
 
-  it('throws and logs when the atomic enable-and-pin action rejects', async () => {
-    const enableError = new Error('enable and pin failed')
+  it('throws and logs when enabling rejects', async () => {
+    const enableError = new Error('enable failed')
     const enableProvider = vi.fn().mockRejectedValue(enableError)
 
     await expect(enableProviderWhenModelsAvailable(disabledProvider, enableProvider, 2, 'test')).rejects.toBe(
       enableError
     )
     expect(loggerErrorSpy).toHaveBeenCalledWith(
-      'Failed to enable provider with pin-to-top when models are available',
+      'Failed to enable provider when models are available',
       expect.objectContaining({ providerId: 'cherryin', modelCount: 2, source: 'test', error: enableError })
     )
   })

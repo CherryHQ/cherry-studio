@@ -1,10 +1,11 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -133,16 +134,15 @@ vi.mock('../PaintingSettings', () => ({
 // Imported after mocks are registered.
 const { default: PaintingComposer } = await import('../PaintingComposer')
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'p1',
-    providerId: 'openai',
-    model: 'gpt-image-1',
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    ...overrides
-  }) as PaintingData
+const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
+  id: 'p1',
+  providerId: 'openai',
+  model: 'gpt-image-1',
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  ...overrides
+})
 
 const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingComposer>> = {}) => {
   const onPromptChange = vi.fn()
@@ -163,10 +163,7 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
   return {
     onPromptChange,
     onGenerate,
-    rerenderPainting: (painting: PaintingData) =>
-      view.rerender(
-        <PaintingComposer {...(handlers as React.ComponentProps<typeof PaintingComposer>)} painting={painting} />
-      )
+    rerenderPainting: (painting: PaintingData) => view.rerender(<PaintingComposer {...handlers} painting={painting} />)
   }
 }
 
@@ -380,6 +377,13 @@ describe('PaintingComposer', () => {
     expect(paramsButton()).toHaveTextContent('800×600')
   })
 
+  it('does not preview invalid custom dimensions', () => {
+    renderComposer({
+      painting: makePainting({ params: { size: 'custom', customSize_width: 0, customSize_height: 600 } })
+    })
+    expect(paramsButton()).not.toHaveTextContent('0×600')
+  })
+
   it('previews count, quality and background alongside size', () => {
     renderComposer({ painting: makePainting({ params: { numImages: 6, quality: 'low', background: 'auto' } }) })
     const button = paramsButton()
@@ -388,6 +392,23 @@ describe('PaintingComposer', () => {
     // i18next has no instance in tests, so option labels fall back to their keys.
     expect(button).toHaveTextContent('paintings.quality_options.low')
     expect(button).toHaveTextContent('paintings.background_options.auto')
+  })
+
+  it('previews the typed slider fallback for a malformed stored value', () => {
+    renderComposer({ painting: makePainting({ params: { numImages: true } }) })
+    const summaryParts = paramsButton().textContent?.split(' · ') ?? []
+    expect(summaryParts).toContain('1')
+    expect(summaryParts).not.toContain('true')
+  })
+
+  it('uses typed catalog fallbacks for wrong-typed option and integer values', () => {
+    renderComposer({ painting: makePainting({ params: { size: true, numImages: '2.5' } }) })
+    const summaryParts = paramsButton().textContent?.split(' · ') ?? []
+
+    expect(summaryParts).toContain('1024×1024')
+    expect(summaryParts).toContain('1')
+    expect(summaryParts).not.toContain('true')
+    expect(summaryParts).not.toContain('2.5')
   })
 
   it('folds the summary into the params button accessible name', () => {

@@ -1,11 +1,12 @@
+import type { FC } from 'react'
+import { memo, useRef } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import MessageErrorBoundary from '@renderer/components/chat/messages/frame/MessageErrorBoundary'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 // import { LegacyMessage } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
-import type { FC } from 'react'
-import { memo, useRef } from 'react'
 
 interface Props {
   message: MessageListItem
@@ -35,7 +36,7 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
       key={message.id}
       ref={messageContainerRef}
       className={cn(
-        'message flex w-full flex-col transition-colors duration-300 [&.message-highlight]:bg-primary/10 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity hover:[&_.menubar]:opacity-100',
+        'message flex w-full flex-col transition-colors duration-300 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity hover:[&_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&.message-highlight]:bg-primary/10',
         isAssistantMessage ? 'message-assistant' : 'message-user items-end'
       )}
       style={{ maxWidth }}>

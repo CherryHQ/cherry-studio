@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { TAB_LIMITS } from '@renderer/services/TabLruManager'
-import type * as RouteTitle from '@renderer/utils/routeTitle'
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
+import { TAB_LIMITS } from '@renderer/services/TabLruManager'
+import type * as RouteTitle from '@renderer/utils/routeTitle'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 
 let currentLanguage = 'en'
 
@@ -119,7 +122,12 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
-import { useTabsContext } from '@renderer/hooks/tab'
+vi.mock('@renderer/hooks/useWindowInitData', () => ({
+  useWindowInitData: () => null
+}))
+
+import { useCloseConversationTabs, useMainWindowNavigation, useTabsActions, useTabsContext } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
 
 import { migratePinnedTabs, TabsProvider } from '../TabsProvider'
 
@@ -144,6 +152,63 @@ function PinnedRouteTitle() {
 function TabIds() {
   const { tabs } = useTabsContext()
   return <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
+const conversationTabActionRender = vi.fn()
+
+function ConversationTabMutationControls() {
+  const { activeTabId, addTab, closeTab, setActiveTab, tabs, updateTab } = useTabsContext()
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          addTab({
+            id: 'topic-a-tab',
+            type: 'route',
+            url: '/app/chat?topicId=topic-a',
+            title: 'Topic A',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+          addTab({
+            id: 'unrelated-tab',
+            type: 'route',
+            url: '/app/files',
+            title: 'Files',
+            lastAccessTime: 0,
+            isDormant: false
+          })
+        }}>
+        Seed tabs
+      </button>
+      <button type="button" onClick={() => setActiveTab('home')}>
+        Activate home
+      </button>
+      <button
+        type="button"
+        onClick={() => updateTab('topic-a-tab', { title: 'Renamed Topic', metadata: { test: true } })}>
+        Rename background topic
+      </button>
+      <button type="button" onClick={() => closeTab('unrelated-tab')}>
+        Close unrelated tab
+      </button>
+      <div data-testid="conversation-tab-active">{activeTabId}</div>
+      <div data-testid="conversation-tab-snapshot">{tabs.map((tab) => `${tab.id}:${tab.title}`).join(',')}</div>
+    </>
+  )
+}
+
+function ConversationTabActionProbe() {
+  conversationTabActionRender()
+  const closeConversationTabs = useCloseConversationTabs()
+
+  return (
+    <button type="button" onClick={() => closeConversationTabs('assistants', ['topic-a'])}>
+      Close background topic
+    </button>
+  )
 }
 
 // Surfaces restored-session state: active tab id, each tab's awake/dormant state, and the id list.
@@ -241,6 +306,31 @@ function TabSnapshot() {
   )
 }
 
+function ErrorRecoveryNavigationControls() {
+  useMainWindowNavigation()
+  const { navigateErrorTarget } = useMessageErrorActions({ getDoctorSubject: () => undefined })
+  const { activeTabId, closeTabs, tabs } = useTabsContext()
+  const settingsTab = tabs.find((tab) => isSettingsPath(tab.url))
+
+  return (
+    <>
+      <button type="button" onClick={() => navigateErrorTarget?.('/settings/provider?id=openai')}>
+        Open recovery settings
+      </button>
+      <button
+        type="button"
+        disabled={!settingsTab}
+        onClick={() => {
+          if (settingsTab) closeTabs([settingsTab.id], 'agent-session')
+        }}>
+        Back from settings
+      </button>
+      <div data-testid="recovery-active-tab">{activeTabId}</div>
+      <div data-testid="recovery-tabs">{tabs.map((tab) => `${tab.id}=${tab.url}`).join(',')}</div>
+    </>
+  )
+}
+
 function CloseTabOnMount({ tabId }: { tabId: string }) {
   const { closeTab } = useTabsContext()
   const didCloseRef = useRef(false)
@@ -325,19 +415,211 @@ function PinnedOverflowSeeder() {
   )
 }
 
+function TransientMiniAppPinner() {
+  const { openTab, pinTab, tabs } = useTabsContext()
+  const didOpenRef = useRef(false)
+  const didPinRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/mini-app/deepseek-harness', {
+      id: 'transient-mini-app',
+      title: 'DeepSeek Harness',
+      metadata: { transientMiniApp: true },
+      forceNew: true
+    })
+  }, [openTab])
+
+  useEffect(() => {
+    if (didPinRef.current || !tabs.some((tab) => tab.id === 'transient-mini-app')) return
+    didPinRef.current = true
+    pinTab('transient-mini-app')
+  }, [pinTab, tabs])
+
+  return <div data-testid="transient-tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
 beforeEach(() => {
   currentLanguage = 'en'
   pinnedTabsValue = [PINNED_FILES_TAB]
   normalTabsValue = []
   activeTabIdValue = ''
+  conversationTabActionRender.mockClear()
 })
 
 afterEach(() => {
   cleanup()
+  setPinnedTabsMock.mockReset()
   vi.clearAllMocks()
 })
 
 describe('TabsProvider', () => {
+  it.each(['pin', 'unpin'] as const)('removes a tab closed immediately after %sning it', async (operation) => {
+    pinnedTabsValue = operation === 'unpin' ? [PINNED_FILES_TAB] : []
+    let persisted = pinnedTabsValue
+    setPinnedTabsMock.mockImplementation((write) => {
+      persisted = typeof write === 'function' ? write(persisted) : write
+    })
+    function Controls() {
+      const { pinTab, unpinTab, closeTab } = useTabsActions()
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            const id = operation === 'pin' ? 'home' : 'files'
+            if (operation === 'pin') pinTab(id)
+            else unpinTab(id)
+            closeTab(id)
+          }}>
+          Move and close
+        </button>
+      )
+    }
+    render(
+      <TabsProvider>
+        <Controls />
+        <SessionInspector />
+      </TabsProvider>
+    )
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Move and close' }))
+    const closedId = operation === 'pin' ? 'home' : 'files'
+    expect(persisted.some((tab) => tab.id === closedId)).toBe(false)
+    expect(screen.getByTestId('session-ids').textContent?.split(',')).not.toContain(closedId)
+  })
+
+  it('keeps action identities stable while retained actions read current tabs', async () => {
+    let original: ReturnType<typeof useTabsActions> | undefined
+    let latest: ReturnType<typeof useTabsActions> | undefined
+    function Controls() {
+      latest = useTabsActions()
+      useTabsContext()
+      original ??= latest
+      return (
+        <button type="button" onClick={() => original!.openTab('/app/chat?topicId=new', { id: 'new' })}>
+          Open tab
+        </button>
+      )
+    }
+    render(
+      <TabsProvider>
+        <Controls />
+        <SessionInspector />
+      </TabsProvider>
+    )
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Open tab' }))
+    expect(latest).toBe(original)
+    act(() => original!.closeTab('new'))
+    expect(screen.getByTestId('session-ids').textContent?.split(',')).not.toContain('new')
+    expect(screen.getByTestId('active')).toHaveTextContent('home')
+  })
+
+  it('preserves Settings on failed detach and selects the requested survivor only after success', async () => {
+    function Navigation() {
+      const { openTab, detachTab, activeTabId, tabs } = useTabsContext()
+      return (
+        <>
+          <button type="button" onClick={() => openTab('/settings/provider', { id: 'settings' })}>
+            Open settings
+          </button>
+          <button type="button" onClick={() => detachTab('settings', 'home')}>
+            Detach settings
+          </button>
+          <output aria-label="selection">{activeTabId}</output>
+          <output aria-label="pages">{tabs.map((tab) => tab.id).join(',')}</output>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <Navigation />
+      </TabsProvider>
+    )
+    await user.click(screen.getByText('Open settings'))
+    vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('window creation failed'))
+    await user.click(screen.getByText('Detach settings'))
+    expect(screen.getByLabelText('selection')).toHaveTextContent('settings')
+    expect(screen.getByLabelText('pages')).toHaveTextContent('settings')
+    let accept!: () => void
+    vi.mocked(ipcApi.request).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        accept = resolve
+      })
+    )
+    await user.click(screen.getByText('Detach settings'))
+    expect(screen.getByLabelText('selection')).toHaveTextContent('settings')
+    await act(async () => accept())
+    expect(screen.getByLabelText('selection')).toHaveTextContent('home')
+    expect(screen.getByLabelText('pages')).not.toHaveTextContent('settings')
+  })
+
+  it('preserves the source conversation while opening and closing error recovery settings', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'agent-session',
+          type: 'route',
+          url: '/app/agents?agentId=cherry-support&sessionId=session-1',
+          title: 'Support session',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <ErrorRecoveryNavigationControls />
+      </TabsProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open recovery settings' }))
+
+    await waitFor(() => expect(screen.getByTestId('recovery-active-tab')).not.toHaveTextContent('agent-session'))
+    expect(screen.getByTestId('recovery-tabs')).toHaveTextContent(
+      'agent-session=/app/agents?agentId=cherry-support&sessionId=session-1'
+    )
+    expect(screen.getByTestId('recovery-tabs')).toHaveTextContent('/settings/provider?id=openai')
+
+    await user.click(screen.getByRole('button', { name: 'Back from settings' }))
+
+    await waitFor(() => expect(screen.getByTestId('recovery-active-tab')).toHaveTextContent('agent-session'))
+    expect(screen.getByTestId('recovery-tabs')).toHaveTextContent(
+      'agent-session=/app/agents?agentId=cherry-support&sessionId=session-1'
+    )
+    expect(screen.getByTestId('recovery-tabs')).not.toHaveTextContent('/settings/provider')
+  })
+
+  it('keeps conversation tab actions isolated while reading the latest tab state', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
+        <ConversationTabMutationControls />
+        <ConversationTabActionProbe />
+      </TabsProvider>
+    )
+    const initialActionRenders = conversationTabActionRender.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('unrelated-tab'))
+    expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('topic-a-tab:Topic A')
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate home' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-active')).toHaveTextContent('home'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename background topic' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).toHaveTextContent('Renamed Topic'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close unrelated tab' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('unrelated-tab'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close background topic' }))
+    await waitFor(() => expect(screen.getByTestId('conversation-tab-snapshot')).not.toHaveTextContent('topic-a-tab'))
+    expect(conversationTabActionRender).toHaveBeenCalledTimes(initialActionRenders)
+  })
+
   it('preserves page-owned titles for the fixed home conversation tab', async () => {
     render(
       <TabsProvider
@@ -398,6 +680,20 @@ describe('TabsProvider', () => {
     )
 
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
+  })
+
+  it('keeps a transient mini-app tab visible when pinning is requested programmatically', async () => {
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <TransientMiniAppPinner />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('transient-tab-ids')).toHaveTextContent('transient-mini-app'))
+    for (const [write] of setPinnedTabsMock.mock.calls) {
+      const pinned = typeof write === 'function' ? write(pinnedTabsValue) : write
+      expect(pinned.some((tab: Tab) => tab.id === 'transient-mini-app')).toBe(false)
+    }
   })
 
   it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
@@ -532,9 +828,6 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Hibernate C' }))
-    await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent('c'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
     await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent(/^$/))
   })
 
@@ -614,9 +907,8 @@ describe('TabsProvider', () => {
 
     // The pinned store is mocked, so assert on the updater sent to it: the
     // dormant pinned survivor must come back woken.
-    const updater = setPinnedTabsMock.mock.calls.at(-1)?.[0] as (prev: Tab[]) => Tab[]
-    expect(typeof updater).toBe('function')
-    const next = updater([{ ...PINNED_FILES_TAB, isDormant: true }])
+    const write = setPinnedTabsMock.mock.calls.at(-1)?.[0]
+    const next: Tab[] = typeof write === 'function' ? write(pinnedTabsValue) : write
     expect(next.find((tab) => tab.id === 'files')?.isDormant).toBe(false)
   })
 

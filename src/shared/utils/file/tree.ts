@@ -20,8 +20,9 @@
  * see directory-tree.md §9.
  */
 
-import type { AbsoluteFilePath } from '@shared/types/file'
 import * as z from 'zod'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 // ─── Wire DTOs ──────────────────────────────────────────────────────────────
 

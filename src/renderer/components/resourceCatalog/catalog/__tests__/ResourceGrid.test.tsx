@@ -1,20 +1,23 @@
-import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
-import { toast } from '@renderer/services/toast'
-import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
+import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
+import { toast } from '@renderer/services/toast'
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
+
 import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteGroupMock, updateGroupMock, updateAssistantMock } = vi.hoisted(() => ({
+const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
   deleteGroupMock: vi.fn(),
   updateGroupMock: vi.fn(),
-  updateAssistantMock: vi.fn()
+  updateAssistantMock: vi.fn(),
+  updateSkillGlobalEnabledMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -39,19 +42,25 @@ vi.mock('react-i18next', () => ({
           'library.assistant_catalog.go_to_chat': '去对话',
           'library.create_menu.create': '新建助手',
           'library.skill_add.add': '添加技能',
+          'library.skill_add.create_with_agent': '通过 Agent 创建',
           'library.skill_add.local_import': '本地导入',
           'library.skill_add.online_search': '在线搜索',
           'library.skill_add.system_search': '系统搜索',
           'library.toolbar.all_groups': '全部分组',
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
-          'library.type.skill': '技能'
+          'library.type.skill': '技能',
+          'settings.skills.globalToggle': '全局启用技能',
+          'settings.skills.source.local': '本地',
+          'settings.skills.tryNow': '立即试用',
+          'settings.skills.toggleFailed': '更新技能全局状态失败'
         }) satisfies Record<string, string>
       )[key] ?? key
   })
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUiModule>()
   const React = await vi.importActual<typeof ReactModule>('react')
   const PopoverContext = React.createContext<{
     open: boolean
@@ -337,6 +346,7 @@ vi.mock('@cherrystudio/ui', async () => {
       </div>
     ),
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
+    Switch: actual.Switch,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>
@@ -346,6 +356,10 @@ vi.mock('@cherrystudio/ui', async () => {
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAssistantMutationsById: () => ({
     updateAssistant: updateAssistantMock
+  }),
+  useSkillMutationsById: () => ({
+    updateGlobalEnabled: updateSkillGlobalEnabledMock,
+    isUpdating: false
   })
 }))
 
@@ -412,7 +426,7 @@ function createAgentResource(): ResourceItem {
   }
 }
 
-function createSkillResource(version: string | null = null): ResourceItem {
+function createSkillResource(version: string | null = null, isGlobalEnabled = true): ResourceItem {
   return {
     id: 'skill-1',
     type: 'skill',
@@ -421,7 +435,7 @@ function createSkillResource(version: string | null = null): ResourceItem {
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: { version } as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version, isGlobalEnabled, source: 'local' } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
@@ -520,6 +534,35 @@ describe('ResourceGrid empty state copy', () => {
     }
   })
 
+  it('keeps the layout control aligned with the visible columns after resizing', async () => {
+    const user = userEvent.setup()
+    let width = 900
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width)
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', allowColumnToggle: true })
+      const grid = screen.getByTestId('resource-grid-loading')
+      const toggle = screen.getByRole('button', { name: 'common.layout.two_columns' })
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      await user.click(toggle)
+      expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' })
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+      width = 500
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      expect(toggle).toBeDisabled()
+      width = 900
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }))
+      expect(toggle).toBeEnabled()
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+    } finally {
+      clientWidthSpy.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('uses the generic resource empty copy when there is no search', () => {
     renderResourceGrid()
 
@@ -614,6 +657,17 @@ describe('ResourceGrid skill add actions', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加技能' }))
 
     expect(screen.queryByRole('menuitem', { name: '系统搜索' })).not.toBeInTheDocument()
+  })
+
+  it('offers Agent creation when the builtin creator is available', async () => {
+    const user = userEvent.setup()
+    const onCreateSkillWithAgent = vi.fn()
+
+    renderResourceGrid({ activeResourceType: 'skill', onCreateSkillWithAgent })
+    await user.click(screen.getByRole('button', { name: '添加技能' }))
+    await user.click(screen.getByRole('menuitem', { name: '通过 Agent 创建' }))
+
+    expect(onCreateSkillWithAgent).toHaveBeenCalledOnce()
   })
 })
 
@@ -780,6 +834,33 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('does not expose a sidebar shortcut action on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
+
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
+  })
+
+  it('toggles a Skill globally from its settings card without opening the card', async () => {
+    const user = userEvent.setup()
+    const onEdit = vi.fn()
+    updateSkillGlobalEnabledMock.mockResolvedValueOnce({})
+
+    render(
+      <ResourceCard
+        resource={createSkillResource(null, true)}
+        variant="settings"
+        {...getResourceCardProps({ onEdit })}
+      />
+    )
+
+    const toggle = screen.getByRole('switch', { name: '全局启用技能' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await user.click(toggle)
+
+    expect(updateSkillGlobalEnabledMock).toHaveBeenCalledWith(false)
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
   it('shows the Skill version tag only when a version is available', () => {
     const { rerender } = render(<ResourceCard resource={createSkillResource('1.2.3')} {...getResourceCardProps()} />)
 
@@ -790,39 +871,42 @@ describe('ResourceGrid card actions', () => {
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
   })
 
-  it('uses the neutral settings treatment without changing library Skill cards', () => {
-    const { rerender } = render(
-      <ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />
-    )
+  it('keeps Try Now and More visible on every settings Skill card', async () => {
+    const user = userEvent.setup()
+    const skill = createSkillResource()
+    const onLaunchSkill = vi.fn()
+    const onDelete = vi.fn()
 
-    const settingsCard = screen.getByRole('button', { name: 'Skill' })
-    expect(settingsCard).toHaveClass('rounded-xl', 'border-border')
-    expect(settingsCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
-      'bg-secondary',
-      'text-secondary-foreground'
-    )
-    expect(settingsCard.querySelector('[aria-hidden="true"]')).toHaveClass('text-foreground-tertiary')
+    render(<ResourceCard resource={skill} variant="settings" {...getResourceCardProps({ onDelete, onLaunchSkill })} />)
 
-    rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
-
-    const libraryCard = screen.getByRole('button', { name: 'Skill' })
-    expect(libraryCard).toHaveClass('rounded-lg', 'border-border-subtle')
-    expect(libraryCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
-      'bg-warning-subtle',
-      'text-warning'
-    )
-  })
-
-  it('shows the overflow menu only for assistant cards', () => {
-    render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
+    expect(screen.getByText('本地')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '立即试用' }))
+    expect(onLaunchSkill).toHaveBeenCalledExactlyOnceWith(skill)
 
     expect(screen.getByRole('button', { name: /common.more/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
   })
 
+  it.each([createAssistantResource, createAgentResource])(
+    'offers only archiving for owner cards',
+    async (createResource) => {
+      const user = userEvent.setup()
+      const resource = createResource()
+      const onDelete = vi.fn()
+      render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
+
+      await user.click(screen.getByRole('button', { name: /common.more/ }))
+      expect(screen.getByRole('menuitem', { name: 'common.archive' })).toBeInTheDocument()
+      expect(screen.queryByRole('menuitem', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
+      await waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(resource))
+      expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    }
+  )
+
   it('shows a direct delete action when delete is the only card action', async () => {
     const user = userEvent.setup()
-    const resource = createAgentResource()
+    const resource = createPromptResource()
     const onDelete = vi.fn()
 
     render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
@@ -1069,15 +1153,17 @@ describe('ResourceCardMenu group binding', () => {
     expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
   })
 
-  it('keeps the divider when assistant resources have actions before delete', async () => {
+  it('offers archive without permanent deletion for assistant resources', async () => {
     const user = userEvent.setup()
+    const resource = createAssistantResource()
+    const onDelete = vi.fn()
 
     render(
       <ResourceCardMenu
-        resource={createAssistantResource()}
+        resource={resource}
         onClose={vi.fn()}
         onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
+        onDelete={onDelete}
         onExport={vi.fn()}
         allGroups={[]}
       />
@@ -1086,6 +1172,8 @@ describe('ResourceCardMenu group binding', () => {
     await user.click(screen.getByRole('button', { name: /common.more/ }))
     expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
     expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: '删除' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'common.delete_permanently' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'common.archive' }))
+    await waitFor(() => expect(onDelete).toHaveBeenLastCalledWith(resource))
   })
 })

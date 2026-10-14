@@ -4,21 +4,21 @@
  * Web citations are emitted as `[<sup …>N</sup>](url)` and mount their tooltip
  * through `Link`. Knowledge-base and memory citations have no URL, so
  * `generateCitationTag` emits a bare `<sup>` for them — an empty-href markdown
- * link would be rewritten by rehype-harden into `<span>… [blocked]</span>`,
- * losing both the marker's look and the tooltip. This component mounts the
- * tooltip for that case.
+ * link would be unwrapped by rehype-harden into a `<span>`, losing the tooltip.
+ * This component mounts the tooltip for that case.
  *
  * Every other `<sup>` in the document (footnote refs, plain markup) carries no
  * `data-citation` and passes through untouched.
  */
 
-import type { Citation } from '@renderer/types/message'
-import { isLinkableCitationUrl } from '@renderer/utils/citation'
-import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Node } from 'unist'
+
+import type { Citation } from '@renderer/types/message'
+import { isLinkableCitationUrl } from '@renderer/utils/citation'
+import { cn } from '@renderer/utils/style'
 
 import CitationTooltip from './CitationTooltip'
 

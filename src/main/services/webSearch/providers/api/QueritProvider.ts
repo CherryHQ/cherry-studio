@@ -1,7 +1,8 @@
-import { defaultAppHeaders } from '@main/utils/http'
-import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { net } from 'electron'
 import * as z from 'zod'
+
+import { defaultAppHeaders } from '@main/utils/http'
+import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { ApiKeyRequestSearchContext } from '../base/context'
@@ -29,10 +30,11 @@ const QueritSearchResponseSchema = z.object({
   results: z.object({
     result: z
       .array(
-        z.object({
-          title: z.string(),
+        z.looseObject({
+          title: z.string().optional(),
           snippet: z.string().optional(),
-          url: z.string()
+          url: z.string().optional(),
+          site_name: z.string().optional()
         })
       )
       .default([])
@@ -156,12 +158,19 @@ export class QueritProvider extends BaseWebSearchProvider {
       providerId: this.provider.id,
       capability: 'searchKeywords',
       inputs: [context.query],
-      results: (searchPayload.results?.result || []).map((result) => ({
-        title: result.title,
-        content: result.snippet || '',
-        url: result.url,
-        sourceInput: context.query
-      }))
+      results: (searchPayload.results?.result || []).flatMap((result) => {
+        const url = result.url?.trim()
+        if (!url) return []
+
+        return [
+          {
+            title: result.title?.trim() || result.site_name?.trim() || result.snippet?.trim() || url,
+            content: result.snippet || '',
+            url,
+            sourceInput: context.query
+          }
+        ]
+      })
     }
   }
 

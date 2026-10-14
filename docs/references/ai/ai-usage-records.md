@@ -1,3 +1,16 @@
+---
+description: Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection
+sources:
+  - src/main/data/db/schemas/aiUsageRecord.ts
+  - src/main/data/services/AiUsageRecordService.ts
+  - src/main/ai/utils/usageCapture.ts
+  - src/main/ai/hooks/billingHook.ts
+  - src/shared/data/types/providerBilling.ts
+  - src/shared/utils/providerBilling.ts
+  - src/shared/utils/usagePricing.ts
+  - src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx
+---
+
 # AI Usage Records
 
 `ai_usage_record` is the immutable, best-effort fact source for observable AI
@@ -103,6 +116,38 @@ only use current configuration. If no `taskId` exists, recovery performs a new
 selection, capture, timer, and submit.
 
 ## Immutable capture context
+
+### Provider billing rules
+
+The Cost calculation icon beside the provider's model filter opens draft billing
+settings; Save applies them, Cancel discards edits, and Reset removes only
+`providerSettings.billing`. Disabling schedules retains their rules.
+
+- The default multiplier is 1. A matching period replaces it. Multipliers are
+  finite and nonnegative; zero makes known prices free, not missing prices.
+- Daily periods use a saved fixed UTC offset and whole-hour 24-hour pickers.
+  Start is inclusive, end exclusive; `24:00` is allowed only as an end.
+  End before start crosses midnight. Equal endpoints and overlaps are invalid;
+  gaps use the default multiplier.
+- `resolveProviderBilling` applies multipliers to effective model prices,
+  including cache and token tiers, without changing currency or tier thresholds.
+  The per-period unit-price preview uses the same resolver as usage capture.
+- Trusted provider-reported costs take priority and are not multiplied.
+- Each observable invocation freezes its prices and optional `billing` metadata
+  at the start. Calls crossing a boundary retain those prices; later tool calls,
+  retries and fallback models resolve again. Settings edits do not rewrite history.
+
+| Invocation path | Pricing capture |
+| --- | --- |
+| Language calls and gateway agents | Each `doGenerate` / `doStream`. |
+| Embedding, SDK image and rerank | Each provider call, below SDK batching/retries. Rerank may still lack billable usage. |
+| Custom async images / direct Pi | Image submission / native `streamSimple` start. |
+| Direct DSH / Claude Code / external CLI | Frozen connection prices, refreshed at reconciliation. Without a reliable start time, use the highest active daily multiplier and record `peak_fallback`; include the default only for uncovered time. |
+
+Missing required prices remain unpriced. Billing is stored in provider JSON and
+preserved by duplication and backup. Older snapshots and billing settings remain
+readable. Currency conversion, historical recalculation and per-key schedules
+are outside this contract.
 
 Provider/model/key selection constructs `AiUsageCaptureContext` immediately
 before invocation:
@@ -351,7 +396,7 @@ serial.
 
 The connection carries `{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
 Every emitted invocation id is globally namespaced by its driver (`claude-agent:`
-or `pi-agent:`) before it crosses the runtime contract; the host persists that id
+`pi-agent:`; historical records can also use `dsh-agent:`) before it crosses the runtime contract; the host persists that id
 verbatim for cross-runtime idempotency.
 
 Each Claude SDK assistant message supplies provider request id, actual nested
@@ -381,6 +426,8 @@ message timestamp/model is the stable fallback. Error/aborted responses do not
 create records, duplicate completed ids are ignored, and Pi's
 input/cache/reasoning buckets are preserved rather than re-derived from the
 message-level running total.
+
+Historical DSH invocation records remain available after runtime migration.
 
 ### Gateway-backed Agent
 
@@ -480,5 +527,6 @@ global SWR focus/reconnect revalidation is disabled.
 | `src/main/ai/hooks/billingHook.ts` | Language middleware and operation coverage |
 | `packages/aiCore/src/core/runtime/` | Embedding/image/rerank provider-call events |
 | `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts` | Direct Agent SDK capture |
+| `src/main/ai/runtime/pi/PiRuntimeConnection.ts` | Pi provider-stream capture |
 | `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | v1 aggregate migration |
 | `src/renderer/pages/settings/UsageSettings/` | Usage read model consumers |

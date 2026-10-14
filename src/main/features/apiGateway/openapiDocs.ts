@@ -1,10 +1,11 @@
 import { toOpenAPISchema } from '@elysia/openapi'
 import { ScalarRender } from '@elysia/openapi/scalar'
+import type { AnyElysia } from 'elysia'
+import * as z from 'zod'
+
 import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { languageNativeNameMap } from '@shared/utils/languages'
-import type { AnyElysia } from 'elysia'
-import * as z from 'zod'
 
 /** Path under which OpenAPI docs (UI) and the JSON spec (`${OPENAPI_PATH}/json`) are served. */
 export const OPENAPI_PATH = '/openapi' as const
@@ -78,7 +79,7 @@ export const DOC_DESCRIPTIONS = {
 type DocDescriptionSlot = keyof typeof DOC_DESCRIPTIONS
 
 /**
- * One literal `t` call per slot: `scripts/check-i18n.ts` statically verifies
+ * One literal `t` call per slot: `scripts/i18n-check.ts` statically verifies
  * that every translation call in main passes a literal key, so the keys cannot
  * be fed in from `DOC_DESCRIPTIONS` by variable. The return type ties the two
  * together instead — a slot missing here is a type error.

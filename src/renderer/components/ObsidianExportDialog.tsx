@@ -1,3 +1,7 @@
+import { XIcon } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { parse, stringify } from 'yaml'
+
 import {
   Alert,
   Button,
@@ -33,8 +37,6 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import { XIcon } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('ObsidianExportDialog')
 
@@ -49,6 +51,29 @@ const ObsidianProcessingMethod = {
   PREPEND: '2',
   NEW_OR_OVERWRITE: '3'
 } as const
+
+// Separator from Obsidian Web Clipper's `multitext` parsing (obsidianmd/obsidian-clipper, src/utils/shared.ts, MIT).
+const multitextSeparator = /,(?![^[]*\]\])/
+
+const parseTags = (input: string): string[] => {
+  const value = input.trim()
+  const bare = value.replace(/^\[|\]$/g, '')
+  let items: string[]
+  if (value.startsWith('[') && value.endsWith(']')) {
+    try {
+      const parsed: unknown = parse(value)
+      items =
+        Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+          ? parsed
+          : bare.split(multitextSeparator)
+    } catch {
+      items = bare.split(multitextSeparator)
+    }
+  } else {
+    items = bare.split(multitextSeparator)
+  }
+  return items.map((item) => item.trim().replace(/^#/, '')).filter((item) => item !== '')
+}
 
 interface PopupContainerProps {
   title: string
@@ -192,6 +217,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   const [fileTreeData, setFileTreeData] = useState<TreeSelectOption[]>([])
   const [selectedVault, setSelectedVault] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exportReasoning, setExportReasoning] = useState(false)
 
@@ -261,39 +287,48 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       setError(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
       return
     }
-    let markdown = ''
-    if (rawContent) {
-      markdown = rawContent
-    } else if (topic) {
-      markdown = await topicToMarkdown(topic, exportReasoning)
-    } else if (messages && messages.length > 0) {
-      markdown = await messagesToMarkdown(messages, exportReasoning)
-    } else if (message) {
-      markdown = exportReasoning ? await messageToMarkdownWithReasoning(message) : await messageToMarkdown(message)
-    } else {
-      markdown = ''
+    setSubmitting(true)
+    try {
+      let markdown = ''
+      if (rawContent) {
+        markdown = rawContent
+      } else if (topic) {
+        markdown = await topicToMarkdown(topic, exportReasoning)
+      } else if (messages && messages.length > 0) {
+        markdown = await messagesToMarkdown(messages, exportReasoning)
+      } else if (message) {
+        markdown = exportReasoning ? await messageToMarkdownWithReasoning(message) : await messageToMarkdown(message)
+      } else {
+        markdown = ''
+      }
+      let content = ''
+      if (state.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
+        content = `\n---\n${markdown}`
+      } else {
+        const frontMatter = stringify(
+          { title: state.title, created: state.createdAt, source: state.source, tags: parseTags(state.tags) },
+          { lineWidth: 0 }
+        )
+        content = `---\n${frontMatter}---\n${markdown}`
+      }
+      if (content === '') {
+        toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+        return
+      }
+      await navigator.clipboard.writeText(content)
+      const success = await exportMarkdownToObsidian({
+        ...state,
+        folder: state.folder,
+        vault: selectedVault
+      })
+      if (!success) {
+        return
+      }
+      setOpen(false)
+      resolve(true)
+    } finally {
+      setSubmitting(false)
     }
-    let content = ''
-    if (state.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
-      content = `\n---\n${markdown}`
-    } else {
-      content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
-    }
-    if (content === '') {
-      toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
-      return
-    }
-    await navigator.clipboard.writeText(content)
-    const success = await exportMarkdownToObsidian({
-      ...state,
-      folder: state.folder,
-      vault: selectedVault
-    })
-    if (!success) {
-      return
-    }
-    setOpen(false)
-    resolve(true)
   }
 
   const [openState, setOpen] = useState(open)
@@ -418,12 +453,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
 
   return (
     <Dialog open={openState} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
-        <DialogHeader>
+      <DialogContent closeOnOverlayClick={false} className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-[600px]">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>
-        {error && <Alert className="mb-1" message={error} type="error" showIcon />}
-        <div className="space-y-4">
+        {error && <Alert className="mb-1 shrink-0" message={error} type="error" showIcon />}
+        <div className="min-h-0 space-y-4 overflow-y-auto">
           <FormRow label={i18n.t('chat.topics.export.obsidian_title')}>
             <Input
               autoFocus
@@ -492,12 +527,13 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             </FormRow>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button type="button" variant="outline" onClick={handleCancel}>
             {i18n.t('common.cancel')}
           </Button>
           <Button
             type="button"
+            loading={submitting}
             disabled={vaults.length === 0 || loading || !!error || !state.title.trim()}
             onClick={handleOk}>
             {i18n.t('chat.topics.export.obsidian_btn')}

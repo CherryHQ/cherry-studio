@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import type { ComponentProps, Ref } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 import {
   RESOURCE_LIST_GROUP_HEADER_LEADING_SLOT_CLASS,

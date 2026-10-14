@@ -1,7 +1,11 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { ModelMessage } from 'ai'
+
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { ModelMessage } from 'ai'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { WindowId } from '@shared/ipc/types'
+import type { McpResource } from '@shared/types/mcp'
 
 /**
  * Per-request context constructed once in `buildAgentParams` and
@@ -14,6 +18,9 @@ export interface RequestContext {
 
   /** Absent for synthetic / IPC-driven invocations. */
   readonly topicId?: string
+  readonly windowId?: WindowId
+  readonly model?: UniqueModelId
+  readonly roots?: ReadonlyArray<{ uri: string; name?: string }>
 
   /** Source of static config like `assistant.knowledgeBaseIds`. */
   readonly assistant?: Assistant
@@ -31,6 +38,17 @@ export interface RequestContext {
    * Defaults to empty.
    */
   readonly knowledgeBaseIds?: readonly string[]
+
+  /**
+   * MCP servers whose resources this request may read, frozen when the request was built (same set
+   * that gated the `mcp_resource_*` tools). Execution re-resolves the live set and intersects with
+   * this one, so a server that drops out mid-turn becomes unreadable while one that appears after
+   * the request started can never join. Absent for synthetic / IPC-driven invocations.
+   */
+  readonly mcpResourceServerIds?: ReadonlySet<string>
+
+  /** Conversation-owned embedded resources; MCP execution adds this turn's results. */
+  readonly mcpToolResources?: Map<string, McpResource>
 
   /**
    * Absolute paths of persisted tool-output blobs this conversation owns — the

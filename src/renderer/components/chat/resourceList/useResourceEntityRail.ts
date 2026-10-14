@@ -7,22 +7,21 @@ import {
   type ResourceListStatus
 } from './base'
 import type { ResourceEntityRailItem } from './ResourceEntityRail'
+import { useOwnerResourceActivation } from './useOwnerResourceActivation'
 
 export type ResourceEntityRailReorderAnchor = ReturnType<typeof buildResourceListItemDropAnchor>
 
 type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResource> = {
-  /** Every entity (already mapped to a rail item). The hook filters to those with resources and orders them. */
+  /** Every visible entity, already mapped to a rail item. */
   entities: readonly TEntity[]
-  /** Every resource for the current scope; an entity is only visible while it owns at least one. */
-  resources: readonly TResource[]
-  getResourceParentId: (resource: TResource) => string | null | undefined
   activeEntityId?: string | null
   isLoading: boolean
   isError: boolean
-  /** Orders an entity's own resources so `handleSelect` can enter the first one (time/pin precedence). */
-  sortResourcesForEntity: (resources: TResource[]) => readonly TResource[]
   onPickResource: (resource: TResource) => void
-  onCreateResource: (entityId: string) => void | Promise<unknown>
+  /** Load the entity's most-recently-active resource before navigating. */
+  loadResourceForEntity: (entityId: string) => Promise<TResource | null>
+  onCreateResource: (entityId: string) => Promise<TResource | null>
+  onActivationError: (error: unknown) => void
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<unknown>
   onReorderError: (error: unknown) => void
@@ -32,36 +31,42 @@ type UseResourceEntityRailResult<TEntity> = {
   items: TEntity[]
   listStatus: ResourceListStatus
   selectedId: string | null
-  handleSelect: (item: TEntity) => void
+  handleSelect: (item: TEntity) => Promise<void>
   handleReorder: (payload: ResourceListReorderPayload) => Promise<void>
 }
 
 /**
- * Shared behavior for the classic-layout entity rail (assistants / agents): only entities that own
- * resources are shown, ordered by `orderKey` with optimistic drag reordering, clicking enters the
- * first resource (or creates a blank resource), and reordering persists the real `orderKey`. Data fetching,
- * pins, deletion, and context menus stay in the per-variant component.
+ * Shared behavior for the classic-layout entity rail (assistants / agents): entities are ordered by
+ * `orderKey` with optimistic drag reordering and activate their latest resource (or create one).
+ * Variant components own visibility, data, pins, deletion, and context menus.
  */
 export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
   entities,
-  resources,
-  getResourceParentId,
   activeEntityId,
   isLoading,
   isError,
-  sortResourcesForEntity,
   onPickResource,
+  loadResourceForEntity,
   onCreateResource,
+  onActivationError,
   reorder,
   refetchEntities,
   onReorderError
 }: UseResourceEntityRailParams<TEntity, TResource>): UseResourceEntityRailResult<TEntity> {
   const [optimisticOrderIds, setOptimisticOrderIds] = useState<readonly string[] | null>(null)
+  const loadResourceForOwner = useCallback((item: TEntity) => loadResourceForEntity(item.id), [loadResourceForEntity])
+  const createResourceForOwner = useCallback((item: TEntity) => onCreateResource(item.id), [onCreateResource])
+  const { activateOwnerResource: handleSelect, cancelOwnerResourceActivation } = useOwnerResourceActivation({
+    loadResourceForOwner,
+    createResourceForOwner,
+    onActivateResource: onPickResource,
+    onError: onActivationError
+  })
 
-  const entityIdsWithResources = useMemo(
-    () => new Set(resources.map(getResourceParentId).filter((id): id is string => !!id)),
-    [getResourceParentId, resources]
-  )
+  useEffect(() => {
+    cancelOwnerResourceActivation()
+  }, [activeEntityId, cancelOwnerResourceActivation])
+
   const orderSignature = useMemo(
     () => entities.map((entity) => `${entity.id}:${entity.orderKey ?? ''}`).join('|'),
     [entities]
@@ -72,8 +77,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   }, [orderSignature])
 
   const items = useMemo<TEntity[]>(() => {
-    const filtered = entities.filter((entity) => entityIdsWithResources.has(entity.id))
-    const ordered = [...filtered].sort((a, b) => compareResourceOrderKey(a.orderKey, b.orderKey))
+    const ordered = [...entities].sort((a, b) => compareResourceOrderKey(a.orderKey, b.orderKey))
     let base = ordered
     if (optimisticOrderIds) {
       const byId = new Map(ordered.map((entity) => [entity.id, entity]))
@@ -89,26 +93,10 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
     const pinned = base.filter((entity) => entity.pinned)
     if (pinned.length === 0) return base
     return [...pinned, ...base.filter((entity) => !entity.pinned)]
-  }, [entities, entityIdsWithResources, optimisticOrderIds])
+  }, [entities, optimisticOrderIds])
 
   const listStatus: ResourceListStatus = isError ? 'error' : isLoading && items.length === 0 ? 'loading' : 'idle'
-  const selectedId = activeEntityId && entityIdsWithResources.has(activeEntityId) ? activeEntityId : null
-
-  const handleSelect = useCallback(
-    (item: TEntity) => {
-      // A visible rail entity always owns at least one loaded resource (rail visibility derives from
-      // `resources`), so enter its first/most-recent resource — no need to wait for the full load.
-      // Only the (effectively unreachable) no-resource case falls back to creating a blank resource.
-      const entityResources = resources.filter((resource) => getResourceParentId(resource) === item.id)
-      const first = sortResourcesForEntity(entityResources)[0]
-      if (first) {
-        onPickResource(first)
-        return
-      }
-      void onCreateResource(item.id)
-    },
-    [getResourceParentId, onCreateResource, onPickResource, resources, sortResourcesForEntity]
-  )
+  const selectedId = activeEntityId && items.some((item) => item.id === activeEntityId) ? activeEntityId : null
 
   const handleReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {

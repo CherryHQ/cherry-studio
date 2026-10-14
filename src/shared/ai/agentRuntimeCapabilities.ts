@@ -70,7 +70,7 @@ const PI_BUILTIN_COMMANDS = [
 export const AGENT_RUNTIME_CAPABILITIES = {
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
-    labelFallback: 'Advanced: Claude Agent',
+    labelFallback: 'Claude Agent',
     permissionModes: ALL_PERMISSION_MODES,
     modelTiers: true,
     heartbeat: true,
@@ -79,7 +79,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     skills: true,
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
-    createDefaults: { permissionMode: 'default' },
+    createDefaults: { permissionMode: 'auto' },
     // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
     // the same routability rule as the gateway model catalog.
     isModelCompatible: (_provider, model) => isGatewayRoutableModel(model),
@@ -96,14 +96,14 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   },
   pi: {
     labelKey: 'library.config.agent.field.runtime.option.pi',
-    labelFallback: 'Fast: Pi',
+    labelFallback: 'Pi',
     // Pi has no plan mode. Its `auto` is Cherry's own rule-based gate in the pi approval extension,
     // not Claude's model-side classifier — same user-facing promise, different mechanism.
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
     modelTiers: false,
     heartbeat: true,
     knowledgeBases: true,
-    // The complete session MCP set is bridged into approval-gated Pi custom tools.
+    // Native Pi MCP tools retain Cherry's approval gate.
     mcp: true,
     skills: true,
     claudeRegistryTools: false,

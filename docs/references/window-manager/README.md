@@ -1,3 +1,9 @@
+---
+description: Entry point for WindowManager docs — configuration layers, bounds persistence, runtime setters, and doc navigation
+sources:
+  - src/main/core/window
+---
+
 # WindowManager Reference
 
 This is the main entry point for Cherry Studio's WindowManager documentation. WindowManager is a lifecycle-managed service that creates, tracks, and reuses Electron `BrowserWindow` instances with three lifecycle modes (default / singleton / pooled), IPC broadcast, domain-service event hooks, and elastic pool reuse.
@@ -14,7 +20,7 @@ This is the main entry point for Cherry Studio's WindowManager documentation. Wi
 
 ### Reference Guides
 
-- [Warmup Mechanics](./window-manager-warmup-mechanics.md) — Shared warmup state machine (pooled two-axis model + singleton variant), config matrix, GC timer, suspend/resume, `WindowManager_Reused` IPC
+- [Warmup Mechanics](./window-manager-warmup-mechanics.md) — Shared warmup state machine (pooled two-axis model + singleton variant), config matrix, GC timer, suspend/resume, and the `window.reused` IpcApi event
 - [Platform Configuration](./window-manager-platform.md) — Static `platformOverrides`, declarative `behavior`, and OS `quirks` (macOS focus / hover / always-on-top)
 - [API Reference](./window-manager-api-reference.md) — Full method tables: open/close/create/destroy, window ops, queries, broadcast, init data, pool management, runtime setters, events
 - [Migration Guide](./window-manager-migration-guide.md) — Converting direct `BrowserWindow` usage to WindowManager
@@ -29,7 +35,7 @@ Per-type metadata in `windowRegistry.ts` is split into three layers. Each field 
 |---|---|---|---|
 | `windowOptions` | Arguments to `new BrowserWindow(...)` — Electron-native constructor options | Electron rejects the build or behaves wrong on construction | `width`, `alwaysOnTop: true`, `frame: false`, `platformOverrides` |
 | `behavior` | Cross-platform, non-hacky declarative behavior that Electron's constructor cannot express | WindowManager behavior diverges from intent (e.g. no auto-hide on blur) | `hideOnBlur`, `alwaysOnTop: { level, relativeLevel }`, `visibleOnAllWorkspaces`, `macShowInDock` |
-| `quirks` | OS-specific hacks / workarounds applied via monkey-patches | Sub-par UX on the specific OS (focus steal, Dock flicker, level demotion) | `macRestoreFocusOnHide`, `macClearHoverOnHide`, `macReapplyAlwaysOnTop` |
+| `quirks` | OS-specific hacks / workarounds applied via monkey-patches | Sub-par UX on the specific OS (focus steal, Dock flicker, level demotion) | `macRestoreFocusOnHide`, `macClearHoverOnHide`, `reapplyAlwaysOnTop` |
 
 **Naming rule (orthogonal to layering)**: any field that is effective only on one platform carries a `mac` / `win` / `linux` prefix — regardless of layer. `behavior.macShowInDock` is a behavior field but its `mac` prefix signals the platform scope; `quirks.macRestoreFocusOnHide` is a hack with the same prefix.
 
@@ -158,4 +164,6 @@ Behavioral injection goes through **`onWindowCreated`** (or its type-filtered co
 
 - [`src/renderer/windows/README.md`](../../../src/renderer/windows/README.md) — Renderer window entry-point convention (`entryPoint.tsx` + `XxxApp.tsx` three-layer structure)
 - `src/renderer/hooks/useWindowInitData.ts` — Canonical hook for init data consumption
-- `src/shared/IpcChannel.ts` — `WindowManager_*` IPC channel constants
+- `src/shared/ipc/schemas/window.ts` — caller-window request routes and directed window events
+- `src/main/ipc/handlers/window.ts` — renderer-to-main adapters for caller-window operations
+- `src/renderer/hooks/useWindowInitData.ts` — cold-start request plus `window.reused` subscription

@@ -1,6 +1,7 @@
+import { Document } from '@vectorstores/core'
+
 import { read } from '@main/utils/file'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
-import { Document } from '@vectorstores/core'
 
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
 import { stripOkfFrontmatter } from '../sources/okfFrontmatter'

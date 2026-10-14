@@ -1,7 +1,8 @@
+import { useEffect } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import i18n from '@renderer/i18n/resolver'
 import { defaultLanguage } from '@shared/utils/languages'
-import { useEffect } from 'react'
 
 /**
  * Keep i18next's active language in sync with the `app.language` preference.
