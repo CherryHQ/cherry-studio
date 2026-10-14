@@ -14,6 +14,25 @@ import { createLocalTranscriptionModel, downloadVoiceModel, getLocalVoiceStatus 
 const mocks = vi.hoisted(() => ({ decode: vi.fn(), transcribe: vi.fn(), refreshStatus: vi.fn(), download: vi.fn() }))
 const transcriptCanary = 'PRIVATE_TRANSCRIPT_CANARY'
 
+function canonicalWav(samples: number, channels = 1): Uint8Array {
+  const dataSize = samples * channels * 2
+  const audio = new Uint8Array(44 + dataSize)
+  const view = new DataView(audio.buffer)
+  audio.set(new TextEncoder().encode('RIFF'), 0)
+  view.setUint32(4, audio.byteLength - 8, true)
+  audio.set(new TextEncoder().encode('WAVEfmt '), 8)
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, channels, true)
+  view.setUint32(24, 16_000, true)
+  view.setUint32(28, 16_000 * channels * 2, true)
+  view.setUint16(32, channels * 2, true)
+  view.setUint16(34, 16, true)
+  audio.set(new TextEncoder().encode('data'), 36)
+  view.setUint32(40, dataSize, true)
+  return audio
+}
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
@@ -62,8 +81,9 @@ describe('FunASR local adapter', () => {
   })
 
   it('decodes WebM, transcribes private WAV scratch, and returns timed segments', async () => {
+    const audio = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])
     const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
-      audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+      audio,
       mediaType: 'audio/webm;codecs=opus'
     })
 
@@ -72,6 +92,12 @@ describe('FunASR local adapter', () => {
       segments: [{ text: transcriptCanary, startSecond: 0.5, endSecond: 2 }],
       durationInSeconds: 2.5
     })
+    expect(mocks.decode).toHaveBeenCalledOnce()
+    expect(mocks.decode).toHaveBeenCalledWith(
+      'decode',
+      { audio, mimeType: 'audio/webm;codecs=opus' },
+      { signal: expect.any(AbortSignal) }
+    )
     expect(mockMainLoggerService.debug).toHaveBeenCalledWith('Local transcription completed', {
       modelId: FUNASR_MODEL_ID,
       status: 'completed',
@@ -82,6 +108,124 @@ describe('FunASR local adapter', () => {
     const logs = JSON.stringify(mockMainLoggerService.debug.mock.calls)
     expect(logs).not.toContain(transcriptCanary)
     expect(logs).not.toContain(directory)
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('transcribes canonical WAV bytes unchanged and reports the data duration', async () => {
+    const bytes = canonicalWav(1600)
+    const backing = Buffer.alloc(bytes.byteLength + 2)
+    backing.set(bytes, 1)
+    const input = backing.subarray(1, -1)
+    mocks.transcribe.mockImplementation(async ({ filePath }) => {
+      expect(await readFile(filePath)).toEqual(input)
+      expect((await stat(dirname(filePath))).mode & 0o777).toBe(0o700)
+      expect((await stat(filePath)).mode & 0o777).toBe(0o600)
+      return { text: transcriptCanary, segments: [{ text: transcriptCanary, start: 0.5, end: 2 }] }
+    })
+
+    const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      audio: input,
+      mediaType: 'audio/wav'
+    })
+
+    expect(result).toMatchObject({ text: transcriptCanary, durationInSeconds: 0.1 })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.transcribe).toHaveBeenCalledOnce()
+    expect(mockMainLoggerService.debug).toHaveBeenCalledWith('Local transcription completed', {
+      modelId: FUNASR_MODEL_ID,
+      status: 'completed',
+      durationSeconds: 0.1,
+      segmentCount: 1,
+      transcriptNonEmpty: true
+    })
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it.each([
+    ['truncated header', () => new Uint8Array(11)],
+    [
+      'wrong RIFF size',
+      () => {
+        const audio = canonicalWav(1)
+        new DataView(audio.buffer).setUint32(4, 0, true)
+        return audio
+      }
+    ],
+    [
+      'missing data chunk',
+      () => {
+        const audio = canonicalWav(1).slice(0, 36)
+        new DataView(audio.buffer).setUint32(4, audio.byteLength - 8, true)
+        return audio
+      }
+    ],
+    ['empty data chunk', () => canonicalWav(0)],
+    [
+      'odd data chunk size',
+      () => {
+        const audio = canonicalWav(1)
+        new DataView(audio.buffer).setUint32(40, 1, true)
+        return audio
+      }
+    ]
+  ])('rejects a WAV with %s before creating scratch', async (_case, makeAudio) => {
+    await expect(
+      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+        audio: makeAudio(),
+        mediaType: 'audio/wav'
+      })
+    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.refreshStatus).not.toHaveBeenCalled()
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.transcribe).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('rejects stereo PCM WAV before creating scratch', async () => {
+    await expect(
+      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+        audio: canonicalWav(1600, 2),
+        mediaType: 'audio/wav'
+      })
+    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.transcribe).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('rejects WAV input over 32 MiB before inference', async () => {
+    await expect(
+      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+        audio: new Uint8Array(32 * 1024 * 1024 + 1),
+        mediaType: 'audio/wav'
+      })
+    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.transcribe).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('rejects unsupported media types even when the bytes are a valid WAV', async () => {
+    await expect(
+      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+        audio: canonicalWav(1),
+        mediaType: 'audio/mpeg'
+      })
+    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.transcribe).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('rejects non-byte audio before creating scratch', async () => {
+    await expect(
+      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+        audio: 'not audio',
+        mediaType: 'audio/wav'
+      })
+    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.transcribe).not.toHaveBeenCalled()
     expect(await readdir(directory)).toEqual([])
   })
 

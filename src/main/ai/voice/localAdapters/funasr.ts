@@ -23,7 +23,54 @@ import { voiceAudioProcess } from './voiceAudioProcess'
 
 const AUDIO_DECODE_TIMEOUT_MS = 30_000
 const ASR_INFERENCE_TIMEOUT_MS = 120_000
+const MAX_CANONICAL_WAV_BYTES = 32 * 1024 * 1024
 const logger = loggerService.withContext('FunAsrAdapter')
+
+function inspectCanonicalWav(audio: Uint8Array): { durationSeconds: number } {
+  const hasTag = (offset: number, tag: string): boolean =>
+    audio[offset] === tag.charCodeAt(0) &&
+    audio[offset + 1] === tag.charCodeAt(1) &&
+    audio[offset + 2] === tag.charCodeAt(2) &&
+    audio[offset + 3] === tag.charCodeAt(3)
+
+  if (audio.byteLength < 12 || audio.byteLength > MAX_CANONICAL_WAV_BYTES || !hasTag(0, 'RIFF') || !hasTag(8, 'WAVE'))
+    throw new VoiceRuntimeError('invalid_audio')
+
+  const view = new DataView(audio.buffer, audio.byteOffset, audio.byteLength)
+  if (view.getUint32(4, true) !== audio.byteLength - 8) throw new VoiceRuntimeError('invalid_audio')
+
+  let offset = 12
+  let hasFmt = false
+  let dataSize: number | undefined
+  while (offset < audio.byteLength) {
+    if (audio.byteLength - offset < 8) throw new VoiceRuntimeError('invalid_audio')
+    const chunkSize = view.getUint32(offset + 4, true)
+    const payloadOffset = offset + 8
+    const nextOffset = payloadOffset + chunkSize + (chunkSize % 2)
+    if (nextOffset > audio.byteLength) throw new VoiceRuntimeError('invalid_audio')
+
+    if (hasTag(offset, 'fmt ')) {
+      if (
+        hasFmt ||
+        chunkSize < 16 ||
+        view.getUint16(payloadOffset, true) !== 1 ||
+        view.getUint16(payloadOffset + 2, true) !== 1 ||
+        view.getUint32(payloadOffset + 4, true) !== 16_000 ||
+        view.getUint32(payloadOffset + 8, true) !== 32_000 ||
+        view.getUint16(payloadOffset + 12, true) !== 2 ||
+        view.getUint16(payloadOffset + 14, true) !== 16
+      )
+        throw new VoiceRuntimeError('invalid_audio')
+      hasFmt = true
+    } else if (hasTag(offset, 'data')) {
+      if (dataSize !== undefined || chunkSize === 0 || chunkSize % 2 !== 0) throw new VoiceRuntimeError('invalid_audio')
+      dataSize = chunkSize
+    }
+    offset = nextOffset
+  }
+  if (!hasFmt || dataSize === undefined) throw new VoiceRuntimeError('invalid_audio')
+  return { durationSeconds: dataSize / 32_000 }
+}
 
 function checkAbort(signal?: AbortSignal): void {
   if (signal?.aborted) throw new VoiceRuntimeError('aborted')
@@ -87,24 +134,36 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
     modelId: FUNASR_MODEL_ID,
     async doGenerate(input) {
       if (options.language) throw new VoiceRuntimeError('invalid_request')
-      if (!(input.audio instanceof Uint8Array) || !['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType))
+      const audio = input.audio
+      if (
+        !(audio instanceof Uint8Array) ||
+        !['audio/webm', 'audio/webm;codecs=opus', 'audio/wav'].includes(input.mediaType)
+      )
         throw new VoiceRuntimeError('invalid_audio')
+      const wavInspection = input.mediaType === 'audio/wav' ? inspectCanonicalWav(audio) : undefined
       await requireReady(input.abortSignal)
       return withScratch(
         async (directory) => {
-          const timeout = AbortSignal.timeout(AUDIO_DECODE_TIMEOUT_MS)
-          const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-          const decoded = await application
-            .get('UtilityProcessManager')
-            .client(voiceAudioProcess)
-            .request('decode', { audio: input.audio as Uint8Array, mimeType: 'audio/webm;codecs=opus' }, { signal })
-            .catch((error: unknown) => {
-              if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-              throw error
-            })
-          checkAbort(input.abortSignal)
           const inputPath = join(directory, 'input.wav')
-          await writeFile(inputPath, decoded.wav, { mode: 0o600 })
+          let durationSeconds: number
+          if (wavInspection) {
+            await writeFile(inputPath, audio, { mode: 0o600 })
+            durationSeconds = wavInspection.durationSeconds
+          } else {
+            const timeout = AbortSignal.timeout(AUDIO_DECODE_TIMEOUT_MS)
+            const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
+            const decoded = await application
+              .get('UtilityProcessManager')
+              .client(voiceAudioProcess)
+              .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
+              .catch((error: unknown) => {
+                if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
+                throw error
+              })
+            checkAbort(input.abortSignal)
+            await writeFile(inputPath, decoded.wav, { mode: 0o600 })
+            durationSeconds = decoded.durationSeconds
+          }
           const inferenceTimeout = AbortSignal.timeout(ASR_INFERENCE_TIMEOUT_MS)
           const inferenceSignal = input.abortSignal
             ? AbortSignal.any([input.abortSignal, inferenceTimeout])
@@ -120,7 +179,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
           logger.debug('Local transcription completed', {
             modelId: FUNASR_MODEL_ID,
             status: 'completed',
-            durationSeconds: decoded.durationSeconds,
+            durationSeconds,
             segmentCount: transcript.segments.length,
             transcriptNonEmpty: transcript.text.length > 0
           })
@@ -132,7 +191,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
               endSecond: segment.end
             })),
             language: undefined,
-            durationInSeconds: decoded.durationSeconds,
+            durationInSeconds: durationSeconds,
             warnings: [],
             response: { timestamp: new Date(), modelId: FUNASR_MODEL_ID }
           }
