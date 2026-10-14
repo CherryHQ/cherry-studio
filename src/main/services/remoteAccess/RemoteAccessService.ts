@@ -222,7 +222,7 @@ export class RemoteAccessService extends BaseService {
       }
       const upload =
         input !== null && typeof input === 'object' && 'method' in input && input.method === 'agent.content.read'
-      if (upload ? ++uploadCount > 512 : ++count > 64) {
+      if (upload ? ++uploadCount > 512 : ++count > 256) {
         // Awaiting keeps a flood of refusals from queueing ahead of the socket; excess must not end the session.
         const refusal = remote.rpc.refuse(input, {
           reason: 'RATE_LIMITED',
