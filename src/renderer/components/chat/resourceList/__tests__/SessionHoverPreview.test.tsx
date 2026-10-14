@@ -3,7 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { Activity } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { SessionHoverPreview, SessionHoverPreviewGroup } from '../SessionHoverPreview'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
+
+import {
+  SessionHoverPreview,
+  SessionHoverPreviewGroup,
+  useSessionHoverPreviewContextMenu
+} from '../SessionHoverPreview'
 
 vi.mock('@cherrystudio/ui', async (original) => original())
 
@@ -25,6 +31,21 @@ function List({ enabled = true, first = true }: { enabled?: boolean; first?: boo
   )
 }
 
+function MenuRow({ id }: { id: string }) {
+  const onOpenChange = useSessionHoverPreviewContextMenu(id)
+  return (
+    <ContextMenu onOpenChange={onOpenChange}>
+      <ContextMenuTrigger>
+        <SessionHoverPreview id={id} content={`Preview ${id}`}>
+          <span>{`Title ${id}`}</span>
+        </SessionHoverPreview>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem>{`Rename ${id}`}</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
 const pause = async (ms: number) =>
   act(async () => {
     await new Promise((resolve) => setTimeout(resolve, ms))
@@ -118,6 +139,60 @@ describe('Session hover previews', () => {
     expect(screen.queryByText('Preview A')).not.toBeInTheDocument()
   })
 
+  it.each(['pending', 'title', 'preview'])(
+    'suppresses the %s preview for the entire context menu lifetime and restores cold hover afterward',
+    async (target) => {
+      const user = userEvent.setup()
+      render(
+        <SessionHoverPreviewGroup>
+          <MenuRow id="A" />
+          <MenuRow id="B" />
+          <span>List gap</span>
+        </SessionHoverPreviewGroup>
+      )
+      const title = screen.getByText('Title A')
+      await user.hover(title)
+      if (target !== 'pending') await screen.findByText('Preview A')
+      const source = target === 'preview' ? screen.getByText('Preview A') : title
+      fireEvent.contextMenu(source)
+      expect(screen.getByRole('menuitem', { name: 'Rename A' })).toBeVisible()
+      await waitFor(() => expect(screen.queryByText('Preview A')).not.toBeInTheDocument())
+      movePointer(title, screen.getByText('List gap'))
+      movePointer(screen.getByText('List gap'), title)
+      await pause(650)
+      expect(screen.queryByText('Preview A')).not.toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Rename A' })).toBeVisible()
+      movePointer(title, screen.getByText('Title B'))
+      await pause(650)
+      expect(screen.queryByText('Preview B')).not.toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+      movePointer(screen.getByText('Title B'), screen.getByText('List gap'))
+      movePointer(screen.getByText('List gap'), title)
+      expect(screen.queryByText('Preview A')).not.toBeInTheDocument()
+      await screen.findByText('Preview A')
+    }
+  )
+  it('releases preview suppression when the row owning an open menu unmounts', async () => {
+    const user = userEvent.setup()
+    function MenuList({ first = true }: { first?: boolean }) {
+      return (
+        <SessionHoverPreviewGroup>
+          {first && <MenuRow id="A" />}
+          <MenuRow id="B" />
+          <span>List gap</span>
+        </SessionHoverPreviewGroup>
+      )
+    }
+    const view = render(<MenuList />)
+    fireEvent.contextMenu(screen.getByText('Title A'))
+    expect(screen.getByRole('menuitem', { name: 'Rename A' })).toBeVisible()
+    view.rerender(<MenuList first={false} />)
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await user.hover(screen.getByText('Title B'))
+    expect(screen.queryByText('Preview B')).not.toBeInTheDocument()
+    await screen.findByText('Preview B')
+  })
   it('removes a deleted row preview and resets a hidden list on return', async () => {
     const user = userEvent.setup()
     const view = render(<List />)
