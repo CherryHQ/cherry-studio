@@ -50,6 +50,7 @@ const providerKeyMap = {
   infini: 'provider.infini',
   jina: 'provider.jina',
   lanyun: 'provider.lanyun',
+  litellm: 'provider.litellm',
   lmstudio: 'provider.lmstudio',
   minimax: 'provider.minimax',
   mistral: 'provider.mistral',

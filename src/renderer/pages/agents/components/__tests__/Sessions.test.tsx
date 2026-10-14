@@ -710,6 +710,7 @@ vi.mock('react-i18next', () => ({
         'selector.common.sort_label': 'Sort',
         'selector.common.unpin': 'Unpin'
       }
+      if (key === 'agent.session.hover.last_activity') return `Last activity: ${options?.time ?? ''}`
       return labels[key] ?? key
     }
   })
@@ -982,6 +983,9 @@ describe('Sessions', () => {
       if (route === 'ai.agent.workspace.delete') {
         return dataApiMocks.deleteWorkspace({ params: { workspaceId: input.workspaceId } })
       }
+      if (route === 'ai.agent.workspace.register') {
+        return dataApiMocks.findOrCreateWorkspace({ body: { path: input.path as string } })
+      }
       return Promise.resolve(undefined)
     })
     conversationOwnerPopupMocks.show.mockImplementation(
@@ -1051,6 +1055,95 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().workdir).toContain('session:workspace:ws-b')
     view.rerender(<SessionsForTest key="expanded-project-a-workspace" />)
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('shows the full name, last activity and work directory on a task hover card', async () => {
+    const user = userEvent.setup()
+    const source = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'A task name long enough that the truncated row can never show it in full',
+          createdAt: '2026-01-02T08:15:00.000Z',
+          updatedAt: '2026-01-03T09:20:00.000Z',
+          lastActivityAt: '2026-03-05T06:30:00.000Z'
+        })
+      ]
+    }
+    render(<SessionsForTest agentSessionsSource={source} />)
+
+    await user.hover(screen.getByText('A task name long enough that the truncated row can never show it in full'))
+    const activity = await screen.findByText(/Last activity:/, undefined, { timeout: 3000 })
+    const hoverCard = activity.closest('[data-slot="hover-card-content"]')!
+
+    expect(hoverCard).toHaveTextContent('A task name long enough that the truncated row can never show it in full')
+    expect(hoverCard).toHaveTextContent('Last activity: 2026-03-05 06:30')
+    // Last activity, not creation or last update.
+    expect(hoverCard).not.toHaveTextContent('2026-01-02')
+    expect(hoverCard).not.toHaveTextContent('2026-01-03')
+    expect(hoverCard).toHaveTextContent('Embedded Project A')
+
+    await user.click(hoverCard)
+    expect(cacheMocks.setActiveSessionId).not.toHaveBeenCalled()
+
+    fireEvent.doubleClick(
+      within(screen.getByTestId('agent-session-row')).getByText(
+        'A task name long enough that the truncated row can never show it in full'
+      )
+    )
+    expect(hoverCard).not.toBeInTheDocument()
+  })
+
+  it('switches an open preview immediately between sessions and resets after scrolling', async () => {
+    const user = userEvent.setup()
+    const source = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [
+        createSession({ id: 'first', name: 'First preview' }),
+        createSession({ id: 'second', name: 'Second preview' })
+      ]
+    }
+    render(<SessionsForTest agentSessionsSource={source} />)
+    const first = screen.getByText('First preview')
+    const second = screen.getByText('Second preview')
+    await user.hover(first)
+    expect(screen.queryByText(/Last activity:/)).not.toBeInTheDocument()
+    await screen.findByText(/Last activity:/, undefined, { timeout: 3000 })
+    // Native pointer transitions include relatedTarget (user-event currently omits it).
+    fireEvent(first, new MouseEvent('pointerout', { bubbles: true, relatedTarget: second }))
+    fireEvent(second, new MouseEvent('pointerover', { bubbles: true, relatedTarget: first }))
+    const card = screen.getByText(/Last activity:/).closest('[data-slot="hover-card-content"]')!
+    expect(card).toHaveTextContent('Second preview')
+    expect(document.querySelectorAll('[data-slot="hover-card-content"]')).toHaveLength(1)
+    fireEvent.scroll(second.parentElement!)
+    expect(screen.queryByText(/Last activity:/)).not.toBeInTheDocument()
+    fireEvent(second, new MouseEvent('pointerout', { bubbles: true, relatedTarget: first }))
+    fireEvent(first, new MouseEvent('pointerover', { bubbles: true, relatedTarget: second }))
+    expect(screen.queryByText(/Last activity:/)).not.toBeInTheDocument()
+    await screen.findByText(/Last activity:/, undefined, { timeout: 3000 })
+  })
+
+  it('drops the work directory line when a task runs without one', async () => {
+    const user = userEvent.setup()
+    const source = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'System workspace task',
+          workspace: makeWorkspace('', { id: 'ws-system', name: '', type: 'system' })
+        })
+      ]
+    }
+    render(<SessionsForTest agentSessionsSource={source} />)
+
+    await user.hover(screen.getByText('System workspace task'))
+    const activity = await screen.findByText(/Last activity:/, undefined, { timeout: 3000 })
+    const hoverCard = activity.closest('[data-slot="hover-card-content"]')!
+
+    expect(hoverCard).toHaveTextContent('System workspace task')
+    expect(hoverCard.querySelector('svg')).toBeNull()
   })
 
   it('never paints a workdir group as selected, collapsed or not', () => {

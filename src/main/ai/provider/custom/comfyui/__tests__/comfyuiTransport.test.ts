@@ -236,6 +236,31 @@ describe('ComfyuiTransport', () => {
     expect(body.prompt['2'].inputs.seed).toBe(42)
   })
 
+  it('hands a Comfy API key to partner nodes in extra_data, and never as a header', async () => {
+    const bodies: Record<string, any>[] = []
+    const headers: unknown[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      headers.push(init?.headers)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(workflow)
+      bodies.push(JSON.parse(String(init?.body)))
+      return respond({ prompt_id: 'pid-1' })
+    })
+
+    await createComfyuiTransport({ baseURL: 'http://localhost:8188', apiKey: ' comfyui-key ', fetch: doFetch }).submit(
+      submitInput
+    )
+    await createComfyuiTransport({ baseURL: 'http://localhost:8188', apiKey: '  ', fetch: doFetch }).submit(submitInput)
+    await createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch }).submit(submitInput)
+
+    expect(bodies[0].extra_data).toEqual({ api_key_comfy_org: 'comfyui-key' })
+    // Without a key the body is what it was: no empty credential for a node to send.
+    expect(bodies[1]).not.toHaveProperty('extra_data')
+    expect(bodies[2]).not.toHaveProperty('extra_data')
+    expect(JSON.stringify(headers)).not.toContain('comfyui-key')
+  })
+
   it('writes the prompt into the branch of an If/Else Switch that reaches the encoder', async () => {
     const posts: Record<string, any>[] = []
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -254,6 +279,45 @@ describe('ComfyuiTransport', () => {
     expect(posts[0].prompt['1'].inputs.on_false).toBe('a cat')
     expect(posts[0].prompt['1'].inputs.switch).toBe(false)
     expect(posts[0].prompt['3'].inputs.text).toBe('the text a Generate Text node would make')
+  })
+
+  it('redraws a seed the workflow set to randomize, unless the run names one', async () => {
+    const randomizing: ObjectInfo = {
+      ...objectInfo,
+      KSampler: {
+        input: {
+          required: {
+            ...objectInfo.KSampler.input!.required,
+            seed: ['INT', { default: 0, control_after_generate: true }]
+          }
+        }
+      }
+    }
+    const randomWorkflow = {
+      ...workflow,
+      nodes: [workflow.nodes[0], { ...workflow.nodes[1], widgets_values: [7, 'randomize', 20, 8, 'euler', 'normal'] }]
+    }
+    const seeds: unknown[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(randomizing)
+      if (url.includes('/userdata/')) return respond(randomWorkflow)
+      seeds.push(JSON.parse(String(init?.body)).prompt['2'].inputs.seed)
+      return respond({ prompt_id: 'pid-1' })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+    const random = vi.spyOn(Math, 'random').mockReturnValueOnce(0.25).mockReturnValueOnce(0.5)
+
+    try {
+      await transport.submit({ ...submitInput, seed: undefined })
+      await transport.submit({ ...submitInput, seed: undefined })
+      await transport.submit({ ...submitInput, seed: 42 })
+    } finally {
+      random.mockRestore()
+    }
+
+    // Two runs, two seeds — not the 7 the workflow last saved — and a typed seed wins.
+    expect(seeds).toEqual([281474976710656, 562949953421312, 42])
   })
 
   it('propagates a user abort during the prompt POST as an AbortError', async () => {
