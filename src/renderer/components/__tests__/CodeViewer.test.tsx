@@ -131,6 +131,45 @@ describe('CodeViewer', () => {
     expect(scroller.scrollTop).toBe(100)
   })
 
+  it('copies the selection as it stands, not the one a scroll cached earlier', () => {
+    // A collapsed viewer replaces the browser's copy with one built from `savedSelectionRef`, which
+    // a scroll fills in. Extending a selection inside the viewer fires no scroll, so the cached
+    // offsets were never refreshed and `handleCopy` preferred them — copying `alpha` after the user
+    // had extended the selection to `alpha beta`.
+    const { container } = render(
+      <CodeViewer value="alpha beta" language="typescript" expanded={false} height="350px" />
+    )
+    const scroller = container.querySelector('.shiki-scroller') as HTMLElement
+    const lineContent = container.querySelector('.line-content') as HTMLElement
+    const textNode = lineContent.firstChild?.firstChild as Text
+
+    const select = (start: number, end: number) => {
+      const range = document.createRange()
+      range.setStart(textNode, start)
+      range.setEnd(textNode, end)
+      const selection = window.getSelection()!
+      selection.removeAllRanges()
+      selection.addRange(range)
+      document.dispatchEvent(new Event('selectionchange'))
+    }
+
+    // The user selects `alpha`, then scrolls without the row unmounting.
+    select(0, 5)
+    fireEvent.scroll(scroller)
+
+    // The same row is still mounted, so the selection is extended without another scroll.
+    select(0, 10)
+
+    const written: Record<string, string> = {}
+    const event = new Event('copy', { bubbles: true, cancelable: true }) as unknown as ClipboardEvent
+    Object.defineProperty(event, 'clipboardData', {
+      value: { setData: (type: string, data: string) => (written[type] = data) }
+    })
+    scroller.dispatchEvent(event)
+
+    expect(written['text/plain']).toBe('alpha beta')
+  })
+
   it('highlights only viewport-visible viewers immediately when many code blocks mount together', async () => {
     vi.useFakeTimers()
     const rectSpy = vi
