@@ -191,7 +191,10 @@ describe('saveMigrationDiagnosticBundle', () => {
     await rm(logsDir, { recursive: true })
     await mkdir(logsDir)
     await Promise.all([writeFile(other, 'same size'), writeFile(logPath(), 'same size')])
-    const [sourceStat, openedStat] = await Promise.all([lstat(logPath()), lstat(other)])
+    const [sourceStat, openedStat] = await Promise.all([
+      lstat(logPath(), { bigint: true }),
+      lstat(other, { bigint: true })
+    ])
     expect(openedStat.size).toBe(sourceStat.size)
     expect([openedStat.dev, openedStat.ino]).not.toEqual([sourceStat.dev, sourceStat.ino])
     const handles: FileHandle[] = []
