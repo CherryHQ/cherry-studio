@@ -508,6 +508,11 @@ vi.mock('react-i18next', async (importOriginal) => {
           }`.trim(),
           'settings.prompts.binding.search': 'Search prompts',
           'settings.prompts.binding.tabTitle': 'Prompts',
+          'settings.prompts.binding.globalDescription':
+            'Global prompts are available in every conversation and managed in Settings.',
+          'settings.prompts.manageGlobal': 'Manage Global Prompts',
+          'settings.quickPanel.scope.currentAgent': 'Current Agent',
+          'settings.quickPanel.scope.currentAssistant': 'Current Assistant',
           'settings.prompts.contentLabel': 'Content',
           'settings.prompts.contentPlaceholder': 'Enter prompt content',
           'settings.prompts.errors.bindFailed': 'Failed to link prompt',
@@ -796,6 +801,39 @@ function createDeferred<T>() {
 }
 
 describe('edit dialogs', () => {
+  it.each(['agent', 'assistant'] as const)(
+    'opens global prompt settings from an empty %s prompt panel',
+    async (type) => {
+      const user = userEvent.setup()
+      function Host() {
+        const [open, setOpen] = useState(true)
+        return type === 'agent' ? (
+          <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} initialTab="prompts" />
+        ) : (
+          <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} initialTab="prompts" />
+        )
+      }
+      render(<Host />)
+      const panel = screen.getByRole('tabpanel', { name: 'Prompts' })
+      expect(within(panel).getByText(type === 'agent' ? 'Current Agent' : 'Current Assistant')).toBeVisible()
+      expect(within(panel).getByText('No prompts linked')).toBeVisible()
+      expect(
+        within(panel).getByText('Global prompts are available in every conversation and managed in Settings.')
+      ).toBeVisible()
+      await user.click(within(panel).getByRole('button', { name: 'Manage Global Prompts' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts'))
+    }
+  )
+
+  it('keeps global prompt management available beside existing linked prompts', () => {
+    promptCatalogState.current.bound = [...promptCatalogState.current.all]
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="prompts" />)
+    const panel = screen.getByRole('tabpanel', { name: 'Prompts' })
+    expect(within(panel).getByText('Reusable prompt')).toBeVisible()
+    expect(within(panel).getByRole('button', { name: 'Manage Global Prompts' })).toBeEnabled()
+  })
+
   it('binds a prompt to the assistant being edited', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -849,13 +887,15 @@ describe('edit dialogs', () => {
     const previousBinding = createDeferred<void>()
     const currentBinding = createDeferred<void>()
     bindPromptMock.mockReturnValueOnce(previousBinding.promise).mockReturnValueOnce(currentBinding.promise)
-    const { rerender } = render(<PromptBindingTab enabled target={{ type: 'assistant', id: 'assistant-old' }} />)
+    const { rerender } = render(
+      <PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: 'assistant-old' }} />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
     fireEvent.click(await screen.findByText('Reusable prompt'))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled())
 
-    rerender(<PromptBindingTab enabled target={{ type: 'assistant', id: 'assistant-new' }} />)
+    rerender(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: 'assistant-new' }} />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
     fireEvent.click(await screen.findByText('Reusable prompt'))
@@ -919,6 +959,8 @@ describe('edit dialogs', () => {
         }
       })
     )
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add prompt' })).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Manage Global Prompts' })).toBeEnabled()
   })
 
   it('disables prompt visibility while a create request is pending', async () => {
