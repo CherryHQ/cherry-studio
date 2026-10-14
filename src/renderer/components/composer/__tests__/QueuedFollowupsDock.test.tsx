@@ -77,6 +77,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
     const toggle = screen.getByRole('button', { name: 'Queued (2)' })
@@ -103,7 +104,8 @@ describe('QueuedFollowupsDock', () => {
       onSteer: vi.fn(),
       onEdit: vi.fn(),
       onRemove: vi.fn(),
-      onReorder: vi.fn()
+      onReorder: vi.fn(),
+      onClearAll: vi.fn()
     }
     const { rerender } = render(<QueuedFollowupsDock {...props} />)
     const toggle = screen.getByRole('button', { name: 'Queued (2)' })
