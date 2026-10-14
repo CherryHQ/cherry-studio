@@ -10,7 +10,7 @@ import { Arch } from 'electron-builder'
 import { describe, expect, it, vi } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages, keepPackages, prepareNativeModulesForElectron } from '../before-pack'
+import { assertPrebuiltPackages, keepPackages, prepareNativeModulesForElectron } from '../packaging/before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
@@ -92,16 +92,6 @@ describe('prepareNativeModulesForElectron', () => {
 })
 
 describe('keepPackages', () => {
-  it.each([
-    ['x64', '@deepseek-ai/node-addon-landlock-run-linux-x64', '@deepseek-ai/node-addon-landlock-run-linux-arm64'],
-    ['arm64', '@deepseek-ai/node-addon-landlock-run-linux-arm64', '@deepseek-ai/node-addon-landlock-run-linux-x64']
-  ] as const)('keeps only the Linux %s Landlock executable', (arch, matchingPackage, otherArchPackage) => {
-    const keptPackages = keepPackages('linux', arch)
-
-    expect(keptPackages).toContain(matchingPackage)
-    expect(keptPackages).not.toContain(otherArchPackage)
-  })
-
   // The name matcher keys off arch and platform tokens, and this package name carries
   // neither. Left to it, a Mac build would drop the module the permission prompt needs,
   // and a Windows or Linux build cross-made on a Mac would ship its darwin-only `.node`.

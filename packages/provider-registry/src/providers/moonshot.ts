@@ -1,14 +1,10 @@
 import type { ProviderReasoningFormat } from '../schemas/provider'
+import { fixedSamplingParameterSupport } from './parameterSupports'
 import type { Provider } from './types'
 import { openaiCompatible, type ProviderServerToolConfig } from './types'
 import { EFFORT, modeWire } from './wires'
 
 const effortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
-
-const fixedSamplingParameterSupport = {
-  temperature: { supported: false },
-  topP: { supported: false }
-} as const
 
 // Shared with moonshot-global: the international endpoint speaks the same API.
 export const moonshotReasoningFormat: ProviderReasoningFormat = {
@@ -50,7 +46,9 @@ export const moonshotOverrides = [
   ...['kimi-k2.7-code', 'kimi-k2.7-code-highspeed'].map((modelId) => ({
     modelId,
     parameterSupport: fixedSamplingParameterSupport
-  }))
+  })),
+  // Rolling alias for the newest Kimi — same backend, same fixed sampling.
+  { modelId: 'kimi-latest', parameterSupport: fixedSamplingParameterSupport }
 ] satisfies NonNullable<Provider['overrides']>
 
 export default openaiCompatible({

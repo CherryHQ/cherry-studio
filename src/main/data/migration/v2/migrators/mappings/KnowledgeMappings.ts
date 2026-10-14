@@ -1,6 +1,7 @@
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { foldPathSegment } from '@main/utils/file'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { sanitizeFilename } from '@main/utils/legacyFile'
 import {
@@ -463,22 +464,6 @@ const splitLegacyPathSegments = (value: string): string[] =>
   value.split(/[\\/]+/).filter((segment) => segment !== '' && segment !== '.')
 
 /**
- * Comparison key for "is this the same directory segment?". Two uses, both needing the same key:
- *
- * - Containment: a cross-platform restore can leave the folder path and its files' paths differing
- *   in case or Unicode composition, so the subtree test folds while the emitted path keeps its
- *   original casing.
- * - Top-level `raw/` occupancy: Windows and default macOS volumes are case-insensitive, so two
- *   folders named `docs` and `Docs` would be persisted as distinct prefixes yet resolve to one
- *   physical directory. Deleting or re-indexing either container calls `removeDir(raw/<prefix>)`
- *   and would take the other's bytes with it, leaving its rows and index entries behind.
- *
- * `toLowerCase` (not `toLocaleLowerCase`) to keep this free of locale surprises such as tr-TR's
- * I→ı.
- */
-export const foldPathSegment = (segment: string): string => segment.normalize('NFC').toLowerCase()
-
-/**
  * Sanitize one path segment. `sanitizeFilename` strips separators, control characters, Windows
  * reserved names and trailing dots/space (so `..` collapses to `untitled`), and only returns ''
  * for an empty input — which the `||` covers. The result is therefore always non-empty and never
@@ -577,6 +562,8 @@ export const expandLegacyDirectoryItem = (
   }
 
   const containerSegments = splitLegacyPathSegments(item.content)
+  // A cross-platform restore can leave the folder path and its files' paths differing in case or
+  // Unicode composition, so the subtree test folds while the emitted path keeps its original casing.
   const containerFold = containerSegments.map(foldPathSegment)
   // A folder name is not a filename: `report.v2` must dedupe to `report.v2_1`, not `report_1.v2`
   // — hence splitExtension=false, matching chooseDirectoryPathPrefix. A path of only separators

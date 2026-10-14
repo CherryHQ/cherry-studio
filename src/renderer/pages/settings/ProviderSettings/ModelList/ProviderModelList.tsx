@@ -62,6 +62,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
     <>
       <div className={modelListClasses.headerBlock}>
         <ModelListHeader
+          providerId={providerId}
           hasNoModels={modelList.header.hasNoModels}
           searchText={modelList.header.searchText}
           setSearchText={modelList.header.setSearchText}

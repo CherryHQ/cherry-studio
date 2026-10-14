@@ -110,10 +110,10 @@ describe('shared Gateway listener lifecycle', () => {
       await service.setLanEnabled(true)
       const { port: lanPort } = await service.createRemoteInvitation()
       expect(lanPort).toBe(localPort)
-      const lanResponse = await fetch(`http://127.0.0.1:${lanPort}/health`)
+      const lanResponse = await fetch(`http://[::1]:${lanPort}/health`)
       expect(await lanResponse.text()).toBe('ok')
 
-      const socket = new WebSocket(`ws://127.0.0.1:${lanPort}/v1/remote/connect`)
+      const socket = new WebSocket(`ws://[::1]:${lanPort}/v1/remote/connect`)
       await new Promise<void>((resolve, reject) => {
         socket.once('open', resolve)
         socket.once('error', reject)
@@ -121,7 +121,7 @@ describe('shared Gateway listener lifecycle', () => {
       const closed = new Promise<number>((resolve) => socket.once('close', resolve))
       await service.setLanEnabled(false)
       expect(await closed).toBe(1001)
-      const rejected = new WebSocket(`ws://127.0.0.1:${lanPort}/v1/remote/connect`)
+      const rejected = new WebSocket(`ws://[::1]:${lanPort}/v1/remote/connect`)
       await expect(new Promise((_, reject) => rejected.once('error', reject))).rejects.toThrow('403')
 
       stream.controller!.enqueue(new TextEncoder().encode('after'))

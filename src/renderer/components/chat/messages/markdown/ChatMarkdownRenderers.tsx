@@ -1,22 +1,19 @@
-import type { ComponentProps, CSSProperties, JSX } from 'react'
+import type { ComponentProps, JSX } from 'react'
 import type { Components, ExtraProps } from 'streamdown'
 
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
-import { MarkdownImageRenderer } from '@renderer/components/markdown'
-import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
+import { useMarkdownCode } from '@renderer/components/markdown'
+import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
+import { isWin } from '@renderer/utils/platform'
 
 import { useChatMarkdownRenderContext } from './ChatMarkdownRenderContext'
 import CitationSup from './CitationSup'
 import CodeBlock from './CodeBlock'
 import Link from './Link'
-import MarkdownSvgRenderer from './MarkdownSvgRenderer'
 import { BARE_FILE_PATH_PROPERTY } from './plugins/rehypeBareFilePaths'
-import Table from './Table'
 
 type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[Tag] & ExtraProps
-
-const PRE_STYLE: CSSProperties = { overflow: 'visible' }
 
 function ChatLinkRenderer(props: MarkdownRendererProps<'a'>) {
   const { citationRegistry, openFilePath } = useChatMarkdownRenderContext()
@@ -28,8 +25,21 @@ function ChatCitationSupRenderer(props: MarkdownRendererProps<'sup'>) {
   return <CitationSup {...props} citationRegistry={citationRegistry} />
 }
 
+function getCodeFilePath({ text, language, isIncomplete }: ReturnType<typeof useMarkdownCode>) {
+  if (isIncomplete || (language !== null && language !== 'text')) return null
+  const path = normalizeInlineFilePath(text)
+  return path && (isKnownNavigationPath(path) || (!isWin && isInlineFilePath(text))) ? path : null
+}
+
 function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
   const { blockId, inlineHtmlPreviewMode, isStreaming } = useChatMarkdownRenderContext()
+  const code = useMarkdownCode(props.children, props.className)
+
+  // Keep growing fences as code until Streamdown finishes rebuilding their animated spans.
+  const path = getCodeFilePath(code)
+  if (path && isKnownNavigationPath(path)) return <NavigateToolInline input={{ path }} />
+  if (path) return <ClickableFilePath path={path} />
+
   return (
     <CodeBlock
       {...(props as ComponentProps<typeof CodeBlock>)}
@@ -40,19 +50,18 @@ function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
   )
 }
 
-function ChatTableRenderer(props: MarkdownRendererProps<'table'>) {
-  const { blockId } = useChatMarkdownRenderContext()
-  return <Table {...(props as ComponentProps<typeof Table>)} blockId={blockId} />
-}
-
-function ChatPreRenderer(props: MarkdownRendererProps<'pre'>) {
-  return <pre style={PRE_STYLE} {...props} />
-}
-
-function ChatParagraphRenderer(props: MarkdownRendererProps<'p'>) {
-  const hasImage = props.node?.children.some((child) => child.type === 'element' && child.tagName === 'img')
-  if (hasImage) return <div {...props} />
-  return <p {...props} />
+function ChatPreRenderer({ node, children, ...props }: MarkdownRendererProps<'pre'>) {
+  const child = node?.children.length === 1 ? node.children[0] : undefined
+  const codeChild = child?.type === 'element' && child.tagName === 'code' ? child : undefined
+  const className = codeChild?.properties.className
+  const code = useMarkdownCode(children, Array.isArray(className) ? className.join(' ') : String(className ?? ''))
+  // Ordinary code and raw HTML retain the pre surface's typography, whitespace and spacing.
+  if (codeChild && getCodeFilePath(code)) return <>{children}</>
+  return (
+    <pre style={{ overflow: 'visible' }} {...props}>
+      {children}
+    </pre>
+  )
 }
 
 function ChatSpanRenderer({ node, children, ...props }: MarkdownRendererProps<'span'>) {
@@ -68,15 +77,6 @@ export const CHAT_MARKDOWN_COMPONENTS = {
   a: ChatLinkRenderer,
   sup: ChatCitationSupRenderer,
   code: ChatCodeRenderer,
-  table: ChatTableRenderer,
-  img: MarkdownImageRenderer,
   pre: ChatPreRenderer,
-  p: ChatParagraphRenderer,
-  span: ChatSpanRenderer,
-  svg: MarkdownSvgRenderer as Components['svg']
-} satisfies Partial<Components>
-
-export const CHAT_MARKDOWN_COMPONENTS_WITH_STYLE = {
-  ...CHAT_MARKDOWN_COMPONENTS,
-  style: MarkdownShadowDomRenderer as Components['style']
+  span: ChatSpanRenderer
 } satisfies Partial<Components>

@@ -15,7 +15,7 @@ import '@main/data/bootConfig'
 import { application } from '@application'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
-import { runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
+import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
@@ -33,12 +33,13 @@ resolveUserDataLocation()
 requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
+// Freeze the path registry — bootstrap() asserts this completed.
+application.initPathRegistry()
+const isolatedRestoreSession = prepareBackupRestoreSession()
 initSentry()
 // Privileged schemes must be declared before the app is ready, and only ONCE per
 // process — startApp() itself awaits app.whenReady(), so this cannot move in there.
 protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_SCHEME_DECLARATION])
-// Freeze the path registry — bootstrap() asserts this completed.
-application.initPathRegistry()
 
 import { electronApp } from '@electron-toolkit/utils'
 import { app, protocol } from 'electron'
@@ -61,9 +62,10 @@ const startApp = async () => {
   if (relocationResult === 'handled') return
 
   // Backup-restore gate: swap in a staged restored DB (if any) before the v2
-  // migration gate reads the DB. Never throws; on any failure the old DB
-  // stays live and the app starts normally.
-  await runBackupRestoreGate()
+  // migration gate reads the DB. An isolated restore launch must relaunch
+  // before services can use the path registry's original session snapshot.
+  const restoreResult = await runBackupRestoreGate(isolatedRestoreSession)
+  if (restoreResult === 'handled') return
 
   // 'handled' = migration window took over OR fatal error already quit the app.
   const migrationResult = await runV2MigrationGate()
