@@ -62,7 +62,7 @@ export const ComposerToolRuntimeProvider = ({ children, initialState, actions }:
 interface ComposerToolRuntimeBootstrapProps {
   scope: ComposerToolScope
   assistant?: Assistant
-  model: Model
+  model?: Model
   session?: ToolContext['session']
 }
 
@@ -164,7 +164,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session })
+    return getToolsForScope(scope, { assistant, model, session }).filter((tool) => model || tool.availableWithoutModel)
   }, [assistant, model, scope, session])
 
   const getLauncherApiForTool = useCallback(

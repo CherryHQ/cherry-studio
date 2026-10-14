@@ -110,7 +110,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   {
     name: BuiltinMcpServerNames.filesystem,
     type: 'inMemory',
-    args: ['/Users/username/Desktop'],
+    // An unconfigured server uses <userData>/Workspace; a platform-shaped path would bypass that fallback.
     disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
     isActive: false,

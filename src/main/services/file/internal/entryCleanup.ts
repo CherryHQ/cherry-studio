@@ -13,7 +13,7 @@
  */
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { loggerService } from '@logger'
-import type { FileEntry } from '@shared/data/types/file'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { EntryCleanupSummary } from '@shared/types/file'
 
 import type { FileManagerDeps } from './deps'
@@ -55,7 +55,8 @@ type CandidateOutcome = { kind: 'deleted'; entry: FileEntry } | { kind: 'refs-re
 
 export async function runEntryCleanup(
   deps: FileManagerDeps,
-  intakeProtection?: Pick<IntakeStore, 'load' | 'isProtected'>
+  intakeProtection?: Pick<IntakeStore, 'load' | 'isProtected'>,
+  retainedEntries: ReadonlyMap<FileEntryId, unknown> = new Map()
 ): Promise<EntryCleanupReport> {
   const startedAt = Date.now()
   // A staged restore holds the DB in a protected window: mutating file_entry or
@@ -82,7 +83,8 @@ export async function runEntryCleanup(
       const page = deps.fileEntryService.findCleanupCandidates({
         graceMs: ENTRY_CLEANUP_GRACE_MS,
         limit: ENTRY_CLEANUP_BATCH_LIMIT,
-        offset
+        offset,
+        excludedIds: [...retainedEntries.keys()]
       })
       batch.push(
         ...page.filter((entry) => !deps.isEntryRetained(entry.id)).slice(0, ENTRY_CLEANUP_BATCH_LIMIT - batch.length)
@@ -123,6 +125,7 @@ export async function runEntryCleanup(
           }
           if (
             deps.isEntryRetained(candidate.id) ||
+            retainedEntries.has(candidate.id) ||
             deps.fileRefService.countPersistentRefsByEntryIdTx(tx, candidate.id) > 0
           ) {
             return { kind: 'refs-reappeared' }
@@ -150,7 +153,10 @@ export async function runEntryCleanup(
       } catch (err) {
         // Stateless retry (spec §5.6): the next pass re-derives this candidate.
         failed++
-        logger.warn('file-entry-cleanup: candidate failed, retried next pass', { id: candidate.id, err })
+        logger.warn('file-entry-cleanup: candidate failed, retried next pass', {
+          id: candidate.id,
+          code: (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+        })
       }
     }
 
@@ -168,7 +174,7 @@ export async function runEntryCleanup(
     return finish(
       {
         outcome: 'failed',
-        errorMessage: err instanceof Error ? err.message : String(err),
+        errorMessage: 'file_entry_cleanup_failed',
         candidates: 0,
         deleted: 0,
         skippedRefsReappeared: 0,
@@ -177,12 +183,12 @@ export async function runEntryCleanup(
         unlinkFailures: 0,
         durationMs: Date.now() - startedAt
       },
-      err
+      (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
     )
   }
 }
 
-function finish(report: EntryCleanupReport, rawError?: unknown): EntryCleanupReport {
+function finish(report: EntryCleanupReport, code?: string): EntryCleanupReport {
   const payload = { event: 'file-entry-cleanup', ...report }
   switch (report.outcome) {
     case 'completed':
@@ -190,11 +196,7 @@ function finish(report: EntryCleanupReport, rawError?: unknown): EntryCleanupRep
       logger.info('file-entry-cleanup', payload)
       break
     case 'failed': {
-      // Pass the raw error first (the logger extracts its stack) alongside the
-      // structured payload — the whole-batch-crash path is the one that most
-      // needs the stack, which `errorMessage` alone drops.
-      const errArg = rawError instanceof Error ? rawError : new Error(report.errorMessage ?? String(rawError))
-      logger.error('file-entry-cleanup', errArg, payload)
+      logger.error('file-entry-cleanup', { ...payload, code })
       break
     }
     default:

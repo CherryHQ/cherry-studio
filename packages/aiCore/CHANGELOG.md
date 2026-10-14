@@ -1,5 +1,22 @@
 # @cherrystudio/ai-core
 
+## 2.4.0
+
+### Minor Changes
+
+- [#20746](https://github.com/CherryHQ/cherry-studio/pull/20746) [`0b625df`](https://github.com/CherryHQ/cherry-studio/commit/0b625dfe8c5a28e6ea75701f110003b3692f206d) Thanks [@AtomsH4](https://github.com/AtomsH4)! - Add one-shot speech generation and transcription operations for resolved V3 models, with explicit cancellation, no implicit provider resolution or retries, WAV speech output, and result metadata limited to audio or transcripts.
+
+## 2.3.0
+
+### Minor Changes
+
+- [#21625](https://github.com/CherryHQ/cherry-studio/pull/21625) [`7a7a424`](https://github.com/CherryHQ/cherry-studio/commit/7a7a4247185a8187e54bb09b77f407bd0c04981c) Thanks [@DeJeune](https://github.com/DeJeune)! - Support Gemini 4 Argon with the updated Google adapter and model catalog. Export context usage helpers that exclude repeated continuation prompts from context occupancy while preserving billed token counts, and allow catalog generation to refresh selected models.
+
+### Patch Changes
+
+- Updated dependencies [[`7a7a424`](https://github.com/CherryHQ/cherry-studio/commit/7a7a4247185a8187e54bb09b77f407bd0c04981c)]:
+  - @cherrystudio/ai-sdk-provider@0.1.8
+
 ## 2.2.0
 
 ### Minor Changes

@@ -96,6 +96,30 @@ describe('downloadBundleFiles', () => {
     expect(streamToFileVerified.mock.calls[1][0]).toContain('modelscope.cn')
   })
 
+  it('uses only the pinned sources declared for a file', async () => {
+    const pinned: BundleFile = {
+      ...WEIGHTS,
+      repo: undefined,
+      remoteFile: undefined,
+      sizeBytes: 1_000,
+      sources: [
+        {
+          source: 'modelscope',
+          repo: 'org/pinned',
+          revision: 'b'.repeat(40),
+          remoteFile: 'nested/model.onnx'
+        }
+      ]
+    }
+
+    await downloadBundleFiles(BUNDLE, [pinned], options())
+
+    expect(streamToFileVerified).toHaveBeenCalledTimes(1)
+    expect(streamToFileVerified.mock.calls[0][0]).toBe(
+      `https://www.modelscope.cn/models/org/pinned/resolve/${'b'.repeat(40)}/nested/model.onnx`
+    )
+  })
+
   it('writes a derived file from its transformed bytes, not the fetched ones', async () => {
     await downloadBundleFiles(BUNDLE, [DICT], options())
 

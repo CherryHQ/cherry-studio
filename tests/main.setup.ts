@@ -63,6 +63,10 @@ vi.mock('electron', () => {
   const partitionSessions = new Map<string, Record<string, unknown>>()
   const mock = {
     app: {
+      commandLine: {
+        hasSwitch: vi.fn(() => false),
+        getSwitchValue: vi.fn(() => '')
+      },
       getPath: vi.fn((key: string) => {
         switch (key) {
           case 'userData':

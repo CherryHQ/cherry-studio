@@ -181,6 +181,33 @@ describe('ComposerToolbarShortcuts', () => {
     expect(screen.queryByRole('button', { name: 'kb-label' })).not.toBeInTheDocument()
   })
 
+  it('uses the live command label for the pinned button accessible name', () => {
+    mocks.manifests = [
+      {
+        id: 'dictation',
+        kind: 'command',
+        order: 60,
+        label: 'dictation-tool-label',
+        icon: <span data-testid="icon-dictation-manifest" />
+      }
+    ]
+    mocks.launchers = [
+      {
+        id: 'dictation',
+        kind: 'command',
+        label: 'stop-recording-label',
+        icon: <span data-testid="icon-dictation-stop" />,
+        sources: ['popover'],
+        active: true
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['dictation'], customizeOpen: true })
+
+    expect(screen.getByRole('button', { name: 'stop-recording-label' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('checkbox', { name: 'dictation-tool-label' })).toBeChecked()
+  })
+
   it('keeps nested brand artwork under its own sizing contract', () => {
     mocks.launchers = [
       {
@@ -291,6 +318,35 @@ describe('ComposerToolbarShortcuts', () => {
     fireEvent.click(button)
 
     expect(onCustomSelect).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('runs manifest-backed tools explicitly available without a model', () => {
+    mocks.manifests = [
+      {
+        id: 'dictation',
+        kind: 'command',
+        order: 60,
+        label: 'dictation-tool-label',
+        icon: <span />,
+        availableWithoutModel: true
+      }
+    ]
+    mocks.launchers = [
+      {
+        id: 'dictation',
+        kind: 'command',
+        label: 'start-dictation-label',
+        icon: <span />,
+        sources: ['popover']
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['dictation'], isModelUnavailable: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'start-dictation-label' }))
+
+    expect(mocks.dispatchLauncher).toHaveBeenCalledTimes(1)
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
