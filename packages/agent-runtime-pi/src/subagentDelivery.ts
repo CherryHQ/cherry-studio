@@ -8,6 +8,9 @@ import { MAX_SUBAGENT_REQUESTS, type RunResult } from './subagentRun'
 /** Custom message of the parent carrying finished background runs; the model gets it as a user message. */
 export const SUBAGENT_NOTIFICATION_TYPE = 'cherry.subagent-notification'
 
+/** Custom message of the parent listing its unfinished subagents after a compaction. */
+export const SUBAGENT_STATUS_TYPE = 'cherry.subagent-status'
+
 /** Results longer than this many characters are shortened when the host has no offload store. */
 export const NOTIFICATION_THRESHOLD_CHARS = 20_000
 
@@ -117,6 +120,37 @@ function itemText(item: PendingDelivery): string {
   }
 }
 
+const STATUS_HEADER = 'Background subagent status (automatic message, not from the user):'
+const STATUS_FOOTER =
+  'Running subagents report back on their own when they finish: do not start them again, and do not wait for or poll them.'
+/** Ids listed in status messages (spec §5.4). */
+const LISTED = 20
+
+/**
+ * The status message a compaction leaves: the background subagents still running and the results
+ * not delivered yet, so the model does not start them again. `undefined` when there are none.
+ */
+export function renderStatus(
+  running: ReadonlyArray<{ sessionId: string; description: string; status: string }>,
+  pending: readonly PendingDelivery[]
+) {
+  const lines = [
+    ...running.map(
+      (record) =>
+        `- "${record.description}" (id: ${record.sessionId}): ${record.status === 'awaiting_approval' ? 'waiting for a tool approval' : 'running'}`
+    ),
+    ...pending.map(
+      (item) => `- "${item.description}" (id: ${item.sessionId}): finished; its result comes with the next update`
+    )
+  ].slice(0, LISTED)
+  if (lines.length === 0) return undefined
+  return {
+    customType: SUBAGENT_STATUS_TYPE,
+    content: [STATUS_HEADER, ...lines, STATUS_FOOTER].join('\n'),
+    display: false
+  }
+}
+
 /** One message for every pending item, oldest first. */
 export function renderNotification(items: readonly PendingDelivery[], stillRunning: number): NotificationMessage {
   const footer =
@@ -156,6 +190,16 @@ export class SubagentDelivery {
   enqueue(item: PendingDelivery): void {
     this.queue.push(item)
     this.deliverIfIdle()
+  }
+
+  /** Session start: runs that ended without reaching the parent wait for the next message. */
+  restore(items: readonly PendingDelivery[]): void {
+    this.queue.push(...items)
+  }
+
+  /** Not delivered yet, oldest first. */
+  pending(): readonly PendingDelivery[] {
+    return this.queue
   }
 
   /** `agent_before_settle`: the run goes on with the notification instead of settling. */

@@ -11,8 +11,14 @@ import type {
 
 import type { ToolOutputOffload } from './offload'
 import type { AgentRuntimeSession } from './session'
-import { shortenResult, SubagentDelivery } from './subagentDelivery'
-import { DEFAULT_MAX_BACKGROUND, SUBAGENT_STATE_TYPE, type SubagentRecord, SubagentRegistry } from './subagentRegistry'
+import { renderStatus, shortenResult, SubagentDelivery } from './subagentDelivery'
+import {
+  DEFAULT_MAX_BACKGROUND,
+  restoreSubagents,
+  SUBAGENT_STATE_TYPE,
+  type SubagentRecord,
+  SubagentRegistry
+} from './subagentRegistry'
 import {
   answerInterrupted,
   type CreateSubagentSession,
@@ -24,15 +30,14 @@ import {
   type RunEnd,
   type RunResult,
   SUBAGENT_ORIGIN_STATE,
+  SUBAGENT_TOOL_NAME,
   SubagentInbox
 } from './subagentRun'
 import type { TranscriptEntry } from './transcript'
 import type { AgentRuntimeEvent } from './transcriptTap'
 
-export { SUBAGENT_MESSAGE_TYPE, SUBAGENT_ORIGIN_STATE } from './subagentRun'
+export { SUBAGENT_MESSAGE_TYPE, SUBAGENT_ORIGIN_STATE, SUBAGENT_TOOL_NAME } from './subagentRun'
 
-/** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
-export const SUBAGENT_TOOL_NAME = 'subagent'
 export const MESSAGE_SUBAGENT_TOOL_NAME = 'message_subagent'
 export const STOP_SUBAGENT_TOOL_NAME = 'stop_subagent'
 
@@ -262,10 +267,20 @@ export function createSubagentExtension({
 
     pi.on('session_start', (_event, context) => {
       // A fork keeps this extension so its tools match the parent's; it delivers nothing.
-      inSubagent = isSubagentSession(context.sessionManager.getBranch())
+      const branch = context.sessionManager.getBranch()
+      inSubagent = isSubagentSession(branch)
       if (inSubagent) return
       ctx = context
       main = { registry, delivery }
+      const { records, undelivered } = restoreSubagents(branch, parentModelKey)
+      registry.restore(records)
+      delivery.restore(undelivered)
+    })
+    // After a compaction the model no longer sees its subagent calls; this keeps it from starting them again.
+    pi.on('session_compact', () => {
+      if (inSubagent) return
+      const status = renderStatus(registry.unfinished(), delivery.pending())
+      if (status) pi.sendMessage(status, { triggerTurn: false })
     })
     pi.on('agent_before_settle', (event) => (inSubagent ? undefined : delivery.beforeSettle(event)))
     pi.on('agent_settled', (event) => {

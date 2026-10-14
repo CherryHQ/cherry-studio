@@ -9,6 +9,9 @@ import type { Subagent, SubagentSessionOptions } from './subagent'
 import type { TranscriptEntry, TranscriptMessageEntry, TranscriptStateEntry } from './transcript'
 import type { AgentRuntimeEvent } from './transcriptTap'
 
+/** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
+export const SUBAGENT_TOOL_NAME = 'subagent'
+
 /** Model requests one run may make before it is stopped (Claude Code's limit for a fork). */
 export const MAX_SUBAGENT_REQUESTS = 200
 
@@ -269,7 +272,7 @@ class RequestLimit {
 /** The cap of each session `openChild` built; a subagent session serves one run. */
 const requestLimits = new WeakMap<AgentRuntimeSession, RequestLimit>()
 
-const zeroUsage = (): Usage => ({
+export const zeroUsage = (): Usage => ({
   input: 0,
   output: 0,
   cacheRead: 0,
