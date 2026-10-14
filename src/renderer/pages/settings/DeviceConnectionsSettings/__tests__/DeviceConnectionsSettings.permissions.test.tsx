@@ -23,7 +23,8 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SettingRow: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SettingRowTitle: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  SettingTitle: ({ children }: PropsWithChildren) => <div>{children}</div>
+  SettingTitle: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  SettingsContentColumn: ({ children }: PropsWithChildren) => <div>{children}</div>
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -55,25 +56,30 @@ describe('Device connection capability revocation', () => {
     const unpair = vi.fn()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [device])
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/api-gateway/paired-devices/:id', unpair)
-    request.mockImplementation(async (method: string) => {
-      if (method === 'api_gateway.remote.revoke_capability')
-        MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [
-          { ...device, remoteAccess: { capabilities: ['agent'] } }
-        ])
-      return []
-    })
+    MockUseDataApiUtils.mockMutationWithTrigger(
+      'DELETE',
+      '/api-gateway/paired-devices/:id/capabilities/:capability',
+      async ({ params }: { params: { id: string; capability: string } }) => {
+        if (params.id === device.id)
+          MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [
+            {
+              ...device,
+              remoteAccess: {
+                capabilities: device.remoteAccess.capabilities.filter((capability) => capability !== params.capability)
+              }
+            }
+          ])
+      }
+    )
     render(<DeviceConnectionsSettings />)
     const label = enUS['deviceConnections.devices.revokeCapability'].replace(
       '{{capability}}',
       enUS['deviceConnections.capabilities.assistant']
     )
     await userEvent.setup().click(await screen.findByRole('button', { name: label }))
-    expect(request).toHaveBeenCalledWith('api_gateway.remote.revoke_capability', {
-      deviceId: device.id,
-      capability: 'assistant'
-    })
     expect(unpair).not.toHaveBeenCalled()
     expect(screen.getByText('My phone')).toBeVisible()
     expect(screen.getByText(enUS['deviceConnections.capabilities.agent'])).toBeVisible()
+    expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
   })
 })

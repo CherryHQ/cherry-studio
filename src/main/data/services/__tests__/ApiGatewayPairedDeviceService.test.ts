@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
+import { apiGatewayPairedDeviceHandlers } from '@main/data/api/handlers/apiGatewayPairedDevices'
 import { ErrorCode } from '@shared/data/api/errors'
 
 describe('ApiGatewayPairedDeviceService', () => {
@@ -60,7 +61,7 @@ describe('ApiGatewayPairedDeviceService', () => {
     expect(apiGatewayPairedDeviceService.getRemoteAuthorization(device.id, 'key-two')).toBeUndefined()
   })
 
-  it('revokes capabilities independently and rotates authority on a new pairing', () => {
+  it('revokes capabilities independently, rotates revoked authority and preserves unrelated grants on pairing', () => {
     const input = {
       name: 'Phone',
       platform: 'ios',
@@ -74,13 +75,36 @@ describe('ApiGatewayPairedDeviceService', () => {
     )
     const second = apiGatewayPairedDeviceService.approveRemote({ ...input, capabilities: [...input.capabilities] })
     expect(second.device.id).toBe(first.device.id)
-    expect(
-      second.authorization.grants.every(
-        (grant) => !first.authorization.grants.some((old) => old.grantId === grant.grantId)
-      )
-    ).toBe(true)
+    expect(second.authorization.grants.find((grant) => grant.domain === 'configuration')).toEqual(
+      first.authorization.grants.find((grant) => grant.domain === 'configuration')
+    )
+    expect(second.authorization.grants.find((grant) => grant.domain === 'agent')?.grantId).not.toBe(
+      first.authorization.grants.find((grant) => grant.domain === 'agent')?.grantId
+    )
     apiGatewayPairedDeviceService.delete(first.device.id)
     expect(apiGatewayPairedDeviceService.getRemoteAuthorization(first.device.id, 'key-one')).toBeUndefined()
+  })
+
+  it('deletes only the selected capability through the paired-device DataApi resource', async () => {
+    const { device, authorization } = apiGatewayPairedDeviceService.approveRemote({
+      name: 'Phone',
+      platform: 'ios',
+      peerIdentity: 'key-one',
+      capabilities: ['assistant', 'agent', 'configuration']
+    })
+    const route = apiGatewayPairedDeviceHandlers['/api-gateway/paired-devices/:id/capabilities/:capability']
+    await route.DELETE({ params: { id: device.id, capability: 'assistant' } })
+    expect(apiGatewayPairedDeviceService.list()).toMatchObject([
+      { id: device.id, remoteAccess: { capabilities: ['configuration', 'agent'] } }
+    ])
+    expect(apiGatewayPairedDeviceService.getRemoteAuthorization(device.id, 'key-one')?.grants).toEqual(
+      authorization.grants.filter((grant) => grant.domain !== 'assistant')
+    )
+    await expect(route.DELETE({ params: { id: device.id, capability: 'unknown' } } as never)).rejects.toHaveProperty(
+      'code',
+      ErrorCode.VALIDATION_ERROR
+    )
+    expect(apiGatewayPairedDeviceService.getRemoteAuthorization(device.id, 'key-one')?.grants).toHaveLength(2)
   })
 
   it.each([

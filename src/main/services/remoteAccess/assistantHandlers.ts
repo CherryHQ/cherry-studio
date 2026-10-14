@@ -15,6 +15,7 @@ import {
   type AssistantResult
 } from '@cherrystudio/remote-protocol/assistant'
 import { RemoteRpcError, type RemoteRpcServer } from '@cherrystudio/remote-transport'
+import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { messageService } from '@data/services/MessageService'
 import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/RemoteCommandService'
 import { topicService } from '@data/services/TopicService'
@@ -60,7 +61,7 @@ export function createAssistantSubscriptions(
   )
 }
 interface AssistantAccess {
-  requireAssistant(): { deviceId: string; grantId: string }
+  requireAssistant(): { deviceId: string; grantId: string; peerIdentity: string }
   afterReply(fn: () => void): void
 }
 
@@ -71,6 +72,11 @@ export function registerAssistantMethods(
   subscriptions: AssistantSubscriptions
 ): void {
   type Auth = ReturnType<AssistantAccess['requireAssistant']>
+  const requireGrant = (auth: Auth) => {
+    const current = apiGatewayPairedDeviceService.getRemoteAuthorization(auth.deviceId, auth.peerIdentity)
+    if (!current?.grants.some((grant) => grant.domain === 'assistant' && grant.grantId === auth.grantId))
+      throw new RemoteRpcError('GRANT_REVOKED', 'Assistant authorization changed')
+  }
   const on = <M extends AssistantMethod>(
     name: M,
     handler: (params: AssistantParams<M>, auth: Auth) => AssistantResult<M> | Promise<AssistantResult<M>>
@@ -151,7 +157,7 @@ export function registerAssistantMethods(
           identityDigest: sha256(encodeAssistantCommand('assistant.topics.create', params))
         },
         (tx) => {
-          access.requireAssistant()
+          requireGrant(auth)
           getAssistant(params.assistantId)
           const topic = topicService.createTx(tx, { assistantId: params.assistantId, name: params.title ?? '' })
           return { status: 'applied', topicId: topic.id, result: { topicId: topic.id } }
@@ -209,7 +215,7 @@ export function registerAssistantMethods(
           )
         )
       const beforePersist = () => {
-        access.requireAssistant()
+        requireGrant(auth)
         if (manager.hasUnsettledTopicWork(params.topicId)) throw new RemoteRpcError('CONFLICT', 'Topic is busy')
         assertAssistantSend(params)
       }
@@ -236,7 +242,7 @@ export function registerAssistantMethods(
             reservedHistory = fingerprint()
           },
           beforeActivate: () => {
-            access.requireAssistant()
+            requireGrant(auth)
             const current = getAssistantTopic(params.topicId)
             if (
               !reservedView ||
@@ -264,7 +270,7 @@ export function registerAssistantMethods(
     command(auth, 'assistant.executions.cancel', params, async () => {
       const journal = hub.journal(params.topicId)
       await application.get('AiStreamManager').abortAndDrain(params.topicId, 'remote-cancel', () => {
-        access.requireAssistant()
+        requireGrant(auth)
         const actual = journal.activeExecutionIds().sort()
         const expected = [...params.expectedExecutionIds].sort()
         if (!actual.length || JSON.stringify(actual) !== JSON.stringify(expected))
@@ -304,7 +310,7 @@ export function registerAssistantMethods(
         journal,
         {
           beforeDecision: () => {
-            access.requireAssistant()
+            requireGrant(auth)
             const interaction = persistedAssistantInteractions(params.topicId).find(
               (item) => item.interactionId === params.interactionId
             )
@@ -322,7 +328,7 @@ export function registerAssistantMethods(
               throw new RemoteRpcError('TARGET_UNAVAILABLE', 'This interaction requires action on the desktop')
           },
           beforeContinue: () => {
-            access.requireAssistant()
+            requireGrant(auth)
             const topic = getAssistantTopic(params.topicId)
             if (
               !topic.assistantId ||

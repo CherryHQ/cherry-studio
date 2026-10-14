@@ -679,7 +679,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       ? getKnowledgeBaseIdsFromParts(messageService.getById(anchor.parentId).data.parts ?? [])
       : undefined
 
-    // Apply decisions to DB parts and flip status to `pending` so resolveCompactedHistory sees the approved state.
+    // Prepare against projected decisions; the owner commits approval at the synchronous runtime handoff.
     const beforeParts = anchor.data.parts ?? []
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
@@ -694,10 +694,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [{ span: rootSpan }] = turnRootSpans
     try {
       ctx.beforePersist?.()
-      messageService.update(req.parentAnchorId, {
-        data: { ...anchor.data, parts: updatedParts },
-        status: 'pending'
-      })
 
       const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [
@@ -722,14 +718,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink([anchor.id], subscriber)
+        toCompactionSink([anchor.id], subscriber),
+        { ...anchor, data: { ...anchor.data, parts: updatedParts }, status: 'pending' }
       )
       return {
         topicId: req.topicId,
         models: [
           {
             modelId: model.id,
-            runtimeTimingSeed: anchor.stats?.runtimeTiming,
+            get runtimeTimingSeed() {
+              return messageService.getById(anchor.id).stats?.runtimeTiming
+            },
             request: this.buildStreamRequest(
               req.topicId,
               assistantId,
@@ -913,11 +912,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined,
     assistantContextOverride?: ContextSettingsOverride | null,
     /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
-    compactionSink?: CompactionSink
+    compactionSink?: CompactionSink,
+    anchorOverride?: SharedMessage
   ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
+    if (anchorOverride) messagePath[messagePath.length - 1] = anchorOverride
     const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
     const rawMsgs = messagePath.slice(lastClearIndex + 1)
     // Capability state from the RAW path: compaction folds file parts and tool

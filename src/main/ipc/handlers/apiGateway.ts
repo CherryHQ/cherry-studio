@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import type { apiGatewayRequestSchemas } from '@shared/ipc/schemas/apiGateway'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
@@ -34,7 +33,5 @@ export const apiGatewayHandlers: IpcHandlersFor<typeof apiGatewayRequestSchemas>
   'api_gateway.remote.create_invitation': () => application.get('ApiGatewayService').createRemoteInvitation(),
   'api_gateway.remote.list_claims': async () => application.get('RemoteAccessService').pendingClaims(),
   'api_gateway.remote.decide_pairing': async ({ claimId, capabilities }) =>
-    application.get('RemoteAccessService').decidePairing(claimId, capabilities),
-  'api_gateway.remote.revoke_capability': async ({ deviceId, capability }) =>
-    apiGatewayPairedDeviceService.revokeRemoteCapability(deviceId, capability)
+    application.get('RemoteAccessService').decidePairing(claimId, capabilities)
 }

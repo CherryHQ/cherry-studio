@@ -72,6 +72,11 @@ const DeviceConnectionsSettings: FC = () => {
   const { trigger: deleteDevice, isLoading: isRevoking } = useMutation('DELETE', '/api-gateway/paired-devices/:id', {
     refresh: ['/api-gateway/paired-devices']
   })
+  const { trigger: deleteCapability } = useMutation(
+    'DELETE',
+    '/api-gateway/paired-devices/:id/capabilities/:capability',
+    { refresh: ['/api-gateway/paired-devices'] }
+  )
 
   const onboardingComplete = step === 'complete' || devices.length > 0
   const pairingActive = onboardingComplete || step === 'connect'
@@ -107,8 +112,7 @@ const DeviceConnectionsSettings: FC = () => {
   const revokeCapability = async (deviceId: string, capability: RemoteCapability) => {
     setRevokingCapability(`${deviceId}:${capability}`)
     try {
-      await ipcApi.request('api_gateway.remote.revoke_capability', { deviceId, capability })
-      await refetchDevices()
+      await deleteCapability({ params: { id: deviceId, capability } })
     } catch {
       toast.error(t('common.delete_failed'))
     } finally {

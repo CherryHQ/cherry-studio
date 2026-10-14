@@ -32,6 +32,7 @@ const dictionary = <T>(source: Record<string, T> = {}): Record<string, T> => Obj
 export function installAssistantCheckpoint(
   descriptor: AssistantCheckpointDescriptor,
   pages: readonly AssistantCheckpointPage[],
+  content: Content,
   integrity: IntegrityPrimitives
 ): Result {
   const valid = assistantCheckpointDescriptorSchema.safeParse(descriptor)
@@ -73,15 +74,35 @@ export function installAssistantCheckpoint(
           if (projection.messages[item.value.messageId]) return { ok: false, reason: 'invalid' }
           projection.messages[item.value.messageId] = item.value
           break
-        case 'part':
+        case 'part': {
           if (projection.parts[item.value.partId] || !projection.messages[item.messageId])
             return { ok: false, reason: 'invalid' }
-          projection.parts[item.value.partId] = item.value
+          let part = item.value
+          if (
+            (part.kind === 'text' || part.kind === 'reasoning' || part.kind === 'tool-input') &&
+            part.state === 'streaming' &&
+            'ref' in part.content
+          ) {
+            const ref = part.content.ref
+            const bytes = content[`${ref.contentId}:${ref.revision}`]
+            if (!bytes || String(bytes.length) !== ref.byteLength || integrity.sha256(bytes) !== ref.sha256)
+              return { ok: false, reason: 'content' }
+            try {
+              part = {
+                ...part,
+                content: { text: new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes) }
+              }
+            } catch {
+              return { ok: false, reason: 'content' }
+            }
+          }
+          projection.parts[item.value.partId] = part
           if (!projection.messages[item.messageId].partIds.includes(item.value.partId)) {
             const message = projection.messages[item.messageId]
             projection.messages[item.messageId] = { ...message, partIds: [...message.partIds, item.value.partId] }
           }
           break
+        }
         case 'execution':
           projection.executions[item.value.executionId] = item.value
           break
@@ -196,7 +217,7 @@ export function applyAssistantEvents(
           if (!bytes || String(bytes.length) !== ref.byteLength || integrity.sha256(bytes) !== ref.sha256)
             return { ok: false, reason: 'content' }
           try {
-            text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+            text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)
           } catch {
             return { ok: false, reason: 'content' }
           }

@@ -136,7 +136,11 @@ An interrupted command is never automatically replayed. Sends also name the expe
 Assistant configuration, branch anchor and history revision; stale or busy sends conflict.
 Approval responses bind the message, execution, view/configuration revisions and input digest.
 
-Subscribe, read and verify checkpoint pages, then activate with the checkpoint cursor.
+Subscribe and read checkpoint pages. Fetch streamed text, reasoning and tool-input references
+while the checkpoint lease is held. Pass content keyed by `contentId:revision` to
+`installAssistantCheckpoint(descriptor, pages, content, integrity)`; it verifies byte length,
+SHA-256 and UTF-8 and materializes those parts. Only activate after installation succeeds:
+activation releases the checkpoint's content lease.
 Alternatively, reconnect with the last applied cursor and replay the retained suffix.
 `applyAssistantEvents` applies a batch atomically; fetch and verify referenced content before
 retrying a `content` result. Acknowledge only applied cursors. Gaps/epoch changes and

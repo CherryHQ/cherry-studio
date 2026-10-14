@@ -825,6 +825,36 @@ describe('remote agent access', () => {
     })
   })
 
+  it('returns nonempty Agent history pages with usable message and part revisions', async () => {
+    const messages = ['First question', 'Second question'].map((text) =>
+      agentSessionMessageService.saveMessage({
+        sessionId,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
+      })
+    )
+    const { session } = await call('agent.sessions.get', { sessionId })
+    const first = await call('agent.messages.list', { sessionId, historyRevision: session.historyRevision, limit: 1 })
+    expect(first.items).toHaveLength(1)
+    expect(first.nextCursor).not.toBeNull()
+    const second = await call('agent.messages.list', {
+      sessionId,
+      historyRevision: session.historyRevision,
+      limit: 1,
+      cursor: first.nextCursor
+    })
+    expect([first.items[0].messageId, second.items[0].messageId].sort()).toEqual(
+      messages.map((message) => message.id).sort()
+    )
+    for (const message of [...first.items, ...second.items]) {
+      const parts = await call('agent.parts.list', {
+        sessionId,
+        messageId: message.messageId,
+        messageRevision: message.revision
+      })
+      expect(parts.items.map((part: { partId: string }) => part.partId)).toEqual(message.partIds)
+    }
+  })
+
   it('keeps message model identity independent from the current agent model', async () => {
     seedModel('provider', 'current', 'Current model')
     const snapshot = {

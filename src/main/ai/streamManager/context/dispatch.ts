@@ -4,6 +4,8 @@
  * `docs/references/ai/stream-manager.md`.
  */
 
+import { SpanStatusCode } from '@opentelemetry/api'
+
 import { loggerService } from '@logger'
 import { topicService } from '@main/data/services/TopicService'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
@@ -205,16 +207,25 @@ export async function dispatchStreamRequest(
           }
         : undefined
 
-  admission.beforeActivate?.()
-  const result = manager.send({
-    topicId: prepared.topicId,
-    models: prepared.models,
-    listeners: prepared.listeners,
-    siblingsGroupId: prepared.siblingsGroupId,
-    liveExecutionChange,
-    lifecycle: prepared.lifecycle,
-    isPersistentConversation: provider.isPersistentConversation
-  })
+  let result: ReturnType<AiStreamManager['send']>
+  try {
+    admission.beforeActivate?.()
+    result = manager.send({
+      topicId: prepared.topicId,
+      models: prepared.models,
+      listeners: prepared.listeners,
+      siblingsGroupId: prepared.siblingsGroupId,
+      liveExecutionChange,
+      lifecycle: prepared.lifecycle,
+      isPersistentConversation: provider.isPersistentConversation
+    })
+  } catch (error) {
+    for (const model of prepared.models) {
+      model.rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: String(error) })
+      model.rootSpan?.end()
+    }
+    throw error
+  }
 
   return {
     mode: result.mode,

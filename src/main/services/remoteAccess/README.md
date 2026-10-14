@@ -9,7 +9,7 @@ together during pairing. Each capability has an independent authorization grant.
 Assistant access adds an independent grant on negotiated wire protocol 2. Version 1
 continues to see only Agent/configuration grants; adding Assistant access preserves
 their grant IDs and existing version-1 tokens. Assistant-only devices do not receive
-provider credentials. Device settings can revoke each grant independently.
+provider credentials. Device settings revoke each grant through the paired-device DataApi resource.
 
 `assistantHandlers.ts` owns the `assistant.*` routes, `assistantQueries.ts` owns current-branch
 read projections, and `assistantJournal.ts` observes the existing chat stream manager.
@@ -22,13 +22,18 @@ user/assistant messages and command identities in one transaction before activat
 Admission rechecks authorization, selected Assistant/configuration, branch/history and
 busy state under the stream manager's topic lock; remote sends do not enter the steering
 queue. Visible topic/message writes advance a durable history revision through DB triggers.
+Accepted work rechecks the captured device/key and grant against persisted authorization,
+independently of the connection's authentication lifetime. Revocation still blocks activation.
 
 Ordinary tool approval runs through `AiStreamManager.respondAssistantToolApproval`, using
 either a window listener or a topic journal. The same topic lock serializes desktop and
-remote decisions. Receipt association commits with the decision before continuation.
+remote decisions. Approval pauses and their queued turns do not block approval admission.
+Continuation history is prepared without consuming the decision; final conflict checks precede
+the transaction committing the decision, pending status and receipt association before activation.
 Inputs are immutable from Mobile; question forms, OAuth, elicitation and browser confirmations
 remain desktop interactions. Current-branch history includes immutable author/model identity
 and attachment metadata, with bounded text/tool content reads.
+Each poll checks the current stream's listener IDs, so chained desktop turns reattach the journal.
 
 The remote stream listener coalesces adjacent deltas for the same message and part for
 up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending

@@ -172,15 +172,16 @@ describe('Assistant remote contract', () => {
       sha256: integrity.sha256(bytes),
       expiresAt: '2026-10-14T00:05:00Z'
     }
-    expect(installAssistantCheckpoint(descriptor, [page], integrity)).toMatchObject({
+    expect(installAssistantCheckpoint(descriptor, [page], {}, integrity)).toMatchObject({
       ok: true,
       projection: { topic: state().topic }
     })
-    expect(installAssistantCheckpoint(descriptor, [], integrity)).toEqual({ ok: false, reason: 'incomplete' })
+    expect(installAssistantCheckpoint(descriptor, [], {}, integrity)).toEqual({ ok: false, reason: 'incomplete' })
     expect(
       installAssistantCheckpoint(
         descriptor,
         [{ ...page, items: [{ kind: 'topic', value: { ...state().topic, title: 'Tampered' } }] }],
+        {},
         integrity
       )
     ).toEqual({ ok: false, reason: 'digest' })
@@ -188,8 +189,119 @@ describe('Assistant remote contract', () => {
       installAssistantCheckpoint(
         { ...descriptor, cursor: { ...descriptor.cursor, topicId: 'another' } },
         [page],
+        {},
         integrity
       )
     ).toEqual({ ok: false, reason: 'invalid' })
+  })
+
+  it('requires verified UTF-8 content before installing a streamed reference', () => {
+    const text = '\uFEFF' + '🍒'.repeat(3000)
+    const bytes = new TextEncoder().encode(text)
+    const page: AssistantCheckpointPage = {
+      checkpointId: 'checkpoint',
+      pageIndex: 0,
+      nextCursor: null,
+      pageDigest: '0'.repeat(64),
+      items: [
+        { kind: 'topic', value: state().topic },
+        {
+          kind: 'message',
+          value: {
+            messageId: 'answer',
+            parentId: null,
+            revision: '1',
+            role: 'assistant',
+            status: 'pending',
+            partIds: [],
+            partCount: 1
+          }
+        },
+        {
+          kind: 'part',
+          messageId: 'answer',
+          value: {
+            partId: 'answer:text',
+            revision: '2',
+            kind: 'text',
+            state: 'streaming',
+            content: {
+              ref: {
+                contentId: 'answer:text',
+                revision: '2',
+                byteLength: String(bytes.length),
+                sha256: integrity.sha256(bytes),
+                mediaType: 'text/plain'
+              }
+            }
+          }
+        }
+      ]
+    }
+    const encoded = encodeAssistantCheckpointPage(page)
+    page.pageDigest = integrity.sha256(encoded)
+    const descriptor = {
+      checkpointId: page.checkpointId,
+      cursor: state().cursor,
+      historyRevision: '1',
+      pageCount: 1,
+      byteLength: String(encoded.length),
+      sha256: integrity.sha256(encoded),
+      expiresAt: '2026-10-14T00:05:00Z'
+    }
+    expect(installAssistantCheckpoint(descriptor, [page], {}, integrity)).toEqual({ ok: false, reason: 'content' })
+    expect(installAssistantCheckpoint(descriptor, [page], { 'answer:text:2': bytes.slice(1) }, integrity)).toEqual({
+      ok: false,
+      reason: 'content'
+    })
+    expect(
+      installAssistantCheckpoint(descriptor, [page], { 'answer:text:2': new Uint8Array(bytes.length) }, integrity)
+    ).toEqual({ ok: false, reason: 'content' })
+    const installed = installAssistantCheckpoint(descriptor, [page], { 'answer:text:2': bytes }, integrity)
+    expect(installed.ok).toBe(true)
+    if (!installed.ok) throw new Error(installed.reason)
+    expect(installed.projection.parts['answer:text']).toMatchObject({ content: { text } })
+    const applied = applyAssistantEvents(
+      installed.projection,
+      batch([
+        {
+          kind: 'part.append',
+          seq: '1',
+          messageId: 'answer',
+          partId: 'answer:text',
+          baseRevision: '2',
+          revision: '3',
+          offsetUtf8: String(bytes.length),
+          text: ' More'
+        }
+      ]),
+      {},
+      integrity
+    )
+    expect(applied.ok).toBe(true)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.parts['answer:text']).toMatchObject({ content: { text: text + ' More' } })
+    const invalid = Uint8Array.of(255)
+    const item = page.items[2]
+    if (item.kind !== 'part' || item.value.kind !== 'text') throw new Error('Expected text')
+    item.value.content = {
+      ref: {
+        contentId: 'answer:text',
+        revision: '2',
+        byteLength: '1',
+        sha256: integrity.sha256(invalid),
+        mediaType: 'text/plain'
+      }
+    }
+    const invalidPageBytes = encodeAssistantCheckpointPage(page)
+    page.pageDigest = integrity.sha256(invalidPageBytes)
+    expect(
+      installAssistantCheckpoint(
+        { ...descriptor, byteLength: String(invalidPageBytes.length), sha256: integrity.sha256(invalidPageBytes) },
+        [page],
+        { 'answer:text:2': invalid },
+        integrity
+      )
+    ).toEqual({ ok: false, reason: 'content' })
   })
 })

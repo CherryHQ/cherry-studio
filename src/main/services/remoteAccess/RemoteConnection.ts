@@ -64,7 +64,7 @@ export class RemoteConnection {
     registerAssistantMethods(
       this.rpc,
       {
-        requireAssistant: () => this.requireCapability('assistant'),
+        requireAssistant: () => ({ ...this.requireCapability('assistant'), peerIdentity: this.channel.remoteIdentity }),
         afterReply: (fn) => setImmediate(fn)
       },
       assistantHub,

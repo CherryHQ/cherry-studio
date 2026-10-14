@@ -26,6 +26,8 @@ const fake = vi.hoisted(() => {
         state.snapshot?.executions.some((execution) => execution.status === 'streaming') ?? false,
       addListener: (_topicId: string, listener: StreamListener) => {
         state.listeners.add(listener)
+        if (state.snapshot)
+          state.snapshot = { ...state.snapshot, listenerIds: [...state.listeners].map((item) => item.id) }
         return true
       },
       removeListener: (_topicId: string, id: string) => {
@@ -36,7 +38,13 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: fake.manager })
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'AiStreamManager') return fake.manager
+    return originalGet(name)
+  })
+  return result
 })
 
 describe('Assistant live recovery', () => {
@@ -112,7 +120,12 @@ describe('Assistant live recovery', () => {
   }
   function baseline(): AssistantProjection {
     const checkpoint = journal!.capture()
-    const installed = installAssistantCheckpoint(checkpoint.descriptor, checkpoint.pages, { sha256 })
+    const installed = installAssistantCheckpoint(
+      checkpoint.descriptor,
+      checkpoint.pages,
+      Object.fromEntries(checkpoint.content),
+      { sha256 }
+    )
     if (!installed.ok) throw new Error(installed.reason)
     return installed.projection
   }
@@ -195,19 +208,29 @@ describe('Assistant live recovery', () => {
     expect(projection.messages[two.id]).toBeDefined()
   })
 
-  it('keeps an immutable content reference readable while later deltas advance the live part', () => {
+  it('materializes streamed checkpoint text before its lease can end and replays later appends without rereading it', () => {
     const { one } = seed()
-    const text = 'Large answer '.repeat(500)
+    const text = '你' + 'Large answer '.repeat(500)
     fake.state.snapshot!.executions[0].finalMessage!.parts = [{ type: 'text', text, state: 'streaming' }]
     journal!.poll()
-    const projection = baseline()
-    const part = projection.parts[`${one.id}:live:0`]
+    const checkpoint = journal!.capture()
+    const item = checkpoint.pages
+      .flatMap((page) => page.items)
+      .find((item) => item.kind === 'part' && item.value.partId === `${one.id}:live:0`)
+    if (item?.kind !== 'part') throw new Error('Expected checkpoint text')
+    const part = item.value
     if (part.kind !== 'text' || !('ref' in part.content)) throw new Error('Expected a bounded content reference')
     const ref = part.content.ref
+    expect(installAssistantCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, { sha256 })).toEqual({
+      ok: false,
+      reason: 'content'
+    })
+    const projection = baseline()
+    expect(projection.parts[ref.contentId]).toMatchObject({ content: { text } })
+    checkpoint.content.clear()
     fake.state.snapshot!.executions[0].finalMessage!.parts = [{ type: 'text', text: text + 'More', state: 'streaming' }]
     journal!.poll()
-    const bytes = journal!.readContent(ref.contentId, ref.revision)
-    expect(new TextDecoder().decode(bytes)).toBe(text)
+    expect(journal!.readContent(ref.contentId, ref.revision)).toBeUndefined()
     const applied = applyAssistantEvents(
       projection,
       {
@@ -216,12 +239,72 @@ describe('Assistant live recovery', () => {
         streamEpoch: journal!.epoch,
         events: journal!.eventsAfter(Number(projection.cursor.seq), Infinity)
       },
-      { [`${ref.contentId}:${ref.revision}`]: bytes! },
+      {},
       { sha256 }
     )
     expect(applied.ok).toBe(true)
     if (!applied.ok) throw new Error(applied.reason)
     expect(applied.projection.parts[ref.contentId]).toMatchObject({ content: { text: text + 'More' } })
+  })
+
+  it('reattaches to a queued desktop turn even when no poll observes the idle gap', async () => {
+    const { topic, one, firstModel } = seed()
+    const user = messageService.create(topic.id, {
+      role: 'user',
+      parentId: one.id,
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'Queued question' }] }
+    })
+    const reply = messageService.create(topic.id, {
+      role: 'assistant',
+      parentId: user.id,
+      status: 'pending',
+      data: { parts: [] }
+    })
+    fake.state.listeners.clear()
+    fake.state.snapshot = {
+      ...fake.state.snapshot!,
+      listenerIds: [],
+      executions: [
+        {
+          ...fake.state.snapshot!.executions[0],
+          attemptId: 3,
+          anchorMessageId: reply.id,
+          finalMessage: {
+            id: reply.id,
+            role: 'assistant',
+            parts: [{ type: 'text', text: 'Next answer', state: 'streaming' }]
+          }
+        }
+      ]
+    }
+    journal!.poll()
+    messageService.finalizeAssistantMessage(reply.id, {
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'Next answer' }] }
+    })
+    fake.state.snapshot = {
+      ...fake.state.snapshot,
+      executions: [{ ...fake.state.snapshot.executions[0], status: 'done' }]
+    }
+    const revision = topicService.getRemoteHistoryRevision(topic.id)
+    for (const listener of fake.state.listeners)
+      await listener.onDone({
+        status: 'success',
+        attemptId: 3,
+        anchorMessageId: reply.id,
+        modelId: firstModel,
+        finalMessage: { id: reply.id, role: 'assistant', parts: [{ type: 'text', text: 'Next answer' }] },
+        persistence: {
+          status: 'saved',
+          message: { messageId: reply.id, messageRevision: revision, historyRevision: revision }
+        }
+      })
+    const projection = baseline()
+    expect(Object.values(projection.executions)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ messageId: reply.id, status: 'completed', durable: true })])
+    )
+    expect(projection.messages[reply.id]).toBeUndefined()
   })
 
   it('recovers a large part catalog through checkpoint pages without oversized message headers', () => {
@@ -234,7 +317,12 @@ describe('Assistant live recovery', () => {
     journal!.poll()
     const checkpoint = journal!.capture()
     expect(checkpoint.pages.every((page) => Buffer.byteLength(JSON.stringify(page)) < 65_536)).toBe(true)
-    const installed = installAssistantCheckpoint(checkpoint.descriptor, checkpoint.pages, { sha256 })
+    const installed = installAssistantCheckpoint(
+      checkpoint.descriptor,
+      checkpoint.pages,
+      Object.fromEntries(checkpoint.content),
+      { sha256 }
+    )
     expect(installed.ok).toBe(true)
     if (!installed.ok) throw new Error(installed.reason)
     const message = installed.projection.messages[one.id]

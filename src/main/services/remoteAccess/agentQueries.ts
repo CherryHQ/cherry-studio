@@ -266,7 +266,7 @@ export function listMessages(
   const page = notFound(() =>
     agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: limit ?? DEFAULT_PAGE })
   )
-  return { items: page.items.map(toMessage), nextCursor: page.nextCursor ?? null }
+  return { items: page.items.map((message) => toMessage(message)), nextCursor: page.nextCursor ?? null }
 }
 
 export function listParts(

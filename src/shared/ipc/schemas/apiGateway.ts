@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { remoteCapabilitiesSchema, remoteCapabilitySchema } from '@cherrystudio/remote-protocol'
+import { remoteCapabilitiesSchema } from '@cherrystudio/remote-protocol'
 import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
 
 import { defineRoute } from '../define'
@@ -53,10 +53,6 @@ export const apiGatewayRequestSchemas = {
   }),
   'api_gateway.remote.decide_pairing': defineRoute({
     input: z.object({ claimId: z.string(), capabilities: remoteCapabilitiesSchema.nullable() }),
-    output: z.void()
-  }),
-  'api_gateway.remote.revoke_capability': defineRoute({
-    input: z.strictObject({ deviceId: z.uuid(), capability: remoteCapabilitySchema }),
     output: z.void()
   })
 }

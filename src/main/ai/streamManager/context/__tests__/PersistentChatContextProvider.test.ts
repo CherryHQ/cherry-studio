@@ -932,8 +932,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     ).rejects.toThrow(/anchor does not belong to topic topic-2/)
   })
 
-  it('flips the anchor status to pending and applies the approval decision to its parts', async () => {
-    await provider.prepareDispatch(
+  it('prepares approved history while leaving the decision unconsumed until final admission', async () => {
+    const prepared = await provider.prepareDispatch(
       makeSubscriber(),
       {
         trigger: 'continue-conversation',
@@ -945,13 +945,18 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     )
 
     const anchor = messageService.getById('a1')
-    expect(anchor.status).toBe('pending')
+    expect(anchor.status).toBe('success')
     const toolPart = (anchor.data.parts ?? []).find((p) => p.type === 'tool-fetch_url') as
       | { state: string; approval?: { id: string; approved?: boolean } }
       | undefined
-    expect(toolPart?.state).toBe('approval-responded')
-    expect(toolPart?.approval).toEqual({ id: APPROVAL_ID, approved: true })
+    expect(toolPart?.state).toBe('approval-requested')
+    expect(toolPart?.approval).toEqual({ id: APPROVAL_ID })
     expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', serviceTier: 'flex', fastMode: true })
+    expect(prepared.models[0].request.messages?.find((message) => message.id === 'a1')?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ state: 'approval-responded', approval: { id: APPROVAL_ID, approved: true } })
+      ])
+    )
   })
 
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {

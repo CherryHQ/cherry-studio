@@ -42,7 +42,6 @@ export class TopicJournal implements StreamListener {
   private seq = 0
   private revision = 0
   private alive = true
-  private attached = false
   private timer?: ReturnType<typeof setTimeout>
   private topic: ReturnType<typeof getAssistantTopic>
   private readonly observers = new Set<() => void>()
@@ -100,10 +99,9 @@ export class TopicJournal implements StreamListener {
 
   poll(): void {
     const manager = application.get('AiStreamManager')
-    if (manager.hasLiveStream(this.topicId) && !this.attached) {
-      this.attached = manager.addListener(this.topicId, this)
+    if (manager.hasLiveStream(this.topicId) && !manager.inspect(this.topicId)?.listenerIds.includes(this.id)) {
+      manager.addListener(this.topicId, this)
     }
-    if (!manager.hasLiveStream(this.topicId)) this.attached = false
     this.flush()
     this.trimReplay(remoteLimits.replayBytes)
   }

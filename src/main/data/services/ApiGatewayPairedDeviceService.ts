@@ -5,6 +5,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { application } from '@application'
 import {
   remoteCapabilitiesSchema,
+  remoteCapabilitySchema,
   type RemoteAuthorization,
   type RemoteCapability
 } from '@cherrystudio/remote-protocol'
@@ -109,11 +110,13 @@ export class ApiGatewayPairedDeviceService {
   }
 
   revokeRemoteCapability(deviceId: string, capability: RemoteCapability): void {
+    const parsed = remoteCapabilitySchema.safeParse(capability)
+    if (!parsed.success) throw toDataApiError(parsed.error, 'revoke paired device capability')
     const values = {
       agent: { agentGrantId: null },
       configuration: { configurationGrantId: null },
       assistant: { assistantGrantId: null }
-    }[capability]
+    }[parsed.data]
     const row = this.db
       .update(apiGatewayPairedDeviceTable)
       .set(values)

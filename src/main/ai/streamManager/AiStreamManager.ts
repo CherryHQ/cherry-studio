@@ -35,7 +35,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -464,7 +464,7 @@ export class AiStreamManager extends BaseService {
     await this.reconciled
     return this.withDispatchLock(topicId, async () => {
       await this.whenTerminalDispatchSettled(topicId)
-      if (this.isWriteQuiesced || this.hasUnsettledTopicWork(topicId)) return { ok: false }
+      if (this.isWriteQuiesced || this.hasLiveStream(topicId)) return { ok: false }
       hooks.beforeDecision?.()
       const anchor = messageService.getById(anchorId)
       if (anchor.topicId !== topicId || anchor.role !== 'assistant') return { ok: false }
@@ -476,11 +476,17 @@ export class AiStreamManager extends BaseService {
         ...(payload.reason !== undefined ? { reason: payload.reason } : {}),
         ...(payload.updatedInput !== undefined ? { updatedInput: payload.updatedInput } : {})
       }
-      const applied = messageService.applyToolApprovalDecisions(anchorId, [decision], hooks.onDecisionPersist)
-      if (!applied) return { ok: false }
-      if (!applied.appliedApprovalIds.length)
-        return { ok: applied.alreadySettledApprovalIds.includes(payload.approvalId) }
-      if (applied.parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')) return { ok: true }
+      const parts = anchor.data.parts ?? []
+      const target = parts.find(
+        (part) => isToolUIPart(part) && 'approval' in part && part.approval?.id === payload.approvalId
+      )
+      if (!target) return { ok: false }
+      if (isToolUIPart(target) && target.state !== 'approval-requested') return { ok: true }
+      const projectedParts = applyApprovalDecisions(parts, [decision])
+      if (projectedParts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')) {
+        const applied = messageService.applyToolApprovalDecisions(anchorId, [decision], hooks.onDecisionPersist)
+        return { ok: Boolean(applied?.appliedApprovalIds.length) }
+      }
       const revision = topicService.getRemoteHistoryRevision(topicId)
       const historySnapshot = () =>
         JSON.stringify(
@@ -521,6 +527,14 @@ export class AiStreamManager extends BaseService {
               historySnapshot() !== expectedHistory
             )
               throw new Error('Conversation changed while preparing approval continuation')
+            const applied = messageService.applyToolApprovalDecisions(
+              anchorId,
+              [decision],
+              hooks.onDecisionPersist,
+              true
+            )
+            if (!applied?.appliedApprovalIds.includes(payload.approvalId))
+              throw new Error('Approval changed while preparing continuation')
           }
         }
       )

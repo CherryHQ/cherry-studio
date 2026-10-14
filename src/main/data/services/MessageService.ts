@@ -1715,7 +1715,8 @@ export class MessageService {
   applyToolApprovalDecisions(
     anchorId: string,
     decisions: ApprovalDecision[],
-    onPersist?: (tx: DbOrTx) => void
+    onPersist?: (tx: DbOrTx) => void,
+    resume = false
   ): {
     parts: CherryMessagePart[]
     appliedApprovalIds: string[]
@@ -1750,7 +1751,11 @@ export class MessageService {
           existing.stats ?? undefined
         )
         tx.update(messageTable)
-          .set({ data: { ...existing.data, parts: after }, stats: stats ?? null })
+          .set({
+            data: { ...existing.data, parts: after },
+            stats: stats ?? null,
+            ...(resume ? { status: 'pending' as const } : {})
+          })
           .where(eq(messageTable.id, anchorId))
           .run()
         getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, completedAt)
