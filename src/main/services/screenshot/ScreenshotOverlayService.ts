@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import dayjs from 'dayjs'
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nativeImage, screen } from 'electron'
@@ -138,6 +139,22 @@ export class ScreenshotOverlayService extends BaseService {
   private sessionGeneration = 0
   /** The session a commit already owns; a second confirm must not hand the capture back again. */
   private committedGeneration: number | null = null
+  private hiddenSourceWindow: BrowserWindow | null = null
+  private resultConsumer: {
+    submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
+    dispose: () => void
+  } | null = null
+
+  public async submitResult(result: ScreenshotResultData & { text: string }): Promise<void> {
+    const consumer = this.resultConsumer
+    const generation = this.sessionGeneration
+    if (!consumer) throw new Error('No result consumer is available')
+    if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
+      throw new Error('The screenshot could not be decoded')
+    }
+    await consumer.submit(result)
+    if (generation === this.sessionGeneration) this.dismiss()
+  }
 
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
   private renderersReady = new Set<WindowId>()
@@ -231,10 +248,17 @@ export class ScreenshotOverlayService extends BaseService {
    * screen, when the feature is off, or when screen recording is not granted (guiding
    * the user instead).
    *
-   * @param requesterWindowId - Window that asked for the capture, so {@link commit} can
-   *   hand it the result. Omitted for the global hotkey.
+   * @param requesterWindowId - Window that asked for the capture: hidden while the screen is
+   *   frozen, and handed the result by {@link commit}. Omitted for the global hotkey.
+   * @param consumer - Receives a result the user sends to a chat draft ({@link submitResult}).
    */
-  public async startCapture(requesterWindowId?: WindowId): Promise<void> {
+  public async startCapture(
+    requesterWindowId?: WindowId,
+    consumer?: {
+      submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
+      dispose: () => void
+    }
+  ): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
     // `overlayWindowIds` is still empty and a second hotkey press would otherwise pass.
     if (this.capturing || this.overlayWindowIds.length > 0) return
@@ -262,11 +286,27 @@ export class ScreenshotOverlayService extends BaseService {
       // Advance only once a session is definitely starting: bumping it above the guards
       // would let a blocked second attempt freeze the FIRST session's overlays at opacity 0.
       const generation = ++this.sessionGeneration
+      const manager = application.get('WindowManager')
+      this.resultConsumer = consumer ?? null
 
       const t0 = performance.now()
       this.overlaysCreated = 0
 
       try {
+        const sourceWindow = requesterWindowId && manager.getWindow(requesterWindowId)
+        if (
+          sourceWindow &&
+          !sourceWindow.isDestroyed() &&
+          sourceWindow.isVisible() &&
+          !sourceWindow.isMinimized() &&
+          !(isMac && sourceWindow.isFullScreen())
+        ) {
+          this.hiddenSourceWindow = sourceWindow
+          sourceWindow.hide()
+          // Give the desktop compositor time to remove the source before freezing the display.
+          await delay(150)
+          if (generation !== this.sessionGeneration) return
+        }
         // Started before the capture so the enumeration — hundreds of milliseconds of
         // native work — overlaps the PNG encode and the window opening rather than
         // following them. It runs off the main thread; see listWindowsOffThread.
@@ -329,6 +369,7 @@ export class ScreenshotOverlayService extends BaseService {
           const windowId = windowManager.open<ScreenshotInitData>(WindowType.Screenshot, {
             options: bounds,
             initData: {
+              canSubmitResult: this.resultConsumer !== null,
               imageUrl: mediaProtocol.getUrl(MediaKind.Image, mediaId),
               mediaId,
               display: {
@@ -789,6 +830,11 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Release every session resource. Pairs with, but is not a substitute for, closing the windows. */
   private cleanup(): void {
+    this.resultConsumer?.dispose()
+    this.resultConsumer = null
+    const sourceWindow = this.hiddenSourceWindow
+    this.hiddenSourceWindow = null
+    if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.show()
     // Makes any callback still in flight a no-op; it cannot make timers disappear,
     // which is what the loop below is for.
     this.sessionGeneration++

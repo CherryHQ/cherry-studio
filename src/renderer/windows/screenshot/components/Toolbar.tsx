@@ -5,18 +5,21 @@
  * Groups, left to right: annotation tools · undo/redo · OCR affordance · save/cancel/ok.
  */
 
-import { Check, Download, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
+import { Check, Download, MessageSquare, MoveUpRight, Pencil, Redo2, Square, Type, Undo2, X } from 'lucide-react'
 import type { ComponentType, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
-import { memo, useRef } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ipcApi } from '@renderer/ipc'
 
 import { PROPERTY_PANEL_HEIGHT, Z_INDEX } from '../constants'
 import type { AnnotationTool, SelectionRect } from '../types'
 
 interface ToolbarProps {
+  resultMessage: string
+  onResultMessageChange: (text: string) => void
   selection: SelectionRect
   logicalHeight: number
   activeTool: AnnotationTool | null
@@ -27,6 +30,7 @@ interface ToolbarProps {
   onRedo: () => void
   onOk: () => void
   onSave: () => void
+  onSubmitResult?: (text: string) => Promise<void>
   onCancel: () => void
   /**
    * OCR affordance, rendered with its own divider when present.
@@ -80,6 +84,8 @@ const TOOL_ICONS: { tool: AnnotationTool; icon: ComponentType<{ className?: stri
 ]
 
 export const Toolbar = memo(function Toolbar({
+  resultMessage,
+  onResultMessageChange,
   selection,
   logicalHeight,
   activeTool,
@@ -90,6 +96,7 @@ export const Toolbar = memo(function Toolbar({
   onRedo,
   onOk,
   onSave,
+  onSubmitResult,
   onCancel,
   ocrSlot,
   onLayout
@@ -179,6 +186,7 @@ export const Toolbar = memo(function Toolbar({
 
       <ToolbarDivider />
 
+      <SubmitResult text={resultMessage} setText={onResultMessageChange} onSend={onSubmitResult} />
       <ToolbarButton icon={<Download className="size-5" />} label={t('screenshot.action.save')} onClick={onSave} />
       <ToolbarButton
         icon={<X className="size-5" />}
@@ -195,6 +203,103 @@ export const Toolbar = memo(function Toolbar({
     </div>
   )
 })
+
+function SubmitResult({
+  text,
+  setText,
+  onSend
+}: {
+  text: string
+  setText: (text: string) => void
+  onSend?: (text: string) => Promise<void>
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const sending = useRef(false)
+
+  useEffect(() => {
+    if (!open) return
+    void ipcApi.request('screenshot.text_editing', { editing: true })
+    return () => {
+      void ipcApi.request('screenshot.text_editing', { editing: false })
+    }
+  }, [open])
+
+  const send = async () => {
+    if (sending.current || !onSend) return
+    sending.current = true
+    setPending(true)
+    setFailed(false)
+    try {
+      await onSend(text)
+      setOpen(false)
+    } catch {
+      setFailed(true)
+    } finally {
+      sending.current = false
+      setPending(false)
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <NormalTooltip content={t('screenshot.action.send_to_chat')}>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-8" aria-label={t('screenshot.action.send_to_chat')}>
+            <MessageSquare className="size-5" />
+          </Button>
+        </PopoverTrigger>
+      </NormalTooltip>
+      <PopoverContent
+        align="end"
+        sideOffset={10}
+        collisionPadding={16}
+        className="w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl p-0"
+        onPointerDown={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+          <span className="text-sm font-medium">{t('screenshot.action.send_to_chat')}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 text-muted-foreground"
+            aria-label={t('common.close')}
+            onClick={() => setOpen(false)}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <Textarea.Input
+          className="min-h-24 max-h-48 resize-none rounded-none border-0 px-4 py-2 text-sm leading-relaxed focus-visible:ring-0"
+          autoFocus
+          value={text}
+          maxLength={10000}
+          disabled={pending}
+          aria-label={t('screenshot.chat.message')}
+          placeholder={t('screenshot.chat.message')}
+          onValueChange={setText}
+        />
+        {!onSend && <p className="px-4 pb-3 text-xs text-muted-foreground">{t('screenshot.chat.unavailable')}</p>}
+        {failed && (
+          <p role="alert" className="px-4 pb-3 text-xs text-error">
+            {t('common.error')}
+          </p>
+        )}
+        <div className="flex items-center justify-between border-t border-border-subtle px-3 py-2">
+          <span className="px-1 text-xs text-muted-foreground tabular-nums">
+            {text.length.toLocaleString()} / 10,000
+          </span>
+          <Button size="sm" disabled={pending || !onSend} onClick={() => void send()}>
+            <MessageSquare className="size-4" />
+            {t('screenshot.action.send_to_chat')}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 function ToolbarDivider() {
   return <div className="mx-0.5 h-4 w-px bg-muted-foreground/20" />
