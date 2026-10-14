@@ -64,6 +64,7 @@ const mocks = vi.hoisted(() => ({
   ensureAgentDataDirectory: vi.fn(),
   ensureAgentStorageDirectory: vi.fn(),
   buildPrompt: vi.fn(),
+  buildMemoriesSection: vi.fn(),
   getAppLanguage: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
@@ -138,7 +139,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(function () {
     return {
       buildPromptParts: mocks.buildPrompt,
-      buildMemoriesSection: vi.fn(async () => undefined)
+      buildMemoriesSection: mocks.buildMemoriesSection
     }
   })
 }))
@@ -2787,7 +2788,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
-  it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {
+  it('refreshes identity through the hooks mounted on a reused Claude connection', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -2804,7 +2805,20 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    expect(settings.hooks?.UserPromptSubmit).toBeUndefined()
+    const hook = settings.hooks!.UserPromptSubmit![0].hooks[0]
+    const submit = () =>
+      hook({ hook_event_name: 'UserPromptSubmit' } as never, undefined, {
+        signal: new AbortController().signal
+      })
+    mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
+    expect(await submit()).toMatchObject({
+      hookSpecificOutput: { additionalContext: '<agent_identity>Persona A</agent_identity>' }
+    })
+    mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona B</agent_identity>')
+    expect(await submit()).toMatchObject({
+      hookSpecificOutput: { additionalContext: '<agent_identity>Persona B</agent_identity>' }
+    })
+    expect(await submit()).toEqual({})
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {

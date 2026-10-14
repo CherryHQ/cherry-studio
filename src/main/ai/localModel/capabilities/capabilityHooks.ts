@@ -17,6 +17,9 @@ const CAPABILITY_HOOKS: Record<LocalModelCapability, CapabilityHooks> = {
   ocr: {
     terminateRuntimeThen: (after) => application.get('OcrInferenceService').terminateThen(after),
     afterRemove: demoteOcrDefaults
+  },
+  asr: {
+    terminateRuntimeThen: (after) => application.get('AsrInferenceService').terminateThen(after)
   }
 }
 

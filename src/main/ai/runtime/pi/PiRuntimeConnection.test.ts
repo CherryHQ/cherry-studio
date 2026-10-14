@@ -70,6 +70,7 @@ const mocks = vi.hoisted(() => ({
   // agent MCP collaborators
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
+  buildMemoriesSection: vi.fn(),
   buildCitationsGuidance: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn(),
@@ -172,6 +173,7 @@ vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: m
 vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: class {
     buildPromptParts = mocks.buildPromptParts
+    buildMemoriesSection = mocks.buildMemoriesSection
   }
 }))
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
@@ -503,6 +505,46 @@ it('rejects a Pi checkpoint with a missing native leaf before looking for histor
 })
 
 describe('PiRuntimeConnection', () => {
+  it.each(['default', 'acceptEdits'] as const)(
+    'auto-approves mounted desktop tools in %s without a responder',
+    async (mode) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', true)
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { permission_mode: mode } })
+      mocks.getInteractionState.mockReturnValue({ currentTurn: 'unattended', userResponse: 'unavailable' })
+      const connection = await new PiRuntimeConnection(input).start()
+      try {
+        const authorize = approvalGateHandler()
+        for (const toolName of ['mcp__computer__open_app', 'mcp__computer__click', 'mcp__computer__type_text']) {
+          await expect(
+            authorize({ type: 'tool_call', toolName, toolCallId: toolName, input: {} }, {})
+          ).resolves.toBeUndefined()
+        }
+        await expect(
+          authorize({ type: 'tool_call', toolName: 'mcp__computer__undeclared', toolCallId: 'unknown', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await connection.close()
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
+      }
+    }
+  )
+
+  it('does not auto-approve desktop tools when the server is not mounted', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
+    mocks.getInteractionState.mockReturnValue({ currentTurn: 'unattended', userResponse: 'unavailable' })
+    const connection = await new PiRuntimeConnection(input).start()
+    try {
+      await expect(
+        approvalGateHandler()(
+          { type: 'tool_call', toolName: 'mcp__computer__click', toolCallId: 'click', input: {} },
+          {}
+        )
+      ).resolves.toMatchObject({ block: true })
+    } finally {
+      await connection.close()
+    }
+  })
+
   it('prompts the current Agent session when its gateway route is disabled', async () => {
     mocks.resolveInjection.mockRejectedValueOnce(new ApiGatewayNotRunningError())
 
@@ -2105,6 +2147,30 @@ describe('PiRuntimeConnection', () => {
       workspaceId: 'ws-1',
       workspace: { path: WORKSPACE, type: 'user' as const }
     }
+
+    it('refreshes identity through the extension mounted on a reused Pi connection', async () => {
+      mocks.createPiMcpExtension.mockReturnValue(() => {})
+      await new PiRuntimeConnection(input).start()
+      let beforeStart!: (event: { systemPromptOptions: { sections: Record<string, string> } }) => Promise<void>
+      const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void | Promise<void>> })
+        .extensionFactories
+      for (const factory of factories) {
+        await factory({
+          registerProvider: vi.fn(),
+          on: (event: string, handler: typeof beforeStart) => {
+            if (event === 'before_agent_start') beforeStart = handler
+          }
+        })
+      }
+      const event = { systemPromptOptions: { sections: {} as Record<string, string> } }
+      mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
+      await beforeStart(event)
+      expect(event.systemPromptOptions.sections.agent_identity).toContain('Persona A')
+      mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona B</agent_identity>')
+      await beforeStart(event)
+      expect(event.systemPromptOptions.sections.agent_identity).toContain('Persona B')
+      expect(event.systemPromptOptions.sections.agent_identity).not.toContain('Persona A')
+    })
 
     it('uses the PromptBuilder persona with native tools', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
