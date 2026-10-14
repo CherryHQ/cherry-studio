@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import type { RetryPolicy } from '../../aiSdk'
-import { classifyFallbackEligibleError, resolveAgentSessionFallback, selectFallbackModelId } from '../modelFallback'
+import { selectFallbackModelId } from '../../modelFallback'
+import { classifyFallbackEligibleError, resolveAgentSessionFallback } from '../modelFallback'
 import { ClaudeCodeResultError } from '../streamAdapter'
 
 const getByProviderId = vi.hoisted(() => vi.fn())
