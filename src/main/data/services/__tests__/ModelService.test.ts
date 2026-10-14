@@ -1130,6 +1130,63 @@ describe('ModelService — manual reasoning capability projects effort controls'
     expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
   })
 
+  it('uses the dto endpoint override for the controls stored at create time', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'acme',
+          modelId: 'acme-thinker:latest',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          endpointTypes: ['ollama-chat'],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    // The stored descriptor must match the endpoint the dto declares, not the
+    // provider default — otherwise the first read serves anthropic tiers over
+    // an ollama wire until the enrichment regenerates them.
+    const efforts = created.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('max')
+    expect(efforts).not.toContain('xhigh')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(created.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+  })
+
+  it('derives manual controls from the endpoint override on the preset-fallback read path', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('acme', 'preset-alias', {
+        name: 'Preset Alias',
+        presetModelId: 'acme-preset',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        endpointTypes: ['ollama-chat']
+      })
+    )
+    // Registry resolution succeeds but knows neither model nor preset: the row
+    // is served through createPresetFallback, whose manual controls must also
+    // follow the row's endpoint override.
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: ANTHROPIC_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'acme' })
+    const efforts = model.reasoning?.selectableEfforts ?? []
+    expect(efforts).not.toContain('max')
+    expect(efforts).toEqual(expect.arrayContaining(['low', 'medium', 'high']))
+    expect(model.reasoning?.controls?.some((control) => control.kind === 'toggle')).toBe(true)
+  })
+
   it('leaves models without the reasoning capability untouched', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 

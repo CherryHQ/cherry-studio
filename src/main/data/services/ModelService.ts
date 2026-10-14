@@ -502,12 +502,21 @@ const CHAT_ENDPOINT_REASONING_FORMAT: Partial<Record<EndpointType, ReasoningForm
  * canonical profile for the overridden endpoint. (Catalog descriptors are
  * endpoint-projected by the registry itself and never pass through here.)
  */
-function manualReasoningProfileFor(model: Model, reasoningProfile: ResolvedReasoningProfile): ResolvedReasoningProfile {
+function manualReasoningProfileFor(
+  model: { endpointTypes?: EndpointType[] | null },
+  reasoningProfile: ResolvedReasoningProfile
+): ResolvedReasoningProfile {
   const overrideFormat = model.endpointTypes
     ?.map((endpoint) => CHAT_ENDPOINT_REASONING_FORMAT[endpoint])
     .find((format) => format !== undefined)
   if (!overrideFormat || overrideFormat === reasoningProfile.format) return reasoningProfile
   return { format: overrideFormat, wire: REASONING_FORMAT_PROFILES[overrideFormat].wire }
+}
+
+/** The openai-chat default the manual fallback projects through when nothing was resolved. */
+const OPENAI_CHAT_FALLBACK_PROFILE: ResolvedReasoningProfile = {
+  format: 'openai-chat',
+  wire: REASONING_FORMAT_PROFILES['openai-chat'].wire
 }
 
 /**
@@ -540,12 +549,14 @@ function manualDeclaredReasoning(
  * toggling the `reasoning` capability on an unknown id (brand-new or niche
  * models) left the composer without an effort selector — the capability toggle
  * did nothing visible. Projected through the resolved wire profile when one is
- * available, so a profile that disables reasoning exposes no knobs; a
+ * available (the model's endpointTypes override wins over the provider
+ * default), so a profile that disables reasoning exposes no knobs; a
  * registry-projected profile always wins. (CherryHQ/cherry-studio#19761)
  */
 function withManualReasoningControls(model: Model, reasoningProfile?: ResolvedReasoningProfile): Model {
   if (!model.capabilities?.includes('reasoning') || model.reasoning != null) return model
-  const reasoning = manualDeclaredReasoning(reasoningProfile?.format, reasoningProfile?.wire, true)
+  const manualProfile = manualReasoningProfileFor(model, reasoningProfile ?? OPENAI_CHAT_FALLBACK_PROFILE)
+  const reasoning = manualDeclaredReasoning(manualProfile.format, manualProfile.wire, true)
   if (!reasoning?.selectableEfforts?.length) return model
   return { ...model, reasoning }
 }
@@ -614,16 +625,17 @@ class ModelService {
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
-    // descriptor-driven like catalog rows (#16598).
+    // descriptor-driven like catalog rows (#16598). A dto-level endpointTypes
+    // override wins over the provider-default profile, same as on read.
     if (dtoValues.reasoning == null) {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
+      const manualProfile = manualReasoningProfileFor(
+        dtoValues,
+        registryData?.reasoningProfile ?? OPENAI_CHAT_FALLBACK_PROFILE
+      )
       const inferred =
-        inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
-        manualDeclaredReasoning(
-          registryData?.reasoningProfile.format,
-          registryData?.reasoningProfile.wire,
-          declaredReasoning
-        )
+        inferCustomModelReasoning(dto.modelId, manualProfile.wire, { declaredReasoning }) ??
+        manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
       if (inferred) dtoValues.reasoning = inferred
     }
 
