@@ -374,6 +374,11 @@ export class AiStreamManager extends BaseService {
   /** In-flight steer-continuation launches (registered synchronously in `scheduleNextChatTurn`),
    *  part of `drainInFlight`'s wait-set — a launch admitted before a pause must be awaited. */
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
+  /**
+   * IM-channel recipients still owed a background result, by topic. Detached work outlives the
+   * turn that spawned it, and an intervening turn legitimately drops these listeners.
+   */
+  private readonly pendingChannelListeners = new Map<string, StreamListener[]>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -950,6 +955,9 @@ export class AiStreamManager extends BaseService {
 
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
+    const detachedChannelListeners = existing
+      ? [...existing.listeners.values()].filter((listener) => listener.id.startsWith('channel:'))
+      : []
     const carriedListeners = existing
       ? [...existing.listeners.values()].filter((listener) => {
           if (listener.id.startsWith('persistence:') || listener.id.startsWith('agent-runtime:')) return false
@@ -962,6 +970,18 @@ export class AiStreamManager extends BaseService {
 
     if (existing) this.evictStream(input.topicId)
 
+    // A turn that drops the recipients must not strand them: detached work can still be running,
+    // and its wake is the only route its result has to those chats.
+    if (!input.carryChannelListeners && detachedChannelListeners.length > 0) {
+      const pending = new Map(this.pendingChannelListeners.get(input.topicId)?.map((l) => [l.id, l]))
+      for (const listener of detachedChannelListeners) pending.set(listener.id, listener)
+      this.pendingChannelListeners.set(input.topicId, [...pending.values()])
+    }
+    const owedChannelListeners = input.carryChannelListeners
+      ? (this.pendingChannelListeners.get(input.topicId) ?? [])
+      : []
+    if (input.carryChannelListeners) this.pendingChannelListeners.delete(input.topicId)
+
     return this.send({
       topicId: input.topicId,
       models: [
@@ -973,7 +993,7 @@ export class AiStreamManager extends BaseService {
           abortController: input.abortController
         }
       ],
-      listeners: [...carriedListeners, ...input.listeners],
+      listeners: [...carriedListeners, ...input.listeners, ...owedChannelListeners],
       isPersistentConversation: true
     })
   }
@@ -1180,6 +1200,13 @@ export class AiStreamManager extends BaseService {
   }
 
   removeListener(topicId: string, listenerId: string): void {
+    // Unsubscribing also releases the wake binding, so a given-up recipient is never restored.
+    const pending = this.pendingChannelListeners.get(topicId)
+    if (pending) {
+      const remaining = pending.filter((listener) => listener.id !== listenerId)
+      if (remaining.length === 0) this.pendingChannelListeners.delete(topicId)
+      else this.pendingChannelListeners.set(topicId, remaining)
+    }
     const stream = this.activeStreams.get(topicId)
     stream?.listeners.delete(listenerId)
   }

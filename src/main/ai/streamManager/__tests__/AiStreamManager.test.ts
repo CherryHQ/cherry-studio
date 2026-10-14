@@ -8,6 +8,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
+import type { ChannelAdapter } from '../../channels/ChannelAdapter'
 import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
@@ -173,6 +174,7 @@ const { AiStreamManager } = await import('../AiStreamManager')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
+const { ChannelAdapterListener } = await import('../listeners/ChannelAdapterListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -666,6 +668,59 @@ describe('AiStreamManager', () => {
     const successorListeners = mgr.inspect(topicId)?.listenerIds ?? []
     expect(successorListeners).toContain('wc:win-1')
     expect(successorListeners).not.toContain('channel:ch1:chat-1:unthreaded')
+  })
+
+  // A desktop follow-up starting while a scheduled fire's native subagent still runs replaces the
+  // held stream, so the fire's recipients are gone from it by wake time — the binding has to
+  // outlive the stream, or the subscribed chat never receives the background result.
+  it('keeps a background wake’s channel recipients across an intervening desktop follow-up', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    // Desktop follow-up: an ordinary turn, so the fire's recipients are deliberately not inherited.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // The native subagent's result arrives on the wake that owes the subscribed chat a delivery.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Found it: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+    expect(sent).toEqual(['Found it: 42'])
   })
 
   it('carries channel listeners into a receive-only wake turn', async () => {

@@ -10,10 +10,17 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 const logger = loggerService.withContext('ChannelAdapterListener')
 const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?)?)?)?)?$/
 
+/** Bucket for text whose chunks carried no attempt id (direct feeds outside the stream manager). */
+const UNTAGGED_ATTEMPT = -1
+
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
-  private accumulatedText = ''
+  /**
+   * Text still owed to the channel, keyed by producing attempt. Dispatch awaits recipients one at
+   * a time, so a wake can emit through this carried listener before an older terminal has even run.
+   */
+  private readonly pendingTextByAttempt = new Map<number, string>()
   /**
    * Whether this turn's terminal has been handed to the adapter. Scoped to the turn, not to the
    * listener: a chain-hold gap (`isTopicDone: false`) keeps the topic alive so the next turn
@@ -56,13 +63,26 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   /**
-   * Detach the text this execution owns from the buffer. Called at the terminal so a wake emitting
+   * Detach the text one execution owns from the buffer. Called at the terminal so a wake emitting
    * through this carried listener while the predecessor's finalize is still awaited never reads — or
    * ships — that wake's text as part of the predecessor's reply.
    */
-  private takePendingText(): string {
-    const text = this.accumulatedText
-    this.accumulatedText = ''
+  private takeOwnText(attemptId: number | undefined): string {
+    const ceiling = attemptId ?? Number.POSITIVE_INFINITY
+    let text = ''
+    for (const [key, value] of this.pendingTextByAttempt) {
+      if (key > ceiling) continue
+      text += value
+      this.pendingTextByAttempt.delete(key)
+    }
+    return text
+  }
+
+  /** Text the given attempt owns: its own bucket plus older/untagged ones — never a newer attempt's. */
+  private ownedText(attemptId: number | undefined): string {
+    const ceiling = attemptId ?? Number.POSITIVE_INFINITY
+    let text = ''
+    for (const [key, value] of this.pendingTextByAttempt) if (key <= ceiling) text += value
     return text
   }
 
@@ -75,9 +95,10 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   // oxlint-disable-next-line no-unused-vars
-  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
+  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId, _anchorMessageId?: string, attemptId?: number): void {
     if (chunk.type === 'text-delta' && chunk.delta) {
-      this.accumulatedText += chunk.delta
+      const key = attemptId ?? UNTAGGED_ATTEMPT
+      this.pendingTextByAttempt.set(key, (this.pendingTextByAttempt.get(key) ?? '') + chunk.delta)
       // Fresh output owes the channel a delivery — a listener outlives one settle (a chain-hold gap
       // keeps the topic alive so the next turn carries this same listener).
       this.delivered = false
@@ -86,7 +107,7 @@ export class ChannelAdapterListener implements StreamListener {
       // be redacted before they leave. Queued behind `updateChain` like the terminal: the
       // adapter keeps ONE live controller per chat, so an update emitted while a predecessor's
       // finalize is still awaited would rewrite that predecessor's card content.
-      const { text } = sanitizeChannelOutput(this.accumulatedText)
+      const { text } = sanitizeChannelOutput(this.ownedText(attemptId))
       const update = this.updateChain.then(() =>
         this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
       )
@@ -118,7 +139,7 @@ export class ChannelAdapterListener implements StreamListener {
     // Take this execution's text BEFORE yielding: a predecessor's finalize can still be in flight
     // when a wake emits through this carried listener, and text arriving during the await below
     // belongs to that wake, not to this execution.
-    const text = sanitizeChannelOutput(this.takePendingText()).text.trim()
+    const text = sanitizeChannelOutput(this.takeOwnText(attemptId)).text.trim()
     // A predecessor's finalize can still be in flight when this execution's terminal arrives on the
     // same listener (chain-hold gap, background wake). Its `completeStream` owns the chat's single
     // adapter controller until it settles, so this one has to wait its turn.
@@ -144,7 +165,7 @@ export class ChannelAdapterListener implements StreamListener {
   async onError(result: StreamErrorResult): Promise<void> {
     // Same rule as `finish`: drop this execution's text before yielding, so a wake emitting through
     // this carried listener during the await does not inherit or re-ship it.
-    this.takePendingText()
+    this.takeOwnText(result.attemptId)
     // Same ordering rule as `finish`: a predecessor's finalize owns the chat's single adapter
     // controller until it settles.
     await this.updateChain

@@ -333,6 +333,51 @@ describe('ChannelAdapterListener', () => {
     )
   })
 
+  // `dispatchToListeners` awaits each recipient's terminal in turn, so the SECOND listener's own
+  // terminal can be invoked after a receive-only wake already emitted through it. Its buffer then
+  // holds both generations' text; the terminal must ship only what its own execution produced.
+  it('gives each channel listener its own execution’s text when its terminal lands after the wake', async () => {
+    const deliveredFirst: string[] = []
+    const deliveredSecond: string[] = []
+    let releaseFirstForeground!: () => void
+    const firstForegroundGate = new Promise<void>((resolve) => {
+      releaseFirstForeground = resolve
+    })
+    const adapterFor = (sink: string[]) =>
+      makeAdapter({
+        onStreamComplete: vi.fn(async (_chatId: string, text: string) => {
+          sink.push(text)
+          if (text === 'foreground') await firstForegroundGate
+          return true
+        })
+      })
+    const first = new ChannelAdapterListener(adapterFor(deliveredFirst), 'chat-1')
+    const second = new ChannelAdapterListener(adapterFor(deliveredSecond), 'chat-2')
+
+    for (const listener of [first, second]) listener.onChunk(delta('foreground'), undefined, undefined, 1)
+
+    // Terminal dispatch starts: the first recipient's finalize parks inside its adapter.
+    const firstForeground = first.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    await vi.waitFor(() => expect(deliveredFirst).toEqual(['foreground']))
+
+    // The wake starts and emits through both carried listeners while the first still finalizes —
+    // before the second listener's own foreground terminal is ever invoked.
+    for (const listener of [first, second]) listener.onChunk(delta('wake'), undefined, undefined, 2)
+
+    const terminals = [
+      second.onDone({ status: 'success', isTopicDone: false, attemptId: 1 }),
+      first.onDone({ status: 'success', isTopicDone: true, attemptId: 2 }),
+      second.onDone({ status: 'success', isTopicDone: true, attemptId: 2 })
+    ]
+    releaseFirstForeground()
+    await Promise.all([firstForeground, ...terminals])
+
+    // Each terminal ships exactly its own execution's text: the second listener must not swallow
+    // the wake into its foreground reply and leave that wake empty.
+    expect(deliveredFirst).toEqual(['foreground', 'wake'])
+    expect(deliveredSecond).toEqual(['foreground', 'wake'])
+  })
+
   it('keeps two channel listeners’ terminal text separate when the first finalizes slowly', async () => {
     const firstText: string[] = []
     const secondText: string[] = []
