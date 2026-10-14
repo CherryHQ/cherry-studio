@@ -139,7 +139,7 @@ A `*Utils` suffix is used only when the file lives outside any `utils/` director
 |---|---|---|
 | Top-level meta docs at repo root | `UPPERCASE.md` | `README.md`, `CLAUDE.md`, `DESIGN.md`, `CONTRIBUTING.md` |
 | Per-directory README | `README.md` (always uppercase) | `src/main/core/paths/README.md` |
-| All other docs (under `docs/`, `packages/*/docs/`, etc.) | `kebab-case.md` | `database-testing.md`, `lan-transfer-protocol.md` |
+| All other docs (under `docs/`, `packages/*/docs/`, etc.) | `kebab-case.md` | `database-testing.md`, `remote-protocol.md` |
 
 ### 3.7 JSON / YAML / TOML
 

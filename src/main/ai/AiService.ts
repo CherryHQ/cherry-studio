@@ -8,6 +8,7 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
+  NoTranscriptGeneratedError,
   type UIMessageChunk
 } from 'ai'
 
@@ -16,9 +17,15 @@ import {
   type AiPlugin,
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
+  generateSpeech as aiCoreGenerateSpeech,
   rerank as aiCoreRerank,
   type RuntimeProviderCallEvent,
-  type RuntimeProviderCallHandler
+  type RuntimeProviderCallHandler,
+  type SpeechOptions,
+  type SpeechResult,
+  transcribe as aiCoreTranscribe,
+  type TranscriptionOptions,
+  type TranscriptionResult
 } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
@@ -40,6 +47,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import type { LocalSpeechModelId, LocalTranscriptionModelId } from '@shared/ai/localVoice'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -101,6 +109,8 @@ import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
+import { createLocalSpeechModel, createLocalTranscriptionModel } from './voice/localAdapters'
+import { VoiceRuntimeError } from './voice/VoiceRuntimeError'
 
 const logger = loggerService.withContext('AiService')
 
@@ -191,19 +201,35 @@ function createCaptureContext(input: {
   credentialReceipt: Parameters<typeof createAiUsageCaptureContext>[0]['credentialReceipt']
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
-}): AiUsageCaptureContext {
-  return createAiUsageCaptureContext({
-    providerId: input.provider.id,
-    providerName: input.provider.name,
-    modelId: input.sdkModelId,
-    modelName: input.model.name,
-    pricing: input.model.pricing,
-    trustProviderReportedCost: input.provider.reportsActualCost,
-    reportedCostCurrency: input.provider.reportedCostCurrency,
-    credentialReceipt: input.credentialReceipt,
-    source: input.source,
-    messageRef: input.messageRef
-  })
+}): () => AiUsageCaptureContext {
+  return () => {
+    const modelId = parseUniqueModelId(input.model.id).modelId
+    let pricingSnapshot: AiUsageCaptureContext['pricingSnapshot'] = null
+    try {
+      const provider = providerService.getByProviderId(input.provider.id)
+      const model = modelService.getByKey(input.provider.id, modelId)
+      pricingSnapshot = createAiUsageCaptureContext({
+        providerId: provider.id,
+        modelId,
+        pricing: model.pricing,
+        billing: provider.settings.billing
+      }).pricingSnapshot
+    } catch (error) {
+      logger.warn('Could not capture invocation pricing', { error })
+    }
+    return createAiUsageCaptureContext({
+      providerId: input.provider.id,
+      providerName: input.provider.name,
+      modelId: input.sdkModelId,
+      modelName: input.model.name,
+      pricingSnapshot,
+      trustProviderReportedCost: input.provider.reportsActualCost,
+      reportedCostCurrency: input.provider.reportedCostCurrency,
+      credentialReceipt: input.credentialReceipt,
+      source: input.source,
+      messageRef: input.messageRef
+    })
+  }
 }
 
 function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
@@ -667,7 +693,9 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+          createAiUsagePlugin(() =>
+            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          )
       })
       const retryPolicy = resolveTextRetryPolicy(
         readRetryPolicy(),
@@ -698,8 +726,8 @@ export class AiService extends BaseService {
                 model,
                 sdkModelId,
                 credentialReceipt,
-                source: usageContext.source,
-                messageRef: usageContext.messageRef
+                source: usageContext().source,
+                messageRef: usageContext().messageRef
               })
             )
         }),
@@ -832,7 +860,9 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+          createAiUsagePlugin(() =>
+            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          )
       })
       const retryPolicy = resolveTextRetryPolicy(
         readRetryPolicy(),
@@ -859,8 +889,8 @@ export class AiService extends BaseService {
                 model,
                 sdkModelId,
                 credentialReceipt,
-                source: usageContext.source,
-                messageRef: usageContext.messageRef
+                source: usageContext().source,
+                messageRef: usageContext().messageRef
               })
             )
         }),
@@ -1055,7 +1085,7 @@ export class AiService extends BaseService {
     })
     const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       ...imageParams,
-      onProviderCall: createProviderCallHandler(imageUsageContext)
+      onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
     })
 
     const dataUrls: Base64String[] = []
@@ -1203,6 +1233,38 @@ export class AiService extends BaseService {
     throw new Error(snapshot.error?.message || 'Image generation failed')
   }
 
+  // ── Local one-shot voice ──
+
+  async generateSpeech(
+    modelId: LocalSpeechModelId,
+    text: string,
+    options: SpeechOptions,
+    signal: AbortSignal
+  ): Promise<SpeechResult> {
+    signal.throwIfAborted()
+    return aiCoreGenerateSpeech(createLocalSpeechModel(modelId, options), text, options, signal)
+  }
+
+  async transcribe(
+    modelId: LocalTranscriptionModelId,
+    audio: Uint8Array,
+    options: TranscriptionOptions,
+    signal: AbortSignal
+  ): Promise<TranscriptionResult> {
+    signal.throwIfAborted()
+    try {
+      const result = await aiCoreTranscribe(createLocalTranscriptionModel(modelId, options), audio, options, signal)
+      if (!result.text.trim()) throw new VoiceRuntimeError('no_speech')
+      return result
+    } catch (error) {
+      if (NoTranscriptGeneratedError.isInstance(error)) {
+        signal.throwIfAborted()
+        throw new VoiceRuntimeError('no_speech')
+      }
+      throw error
+    }
+  }
+
   // ── Embedding ──
 
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
@@ -1230,7 +1292,7 @@ export class AiService extends BaseService {
       // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
       // its prior transient-error resilience (this PR only adds, never removes).
       maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
-      onProviderCall: createProviderCallHandler(usageContext),
+      onProviderCallStart: () => createProviderCallHandler(usageContext()),
       ...(signal ? { abortSignal: signal } : {})
     })
 
@@ -1271,7 +1333,7 @@ export class AiService extends BaseService {
       // exponential-backoff retry, defaulted from the retry preference. Rerank
       // already defaulted to 0 retries pre-feature, so keep that when disabled.
       maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 0),
-      onProviderCall: createProviderCallHandler(usageContext),
+      onProviderCallStart: () => createProviderCallHandler(usageContext()),
       ...(signal ? { abortSignal: signal } : {})
     }
 

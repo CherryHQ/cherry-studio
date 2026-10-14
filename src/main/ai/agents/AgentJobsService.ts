@@ -212,7 +212,12 @@ export class AgentJobsService extends BaseService {
         if (this.isShuttingDown) return
         const configPatch = updates.configuration
         if (!configPatch) return
-        if (!('heartbeat_enabled' in configPatch) && !('heartbeat_interval' in configPatch)) return
+        if (
+          !('heartbeat_enabled' in configPatch) &&
+          !('heartbeat_interval' in configPatch) &&
+          !('heartbeat_timeout_minutes' in configPatch)
+        )
+          return
         this.requestHeartbeat(agent.id)
       })
     )

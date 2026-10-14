@@ -33,7 +33,6 @@ on:
           - image-generation
           - claude-agent-runtime
           - pi-runtime
-          - deepseek-harness-runtime
           - agent-basic-task
 
 permissions:

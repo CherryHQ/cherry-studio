@@ -23,11 +23,14 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
 import {
   getBinarySearchDirs,
@@ -46,9 +49,11 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -63,6 +68,7 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import {
   materializePiProviderStream,
   type PiProviderInjection,
@@ -231,7 +237,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
     // Gateway startup and first-key creation change its fingerprint, so settle them before the
     // authoritative snapshot. The actual injection is resolved again from that snapshot below.
-    if (usesPiGateway(discoverySnapshot.provider)) {
+    if (usesPiGateway(discoverySnapshot.provider, discoverySnapshot.model)) {
       await resolveInjection(discoverySnapshot)
     }
     await warmAgentMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
@@ -264,8 +270,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
       withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
-      (message, metrics) => this.recordProviderInvocation(message, metrics),
-      (model) => this.startProviderSpan(model)
+      (message, metrics, pricingSnapshot) => this.recordProviderInvocation(message, metrics, pricingSnapshot),
+      (model) => this.startProviderSpan(model),
+      (model) => this.captureInvocationPricing(model.id)
     )
 
     // Cherry owns the credential + model registry: in-memory only, never pi's
@@ -728,7 +735,32 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
-  private recordProviderInvocation(message: AssistantMessage, metrics?: PiInvocationMetrics): void {
+  private captureInvocationPricing(apiModelId: string): AiUsagePricingSnapshot | null {
+    const capture = this._usageCapture
+    if (capture?.owner !== 'agent-sdk') return null
+    const frozen = capture.frozenModels.find((model) => model.aliases.includes(apiModelId))
+    if (!frozen) return null
+    try {
+      const provider = providerService.getByProviderId(capture.providerId)
+      const modelId = parseUniqueModelId(frozen.modelId as UniqueModelId).modelId
+      const model = modelService.getByKey(provider.id, modelId)
+      return createAiUsageCaptureContext({
+        providerId: provider.id,
+        modelId,
+        pricing: model.pricing,
+        billing: provider.settings.billing
+      }).pricingSnapshot
+    } catch (error) {
+      logger.warn('Could not capture Pi invocation pricing', { error })
+      return null
+    }
+  }
+
+  private recordProviderInvocation(
+    message: AssistantMessage,
+    metrics?: PiInvocationMetrics,
+    pricingSnapshot?: AiUsagePricingSnapshot | null
+  ): void {
     if (this.closed) return
     if (this._usageCapture?.owner !== 'agent-sdk') return
     if (message.stopReason === 'error' || message.stopReason === 'aborted') return
@@ -748,6 +780,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       invocation: {
         requestId,
         model: message.responseModel?.trim() || message.model || this.modelId,
+        pricingSnapshot,
         messageAssociation: 'current-turn',
         usage: {
           inputTokens,
@@ -919,12 +952,18 @@ interface PiInvocationMetrics {
 function withPiInvocationCapture(
   config: ProviderConfig,
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  onComplete: (message: AssistantMessage, metrics?: PiInvocationMetrics) => void,
-  startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined
+  onComplete: (
+    message: AssistantMessage,
+    metrics: PiInvocationMetrics,
+    pricingSnapshot: AiUsagePricingSnapshot | null
+  ) => void,
+  startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined,
+  capturePricing: (model: { id: string }) => AiUsagePricingSnapshot | null
 ): ProviderConfig {
   return {
     ...config,
     streamSimple: (model, context, options) => {
+      const pricingSnapshot = capturePricing(model)
       const traceObserver = startTrace(model)
       let stream: ReturnType<typeof streamSimple>
       try {
@@ -959,10 +998,14 @@ function withPiInvocationCapture(
           traceObserver?.complete(message)
           const timeCompletionMs = Math.max(0, Date.now() - streamStartedAt)
           const timeFirstTokenMs = firstTokenAt !== undefined ? Math.max(0, firstTokenAt - streamStartedAt) : undefined
-          onComplete(message, {
-            ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
-            timeCompletionMs
-          })
+          onComplete(
+            message,
+            {
+              ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+              timeCompletionMs
+            },
+            pricingSnapshot
+          )
         },
         (error) => traceObserver?.error(error)
       )
@@ -1005,21 +1048,44 @@ function normalizeDisabledTools(
   snapshot: PiConnectionSnapshot
 ): Set<string> {
   const disabled = new Set((disabledTools ?? []).map(normalizePiDisabledToolId))
+  const unresolved = new Set([...disabled].filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX)))
+  const legacyTools: Array<{ ids: string[]; nameAlias?: string; piName: string }> = listBuiltinToolPolicies({
+    mountedServers: new Set(Object.values(CHERRY_MCP_SERVER))
+  }).map((tool) => ({
+    ids: [legacyDisabledToolId(tool.serverName, tool.toolName)],
+    piName: buildPiMcpToolName(tool.serverName, tool.toolName)
+  }))
   const catalog = application.get('McpCatalogService')
-  for (const server of snapshot.mcpServerSnapshots.values()) {
+  for (const [namespace, server] of snapshot.mcpServerSnapshots) {
     if (!server) continue
     const tools = catalog.listTools(server.id, { includeDisabled: false })
     const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
     for (const tool of tools) {
       const name = buildPiMcpToolName(server.id, tool.name)
+      const piName = buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name))
+      legacyTools.push({
+        ids: [legacyDisabledToolId(namespace, tool.name), legacyDisabledToolId(server.id, tool.name)],
+        nameAlias: legacyDisabledToolId(server.name, tool.name),
+        piName
+      })
       if (
         disabled.has(buildFunctionCallToolName(server.name, tool.name)) ||
         disabled.has(`mcp__${server.id}__${tool.name}`)
       ) {
-        disabled.add(buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name)))
+        disabled.add(piName)
       }
     }
   }
+  for (const id of unresolved) {
+    // DSH used the configured namespace; display-name aliases are only safe when unambiguous.
+    const exact = legacyTools.filter((tool) => tool.ids.includes(id))
+    const matches = exact.length ? exact : legacyTools.filter((tool) => tool.nameAlias === id)
+    const piNames = new Set(matches.map((tool) => tool.piName))
+    if (piNames.size !== 1) continue
+    for (const name of piNames) disabled.add(name)
+    unresolved.delete(id)
+  }
+  assertLegacyDisabledToolsResolved(unresolved)
   // Sanitizing raw aliases can accidentally block another tool whose name collides.
   return disabled
 }

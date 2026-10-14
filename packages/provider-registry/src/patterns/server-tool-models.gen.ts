@@ -42,6 +42,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gemini-3-flash-preview',
         'gemini-3-pro-image',
         'gemini-3-pro-image-preview',
+        'gemini-4-argon',
         'gemini-flash-latest',
         'gemini-flash-lite-latest',
         'gemini-pro-latest',
@@ -124,6 +125,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gemini-3-flash-preview',
         'gemini-3-pro-image',
         'gemini-3-pro-image-preview',
+        'gemini-4-argon',
         'gemini-flash-latest',
         'gemini-flash-lite-latest',
         'gemini-pro-latest'
@@ -168,6 +170,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gemini-3-flash-preview',
         'gemini-3-pro-image',
         'gemini-3-pro-image-preview',
+        'gemini-4-argon',
         'gemini-flash-latest',
         'gemini-flash-lite-latest',
         'gemini-pro-latest',
@@ -260,6 +263,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gemini-3-flash-preview',
         'gemini-3-pro-image',
         'gemini-3-pro-image-preview',
+        'gemini-4-argon',
         'gemini-flash-latest',
         'gemini-flash-lite-latest',
         'gemini-pro-latest'
@@ -297,7 +301,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
       ]
     },
     deepseek: {
-      'web-search': ['deepseek-flash', 'deepseek-flash-latest', 'deepseek-v4-pro']
+      'web-search': ['deepseek-flash', 'deepseek-v4-pro']
     },
     'new-api': {
       'web-search': [
@@ -423,6 +427,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
     anthropic: {
       'web-search': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
@@ -439,6 +444,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
       ],
       'url-context': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
@@ -457,6 +463,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
     'claude-code': {
       'url-context': [
         'claude-haiku-4-5',
+        'claude-haiku-5-5',
         'claude-opus-4',
         'claude-opus-4-1',
         'claude-opus-4-5',
@@ -611,6 +618,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gemini-3-flash-preview',
         'gemini-3-pro-image',
         'gemini-3-pro-image-preview',
+        'gemini-4-argon',
         'gemini-flash-latest',
         'gemini-flash-lite-latest',
         'gemini-pro-latest'
@@ -641,6 +649,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gemini-3-flash-preview',
         'gemini-3-pro-image',
         'gemini-3-pro-image-preview',
+        'gemini-4-argon',
         'gemini-flash-latest',
         'gemini-flash-lite-latest',
         'gemini-pro-latest'
@@ -680,6 +689,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gemini-3-flash-preview',
         'gemini-3-pro-image',
         'gemini-3-pro-image-preview',
+        'gemini-4-argon',
         'gemini-flash-latest',
         'gemini-flash-lite-latest',
         'gemini-pro-latest'
@@ -710,6 +720,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'gemini-3-flash-preview',
         'gemini-3-pro-image',
         'gemini-3-pro-image-preview',
+        'gemini-4-argon',
         'gemini-flash-latest',
         'gemini-flash-lite-latest',
         'gemini-pro-latest'
@@ -1052,6 +1063,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
         'grok-4-3',
         'grok-4-5',
         'grok-4-6',
+        'grok-4-7',
         'grok-4-fast',
         'kimi-k2',
         'kimi-k2-5',

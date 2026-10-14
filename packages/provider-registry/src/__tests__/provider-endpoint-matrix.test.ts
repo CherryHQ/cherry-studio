@@ -180,6 +180,13 @@ describe('doubao (Ark) endpoint matrix', () => {
  * secondary endpoint silently sends that protocol's traffic to localhost:3000.
  */
 describe('new-api single-host endpoints', () => {
+  it.each(['openai-image-generation', 'openai-image-edit'] as const)(
+    'routes %s through the New API adapter without overriding the user host',
+    (endpointType) => {
+      expect(provider('new-api').endpointConfigs?.[endpointType]).toEqual({ adapterFamily: 'newapi' })
+    }
+  )
+
   it('carries a placeholder baseUrl on the default chat endpoint only', () => {
     const withBaseUrl = Object.entries(provider('new-api').endpointConfigs ?? {})
       .filter(([, config]) => config?.baseUrl)

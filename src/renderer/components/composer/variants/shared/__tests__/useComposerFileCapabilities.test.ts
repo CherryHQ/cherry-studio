@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { anyFileExt } from '@renderer/utils/file'
 import type { Model } from '@shared/data/types/model'
 import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
@@ -45,6 +46,9 @@ describe('useComposerFileCapabilities', () => {
       expect(result.current.canAddImageFile).toBe(true)
       expect(result.current.canAddTextFile).toBe(true)
       expect(containsAll(result.current.supportedExts, ALL_EXTS)).toBe(true)
+      // "Every file type" is the wildcard, not the modality catalogs: a format none
+      // of them lists (`.onnx`, `.dwg`, `.h5`) must attach on the agent surface too.
+      expect(result.current.supportedExts).toContain(anyFileExt)
     })
 
     it('allows common archive formats', () => {
