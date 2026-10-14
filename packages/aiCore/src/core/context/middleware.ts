@@ -18,6 +18,7 @@ import { Janitor, summarizeHistory, type SummarizeHistoryOptions } from './janit
 import { fromModelMessages } from './modelMessageAdapter'
 import { type TruncateOptions, truncateToolResults } from './truncator'
 import type { ContextLogger, ContextMessage } from './types'
+import { getContextInputTokens } from './usage'
 
 type CompressRole = 'system' | 'user' | 'assistant'
 
@@ -229,8 +230,9 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
 
       if (!janitor) return result
 
-      if (result.usage?.inputTokens?.total != null) {
-        janitor.feedTokenUsage(result.usage.inputTokens.total)
+      const inputTokens = getContextInputTokens(result.usage?.inputTokens?.total, result.providerMetadata)
+      if (inputTokens != null) {
+        janitor.feedTokenUsage(inputTokens)
       } else if (!usageWarned) {
         usageWarned = true
         logger.warn(
@@ -250,8 +252,9 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
       const transform = new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
         transform(chunk, controller) {
           if (chunk.type === 'finish') {
-            if (chunk.usage?.inputTokens?.total != null) {
-              janitor.feedTokenUsage(chunk.usage.inputTokens.total)
+            const inputTokens = getContextInputTokens(chunk.usage?.inputTokens?.total, chunk.providerMetadata)
+            if (inputTokens != null) {
+              janitor.feedTokenUsage(inputTokens)
             } else if (!usageWarned) {
               usageWarned = true
               logger.warn(

@@ -53,6 +53,43 @@ function createSessionCacheTestContent() {
 }
 
 describe('composer clipboard', () => {
+  it('restores a Blob-only screenshot through an opaque handle until its retention deadline', () => {
+    vi.useFakeTimers()
+    try {
+      const blob = new Blob(['screenshot bytes'], { type: 'image/png' })
+      const token = {
+        id: 'file:screenshot-blob',
+        kind: 'file' as const,
+        label: 'screenshot.png',
+        payload: {
+          fileTokenSourceId: 'screenshot-blob',
+          name: 'screenshot.png',
+          type: 'image',
+          size: blob.size,
+          blob
+        }
+      }
+      const serialized = createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
+      expect(serialized).not.toContain('screenshot bytes')
+      expect(serialized).not.toContain('"blob"')
+      const segment = readComposerClipboardFragment(serialized)?.segments[0]
+      expect(segment?.type).toBe('token')
+      if (segment?.type !== 'token') throw new Error('Missing screenshot token')
+      expect(segment.token.payload?.handle).toEqual(expect.any(String))
+      const restored = createComposerAttachmentFromComposerClipboardToken(segment.token)
+      expect(restored?.blob).toBe(blob)
+      expect(restored?.path).toBeUndefined()
+      expect(restored?.name).toBe('screenshot.png')
+      expect(createComposerAttachmentFromComposerClipboardToken({ ...segment.token, id: 'file:forged' })).toBeNull()
+      vi.advanceTimersByTime(30 * 60 * 1000 + 1)
+      expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
+      // The receiving draft keeps ownership after the clipboard handle expires.
+      expect(restored?.blob).toBe(blob)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps the file path out of the private fragment while preserving a session restore handle', () => {
     const token = {
       id: 'file:source-image',

@@ -87,6 +87,7 @@
       "/settings/skills",
       "/settings/system",
       "/settings/usage",
+      "/settings/voice",
       "/settings/websearch",
       "/app/mini-app/$appId",
       "/app/paintings/$",
@@ -496,7 +497,7 @@
     }
   ],
   "providers": {
-    "version": "3416349586ffa541",
+    "version": "932c0006165e4fcb",
     "count": 66,
     "entries": [
       {
