@@ -61,7 +61,7 @@ interface MockAiApi {
 
 interface MockListeners {
   chunk: Array<(data: { topicId: string; chunk: unknown }) => void>
-  done: Array<(data: { topicId: string }) => void>
+  done: Array<(data: { topicId: string; status: 'success' | 'paused' }) => void>
   error: Array<(data: { topicId: string; error?: { name?: string; message?: string } }) => void>
 }
 
@@ -82,7 +82,7 @@ function createMocks(): {
         if (i >= 0) listeners.chunk.splice(i, 1)
       }
     }),
-    onStreamDone: vi.fn((cb: (data: { topicId: string }) => void) => {
+    onStreamDone: vi.fn((cb: (data: { topicId: string; status: 'success' | 'paused' }) => void) => {
       listeners.done.push(cb)
       return () => {
         const i = listeners.done.indexOf(cb)
@@ -139,8 +139,8 @@ function emitChunk(listeners: MockListeners, delta: string, topicId: string) {
   }
 }
 
-function emitDone(listeners: MockListeners, topicId: string) {
-  for (const cb of [...listeners.done]) cb({ topicId })
+function emitDone(listeners: MockListeners, topicId: string, status: 'success' | 'paused' = 'success') {
+  for (const cb of [...listeners.done]) cb({ topicId, status })
 }
 
 function emitError(listeners: MockListeners, error: { name?: string; message: string }, topicId: string) {
@@ -197,6 +197,35 @@ describe('translateText (main-driven streaming)', () => {
 
       await expect(promise).resolves.toBe('Hello world')
       expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
+    })
+
+    it('forwards image bytes without a path or renderer-owned entry id', async () => {
+      const image = { data: new Uint8Array([1, 2, 3]), filename: 'shot.png' }
+      const promise = translateText('notes', TARGET, undefined, undefined, image)
+      await waitForOpen(mockRequest)
+
+      expect(mockRequest).toHaveBeenCalledWith('translate.open', {
+        streamId: expect.stringMatching(/^translate:/),
+        text: 'notes',
+        targetLangCode: 'en-us',
+        image
+      })
+      expect(mockRequest).not.toHaveBeenCalledWith('file.batch_create_internal_entries', expect.anything())
+
+      const streamId = lastStreamId(mockRequest)
+      emitChunk(mockListeners, 'ok', streamId)
+      emitDone(mockListeners, streamId)
+      await expect(promise).resolves.toBe('ok')
+    })
+
+    it('does not attach an image for a text-only translation', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockRequest)
+
+      const streamId = lastStreamId(mockRequest)
+      emitChunk(mockListeners, 'ok', streamId)
+      emitDone(mockListeners, streamId)
+      await expect(promise).resolves.toBe('ok')
     })
 
     it('trims trailing whitespace from the final accumulated text', async () => {
@@ -333,6 +362,56 @@ describe('translateText (main-driven streaming)', () => {
       await promise.catch(() => undefined)
 
       expect(mockAi.streamAbort).toHaveBeenCalledWith({ topicId: streamId })
+    })
+
+    it('retries abort after a pending translate.open resolves', async () => {
+      const controller = new AbortController()
+      let resolveOpen: ((result: { streamId: string }) => void) | undefined
+      mockTranslateOpen.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOpen = resolve
+          })
+      )
+
+      const promise = translateText('source', TARGET, undefined, controller.signal)
+      await vi.waitFor(() => expect(mockRequest).toHaveBeenCalledWith('translate.open', expect.anything()))
+      const streamId = lastStreamId(mockRequest)
+
+      controller.abort()
+      expect(mockAi.streamAbort).toHaveBeenCalledTimes(1)
+
+      resolveOpen?.({ streamId })
+      await vi.waitFor(() => expect(mockAi.streamAbort).toHaveBeenCalledTimes(2))
+      emitError(mockListeners, { name: 'AbortError', message: 'aborted' }, streamId)
+
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+      expect(mockAi.streamAbort).toHaveBeenLastCalledWith({ topicId: streamId })
+      expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
+    })
+
+    it('rejects instead of resolving accumulated text when an aborted stream reports done', async () => {
+      const controller = new AbortController()
+      const promise = translateText('source', TARGET, undefined, controller.signal)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
+
+      emitChunk(mockListeners, 'partial', streamId)
+      controller.abort()
+      emitDone(mockListeners, streamId)
+
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+    })
+
+    it('rejects a paused terminal as AbortError even without a local abort signal', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
+
+      emitChunk(mockListeners, 'partial', streamId)
+      emitDone(mockListeners, streamId, 'paused')
+
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
     })
 
     it('rejects synchronously when the supplied signal is already aborted', async () => {

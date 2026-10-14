@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import TranslateInputPane from '../TranslateInputPane'
@@ -37,7 +38,7 @@ vi.mock('@cherrystudio/ui', () => ({
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
-const baseProps = () => ({
+const baseProps = (): React.ComponentProps<typeof TranslateInputPane> => ({
   text: '',
   onTextChange: vi.fn(),
   onKeyDown: vi.fn(),
@@ -45,6 +46,9 @@ const baseProps = () => ({
   onPaste: vi.fn(),
   onDrop: vi.fn(),
   onSelectFile: vi.fn(),
+  clipboardImage: null,
+  onRemoveClipboardImage: vi.fn(),
+  onReplaceClipboardImage: vi.fn(),
   copied: false,
   onCopy: vi.fn(),
   onCancelOcr: vi.fn(),
@@ -118,6 +122,26 @@ describe('TranslateInputPane', () => {
 
     expect(screen.queryByText('ocr.processing')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
+  })
+
+  it('shows clipboard image preview with remove and replace controls', () => {
+    const props = baseProps()
+    props.clipboardImage = {
+      name: 'shot.png',
+      data: new Uint8Array([1]),
+      previewUrl: 'blob:shot-preview'
+    }
+
+    render(<TranslateInputPane {...props} />)
+
+    expect(screen.getByTestId('translate-clipboard-image-preview')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'translate.files.upload' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.image.remove' }))
+    expect(props.onRemoveClipboardImage).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.image.replace' }))
+    expect(props.onReplaceClipboardImage).toHaveBeenCalledTimes(1)
   })
 
   it('shows the OCR processing overlay and supports cancellation', () => {

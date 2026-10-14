@@ -62,13 +62,22 @@ export interface UseTranslateOptions {
   loggerContext?: string
 }
 
+export type TranslateCallOptions = {
+  /** Clipboard/screenshot bytes captured during the user's paste/select action. */
+  image?: { data: Uint8Array; filename: string }
+}
+
 export interface UseTranslateResult {
   /**
    * Run a translation. Resolves with the trimmed text on success and
    * `undefined` on user-initiated abort or on a swallowed error
    * (when `rethrowError` is false).
    */
-  translate: (text: string, targetLanguage: TranslateLangCode | TranslateLanguage) => Promise<string | undefined>
+  translate: (
+    text: string,
+    targetLanguage: TranslateLangCode | TranslateLanguage,
+    options?: TranslateCallOptions
+  ) => Promise<string | undefined>
   isTranslating: boolean
   /** Abort the in-flight translation. No-op when nothing is running. */
   cancel: () => void
@@ -104,7 +113,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
   }, [])
 
   const translate = useCallback<UseTranslateResult['translate']>(
-    async (text, targetLanguage) => {
+    async (text, targetLanguage, callOptions) => {
       // A new call supersedes any in-flight one — keeps semantics simple
       // (one translation per hook instance) and matches the existing stop-button
       // behaviour in TranslatePage.
@@ -136,7 +145,9 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       }
 
       try {
-        const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
+        const result = callOptions?.image
+          ? await translateText(text, targetLanguage, guardedOnResponse, controller.signal, callOptions.image)
+          : await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
         if (wasSuperseded()) {
           // Cancelled or superseded mid-flight — discard the result so the
           // caller's `if (result)` success branch stays gated.
