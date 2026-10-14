@@ -188,7 +188,11 @@ export class SkillInstaller {
     isMigrationSuperseded?: (oldName: string, newName: string) => boolean
   ): Promise<void> {
     const marker = path.join(storageRoot, `.${oldName}.migrating-to.${newName}.bak`)
-    if (isFolderTracked?.(newName)) {
+    const oldTracked = isFolderTracked?.(oldName) ?? false
+    const newTracked = isFolderTracked?.(newName) ?? false
+    // Post-commit only when the row moved off the old folder; an unrelated skill using newName
+    // must not delete a pending backup that still owns the original files.
+    if (newTracked && !oldTracked) {
       await this.removeDirectoryStrict(marker, 'committed skill migration backup')
       return
     }
@@ -271,8 +275,14 @@ export class SkillInstaller {
           }
           continue
         }
-        if (newName.toLowerCase() === key && isFolderTracked?.(folderName)) {
-          await this.removeDirectoryStrict(markerPath, 'stale skill migration backup')
+        if (newName.toLowerCase() === key) {
+          const oldTracked = isFolderTracked?.(oldName) ?? false
+          const newTracked = isFolderTracked?.(folderName) ?? false
+          if (newTracked && !oldTracked) {
+            await this.removeDirectoryStrict(markerPath, 'stale skill migration backup')
+          } else {
+            await this.recoverInterruptedMigration(storageRoot, oldName, newName, isFolderTracked, () => false)
+          }
         }
         continue
       }

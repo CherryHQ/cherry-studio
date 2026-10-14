@@ -525,6 +525,9 @@ export class SkillService {
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
 
+    const isFolderTracked = (name: string) => this.findCatalogSkillCaseInsensitive(name) !== null
+    await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, folderName, isFolderTracked)
+
     const folderMatch = this.findCatalogSkillCaseInsensitive(folderName)
     const existing = folderMatch ?? this.findReservedAlias(folderName, source, sourceUrl, metadata.name)
     if (existing) {
@@ -554,11 +557,7 @@ export class SkillService {
         : null
 
     if (renamed) {
-      await this.installer.settleMigrationMarkersBeforeRename(
-        skillsRoot,
-        renamed.folderName,
-        (name) => this.findCatalogSkillCaseInsensitive(name) !== null
-      )
+      await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, renamed.folderName, isFolderTracked)
     }
 
     const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
@@ -1654,6 +1653,8 @@ export class SkillService {
 
   private async uninstallLocked(skill: InstalledSkill): Promise<void> {
     const skillsRoot = application.getPath('feature.agents.skills')
+    const isFolderTracked = (name: string) => this.findCatalogSkillCaseInsensitive(name) !== null
+    await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, skill.folderName, isFolderTracked)
     // Markers must be gone before the replacement folder and catalog row: a surviving rollback
     // marker would let recovery resurrect an uninstalled skill after the row is deleted.
     await this.installer.removeMigrationMarkersStrict(skillsRoot, skill.folderName)

@@ -298,6 +298,39 @@ describe('SkillInstaller', () => {
     expect(mockFsRename).not.toHaveBeenCalled()
   })
 
+  it('recovers a pending migration when an unrelated skill already uses the destination folder name', async () => {
+    mockFsReaddir.mockImplementation(async (dirPath: string) => {
+      if (dirPath === '/global-skills') {
+        return [
+          { name: '.foo.migrating-to.bar.bak', isDirectory: () => true },
+          { name: 'bar', isDirectory: () => true }
+        ]
+      }
+      if (dirPath === '/global-skills/.foo.migrating-to.bar.bak') {
+        return ['SKILL.md']
+      }
+      return []
+    })
+    let barExists = true
+    mockPathExists.mockImplementation(async (target: string) => {
+      if (target === '/global-skills/foo') return false
+      if (target === '/global-skills/bar') return barExists
+      return false
+    })
+    mockDeleteDirectoryRecursive.mockImplementation(async (target: string) => {
+      if (target === '/global-skills/bar') barExists = false
+    })
+    mockFsRename.mockResolvedValue(undefined)
+
+    await installer.recoverInterruptedInstalls(
+      '/global-skills',
+      (folderName) => folderName === 'foo' || folderName === 'bar'
+    )
+
+    expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/bar')
+    expect(mockFsRename).toHaveBeenCalledWith('/global-skills/.foo.migrating-to.bar.bak', '/global-skills/foo')
+  })
+
   it('propagates marker cleanup failures from strict removal', async () => {
     mockFsReaddir.mockResolvedValue([{ name: '.my-skill.bak', isDirectory: () => true }])
     mockDeleteDirectoryRecursive.mockRejectedValue(new Error('locked'))
