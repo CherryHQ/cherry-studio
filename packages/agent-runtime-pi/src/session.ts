@@ -58,8 +58,6 @@ export interface AgentRuntimeSession {
   session: AgentSession
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
   dispose(): Promise<void>
-  prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
-  abort(): Promise<void>
 }
 
 /**
@@ -167,8 +165,6 @@ async function buildSession(
 
   return {
     session,
-    prompt: (text, promptOptions) => session.prompt(text, promptOptions),
-    abort: () => session.abort(),
     async dispose() {
       try {
         await session.abort()

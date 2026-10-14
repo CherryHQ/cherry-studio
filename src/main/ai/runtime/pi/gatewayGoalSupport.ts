@@ -288,7 +288,9 @@ export function approvals(kind: GoalApprovalEvent['kind'], overrides: Parameters
 /** Every `cherry.goal` entry in order: snapshots and clear tombstones. */
 export const goalStates = (entries: readonly SessionEntry[]) =>
   entries.flatMap((entry) =>
-    entry.type === 'custom' && entry.customType === GOAL_STATE_TYPE ? [entry.data as GoalSnapshot | GoalCleared] : []
+    entry.type === 'custom' && entry.customType === GOAL_STATE_TYPE
+      ? [entry.data as GoalSnapshot | GoalCleared]
+      : []
   )
 
 export const snapshots = (entries: readonly SessionEntry[]): GoalSnapshot[] =>
@@ -298,7 +300,9 @@ export const lastSnapshot = (entries: readonly SessionEntry[]) => snapshots(entr
 
 export const rounds = (entries: readonly SessionEntry[]) =>
   entries.flatMap((entry) =>
-    entry.type === 'custom_message' && entry.customType === GOAL_ROUND_TYPE ? [entry.details as RoundDetails] : []
+    entry.type === 'custom_message' && entry.customType === GOAL_ROUND_TYPE
+      ? [entry.details as RoundDetails]
+      : []
   )
 
 /** The prompt of every goal-round message, oldest first. */
