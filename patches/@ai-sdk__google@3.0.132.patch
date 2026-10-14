@@ -1,0 +1,88 @@
+diff --git a/dist/index.js b/dist/index.js
+index bc47fc6b0d..d1c6424599 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1324,7 +1324,7 @@ async function downloadToolResultFiles(prompt, {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+@@ -3546,7 +3546,7 @@ var GoogleGenerativeAIImageModel = class {
+       parameters
+     };
+     const { responseHeaders, value: response } = await (0, import_provider_utils16.postJsonToApi)({
+-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
+       headers: (0, import_provider_utils16.combineHeaders)(await (0, import_provider_utils16.resolve)(this.config.headers), headers),
+       body,
+       failedResponseHandler: googleFailedResponseHandler,
+@@ -3705,7 +3705,7 @@ var GoogleGenerativeAIImageModel = class {
+   }
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return /^(?:google\/|models\/)?(?:gemini-|nano-banana-)/i.test(modelId);
+ }
+ var googleImageResponseSchema = (0, import_provider_utils16.lazySchema)(
+   () => (0, import_provider_utils16.zodSchema)(
+diff --git a/dist/index.mjs b/dist/index.mjs
+index a63765d629..0b55cf9b21 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1349,7 +1349,7 @@ async function downloadToolResultFiles(prompt, {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+@@ -3606,7 +3606,7 @@ var GoogleGenerativeAIImageModel = class {
+       parameters
+     };
+     const { responseHeaders, value: response } = await postJsonToApi4({
+-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
+       headers: combineHeaders4(await resolve4(this.config.headers), headers),
+       body,
+       failedResponseHandler: googleFailedResponseHandler,
+@@ -3765,7 +3765,7 @@ var GoogleGenerativeAIImageModel = class {
+   }
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return /^(?:google\/|models\/)?(?:gemini-|nano-banana-)/i.test(modelId);
+ }
+ var googleImageResponseSchema = lazySchema11(
+   () => zodSchema11(
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index 57866f9f35..3ab940ea4e 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -896,7 +896,7 @@ async function downloadToolResultFiles(prompt, {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-error.ts
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index f6cc7f0a40..0228399c85 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -888,7 +888,7 @@ async function downloadToolResultFiles(prompt, {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-error.ts

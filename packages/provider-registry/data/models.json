@@ -9698,6 +9698,68 @@
       }
     },
     {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-4",
+      "id": "gemini-4-argon",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Gemini 4 Argon",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["low", "medium", "high"],
+        "wireDialect": "effort"
+      }
+    },
+    {
       "capabilities": ["embedding"],
       "contextWindow": 8192,
       "family": "gemini",
@@ -9740,6 +9802,17 @@
           "perMillionTokens": 0
         }
       }
+    },
+    {
+      "capabilities": ["embedding", "image-recognition", "audio-recognition", "video-recognition", "file-input"],
+      "contextWindow": 8192,
+      "family": "gemini",
+      "id": "gemini-embedding-2-preview",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "metadata": {},
+      "name": "Gemini Embedding 2 Preview",
+      "outputModalities": ["vector"],
+      "ownedBy": "google"
     },
     {
       "capabilities": [
@@ -9846,6 +9919,88 @@
         },
         "wireDialect": "effort"
       }
+    },
+    {
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "video-recognition", "file-input"],
+      "contextWindow": 131072,
+      "family": "gemini-flash",
+      "id": "gemini-nano-banana-2-1",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "default": "ASPECT_1_1",
+                "options": [
+                  "ASPECT_1_1",
+                  "ASPECT_1_4",
+                  "ASPECT_1_8",
+                  "ASPECT_2_3",
+                  "ASPECT_3_2",
+                  "ASPECT_3_4",
+                  "ASPECT_4_1",
+                  "ASPECT_4_3",
+                  "ASPECT_4_5",
+                  "ASPECT_5_4",
+                  "ASPECT_8_1",
+                  "ASPECT_9_16",
+                  "ASPECT_16_9",
+                  "ASPECT_21_9"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Nano Banana 2.1",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["minimal", "medium", "high"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": ["image-recognition", "video-recognition", "video-generation", "file-input"],
+      "contextWindow": 1048576,
+      "family": "gemini",
+      "id": "gemini-omni-1-1-flash",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Gemini Omni 1.1 Flash",
+      "outputModalities": ["video"],
+      "ownedBy": "google"
     },
     {
       "capabilities": ["reasoning", "image-recognition", "video-recognition", "video-generation", "file-input"],
@@ -10645,6 +10800,59 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "contextWindow": 131072,
+      "family": "gemini-pro",
+      "id": "nano-banana-pro-preview",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "default": "ASPECT_1_1",
+                "options": [
+                  "ASPECT_1_1",
+                  "ASPECT_2_3",
+                  "ASPECT_3_2",
+                  "ASPECT_3_4",
+                  "ASPECT_4_3",
+                  "ASPECT_4_5",
+                  "ASPECT_5_4",
+                  "ASPECT_9_16",
+                  "ASPECT_16_9",
+                  "ASPECT_21_9"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Nano Banana Pro",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "google",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "high"]
+          }
+        ],
+        "supportedEfforts": ["low", "high"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -22690,5 +22898,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "1820f779a1cc60bd"
+  "version": "bb6e15beb6217721"
 }
