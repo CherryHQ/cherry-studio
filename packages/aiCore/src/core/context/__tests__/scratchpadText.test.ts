@@ -239,6 +239,15 @@ Example:
     expect(stripTrailingToolProtocolClosingFragments(input)).toBe('Use `</parameter>` in examples.')
   })
 
+  it('preserves literal XML inside a fence when a later line only resembles a closing delimiter', () => {
+    const input = `~~~xml
+~~~not-a-closing-fence
+<thinking>literal XML</thinking>
+~~~`
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe(input)
+    expect(stripModelScratchpadBlocks(`<summary>${input}</summary>`)).toContain('<thinking>literal XML</thinking>')
+  })
+
   it('unwraps a whole summary block that quotes summary tags inside a fenced example', () => {
     const input = `<summary>
 1. Task Overview: user wants the syntax for a reasoning tag

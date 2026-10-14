@@ -177,6 +177,29 @@ function lineEndAfter(text: string, from: number): number {
   return lf + 1
 }
 
+function lineContentEnd(text: string, lineStart: number): number {
+  let i = lineStart
+  while (i < text.length && text[i] !== '\n' && text[i] !== '\r') {
+    i++
+  }
+  return i
+}
+
+function isClosingFenceLine(text: string, markerStart: number, fenceChar: string, fenceLen: number): boolean {
+  const match = text.slice(markerStart).match(/^([`~])\1{2,}/)
+  if (!match || match[1] !== fenceChar || match[0].length < fenceLen) {
+    return false
+  }
+  const afterFence = markerStart + match[0].length
+  const lineEnd = lineContentEnd(text, text.lastIndexOf('\n', markerStart - 1) + 1)
+  for (let i = afterFence; i < lineEnd; i++) {
+    if (text[i] !== ' ' && text[i] !== '\t') {
+      return false
+    }
+  }
+  return true
+}
+
 function findCodeFenceClose(text: string, searchFrom: number, fenceChar: string, fenceLen: number): number {
   let pos = searchFrom
   while (pos < text.length) {
@@ -187,8 +210,7 @@ function findCodeFenceClose(text: string, searchFrom: number, fenceChar: string,
       pos = markerStart + 1
       continue
     }
-    const match = text.slice(markerStart).match(/^([`~])\1{2,}/)
-    if (!match || match[1] !== fenceChar || match[0].length < fenceLen) {
+    if (!isClosingFenceLine(text, markerStart, fenceChar, fenceLen)) {
       pos = markerStart + 1
       continue
     }
@@ -328,9 +350,53 @@ export function textEndsWithPartialFenceMarker(text: string): boolean {
   return /(?:^|[\r\n])[^\r\n]*[`~]{1,2}$/.test(text)
 }
 
+/** True when an inline code span opened by backticks has no closing delimiter yet. */
+export function textHasUnclosedInlineCode(text: string): boolean {
+  let pos = 0
+  while (pos < text.length) {
+    if (text[pos] !== '`') {
+      const next = text.indexOf('`', pos)
+      if (next === -1) return false
+      pos = next
+      continue
+    }
+
+    let run = 0
+    let i = pos
+    while (i < text.length && text[i] === '`') {
+      run++
+      i++
+    }
+    const contentStart = i
+    let j = contentStart
+    let closedAt = -1
+    while (j < text.length) {
+      if (text[j] !== '`') {
+        j++
+        continue
+      }
+      let closeRun = 0
+      const closeStart = j
+      while (j < text.length && text[j] === '`') {
+        closeRun++
+        j++
+      }
+      if (closeRun === run) {
+        closedAt = j
+        break
+      }
+      j = closeStart + 1
+    }
+
+    if (closedAt === -1) return true
+    pos = closedAt
+  }
+  return false
+}
+
 /** True when scratchpad filtering should wait for more stream input before stripping. */
 export function shouldDeferScratchpadStripping(text: string): boolean {
-  return textHasUnclosedCodeFence(text) || textEndsWithPartialFenceMarker(text)
+  return textHasUnclosedCodeFence(text) || textEndsWithPartialFenceMarker(text) || textHasUnclosedInlineCode(text)
 }
 
 /** True when the text opens a fenced code block that has no closing delimiter yet. */

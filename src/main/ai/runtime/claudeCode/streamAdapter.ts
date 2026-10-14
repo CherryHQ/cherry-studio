@@ -158,6 +158,9 @@ type StreamContext = {
   filterParentlessScratchpadText: boolean
   scratchpadTextProbe: string
   scratchpadStreamRemainder: string
+  /** Scratchpad-stripped visible text pending incremental tool-protocol suffix removal. */
+  toolProtocolStripAccumulator: string
+  toolProtocolStripEmittedLength: number
   suppressActiveTextPart: boolean
   textStartDeferred: boolean
   textPartStarted: boolean
@@ -569,10 +572,29 @@ export class ClaudeCodeStreamAdapter {
       filterParentlessScratchpadText,
       scratchpadTextProbe: '',
       scratchpadStreamRemainder: '',
+      toolProtocolStripAccumulator: '',
+      toolProtocolStripEmittedLength: 0,
       suppressActiveTextPart: false,
       textStartDeferred: false,
       textPartStarted: false
     }
+  }
+
+  private resetToolProtocolStripState(ctx: StreamContext): void {
+    ctx.toolProtocolStripAccumulator = ''
+    ctx.toolProtocolStripEmittedLength = 0
+  }
+
+  /** Strips tool-protocol closings only once trailing content is known (block may span deltas). */
+  private takeToolProtocolStrippedVisibleDelta(text: string, ctx: StreamContext): string {
+    if (!ctx.filterParentlessScratchpadText || !text) {
+      return text
+    }
+    ctx.toolProtocolStripAccumulator += text
+    const stripped = stripTrailingToolProtocolClosingFragments(ctx.toolProtocolStripAccumulator)
+    const emit = stripped.slice(ctx.toolProtocolStripEmittedLength)
+    ctx.toolProtocolStripEmittedLength = stripped.length
+    return emit
   }
 
   /** Filter at the SDK adapter boundary so live rendering and persisted snapshots consume the same text. */
@@ -912,6 +934,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.textPartId = partId
     ctx.scratchpadTextProbe = ''
     ctx.suppressActiveTextPart = false
+    this.resetToolProtocolStripState(ctx)
     ctx.textStartDeferred = ctx.filterParentlessScratchpadText
     ctx.textPartStarted = false
     if (!ctx.textStartDeferred) {
@@ -1089,6 +1112,7 @@ export class ClaudeCodeStreamAdapter {
 
   /** Appends visible text without scratchpad probing — used when a content block ends. */
   private appendVisibleTextDelta(text: string, ctx: StreamContext): void {
+    text = this.takeToolProtocolStrippedVisibleDelta(text, ctx)
     if (!text) return
     if (!ctx.textPartId) {
       ctx.textPartId = generateId()
@@ -1158,10 +1182,8 @@ export class ClaudeCodeStreamAdapter {
       if (!text) return
     }
 
-    if (ctx.filterParentlessScratchpadText) {
-      text = stripTrailingToolProtocolClosingFragments(text)
-      if (!text) return
-    }
+    text = this.takeToolProtocolStrippedVisibleDelta(text, ctx)
+    if (!text) return
 
     if (!ctx.textPartStarted) {
       ctx.sink.enqueue({
@@ -1234,6 +1256,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.textPartId = undefined
         ctx.scratchpadTextProbe = ''
         ctx.scratchpadStreamRemainder = ''
+        this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
         ctx.textStartDeferred = false
         ctx.textPartStarted = false
@@ -2249,6 +2272,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.textPartId = undefined
     ctx.scratchpadTextProbe = ''
     ctx.scratchpadStreamRemainder = ''
+    this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
     ctx.textStartDeferred = false
     ctx.textPartStarted = false

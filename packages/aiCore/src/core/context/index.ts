@@ -42,6 +42,7 @@ export {
   shouldDeferScratchpadStripping,
   textEndsWithPartialFenceMarker,
   textHasUnclosedCodeFence,
+  textHasUnclosedInlineCode,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from './scratchpadText'

@@ -87,6 +87,7 @@ export {
   shouldDeferScratchpadStripping,
   textEndsWithPartialFenceMarker,
   textHasUnclosedCodeFence,
+  textHasUnclosedInlineCode,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from './core/context'

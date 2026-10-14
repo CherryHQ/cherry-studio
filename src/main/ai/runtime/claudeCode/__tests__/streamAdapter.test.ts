@@ -2388,6 +2388,64 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('</parameter>')
     })
 
+    it('preserves inline code literals when the opening backtick arrives in a later delta', () => {
+      const { adapter, parts } = createAdapter()
+      const literal = '<thinking>literal</thinking>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Use `' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: `${literal}` }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '` in replies.' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(`Use \`${literal}\` in replies.`)
+    })
+
+    it('preserves closing tags mentioned mid-sentence when they arrive before the block ends', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'XML closes with </parameter>' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: ' and continues here.' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('XML closes with </parameter> and continues here.')
+    })
+
     it('suppresses parentless scratchpad wrapper text outside compaction windows', () => {
       const { adapter, parts } = createAdapter()
       const leakedThinking = '<thinking>internal reasoning about the session</thinking>'
