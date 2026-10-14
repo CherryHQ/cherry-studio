@@ -284,7 +284,7 @@ describe('processMessage model-id parsing', () => {
 
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
     expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
-    expect(captured.opts).toMatchObject({ modelUsageFeature: 'agent', tokenUsageSource: 'agent' })
+    expect(captured.opts).toMatchObject({ tokenUsageSource: 'agent' })
     expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
     expect(mockSyncEntitledModelsIfStale).toHaveBeenCalledOnce()
     void captured.opts!.listener!.onDone({} as any)
@@ -363,7 +363,7 @@ describe('processMessage model-id parsing', () => {
 })
 
 describe('PDF translation admission', () => {
-  it('routes the translate credential with translate rather than agent admission', async () => {
+  it('routes the translate credential through translate admission without Agent attribution', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'translate-only', 'translate-only', CHERRY_CLOUD_MODEL_GROUP)
     mockGetInternalFeature.mockReturnValue('translate')
     mockSyncEntitledModelsIfStale.mockResolvedValue({
@@ -384,7 +384,7 @@ describe('PDF translation admission', () => {
       requestHeaders: new Headers()
     })
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
-    expect(captured.opts).toMatchObject({ modelUsageFeature: 'translate' })
+    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translate-only'))
     expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
     void captured.opts!.listener!.onDone({} as any)
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })

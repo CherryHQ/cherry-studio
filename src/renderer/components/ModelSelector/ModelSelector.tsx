@@ -373,7 +373,6 @@ export function ModelSelector(props: ModelSelectorProps) {
     showPinnedModels = true,
     showPinActions = true,
     isModelDisabled,
-    getModelDetailDescription,
     includeAgentOnlyModels = false,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
@@ -444,10 +443,6 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
-  const isSelectionDisabled = useCallback(
-    (model: Model, provider?: Provider) => Boolean(isModelDisabled?.(model, provider)),
-    [isModelDisabled]
-  )
 
   // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while
   // rendering the open->closed transition unmounts it in that same commit, so the closed-state
@@ -507,6 +502,8 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const {
     availableTags,
+    getModelDescription,
+    isModelUnavailable,
     isLoading,
     isPinActionDisabled,
     listItems,
@@ -533,6 +530,10 @@ export function ModelSelector(props: ModelSelectorProps) {
     showPinnedModels,
     showTagFilter
   })
+  const isSelectionDisabled = useCallback(
+    (model: Model, provider?: Provider) => isModelUnavailable(model) || Boolean(isModelDisabled?.(model, provider)),
+    [isModelDisabled, isModelUnavailable]
+  )
   const listItemsRef = useRef(listItems)
   const modelItemsRef = useRef(modelItems)
   const visibleSelectedModelIdSetRef = useRef(visibleSelectedModelIdSet)
@@ -884,7 +885,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           <ModelRow
             item={item}
             disabled={isSelectionDisabled(item.model, item.provider)}
-            description={getModelDetailDescription?.(item.model)}
+            description={getModelDescription(item.model)}
             optionId={getModelSelectorOptionDomId(listboxId, item.key)}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
@@ -904,7 +905,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
-      getModelDetailDescription,
+      getModelDescription,
       isPinActionDisabled,
       isSelectionDisabled,
       listboxId,

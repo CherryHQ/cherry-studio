@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { InProcessUsageContext, ModelUsageFeature } from '@main/ai/types'
+import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { OutputFor } from '@shared/ipc/types'
@@ -23,7 +23,7 @@ const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 const INTERNAL_GATEWAY_FEATURES = ['agent', 'translate'] as const
 
 /** Cherry-launched gateway consumers; each authenticates with its own in-memory key. */
-export type InternalGatewayFeature = Extract<ModelUsageFeature, (typeof INTERNAL_GATEWAY_FEATURES)[number]>
+export type InternalGatewayFeature = (typeof INTERNAL_GATEWAY_FEATURES)[number]
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)

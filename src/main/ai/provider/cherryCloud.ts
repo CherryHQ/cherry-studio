@@ -2,8 +2,7 @@ import { application } from '@application'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type UniqueModelId } from '@shared/data/types/model'
 
-import type { ModelUsageFeature, ProviderConfig } from '../types'
-import { ModelUnavailableError } from './ModelUnavailableError'
+import type { ProviderConfig } from '../types'
 
 const CHERRY_CLOUD_MESSAGES_PATH = '/v1/messages'
 const CHERRY_CLOUD_CHAT_COMPLETIONS_PATH = '/v1/chat/completions'
@@ -28,6 +27,13 @@ const UNSAFE_FORWARD_HEADERS = new Set([
   'x-cherry-internal-usage-token'
 ])
 
+export class ModelUnavailableError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'ModelUnavailableError'
+  }
+}
+
 function forwardedHeaders(source: Headers): Headers {
   const headers = new Headers()
   for (const [name, value] of source) {
@@ -38,12 +44,11 @@ function forwardedHeaders(source: Headers): Headers {
   return headers
 }
 
-export async function buildCherryCloudProviderConfig(
+export function buildCherryCloudProviderConfig(
   endpointType: EndpointType | undefined,
   endpoint: string | undefined,
-  uniqueModelId: UniqueModelId,
-  modelUsageFeature: ModelUsageFeature
-): Promise<ProviderConfig> {
+  uniqueModelId: UniqueModelId
+): ProviderConfig {
   const service = application.get('CherryCloudService')
   const apiOrigin = new URL(service.getApiOrigin()).origin
   const requestPath =
@@ -71,10 +76,10 @@ export async function buildCherryCloudProviderConfig(
         throw new ModelUnavailableError('Cherry Cloud model availability could not be refreshed', { cause: error })
       }
       if (
-        !availability.availableModelIdsByFeature[modelUsageFeature].includes(uniqueModelId) ||
+        !availability.entitledModelIds.includes(uniqueModelId) ||
         availability.quotaExhaustedModelIds.includes(uniqueModelId)
       ) {
-        throw new ModelUnavailableError(`Cherry Cloud model is unavailable for ${modelUsageFeature}`)
+        throw new ModelUnavailableError('Cherry Cloud model is unavailable')
       }
 
       return service.authenticatedFetch(`${url.pathname}${url.search}`, {

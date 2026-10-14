@@ -12,6 +12,13 @@ import { useModelSelectorData } from '../useModelSelectorData'
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
+const cloudAvailability = vi.hoisted(() => {
+  const isModelHidden: (model: Model, includeAgentOnlyModels: boolean) => boolean = () => false
+  return { isModelHidden, isModelUnavailable: () => false, getModelDescription: () => undefined }
+})
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => cloudAvailability
+}))
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
 }))
@@ -348,24 +355,32 @@ describe('useModelSelectorData', () => {
     expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: true })
   })
 
-  it('does not infer Cherry Cloud module availability at the provider level', () => {
+  it('hides models the Cloud availability excludes for the picker context', () => {
+    const workOnly = makeModel('work-only', CHERRY_CLOUD_PROVIDER_ID)
     wireDeps({
       providers: [makeProvider('openai'), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
-      models: [makeModel('gpt-4', 'openai'), makeModel('deepseek-free', CHERRY_CLOUD_PROVIDER_ID)]
+      models: [makeModel('gpt-4', 'openai'), workOnly, makeModel('shared', CHERRY_CLOUD_PROVIDER_ID)]
     })
+    cloudAvailability.isModelHidden = (model, includeAgentOnlyModels) =>
+      model.id === workOnly.id && !includeAgentOnlyModels
 
-    const general = renderHook(() => useModelSelectorData({ searchText: '' }))
-    expect(general.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
-      `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
-      'openai::gpt-4'
-    ])
-    general.unmount()
+    try {
+      const general = renderHook(() => useModelSelectorData({ searchText: '' }))
+      expect(general.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
+        `${CHERRY_CLOUD_PROVIDER_ID}::shared`,
+        'openai::gpt-4'
+      ])
+      general.unmount()
 
-    const agent = renderHook(() => useModelSelectorData({ searchText: '', includeAgentOnlyModels: true }))
-    expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
-      `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
-      'openai::gpt-4'
-    ])
+      const agent = renderHook(() => useModelSelectorData({ searchText: '', includeAgentOnlyModels: true }))
+      expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
+        `${CHERRY_CLOUD_PROVIDER_ID}::shared`,
+        workOnly.id,
+        'openai::gpt-4'
+      ])
+    } finally {
+      cloudAvailability.isModelHidden = () => false
+    }
   })
 
   it('applies the caller filter before deriving available tags', () => {

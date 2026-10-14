@@ -16,8 +16,7 @@ vi.mock('@application', async () =>
   (await import('@test-mocks/main/application')).mockApplicationFactory({ CherryCloudService: mocks } as never)
 )
 
-const { buildCherryCloudProviderConfig } = await import('../cherryCloud')
-const { ModelUnavailableError } = await import('../ModelUnavailableError')
+const { buildCherryCloudProviderConfig, ModelUnavailableError } = await import('../cherryCloud')
 
 const MODEL_ID = `${CHERRY_CLOUD_PROVIDER_ID}::cloud-model` as const
 
@@ -46,7 +45,7 @@ describe('Cherry Cloud provider transport', () => {
       path: '/v1/chat/completions'
     }
   ])('routes $endpointType through $path and strips caller credentials', async ({ endpointType, providerId, path }) => {
-    const config = await buildCherryCloudProviderConfig(endpointType, 'messages', MODEL_ID, 'chat')
+    const config = buildCherryCloudProviderConfig(endpointType, 'messages', MODEL_ID)
     const settings = config.providerSettings as {
       apiKey?: string
       baseURL?: string
@@ -108,7 +107,7 @@ describe('Cherry Cloud provider transport', () => {
     [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, '/v1/chat/completions'],
     [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, '/v1/messages']
   ])('rejects requests outside the configured %s route', async (endpointType, mismatchedPath) => {
-    const config = await buildCherryCloudProviderConfig(endpointType, undefined, MODEL_ID, 'chat')
+    const config = buildCherryCloudProviderConfig(endpointType, undefined, MODEL_ID)
     const fetch = config.providerSettings.fetch!
 
     await expect(fetch(`https://example.com${mismatchedPath}`, { method: 'POST', body: '{}' })).rejects.toThrow(
@@ -120,38 +119,22 @@ describe('Cherry Cloud provider transport', () => {
     expect(mocks.authenticatedFetch).not.toHaveBeenCalled()
   })
 
-  it('checks the requested feature before sending a provider request', async () => {
+  it('rejects models outside the current entitlement before sending a provider request', async () => {
     mocks.syncEntitledModelsIfStale.mockResolvedValueOnce({
-      entitledModelIds: [MODEL_ID],
+      entitledModelIds: [],
       freeModelIds: [],
-      availableModelIdsByFeature: { agent: [MODEL_ID], chat: [], translate: [MODEL_ID] },
+      availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
       quotaExhaustedModelIds: []
     })
 
-    const config = await buildCherryCloudProviderConfig(
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      undefined,
-      MODEL_ID,
-      'chat'
-    )
+    const config = buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID)
     await expect(
       config.providerSettings.fetch!('https://cloud.cherryai.com.cn/v1/chat/completions', {
         method: 'POST',
         body: '{}'
       })
     ).rejects.toBeInstanceOf(ModelUnavailableError)
-    const translation = await buildCherryCloudProviderConfig(
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      undefined,
-      MODEL_ID,
-      'translate'
-    )
-    await expect(
-      translation.providerSettings.fetch!('https://cloud.cherryai.com.cn/v1/chat/completions', {
-        method: 'POST',
-        body: '{}'
-      })
-    ).resolves.toHaveProperty('status', 200)
+    expect(mocks.authenticatedFetch).not.toHaveBeenCalled()
   })
 
   it('rejects quota-exhausted models before sending a provider request', async () => {
@@ -162,12 +145,7 @@ describe('Cherry Cloud provider transport', () => {
       quotaExhaustedModelIds: [MODEL_ID]
     })
 
-    const config = await buildCherryCloudProviderConfig(
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      undefined,
-      MODEL_ID,
-      'chat'
-    )
+    const config = buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID)
     await expect(
       config.providerSettings.fetch!('https://cloud.cherryai.com.cn/v1/chat/completions', {
         method: 'POST',
@@ -180,12 +158,7 @@ describe('Cherry Cloud provider transport', () => {
     const cause = new Error('cloud unavailable')
     mocks.syncEntitledModelsIfStale.mockRejectedValueOnce(cause)
 
-    const config = await buildCherryCloudProviderConfig(
-      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      undefined,
-      MODEL_ID,
-      'chat'
-    )
+    const config = buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID)
     await expect(
       config.providerSettings.fetch!('https://cloud.cherryai.com.cn/v1/chat/completions', {
         method: 'POST',
@@ -197,15 +170,12 @@ describe('Cherry Cloud provider transport', () => {
     'uses a configured fallback after cloud admission fails during %s',
     async (mode) => {
       mocks.syncEntitledModelsIfStale.mockResolvedValue({
+        entitledModelIds: [MODEL_ID],
+        freeModelIds: [],
         availableModelIdsByFeature: { agent: [], chat: [MODEL_ID], translate: [] },
         quotaExhaustedModelIds: [MODEL_ID]
       })
-      const config = await buildCherryCloudProviderConfig(
-        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        undefined,
-        MODEL_ID,
-        'chat'
-      )
+      const config = buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID)
       const primary = createOpenAICompatible({
         name: 'cloud',
         baseURL: 'https://cloud.cherryai.com.cn/v1',

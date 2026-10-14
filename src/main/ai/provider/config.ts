@@ -37,7 +37,7 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import type { ModelUsageFeature, ProviderConfig } from '../types'
+import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import {
@@ -76,7 +76,6 @@ interface BuilderContext {
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
-  modelUsageFeature: ModelUsageFeature
 }
 
 type ApiKeyBuilderContext = BuilderContext & {
@@ -86,7 +85,6 @@ type ApiKeyBuilderContext = BuilderContext & {
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
-  modelUsageFeature?: ModelUsageFeature
 }
 
 export interface ResolvedProviderAiSdkConfig {
@@ -219,8 +217,7 @@ export async function resolveProviderAiSdkConfig(
     apiKeyOverride: options?.apiKeyOverride,
     endpointType,
     endpoint,
-    aiSdkProviderId,
-    modelUsageFeature: options?.modelUsageFeature ?? 'chat'
+    aiSdkProviderId
   }
 
   const builders: ConfigBuilderEntry[] = [
@@ -233,9 +230,7 @@ export async function resolveProviderAiSdkConfig(
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     {
       match: (p) => isManagedCherryCloudModel(p.id),
-      build: withoutCredential((ctx) =>
-        buildCherryCloudProviderConfig(ctx.endpointType, ctx.endpoint, ctx.model.id, ctx.modelUsageFeature)
-      )
+      build: withoutCredential((ctx) => buildCherryCloudProviderConfig(ctx.endpointType, ctx.endpoint, ctx.model.id))
     },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
     // Local embedding runs fully in-process (transformers.js in a worker): no

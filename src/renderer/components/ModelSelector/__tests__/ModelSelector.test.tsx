@@ -228,6 +228,8 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
 
   return {
     availableTags: [],
+    getModelDescription: () => undefined,
+    isModelUnavailable: () => false,
     isLoading: false,
     isPinActionDisabled: false,
     listItems,
@@ -347,19 +349,16 @@ describe('ModelSelector', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('associates descriptions with keyboard-focused model options', async () => {
+  it('describes and disables models the availability data marks unavailable', async () => {
     const user = userEvent.setup()
-
-    render(
-      <ModelSelector
-        open
-        multiple={false}
-        getModelDetailDescription={(model) => (model.name === 'gpt-4' ? 0 : 'Free quota exhausted')}
-        isModelDisabled={(model) => model.name === 'gpt-3.5'}
-        trigger={<button type="button">open</button>}
-        onSelect={vi.fn()}
-      />
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        getModelDescription: (model) => (model.name === 'gpt-4' ? 'Limited-time free' : 'Free quota exhausted'),
+        isModelUnavailable: (model) => model.name === 'gpt-3.5'
+      })
     )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
     const searchInput = screen.getByRole('textbox', { name: 'models.search.placeholder' })
     const listbox = screen.getByRole('listbox')
@@ -367,7 +366,7 @@ describe('ModelSelector', () => {
 
     await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', firstOption.id))
     expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
-    expect(firstOption).toHaveAccessibleDescription('0')
+    expect(firstOption).toHaveAccessibleDescription('Limited-time free')
 
     await user.keyboard('{ArrowDown}')
 
