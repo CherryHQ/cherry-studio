@@ -21,9 +21,10 @@ const ANALYSIS = [
 
 const IMAGE_RESULT = {
   content: [
-    { type: 'text', text: 'Read image file [image/png]' },
-    { type: 'image', data: 'frame-bytes', mimeType: 'image/png' }
-  ]
+    { type: 'text' as const, text: 'Read image file [image/png]' },
+    { type: 'image' as const, data: 'frame-bytes', mimeType: 'image/png' }
+  ],
+  details: undefined
 }
 
 function readDefinition(execute: ToolDefinition['execute']): ToolDefinition {
@@ -76,7 +77,10 @@ describe('wrapPiReadToolForMedia', () => {
     const tool = wrapPiReadToolForMedia(readDefinition(original), '/workspace')
     const videoPath = '/library/S1E01_Four_Seasons_LAURA_CLEAN.mp4'
 
-    await expect(execute(tool, videoPath)).resolves.toEqual({ content: [{ type: 'text', text: ANALYSIS }] })
+    await expect(execute(tool, videoPath)).resolves.toEqual({
+      content: [{ type: 'text', text: ANALYSIS }],
+      details: undefined
+    })
 
     expect(analyzeToFullText).toHaveBeenCalledWith({ kind: 'path', path: videoPath }, undefined)
     expect(original).not.toHaveBeenCalled()
@@ -90,7 +94,7 @@ describe('wrapPiReadToolForMedia', () => {
     const first = await execute(tool, videoPath)
     const second = await execute(tool, videoPath)
 
-    expect(second).toEqual({ content: [{ type: 'text', text: ANALYSIS }] })
+    expect(second).toEqual({ content: [{ type: 'text', text: ANALYSIS }], details: undefined })
     expect(second).toEqual(first)
     expect(second.content.some((part) => part.type === 'image')).toBe(false)
     expect(analyzeToFullText).toHaveBeenNthCalledWith(2, { kind: 'path', path: videoPath }, undefined)
@@ -100,7 +104,8 @@ describe('wrapPiReadToolForMedia', () => {
     const tool = wrapPiReadToolForMedia(readDefinition(vi.fn()), '/workspace')
 
     await expect(execute(tool, 'voice.wav', { cwd: '/library' })).resolves.toEqual({
-      content: [{ type: 'text', text: ANALYSIS }]
+      content: [{ type: 'text', text: ANALYSIS }],
+      details: undefined
     })
     expect(analyzeToFullText).toHaveBeenCalledWith(
       { kind: 'path', path: path.resolve('/library', 'voice.wav') },
@@ -109,15 +114,22 @@ describe('wrapPiReadToolForMedia', () => {
   })
 
   it('delegates ordinary and image reads to the original read tool', async () => {
-    const original = vi.fn(async (_toolCallId: string, params: { path: string; offset?: number }) => {
-      if (params.path.endsWith('.png')) return IMAGE_RESULT
-      return { content: [{ type: 'text', text: `notes@${params.offset}` }] }
-    })
-    const tool = wrapPiReadToolForMedia(readDefinition(original as unknown as ToolDefinition['execute']), '/workspace')
+    const original: ToolDefinition['execute'] = async (_toolCallId, params) => {
+      const requestedPath =
+        params && typeof params === 'object' && 'path' in params && typeof params.path === 'string' ? params.path : ''
+      const offset =
+        params && typeof params === 'object' && 'offset' in params && typeof params.offset === 'number'
+          ? params.offset
+          : undefined
+      if (requestedPath.endsWith('.png')) return IMAGE_RESULT
+      return { content: [{ type: 'text' as const, text: `notes@${offset}` }], details: undefined }
+    }
+    const tool = wrapPiReadToolForMedia(readDefinition(original), '/workspace')
     const signal = new AbortController().signal
 
     await expect(execute(tool, 'notes.txt', { signal, offset: 2 })).resolves.toEqual({
-      content: [{ type: 'text', text: 'notes@2' }]
+      content: [{ type: 'text', text: 'notes@2' }],
+      details: undefined
     })
     await expect(execute(tool, '/library/frame.png', { signal })).resolves.toEqual(IMAGE_RESULT)
     expect(analyzeToFullText).not.toHaveBeenCalled()
@@ -129,12 +141,14 @@ describe('wrapPiReadToolForMedia', () => {
 
     const page = await execute(tool, videoPath, { offset: 2, limit: 1 })
     expect(page).toEqual({
-      content: [{ type: 'text', text: '[0:01] four seasons\n\n[4 more lines in file. Use offset=3 to continue.]' }]
+      content: [{ type: 'text', text: '[0:01] four seasons\n\n[4 more lines in file. Use offset=3 to continue.]' }],
+      details: undefined
     })
 
     const next = await execute(tool, videoPath, { offset: 3, limit: 1 })
     expect(next).toEqual({
-      content: [{ type: 'text', text: '## Visual scenes\n\n[3 more lines in file. Use offset=4 to continue.]' }]
+      content: [{ type: 'text', text: '## Visual scenes\n\n[3 more lines in file. Use offset=4 to continue.]' }],
+      details: undefined
     })
 
     await expect(execute(tool, videoPath, { offset: 99 })).rejects.toThrow(
@@ -156,11 +170,12 @@ describe('wrapPiReadToolForMedia', () => {
           type: 'text',
           text: `${lines.slice(0, DEFAULT_MAX_LINES).join('\n')}\n\n[Showing lines 1-${DEFAULT_MAX_LINES} of ${total}. Use offset=${total} to continue.]`
         }
-      ]
+      ],
+      details: undefined
     })
 
     const second = await execute(tool, videoPath, { offset: total })
-    expect(second).toEqual({ content: [{ type: 'text', text: `scene ${total}` }] })
+    expect(second).toEqual({ content: [{ type: 'text', text: `scene ${total}` }], details: undefined })
   })
 
   it('bounds an oversized analysis line without sending the model to bash', async () => {

@@ -37,7 +37,7 @@ export function wrapPiReadToolForMedia(definition: ToolDefinition, cwd: string):
       const { offset, limit } = readWindow(params)
       const paged = await pageAnalysisText(text, offset, limit)
       signal?.throwIfAborted()
-      return { content: [{ type: 'text', text: paged }] } as Awaited<ReturnType<typeof definition.execute>>
+      return { content: [{ type: 'text', text: paged }], details: undefined }
     }
   }
 }
