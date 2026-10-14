@@ -699,9 +699,17 @@ export function captureRequestBody(
       note: 'Blob request body is not captured.'
     }
   }
-  if (body instanceof ArrayBuffer) return createCapturedBinaryBody(new Uint8Array(body), contentType)
+  if (body instanceof ArrayBuffer) {
+    return applyContentEncodingReplayConstraint(
+      createCapturedBinaryBody(new Uint8Array(body), contentType),
+      requestHeaders
+    )
+  }
   if (ArrayBuffer.isView(body)) {
-    return createCapturedBinaryBody(new Uint8Array(body.buffer, body.byteOffset, body.byteLength), contentType)
+    return applyContentEncodingReplayConstraint(
+      createCapturedBinaryBody(new Uint8Array(body.buffer, body.byteOffset, body.byteLength), contentType),
+      requestHeaders
+    )
   }
   if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
     return { contentType, note: 'Streaming request body is not captured.' }
@@ -859,33 +867,144 @@ function redactBodyText(text: string, contentType?: string, preserveIntegerLiter
 function hasJsonIntegerPrecisionRisk(text: string, contentType?: string): boolean {
   if (!isJsonContentType(contentType) && !looksJson(text)) return false
 
-  for (const match of text.matchAll(/(?<=[:,\[])\s*(-?\d+)(?=\s*[,}\]])/g)) {
-    const digits = match[1]
-    if (!digits) continue
-    try {
-      const asNumber = Number(digits)
-      if (!Number.isFinite(asNumber)) continue
-      if (BigInt(digits) !== BigInt(asNumber)) return true
-    } catch {
-      return true
-    }
+  for (const match of text.matchAll(/(?<=[:,[])\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?=\s*[,}\]])/g)) {
+    const token = match[1]
+    if (!token || !jsonNumberTokenHasPrecisionRisk(token)) continue
+    return true
   }
 
   return false
 }
 
+function jsonNumberTokenHasPrecisionRisk(token: string): boolean {
+  let value: number
+  try {
+    value = JSON.parse(`[${token}]`)[0] as number
+  } catch {
+    return false
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) return false
+
+  const integerDigits = token.match(/^(-?)(\d+)/)
+  if (integerDigits) {
+    const sign = integerDigits[1] === '-' ? '-' : ''
+    const digits = integerDigits[2]
+    if (digits.length > 15) {
+      try {
+        return BigInt(`${sign}${digits}`) !== BigInt(value)
+      } catch {
+        return true
+      }
+    }
+  }
+
+  const fixedInteger = token.match(/^(-?\d+)\.0+$/)
+  if (fixedInteger) {
+    try {
+      return BigInt(fixedInteger[1]) !== BigInt(value)
+    } catch {
+      return true
+    }
+  }
+
+  if (/[eE]/.test(token) && Number.isInteger(value)) {
+    return !Number.isSafeInteger(value)
+  }
+
+  return false
+}
+
+function skipJsonValue(text: string, start: number): number {
+  let index = start
+  while (index < text.length && /\s/.test(text.charAt(index))) index++
+  if (index >= text.length) return index
+
+  const char = text.charAt(index)
+  if (char === '"') {
+    index++
+    while (index < text.length) {
+      if (text[index] === '\\') {
+        index += 2
+        continue
+      }
+      if (text[index] === '"') return index + 1
+      index++
+    }
+    return index
+  }
+
+  if (char === '{' || char === '[') {
+    const close = char === '{' ? '}' : ']'
+    let depth = 0
+    for (; index < text.length; index++) {
+      const current = text.charAt(index)
+      if (current === '"') {
+        index++
+        while (index < text.length) {
+          if (text[index] === '\\') {
+            index += 2
+            continue
+          }
+          if (text[index] === '"') break
+          index++
+        }
+        continue
+      }
+      if (current === char) depth++
+      if (current === close) {
+        depth--
+        if (depth === 0) return index + 1
+      }
+    }
+    return index
+  }
+
+  if (text.startsWith('true', index)) return index + 4
+  if (text.startsWith('false', index)) return index + 5
+  if (text.startsWith('null', index)) return index + 4
+
+  while (index < text.length && /[-+0-9.eE]/.test(text.charAt(index))) index++
+  return index
+}
+
 function redactJsonSensitiveValuesInText(text: string): string {
-  return text.replace(/"((?:[^"\\]|\\.)*)"\s*:\s*("(?:[^"\\]|\\.)*")/g, (match, rawKey: string, _rawValue: string) => {
+  const keyPattern = /"((?:[^"\\]|\\.)*)"\s*:/g
+  const replacements: { start: number; end: number; replacement: string }[] = []
+
+  for (const match of text.matchAll(keyPattern)) {
+    const rawKey = match[1]
+    if (!rawKey) continue
+
     let key = rawKey
     try {
       key = JSON.parse(`"${rawKey}"`) as string
     } catch {
       // keep raw key when malformed
     }
-    return isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? `"${rawKey}":${JSON.stringify(REDACTED)}` : match
-  })
+    if (!isSensitiveName(key, OAUTH_QUERY_EXTRAS)) continue
+
+    const valueStart = match.index + match[0].length
+    const valueEnd = skipJsonValue(text, valueStart)
+    replacements.push({ start: valueStart, end: valueEnd, replacement: JSON.stringify(REDACTED) })
+  }
+
+  if (replacements.length === 0) return text
+
+  let output = text
+  for (const { start, end, replacement } of replacements.sort((a, b) => b.start - a.start)) {
+    output = output.slice(0, start) + replacement + output.slice(end)
+  }
+  return output
 }
 
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody | undefined,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined
 function applyContentEncodingReplayConstraint(
   body: MainNetworkDevtoolsBody | undefined,
   requestHeaders?: Record<string, string>
