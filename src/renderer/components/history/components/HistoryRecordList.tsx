@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@cherrystudio/ui'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 
-import type { HistoryRecordDescriptor } from '../historyRecordsDescriptor'
+import type { HistoryRecordDescriptor, HistoryRowState } from '../historyRecordsDescriptor'
 import type { SelectAllState } from '../useHistoryRecordsController'
 import { formatHistoryTime, HistoryRecordRow, HistoryTableHeader, HistoryVirtualTable } from './HistoryTableParts'
 
@@ -19,6 +19,66 @@ interface HistoryRecordListProps<T> {
   onToggleSelection: (id: string, checked: boolean, selectRange?: boolean) => void
   onToggleSelectAll: (checked: boolean) => void
   onTogglePin: (item: T) => Promise<void>
+}
+
+interface HistoryRecordListRowProps<T> {
+  descriptor: HistoryRecordDescriptor<T>
+  isSelected: (id: string) => boolean
+  item: T
+  onToggleSelection: (id: string, checked: boolean, selectRange?: boolean) => void
+  openRename: (id: string, name: string) => void
+  onTogglePin: (item: T) => Promise<void>
+  showFixedActionShadow: boolean
+}
+
+function HistoryRecordListRow<T>({ descriptor, item, ...props }: HistoryRecordListRowProps<T>) {
+  const renderContent = (rowState: HistoryRowState) => (
+    <HistoryRecordListRowContent descriptor={descriptor} item={item} rowState={rowState} {...props} />
+  )
+  return descriptor.renderRowState?.(item, renderContent) ?? renderContent({ isRenaming: false })
+}
+
+interface HistoryRecordListRowContentProps<T> extends HistoryRecordListRowProps<T> {
+  rowState: HistoryRowState
+}
+
+function HistoryRecordListRowContent<T>({
+  descriptor,
+  isSelected,
+  item,
+  onToggleSelection,
+  openRename,
+  onTogglePin,
+  rowState,
+  showFixedActionShadow
+}: HistoryRecordListRowContentProps<T>) {
+  const { t } = useTranslation()
+  const id = descriptor.getId(item)
+  const rowActions = descriptor.getRowActions(item, openRename, rowState)
+  const pinned = descriptor.isPinned(id)
+  const row = (
+    <HistoryRecordRow
+      actions={rowActions.actions}
+      avatar={descriptor.renderAvatar(item)}
+      deleteLabel={descriptor.strings.deleteLabel}
+      isPinned={pinned}
+      isSelected={!pinned && isSelected(id)}
+      minHeight={descriptor.rowHeight}
+      pinLabel={descriptor.strings.pinLabel}
+      selectLabel={descriptor.getSelectLabel(item)}
+      showFixedActionShadow={showFixedActionShadow}
+      sourceLabel={descriptor.getSourceLabel(item)}
+      timeLabel={formatHistoryTime(descriptor.getUpdatedAt(item), t)}
+      title={descriptor.getName(item)}
+      unpinLabel={descriptor.strings.unpinLabel}
+      onAction={rowActions.onAction}
+      onOpen={() => descriptor.onOpen(item)}
+      onSelectedChange={(checked, selectRange) => onToggleSelection(id, checked, selectRange)}
+      onTogglePin={() => onTogglePin(item)}
+    />
+  )
+
+  return descriptor.renderRowMenu(item, row, rowActions)
 }
 
 export function HistoryRecordList<T>({
@@ -39,6 +99,7 @@ export function HistoryRecordList<T>({
   const {
     getId,
     getName,
+    renderRowState,
     getRowActions,
     getSelectLabel,
     getSourceLabel,
@@ -51,6 +112,28 @@ export function HistoryRecordList<T>({
     rowHeight,
     strings: { deleteLabel, pinLabel, unpinLabel }
   } = descriptor
+  // The aggregate descriptor is recreated by each mode; memoize on the row fields instead.
+  const rowDescriptor = useMemo<HistoryRecordDescriptor<T>>(
+    () => descriptor,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- descriptor identity is intentionally excluded.
+    [
+      deleteLabel,
+      getId,
+      getName,
+      renderRowState,
+      getRowActions,
+      getSelectLabel,
+      getSourceLabel,
+      getUpdatedAt,
+      isPinned,
+      onOpen,
+      pinLabel,
+      renderAvatar,
+      renderRowMenu,
+      rowHeight,
+      unpinLabel
+    ]
+  )
 
   const openRename = useCallback((id: string, name: string) => setRenameTarget({ id, name }), [])
   const handleRenameSubmit = useCallback(
@@ -88,55 +171,20 @@ export function HistoryRecordList<T>({
 
   const renderRow = useCallback(
     (item: T) => {
-      const id = getId(item)
-      const rowActions = getRowActions(item, openRename)
-      const pinned = isPinned(id)
-      const row = (
-        <HistoryRecordRow
-          actions={rowActions.actions}
-          avatar={renderAvatar(item)}
-          deleteLabel={deleteLabel}
-          isPinned={pinned}
-          isSelected={!pinned && isSelected(id)}
-          minHeight={rowHeight}
-          pinLabel={pinLabel}
-          selectLabel={getSelectLabel(item)}
+      return (
+        <HistoryRecordListRow
+          key={getId(item)}
+          descriptor={rowDescriptor}
+          isSelected={isSelected}
+          item={item}
+          onToggleSelection={onToggleSelection}
+          onTogglePin={onTogglePin}
+          openRename={openRename}
           showFixedActionShadow={showFixedActionShadow}
-          sourceLabel={getSourceLabel(item)}
-          timeLabel={formatHistoryTime(getUpdatedAt(item), t)}
-          title={getName(item)}
-          unpinLabel={unpinLabel}
-          onAction={rowActions.onAction}
-          onOpen={() => onOpen(item)}
-          onSelectedChange={(checked, selectRange) => onToggleSelection(id, checked, selectRange)}
-          onTogglePin={() => onTogglePin(item)}
         />
       )
-
-      return renderRowMenu(item, row, rowActions)
     },
-    [
-      deleteLabel,
-      getId,
-      getName,
-      getRowActions,
-      getSelectLabel,
-      getSourceLabel,
-      getUpdatedAt,
-      isPinned,
-      isSelected,
-      onOpen,
-      onTogglePin,
-      onToggleSelection,
-      openRename,
-      pinLabel,
-      renderAvatar,
-      renderRowMenu,
-      rowHeight,
-      showFixedActionShadow,
-      t,
-      unpinLabel
-    ]
+    [getId, isSelected, onTogglePin, onToggleSelection, openRename, rowDescriptor, showFixedActionShadow]
   )
 
   return (
