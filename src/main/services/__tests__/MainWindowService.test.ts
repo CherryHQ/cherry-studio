@@ -7,6 +7,10 @@ import { pathToFileURL } from 'node:url'
 import { createMockApplication } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { UserDataMappingFallback } from '@main/core/preboot/userDataLocation'
+
+const userDataMappingFallback = vi.hoisted(() => ({ current: null as UserDataMappingFallback | null }))
+
 // Hoisted state lets individual tests mutate platform flags / preferences without
 // re-mocking modules. The mock factories below read these via getters, preserving
 // live-binding semantics so each test sees the current value.
@@ -148,6 +152,10 @@ vi.mock('@logger', () => ({
 
 vi.mock('@application', () => ({
   application: applicationMock
+}))
+
+vi.mock('@main/core/preboot/userDataLocation', () => ({
+  getUserDataMappingFallback: () => userDataMappingFallback.current
 }))
 
 vi.mock('electron', () => ({
@@ -296,6 +304,7 @@ describe('MainWindowService', () => {
   let win: MockBrowserWindow
 
   beforeEach(() => {
+    userDataMappingFallback.current = null
     platformState.isMac = false
     platformState.isWin = false
     platformState.isLinux = false
@@ -409,6 +418,67 @@ describe('MainWindowService', () => {
 
       expect(dialog.showMessageBox).not.toHaveBeenCalled()
       expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('user data mapping warning', () => {
+    beforeEach(() => {
+      platformState.isMac = false
+      prefValues['app.language'] = 'en-US'
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
+    })
+
+    afterEach(() => {
+      delete prefValues['app.language']
+    })
+
+    it('shows the effective directory and executable once across main-window rebuilds', async () => {
+      userDataMappingFallback.current = {
+        exe: '/mock/exe',
+        effectivePath: '/mock/userData',
+        reason: 'no-mapping-for-executable'
+      }
+      ;(svc as any).setupWindowEvents(win)
+
+      win.emit('show')
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(
+        win,
+        expect.objectContaining({
+          type: 'warning',
+          message: expect.stringContaining('/mock/userData'),
+          detail: expect.stringContaining('/mock/exe')
+        })
+      )
+      win.emit('show')
+      const rebuilt = createMockWindow()
+      ;(svc as any).setupWindowEvents(rebuilt)
+      rebuilt.emit('show')
+      expect(dialog.showMessageBox).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows the unusable configured directory in the detail', () => {
+      userDataMappingFallback.current = {
+        exe: '/mock/exe',
+        effectivePath: '/mock/userData',
+        mappedPath: '/custom/data',
+        reason: 'mapped-directory-unusable'
+      }
+      ;(svc as any).setupWindowEvents(win)
+
+      win.emit('show')
+
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(
+        win,
+        expect.objectContaining({ detail: expect.stringContaining('/custom/data') })
+      )
+    })
+
+    it('does not open a dialog without a fallback', () => {
+      ;(svc as any).setupWindowEvents(win)
+
+      win.emit('show')
+
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
     })
   })
 
