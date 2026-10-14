@@ -14,7 +14,7 @@ const binaries = vi.hoisted(() => ({ remove: vi.fn(), upgrade: vi.fn() }))
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() }, useIpcOn: vi.fn() }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({ useMiniAppPopup: () => ({ openSmartMiniApp: vi.fn() }) }))
-vi.mock('../hooks/useApiGatewayProvider', () => ({ useApiGatewayProvider: () => null }))
+vi.mock('@renderer/hooks/useApiGatewayProvider', () => ({ useApiGatewayProvider: () => null }))
 vi.mock('../hooks/useAvailableTerminals', () => ({ useAvailableTerminals: () => [] }))
 vi.mock('../hooks/useBinaryActions', () => ({
   useBinaryActions: () => ({

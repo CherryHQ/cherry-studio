@@ -2,8 +2,7 @@ import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { preferenceService } from '@data/PreferenceService'
-
-import { useApiGatewayProvider } from '../useApiGatewayProvider'
+import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
 
 const mocks = vi.hoisted(() => ({
   apiGatewayRunning: false,

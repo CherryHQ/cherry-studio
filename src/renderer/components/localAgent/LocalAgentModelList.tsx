@@ -18,8 +18,11 @@ import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelTag } from '@renderer/components/tags/Model'
 import type { LocalAgentModelOption } from '@renderer/hooks/agent/useLocalAgentModelSelection'
+import { useLocalAgentModelTabs } from '@renderer/hooks/agent/useLocalAgentModelTabs'
 import { cn } from '@renderer/utils/style'
 import { deriveModelGroupName } from '@shared/utils/model'
+
+import { LocalAgentModelTabs } from './LocalAgentModelTabs'
 
 export function LocalAgentModelList({
   models,
@@ -55,16 +58,18 @@ export function LocalAgentModelList({
     setQuery('')
     setSearchOpen(false)
   }
-  const options =
-    value && !models.some((model) => model.id === value) ? [{ id: value, name: value }, ...models] : models
+  const tabs = useLocalAgentModelTabs(models, value, showFollowCli)
   const search = query.trim().toLowerCase()
-  const filtered = options.filter((model) => `${model.name} ${model.id}`.toLowerCase().includes(search))
+  const filtered = tabs.models.filter((model) =>
+    `${model.name} ${model.id} ${model.group ?? ''}`.toLowerCase().includes(search)
+  )
   const grouped = new Map<string, LocalAgentModelOption[]>()
   for (const model of filtered) {
     const group = model.group ?? deriveModelGroupName(model.id) ?? groupFallback ?? t('models.group.ungrouped')
-    const models = grouped.get(group)
+    const key = `${model.source ?? ''}:${group}`
+    const models = grouped.get(key)
     if (models) models.push(model)
-    else grouped.set(group, [model])
+    else grouped.set(key, [model])
   }
   const groups = [...grouped.entries()].sort(
     ([a, modelsA], [b, modelsB]) => Number(!!modelsA[0].group) - Number(!!modelsB[0].group) || a.localeCompare(b)
@@ -140,77 +145,84 @@ export function LocalAgentModelList({
           </Button>
         </Tooltip>
       </div>
-      {showFollowCli && (
-        <div className="overflow-hidden rounded-lg border border-border-subtle p-1.5">
-          <Button
-            variant="ghost"
-            aria-pressed={!value}
-            disabled={disabled}
-            className={rowClass}
-            onClick={() => void onSelect()}>
-            <CliModelAvatar className="size-[26px] shrink-0 rounded-full border border-border" />
-            <span className="min-w-0 flex-1 truncate text-left text-sm">{t('local_agents.follow_cli')}</span>
-            <span className="flex size-[30px] shrink-0 items-center justify-center">
-              {!value && <Check className="size-4 text-primary" />}
-            </span>
-          </Button>
-        </div>
-      )}
-      {filtered.length > 0 ? (
-        <Accordion
-          type="multiple"
-          className="space-y-2.5"
-          value={groups.filter(([group]) => query.trim() || !collapsedGroups.includes(group)).map(([group]) => group)}
-          onValueChange={(openGroups) =>
-            setCollapsedGroups((previous) => [
-              ...previous.filter((group) => !grouped.has(group)),
-              ...groups.filter(([group]) => !openGroups.includes(group)).map(([group]) => group)
-            ])
-          }>
-          {groups.map(([group, models]) => (
-            <AccordionItem
-              key={group}
-              value={group}
-              className="overflow-hidden rounded-lg border border-border-subtle last:border-b">
-              <AccordionTrigger className="min-h-9 justify-start gap-2 rounded-none bg-muted/30 px-4 py-0 font-normal text-foreground data-[state=open]:border-b data-[state=open]:border-border-subtle [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                <span className="min-w-0 truncate leading-5">{group}</span>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-1 p-1.5" contentClassName="text-foreground">
-                {models.map((model) => (
-                  <Button
-                    key={model.id}
-                    variant="ghost"
-                    aria-pressed={value === model.id}
-                    disabled={disabled}
-                    className={rowClass}
-                    onClick={() => void onSelect(model.id)}>
-                    <ModelAvatar
-                      model={model}
-                      size={26}
-                      className="shrink-0 overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-left text-sm" title={model.name || model.id}>
-                      {model.name || model.id}
-                    </span>
-                    {/free/i.test(`${model.id} ${model.name}`) && (
-                      <ModelTag tag="free" size={9} showLabel={false} showTooltip className="[&_svg]:size-[9px]!" />
-                    )}
-                    <span className="flex size-[30px] shrink-0 items-center justify-center">
-                      {value === model.id && <Check className="size-4 text-primary" />}
-                    </span>
-                  </Button>
-                ))}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      ) : (
-        (loaded || query) && (
-          <p className="rounded-lg border border-dashed border-border-subtle px-4 py-6 text-center text-xs text-muted-foreground">
-            {t(query ? 'common.no_results' : 'local_agents.models_unavailable')}
-          </p>
-        )
-      )}
+      <LocalAgentModelTabs tabs={tabs}>
+        {showFollowCli && tabs.source === 'native' && (
+          <div className="overflow-hidden rounded-lg border border-border-subtle p-1.5">
+            <Button
+              variant="ghost"
+              aria-pressed={!value}
+              disabled={disabled}
+              className={rowClass}
+              onClick={() => void onSelect()}>
+              <CliModelAvatar className="size-[26px] shrink-0 rounded-full border border-border" />
+              <span className="min-w-0 flex-1 truncate text-left text-sm">{t('local_agents.follow_cli')}</span>
+              <span className="flex size-[30px] shrink-0 items-center justify-center">
+                {!value && <Check className="size-4 text-primary" />}
+              </span>
+            </Button>
+          </div>
+        )}
+        {filtered.length > 0 ? (
+          <Accordion
+            type="multiple"
+            className="space-y-2.5"
+            value={groups.filter(([group]) => query.trim() || !collapsedGroups.includes(group)).map(([group]) => group)}
+            onValueChange={(openGroups) =>
+              setCollapsedGroups((previous) => [
+                ...previous.filter((group) => !grouped.has(group)),
+                ...groups.filter(([group]) => !openGroups.includes(group)).map(([group]) => group)
+              ])
+            }>
+            {groups.map(([group, models]) => (
+              <AccordionItem
+                key={group}
+                value={group}
+                className="overflow-hidden rounded-lg border border-border-subtle last:border-b">
+                <AccordionTrigger className="min-h-9 justify-start gap-2 rounded-none bg-muted/30 px-4 py-0 font-normal text-foreground data-[state=open]:border-b data-[state=open]:border-border-subtle [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                  <span className="min-w-0 truncate leading-5">
+                    {models[0].group ??
+                      deriveModelGroupName(models[0].id) ??
+                      groupFallback ??
+                      t('models.group.ungrouped')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-1 p-1.5" contentClassName="text-foreground">
+                  {models.map((model) => (
+                    <Button
+                      key={model.id}
+                      variant="ghost"
+                      aria-pressed={value === model.id}
+                      disabled={disabled}
+                      className={rowClass}
+                      onClick={() => void onSelect(model.id)}>
+                      <ModelAvatar
+                        model={model}
+                        size={26}
+                        className="shrink-0 overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-left text-sm" title={model.name || model.id}>
+                        {model.name || model.id}
+                      </span>
+                      {/free/i.test(`${model.id} ${model.name}`) && (
+                        <ModelTag tag="free" size={9} showLabel={false} showTooltip className="[&_svg]:size-[9px]!" />
+                      )}
+                      <span className="flex size-[30px] shrink-0 items-center justify-center">
+                        {value === model.id && <Check className="size-4 text-primary" />}
+                      </span>
+                    </Button>
+                  ))}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        ) : (
+          (loaded || query) && (
+            <p className="rounded-lg border border-dashed border-border-subtle px-4 py-6 text-center text-xs text-muted-foreground">
+              {t(query ? 'common.no_results' : 'local_agents.models_unavailable')}
+            </p>
+          )
+        )}
+      </LocalAgentModelTabs>
     </section>
   )
 }

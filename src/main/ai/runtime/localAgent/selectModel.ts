@@ -14,6 +14,7 @@ export async function selectLocalAgentModel(
   nativeModel?: string,
   selection: {
     sourceModelId?: UniqueModelId
+    sourceModelViaGateway?: boolean
     files?: CliConfigWriteFile[]
     expectedFiles?: { target: CliConfigTarget; content: string | null }[]
   } = {}
@@ -79,7 +80,14 @@ export async function selectLocalAgentModel(
       const current = agentService.getAgent(agentId)?.configuration?.localRuntime
       if (!current) throw new Error('Agent no longer exists')
       const updated = agentService.updateAgent(agentId, {
-        configuration: { localRuntime: { ...current, nativeModel, sourceModelId: selection.sourceModelId } }
+        configuration: {
+          localRuntime: {
+            ...current,
+            nativeModel,
+            sourceModelId: selection.sourceModelId,
+            sourceModelViaGateway: selection.sourceModelId ? selection.sourceModelViaGateway : undefined
+          }
+        }
       })
       if (!updated) throw new Error('Agent no longer exists')
       return updated
@@ -111,6 +119,10 @@ export function syncLocalAgentConfigModel(
       localRuntime: {
         ...agent.configuration.localRuntime,
         nativeModel,
+        sourceModelViaGateway:
+          preserveModelSource && nativeModel === agent.configuration.localRuntime.nativeModel
+            ? agent.configuration.localRuntime.sourceModelViaGateway
+            : undefined,
         sourceModelId:
           preserveModelSource && nativeModel === agent.configuration.localRuntime.nativeModel
             ? agent.configuration.localRuntime.sourceModelId

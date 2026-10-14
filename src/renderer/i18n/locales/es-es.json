@@ -2253,6 +2253,8 @@
   "local_agents.managed_workspace": "Directorio de trabajo independiente",
   "local_agents.mode": "Modo de sesión",
   "local_agents.model_hint": "Se guarda como modelo predeterminado para nuevos chats y terminales. Los parámetros explícitos o la configuración del proyecto tienen prioridad.",
+  "local_agents.model_sources.native": "Modelos nativos",
+  "local_agents.model_sources.provider": "Proveedores directos",
   "local_agents.models_unavailable": "Esta CLI no devolvió modelos seleccionables. Utilice su configuración nativa.",
   "local_agents.modes.accept_edits": "Permitir ediciones",
   "local_agents.modes.accept_edits_description": "Permitir automáticamente ediciones en el espacio de trabajo y /tmp; seguir preguntando para rutas sensibles.",

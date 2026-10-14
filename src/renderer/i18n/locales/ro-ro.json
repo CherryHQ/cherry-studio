@@ -2253,6 +2253,8 @@
   "local_agents.managed_workspace": "Director de lucru independent",
   "local_agents.mode": "Modul sesiunii",
   "local_agents.model_hint": "Salvat ca model implicit pentru conversații și terminale noi. Parametrii expliciți de pornire sau setările proiectului au prioritate.",
+  "local_agents.model_sources.native": "Modele native",
+  "local_agents.model_sources.provider": "Furnizori direcți",
   "local_agents.models_unavailable": "Acest CLI nu a returnat modele selectabile. Folosiți configurația sa nativă.",
   "local_agents.modes.accept_edits": "Permite editările",
   "local_agents.modes.accept_edits_description": "Permite automat editările în spațiul de lucru și /tmp; cere în continuare confirmare pentru căile sensibile.",

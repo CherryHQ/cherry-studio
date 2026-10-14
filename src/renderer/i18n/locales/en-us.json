@@ -2253,6 +2253,8 @@
   "local_agents.managed_workspace": "Independent workspace",
   "local_agents.mode": "Session mode",
   "local_agents.model_hint": "Saved as the agent’s default for new chats and terminals. Explicit command-line or project settings may override it.",
+  "local_agents.model_sources.native": "Native models",
+  "local_agents.model_sources.provider": "Direct providers",
   "local_agents.models_unavailable": "This CLI did not return selectable models. Follow its native configuration.",
   "local_agents.modes.accept_edits": "Accept Edits",
   "local_agents.modes.accept_edits_description": "Automatically allow edits in the workspace and /tmp; still ask for sensitive paths.",

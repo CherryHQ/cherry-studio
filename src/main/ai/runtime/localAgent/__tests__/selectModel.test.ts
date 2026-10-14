@@ -77,47 +77,56 @@ describe('global local agent model selection', () => {
     await expect(selectLocalAgentModel(agent.id, 'next')).rejects.toThrow('native default')
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('previous')
   })
-  it('commits provider credentials and model together, then restores native selection without provider leftovers', async () => {
-    const agent = agentService.createAgentWithId('unified-pi', {
-      name: 'Pi',
-      type: 'local',
-      model: null,
-      configuration: { localRuntime: { presetId: 'pi-acp', protocol: 'acp', enabled: true, args: [], env: {} } }
-    })
-    const sourceModelId = createUniqueModelId('custom', 'model-a')
-    const selected = await selectLocalAgentModel(agent.id, undefined, {
-      sourceModelId,
-      files: [
-        {
-          target: 'pi-settings',
-          content: JSON.stringify({ defaultProvider: 'cherry-custom', defaultModel: 'model-a', theme: 'dark' })
-        },
-        {
-          target: 'pi-models',
-          content: JSON.stringify({
-            providers: { 'cherry-custom': { baseUrl: 'https://example.test', apiKey: 'test-key' } }
-          })
-        }
-      ]
-    })
-    expect(selected.configuration?.localRuntime).toMatchObject({ sourceModelId, nativeModel: 'cherry-custom/model-a' })
-    const modelsPath = path.join(home, '.pi/agent/models.json')
-    expect(JSON.parse(await readFile(modelsPath, 'utf8')).providers['cherry-custom'].apiKey).toBe('test-key')
-    await expect(selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6')).rejects.toThrow('must be cleared')
-    const restored = await selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6', {
-      files: [
-        { target: 'pi-settings', content: '{"theme":"dark"}' },
-        { target: 'pi-models', content: '{"providers":{}}' }
-      ]
-    })
-    expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
-    expect(JSON.parse(await readFile(path.join(home, '.pi/agent/settings.json'), 'utf8'))).toEqual({
-      defaultProvider: 'anthropic',
-      defaultModel: 'claude-sonnet-4-6',
-      theme: 'dark'
-    })
-    expect(JSON.parse(await readFile(modelsPath, 'utf8')).providers).toEqual({})
-  })
+  it.each([false, true])(
+    'commits model source (gateway: %s) and restores native selection without leftovers',
+    async (viaGateway) => {
+      const agent = agentService.createAgentWithId('unified-pi', {
+        name: 'Pi',
+        type: 'local',
+        model: null,
+        configuration: { localRuntime: { presetId: 'pi-acp', protocol: 'acp', enabled: true, args: [], env: {} } }
+      })
+      const sourceModelId = createUniqueModelId('custom', 'model-a')
+      const selected = await selectLocalAgentModel(agent.id, undefined, {
+        sourceModelId,
+        sourceModelViaGateway: viaGateway,
+        files: [
+          {
+            target: 'pi-settings',
+            content: JSON.stringify({ defaultProvider: 'cherry-custom', defaultModel: 'model-a', theme: 'dark' })
+          },
+          {
+            target: 'pi-models',
+            content: JSON.stringify({
+              providers: { 'cherry-custom': { baseUrl: 'https://example.test', apiKey: 'test-key' } }
+            })
+          }
+        ]
+      })
+      expect(selected.configuration?.localRuntime).toMatchObject({
+        sourceModelId,
+        nativeModel: 'cherry-custom/model-a'
+      })
+      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.sourceModelViaGateway).toBe(viaGateway)
+      const modelsPath = path.join(home, '.pi/agent/models.json')
+      expect(JSON.parse(await readFile(modelsPath, 'utf8')).providers['cherry-custom'].apiKey).toBe('test-key')
+      await expect(selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6')).rejects.toThrow('must be cleared')
+      const restored = await selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6', {
+        files: [
+          { target: 'pi-settings', content: '{"theme":"dark"}' },
+          { target: 'pi-models', content: '{"providers":{}}' }
+        ]
+      })
+      expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
+      expect(restored.configuration?.localRuntime?.sourceModelViaGateway).toBeUndefined()
+      expect(JSON.parse(await readFile(path.join(home, '.pi/agent/settings.json'), 'utf8'))).toEqual({
+        defaultProvider: 'anthropic',
+        defaultModel: 'claude-sonnet-4-6',
+        theme: 'dark'
+      })
+      expect(JSON.parse(await readFile(modelsPath, 'utf8')).providers).toEqual({})
+    }
+  )
 
   it('rejects stale drafts without overwriting disk or the saved selection', async () => {
     const agent = agentService.createAgentWithId('stale-pi', {

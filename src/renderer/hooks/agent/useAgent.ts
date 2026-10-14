@@ -173,6 +173,7 @@ export const useUpdateAgent = () => {
     nativeModel?: string,
     selection?: {
       sourceModelId?: UniqueModelId
+      sourceModelViaGateway?: boolean
       expectedFiles?: {
         target: CliConfigTarget
         path: string

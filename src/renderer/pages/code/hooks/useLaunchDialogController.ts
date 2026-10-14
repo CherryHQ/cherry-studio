@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ApiGatewayProviderBundle } from '@renderer/hooks/useApiGatewayProvider'
 import { ipcApi } from '@renderer/ipc'
 import {
   type CliConfigFileDraft,
@@ -23,7 +24,6 @@ import { isModelConfiguredCli } from '@shared/utils/cliConfig'
 
 import type { LaunchDialog } from '../components/LaunchDialog'
 import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
-import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 import { useAvailableTerminals } from './useAvailableTerminals'
 
 const logger = loggerService.withContext('useLaunchDialogController')

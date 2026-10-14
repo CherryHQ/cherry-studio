@@ -2253,6 +2253,8 @@
   "local_agents.managed_workspace": "専用の作業ディレクトリ",
   "local_agents.mode": "セッションモード",
   "local_agents.model_hint": "新しいチャットとターミナルの既定モデルとして保存します。明示的な起動引数やプロジェクト設定が優先されます。",
+  "local_agents.model_sources.native": "ネイティブモデル",
+  "local_agents.model_sources.provider": "プロバイダーへの直接接続",
   "local_agents.models_unavailable": "この CLI は選択可能なモデルを返しませんでした。CLI の設定に従ってください。",
   "local_agents.modes.accept_edits": "編集を許可",
   "local_agents.modes.accept_edits_description": "ワークスペースと /tmp の編集を自動許可します。機密パスには引き続き確認します。",

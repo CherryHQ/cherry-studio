@@ -412,6 +412,7 @@ export const aiRequestSchemas = {
       agentId: z.string().min(1),
       nativeModel: z.string().min(1).optional(),
       sourceModelId: LocalAgentConfigurationSchema.shape.sourceModelId,
+      sourceModelViaGateway: LocalAgentConfigurationSchema.shape.sourceModelViaGateway,
       files: codeCliRequestSchemas['code_cli.write_config'].input.shape.files.optional(),
       expectedFiles: codeCliRequestSchemas['code_cli.read_config'].output.shape.files.optional()
     }),

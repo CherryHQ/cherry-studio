@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { LocalAgentModelSelector } from '../../LocalAgentModelSelector'
 import { LocalAgentModelList } from '../LocalAgentModelList'
 
 vi.unmock('@cherrystudio/ui')
@@ -97,5 +98,64 @@ describe('local agent model search', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'GPT 5' } })
     expect(screen.getByRole('button', { name: /GPT 5$/ })).toBeVisible()
     expect(screen.queryByRole('button', { name: /GPT 4$/ })).not.toBeInTheDocument()
+  })
+  it('opens the selected category and lets users browse and search without changing the model', () => {
+    const onSelect = vi.fn(async () => true)
+    render(
+      <LocalAgentModelList
+        models={[
+          { id: 'gateway-model:test', name: 'Gateway model', group: 'Provider A', source: 'gateway' },
+          { id: 'native-model', name: 'Native model', source: 'native' },
+          { id: 'cherry-model:test', name: 'Direct model', group: 'Provider A', source: 'provider' }
+        ]}
+        value="gateway-model:test"
+        loaded
+        loading={false}
+        disabled={false}
+        loadDisabled={false}
+        onLoad={async () => {}}
+        onSelect={onSelect}
+      />
+    )
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['原生模型', '统一网关', '服务商直连'])
+    expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: /Gateway model$/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: '跟随 CLI' })).not.toBeInTheDocument()
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '服务商直连' }), { button: 0, ctrlKey: false })
+    expect(screen.queryByRole('button', { name: /Gateway model$/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Provider A' }))
+    expect(screen.queryByRole('button', { name: /Direct model$/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Provider A' } })
+    expect(screen.getByRole('button', { name: /Direct model$/ })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /Gateway model$/ })).not.toBeInTheDocument()
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+  it('reopens the chat selector on the selected model category after browsing another tab', async () => {
+    HTMLElement.prototype.scrollIntoView = vi.fn()
+    const user = userEvent.setup()
+    const onSelect = vi.fn(async () => true)
+    render(
+      <LocalAgentModelSelector
+        trigger={<button type="button">Models</button>}
+        models={[
+          { id: 'gateway', name: 'Gateway model', source: 'gateway' },
+          { id: 'direct', name: 'Direct model', source: 'provider' }
+        ]}
+        value="gateway"
+        loaded
+        onLoad={async () => {}}
+        onSelect={onSelect}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Models' }))
+    expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
+    await user.click(screen.getByRole('tab', { name: '服务商直连' }))
+    expect(screen.getByRole('option', { name: /Direct model/ })).toBeVisible()
+    expect(screen.queryByRole('option', { name: /Gateway model/ })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Models' }))
+    expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
+    expect(onSelect).not.toHaveBeenCalled()
   })
 })

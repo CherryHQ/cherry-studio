@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ApiGatewayProviderBundle } from '@renderer/hooks/useApiGatewayProvider'
 import {
   clearCliConfig,
   type CliConfigConnection,
@@ -24,7 +25,6 @@ import { isModelConfiguredCli } from '@shared/utils/cliConfig'
 
 import type { OwnLoginConfigPanelProps } from '../components/configEditPanel/OwnLoginConfigPanel'
 import type { ConfigEditPanelProps, ConfigEditPanelSubmitValues } from '../components/configEditPanel/types'
-import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 
 const logger = loggerService.withContext('useConfigPanelController')
 

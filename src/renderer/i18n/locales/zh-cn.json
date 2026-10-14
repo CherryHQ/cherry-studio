@@ -2253,6 +2253,8 @@
   "local_agents.managed_workspace": "独立工作目录",
   "local_agents.mode": "会话模式",
   "local_agents.model_hint": "保存为智能体的默认模型，对新对话和终端生效。显式指定的启动参数或项目配置优先生效。",
+  "local_agents.model_sources.native": "原生模型",
+  "local_agents.model_sources.provider": "服务商直连",
   "local_agents.models_unavailable": "此 CLI 未返回可选模型，请沿用其原生配置。",
   "local_agents.modes.accept_edits": "允许编辑",
   "local_agents.modes.accept_edits_description": "自动允许编辑工作目录和 /tmp；敏感路径仍需确认。",

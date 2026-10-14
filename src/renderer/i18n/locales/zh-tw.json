@@ -2253,6 +2253,8 @@
   "local_agents.managed_workspace": "獨立工作目錄",
   "local_agents.mode": "對話模式",
   "local_agents.model_hint": "儲存為智慧體的預設模型，對新對話和終端機生效。明確指定的啟動參數或專案設定優先生效。",
+  "local_agents.model_sources.native": "原生模型",
+  "local_agents.model_sources.provider": "服務商直連",
   "local_agents.models_unavailable": "此 CLI 未回傳可選模型，請沿用其原生設定。",
   "local_agents.modes.accept_edits": "允許編輯",
   "local_agents.modes.accept_edits_description": "自動允許編輯工作目錄和 /tmp；敏感路徑仍需確認。",

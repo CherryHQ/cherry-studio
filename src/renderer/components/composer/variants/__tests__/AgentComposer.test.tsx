@@ -671,6 +671,8 @@ vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
   AgentLabel: ({ agent }: any) => <span>{agent.name}</span>
 }))
 
+vi.mock('@renderer/hooks/useApiGatewayProvider', () => ({ useApiGatewayProvider: () => null }))
+
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     const values: Record<string, unknown> = {

@@ -10,7 +10,8 @@ export const LocalAgentConfigurationSchema = z.strictObject({
   args: z.array(z.string()).default([]),
   env: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).default({}),
   nativeModel: z.string().min(1).optional(),
-  sourceModelId: UniqueModelIdSchema.optional()
+  sourceModelId: UniqueModelIdSchema.optional(),
+  sourceModelViaGateway: z.boolean().optional()
 })
 export type LocalAgentConfiguration = z.infer<typeof LocalAgentConfigurationSchema>
 

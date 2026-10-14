@@ -2253,6 +2253,8 @@
   "local_agents.managed_workspace": "Ανεξάρτητος χώρος εργασίας",
   "local_agents.mode": "Λειτουργία συνεδρίας",
   "local_agents.model_hint": "Αποθηκεύεται ως προεπιλογή για νέες συνομιλίες και τερματικά. Ρητές παράμετροι εκκίνησης ή ρυθμίσεις έργου έχουν προτεραιότητα.",
+  "local_agents.model_sources.native": "Εγγενή μοντέλα",
+  "local_agents.model_sources.provider": "Απευθείας πάροχοι",
   "local_agents.models_unavailable": "Το CLI δεν επέστρεψε επιλέξιμα μοντέλα. Χρησιμοποιήστε την εγγενή διαμόρφωσή του.",
   "local_agents.modes.accept_edits": "Να επιτρέπονται αλλαγές",
   "local_agents.modes.accept_edits_description": "Επιτρέπει αυτόματα αλλαγές στον χώρο εργασίας και στο /tmp· ζητά επιβεβαίωση για ευαίσθητες διαδρομές.",

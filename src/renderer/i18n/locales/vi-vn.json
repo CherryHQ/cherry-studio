@@ -2253,6 +2253,8 @@
   "local_agents.managed_workspace": "Thư mục làm việc riêng",
   "local_agents.mode": "Chế độ phiên",
   "local_agents.model_hint": "Lưu làm mặc định cho cuộc trò chuyện và terminal mới. Tham số khởi chạy hoặc cấu hình dự án được chỉ định rõ sẽ được ưu tiên.",
+  "local_agents.model_sources.native": "Mô hình gốc",
+  "local_agents.model_sources.provider": "Kết nối trực tiếp nhà cung cấp",
   "local_agents.models_unavailable": "CLI này không trả về mô hình có thể chọn. Hãy dùng cấu hình gốc của CLI.",
   "local_agents.modes.accept_edits": "Cho phép chỉnh sửa",
   "local_agents.modes.accept_edits_description": "Tự động cho phép chỉnh sửa trong không gian làm việc và /tmp; vẫn hỏi với đường dẫn nhạy cảm.",

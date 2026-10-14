@@ -17,9 +17,11 @@ import {
 } from '@cherrystudio/ui'
 import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { LocalAgentModelTabs } from '@renderer/components/localAgent/LocalAgentModelTabs'
 import { ModelSelectorRow } from '@renderer/components/ModelSelector'
 import { ModelTag } from '@renderer/components/tags/Model'
 import type { LocalAgentModelOption } from '@renderer/hooks/agent/useLocalAgentModelSelection'
+import { useLocalAgentModelTabs } from '@renderer/hooks/agent/useLocalAgentModelTabs'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import { cn } from '@renderer/utils/style'
 
@@ -66,8 +68,8 @@ export function LocalAgentModelSelector({
     })
     return () => cancelAnimationFrame(frame)
   }, [])
-  const options =
-    value && !models.some((model) => model.id === value) ? [{ id: value, name: value }, ...models] : models
+  const tabs = useLocalAgentModelTabs(models, value)
+  const options = tabs.source === 'native' ? [undefined, ...tabs.models] : tabs.models
   const select = async (next?: string) => {
     if (disabled) return
     if (await onSelect(next)) setOpen(false)
@@ -77,6 +79,7 @@ export function LocalAgentModelSelector({
       open={open}
       onOpenChange={(next) => {
         positionedRef.current = false
+        if (next) tabs.setSource()
         setOpen(next)
         if (next && !loaded && !loading && !disabled) void onLoad()
       }}>
@@ -85,65 +88,72 @@ export function LocalAgentModelSelector({
         side={side}
         align="start"
         className="w-[400px] max-w-(--radix-popover-content-available-width) overflow-hidden rounded-lg p-0 pt-1">
-        <Command
-          defaultValue={value ?? '__cli_default__'}
-          className="[&_[data-slot=command-input-wrapper]]:h-9 [&_[data-slot=command-input-wrapper]]:gap-1.5 [&_[data-slot=command-input-wrapper]]:border-border-subtle [&_[data-slot=command-input-wrapper]_svg]:size-3.5 [&_[data-slot=command-input-wrapper]_svg]:text-muted-foreground [&_[data-slot=command-input-wrapper]_svg]:opacity-100">
-          <CommandInput className="h-7 py-0 text-xs" placeholder={t('common.search')} />
-          <CommandList asChild>
-            <Scrollbar className="scroll-pt-1.5 px-1 py-1">
-              <CommandEmpty>{t('common.no_results')}</CommandEmpty>
-              <CommandGroup className="p-0 [&_[cmdk-group-items]]:space-y-1">
-                {[undefined, ...options].map((model) => {
-                  const selected = model ? value === model.id : !value
-                  const label = model ? model.name || model.id : t('local_agents.follow_cli')
-                  return (
-                    <CommandItem
-                      asChild
-                      className="cursor-pointer gap-1 rounded-[10px] py-1 text-xs data-[selected=true]:bg-accent/60"
-                      key={model?.id ?? '__cli_default__'}
-                      ref={selected ? scrollToSelected : undefined}
-                      value={model?.id ?? '__cli_default__'}
-                      keywords={[model?.name ?? label]}
-                      disabled={disabled}
-                      onSelect={() => void select(model?.id)}>
-                      <ModelSelectorRow
-                        selected={selected}
-                        disabled={disabled}
-                        showSelectedIndicator={selected}
-                        className={selected ? 'data-[selected=true]:bg-accent/70' : undefined}
-                        optionProps={{ role: 'presentation' }}
-                        leading={
-                          model ? (
-                            <ModelAvatar model={model} size={24} className="rounded-full border border-border" />
-                          ) : (
-                            <CliModelAvatar className="size-6 border border-border" />
-                          )
-                        }
-                        trailing={
-                          model && /free/i.test(`${model.id} ${model.name}`) ? (
-                            <div className="ml-2 flex h-[18px] shrink-0 items-center justify-end gap-1">
-                              <ModelTag
-                                tag="free"
-                                size={9}
-                                showLabel={false}
-                                showTooltip
-                                className="h-full items-center [&_svg]:size-[9px]!"
-                              />
-                            </div>
-                          ) : undefined
-                        }>
-                        <span className="min-w-0 flex-1 truncate" title={model ? label : undefined}>
-                          {label}
-                          {model?.group && <span className="ml-2 text-xs text-muted-foreground">{model.group}</span>}
-                        </span>
-                      </ModelSelectorRow>
-                    </CommandItem>
-                  )
-                })}
-              </CommandGroup>
-            </Scrollbar>
-          </CommandList>
-        </Command>
+        <div className="px-2 pt-1">
+          <LocalAgentModelTabs tabs={tabs}>
+            <Command
+              key={tabs.source}
+              defaultValue={value ?? '__cli_default__'}
+              className="[&_[data-slot=command-input-wrapper]]:h-9 [&_[data-slot=command-input-wrapper]]:gap-1.5 [&_[data-slot=command-input-wrapper]]:border-border-subtle [&_[data-slot=command-input-wrapper]_svg]:size-3.5 [&_[data-slot=command-input-wrapper]_svg]:text-muted-foreground [&_[data-slot=command-input-wrapper]_svg]:opacity-100">
+              <CommandInput className="h-7 py-0 text-xs" placeholder={t('common.search')} />
+              <CommandList asChild>
+                <Scrollbar className="scroll-pt-1.5 px-1 py-1">
+                  <CommandEmpty>{t('common.no_results')}</CommandEmpty>
+                  <CommandGroup className="p-0 [&_[cmdk-group-items]]:space-y-1">
+                    {options.map((model) => {
+                      const selected = model ? value === model.id : !value
+                      const label = model ? model.name || model.id : t('local_agents.follow_cli')
+                      return (
+                        <CommandItem
+                          asChild
+                          className="cursor-pointer gap-1 rounded-[10px] py-1 text-xs data-[selected=true]:bg-accent/60"
+                          key={model?.id ?? '__cli_default__'}
+                          ref={selected ? scrollToSelected : undefined}
+                          value={model?.id ?? '__cli_default__'}
+                          keywords={[model?.name ?? label, model?.group ?? '']}
+                          disabled={disabled}
+                          onSelect={() => void select(model?.id)}>
+                          <ModelSelectorRow
+                            selected={selected}
+                            disabled={disabled}
+                            showSelectedIndicator={selected}
+                            className={selected ? 'data-[selected=true]:bg-accent/70' : undefined}
+                            optionProps={{ role: 'presentation' }}
+                            leading={
+                              model ? (
+                                <ModelAvatar model={model} size={24} className="rounded-full border border-border" />
+                              ) : (
+                                <CliModelAvatar className="size-6 border border-border" />
+                              )
+                            }
+                            trailing={
+                              model && /free/i.test(`${model.id} ${model.name}`) ? (
+                                <div className="ml-2 flex h-[18px] shrink-0 items-center justify-end gap-1">
+                                  <ModelTag
+                                    tag="free"
+                                    size={9}
+                                    showLabel={false}
+                                    showTooltip
+                                    className="h-full items-center [&_svg]:size-[9px]!"
+                                  />
+                                </div>
+                              ) : undefined
+                            }>
+                            <span className="min-w-0 flex-1 truncate" title={model ? label : undefined}>
+                              {label}
+                              {model?.group && (
+                                <span className="ml-2 text-xs text-muted-foreground">{model.group}</span>
+                              )}
+                            </span>
+                          </ModelSelectorRow>
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                </Scrollbar>
+              </CommandList>
+            </Command>
+          </LocalAgentModelTabs>
+        </div>
         <div className="space-y-2 border-t border-border p-2">
           {error && (
             <div role="alert" className="flex gap-2 rounded-md bg-muted/50 p-2 text-xs">
