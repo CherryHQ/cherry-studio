@@ -42,7 +42,6 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -277,22 +276,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private async startRuntime(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
     const runtimeExecutable = await resolveDshBunRuntime()
-    const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
-      try {
-        return await resolveDshProviderInjectionFromSnapshot(
-          this.input.sessionId,
-          snapshot.provider,
-          snapshot.model,
-          snapshot.enabledApiKeys,
-          this.input.reasoningEffort ?? 'default'
-        )
-      } catch (error) {
-        if (error instanceof ApiGatewayNotRunningError) {
-          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-        }
-        throw error
-      }
-    }
+    const resolveInjection = (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> =>
+      resolveDshProviderInjectionFromSnapshot(
+        this.input.sessionId,
+        snapshot.provider,
+        snapshot.model,
+        snapshot.enabledApiKeys,
+        this.input.reasoningEffort ?? 'default'
+      )
 
     const discoverySnapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,

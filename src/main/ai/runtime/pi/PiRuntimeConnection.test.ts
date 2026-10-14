@@ -202,7 +202,6 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
-const { ApiGatewayNotRunningError } = await import('../agentApiGateway')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
@@ -495,13 +494,6 @@ it('rejects a Pi checkpoint with a missing native leaf before looking for histor
 })
 
 describe('PiRuntimeConnection', () => {
-  it('prompts the current Agent session when its gateway route is disabled', async () => {
-    mocks.resolveInjection.mockRejectedValueOnce(new ApiGatewayNotRunningError())
-
-    await expect(new PiRuntimeConnection(input).start()).rejects.toBeInstanceOf(ApiGatewayNotRunningError)
-    expect(mocks.broadcast).toHaveBeenCalledWith('api_gateway.required', { sessionId: SESSION_ID })
-  })
-
   it('establishes the Cloud baseline after starting the gateway', async () => {
     mocks.usesPiGateway.mockReturnValue(true)
     let gatewayRunning = false

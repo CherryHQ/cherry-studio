@@ -12,8 +12,7 @@ const mocks = vi.hoisted(() => ({
   getByProviderId: vi.fn(),
   getByKey: vi.fn(),
   resolveApiGatewayRuntime: vi.fn(),
-  getCurrentConfig: vi.fn(),
-  ApiGatewayNotRunningError: class ApiGatewayNotRunningError extends Error {}
+  getCurrentConfig: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -26,7 +25,6 @@ vi.mock('@data/services/ProviderService', () => ({
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getByKey } }))
 vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
   ...(await importOriginal<typeof AgentApiGateway>()),
-  ApiGatewayNotRunningError: mocks.ApiGatewayNotRunningError,
   resolveApiGatewayRuntime: mocks.resolveApiGatewayRuntime
 }))
 vi.mock('@application', () => ({
@@ -333,14 +331,6 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
     expect(mocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
     expect(mocks.resolveApiKey).not.toHaveBeenCalled()
     expect(injection).toMatchObject({ api: 'anthropic-messages', modelId: 'cherryai-subscription:deepseek-free' })
-  })
-
-  it('propagates the disabled-gateway consent error for Cloud', async () => {
-    mocks.resolveApiGatewayRuntime.mockRejectedValue(new mocks.ApiGatewayNotRunningError())
-
-    await expect(resolveDshProviderInjectionFromSnapshot('session-1', cloudProvider, makeCloudModel())).rejects.toThrow(
-      mocks.ApiGatewayNotRunningError
-    )
   })
 })
 

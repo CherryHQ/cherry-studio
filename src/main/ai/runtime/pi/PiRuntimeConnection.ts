@@ -54,7 +54,6 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -208,21 +207,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
-    const resolveInjection = async (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> => {
-      try {
-        return await resolvePiProviderInjectionForSession(
-          this.input.sessionId,
-          snapshot.provider,
-          snapshot.model,
-          snapshot.enabledApiKeys
-        )
-      } catch (error) {
-        if (error instanceof ApiGatewayNotRunningError) {
-          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-        }
-        throw error
-      }
-    }
+    const resolveInjection = (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> =>
+      resolvePiProviderInjectionForSession(
+        this.input.sessionId,
+        snapshot.provider,
+        snapshot.model,
+        snapshot.enabledApiKeys
+      )
 
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
