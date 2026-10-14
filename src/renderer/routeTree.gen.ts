@@ -51,6 +51,7 @@ import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
 import { Route as SettingsUsageRouteImport } from './routes/settings/usage'
+import { Route as SettingsVoiceRouteImport } from './routes/settings/voice'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as AppMiniAppIndexRouteImport } from './routes/app/mini-app.index'
 import { Route as AppMiniAppAppIdRouteImport } from './routes/app/mini-app/$appId'
@@ -281,6 +282,11 @@ const SettingsUsageRoute = SettingsUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsVoiceRoute = SettingsVoiceRouteImport.update({
+  id: '/voice',
+  path: '/voice',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsWebsearchRoute = SettingsWebsearchRouteImport.update({
   id: '/websearch',
   path: '/websearch',
@@ -412,6 +418,7 @@ export interface FileRoutesByFullPath {
   '/settings/skills': typeof SettingsSkillsRouteWithChildren
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -469,6 +476,7 @@ export interface FileRoutesByTo {
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -531,6 +539,7 @@ export interface FileRoutesById {
   '/settings/skills': typeof SettingsSkillsRouteWithChildren
   '/settings/system': typeof SettingsSystemRoute
   '/settings/usage': typeof SettingsUsageRoute
+  '/settings/voice': typeof SettingsVoiceRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -594,6 +603,7 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/voice'
     | '/settings/websearch'
     | '/settings/'
     | '/app/mini-app/$appId'
@@ -651,6 +661,7 @@ export interface FileRouteTypes {
     | '/settings/shortcut'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/voice'
     | '/settings/websearch'
     | '/settings'
     | '/app/mini-app/$appId'
@@ -712,6 +723,7 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/settings/system'
     | '/settings/usage'
+    | '/settings/voice'
     | '/settings/websearch'
     | '/settings/'
     | '/app/mini-app/$appId'
@@ -1033,6 +1045,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsUsageRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/voice': {
+      id: '/settings/voice'
+      path: '/voice'
+      fullPath: '/settings/voice'
+      preLoaderRoute: typeof SettingsVoiceRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/websearch': {
       id: '/settings/websearch'
       path: '/websearch'
@@ -1278,6 +1297,7 @@ interface SettingsRouteChildren {
   SettingsSkillsRoute: typeof SettingsSkillsRouteWithChildren
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsUsageRoute: typeof SettingsUsageRoute
+  SettingsVoiceRoute: typeof SettingsVoiceRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -1311,6 +1331,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsSkillsRoute: SettingsSkillsRouteWithChildren,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsUsageRoute: SettingsUsageRoute,
+  SettingsVoiceRoute: SettingsVoiceRoute,
   SettingsWebsearchRoute: SettingsWebsearchRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
