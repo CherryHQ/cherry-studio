@@ -11,7 +11,7 @@ import type {
 
 import type { ToolOutputOffload } from './offload'
 import type { ToolApprovalEvent } from './ports'
-import type { AgentRuntimeSession } from './session'
+import type { AgentRuntimeModel, AgentRuntimeSession } from './session'
 import { renderStatus, shortenResult, SubagentDelivery } from './subagentDelivery'
 import {
   DEFAULT_MAX_BACKGROUND,
@@ -27,6 +27,7 @@ import {
   MAX_SUBAGENT_REQUESTS,
   openChild,
   originEntry,
+  pickModel,
   readOrigin,
   type RunEnd,
   type RunResult,
@@ -67,6 +68,22 @@ export interface SubagentPort {
   onApproval?(listener: (event: ToolApprovalEvent) => void): () => void
   /** Background subagents one parent session may run at once; default 20 (Claude Code's default). */
   maxBackground?: number
+  /**
+   * Finds models by the name the user said: only enabled models that support tool calls. Without
+   * it, `subagent` has no `model` parameter. The package picks among the candidates (spec §6.7).
+   */
+  findModels?(query: string): Promise<readonly SubagentModelCandidate[]>
+}
+
+/** A model `findModels` matched. */
+export interface SubagentModelCandidate {
+  /** Unique: one model of one provider, the `modelKey` the transcript records. */
+  key: string
+  /** Display names, e.g. "OpenRouter" and "Claude Sonnet 4.5". */
+  provider: string
+  model: string
+  /** The query is the model name, or the provider and model name, exactly. */
+  exact: boolean
 }
 
 /** The subagent about to be created or continued. */
@@ -81,7 +98,10 @@ export interface Subagent {
   fork: boolean
   /** Whether this run is in the background; a continuation always is. */
   background: boolean
-  /** When it is continued: the model its first run used, from its origin entry. */
+  /**
+   * The model the host must give it: the one the `model` parameter named (unset otherwise: the host
+   * picks its default subagent model), or for a continuation the one its first run used.
+   */
   modelKey?: string
 }
 
@@ -95,6 +115,12 @@ export interface SubagentSessionOptions {
   onEvent?: (event: AgentRuntimeEvent) => void
   /** Called before the subagent's first model request; subscribe to its live output here. */
   onSessionCreated?: (session: AgentSession) => void
+  /**
+   * The model it runs on. Required for `Subagent.modelKey` (that key's model), or the launch or
+   * continuation fails; otherwise the host's default subagent model, the parent's when unset.
+   * Ignored for a new fork, which keeps the parent's model.
+   */
+  model?: AgentRuntimeModel
 }
 
 /** How a subagent's run ended. */
@@ -118,8 +144,8 @@ export interface SubagentToolOptions {
   createSession: CreateSubagentSession
   /** The parent's transcript so far, including the running turn. */
   parentTranscript: () => readonly TranscriptEntry[]
-  /** Key of the parent's model, recorded as the model a subagent runs on. */
-  parentModelKey: string
+  /** The parent's model, a subagent's unless the host gives it another. */
+  parentModel: AgentRuntimeModel
   /** The parent's `onEvent`. */
   emit: (event: AgentRuntimeEvent) => void
   /** The parent's offload, also used for long results in notifications. */
@@ -211,7 +237,32 @@ const notStarted = (sessionId: string, fork: boolean): AgentToolResult<SubagentD
   isError: true
 })
 
-const parameters = Type.Object({
+const FORK_WITH_MODEL =
+  "A fork shares this conversation's prompt cache and must use the current model; drop model or fork."
+/** Similar names an unmatched `model` error lists. */
+const SIMILAR = 5
+
+/** The key of the one model `query` names (spec §6.7); several or none throw for the model to resolve. */
+async function resolveModel(port: SubagentPort, query: string): Promise<string> {
+  const found = await port.findModels!(query)
+  const exact = found.filter((candidate) => candidate.exact)
+  const name = (candidate: SubagentModelCandidate) => `${candidate.provider} / ${candidate.model}`
+  if (exact.length === 1) return exact[0].key
+  if (exact.length > 1)
+    throw new Error(
+      [
+        `Several models match "${query}":`,
+        ...exact.map((candidate) => `- ${name(candidate)}`),
+        'Ask the user which one to use, then call subagent again with the provider and model name.'
+      ].join('\n')
+    )
+  const similar = found.slice(0, SIMILAR).map(name)
+  throw new Error(
+    `No enabled model with tool support matches "${query}".${similar.length > 0 ? ` Similar: ${similar.join(', ')}` : ''}`
+  )
+}
+
+const baseParameters = {
   description: Type.String({ description: 'A short (3-5 word) title of the task, shown to the user.' }),
   prompt: Type.String({ description: 'The task for the subagent.' }),
   fork: Type.Optional(
@@ -225,6 +276,16 @@ const parameters = Type.Object({
         'Return at once and let the subagent work in the background; you are notified when it finishes. Default false.'
     })
   )
+}
+const parameters = Type.Object(baseParameters)
+const parametersWithModel = Type.Object({
+  ...baseParameters,
+  model: Type.Optional(
+    Type.String({
+      description:
+        'Only when the user (or the agent instructions) names a model for this task: the name as they said it, with the provider if they gave one, e.g. "OpenRouter Claude Sonnet 4.5". Leave it out otherwise.'
+    })
+  )
 })
 
 /**
@@ -235,7 +296,7 @@ export function createSubagentExtension({
   port,
   createSession,
   parentTranscript,
-  parentModelKey,
+  parentModel,
   emit,
   offload
 }: SubagentToolOptions): { extension: ExtensionFactory; controls: SubagentControls } {
@@ -285,7 +346,7 @@ export function createSubagentExtension({
       if (inSubagent) return
       ctx = context
       main = { registry, delivery }
-      const { records, undelivered } = restoreSubagents(branch, parentModelKey)
+      const { records, undelivered } = restoreSubagents(branch, parentModel.key)
       registry.restore(records)
       delivery.restore(undelivered)
       unsubscribeApproval = port.onApproval?.((event) => registry.approval(event))
@@ -312,7 +373,8 @@ export function createSubagentExtension({
       name: SUBAGENT_TOOL_NAME,
       label: 'Subagent',
       description: DESCRIPTION,
-      parameters,
+      // Without findModels the host cannot honor a model, so the model is not offered one.
+      parameters: (port.findModels ? parametersWithModel : parameters) as typeof parametersWithModel,
       exposure: 'model-only',
       async execute(toolCallId, params, signal, _onUpdate, ctx) {
         if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error(IN_SUBAGENT)
@@ -321,25 +383,30 @@ export function createSubagentExtension({
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
         const fork = params.fork ?? false
         const background = params.background ?? false
+        const named = port.findModels ? params.model?.trim() : undefined
+        if (named && fork) throw new Error(FORK_WITH_MODEL)
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
           sessionId: randomUUID(),
           description,
           fork,
-          background
+          background,
+          ...(named ? { modelKey: await resolveModel(port, named) } : {})
         }
         const release = background ? registry.reserveBackground() : () => {}
         const inbox = new SubagentInbox()
         let child: AgentRuntimeSession
+        let modelKey: string
         try {
           // Built before `configure`, so a failure building the fork transcript never reaches the host.
           const prefix = fork ? forkTranscript(parentTranscript(), toolCallId) : []
           const options = await port.configure(subagent)
           // A background subagent does not belong to the turn, so the turn's abort does not cancel it.
           if (!background && signal?.aborted) return notStarted(subagent.sessionId, fork)
-          const origin = originEntry({ parentToolCallId: toolCallId, fork, description, modelKey: parentModelKey })
-          const start = [...prefix, origin]
-          child = await openChild({ subagent, options, transcript: start, handOff: start, inbox, createSession })
+          const model = pickModel(subagent, options, parentModel)
+          modelKey = model.key
+          const start = [...prefix, originEntry({ parentToolCallId: toolCallId, fork, description, modelKey })]
+          child = await openChild({ subagent, options, model, transcript: start, handOff: start, inbox, createSession })
         } finally {
           release()
         }
@@ -349,7 +416,7 @@ export function createSubagentExtension({
           description,
           fork,
           background,
-          modelKey: parentModelKey,
+          modelKey,
           run: 1,
           status: 'running'
         }
@@ -394,10 +461,13 @@ export function createSubagentExtension({
           modelKey: origin.modelKey
         }
         const options = await port.configure(subagent)
+        const model = pickModel(subagent, options, parentModel)
+        record.modelKey = model.key
         const answers = answerInterrupted(stored)
         child = await openChild({
           subagent,
           options,
+          model,
           transcript: [...stored, ...answers],
           handOff: answers,
           inbox,
