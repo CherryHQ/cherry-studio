@@ -262,6 +262,36 @@ describe('MainNetworkDevtoolsService helpers', () => {
     })
   })
 
+  it('marks decimal and exponent JSON identifiers as non-replayable', () => {
+    expect(captureRequestBody('{"record_id":9007199254740993.0}', 'application/json')).toMatchObject({
+      replayable: false
+    })
+    expect(captureRequestBody('{"record_id":9.007199254740993e15}', 'application/json')).toMatchObject({
+      replayable: false
+    })
+  })
+
+  it('redacts non-string sensitive JSON values when preserving integer literals', () => {
+    const captured = captureRequestBody(
+      '{"record_id":9007199254740993,"credentials":{"value":"secret"},"token":["secret"],"code":123456}',
+      'application/json'
+    )
+
+    expect(captured?.text).toContain('9007199254740993')
+    expect(captured?.text).toContain('"credentials":"<redacted>"')
+    expect(captured?.text).toContain('"token":"<redacted>"')
+    expect(captured?.text).toContain('"code":"<redacted>"')
+    expect(captured?.text).not.toContain('secret')
+  })
+
+  it('marks gzip-compressed binary JSON bodies as non-replayable', () => {
+    const body = Buffer.from('{"prompt":"hi"}', 'utf8')
+    expect(captureRequestBody(body, 'application/json', { 'content-encoding': 'gzip' })).toMatchObject({
+      replayable: false,
+      note: 'Content-encoded request bodies cannot be replayed from capture.'
+    })
+  })
+
   it('allows only registered DevTools extension origins', () => {
     const service = new MainNetworkDevtoolsService()
     const serviceState = service as unknown as {
