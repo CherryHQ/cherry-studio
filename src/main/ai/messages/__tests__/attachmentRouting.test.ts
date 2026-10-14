@@ -164,11 +164,14 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockResolvedValueOnce('   ')
 
-    // The error detail tells an empty OCR result apart from a failing OCR path (#20343).
+    // The detail key tells an empty OCR result apart from a failing OCR path (#20343).
+    // The reason rides the i18n fields, never `message`: provider-flavored wording in
+    // the message would hand the error to the chat provider's auth classifier.
     await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
       name: 'NonVisionImageOcrError',
       i18nKey: 'image_unreadable_for_non_vision_model',
-      message: expect.stringContaining('found no readable text in the image')
+      detailI18nKey: 'ocr_detail_empty',
+      message: expect.not.stringContaining('OCR')
     })
 
     expect(resolveMock).not.toHaveBeenCalled()
@@ -181,7 +184,8 @@ describe('prepareChatMessages — routing', () => {
     await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
       name: 'NonVisionImageOcrError',
       i18nKey: 'image_unreadable_for_non_vision_model',
-      message: expect.stringContaining('[OCR failed: Default file processor for image_to_text is not configured]')
+      detailI18nKey: 'ocr_detail_failed',
+      detailI18nValues: { reason: 'Default file processor for image_to_text is not configured' }
     })
 
     expect(resolveMock).not.toHaveBeenCalled()

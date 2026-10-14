@@ -49,31 +49,40 @@ const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
   "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
 
 /**
- * Why the OCR fallback did not produce text — surfaced in the error detail so
- * the user can tell a no-text image apart from a misconfigured/failing OCR
- * processor (#20343). The i18nKey headline stays generic; the detail rides on
- * `message`.
+ * Why the OCR fallback did not produce text — surfaced through the localized
+ * detail keys so the user can tell a no-text image apart from a
+ * misconfigured/failing OCR processor (#20343). The reason never rides on
+ * `message`: provider diagnostics can carry auth-flavored tokens that would
+ * hand the error to the chat provider's auth classifier, which routes users
+ * to the wrong settings page.
  */
 type NonVisionImageOcrDetail = { kind: 'empty' } | { kind: 'failed'; reason: string }
 
-function nonVisionImageOcrDetail(detail: NonVisionImageOcrDetail): string {
-  return detail.kind === 'empty'
-    ? '[OCR ran but found no readable text in the image — if the image does contain text, check the configured OCR processor (e.g. its language settings) or switch processors in Settings → File Processing]'
-    : `[OCR failed: ${detail.reason}]`
-}
+/** i18n keys under the `error.` namespace, rendered by ErrorBlock / ErrorDetailModal. */
+const NON_VISION_IMAGE_OCR_DETAIL_KEYS = {
+  empty: 'ocr_detail_empty',
+  failed: 'ocr_detail_failed'
+} as const
+
+/** A pathological provider body must not flood the error surfaces. */
+const MAX_OCR_FAILURE_REASON_LENGTH = 500
 
 class NonVisionImageOcrError extends Error {
   readonly i18nKey = 'image_unreadable_for_non_vision_model'
-  readonly detail?: NonVisionImageOcrDetail
+  /** Classifier ownership: an OCR fallback failure is never a chat-provider auth error. */
+  readonly providerErrorCategory = 'ocr' as const
+  readonly detailI18nKey?: string
+  readonly detailI18nValues?: Record<string, string>
 
   constructor(detail?: NonVisionImageOcrDetail) {
-    super(
-      detail
-        ? `${NON_VISION_IMAGE_OCR_ERROR_MESSAGE} ${nonVisionImageOcrDetail(detail)}`
-        : NON_VISION_IMAGE_OCR_ERROR_MESSAGE
-    )
+    super(NON_VISION_IMAGE_OCR_ERROR_MESSAGE)
     this.name = 'NonVisionImageOcrError'
-    this.detail = detail
+    if (detail) {
+      this.detailI18nKey = NON_VISION_IMAGE_OCR_DETAIL_KEYS[detail.kind]
+      if (detail.kind === 'failed') {
+        this.detailI18nValues = { reason: detail.reason.slice(0, MAX_OCR_FAILURE_REASON_LENGTH) }
+      }
+    }
   }
 }
 

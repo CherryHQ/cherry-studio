@@ -1440,6 +1440,8 @@
   "error.name": "Hata adı",
   "error.no_api_key": "API anahtarı yapılandırılmamış",
   "error.no_response": "Yanıt yok",
+  "error.ocr_detail_empty": "OCR çalıştı ancak görselde okunabilir metin bulunamadı. Görselde gerçekten metin varsa, Ayarlar → Dosya İşleme altındaki yapılandırılmış OCR işlemcisini (ör. dil ayarlarını) kontrol edin veya işlemciyi değiştirin.",
+  "error.ocr_detail_failed": "Yapılandırılmış OCR işlemcisi başarısız oldu: {{reason}} OCR işlemcisini Ayarlar → Dosya İşleme altından kontrol edin veya değiştirin.",
   "error.originalError": "Özgün Hata",
   "error.originalMessage": "Özgün Mesaj",
   "error.parameter": "Parametre",

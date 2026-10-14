@@ -1440,6 +1440,8 @@
   "error.name": "Error name",
   "error.no_api_key": "API key is not configured",
   "error.no_response": "No response",
+  "error.ocr_detail_empty": "OCR ran but found no readable text in the image. If the image does contain text, check the configured OCR processor (e.g. its language settings) under Settings → File Processing, or switch processors.",
+  "error.ocr_detail_failed": "The configured OCR processor failed: {{reason}} Check or switch the OCR processor under Settings → File Processing.",
   "error.originalError": "Original Error",
   "error.originalMessage": "Original Message",
   "error.parameter": "Parameter",

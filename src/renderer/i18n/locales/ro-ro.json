@@ -1440,6 +1440,8 @@
   "error.name": "Nume eroare",
   "error.no_api_key": "Cheia API nu este configurată",
   "error.no_response": "Niciun răspuns",
+  "error.ocr_detail_empty": "OCR a rulat, dar nu a găsit text lizibil în imagine. Dacă imaginea conține într-adevăr text, verificați procesatorul OCR configurat (de ex. setările de limbă) în Setări → Procesarea fișierelor sau schimbați procesatorul.",
+  "error.ocr_detail_failed": "Procesatorul OCR configurat a eșuat: {{reason}} Verificați sau schimbați procesatorul OCR în Setări → Procesarea fișierelor.",
   "error.originalError": "Eroare originală",
   "error.originalMessage": "Mesaj original",
   "error.parameter": "Parametru",

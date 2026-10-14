@@ -1440,6 +1440,8 @@
   "error.name": "Nom d'erreur",
   "error.no_api_key": "La clé API n'est pas configurée",
   "error.no_response": "Pas de réponse",
+  "error.ocr_detail_empty": "L'OCR a été exécuté mais n'a trouvé aucun texte lisible dans l'image. Si l'image contient bien du texte, vérifiez le processeur OCR configuré (p. ex. ses paramètres de langue) dans Paramètres → Traitement des fichiers, ou changez de processeur.",
+  "error.ocr_detail_failed": "Le processeur OCR configuré a échoué : {{reason}} Vérifiez ou changez le processeur OCR dans Paramètres → Traitement des fichiers.",
   "error.originalError": "Erreur d'origine",
   "error.originalMessage": "message original",
   "error.parameter": "paramètre",

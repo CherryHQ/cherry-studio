@@ -1440,6 +1440,8 @@
   "error.name": "エラー名",
   "error.no_api_key": "APIキーが設定されていません",
   "error.no_response": "応答なし",
+  "error.ocr_detail_empty": "OCR は実行されましたが、画像から読み取り可能なテキストは検出されませんでした。画像にテキストがある場合は、「設定 → ファイル処理」で OCR プロセッサー（言語設定など）を確認するか、別のプロセッサーに切り替えてください。",
+  "error.ocr_detail_failed": "設定された OCR プロセッサーが失敗しました：{{reason}} 「設定 → ファイル処理」で OCR プロセッサーを確認または変更してください。",
   "error.originalError": "元のエラー",
   "error.originalMessage": "元のメッセージ",
   "error.parameter": "パラメータ",
