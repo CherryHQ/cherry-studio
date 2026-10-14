@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
-import { isLinux, isWin } from '@main/core/platform'
-import { isSameOrInside } from '@main/utils/file'
+import { isWin } from '@main/core/platform'
+import { isNotesDirectoryAcceptedForLoading } from '@main/services/notesDirectoryValidation'
 import type { NotesRelocationValidationReason } from '@shared/types/notesRelocation'
 
 export class NotesRelocationValidationError extends Error {
@@ -141,35 +140,8 @@ function assertNotesTargetDirectory(dirPath: string): void {
     invalid('invalid_target', `target is not a directory: ${dirPath}`)
   }
 
-  const physicalPath = path.resolve(resolveExistingAncestor(dirPath).effectivePath)
-  const appDataPath = path.resolve(realPath(application.getPath('sys.appdata')))
-  const filesDir = path.resolve(realPath(application.getPath('feature.files.data')))
-  const defaultNotesDir = path.resolve(realPath(application.getPath('feature.notes.data')))
-
-  if (
-    isSameOrInside(physicalPath, filesDir) ||
-    isSameOrInside(physicalPath, defaultNotesDir) ||
-    isSameOrInside(physicalPath, appDataPath)
-  ) {
-    invalid('invalid_target', `target is a protected directory: ${dirPath}`)
-  }
-
-  const isSystemRoot = isWin
-    ? /^[a-zA-Z]:[\\/]?$/.test(physicalPath)
-    : physicalPath === '/' ||
-      physicalPath === '/usr' ||
-      physicalPath === '/etc' ||
-      physicalPath === '/system' ||
-      (isLinux && (physicalPath === '/bin' || physicalPath === '/sbin' || physicalPath === '/var'))
-
-  if (isSystemRoot) {
-    invalid('invalid_target', `target is a system root directory: ${dirPath}`)
-  }
-
-  try {
-    fs.accessSync(normalizedPath, fs.constants.W_OK)
-  } catch {
-    invalid('target_not_writable', `target is not writable: ${dirPath}`)
+  if (!isNotesDirectoryAcceptedForLoading(dirPath)) {
+    invalid('invalid_target', `target is not an allowed notes directory: ${dirPath}`)
   }
 }
 

@@ -389,6 +389,32 @@ describe('notesRelocation', () => {
     await expect(assertNotesRelocationPaths(source, target)).rejects.toThrow()
   })
 
+  it('rejects a target whose lexical path is inside app data even when a symlink escapes physically', async () => {
+    const source = path.join(tempRoot, 'source-notes-appdata-symlink')
+    const appDataRoot = path.join(tempRoot, 'appdata')
+    const outside = path.join(tempRoot, 'outside-notes')
+    const linkName = path.join(appDataRoot, 'escape-link')
+    const target = path.join(linkName, 'Notes')
+    fs.mkdirSync(source)
+    fs.mkdirSync(outside, { recursive: true })
+    fs.symlinkSync(outside, linkName, 'dir')
+    fs.mkdirSync(target, { recursive: true })
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+
+    await expect(assertNotesRelocationPaths(source, target)).rejects.toThrow()
+  })
+
+  it('allows an app-data sibling directory whose name extends the app-data folder name', async () => {
+    const source = path.join(tempRoot, 'source-notes-sibling')
+    const appDataRoot = path.join(tempRoot, 'appdata')
+    const target = path.join(tempRoot, 'appdata-notes')
+    fs.mkdirSync(source)
+    fs.mkdirSync(target)
+    fs.writeFileSync(path.join(source, 'note.md'), '# Note')
+
+    await expect(assertNotesRelocationPaths(source, target)).resolves.toBeUndefined()
+  })
+
   it.runIf(process.platform === 'darwin')(
     'rejects an app-data destination that only differs by path segment casing',
     async () => {
