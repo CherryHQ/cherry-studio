@@ -1,0 +1,458 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type React from 'react'
+import type { PropsWithChildren } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { previewTestDocument } from '../../../__tests__/previewTestDocument'
+
+interface MockViewerOptions {
+  onSlideChange?: (index: number) => void
+  onSlideError?: (index: number, error: Error) => void
+}
+
+const mocks = vi.hoisted(() => {
+  const shapeNode = (id: string, paragraphs: string[]) => ({
+    id,
+    nodeType: 'shape',
+    textBody: { paragraphs: paragraphs.map((text) => ({ runs: [{ text }] })) }
+  })
+
+  /**
+   * The deck the excerpt walks node by node: slide 1 has one shape, slide 2 has two, slide 3 none.
+   * Slides are pre-materialized, so the mocked `materializeSlideNodes` has nothing left to do.
+   */
+  const createMockPresentation = () => ({
+    slides: [
+      {
+        nodes: [shapeNode('cover', ['Cover'])],
+        nodesMaterialized: true,
+        rels: new Map([
+          [
+            'rEmbeddedImage',
+            {
+              type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+              target: '../media/image1.png'
+            }
+          ],
+          [
+            'rExternalImage',
+            {
+              type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+              target: 'https://example.com/image.png',
+              targetMode: 'External'
+            }
+          ],
+          [
+            'rExternalHyperlink',
+            {
+              type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+              target: 'https://example.com',
+              targetMode: 'External'
+            }
+          ]
+        ])
+      },
+      {
+        nodes: [shapeNode('title', ['Roadmap']), shapeNode('body', ['Q3 goals'])],
+        nodesMaterialized: true,
+        rels: new Map()
+      },
+      { nodes: [], nodesMaterialized: true, rels: new Map() }
+    ],
+    layouts: new Map(),
+    masters: new Map()
+  })
+
+  const state = {
+    buildPresentation: vi.fn(),
+    buildTextIndex: vi.fn(),
+    destroy: vi.fn(),
+    fsRead: vi.fn(),
+    goToSlide: vi.fn(),
+    load: vi.fn(),
+    logger: { error: vi.fn(), warn: vi.fn() },
+    failDocument: vi.fn(),
+    materializeSlideNodes: vi.fn(),
+    mockFiles: { slides: new Map() },
+    parseZipLazyMedia: vi.fn(),
+    renderList: vi.fn(),
+    slideError: null as Error | null,
+    setZoom: vi.fn()
+  }
+
+  class MockPptxViewer {
+    currentSlideIndex = 0
+    slideCount = 3
+    zoomPercent = 100
+
+    constructor(
+      private container: HTMLElement,
+      private options: MockViewerOptions
+    ) {}
+
+    load(presentation: unknown) {
+      state.load(presentation)
+    }
+
+    async renderList(options: unknown) {
+      state.renderList(options)
+      if (state.slideError) this.options.onSlideError?.(0, state.slideError)
+      this.container.textContent = 'rendered pptx'
+      this.options.onSlideChange?.(0)
+    }
+
+    async goToSlide(index: number) {
+      state.goToSlide(index)
+      this.currentSlideIndex = index
+      this.options.onSlideChange?.(index)
+    }
+
+    async setZoom(percent: number) {
+      state.setZoom(percent)
+      this.zoomPercent = percent
+    }
+
+    destroy() {
+      state.destroy()
+    }
+  }
+
+  return Object.assign(state, { createMockPresentation, MockPptxViewer })
+})
+
+vi.mock('@aiden0z/pptx-renderer', () => ({
+  buildPresentation: mocks.buildPresentation,
+  buildTextIndex: mocks.buildTextIndex,
+  materializeSlideNodes: mocks.materializeSlideNodes,
+  parseZipLazyMedia: mocks.parseZipLazyMedia,
+  PptxViewer: mocks.MockPptxViewer,
+  RECOMMENDED_ZIP_LIMITS: {}
+}))
+
+vi.mock('../../../previewContext', () => ({
+  usePreviewLogger: () => mocks.logger,
+  usePreviewHost: () => ({ failDocument: mocks.failDocument })
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
+  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+    <div data-testid="empty-state">
+      <span>{title}</span>
+      <span>{description}</span>
+    </div>
+  ),
+  Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
+    <div {...props}>{children}</div>
+  )
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
+import PowerPointFilePreview from '../PowerPointFilePreview'
+
+const filePath = '/tmp/presentations/roadmap.pptx'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.fsRead.mockResolvedValue(new Uint8Array([80, 75, 3, 4]))
+  mocks.parseZipLazyMedia.mockResolvedValue(mocks.mockFiles)
+  mocks.buildPresentation.mockImplementation(() => mocks.createMockPresentation())
+  mocks.slideError = null
+  // Only a group node would reach the text index, and this deck has none.
+  mocks.buildTextIndex.mockReturnValue([])
+})
+
+afterEach(cleanup)
+
+describe('PowerPointFilePreview', () => {
+  /** Mounts a slide the way PptxViewer.renderList would, and returns it for clicking. */
+  function renderSlide(text: string, slideIndex: string | null): HTMLDivElement {
+    const container = screen.getByTestId('pptx-viewer-container')
+    const slide = document.createElement('div')
+    if (slideIndex !== null) slide.setAttribute('data-slide-index', slideIndex)
+    slide.textContent = text
+    container.appendChild(slide)
+    return slide
+  }
+
+  function renderWithCapture(onSelectionReference?: (reference: unknown) => void) {
+    return render(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(4, 9, mocks.fsRead, 0)}
+        onSelection={onSelectionReference as never}
+      />
+    )
+  }
+
+  it('reports the clicked slide as a reference built from the deck, not the slide element', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+    // What the renderer actually paints: shapes and runs glued together, with an injected bullet and
+    // a zero-width filler. Reading the excerpt from here would hand office-transform "RoadmapQ3 goals".
+    const slide = renderSlide('\u2022Roadmap\u2022Q3 goals\u200b', '1')
+
+    fireEvent.click(slide)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith({
+      sourceId: filePath,
+      // data-slide-index is zero-based; the anchor is one-based.
+      anchor: { format: 'pptx', slide: 2 },
+      // One line per paragraph, collapsed to spaces by createPreviewSelection; layout and master
+      // shapes cannot appear, because the walk only reads the slide's own nodes.
+      excerpt: 'Roadmap Q3 goals',
+      revision: JSON.stringify({ size: 4, mtimeMs: 9 })
+    })
+    expect(slide).toHaveAttribute('data-pptx-picked', 'true')
+    expect(screen.getByTestId('pptx-viewer-container')).toHaveAttribute('data-picker', 'true')
+  })
+
+  it('clears the pick when the picked slide is clicked again and reports null outside any slide', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+    const slide = renderSlide('Cover', '0')
+    const chrome = renderSlide('chrome around the deck', null)
+
+    fireEvent.click(slide)
+    fireEvent.click(slide)
+    expect(slide).not.toHaveAttribute('data-pptx-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+
+    fireEvent.click(slide)
+    fireEvent.click(chrome)
+    expect(slide).not.toHaveAttribute('data-pptx-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it('keeps the pick and its marker across a viewer rebuild, and still clears on the next click', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+    const slide = renderSlide('Roadmap for Q3', '1')
+
+    fireEvent.click(slide)
+    expect(slide).toHaveAttribute('data-pptx-picked', 'true')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'pptx', slide: 2 } })
+    )
+    const callsWhenPicked = onSelectionReference.mock.calls.length
+
+    // What PptxViewer does on zoom: `setZoom` -> `queueRender` -> `container.innerHTML = ''`, then a
+    // fresh element per slide. The host still holds the reference, so the pick must survive.
+    screen.getByTestId('pptx-viewer-container').replaceChildren()
+    const rebuilt = renderSlide('Roadmap for Q3', '1')
+
+    await waitFor(() => expect(rebuilt).toHaveAttribute('data-pptx-picked', 'true'))
+    expect(onSelectionReference).toHaveBeenCalledTimes(callsWhenPicked)
+
+    fireEvent.click(rebuilt)
+
+    expect(rebuilt).not.toHaveAttribute('data-pptx-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it('does not mark the deck or react to clicks when the host is not capturing', async () => {
+    renderWithCapture(undefined)
+    await waitFor(() => expect(screen.getByTestId('pptx-viewer-container')).toBeInTheDocument())
+    const slide = renderSlide('Roadmap for Q3', '0')
+
+    fireEvent.click(slide)
+
+    expect(screen.getByTestId('pptx-viewer-container')).not.toHaveAttribute('data-picker')
+    expect(slide).not.toHaveAttribute('data-pptx-picked')
+  })
+
+  it('does not mark a slide without deck text as picked and reports null', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+    const picked = renderSlide('Roadmap for Q3', '1')
+    fireEvent.click(picked)
+    expect(picked).toHaveAttribute('data-pptx-picked', 'true')
+
+    // Slide 3 (index 2) has no nodes, so the excerpt is empty.
+    const empty = renderSlide('', '2')
+    fireEvent.click(empty)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(empty).not.toHaveAttribute('data-pptx-picked')
+    expect(picked).not.toHaveAttribute('data-pptx-picked')
+  })
+
+  it('prevents an external hyperlink from navigating when the click is a pick', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+    const slide = renderSlide('see ', '1')
+    const link = document.createElement('a')
+    link.href = 'https://example.com/'
+    link.textContent = 'ref'
+    slide.appendChild(link)
+
+    let observed: boolean | undefined
+    // jsdom logs "Not implemented: navigation" for an unprevented <a href> click, so observe
+    // defaultPrevented at document and cancel it ourselves before jsdom gets there.
+    const observe = (event: Event) => {
+      observed = event.defaultPrevented
+      event.preventDefault()
+    }
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(link)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(true)
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'pptx', slide: 2 } })
+    )
+
+    cleanup()
+    renderWithCapture(undefined)
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2))
+    const plainSlide = renderSlide('see ', '1')
+    const plainLink = document.createElement('a')
+    plainLink.href = 'https://example.com/'
+    plainLink.textContent = 'ref'
+    plainSlide.appendChild(plainLink)
+
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(plainLink)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(false)
+  })
+
+  it('loads and renders PPTX slides with a centered standalone toolbar', async () => {
+    render(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(4, 1, mocks.fsRead, 0)}
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+
+    expect(new Uint8Array(mocks.parseZipLazyMedia.mock.calls[0][0])).toEqual(new Uint8Array([80, 75, 3, 4]))
+    expect(mocks.buildPresentation).toHaveBeenCalledWith(mocks.mockFiles, { lazySlides: true })
+    expect(mocks.renderList).toHaveBeenCalledWith({
+      windowed: true,
+      batchSize: 4,
+      initialSlides: 3,
+      overscanViewport: 2
+    })
+    const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
+    expect(toolbar).toHaveClass('h-11', 'min-h-11')
+    expect(toolbar).not.toHaveClass('bg-background')
+    expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
+    expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
+    await waitFor(() => expect(mocks.goToSlide).toHaveBeenCalledWith(1))
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('2 / 3'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await waitFor(() => expect(mocks.setZoom).toHaveBeenCalledWith(110))
+    expect(screen.getByTestId('pptx-preview-zoom-value')).toHaveTextContent('110%')
+  })
+
+  it('removes external media relationships before loading the viewer', async () => {
+    render(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(4, 1, mocks.fsRead, 0)}
+      />
+    )
+
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+
+    const presentation = mocks.load.mock.calls[0][0]
+    expect(presentation.slides[0].rels.has('rEmbeddedImage')).toBe(true)
+    expect(presentation.slides[0].rels.has('rExternalHyperlink')).toBe(true)
+    expect(presentation.slides[0].rels.has('rExternalImage')).toBe(false)
+  })
+
+  it('reports an empty deck as a preview error instead of showing 0 / 0', async () => {
+    mocks.buildPresentation.mockReturnValueOnce({ ...mocks.createMockPresentation(), slides: [] })
+
+    renderWithCapture()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(mocks.failDocument).toHaveBeenCalledWith(expect.objectContaining({ code: 'load_error' }))
+  })
+
+  it('keeps the deck readable and navigable when one lazy slide fails', async () => {
+    const error = new Error('Failed to parse PPTX XML')
+    mocks.slideError = error
+
+    renderWithCapture()
+
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mocks.failDocument).not.toHaveBeenCalled()
+    expect(mocks.logger.error).toHaveBeenCalledWith(`Failed to render PPTX preview slide 1: ${filePath}`, error)
+    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('2 / 3'))
+  })
+
+  it('contains read failures inside the preview and reports the cause to the host', async () => {
+    const error = new Error('corrupt pptx')
+    mocks.fsRead.mockRejectedValueOnce(error)
+
+    render(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(4, 1, mocks.fsRead, 0)}
+      />
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
+    expect(mocks.failDocument).toHaveBeenCalledWith(error)
+  })
+
+  it('rebuilds and destroys the viewer when refreshKey changes', async () => {
+    const view = render(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(4, 1, mocks.fsRead, 0)}
+      />
+    )
+    await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+
+    view.rerender(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(4, 1, mocks.fsRead, 1)}
+      />
+    )
+
+    await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2))
+    expect(mocks.destroy).toHaveBeenCalledTimes(1)
+  })
+})

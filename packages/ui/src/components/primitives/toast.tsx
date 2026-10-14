@@ -16,6 +16,8 @@ export interface ToastAction {
 
 export interface ToastConfig {
   action?: ToastAction
+  /** Lower-emphasis control rendered before `action`, for a secondary way out (e.g. a link to where the item went). */
+  secondaryAction?: ToastAction
   title?: React.ReactNode
   description?: React.ReactNode
   icon?: React.ReactNode
@@ -366,6 +368,7 @@ const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivEl
 
 const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
   const action = toast.action
+  const secondaryAction = toast.secondaryAction
   const icon = toast.icon ?? typeIconMap[toast.type]
   const a11yProps = getToastA11yProps(toast.type)
 
@@ -401,6 +404,20 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
           </div>
         )}
       </div>
+      {secondaryAction && (
+        <Button
+          type="button"
+          className="shrink-0"
+          size="sm"
+          variant="link"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+            void secondaryAction.onClick()
+          }}>
+          {secondaryAction.label}
+        </Button>
+      )}
       {action && (
         <Button
           type="button"

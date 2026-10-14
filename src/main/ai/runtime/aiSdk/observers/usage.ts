@@ -23,6 +23,7 @@
 
 import type { LanguageModelUsage } from 'ai'
 
+import { getContextTokens } from '@cherrystudio/ai-core'
 import type { MessageStats } from '@shared/data/types/message'
 
 import type { Agent } from '../Agent'
@@ -115,7 +116,7 @@ export function attachUsageObserver(agent: Agent): void {
     // provider reported inputTokens. Otherwise totalTokens collapses to output-only
     // (addTokenCounts(undefined, out) === out) — a bogus anchor that would suppress
     // durable compaction — so leave it undefined and let estimateContext fall back to tokenx.
-    lastStepTotalTokens = typeof step.usage.inputTokens === 'number' ? step.usage.totalTokens : undefined
+    lastStepTotalTokens = getContextTokens(step.usage, step.providerMetadata)
     agent.write({
       type: 'message-metadata',
       messageMetadata: {

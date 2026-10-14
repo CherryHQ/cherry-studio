@@ -240,6 +240,23 @@ describe('prepareChatMessages — routing', () => {
     expect(extractMock).not.toHaveBeenCalled()
   })
 
+  // An AVIF/HEIC image is accepted wildcard-style on the agent surface, yet no ext list
+  // classifies it — the note above would drop the only usable reference to the file.
+  it('keeps an unlisted-extension attachment as a file part for a path-forwarding caller', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'avif' })
+    const part = fileWithEntry('e1', 'photo.avif', 'image/avif')
+
+    const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
+      attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+      nativeSupport: ALL,
+      isToolCapable: true,
+      keepUnroutableFileParts: true
+    })
+
+    expect(out.parts).toEqual([part])
+    expect(extractMock).not.toHaveBeenCalled()
+  })
+
   it('degrades a native file to a note when materialization returns null', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     resolveMock.mockResolvedValueOnce(null)

@@ -125,6 +125,7 @@ vi.mock('electron', async () => {
     addBrowserView = vi.fn()
     setTopBrowserView = vi.fn()
     removeBrowserView = vi.fn()
+    setTitleBarOverlay = vi.fn()
     getContentSize = () => [1200, 800]
     isDestroyed = () => this.destroyed
     close() {

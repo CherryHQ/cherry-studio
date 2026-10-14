@@ -27,6 +27,7 @@
       "@data/*": ["./src/main/data/*"],
       "@logger": ["./src/main/core/logger/LoggerService"],
       "@main/*": ["./src/main/*"],
+      "@renderer/*": ["./src/renderer/*"],
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
       "@shared/*": ["./src/shared/*"],
       "@cherrystudio/ai-core": ["./packages/aiCore/src"],

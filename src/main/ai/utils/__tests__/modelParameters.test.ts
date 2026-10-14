@@ -10,7 +10,7 @@ import {
   filterStandardParams,
   getTemperature,
   getTopP,
-  stripRejectedSamplingParams
+  stripUnsupportedModelParams
 } from '../modelParameters'
 
 const OMIT_REASONING = { kind: 'omit' } as const
@@ -25,7 +25,49 @@ function makeSampling(settings: Partial<AssistantSettings> = {}): SamplingSettin
   return makeAssistantBase({ settings: { enableTemperature: true, ...settings } }).settings
 }
 
-describe('stripRejectedSamplingParams', () => {
+describe('stripUnsupportedModelParams', () => {
+  it.each(['gemini-4-argon', 'google/gemini-4-argon', 'models/gemini-4-argon'])(
+    'removes Argon sampling and explicit cache references after overrides for %s',
+    (apiModelId) => {
+      const parameters = Object.freeze({
+        temperature: 0.5,
+        topP: 0.8,
+        top_p: 0.8,
+        topK: 40,
+        top_k: 40,
+        cachedContent: 'cachedContents/old',
+        cached_content: 'cachedContents/old',
+        maxOutputTokens: 131072,
+        continuationToken: 'resume',
+        thinkingConfig: { thinkingLevel: 'medium' },
+        metadata: { top_k: 'application data' }
+      })
+      const model = makeModel({ id: `custom::${apiModelId}`, apiModelId })
+      const cleaned = stripUnsupportedModelParams(
+        {
+          standardParams: parameters,
+          providerOptions: { google: parameters, vertex: parameters },
+          bodyParams: parameters
+        },
+        model
+      )
+      const expected = {
+        maxOutputTokens: 131072,
+        continuationToken: 'resume',
+        thinkingConfig: { thinkingLevel: 'medium' },
+        metadata: { top_k: 'application data' }
+      }
+      expect(cleaned).toEqual({
+        standardParams: expected,
+        providerOptions: { google: expected, vertex: expected },
+        bodyParams: expected
+      })
+      expect(getTemperature(makeSampling(), model, OMIT_REASONING)).toBeUndefined()
+      expect(getTopP(makeSampling({ enableTopP: true }), model, OMIT_REASONING)).toBeUndefined()
+      expect(parameters.cachedContent).toBe('cachedContents/old')
+    }
+  )
+
   it.each([
     { temperature: false, topP: false, standard: {}, wire: {} },
     { temperature: false, topP: true, standard: { topP: 0.8 }, wire: { topP: 0.8, top_p: 0.8 } },
@@ -67,7 +109,7 @@ describe('stripRejectedSamplingParams', () => {
         providerOptions: Object.freeze({ openai: wireParams, other: wireParams }),
         bodyParams: wireParams
       })
-      const result = stripRejectedSamplingParams(params, model)
+      const result = stripUnsupportedModelParams(params, model)
       expect(result.standardParams).toEqual({ ...standard, maxOutputTokens: 100 })
       const expectedWire = {
         ...wire,
@@ -76,7 +118,7 @@ describe('stripRejectedSamplingParams', () => {
       }
       expect(result.providerOptions).toEqual({ openai: expectedWire, other: expectedWire })
       expect(result.bodyParams).toEqual(expectedWire)
-      expect(stripRejectedSamplingParams(result, model)).toEqual(result)
+      expect(stripUnsupportedModelParams(result, model)).toEqual(result)
     }
   )
 })

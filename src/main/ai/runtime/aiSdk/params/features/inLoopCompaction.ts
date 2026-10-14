@@ -1,3 +1,4 @@
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { LanguageModelUsage, ModelMessage } from 'ai'
 
 /**
@@ -22,7 +23,7 @@ import type { LanguageModelUsage, ModelMessage } from 'ai'
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
+import { compactModelMessages, getContextTokens, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
@@ -83,16 +84,11 @@ function estimateMessageTokens(message: ModelMessage, dialect: TokenDialect): nu
  */
 function estimatePromptTokens(
   messages: ModelMessage[],
-  steps: ReadonlyArray<{ usage: LanguageModelUsage }> | undefined,
+  steps: ReadonlyArray<{ usage: LanguageModelUsage; providerMetadata?: SharedV3ProviderMetadata }> | undefined,
   dialect: TokenDialect
 ): number {
-  const usage = steps?.at(-1)?.usage
-  // Trust totalTokens only when inputTokens is also reported — otherwise totalTokens
-  // can collapse to output-only and badly undercount (same guard as the usage observer).
-  const anchor =
-    usage && typeof usage.inputTokens === 'number' && typeof usage.totalTokens === 'number'
-      ? usage.totalTokens
-      : undefined
+  const step = steps?.at(-1)
+  const anchor = step ? getContextTokens(step.usage, step.providerMetadata) : undefined
   if (anchor === undefined) return estimateModelMessages(messages, dialect)
   // Delta = messages appended after the last assistant output (this step's tool results).
   let lastAssistant = -1
