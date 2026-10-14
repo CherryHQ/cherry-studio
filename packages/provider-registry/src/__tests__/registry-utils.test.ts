@@ -28,6 +28,29 @@ function makeOverride(providerId: string, modelId: string, extra: Record<string,
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('lookupRegistryModel', () => {
+  it('resolves an opaque API alias through its provider override without changing the wire ID', () => {
+    const result = lookupRegistryModel(
+      [makeModel('gpt-6-1-sol')],
+      [makeOverride('gateway', 'gpt-6-1-sol', { apiModelId: 'my-deployment' })],
+      'gateway',
+      'my-deployment'
+    )
+
+    expect(result.presetModel?.id).toBe('gpt-6-1-sol')
+    expect(result.registryOverride?.apiModelId).toBe('my-deployment')
+  })
+
+  it('does not give a missing model size the metadata of its larger sibling', () => {
+    const result = lookupRegistryModel(
+      [makeModel('gpt-oss-120b')],
+      [makeOverride('nvidia', 'gpt-oss-120b')],
+      'nvidia',
+      'nvidia/gpt-oss-20b'
+    )
+
+    expect(result).toEqual({ presetModel: null, registryOverride: null })
+  })
+
   it('exact match for both presetModel and override', () => {
     const models = [makeModel('gpt-4o')]
     const overrides = [makeOverride('openai', 'gpt-4o')]

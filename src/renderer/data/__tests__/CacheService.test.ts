@@ -35,6 +35,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -167,5 +168,35 @@ describe('renderer CacheService equality semantics', () => {
       service.deletePersist('ui.sidebar.width') // already default
       expect(broadcastSync).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('memory cache expiry', () => {
+  it('releases unread image drafts and notifies their consumers when TTL elapses', async () => {
+    vi.useFakeTimers()
+    const service = await createService()
+    const changed = vi.fn()
+    service.setCasual('image-draft', new Blob(['image']), 100)
+    service.subscribe('image-draft', changed)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(changed).toHaveBeenCalledOnce()
+    expect(service.getCasual('image-draft')).toBeUndefined()
+    service.cleanup()
+  })
+
+  it('retains refreshed drafts until their new deadline and preserves entries without TTL', async () => {
+    vi.useFakeTimers()
+    const service = await createService()
+    const image = new Blob(['image'])
+    service.setCasual('image-draft', image, 100)
+    service.setCasual('permanent', image)
+    await vi.advanceTimersByTimeAsync(75)
+    service.setCasual('image-draft', image, 100)
+    await vi.advanceTimersByTimeAsync(25)
+    expect(service.getCasual('image-draft')).toBe(image)
+    await vi.advanceTimersByTimeAsync(75)
+    expect(service.getCasual('image-draft')).toBeUndefined()
+    expect(service.getCasual('permanent')).toBe(image)
+    service.cleanup()
   })
 })
