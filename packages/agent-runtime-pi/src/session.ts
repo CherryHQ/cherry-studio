@@ -96,6 +96,8 @@ export interface AgentRuntimeSession {
   prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
   /** `session.compact`, for every manual compaction the host starts, for the same reason. */
   compact(customInstructions?: string): Promise<void>
+  /** The user stops a background subagent (the host's stop button); false when it is not running. */
+  stopSubagent(sessionId: string): boolean
 }
 
 /** The port and host summarizer of `options`, each request first passing `before` (a subagent's request cap). */
@@ -268,6 +270,7 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     session,
     prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
     compact: (customInstructions) => held(() => session.compact(customInstructions)),
+    stopSubagent: (sessionId) => subagents?.controls.stopSubagent(sessionId) ?? false,
     async dispose() {
       try {
         await session.abort()
