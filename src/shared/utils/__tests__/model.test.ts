@@ -16,6 +16,7 @@ import {
   isSpeechToTextModel,
   isTextToSpeechModel,
   isVideoModel,
+  isVideoVisionSelectableModel,
   isVisionModel,
   supportsDynamicallyLoadedTools
 } from '@shared/utils/model'
@@ -132,6 +133,30 @@ describe('shared model capability helpers', () => {
       }
 
       expect(isNonChatModel(embeddingModel)).toBe(true)
+    })
+  })
+
+  describe('video vision model selection', () => {
+    const visionChatModel = createModel([MODEL_CAPABILITY.IMAGE_RECOGNITION])
+    const provider = { id: 'openai' }
+
+    it('allows only vision-capable chat models with an eligible provider', () => {
+      expect(isVideoVisionSelectableModel(visionChatModel, provider)).toBe(true)
+      expect(isVideoVisionSelectableModel(createModel(), provider)).toBe(false)
+      expect(
+        isVideoVisionSelectableModel(
+          createModel([MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.IMAGE_GENERATION]),
+          provider
+        )
+      ).toBe(false)
+      expect(isVideoVisionSelectableModel(visionChatModel)).toBe(false)
+    })
+
+    it('rejects Qiniu providers by runtime or preset identity', () => {
+      expect(isVideoVisionSelectableModel(visionChatModel, { id: 'qiniu' })).toBe(false)
+      expect(isVideoVisionSelectableModel(visionChatModel, { id: 'custom-qiniu', presetProviderId: 'qiniu' })).toBe(
+        false
+      )
     })
   })
 

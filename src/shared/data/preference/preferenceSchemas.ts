@@ -393,6 +393,8 @@ export interface PreferenceSchemas {
     // redux/ocr/imageProviderId
     'feature.file_processing.default_image_to_text': PreferenceTypes.FileProcessorId | null
     // target-key-definitions/complex/complex
+    'feature.file_processing.default_video_vision_model': string | null
+    // target-key-definitions/complex/complex
     'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // target-key-definitions/complex/complex
     'feature.local_model.hardware_acceleration.enabled': boolean
@@ -794,6 +796,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.code_cli.configs': {},
     'feature.file_processing.default_document_to_markdown': null,
     'feature.file_processing.default_image_to_text': null,
+    'feature.file_processing.default_video_vision_model': null,
     'feature.file_processing.overrides': {},
     'feature.local_model.hardware_acceleration.enabled': true,
     'feature.mini_app.check_updates_on_open': true,

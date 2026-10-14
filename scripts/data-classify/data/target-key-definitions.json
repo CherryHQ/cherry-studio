@@ -111,6 +111,13 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "feature.file_processing.default_video_vision_model",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Vision-capable chat model used to summarize sampled video frames"
+    },
+    {
       "targetKey": "feature.voice.input.device_id",
       "type": "string",
       "defaultValue": null,
