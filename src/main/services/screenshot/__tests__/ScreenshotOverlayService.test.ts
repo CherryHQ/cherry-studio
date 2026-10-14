@@ -100,8 +100,22 @@ vi.mock('@main/core/lifecycle', () => {
       return disposable
     }
   }
+  class MockEmitter<T> {
+    private listeners: Array<(value: T) => void> = []
+    readonly event = (listener: (value: T) => void) => {
+      this.listeners.push(listener)
+      return { dispose: () => {} }
+    }
+    fire(value: T) {
+      for (const listener of this.listeners) listener(value)
+    }
+    dispose() {
+      this.listeners = []
+    }
+  }
   return {
     BaseService: MockBaseService,
+    Emitter: MockEmitter,
     Injectable: () => (target: unknown) => target,
     ServicePhase: () => (target: unknown) => target,
     DependsOn: () => (target: unknown) => target,
@@ -1278,6 +1292,32 @@ describe('ScreenshotOverlayService', () => {
       expect(Object.keys(items[0].data)).toEqual(['image/png'])
       expect(new Uint8Array(await items[0].data['image/png'].arrayBuffer())).toEqual(PNG_BYTES)
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
+    })
+
+    it('reports the session as active only to the window that started it', async () => {
+      singleDisplaySetup()
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
+
+      await service.startCapture('quick-assistant')
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(true)
+      // Another window's hide-on-blur must not be suppressed by someone else's capture.
+      expect(service.isSessionRequestedBy('main-window')).toBe(false)
+
+      await service.commit({ pngBytes: PNG_BYTES })
+      expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
+    })
+
+    it('announces an abandoned session so the requester can settle its suppressed hide', async () => {
+      singleDisplaySetup()
+      const ended = vi.fn()
+      service.onSessionEnded(ended)
+      await service.startCapture('quick-assistant')
+
+      service.dismiss()
+
+      // Nothing refocuses the requester on this path, and the blur it swallowed to open
+      // the overlay is never coming back.
+      expect(ended).toHaveBeenCalledWith('quick-assistant')
     })
 
     it('still dismisses the overlays when the clipboard write throws', async () => {

@@ -222,6 +222,14 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messageId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  it('runs approval-gated tools without asking, since nothing here can resume a paused turn', async () => {
+    // Without it a "manual approval" tool ends the turn at approval-requested: the temporary
+    // backend has no continuation path for the decision.
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })
+
+    expect(prepared.models[0].request.autoApproveTools).toBe(true)
+  })
+
   it('reads the knowledge scope from the submitted user-message parts', async () => {
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),

@@ -9,6 +9,7 @@ import permissionModeTool from './definitions/permissionModeTool'
 import quickPhrasesTool from './definitions/quickPhrasesTool'
 import slashCommandsTool from './definitions/slashCommandsTool'
 import webSearchTool from './definitions/webSearchTool'
+import { isComposerToolVisibleInScope } from './registry'
 import type { ComposerToolScope, ToolContext, ToolDefinition } from './types'
 
 /**
@@ -44,7 +45,7 @@ export const getToolsForScope = (
 
   return BUILTIN_COMPOSER_TOOLS.filter((tool) => {
     // Check scope visibility
-    if (tool.visibleInScopes && !tool.visibleInScopes.includes(scope)) {
+    if (!isComposerToolVisibleInScope(tool.visibleInScopes, scope)) {
       return false
     }
 

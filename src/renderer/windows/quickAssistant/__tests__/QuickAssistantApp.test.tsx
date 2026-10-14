@@ -6,7 +6,7 @@ import QuickAssistantApp from '../QuickAssistantApp'
 // Cut the heavy content import graph; the wiring under test is the boundary
 // around the providers. The pre-existing INNER ErrorBoundary sits inside
 // ThemeProvider/CodeStyleProvider and cannot catch this throw.
-vi.mock('../home/HomeWindow', () => ({ default: () => null }))
+vi.mock('../QuickAssistantView', () => ({ default: () => null }))
 
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: () => {

@@ -8,7 +8,10 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 
-type ComposerToolbarPinnedToolsKey = 'chat.input.toolbar.pinned_tools' | 'agent.input.toolbar.pinned_tools'
+export type ComposerToolbarPinnedToolsKey =
+  | 'chat.input.toolbar.pinned_tools'
+  | 'agent.input.toolbar.pinned_tools'
+  | 'quick_assistant.input.toolbar.pinned_tools'
 
 /**
  * Single entry point for a composer variant's pinned toolbar tools preference:

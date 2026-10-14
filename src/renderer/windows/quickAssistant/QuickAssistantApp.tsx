@@ -1,20 +1,19 @@
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 
-import HomeWindow from './home/HomeWindow'
+import QuickAssistantView from './QuickAssistantView'
 
 // Headless runtime leaf inside the providers: this window's language + custom-CSS
-// owners (moved out of HomeWindow's business logic). No dayjs sync — this light window
-// has no localized-date consumer (dayjs lives in useWindowRuntime, main/sub only). It
-// renders nothing; HomeWindow and the popup/toast hosts are explicit siblings in the
-// App JSX below. The <ToastHost/> there renders the toast viewport this window
-// previously lacked (the toast black hole), so translate/copy toasts are visible.
+// owners. No dayjs sync — this light window has no localized-date consumer (dayjs lives
+// in useWindowRuntime, main/sub only). It renders nothing; the view and the popup/toast
+// hosts are explicit siblings in the App JSX below.
 function QuickAssistantRuntime(): null {
   useLanguageSync()
   useCustomCss()
@@ -29,8 +28,6 @@ function QuickAssistantRuntime(): null {
  * `useQuery('/models/:id')` via assistant hooks / `useDefaultModel`), so
  * there is no dependency on Redux rehydration and no `<PersistGate>` is needed.
  *
- * Why not migrate further to DataApi `useQuery('/assistants/:id')`: see the
- * design note above `currentAssistant` in HomeWindow.
  */
 function QuickAssistantApp(): React.ReactElement {
   return (
@@ -46,7 +43,10 @@ function QuickAssistantApp(): React.ReactElement {
               boundary) keep running. This window has no TabRouter, so unlike
               main/subWindow it can't rely on the per-tab RouteErrorFallback here. */}
           <ErrorBoundary>
-            <HomeWindow />
+            {/* The composer's "/" and "@" panels render through this host. */}
+            <QuickPanelProvider>
+              <QuickAssistantView />
+            </QuickPanelProvider>
           </ErrorBoundary>
           <PopupHost />
           <ToastHost />
