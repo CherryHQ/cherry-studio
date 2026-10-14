@@ -22,28 +22,6 @@ export function shouldHandleClipboardFiles(
   })
 }
 
-/**
- * Stage raw image bytes (clipboard image, capture result — anything without a path on
- * disk) as a composer attachment. Returns false when the temp file could not be read
- * back, which is the only outcome the callers branch on.
- */
-export const attachImageBytes = async (
-  fileName: string,
-  bytes: Uint8Array,
-  setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
-): Promise<boolean> => {
-  const tempFilePath = await window.api.file.createTempFile(fileName)
-  await window.api.file.write(tempFilePath, bytes)
-  const selectedFile = await window.api.file.get(tempFilePath)
-  if (!selectedFile) return false
-
-  setFiles((prevFiles) => [
-    ...prevFiles,
-    toComposerAttachment({ ...selectedFile, origin_name: removeFileExtension(fileName) })
-  ])
-  return true
-}
-
 async function readPathBackedClipboardEntry(
   filePath: string,
   extensionSet: Set<string>
@@ -159,11 +137,27 @@ export const handlePaste = async (
         for (const { file, filePath } of clipboardEntries) {
           try {
             if (!filePath) {
-              const staged =
-                isSupportedExtension(getFileExtension(file.name), supportExts) &&
-                (await attachImageBytes(file.name, new Uint8Array(await file.arrayBuffer()), setFiles))
-              if (!staged && t) {
-                toast.info(t('chat.input.file_not_supported'))
+              if (isSupportedExtension(getFileExtension(file.name), supportExts)) {
+                const tempFilePath = await window.api.file.createTempFile(file.name)
+                const arrayBuffer = await file.arrayBuffer()
+                const uint8Array = new Uint8Array(arrayBuffer)
+                await window.api.file.write(tempFilePath, uint8Array)
+                const selectedFile = await window.api.file.get(tempFilePath)
+                if (selectedFile) {
+                  setFiles((prevFiles) => [
+                    ...prevFiles,
+                    toComposerAttachment({
+                      ...selectedFile,
+                      origin_name: removeFileExtension(file.name)
+                    })
+                  ])
+                } else if (t) {
+                  toast.info(t('chat.input.file_not_supported'))
+                }
+              } else {
+                if (t) {
+                  toast.info(t('chat.input.file_not_supported'))
+                }
               }
               continue
             }

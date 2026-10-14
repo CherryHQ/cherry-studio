@@ -79,7 +79,7 @@ describe('composer tool visibility', () => {
     ).map((manifest) => manifest.id)
 
     expect(quickAssistantToolKeys).toEqual(expect.arrayContaining(['web_search', 'knowledge_base', 'mcp_status']))
-    expect(quickAssistantToolbarIds).toEqual(expect.arrayContaining(['web-search', 'knowledge-base', 'screenshot']))
+    expect(quickAssistantToolbarIds).toEqual(expect.arrayContaining(['web-search', 'knowledge-base']))
     expect(quickAssistantToolbarIds).not.toContain('permission-mode')
   })
 

@@ -117,17 +117,14 @@ export class ScreenshotOverlayService extends BaseService {
   /** The overlay the user is currently interacting with, at most one per session. */
   private activeOverlayWindowId: WindowId | null = null
 
-  /** The in-app window that started this session, handed the capture once it decodes.
-   *  Null for hotkey-started sessions, which have no window to answer to. */
+  /** The in-app window that started this session, so its own blur is not read as dismissal.
+   *  Null for hotkey-started sessions. */
   private requesterWindowId: WindowId | null = null
 
   private readonly _onSessionEnded = new Emitter<WindowId | null>()
   /** Fires with the requester once a session is over, so a window that suppressed its
    *  own hide-on-blur for the overlay can settle whether it should still be visible. */
   public readonly onSessionEnded: Event<WindowId | null> = this._onSessionEnded.event
-
-  /** Set by a successful commit: the requester is about to be refocused by hand. */
-  private restoringRequesterFocus = false
 
   /** Requester waiting behind the screen-recording permission dialog, if any. */
   private permissionGuideRequesterWindowId: WindowId | null = null
@@ -137,8 +134,6 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
-  /** The session a commit already owns; a second confirm must not hand the capture back again. */
-  private committedGeneration: number | null = null
   private hiddenSourceWindow: BrowserWindow | null = null
   private resultConsumer: {
     submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
@@ -249,7 +244,7 @@ export class ScreenshotOverlayService extends BaseService {
    * the user instead).
    *
    * @param requesterWindowId - Window that asked for the capture: hidden while the screen is
-   *   frozen, and handed the result by {@link commit}. Omitted for the global hotkey.
+   *   frozen, and reported by {@link isSessionRequestedBy}. Omitted for the global hotkey.
    * @param consumer - Receives a result the user sends to a chat draft ({@link submitResult}).
    */
   public async startCapture(
@@ -655,49 +650,21 @@ export class ScreenshotOverlayService extends BaseService {
   /** Copy the overlay's result to the clipboard and end the session. */
   public async commit(result: ScreenshotResultData): Promise<void> {
     const generation = this.sessionGeneration
-    // Claimed before the clipboard write yields: a double confirm would otherwise deliver the
-    // same capture twice, and each delivery stages its own attachment.
-    if (this.committedGeneration === generation) return
-    this.committedGeneration = generation
-    // Both read before the clipboard write yields: a newer session may replace the
-    // requester by the time it resolves, and these bytes belong to the one that asked.
-    const requesterWindowId = this.requesterWindowId
-    // Tracks decoding, not the clipboard write: the requester is handed the bytes
-    // directly, so a busy clipboard must not cost it the capture.
-    let decoded = false
     try {
       const bytes = Buffer.from(result.pngBytes)
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
       // writing that wipes the clipboard while the log still claims success.
       if (nativeImage.createFromBuffer(bytes).isEmpty()) throw new Error('the result bytes could not be decoded')
-      decoded = true
       await clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes]) })])
       logger.info('Screenshot copied to the clipboard')
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)
     }
 
-    // Ahead of the generation guard: the hand-back targets the window resolved above, so
-    // a session that got superseded mid-write still delivers the capture it took.
-    if (decoded && requesterWindowId) {
-      application.get('IpcApiService').send(requesterWindowId, 'screenshot.captured', result)
-    }
-
-    // The overlays come down whether or not the clipboard took it, but only for this
-    // session — the clipboard write yields, so a newer one may own them now.
+    // Outside the try: the overlays come down whether or not the clipboard took it, but
+    // only for this session — the clipboard write yields, so a newer one may own them now.
     if (generation !== this.sessionGeneration) return
-
-    // Set before dismiss(): cleanup() fires onSessionEnded synchronously, and a listener
-    // that settles an unfocused window would hide the requester before the focus() below
-    // ever runs. A handed-back requester has nothing to settle.
-    this.restoringRequesterFocus = decoded && requesterWindowId !== null
-
     this.dismiss()
-
-    // After dismiss so the requester takes focus from a screen the overlays have left.
-    if (decoded && requesterWindowId) {
-      application.get('WindowManager').getWindow(requesterWindowId)?.focus()
-    }
   }
 
   /**
@@ -880,11 +847,8 @@ export class ScreenshotOverlayService extends BaseService {
     this.latestOcrToken = null
 
     // Fired once the session state is fully torn down, so a listener that asks
-    // isSessionRequestedBy() sees the session as over. Reported as unowned when the
-    // requester is being handed the capture and refocused — there is nothing to settle.
-    const restoringRequesterFocus = this.restoringRequesterFocus
-    this.restoringRequesterFocus = false
-    this._onSessionEnded.fire(restoringRequesterFocus ? null : endedRequesterWindowId)
+    // isSessionRequestedBy() sees the session as over.
+    this._onSessionEnded.fire(endedRequesterWindowId)
   }
 
   /** The overlay holding the live selection, used as the save dialog's parent. */

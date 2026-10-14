@@ -7,7 +7,6 @@ import mcpStatusTool from './definitions/mcpStatusTool'
 import noteReferenceTool from './definitions/noteReferenceTool'
 import permissionModeTool from './definitions/permissionModeTool'
 import quickPhrasesTool from './definitions/quickPhrasesTool'
-import screenshotTool from './definitions/screenshotTool'
 import slashCommandsTool from './definitions/slashCommandsTool'
 import webSearchTool from './definitions/webSearchTool'
 import { isComposerToolVisibleInScope } from './registry'
@@ -24,7 +23,6 @@ export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
   quickPhrasesTool,
   webSearchTool,
   knowledgeBaseTool,
-  screenshotTool,
   generateImageTool,
   slashCommandsTool,
   permissionModeTool,

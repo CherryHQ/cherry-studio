@@ -33,7 +33,6 @@ export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas>
   // `startCapture` refuses when the feature is off or a session is already up.
   'screenshot.capture': async (_input, ctx) => {
     // Awaited so a failure reaches the caller instead of becoming an unhandled rejection.
-    // The sender is hidden during the capture and gets `screenshot.captured` once a result lands.
     await application.get('ScreenshotOverlayService').startCapture(ctx.senderId ?? undefined)
   },
   'screenshot.commit': async (result, ctx) => {

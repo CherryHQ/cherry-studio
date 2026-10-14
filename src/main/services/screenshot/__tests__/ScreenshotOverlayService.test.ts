@@ -1294,84 +1294,6 @@ describe('ScreenshotOverlayService', () => {
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
 
-    it('hands the capture itself to the window that started it', async () => {
-      singleDisplaySetup()
-      await service.startCapture('quick-assistant')
-
-      await service.commit({ pngBytes: PNG_BYTES })
-
-      // Carrying the bytes rather than pointing at the clipboard: whatever the user
-      // copies next must not change what gets attached.
-      expect(container.ipcApiService.send).toHaveBeenCalledWith('quick-assistant', 'screenshot.captured', {
-        pngBytes: PNG_BYTES
-      })
-    })
-
-    it('still delivers the capture when the clipboard write throws', async () => {
-      singleDisplaySetup()
-      await service.startCapture('quick-assistant')
-      electron.clipboard.write.mockRejectedValueOnce(new Error('clipboard busy'))
-
-      await service.commit({ pngBytes: PNG_BYTES })
-
-      expect(container.ipcApiService.send).toHaveBeenCalledWith('quick-assistant', 'screenshot.captured', {
-        pngBytes: PNG_BYTES
-      })
-    })
-
-    it('hands the capture back once when the user confirms twice during a slow clipboard write', async () => {
-      singleDisplaySetup()
-      await service.startCapture('quick-assistant')
-      let finishWrite: () => void = () => {}
-      electron.clipboard.write.mockReturnValueOnce(
-        new Promise<void>((resolve) => {
-          finishWrite = resolve
-        })
-      )
-      const captured = () =>
-        container.ipcApiService.send.mock.calls.filter(([, channel]) => channel === 'screenshot.captured').length
-
-      // Each delivery stages its own attachment, so a double confirm must not deliver twice.
-      const first = service.commit({ pngBytes: PNG_BYTES })
-      const second = service.commit({ pngBytes: PNG_BYTES })
-      finishWrite()
-      await Promise.all([first, second])
-      expect(captured()).toBe(1)
-
-      // The claim belongs to that session only; the next capture is delivered as usual.
-      await service.startCapture('quick-assistant')
-      await service.commit({ pngBytes: PNG_BYTES })
-      expect(captured()).toBe(2)
-    })
-
-    it('notifies nobody when the capture came from the global shortcut', async () => {
-      singleDisplaySetup()
-      await service.startCapture()
-
-      await service.commit({ pngBytes: PNG_BYTES })
-
-      expect(container.ipcApiService.send).not.toHaveBeenCalledWith(
-        expect.anything(),
-        'screenshot.captured',
-        expect.anything()
-      )
-    })
-
-    it('does not announce bytes that could not be decoded', async () => {
-      singleDisplaySetup()
-      await service.startCapture('quick-assistant')
-      electron.nativeImage.createFromBuffer.mockReturnValueOnce({ isEmpty: () => true })
-
-      await service.commit({ pngBytes: new Uint8Array([1, 2]) })
-
-      // Announcing here would stage an attachment no decoder can read.
-      expect(container.ipcApiService.send).not.toHaveBeenCalledWith(
-        expect.anything(),
-        'screenshot.captured',
-        expect.anything()
-      )
-    })
-
     it('reports the session as active only to the window that started it', async () => {
       singleDisplaySetup()
       expect(service.isSessionRequestedBy('quick-assistant')).toBe(false)
@@ -1396,19 +1318,6 @@ describe('ScreenshotOverlayService', () => {
       // Nothing refocuses the requester on this path, and the blur it swallowed to open
       // the overlay is never coming back.
       expect(ended).toHaveBeenCalledWith('quick-assistant')
-    })
-
-    it('claims no owner when the commit is about to refocus the requester', async () => {
-      singleDisplaySetup()
-      const ended = vi.fn()
-      service.onSessionEnded(ended)
-      await service.startCapture('quick-assistant')
-
-      await service.commit({ pngBytes: PNG_BYTES })
-
-      // dismiss() fires this synchronously, before commit's focus() runs — reporting the
-      // requester here would hide the window that is about to receive the capture.
-      expect(ended).toHaveBeenCalledWith(null)
     })
 
     it('still dismisses the overlays when the clipboard write throws', async () => {

@@ -183,7 +183,7 @@
     {
       "targetKey": "quick_assistant.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["screenshot"],
+      "defaultValue": ["composer:screenshot"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the quick assistant composer toolbar (v2 new feature, no v1 source)"
     },
