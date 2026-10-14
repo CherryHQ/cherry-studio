@@ -1,6 +1,7 @@
 import type { Usage } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 
+import type { ToolApprovalEvent } from './ports'
 import type { AgentRuntimeSession } from './session'
 import type { SubagentDetails, SubagentOutcome, SubagentStopper } from './subagent'
 import { type PendingDelivery, SUBAGENT_NOTIFICATION_TYPE, type SubagentNotificationDetails } from './subagentDelivery'
@@ -82,6 +83,8 @@ interface LiveRun {
   inbox: SubagentInbox
   /** Settles with the run's result once its session is disposed and its end is recorded. */
   done: Promise<RunResult>
+  /** Tool calls executing in its session, which approval events name. */
+  calls: Set<string>
 }
 
 /** Ids listed in status messages and errors (spec §5.4). */
@@ -238,6 +241,12 @@ export class SubagentRegistry {
     return run.done
   }
 
+  /** A pending approval marks its subagent `awaiting_approval`; any other event, or the call ending, undoes it. */
+  approval(event: ToolApprovalEvent): void {
+    for (const [sessionId, run] of this.live)
+      if (run.calls.has(event.toolCallId)) this.setWaiting(sessionId, event.kind === 'pending')
+  }
+
   /** Resolves once the latest run of the subagent is over and recorded. */
   async recorded(sessionId: string): Promise<void> {
     await this.live.get(sessionId)?.done
@@ -310,13 +319,15 @@ export class SubagentRegistry {
     const onAbort = () => controller.abort()
     if (signal?.aborted) controller.abort()
     else signal?.addEventListener('abort', onAbort, { once: true })
+    const calls = this.watchCalls(record.sessionId, child)
     const run = runSubagent(child, start, controller.signal, inbox)
-    this.live.set(record.sessionId, { controller, inbox, done: run })
+    this.live.set(record.sessionId, { controller, inbox, done: run, calls: calls.ids })
     try {
       const result = await run
       this.end(record, result)
       return result
     } finally {
+      calls.stop()
       signal?.removeEventListener('abort', onAbort)
       this.live.delete(record.sessionId)
     }
@@ -336,13 +347,15 @@ export class SubagentRegistry {
     this.host.appendState(snapshot(record))
     this.changed()
     const controller = new AbortController()
+    const calls = this.watchCalls(record.sessionId, child)
     const done = runSubagent(child, start, controller.signal, inbox).then(async (result) => {
+      calls.stop()
       // Finished at once, so a message sent from now on continues the subagent instead of joining this run.
       this.end(record, result)
       await this.record(record, child, result)
       return result
     })
-    this.live.set(record.sessionId, { controller, inbox, done })
+    this.live.set(record.sessionId, { controller, inbox, done, calls: calls.ids })
   }
 
   /** Session shutdown: stops every live run and disposes its session, writing nothing. */
@@ -365,6 +378,27 @@ export class SubagentRegistry {
     this.changed()
     // The model that stopped it has its partial output from stop_subagent already.
     if (record.stoppedBy !== 'model') this.host.finished(record, shortened)
+  }
+
+  /** Follows the tool calls executing in a subagent's session, for its approval events. */
+  private watchCalls(sessionId: string, child: AgentRuntimeSession): { ids: Set<string>; stop: () => void } {
+    const ids = new Set<string>()
+    const stop = child.session.subscribe((event) => {
+      if (event.type === 'tool_execution_start') ids.add(event.toolCallId)
+      if (event.type !== 'tool_execution_end') return
+      ids.delete(event.toolCallId)
+      this.setWaiting(sessionId, false)
+    })
+    return { ids, stop }
+  }
+
+  private setWaiting(sessionId: string, waiting: boolean): void {
+    const record = this.records.get(sessionId)
+    if (!record || record.status === 'finished') return
+    const status = waiting ? 'awaiting_approval' : 'running'
+    if (record.status === status) return
+    record.status = status
+    if (record.background) this.changed()
   }
 
   private end(record: SubagentRecord, result: RunResult): void {
