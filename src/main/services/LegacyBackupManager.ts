@@ -351,11 +351,13 @@ class BackupManager {
         this.assertWritersDrained([ingressVerdict])
 
         const aiStreamManager = application.get('AiStreamManager')
+        const temporaryChat = application.get('TemporaryChatService')
         const jobManager = application.get('JobManager')
         const agentJobs = application.get('AgentJobsService')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
+          writerHolds.push(temporaryChat.pause(quiesceReason))
           writerHolds.push(agentLifecycle.pauseExecution(quiesceReason))
           writerHolds.push(agentJobs.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
@@ -363,6 +365,7 @@ class BackupManager {
           const writerVerdicts = await Promise.all([
             agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            temporaryChat.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
           ])
@@ -935,12 +938,15 @@ class BackupManager {
         this.assertWritersDrained([heartbeatVerdict])
         this.assertWritersDrained([await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })])
         const aiStreamManager = application.get('AiStreamManager')
+        const temporaryChat = application.get('TemporaryChatService')
         writerHolds.push(aiStreamManager.pause('backup restore'))
+        writerHolds.push(temporaryChat.pause('backup restore'))
         writerHolds.push(agentLifecycle.pauseExecution('backup restore'))
         this.assertWritersDrained(
           await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
-            agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+            agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            temporaryChat.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
           ])
         )
         this.assertNoActiveDataWriters()

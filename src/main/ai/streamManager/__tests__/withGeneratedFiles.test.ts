@@ -147,6 +147,31 @@ describe('generated conversation attachments', () => {
     })
     expect(emitted).toEqual(chunks)
   })
+  it.each(['https://example.com/download?id=123', 'http://127.0.0.1/private', 'http://169.254.169.254/metadata'])(
+    'preserves remote video MIME through history without fetching %s',
+    async (url) => {
+      const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected remote download'))
+      const part: FileUIPart = { type: 'file', mediaType: 'video/mp4', url }
+      const output = await pipeStreamLoop(
+        withGeneratedFiles(
+          convertArrayToReadableStream([{ type: 'start', messageId: 'remote-video' }, part, { type: 'finish' }])
+        ),
+        new AbortController().signal,
+        { onChunk: () => {} }
+      )
+      expect(output.threw).toBeUndefined()
+      const history = [output.finalMessage!]
+      const prepared = await prepareChatMessages(history, {
+        attachments: collectFileAttachments(history),
+        nativeSupport: { image: true, pdf: true, audio: true, video: true },
+        isToolCapable: false
+      })
+      expect(prepared[0].parts).toContainEqual(part)
+      expect(fetch).not.toHaveBeenCalled()
+      expect(dbh.db.select().from(fileEntryTable).all()).toHaveLength(0)
+    }
+  )
+
   it('keeps temporary output readable through cleanup and atomically references it when saved', async () => {
     const topic = temporary.createTopic({})
     const emitted: UIMessageChunk[] = []

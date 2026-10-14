@@ -9,7 +9,16 @@ import { aiUsageRecordService, mergeMessageUsageProjection } from '@data/service
 import { topicService } from '@data/services/TopicService'
 import { isConversationActivityRole } from '@data/services/utils/activityTime'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  DependsOn,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { copy, ensureDir, isSameOrInside, removeDir, write } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
@@ -72,6 +81,7 @@ export class TemporaryChatService extends BaseService {
   private messages = new Map<string, TemporaryMessageRow[]>()
   private closing = new Set<string>()
   private pending = new Map<string, Set<Promise<unknown>>>()
+  private readonly pauseHolds = new Set<symbol>()
   private stopping = false
   private turns = new Map<string, AbortController>()
 
@@ -115,6 +125,39 @@ export class TemporaryChatService extends BaseService {
     }
     void task.then(settled, settled)
     return task
+  }
+
+  /** Block new DB promotions while backup/restore drains already admitted operations. */
+  pause(reason?: string): Disposable {
+    const hold = Symbol(reason)
+    this.pauseHolds.add(hold)
+    return {
+      dispose: () => {
+        this.pauseHolds.delete(hold)
+      }
+    }
+  }
+
+  /** Requires a live pause hold; pending promotions include their attachment writes and failure cleanup. */
+  async drainInFlight({ timeoutMs }: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    const admitted = [...this.pending].flatMap(([id, tasks]) => [...tasks].map((task) => ({ id, task })))
+    if (admitted.length === 0) return { stragglerIds: [] }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        Promise.allSettled(admitted.map(({ task }) => task)),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, timeoutMs)
+        })
+      ])
+      return {
+        stragglerIds: [
+          ...new Set(admitted.filter(({ id, task }) => this.pending.get(id)?.has(task)).map(({ id }) => id))
+        ]
+      }
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   beginTurn(topicId: string): AbortController {
@@ -269,6 +312,7 @@ export class TemporaryChatService extends BaseService {
 
   async persist(topicId: string): Promise<{ topicId: string; messageCount: number }> {
     this.assertAvailable(topicId)
+    if (this.pauseHolds.size > 0) throw new Error('Saving temporary chats is paused')
     if (this.turns.has(topicId)) throw new Error('Cannot save a temporary chat while a turn is active')
     const pending = [...(this.pending.get(topicId) ?? [])]
     return this.run(topicId, async () => {
