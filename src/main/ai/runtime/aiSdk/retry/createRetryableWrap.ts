@@ -31,6 +31,7 @@ import { loggerService } from '@logger'
 import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
+import type { AgentLoopHooks } from '../loop/types'
 import type { RetryPolicy } from './retryPolicy'
 
 const logger = loggerService.withContext('ModelRetry')
@@ -54,6 +55,8 @@ export interface RetryFallback {
    * a non-Ollama fallback). Absent leaves the primary's context untouched.
    */
   streamErrorSerialization?: SerializeErrorContext | null
+  /** Applied while this fallback is active so compaction uses its effective window. */
+  prepareStep?: AgentLoopHooks['prepareStep']
 }
 
 /**

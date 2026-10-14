@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
@@ -233,6 +233,40 @@ describe('resolveAttachmentBudgetContextWindow', () => {
         fallbackOllamaSnapshots: fallbackSnapshots
       })
     ).toBe(frozenCap)
+  })
+
+  it('ignores request-incompatible fallbacks when budgeting attachment context', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({
+      id: 'openai::gpt-4-vision',
+      providerId: 'openai',
+      contextWindow: 131_072,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    })
+    const fallbackUniqueId = createUniqueModelId('openai', 'gpt-4-mini')
+    const fallbackProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const textOnlyFallback = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'openai',
+      apiModelId: 'gpt-4-mini',
+      contextWindow: 8_192
+    })
+
+    mockGetProviderById.mockReturnValue(fallbackProvider)
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'openai' && modelId === 'gpt-4-mini') return textOnlyFallback
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        primaryHasTools: false,
+        requiredNativeFileSupport: { image: true, pdf: false, audio: false, video: false }
+      })
+    ).toBe(131_072)
   })
 
   it('ignores disabled fallback providers when budgeting attachment context', () => {

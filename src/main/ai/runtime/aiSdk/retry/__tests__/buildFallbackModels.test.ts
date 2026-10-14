@@ -55,7 +55,8 @@ function stubBuildAgentParams(modelId: string) {
     credentialReceipt,
     plugins,
     options: { temperature: 0.2, maxOutputTokens: 128, repairToolCall },
-    nativeFileSupport: ALL_NATIVE_SUPPORT
+    nativeFileSupport: ALL_NATIVE_SUPPORT,
+    hookParts: []
   })
   return { plugins, repairToolCall, credentialReceipt }
 }

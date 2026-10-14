@@ -17,11 +17,13 @@ import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow
 import { resolveMinContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
 import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaStub'
+import { isFallbackEligibleForRequestShape } from '@main/ai/utils/fallbackEligibility'
 import {
   resolveModelRequestContextWindow,
   resolveOllamaRequestNumCtx,
@@ -55,7 +57,11 @@ export interface AttachmentBudget {
  * fallback activation does not re-sample host RAM and diverge from the budget.
  */
 export function buildFallbackOllamaNumCtxSnapshots(
-  fallbackModelIds: readonly string[]
+  fallbackModelIds: readonly string[],
+  eligibility?: {
+    primaryHasTools: boolean
+    requiredNativeFileSupport: NativeFileSupport
+  }
 ): ReadonlyMap<UniqueModelId, OllamaNumCtxRequestSnapshot> {
   const snapshots = new Map<UniqueModelId, OllamaNumCtxRequestSnapshot>()
   for (const configuredId of fallbackModelIds) {
@@ -65,6 +71,16 @@ export function buildFallbackOllamaNumCtxSnapshots(
       const fallbackProvider = providerService.getByProviderId(providerId)
       if (!fallbackProvider.isEnabled) continue
       const fallbackModel = modelService.getByKey(providerId, modelId)
+      if (
+        eligibility &&
+        !isFallbackEligibleForRequestShape({
+          fallbackModel,
+          primaryHasTools: eligibility.primaryHasTools,
+          requiredNativeFileSupport: eligibility.requiredNativeFileSupport
+        })
+      ) {
+        continue
+      }
       const fallbackEndpoint = resolveEffectiveEndpoint(fallbackProvider, fallbackModel)
       const fallbackRuntimeId = resolveAiSdkProviderId(fallbackProvider, fallbackEndpoint.endpointType)
       if (!usesOllamaWirePath(fallbackProvider, fallbackEndpoint.endpointType, fallbackRuntimeId)) continue
@@ -92,6 +108,8 @@ export function resolveAttachmentBudgetContextWindow(input: {
   fallbackModelIds: readonly string[]
   /** Frozen at budget time; must match {@link buildFallbackOllamaNumCtxSnapshots}. */
   fallbackOllamaSnapshots?: ReadonlyMap<UniqueModelId, OllamaNumCtxRequestSnapshot>
+  primaryHasTools?: boolean
+  requiredNativeFileSupport?: NativeFileSupport
 }): number | undefined {
   const endpoint = input.endpointType ?? resolveEffectiveEndpoint(input.provider, input.model).endpointType
   const runtimeProviderId = input.runtimeProviderId ?? resolveAiSdkProviderId(input.provider, endpoint)
@@ -112,6 +130,17 @@ export function resolveAttachmentBudgetContextWindow(input: {
       const fallbackProvider = providerService.getByProviderId(providerId)
       if (!fallbackProvider.isEnabled) continue
       const fallbackModel = modelService.getByKey(providerId, modelId)
+      if (
+        input.primaryHasTools !== undefined &&
+        input.requiredNativeFileSupport &&
+        !isFallbackEligibleForRequestShape({
+          fallbackModel,
+          primaryHasTools: input.primaryHasTools,
+          requiredNativeFileSupport: input.requiredNativeFileSupport
+        })
+      ) {
+        continue
+      }
       const fallbackEndpoint = resolveEffectiveEndpoint(fallbackProvider, fallbackModel)
       const fallbackRuntimeId = resolveAiSdkProviderId(fallbackProvider, fallbackEndpoint.endpointType)
       const window = resolveRequestContextWindow(
