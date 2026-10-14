@@ -357,6 +357,35 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.filter((chunk) => chunk.text.includes(']: /url'))).toHaveLength(1)
   })
 
+  it('carries a definition whose label wraps to the line below', () => {
+    // The parser reads the label whole and normalizes its line ending to whitespace, so the
+    // wrapped reference matches; collecting no definition degraded the reference to literal text.
+    const content = [
+      '[foo',
+      'bar]: https://example.com/url',
+      '',
+      'filler paragraph that spends the budget',
+      '',
+      'see [foo bar]'
+    ].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[foo\nbar]: https://example.com/url')
+    }
+  })
+
+  it('does not carry a wrapped label a blank line takes out of the definition', () => {
+    // A definition is one block, so the blank ends the label's span and both lines are paragraphs.
+    const content = ['[foo', '', 'bar]: https://example.com/url', '', 'see [foo bar]'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.filter((chunk) => chunk.text.includes('bar]: https://example.com/url'))).toHaveLength(1)
+  })
+
   it('does not carry the quoted text that follows a block-quoted definition', () => {
     // Only the definition travels; `visible tail` is a paragraph of the quote and would be repeated.
     const content = ['> [label]: https://example.com', '> "the title"', '> visible tail', '', 'see [label]'].join('\n')

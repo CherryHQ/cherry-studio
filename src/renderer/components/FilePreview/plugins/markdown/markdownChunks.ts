@@ -310,10 +310,10 @@ function containerWhitespaceOpensCode(container: string): boolean {
 }
 
 /**
- * A link reference definition label, which may leave its destination to a line of its own. A label
- * may hold an escaped bracket (`[a\]b]`), so brackets only end the label when unescaped — and never
- * an unescaped opening one, which the parser reads as nesting the label cannot close. The label
- * itself is matched on one line; one that wraps is left to the chunk it was written in.
+ * A link reference definition label, which may leave its destination to a line of its own — and
+ * may itself wrap onto the lines below, which `wrappedLinkLabel` reads. A label may hold an
+ * escaped bracket (`[a\]b]`), so brackets only end the label when unescaped — and never an
+ * unescaped opening one, which the parser reads as nesting the label cannot close.
  */
 const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\[])+)\][ \t]*:([ \t]*)([\s\S]*)$/
 
@@ -1003,6 +1003,73 @@ function continuesFootnoteParagraph(carried: string): boolean {
  * has to be exact. The definition is returned without its block quote or list marker because that
  * container belongs to the chunk it was written in, and carrying it would render an empty one.
  */
+/**
+ * Where a label's run ends in `content`, and how many characters the parser counts it at — escapes
+ * as the two written, the brackets themselves not at all. `closed` is false when the run reaches
+ * the line's end still open, and null when an unescaped `[` makes the run no label at all.
+ */
+function labelRunClose(content: string): { closed: boolean; rest: string; counted: number } | null {
+  let counted = 0
+  for (let at = 0; at < content.length; at += 1) {
+    const character = content[at]
+    if (character === '\\') {
+      at += 1
+      counted += 2
+    } else if (character === '[') {
+      return null
+    } else if (character === ']') {
+      return { closed: true, rest: content.slice(at + 1), counted }
+    } else {
+      counted += 1
+    }
+  }
+  return { closed: false, rest: '', counted }
+}
+
+/**
+ * A link reference definition whose label wraps onto the lines below the one it opens on. The
+ * parser reads the label whole and normalizes the line endings inside it to whitespace, so the
+ * definition stands however many lines the label spans — and one collected only to its first line
+ * is no definition at all. The span ends at the line carrying the label's closing bracket and its
+ * colon; a blank line, a line the definition's container cannot follow, or a bracket the parser
+ * refuses a label for ends the search with no definition.
+ */
+function wrappedLinkLabel(
+  lines: string[],
+  index: number,
+  definitionSource: string,
+  container: DefinitionContainer
+): { text: string; tail: string; lines: number } | null {
+  let counted = 0
+  const parts: string[] = []
+  let span = 1
+  let content = definitionSource.slice(1)
+  for (;;) {
+    const run = labelRunClose(content)
+    if (run === null) return null
+    counted += run.counted
+    if (counted > MAX_LABEL_SOURCE_CHARS) return null
+    if (run.closed) {
+      // The colon belongs on the line the label closes on: anything else there leaves the line a
+      // paragraph, the way a label closed without one does.
+      const after = /^[ \t]*:([ \t]*)([\s\S]*)$/.exec(run.rest)
+      if (!after) return null
+      return {
+        // The label is carried the way it was written, line endings included — the parser reads
+        // and normalizes it whole again wherever the definition lands.
+        text: `[${[definitionSource.slice(1), ...parts].join('\n')}]:${after[1]}${after[2]}`,
+        tail: after[2],
+        lines: span
+      }
+    }
+    const next = continuation(lines[index + span], container.quotes, container.quoteColumns, container.labelColumn)
+    if (next === undefined) return null
+    parts.push(next)
+    span += 1
+    content = next
+  }
+}
+
 function linkDefinition(lines: string[], index: number): { text: string; lines: number } | null {
   const start = DEFINITION_CONTAINER.exec(lines[index])
   // A first marker indented four columns or more — a tab counts as up to four — opens indented
@@ -1023,13 +1090,24 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // line in indented code, where no definition opens.
   const definitionSource = start ? lines[index].slice(start[0].length) : lines[index].replace(/^ {1,3}(?=\[)/, '')
   const label = LINK_DEFINITION_LABEL.exec(definitionSource)
-  // A label the parser would refuse — one of whitespace alone, or one longer than the 999 characters
-  // it allows — leaves the line a paragraph. The count is over the label as written, escapes
-  // included, rather than over the text those escapes resolve to.
-  if (!label || !/[^\s]/.test(label[1]) || label[1].length > MAX_LABEL_SOURCE_CHARS) return null
-  const body = [`[${label[1]}]:${label[2]}${label[3]}`]
-  let tail = label[3]
-  let span = 1
+  let body: string[]
+  let tail: string
+  let span: number
+  if (label) {
+    // A label the parser would refuse — one of whitespace alone, or one longer than the 999
+    // characters it allows — leaves the line a paragraph. The count is over the label as written,
+    // escapes included, rather than over the text those escapes resolve to.
+    if (!/[^\s]/.test(label[1]) || label[1].length > MAX_LABEL_SOURCE_CHARS) return null
+    body = [`[${label[1]}]:${label[2]}${label[3]}`]
+    tail = label[3]
+    span = 1
+  } else {
+    const wrapped = wrappedLinkLabel(lines, index, definitionSource, { quotes, quoteColumns, labelColumn })
+    if (!wrapped) return null
+    body = [wrapped.text]
+    tail = wrapped.tail
+    span = wrapped.lines
+  }
   // The destination may sit a line below the label, but only when the label's own line ends with
   // the colon: a run that is present yet not a destination condemns the line to paragraphhood.
   const past = pastDestination(tail)
