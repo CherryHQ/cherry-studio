@@ -4,6 +4,7 @@ import type { StreamListener } from '@main/ai/streamManager/types'
 import { BaseService } from '@main/core/lifecycle'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
 
 /**
  * Pins the gateway model-id contract: `model` is `providerId:apiModelId`, split on
@@ -314,6 +315,40 @@ describe('processMessage model-id parsing', () => {
     })
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
+
+  it.each([false, true])(
+    'does not start inference after cancellation during permission refresh (stream=%s)',
+    async (stream) => {
+      mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
+      mockIsInternalAgentRequest.mockReturnValue(true)
+      const refreshStarted = Promise.withResolvers<void>()
+      const refresh = Promise.withResolvers<CherryCloudModelSyncResult>()
+      mockSyncEntitledModelsIfStale.mockImplementationOnce(() => {
+        refreshStarted.resolve()
+        return refresh.promise
+      })
+      const controller = new AbortController()
+      const response = processMessage({
+        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, stream, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' }),
+        signal: controller.signal
+      })
+      await refreshStarted.promise
+      controller.abort()
+      const modelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free')
+      refresh.resolve({
+        entitledModelIds: [modelId],
+        freeModelIds: [],
+        availableModelIdsByFeature: { agent: [modelId], chat: [], translate: [] },
+        quotaExhaustedModelIds: []
+      })
+
+      await expect(response).resolves.toBeInstanceOf(Response)
+      expect(mockStreamPrompt).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects an address that does not match an enabled gateway model', async () => {
     mockStreamPrompt.mockImplementationOnce((opts) => {
