@@ -8,7 +8,6 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
-import { bootConfigService } from '@main/data/bootConfig'
 // Preboot dialogs cannot use PreferenceService-backed translations.
 import { t } from '@main/i18n'
 
@@ -225,7 +224,6 @@ export async function requestV1Remigration(): Promise<void> {
 }
 
 async function stageDataReset(operation: DataResetOperation, shouldClearChromiumState: boolean): Promise<void> {
-  bootConfigService.persist()
   const userDataPath = application.getPath('app.userdata')
   // Bind authorization to the physical directory the user confirmed.
   try {

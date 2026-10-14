@@ -5,9 +5,6 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as ApplicationModule from '@application'
-import type * as BootConfigModule from '@main/data/bootConfig'
-
 const {
   appSetPathMock,
   bootConfigFlushMock,
@@ -40,10 +37,8 @@ let relocationState: Record<string, unknown>
 let restartFromWindow: (() => void) | undefined
 const TASK_ID = '11111111-1111-4111-8111-111111111111'
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  const mocked = mockApplicationFactory()
-  Object.assign(mocked.application, {
+vi.mock('@application', () => ({
+  application: {
     getPath: (key: string, filename?: string) => {
       let root: unknown
       if (key === 'app.install') root = relocationState.installPath
@@ -53,9 +48,8 @@ vi.mock('@application', async () => {
       return filename ? path.join(String(root), filename) : root
     },
     relaunch: relaunchMock
-  })
-  return mocked
-})
+  }
+}))
 // userDataLocation is intentionally NOT mocked: the private commit step runs
 // for real, so these flow tests cover the BootConfig commit transaction too.
 // getNormalizedExecutablePath() resolves to app.getPath('exe') = '/mock/exe'.
@@ -498,57 +492,6 @@ describe('userDataRelocation execution', () => {
     expect(relocationState['temp.user_data_relocation']).toBeNull()
     expect(bootConfigFlushMock).toHaveBeenCalledTimes(1)
     expect(relaunchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('restarts from the failed relocation window even if clearing its saved marker fails', async () => {
-    const root = makeRoot()
-    const source = path.join(root, 'source')
-    const target = path.join(root, 'target')
-    fs.mkdirSync(source)
-    fs.writeFileSync(path.join(source, 'data.txt'), 'original data')
-    relocationState['app.userdata'] = source
-    relocationState['temp.user_data_relocation'] = {
-      status: 'failed',
-      taskId: TASK_ID,
-      from: source,
-      to: target,
-      copy: true,
-      error: 'copy failed',
-      failedAt: '2026-07-13T00:00:00.000Z'
-    }
-
-    const { app } = await import('electron')
-    const { Application } = await vi.importActual<typeof ApplicationModule>('@application')
-    const { BootConfigService } = await vi.importActual<typeof BootConfigModule>('@main/data/bootConfig')
-    const { bootConfigService } = await import('@main/data/bootConfig')
-    const relaunch = vi.fn()
-    const exit = vi.fn()
-    const originalRelaunch = app.relaunch
-    const originalExit = app.exit
-    Object.assign(app, { relaunch, exit })
-    relaunchMock.mockImplementationOnce(() => Application.getInstance().relaunch())
-    bootConfigPersistMock.mockImplementation(() => {
-      throw new Error('Cannot clear relocation marker')
-    })
-    bootConfigFlushMock.mockImplementation(() => BootConfigService.prototype.flush.call(bootConfigService))
-
-    try {
-      const { runUserDataRelocation } = await loadDomain()
-      await expect(runUserDataRelocation()).resolves.toBe('handled')
-      expect(restartFromWindow).toBeTypeOf('function')
-
-      expect(() => restartFromWindow!()).not.toThrow()
-      expect(relocationState['temp.user_data_relocation']).toBeNull()
-      expect(relaunch).toHaveBeenCalledOnce()
-      expect(exit).toHaveBeenCalledWith(0)
-      expect(fs.readFileSync(path.join(source, 'data.txt'), 'utf8')).toBe('original data')
-      expect(fs.existsSync(target)).toBe(false)
-    } finally {
-      bootConfigPersistMock.mockReset()
-      bootConfigFlushMock.mockReset()
-      relaunchMock.mockReset()
-      Object.assign(app, { relaunch: originalRelaunch, exit: originalExit })
-    }
   })
 
   it('fails the relocation instead of crashing when the temporary sessionData cannot be prepared', async () => {

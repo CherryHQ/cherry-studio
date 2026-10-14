@@ -6,7 +6,6 @@ import type { AnchorHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-import { toast } from '@renderer/services/toast'
 import {
   LOCAL_MODEL_STATUS_CACHE_KEY,
   type LocalModelBundleId,
@@ -261,22 +260,6 @@ describe('ScreenshotSettings', () => {
 
     await user.click(restart)
     await waitFor(() => expect(requestedRoutes()).toContain('app.relaunch'))
-  })
-
-  it('shows a boot-config write failure when restarting after permission is granted', async () => {
-    const error = new Error('Failed to persist boot configuration: EACCES')
-    const user = userEvent.setup()
-    stubIpc({ permission: 'not-determined', afterRequest: 'authorized' })
-    render(<ScreenshotSettings />)
-
-    await user.click(await screen.findByText('settings.screenshot.permission.grant'))
-    const restart = await screen.findByText('settings.screenshot.permission.restart')
-    mockRequest.mockRejectedValueOnce(error)
-    await user.click(restart)
-
-    await waitFor(() => expect(toast.error).toHaveBeenCalledExactlyOnceWith(error.message))
-    expect(mockRequest).toHaveBeenLastCalledWith('app.relaunch')
-    expect(restart).toBeEnabled()
   })
 
   it('moves into the System Settings guidance when the OS denies the permission', async () => {

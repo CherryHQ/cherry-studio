@@ -131,9 +131,7 @@ const GeneralSettings: FC = () => {
     setTimeoutTimer(
       'handleHardwareAccelerationChange',
       () => {
-        void window.api.application.relaunch().catch((error) => {
-          toast.error(formatErrorMessage(error))
-        })
+        void window.api.application.relaunch()
       },
       500
     )

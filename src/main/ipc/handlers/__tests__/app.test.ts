@@ -22,16 +22,13 @@ const {
   requestRelocationMock: vi.fn()
 }))
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  const mocked = mockApplicationFactory()
-  Object.assign(mocked.application, {
+vi.mock('@application', () => ({
+  application: {
     get: appGetMock,
     getPath: appGetPathMock,
     relaunch: appRelaunchMock
-  })
-  return mocked
-})
+  }
+}))
 vi.mock('@main/services/dataReset', () => ({
   requestDataReset: requestDataResetMock,
   requestV1Remigration: requestV1RemigrationMock
@@ -43,10 +40,13 @@ vi.mock('@main/services/userDataRelocation', () => ({
 vi.mock('@main/services/cacheCleanup', () => ({
   cacheCleanupService: { inspect: cacheCleanupInspectMock, run: cacheCleanupRunMock }
 }))
-import { app } from 'electron'
+vi.mock('electron', () => ({
+  app: { getVersion: () => '1.0.0', isPackaged: true },
+  BrowserWindow: { getAllWindows: () => [] },
+  webContents: { getAllWebContents: () => [] }
+}))
 
-import type * as ApplicationModule from '@application'
-import { bootConfigService } from '@main/data/bootConfig'
+import { app } from 'electron'
 
 import { appHandlers } from '../app'
 
@@ -100,30 +100,6 @@ describe('appHandlers', () => {
   it('relaunches through IpcApi', async () => {
     await expect(appHandlers['app.relaunch'](undefined, ctx)).resolves.toBeUndefined()
     expect(appRelaunchMock).toHaveBeenCalledOnce()
-  })
-
-  it('rejects a renderer restart before terminal relaunch when startup settings cannot be saved', async () => {
-    const { Application } = await vi.importActual<typeof ApplicationModule>('@application')
-    const relaunch = vi.fn()
-    const exit = vi.fn()
-    const originalRelaunch = app.relaunch
-    const originalExit = app.exit
-    Object.assign(app, { relaunch, exit })
-    appRelaunchMock.mockImplementationOnce(() => Application.getInstance().relaunch())
-    const persist = vi.spyOn(bootConfigService, 'persist').mockImplementation(() => {
-      throw new Error('Cannot save startup settings')
-    })
-
-    try {
-      await expect(appHandlers['app.relaunch'](undefined, ctx)).rejects.toThrow('Cannot save startup settings')
-      expect(appRelaunchMock).not.toHaveBeenCalled()
-      expect(relaunch).not.toHaveBeenCalled()
-      expect(exit).not.toHaveBeenCalled()
-    } finally {
-      persist.mockRestore()
-      appRelaunchMock.mockReset()
-      Object.assign(app, { relaunch: originalRelaunch, exit: originalExit })
-    }
   })
 
   it('delegates cache cleanup inspection to the service', async () => {

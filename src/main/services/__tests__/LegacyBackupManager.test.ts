@@ -4,7 +4,6 @@ import type * as PathModule from 'path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as ApplicationModule from '@application'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
@@ -196,7 +195,6 @@ vi.mock('@logger', () => ({
 
 vi.mock('electron', () => ({
   app: {
-    isPackaged: true,
     getPath: vi.fn((key: string) => {
       if (key === 'temp') return '/tmp'
       if (key === 'userData') return '/mock/userData'
@@ -267,10 +265,8 @@ vi.mock('fs-extra', () => ({
   }
 }))
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  const mocked = mockApplicationFactory()
-  Object.assign(mocked.application, {
+vi.mock('@application', () => ({
+  application: {
     get: vi.fn((name: string) => {
       if (name === 'MainWindowService') {
         return { getMainWindow: vi.fn() }
@@ -310,9 +306,8 @@ vi.mock('@application', async () => {
       return filename ? `${base}/${filename}` : base
     }),
     relaunch: mockRelaunch
-  })
-  return mocked
-})
+  }
+}))
 
 vi.mock('../WebDav', () => ({
   // Return a distinct object per construction so instance identity is observable.
@@ -333,10 +328,7 @@ vi.mock('node-stream-zip', () => ({
 
 // Import after mocks
 import { ZipArchive } from 'archiver'
-import { app } from 'electron'
 import * as fs from 'fs-extra'
-
-import { bootConfigService } from '@main/data/bootConfig'
 
 import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
 import WebDav from '../WebDav'
@@ -1456,81 +1448,6 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
     expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
     expect(mockRelaunch).not.toHaveBeenCalled()
-  })
-
-  it('releases every writer hold and removes staging if startup settings cannot be saved before restore commit', async () => {
-    arrangeDirectRestore()
-    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
-      const target = String(entryPath)
-      return target.endsWith('/metadata.json') || target.startsWith('/mock/userData/')
-    })
-    const persist = vi.spyOn(bootConfigService, 'persist').mockImplementation(() => {
-      throw new Error('Cannot save startup settings')
-    })
-
-    try {
-      await expect(backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backups/backup.zip')).rejects.toThrow(
-        'Cannot save startup settings'
-      )
-
-      expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
-      expect(mockRelaunch).not.toHaveBeenCalled()
-      for (const hold of [
-        mockAiStreamHold,
-        mockAgentExecutionHold,
-        mockAgentIngressHold,
-        mockJobHold,
-        mockHeartbeatHold
-      ]) {
-        expect(hold.dispose).toHaveBeenCalledOnce()
-      }
-      expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
-      expect(fs.remove).toHaveBeenCalledWith('/mock/temp/backup/extract-operation-id')
-    } finally {
-      persist.mockRestore()
-    }
-  })
-
-  it('still exits after a committed restore if a later startup-settings save fails', async () => {
-    arrangeDirectRestore()
-    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
-      const target = String(entryPath)
-      return target.endsWith('/metadata.json') || target.startsWith('/mock/userData/')
-    })
-    const { Application } = await vi.importActual<typeof ApplicationModule>('@application')
-    const relaunch = vi.fn()
-    const exit = vi.fn()
-    const originalRelaunch = app.relaunch
-    const originalExit = app.exit
-    Object.assign(app, { relaunch, exit })
-    mockRelaunch.mockImplementationOnce(() => Application.getInstance().relaunch())
-    let journalCommitted = false
-    mockWriteRestoreJournal.mockImplementationOnce(() => {
-      journalCommitted = true
-    })
-    const persist = vi.spyOn(bootConfigService, 'persist').mockImplementation(() => {
-      if (journalCommitted) throw new Error('Cannot save startup settings after restore commit')
-    })
-
-    try {
-      await expect(
-        backupManager.restore({} as Electron.IpcMainInvokeEvent, '/backups/backup.zip')
-      ).resolves.toBeUndefined()
-
-      expect(mockWriteRestoreJournal).toHaveBeenCalledOnce()
-      expect(relaunch).toHaveBeenCalledOnce()
-      expect(exit).toHaveBeenCalledWith(0)
-      expect(mockAiStreamHold.dispose).not.toHaveBeenCalled()
-      expect(mockAgentExecutionHold.dispose).not.toHaveBeenCalled()
-      expect(mockAgentIngressHold.dispose).not.toHaveBeenCalled()
-      expect(mockJobHold.dispose).not.toHaveBeenCalled()
-      expect(mockHeartbeatHold.dispose).not.toHaveBeenCalled()
-      expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
-    } finally {
-      persist.mockRestore()
-      mockRelaunch.mockReset()
-      Object.assign(app, { relaunch: originalRelaunch, exit: originalExit })
-    }
   })
 
   it('rejects overlapping backup operations', async () => {

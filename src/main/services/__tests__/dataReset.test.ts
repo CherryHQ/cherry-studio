@@ -28,7 +28,6 @@ const fsyncSyncMock = vi.fn()
 const closeSyncMock = vi.fn()
 const renameSyncMock = vi.fn()
 const unlinkSyncMock = vi.fn()
-const persistBootConfigMock = vi.fn()
 
 type DataResetMarker =
   | {
@@ -312,9 +311,6 @@ function stubAll(marker: DataResetMarker) {
   stubI18n()
   stubFs()
   stubPath()
-  vi.doMock('@main/data/bootConfig', () => ({
-    bootConfigService: { persist: persistBootConfigMock }
-  }))
   if (marker) seedMarker(marker)
 }
 
@@ -382,7 +378,6 @@ function wipedEntries(): string[] {
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
-  persistBootConfigMock.mockReset()
 })
 
 describe('runDataReset', () => {
@@ -861,28 +856,6 @@ describe('requestDataReset', () => {
       applicationMock.relaunch.mock.invocationCallOrder[0]
     )
   })
-
-  it.each([
-    ['reset', requestReset],
-    ['remigration', requestRemigration]
-  ] as const)(
-    'rejects %s before staging or clearing data when startup settings cannot be saved',
-    async (_name, request) => {
-      stubAll(null)
-      persistBootConfigMock.mockImplementation(() => {
-        throw new Error('Cannot save startup settings')
-      })
-
-      await expect(request()).rejects.toThrow('Cannot save startup settings')
-
-      expect(markerExists()).toBe(false)
-      expect(fsCtl.commits).toHaveLength(0)
-      expect(defaultSession.clearData).not.toHaveBeenCalled()
-      expect(webviewSession.clearData).not.toHaveBeenCalled()
-      expect(applicationMock.shutdown).not.toHaveBeenCalled()
-      expect(applicationMock.relaunch).not.toHaveBeenCalled()
-    }
-  )
 
   it('rejects before staging when the current physical identity cannot be resolved', async () => {
     stubAll(null)

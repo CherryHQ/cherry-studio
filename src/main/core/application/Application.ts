@@ -395,13 +395,9 @@ export class Application {
   }
 
   /**
-   * Relaunch the app, with dev mode warning and best-effort startup-settings save.
-   * Callers requiring durability must persist changes before committing their operation.
+   * Relaunch the app, with dev mode warning
    */
   public relaunch(options?: Electron.RelaunchOptions): void {
-    // Terminal and recovery restarts must not be blocked by settings write failures.
-    if (!this.isShuttingDown) bootConfigService.flush()
-
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       dialog.showMessageBoxSync({
@@ -535,7 +531,6 @@ export class Application {
    */
   private registerApplicationIpc(): void {
     handleGuarded(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
-      bootConfigService.persist()
       this.relaunch(options)
     })
 

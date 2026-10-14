@@ -1,19 +1,15 @@
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 
 import GeneralSettings from '../GeneralSettings'
 
 const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
-const { setTimeoutTimer } = vi.hoisted(() => ({
-  setTimeoutTimer: vi.fn<(key: string, callback: () => void, delay: number) => void>()
-}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -36,7 +32,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({ setTimeoutTimer })
+  useTimer: () => ({ setTimeoutTimer: vi.fn() })
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
@@ -152,33 +148,6 @@ describe('GeneralSettings', () => {
     rerender(<GeneralSettings />)
     expect(screen.getByRole('switch', { name: 'Local automation (CDP)' })).toBeInTheDocument()
     expect(screen.getByLabelText('CDP port')).toBeInTheDocument()
-  })
-
-  it('shows a boot-config write failure from the confirmed hardware-acceleration restart', async () => {
-    const error = new Error('Failed to persist boot configuration: EACCES')
-    const relaunch = vi.mocked(window.api.application.relaunch)
-    relaunch.mockRejectedValueOnce(error)
-    vi.mocked(popup.confirm).mockResolvedValueOnce(true)
-    render(<GeneralSettings />)
-
-    const row = screen
-      .getByText('settings.hardware_acceleration.title')
-      .closest<HTMLElement>('[data-testid="setting-row"]')
-    expect(row).not.toBeNull()
-    fireEvent.click(within(row!).getByRole('switch'))
-
-    await waitFor(() =>
-      expect(setTimeoutTimer).toHaveBeenCalledWith('handleHardwareAccelerationChange', expect.any(Function), 500)
-    )
-    expect(relaunch).not.toHaveBeenCalled()
-    await act(async () => {
-      setTimeoutTimer.mock.calls[0][1]()
-      // Observe the bridge rejection while the UI remains responsible for presenting it.
-      await expect(relaunch.mock.results[0].value).rejects.toThrow(error.message)
-    })
-
-    expect(relaunch).toHaveBeenCalledOnce()
-    expect(toast.error).toHaveBeenCalledExactlyOnceWith(error.message)
   })
 
   it.each(['0', '-1', '65535', '9222.9', ''])(
