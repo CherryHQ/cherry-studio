@@ -15,3 +15,21 @@ workflow. It depends on the matching published `@cherrystudio/remote-protocol` v
 
 Run `pnpm --filter @cherrystudio/remote-protocol build` before this package's
 `test`, `typecheck` or `build` script.
+
+## Binary upload records
+
+Negotiation remains bound to the Noise transcript. Control records retain their JSON
+encoding. Binary DATA starts with `0x01`, a two-byte big-endian JSON header length,
+the bounded header and raw bytes. The marker cannot begin a JSON record. Control JSON stays
+at 64 KiB. DATA is at most 1 MiB, with a 4 KiB header limit. Noise handles its own
+smaller encrypted frames; application callers never split DATA into crypto frames.
+
+Mobile provides `createNativeNoiseCrypto` with Quick Crypto for bulk encryption. Electron
+uses Noise's built-in implementation: its Node crypto does not expose ChaCha20-Poly1305.
+Noise continues to own key exchange, nonces and authentication. No global crypto polyfills
+are installed. Desktop final file hashing still uses Node crypto.
+
+Upload acknowledgements are independent of RPC request admission. The sender keeps
+at most two DATA blocks outstanding; the receiver acknowledges only durable offsets.
+Transport buffers are bounded to 4 MiB, including framing overhead. Application
+ownership, writer epochs, source snapshots and final hashing belong to the hosts.

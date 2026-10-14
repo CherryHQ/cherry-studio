@@ -14,6 +14,7 @@ import {
   ownershipSnapshotFromValidated,
   type StreamListener
 } from '../streamManager'
+import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
@@ -474,59 +475,6 @@ export class AgentSessionDeliveryService extends BaseService {
   }
 
   private recoverDeliveries(): void {
-    const recoverable = agentSessionMessageService.listRecoverableSessionDeliveries()
-    for (const message of recoverable) {
-      if (message.delivery?.status !== 'delivering') continue
-      const turnRef = message.delivery.turnRef
-      if (!turnRef) {
-        const result = agentSessionMessageService.failSessionDelivery(message, {
-          code: 'INTERNAL_ERROR',
-          message: 'Delivering Session request has no turn reference'
-        })
-        if (result) this.suppressedSessionIds.add(result.sessionId)
-        continue
-      }
-
-      let assistant: AgentSessionMessageEntity | null = null
-      try {
-        assistant = agentSessionMessageService.getSessionMessage(message.sessionId, turnRef)
-      } catch (error) {
-        if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) throw error
-      }
-      if (!assistant) {
-        const result = agentSessionMessageService.failSessionDelivery(message, {
-          code: 'DELIVERY_TURN_DELETED',
-          message: 'The delivery turn was deleted before it could be recovered'
-        })
-        if (result) this.suppressedSessionIds.add(result.sessionId)
-        continue
-      }
-      if (assistant.status === 'pending') {
-        agentSessionMessageService.resolveCrashOrphanedMessages(
-          [
-            {
-              id: assistant.id,
-              data: {
-                ...assistant.data,
-                parts: finalizeInterruptedParts(assistant.data.parts ?? [], 'error')
-              }
-            }
-          ],
-          [message.sessionId]
-        )
-      }
-      const result = agentSessionMessageService.finalizeSessionDelivery({
-        requestSessionId: message.sessionId,
-        requestMessageId: message.id,
-        assistantMessageId: assistant.id,
-        outcome:
-          assistant.status === 'success'
-            ? 'success'
-            : assistant.status === 'paused' || assistant.status === 'pending'
-              ? 'interrupted'
-              : 'failed'
-      })
-      if (result) this.suppressedSessionIds.add(result.sessionId)
-    }
+    for (const sessionId of recoverSessionDeliveries()) this.suppressedSessionIds.add(sessionId)
   }
 }

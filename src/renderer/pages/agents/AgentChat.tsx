@@ -50,7 +50,6 @@ import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
-import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -708,7 +707,6 @@ const AgentChatSessionCenter = ({
         </div>
       )}
       {messageList}
-      <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )
 

@@ -38,8 +38,6 @@ export interface BuildAgentRuntimePromptOptions {
   agentDataPath: string
   agent: AgentEntity
   citationsGuidance?: string
-  /** Runtime-loaded root workspace instructions, if they are not already supplied by the native base. */
-  workspaceInstructions?: string
   /** Context required only when a custom system.md replaces the runtime's native base. */
   customBaseContext?: string
   /** Materialized effective language; when omitted the preference is read live. */
@@ -69,7 +67,6 @@ export async function buildAgentRuntimePrompt({
   agentDataPath,
   agent,
   citationsGuidance,
-  workspaceInstructions,
   customBaseContext,
   effectiveLanguage,
   mcpInstructions,
@@ -104,7 +101,6 @@ export async function buildAgentRuntimePrompt({
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
-    workspaceInstructions,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,
     citationsGuidance,

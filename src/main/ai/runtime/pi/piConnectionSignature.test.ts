@@ -238,6 +238,13 @@ describe('capturePiConnectionSnapshot', () => {
 
     expect((await captureCloud()).signature).not.toBe(initialSignature)
   })
+  it('rebuilds a gateway fallback connection when its local credential changes', async () => {
+    mocks.usesPiGateway.mockReturnValue(true)
+    const initial = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.gatewayFingerprint = 'rotated-local-key'
+    const rotated = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(rotated.signature).not.toBe(initial.signature)
+  })
   it('invalidates cached tools when Agent browser control changes', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
     const disabled = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
