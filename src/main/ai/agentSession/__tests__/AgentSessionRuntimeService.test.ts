@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   finalizeHeldTopicStream: vi.fn(async () => undefined),
+  clearPendingChannelListeners: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -567,7 +568,8 @@ describe('AgentSessionRuntimeService', () => {
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream,
-          finalizeHeldTopicStream: mocks.finalizeHeldTopicStream
+          finalizeHeldTopicStream: mocks.finalizeHeldTopicStream,
+          clearPendingChannelListeners: mocks.clearPendingChannelListeners
         }
       }
       if (name === 'CacheService')

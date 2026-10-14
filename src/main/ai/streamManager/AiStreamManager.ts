@@ -1212,6 +1212,14 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
+   * Drop a topic's stashed wake recipients: the runtime connection that owed their delivery
+   * closed, so its detached work can never produce the wake that would consume them.
+   */
+  clearPendingChannelListeners(topicId: string): void {
+    this.pendingChannelListeners.delete(topicId)
+  }
+
+  /**
    * Clear a live runtime tool approval as soon as the user responds, before the
    * tool's eventual output chunk arrives. Returns whether a tracked approval changed.
    */

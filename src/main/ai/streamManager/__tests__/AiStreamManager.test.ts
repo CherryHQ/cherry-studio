@@ -745,6 +745,45 @@ describe('AiStreamManager', () => {
     expect(mgr.inspect(topicId)?.listenerIds).toContain('channel:ch1:chat-1:unthreaded')
   })
 
+  // Canceling the runtime kills its detached work, so the recipients its fire stashed can never
+  // be owed a delivery again — a later unrelated wake on the topic must not resurrect them and
+  // post its output to the old external chats.
+  it('does not restore a released topic’s channel recipients on a later wake', async () => {
+    const topicId = 'agent-session:s1'
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), new FakeListener('channel:ch1:chat-1:unthreaded')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    // Intervening desktop turn: the fire's recipients are stashed for its wake.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    // The runtime that owed the delivery is canceled — the runtime service releases the binding.
+    ;(mgr as unknown as { clearPendingChannelListeners?: (topicId: string) => void }).clearPendingChannelListeners?.(
+      topicId
+    )
+
+    // An unrelated background wake on the same topic must not reach the old chats.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain('channel:ch1:chat-1:unthreaded')
+  })
+
   // ── send (inject path) ─────────────────────────────────────────────
 
   describe('send (inject)', () => {
