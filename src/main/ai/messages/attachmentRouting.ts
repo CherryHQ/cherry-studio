@@ -5,7 +5,8 @@
  *     provider, audio/video→model + endpoint capable) → left in place and
  *     materialized as the real file via `materializeNativeFilePart`; or
  *   - **non-native** → replaced with its extracted text (office/pdf/text via
- *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
+ *     `extractDocumentText`, image via OCR, audio/video via media analysis,
+ *     binary → a note),
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
  *     unconfigured/failed) stops before the provider call with a user-facing
@@ -116,6 +117,20 @@ function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boole
   return false
 }
 
+/** WebM is audio or video only after probe. Unambiguous extensions keep their static type. */
+async function resolveAttachmentFileType(
+  entryId: string,
+  bareExt: string,
+  signal?: AbortSignal
+): Promise<{ fileType: FileType; mediaType?: string }> {
+  if (bareExt.replace(/^\./, '').toLowerCase() !== 'webm') return { fileType: getFileTypeByExt(bareExt) }
+  const probe = await application.get('MediaAnalysisService').probe({ kind: 'entry', entryId }, signal)
+  // A .webm name can still be Matroska or MP4. Kind chooses the capability; probe.mime is dispatched.
+  if (probe.kind === 'video') return { fileType: FILE_TYPE.VIDEO, mediaType: probe.mime }
+  if (probe.kind === 'audio') return { fileType: FILE_TYPE.AUDIO, mediaType: probe.mime }
+  return { fileType: FILE_TYPE.OTHER }
+}
+
 /**
  * OCR a non-vision image. Returns trimmed text, or `null` when OCR found no
  * text or is unavailable (unconfigured / failed). Abort rethrows.
@@ -141,7 +156,13 @@ async function extractNonNativeText(
   signal?: AbortSignal
 ): Promise<string> {
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-    return `This model can't process the attached ${fileType} file "${handle}".`
+    try {
+      return await application.get('MediaAnalysisService').analyzeToCompactText({ kind: 'entry', entryId }, signal)
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
+      logger.warn('Media analysis unavailable for a non-native attachment', { error, entryId, handle, fileType })
+      return `Could not analyze the attached ${fileType} file "${handle}".`
+    }
   }
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || !ext) {
     const extracted = await extractDocumentText(entryId, { signal })
@@ -184,8 +205,8 @@ async function prepareChatMessage<T extends UIMessage>(
 
   const kept: UIMessage['parts'] = []
   const composerFileTokenIds = collectComposerFileTokenIds(message)
-  const inlineNative = async (part: FileUIPart): Promise<boolean> => {
-    const inlined = await materializeNativeFilePart(part)
+  const inlineNative = async (part: FileUIPart, mediaType?: string): Promise<boolean> => {
+    const inlined = await materializeNativeFilePart(part, mediaType ? { mediaType } : undefined)
     if (!inlined) return false
     kept.push(inlined)
     return true
@@ -239,10 +260,11 @@ async function prepareChatMessage<T extends UIMessage>(
     const displayName = ref?.displayName ?? handle
     try {
       const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
-      const fileType = getFileTypeByExt(bareExt)
+      const resolved = await resolveAttachmentFileType(fileEntryId, bareExt, ctx.signal)
+      const fileType = resolved.fileType
 
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
-        if (!(await inlineNative(part))) {
+        if (!(await inlineNative(part, resolved.mediaType))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
           kept.push(noteOf(handle))
         }
