@@ -1,5 +1,5 @@
 import { Type } from '@earendil-works/pi-ai'
-import { createToolSearchExtension, defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
+import { createToolSearchExtension, defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -11,75 +11,54 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults
-} from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, gatewayModel, tempDir, textParts } from './gatewaySupport'
+} from './subagentSupport'
+import { createTestSession, finish, hostStore, plain, streamTextPort, textParts } from './support'
 
 const forkA = { description: 'Check A', prompt: 'TASK-A', fork: true }
 const forkB = { description: 'Check B', prompt: 'TASK-B', fork: true }
 
 describe('subagent fork', () => {
-  it.each([false, true])(
-    'forks an identical native prefix without changing the parent branch (persistent: %s)',
-    async (persistent) => {
-      const { model, calls } = routedModel(({ userText, lastRole }) => {
-        for (const task of ['TASK-A', 'TASK-B'])
-          if (userText.includes(task)) return [...textParts('r', `REPORT ${task}`), finish('stop')]
-        return lastRole === 'user'
-          ? [
-              toolCallPart('note_1', 'note'),
-              subagentCall('call_a', forkA),
-              subagentCall('call_b', forkB),
-              finish('tool-calls')
-            ]
-          : [...textParts('d', 'Done'), finish('stop')]
-      })
-      const host = recordingSubagentPort()
-      const cwd = tempDir('parent')
-      const manager = persistent ? SessionManager.create(cwd, tempDir('children')) : SessionManager.inMemory(cwd)
-      const { session } = await createTestSession({
-        cwd,
-        sessionManager: manager,
-        port: gatewayModel(model).upstream,
-        tools: [noteTool],
-        subagents: host.port
-      })
+  it('starts each fork from the parent conversation up to its call, every call of that step answered by one placeholder', async () => {
+    const { model, calls } = routedModel(({ userText, lastRole }) => {
+      for (const task of ['TASK-A', 'TASK-B'])
+        if (userText.includes(task)) return [...textParts('r', `REPORT ${task}`), finish('stop')]
+      return lastRole === 'user'
+        ? [
+            toolCallPart('note_1', 'note'),
+            subagentCall('call_a', forkA),
+            subagentCall('call_b', forkB),
+            finish('tool-calls')
+          ]
+        : [...textParts('d', 'Done'), finish('stop')]
+    })
+    const host = recordingSubagentPort()
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [noteTool],
+      subagents: host.port
+    })
 
-      await session.prompt('Check modules A and B')
+    await session.prompt('Check modules A and B')
 
-      const promptA = calls.find((call) => call.userText.includes('TASK-A'))!.options.prompt
-      const promptB = calls.find((call) => call.userText.includes('TASK-B'))!.options.prompt
-      const parentAfterTools = calls.at(-1)!.options.prompt
-      expect(parentAfterTools.slice(0, 3).map((message) => message.role)).toEqual(['system', 'user', 'assistant'])
-      expect(promptA.slice(0, 3)).toEqual(parentAfterTools.slice(0, 3))
-      expect(promptA.slice(0, -1)).toEqual(promptB.slice(0, -1))
-      expect(promptA.at(-1)).not.toEqual(promptB.at(-1))
-      const placeholders = promptA
-        .flatMap((message) => (message.role === 'tool' ? message.content : []))
-        .flatMap((part) => (part.type === 'tool-result' ? [part] : []))
-      expect(placeholders.map((part) => part.toolCallId)).toEqual(['note_1', 'call_a', 'call_b'])
-      expect(new Set(placeholders.map((part) => JSON.stringify(part.output))).size).toBe(1)
-      // Pi answers calls left without a result with its own error result; these must be the package's.
-      expect(placeholders[0].output.type).toBe('text')
-      expect(outputText(placeholders[0].output)).toMatch(/still running/)
-      expect(JSON.stringify(placeholders)).not.toContain('noted')
-      expect(host.subagents.map((subagent) => subagent.fork)).toEqual([true, true])
-      expect(toolResultOf(session, 'call_a').details).toMatchObject({ fork: true })
-      expect(session.sessionManager).toBe(manager)
-      for (const child of host.subagents) {
-        const childManager = host.sessions.get(child.sessionId)!.sessionManager
-        expect(childManager.getSessionId()).toBe(child.sessionId)
-        expect(childManager.isPersisted()).toBe(persistent)
-        if (persistent) {
-          const reopened = SessionManager.open(childManager.getSessionFile()!)
-          expect(reopened.getHeader()).toMatchObject({ id: child.sessionId, parentSession: manager.getSessionFile() })
-          expect(reopened.getBranch().at(-1)).toMatchObject({
-            type: 'message',
-            message: { role: 'assistant', stopReason: 'stop' }
-          })
-        }
-      }
-    }
-  )
+    const promptA = calls.find((call) => call.userText.includes('TASK-A'))!.options.prompt
+    const promptB = calls.find((call) => call.userText.includes('TASK-B'))!.options.prompt
+    const parentAfterTools = calls.at(-1)!.options.prompt
+    expect(parentAfterTools.slice(0, 3).map((message) => message.role)).toEqual(['system', 'user', 'assistant'])
+    expect(promptA.slice(0, 3)).toEqual(parentAfterTools.slice(0, 3))
+    expect(promptA.slice(0, -1)).toEqual(promptB.slice(0, -1))
+    expect(promptA.at(-1)).not.toEqual(promptB.at(-1))
+    const placeholders = promptA
+      .flatMap((message) => (message.role === 'tool' ? message.content : []))
+      .flatMap((part) => (part.type === 'tool-result' ? [part] : []))
+    expect(placeholders.map((part) => part.toolCallId)).toEqual(['note_1', 'call_a', 'call_b'])
+    expect(new Set(placeholders.map((part) => JSON.stringify(part.output))).size).toBe(1)
+    // Pi answers calls left without a result with its own error result; these must be the package's.
+    expect(placeholders[0].output.type).toBe('text')
+    expect(outputText(placeholders[0].output)).toMatch(/still running/)
+    expect(JSON.stringify(placeholders)).not.toContain('noted')
+    expect(host.subagents.map((subagent) => subagent.fork)).toEqual([true, true])
+    expect(toolResultOf(session, 'call_a').details).toMatchObject({ fork: true })
+  })
 
   it('forks from the latest assistant message holding the call when an earlier turn reused its id', async () => {
     const { model, calls } = routedModel(({ userText, lastRole }) => {
@@ -91,7 +70,7 @@ describe('subagent fork', () => {
         : [subagentCall('call_a', { description: 'One', prompt: 'TASK-ONE' }), finish('tool-calls')]
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       subagents: recordingSubagentPort().port
     })
 
@@ -133,7 +112,7 @@ describe('subagent fork', () => {
         : [...textParts('l', 'Loaded.'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      port: streamTextPort(model).port,
       tools: [weather],
       builtinTools: ['tool_search'],
       extensionFactories: [createToolSearchExtension()],
@@ -161,7 +140,7 @@ describe('subagent fork', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const host = recordingSubagentPort()
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
 
     await session.prompt('Check module A')
 
@@ -171,10 +150,36 @@ describe('subagent fork', () => {
     expect(outputText(nested.output)).toMatch(/cannot start subagents/)
   })
 
-  it('forks a session restored from native entries with its existing history', async () => {
+  // Breaks when the fork prefix is not handed to the host: the stored transcript would start at the
+  // origin entry and a rebuilt fork would lose the conversation it was forked from.
+  it("hands the host a fork's whole transcript, so the stored copy rebuilds it with the forked prefix", async () => {
+    const { model, calls } = routedModel(({ userText, lastRole }) => {
+      if (userText.includes('TASK-A')) return [...textParts('r', 'REPORT-A'), finish('stop')]
+      return lastRole === 'user'
+        ? [subagentCall('call_a', forkA), finish('tool-calls')]
+        : [...textParts('d', 'Done'), finish('stop')]
+    })
+    const host = recordingSubagentPort()
+    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    await session.prompt('Check module A with the codename ORCHID')
+
+    const stored = host.events
+      .get(host.subagents[0].sessionId)!
+      .flatMap((event) => (event.type === 'transcript-append' ? event.entries : []))
+    const rebuilt = await createTestSession({ port: streamTextPort(model).port, transcript: plain(stored) })
+    await rebuilt.session.prompt('FOLLOW-UP')
+
+    const request = calls.at(-1)!
+    expect(request.userText).toContain('ORCHID')
+    expect(request.userText).toContain('TASK-A')
+    expect(toolResults(request).map((part) => part.toolCallId)).toEqual(['call_a'])
+    expect(outputText(toolResults(request)[0].output)).toMatch(/still running/)
+  })
+
+  it('forks a session rebuilt from the host transcript with the replayed history', async () => {
     const earlier = routedModel(() => [...textParts('a', 'Noted.'), finish('stop')])
     const host = hostStore()
-    const first = await createTestSession({ port: gatewayModel(earlier.model).upstream, onEvent: host.onEvent })
+    const first = await createTestSession({ port: streamTextPort(earlier.model).port, onEvent: host.onEvent })
     await first.session.prompt('Remember the codename ORCHID')
 
     const { model, calls } = routedModel(({ userText, lastRole }) => {
@@ -184,8 +189,8 @@ describe('subagent fork', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
-      entries: host.entries,
+      port: streamTextPort(model).port,
+      transcript: host.entries,
       subagents: recordingSubagentPort().port
     })
     await session.prompt('Delegate the check')
