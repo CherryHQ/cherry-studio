@@ -1387,7 +1387,7 @@
   "error.diagnosis.model": "Modell nicht gefunden oder kein Zugriff",
   "error.diagnosis.model_conflict": "Diagnosemodell ist identisch mit dem fehlerhaften Modell",
   "error.diagnosis.network": "Verbindung zum Server nicht möglich, Netzwerk- oder Proxy-Einstellungen prüfen",
-  "error.diagnosis.ocr": "OCR-Engine nicht initialisiert, OCR-Einstellungen prüfen",
+  "error.diagnosis.ocr": "OCR-Textextraktion fehlgeschlagen, bitte die OCR-Konfiguration in den Einstellungen prüfen",
   "error.diagnosis.parse": "Die KI hat eine ungültige Antwort zurückgegeben, bitte versuchen Sie es erneut oder wechseln Sie das Modell.",
   "error.diagnosis.payload": "Anfrageinhalt zu groß, bitte verringern Sie die Datei- oder Textgröße",
   "error.diagnosis.permission": "Der Anbieter hat diese Anfrage abgelehnt. Überprüfen Sie die Fehlerdetails, Ihren Account-Plan, die API-Schlüsselberechtigungen oder den Zugriff auf diese Ressource.",

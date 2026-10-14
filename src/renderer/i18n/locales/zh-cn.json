@@ -1387,7 +1387,7 @@
   "error.diagnosis.model": "模型不存在，或你无权访问该模型",
   "error.diagnosis.model_conflict": "诊断模型与出错模型相同，无法进行诊断",
   "error.diagnosis.network": "无法连接到服务器，请检查网络或代理设置",
-  "error.diagnosis.ocr": "OCR 引擎尚未初始化，请检查 OCR 设置",
+  "error.diagnosis.ocr": "OCR 文字提取失败，请检查设置中的 OCR 配置",
   "error.diagnosis.parse": "AI 返回的内容格式无效，请重试或更换模型",
   "error.diagnosis.payload": "请求内容过大，请减少发送的文件或文本量",
   "error.diagnosis.permission": "服务商拒绝了此请求。请查看错误详情，并确认账户套餐、API 密钥权限或该资源的访问权限",

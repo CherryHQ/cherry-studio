@@ -1387,7 +1387,7 @@
   "error.diagnosis.model": "Modelo não encontrado ou sem acesso",
   "error.diagnosis.model_conflict": "O modelo de diagnóstico é igual ao modelo com erro",
   "error.diagnosis.network": "Não é possível ligar ao servidor, verifique as definições de rede ou proxy",
-  "error.diagnosis.ocr": "Motor OCR não inicializado, verifique as definições de OCR",
+  "error.diagnosis.ocr": "A extração de texto por OCR falhou, verifique a configuração de OCR nas definições",
   "error.diagnosis.parse": "A IA retornou uma resposta inválida, tente novamente ou mude de modelo",
   "error.diagnosis.payload": "Conteúdo do pedido muito grande, reduza o tamanho do ficheiro ou do texto",
   "error.diagnosis.permission": "O provedor recusou esta solicitação. Verifique os detalhes do erro, seu plano de conta, as permissões da chave de API ou o acesso a este recurso.",

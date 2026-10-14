@@ -1387,7 +1387,7 @@
   "error.diagnosis.model": "モデルが見つからないか、アクセス権がありません",
   "error.diagnosis.model_conflict": "診断モデルとエラーモデルが同一のため、診断できません",
   "error.diagnosis.network": "サーバーに接続できません。ネットワークまたはプロキシの設定を確認してください",
-  "error.diagnosis.ocr": "OCR エンジンが初期化されていません。OCR 設定を確認してください",
+  "error.diagnosis.ocr": "OCR のテキスト抽出に失敗しました。設定で OCR 構成を確認してください",
   "error.diagnosis.parse": "AIが無効な応答を返しました。再試行するか、別のモデルに切り替えてください。",
   "error.diagnosis.payload": "リクエスト内容が大きすぎます。ファイルまたはテキストのサイズを減らしてください。",
   "error.diagnosis.permission": "プロバイダーがこのリクエストを拒否しました。エラーの詳細、アカウントプラン、APIキーの権限、またはこのリソースへのアクセスを確認してください。",

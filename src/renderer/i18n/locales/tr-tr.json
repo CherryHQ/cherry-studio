@@ -1387,7 +1387,7 @@
   "error.diagnosis.model": "Model bulunamadı veya erişim izni yok",
   "error.diagnosis.model_conflict": "Tanılama modeli, hata veren modelle aynı",
   "error.diagnosis.network": "Sunucuya bağlanılamıyor; ağ veya proxy ayarlarını kontrol edin",
-  "error.diagnosis.ocr": "OCR motoru başlatılmadı; OCR ayarlarını kontrol edin",
+  "error.diagnosis.ocr": "OCR metin çıkarma başarısız oldu, ayarlardan OCR yapılandırmasını kontrol edin",
   "error.diagnosis.parse": "Yapay zekâ geçersiz bir yanıt döndürdü; yeniden deneyin veya modeli değiştirin",
   "error.diagnosis.payload": "İstek içeriği çok büyük; dosya veya metin boyutunu azaltın",
   "error.diagnosis.permission": "Sağlayıcı bu isteği reddetti. Hata ayrıntılarını, hesap planını, API anahtarı izinlerini veya bu kaynağa erişim durumunu kontrol edin",

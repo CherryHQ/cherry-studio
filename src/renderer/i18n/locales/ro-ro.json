@@ -1387,7 +1387,7 @@
   "error.diagnosis.model": "Model negăsit sau fără acces",
   "error.diagnosis.model_conflict": "Modelul de diagnostic este identic cu modelul cu eroare",
   "error.diagnosis.network": "Nu se poate realiza conexiunea la server; verifică setările de rețea sau proxy",
-  "error.diagnosis.ocr": "Motorul OCR nu este inițializat; verifică setările OCR",
+  "error.diagnosis.ocr": "Extragerea textului OCR a eșuat, verificați configurația OCR în setări",
   "error.diagnosis.parse": "AI a returnat un răspuns nevalid; încearcă din nou sau schimbă modelul",
   "error.diagnosis.payload": "Conținutul cererii este prea mare, reduceți dimensiunea fișierului sau a textului.",
   "error.diagnosis.permission": "Furnizorul a refuzat această cerere. Verificați detaliile erorii, planul contului, permisiunile cheii API sau accesul la această resursă.",

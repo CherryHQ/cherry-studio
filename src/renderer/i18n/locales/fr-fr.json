@@ -1387,7 +1387,7 @@
   "error.diagnosis.model": "Modèle introuvable ou accès non autorisé",
   "error.diagnosis.model_conflict": "Le modèle de diagnostic est identique au modèle en erreur",
   "error.diagnosis.network": "Impossible de se connecter au serveur, vérifiez les paramètres réseau ou proxy",
-  "error.diagnosis.ocr": "Moteur OCR non initialisé, vérifiez les paramètres OCR",
+  "error.diagnosis.ocr": "L'extraction de texte OCR a échoué, vérifiez la configuration OCR dans les paramètres",
   "error.diagnosis.parse": "L'IA a renvoyé une réponse invalide, veuillez réessayer ou changer de modèle",
   "error.diagnosis.payload": "Contenu de la requête trop volumineux, veuillez réduire la taille du fichier ou du texte",
   "error.diagnosis.permission": "Le fournisseur a refusé cette demande. Vérifiez les détails de l'erreur, votre plan de compte, les autorisations de clé API ou l'accès à cette ressource.",
