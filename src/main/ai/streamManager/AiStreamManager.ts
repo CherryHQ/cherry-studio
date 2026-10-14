@@ -72,6 +72,7 @@ import type {
   StreamListener,
   TransportTimings
 } from './types'
+import { withGeneratedFiles } from './withGeneratedFiles'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
@@ -2000,7 +2001,7 @@ export class AiStreamManager extends BaseService {
     const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
     // thinkingMs measurement (see withReasoningTimingMetadata).
-    const stream = withReasoningTimingMetadata(idleStream)
+    const stream = withGeneratedFiles(withReasoningTimingMetadata(idleStream))
 
     // `continue-conversation` chunks reference toolCallIds on the anchor
     // assistant message; without seeding, `readUIMessageStream`'s

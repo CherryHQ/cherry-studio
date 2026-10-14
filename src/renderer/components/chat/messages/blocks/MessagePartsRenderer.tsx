@@ -789,13 +789,19 @@ function renderPart(
         return null
       }
       return (
-        <MessageAttachments
-          key={partId}
-          handle={attachment.handle}
-          name={attachment.name}
-          ext={attachment.ext}
-          createdAt={message.createdAt}
-        />
+        <React.Fragment key={partId}>
+          {filePart.mediaType?.startsWith('video/') && (
+            <React.Suspense fallback={null}>
+              <MessageVideo handle={attachment.handle} url={filePart.url} />
+            </React.Suspense>
+          )}
+          <MessageAttachments
+            handle={attachment.handle}
+            name={attachment.name}
+            ext={attachment.ext}
+            createdAt={message.createdAt}
+          />
+        </React.Fragment>
       )
     }
 
