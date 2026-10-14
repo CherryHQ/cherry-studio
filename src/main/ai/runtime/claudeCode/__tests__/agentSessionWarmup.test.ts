@@ -130,7 +130,7 @@ vi.mock('../settingsBuilder', () => ({
 }))
 
 vi.mock('../environment', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = await importOriginal<typeof import('../environment')>()
   return {
     ...actual,
     buildEnvironment: mocks.buildEnvironment
