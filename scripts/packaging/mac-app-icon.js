@@ -17,6 +17,13 @@ function hasIconCompiler() {
 // A single .icns holds one rendition, so macOS 26 reads the light, dark, clear and
 // tinted variants from a compiled asset catalog. Only Xcode compiles build/AppIcon.icon.
 exports.installMacAppIcon = function installMacAppIcon({ projectRoot, appOutDir, productFilename }) {
+  // electron-builder always names the bundle; a packager mock that does not has no
+  // `<name>.app` to install into, so there is nothing to compile for.
+  if (!productFilename) {
+    process.stdout.write('Skipped the macOS app icon variants: the packager reported no bundle name\n')
+    return
+  }
+
   if (!hasIconCompiler()) {
     process.stdout.write('Skipped the macOS app icon variants: Xcode is not installed\n')
     return

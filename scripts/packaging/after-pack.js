@@ -75,7 +75,7 @@ exports.default = async function (context) {
     installMacAppIcon({
       projectRoot: path.join(__dirname, '../..'),
       appOutDir: context.appOutDir,
-      productFilename: context.packager.appInfo.productFilename
+      productFilename: context.packager.appInfo?.productFilename
     })
   }
 }
