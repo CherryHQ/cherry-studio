@@ -1,7 +1,3 @@
-import { Flex, Tooltip } from '@cherrystudio/ui'
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import type { McpTool } from '@renderer/types/tool'
-import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import {
   Bot,
   DoorOpen,
@@ -25,12 +21,19 @@ import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Flex, Tooltip } from '@cherrystudio/ui'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpTool } from '@renderer/types/tool'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
 import { AgentToolsType, TO_MARKDOWN_RUNTIME_TOOL_NAME } from './shared/agentToolTypes'
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
+const SESSION_CREATE_RUNTIME_TOOL_NAME = `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
 export interface ToolActivity {
   label: string
   description?: string
@@ -394,6 +397,12 @@ export function getReadableToolActivity(
         label: active ? t('message.tools.workflow.orchestrating') : t('message.tools.workflow.started'),
         description: getStringArg(args, 'name') ?? t('message.tools.workflow.workflow')
       }
+    case SESSION_CREATE_TOOL_NAME:
+    case SESSION_CREATE_RUNTIME_TOOL_NAME:
+      return {
+        label: t(active ? 'message.tools.sessionCreate.creating' : 'message.tools.sessionCreate.created'),
+        description: getStringArg(args, 'title') ?? t('message.tools.sessionCreate.untitled')
+      }
     case AgentToolsType.TaskCreate:
       return {
         label: t('message.tools.labels.taskCreate'),
@@ -658,7 +667,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
 
   const toolName = propToolName || tool?.name || 'Tool'
 
-  const status = propStatus || (toolResponse?.status as ToolStatus)
+  const status = propStatus || toolResponse?.status
   const hasError = propHasError ?? toolResponse?.response?.isError === true
   const args = toolResponse?.arguments ?? propArgs
   const activity = getReadableToolActivity(toolName, args, isStreaming || isActiveStatus(status), t)

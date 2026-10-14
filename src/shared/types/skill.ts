@@ -150,11 +150,31 @@ export const InstalledSkillSchema = z.object({
   version: z.string().nullable(),
   sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
+  isGlobalEnabled: z.boolean(),
   isEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
+
+export const SkillRemoteUpdateCheckSchema = z.discriminatedUnion('state', [
+  z.strictObject({
+    state: z.literal('unsupported'),
+    reason: z.enum(['not_remote', 'missing_provenance'])
+  }),
+  z.strictObject({
+    state: z.literal('up_to_date'),
+    localChanges: z.boolean(),
+    remoteVersion: z.string().nullable()
+  }),
+  z.strictObject({
+    state: z.literal('available'),
+    localChanges: z.boolean(),
+    remoteVersion: z.string().nullable(),
+    revision: z.string().min(1)
+  })
+])
+export type SkillRemoteUpdateCheck = z.infer<typeof SkillRemoteUpdateCheckSchema>
 
 // ============================================================================
 // IPC option types
@@ -185,17 +205,6 @@ export interface SkillImportSystemOptions {
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }
 
 // ============================================================================
-// File tree node (for skill detail file browser)
-// ============================================================================
-
-export interface SkillFileNode {
-  name: string
-  path: string // relative path from skill root
-  type: 'file' | 'directory'
-  children?: SkillFileNode[]
-}
-
-// ============================================================================
 // Workspace skill metadata (from .claude/skills)
 // ============================================================================
 
@@ -224,3 +233,6 @@ export interface SystemSkillCandidate {
   status: SystemSkillStatus
   registeredSkillId?: string
 }
+
+/** Installed catalog entry enriched by the filesystem-owned skill workflow. */
+export type SkillCatalogEntry = InstalledSkill & { scope: 'system' | 'builtin' | 'local' }

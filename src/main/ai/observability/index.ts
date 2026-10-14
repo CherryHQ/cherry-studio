@@ -12,7 +12,8 @@ export {
   startAiChildTurnSpan,
   startAiTurnTrace
 } from './core/AiTurnTrace'
-export { createHttpTraceFetch, type HttpTraceOptions } from './httpTraceFetch'
+export { TraceMethod, withSpanFunc } from './core/traceMethod'
+export { applyHttpTrace, createHttpTraceFetch, type HttpTraceOptions } from './httpTraceFetch'
 export { NodeTraceService } from './runtime/NodeTraceService'
 export type { ObservabilitySink } from './sinks/ObservabilitySink'
 export { observabilitySinks } from './sinks/ObservabilitySinkRegistry'

@@ -115,10 +115,12 @@ export type McpServerSchemas = {
   }
 
   /**
-   * Individual MCP server endpoint
+   * Individual MCP server endpoint. Deletion is intentionally NOT exposed here:
+   * removing a server must also tear down its runtime clients (ghost stdio
+   * processes otherwise), so it goes through the `mcp.server.remove` IPC channel
+   * where McpRuntimeService orchestrates cleanup + row deletion.
    * @example GET /mcp-servers/abc123
    * @example PATCH /mcp-servers/abc123 { "isActive": true }
-   * @example DELETE /mcp-servers/abc123
    */
   '/mcp-servers/:id': {
     /** Get an MCP server by ID */
@@ -131,11 +133,6 @@ export type McpServerSchemas = {
       params: { id: string }
       body: UpdateMcpServerDto
       response: McpServer
-    }
-    /** Delete an MCP server */
-    DELETE: {
-      params: { id: string }
-      response: void
     }
   }
 }

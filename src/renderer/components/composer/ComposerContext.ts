@@ -16,8 +16,14 @@ export type ComposerContextValue = {
 }
 
 const ComposerContext = createContext<ComposerContextValue | null>(null)
+const ComposerLayerActiveContext = createContext(true)
 
 export const ComposerContextProvider = ComposerContext.Provider
+export const ComposerLayerActiveProvider = ComposerLayerActiveContext.Provider
+
+export function useComposerLayerActive(): boolean {
+  return use(ComposerLayerActiveContext)
+}
 
 export function useComposerContext(): ComposerContextValue | null {
   return use(ComposerContext)

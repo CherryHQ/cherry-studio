@@ -12,6 +12,7 @@
  */
 
 import { devToolsMiddleware } from '@ai-sdk/devtools'
+
 import { definePlugin } from '@cherrystudio/ai-core'
 import { isDev } from '@main/core/platform'
 

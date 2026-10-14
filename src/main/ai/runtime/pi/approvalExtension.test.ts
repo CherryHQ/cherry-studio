@@ -2,8 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+
+import type { PiApprovalContext } from './approvalExtension'
 
 const mocks = vi.hoisted(() => ({ rtkRewrite: vi.fn() }))
 
@@ -12,8 +16,8 @@ vi.mock('@logger', () => ({
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: mocks.rtkRewrite }))
 
-const { createPiApprovalExtension } = await import('./approvalExtension')
-const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
+const { createPiApprovalExtension, createPiToolAuthorizer } = await import('./approvalExtension')
+const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
 type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
 
@@ -21,19 +25,29 @@ let testRoot: string
 let workspace: string
 let agentData: string
 let outside: string
+let skillRoot: string
+let userData: string
+let databaseFile: string
 
 beforeAll(() => {
   testRoot = mkdtempSync(join(tmpdir(), 'pi-approval-paths-'))
   workspace = join(testRoot, 'workspace')
   agentData = join(testRoot, 'agent-data')
   outside = join(testRoot, 'outside')
+  skillRoot = join(testRoot, 'skills', 'test-skill')
+  userData = join(testRoot, 'user data')
+  databaseFile = join(userData, 'Data', 'cherrystudio.sqlite')
   mkdirSync(workspace)
   mkdirSync(agentData)
   mkdirSync(outside)
+  mkdirSync(skillRoot, { recursive: true })
+  mkdirSync(join(userData, 'Data'), { recursive: true })
   writeFileSync(join(workspace, 'inside.txt'), 'inside')
   writeFileSync(join(agentData, 'SOUL.md'), 'soul')
   writeFileSync(join(agentData, 'USER.md'), 'user')
   writeFileSync(join(outside, 'secret.txt'), 'outside')
+  writeFileSync(join(skillRoot, 'SKILL.md'), 'skill')
+  writeFileSync(databaseFile, '')
   symlinkSync(outside, join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
 })
 
@@ -44,33 +58,38 @@ function buildGate(
   overrides: Partial<{
     workspacePath: string
     agentDataPath: string
+    additionalReadOnlyRoots: readonly string[]
     getPermissionMode: () => AgentPermissionMode | undefined
     getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
     isDisabled: (toolName: string) => boolean
     autoApprovedTools: ReadonlySet<string>
     approvalRequiredTools: ReadonlySet<string>
+    nonBypassableApprovalTools: ReadonlySet<string>
   }> = {}
 ) {
   const emitted: any[] = []
   let handler!: Handler
-  const factory = createPiApprovalExtension({
+  const context: PiApprovalContext = {
     sessionId: 's1',
     workspacePath: workspace,
     agentDataPath: agentData,
+    additionalReadOnlyRoots: [],
     emit: (event) => emitted.push(event),
     getPermissionMode: () => 'default',
     getInteractionState: () => ({ userResponse: 'stream' }),
     isDisabled: () => false,
     autoApprovedTools: new Set(),
     approvalRequiredTools: new Set(),
+    nonBypassableApprovalTools: new Set(),
     ...overrides
-  })
+  }
+  const factory = createPiApprovalExtension(context)
   void factory({
     on: (evt: string, h: unknown) => {
       if (evt === 'tool_call') handler = h as Handler
     }
   } as never)
-  return { handler, emitted }
+  return { handler, emitted, authorizeTool: createPiToolAuthorizer(context) }
 }
 
 const extCtx = { signal: undefined }
@@ -84,6 +103,17 @@ const flush = () => vi.waitFor(() => expect(toolApprovalRegistry.size()).toBeGre
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(application.getPath).mockImplementation((key, filename) => {
+    const base =
+      key === 'app.userdata'
+        ? userData
+        : key === 'app.database.file'
+          ? databaseFile
+          : key === 'sys.home'
+            ? testRoot
+            : `/mock/${key}`
+    return filename ? join(base, filename) : base
+  })
   mocks.rtkRewrite.mockResolvedValue(null)
   toolApprovalRegistry.clear('test-reset')
 })
@@ -92,6 +122,12 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
   it('auto-allows read-only tools in default mode with no approval request', async () => {
     const { handler, emitted } = buildGate()
     await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
+    expect(emitted).toHaveLength(0)
+  })
+
+  it('auto-allows code mode dispatch without treating its arguments as a file path', async () => {
+    const { handler, emitted } = buildGate()
+    await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
   })
 
@@ -116,12 +152,49 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await expect(pending).resolves.toBeUndefined()
   })
 
+  it('pauses an outer code-mode timeout only while a nested approval is pending', async () => {
+    const { authorizeTool, emitted } = buildGate()
+    const pause = vi.fn()
+    const resume = vi.fn()
+    const pending = authorizeTool({
+      toolName: 'mcp__server__mutate',
+      toolCallId: 'outer-tool-call',
+      input: {},
+      onApprovalPending: () => {
+        pause()
+        return resume
+      }
+    })
+    await flush()
+
+    expect(emitted[0].request.toolCallId).toBe('outer-tool-call')
+    expect(pause).toHaveBeenCalledOnce()
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toBeUndefined()
+    expect(resume).toHaveBeenCalledOnce()
+  })
+
   it('blocks with the reason when the approval is denied', async () => {
     const { handler, emitted } = buildGate()
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
     toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, reason: 'not allowed' })
     await expect(pending).resolves.toEqual({ block: true, reason: 'not allowed' })
+  })
+
+  it('attributes a reason the user supplied', async () => {
+    const { handler, emitted } = buildGate()
+    const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
+    await flush()
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, {
+      approved: false,
+      reason: 'not allowed',
+      reasonSource: 'user'
+    })
+    await expect(pending).resolves.toEqual({
+      block: true,
+      reason: expect.stringContaining('the user said:\nnot allowed')
+    })
   })
 
   it('applies the edited input in place when approved with updatedInput', async () => {
@@ -143,7 +216,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(emitted).toHaveLength(0)
   })
 
-  it('still blocks a disabled tool under bypassPermissions — the one gate bypass does not lift', async () => {
+  it('still blocks a disabled tool under bypassPermissions', async () => {
     const disabled = buildGate({
       getPermissionMode: () => 'bypassPermissions',
       isDisabled: (toolName) => toolName === 'bash'
@@ -155,9 +228,66 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(disabled.emitted).toHaveLength(0)
   })
 
-  it('lets a global install through under bypassPermissions', async () => {
+  it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+    'blocks a native SQLite write before permission handling in %s',
+    async (mode) => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+      await expect(handler(toolEvent('write', { path: databaseFile, content: 'x' }), extCtx)).resolves.toEqual({
+        block: true,
+        reason: expect.stringContaining('SQLite')
+      })
+      expect(emitted).toHaveLength(0)
+    }
+  )
+
+  it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+    'blocks Pi-native path spellings before permission handling in %s',
+    async (mode) => {
+      const { handler, emitted } = buildGate({
+        getPermissionMode: () => mode,
+        getInteractionState: () => ({ userResponse: 'unavailable' })
+      })
+      const unicodeSpacePath = databaseFile.replace('user data', 'user\u00a0data')
+
+      for (const toolName of ['write', 'edit']) {
+        for (const protectedPath of [`@${databaseFile}`, unicodeSpacePath]) {
+          await expect(handler(toolEvent(toolName, { path: protectedPath }), extCtx)).resolves.toEqual({
+            block: true,
+            reason: expect.stringContaining('SQLite')
+          })
+        }
+      }
+      expect(emitted).toHaveLength(0)
+    }
+  )
+
+  it('blocks an interpreter inline reference to protected SQLite before bypass handling', async () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
-    await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toBeUndefined()
+    await expect(
+      handler(toolEvent('bash', { command: `node -e "require('better-sqlite3')('${databaseFile}')"` }), extCtx)
+    ).resolves.toEqual({
+      block: true,
+      reason: expect.stringContaining('SQLite')
+    })
+    expect(emitted).toHaveLength(0)
+  })
+
+  it('blocks native nested writes to protected SQLite', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    const decision = await handler(
+      { ...toolEvent('write', { path: databaseFile }), parentToolCallId: 'codemode-parent' },
+      extCtx
+    )
+    expect(decision).toEqual({ block: true, reason: expect.stringContaining('SQLite') })
+    expect(emitted).toHaveLength(0)
+  })
+
+  it('still blocks a global install under bypassPermissions — it protects the shared cross-agent environment', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject({
+      block: true,
+      reason: expect.stringContaining('dependency pollution')
+    })
     expect(emitted).toHaveLength(0)
   })
 
@@ -182,6 +312,37 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toBeUndefined()
     expect(emitted).toHaveLength(0)
     expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('still requests live approval for a non-bypassable delegation tool under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__session_send'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      approvalRequiredTools: new Set([toolName]),
+      nonBypassableApprovalTools: new Set([toolName])
+    })
+
+    const pending = handler(toolEvent(toolName, {}), extCtx)
+    await flush()
+    expect(emitted).toHaveLength(1)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+    await expect(pending).resolves.toMatchObject({ block: true })
+  })
+
+  it('blocks a non-bypassable delegation tool headlessly under bypassPermissions', async () => {
+    const toolName = 'mcp__cherry-tools__session_create'
+    const { handler, emitted } = buildGate({
+      getPermissionMode: () => 'bypassPermissions',
+      getInteractionState: () => ({ userResponse: 'unavailable' }),
+      approvalRequiredTools: new Set([toolName]),
+      nonBypassableApprovalTools: new Set([toolName])
+    })
+
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
+      block: true,
+      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+    })
+    expect(emitted).toHaveLength(0)
   })
 
   it('fails closed immediately when an approval-required tool has no responder', async () => {
@@ -263,11 +424,35 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command } })
     })
 
+    it('asks before running a destructive command that rtk rewrote', async () => {
+      mocks.rtkRewrite.mockResolvedValueOnce('rtk git push --force')
+      const { handler, emitted } = buildAutoGate()
+      void handler(toolEvent('bash', { command: 'git push --force' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command: 'rtk git push --force' } })
+    })
+
     it('asks before writing outside the workspace', async () => {
       const { handler, emitted } = buildAutoGate()
       void handler(toolEvent('write', { path: join(outside, 'new.txt'), content: 'x' }), extCtx)
       await flush()
       expect(emitted).toHaveLength(1)
+    })
+
+    it('keeps configured skill roots read-only without asking to read them', async () => {
+      const { handler, emitted } = buildAutoGate({ additionalReadOnlyRoots: [skillRoot] })
+      await expect(handler(toolEvent('read', { path: join(skillRoot, 'SKILL.md') }), extCtx)).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+
+      const pendingWrite = handler(
+        toolEvent('write', { path: join(skillRoot, 'SKILL.md'), content: 'changed' }),
+        extCtx
+      )
+      await flush()
+      expect(emitted).toHaveLength(1)
+      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false })
+      await expect(pendingWrite).resolves.toMatchObject({ block: true })
     })
 
     it('still gates an always-prompt tool', async () => {
@@ -395,14 +580,6 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted).toHaveLength(0)
     })
 
-    it('still auto-allows grep/find/ls with no path (defaults to the workspace root)', async () => {
-      const { handler, emitted } = buildGate()
-      for (const tool of ['grep', 'find', 'ls']) {
-        await expect(handler(toolEvent(tool, {}), extCtx)).resolves.toBeUndefined()
-      }
-      expect(emitted).toHaveLength(0)
-    })
-
     it('requires approval for a read whose absolute path is outside the workspace', async () => {
       const { handler, emitted } = buildGate()
       void handler(toolEvent('read', { path: join(outside, 'secret.txt') }), extCtx)
@@ -471,4 +648,20 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       expect(emitted[0].type).toBe('tool-approval-request')
     })
   })
+})
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'rechecks the persistent browser grant in %s mode',
+    async (mode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+      const call = () => handler(toolEvent('mcp__browser__click', {}), extCtx)
+      await expect(call()).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+      await pref.set('app.browser.agent_control.enabled', false)
+      await expect(call()).resolves.toMatchObject({ block: true })
+    }
+  )
 })

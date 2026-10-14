@@ -1,11 +1,12 @@
-import { Button, ColFlex } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+
+import { Button, ColFlex } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
 import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
@@ -152,7 +153,7 @@ const OvmsSettings: FC = () => {
       </div>
 
       <div
-        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-foreground"
         role="status">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="min-w-0 flex-1 space-y-1">

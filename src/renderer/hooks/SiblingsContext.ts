@@ -7,8 +7,9 @@
  * state through props.
  */
 
-import type { Message as SharedMessage } from '@shared/data/types/message'
 import { createContext, use, useMemo } from 'react'
+
+import type { Message as SharedMessage } from '@shared/data/types/message'
 
 export interface SiblingsContextValue {
   /** See `UseTopicMessagesResult.siblingsMap`. */

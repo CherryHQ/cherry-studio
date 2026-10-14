@@ -147,7 +147,7 @@ describe('routeTitle', () => {
       expect(isTopLevelRoute('/app/chat')).toBe(true)
       expect(isTopLevelRoute('/app/agents')).toBe(true)
       expect(isTopLevelRoute('/app/release-notes')).toBe(true)
-      expect(isTopLevelRoute('/app/chat?topicId=123&view=message')).toBe(false)
+      expect(isTopLevelRoute('/app/chat?topicId=123')).toBe(false)
       expect(isTopLevelRoute('/app/agents#session')).toBe(false)
       expect(isTopLevelRoute('/app/chat/topic-123')).toBe(false)
     })

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import * as cmThemes from '@uiw/codemirror-themes-all'
 import { action } from 'storybook/actions'
 
-import { CodeEditor } from '../../../src/components'
+import CodeEditor from '../../../src/components/composites/code-editor'
 import type { CodeMirrorTheme, LanguageConfig } from '../../../src/components/composites/code-editor/types'
 
 // The app-facing getCmThemeNames/getCmThemeByName are async (themes-all loads on
@@ -117,11 +117,11 @@ export const Default: Story = {
         language={args.language}
         languageConfig={exampleLanguageConfig}
         theme={resolveCmTheme((args as any).theme || 'light')}
-        fontSize={args.fontSize as number}
-        editable={args.editable as boolean}
-        readOnly={args.readOnly as boolean}
-        expanded={args.expanded as boolean}
-        wrapped={args.wrapped as boolean}
+        fontSize={args.fontSize}
+        editable={args.editable}
+        readOnly={args.readOnly}
+        expanded={args.expanded}
+        wrapped={args.wrapped}
         height={args.height}
         maxHeight={args.maxHeight}
         minHeight={args.minHeight}

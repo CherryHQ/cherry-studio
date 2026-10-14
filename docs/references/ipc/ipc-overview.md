@@ -1,3 +1,10 @@
+---
+description: Why IpcApi is an independent RPC channel beside REST DataApi — layering, trust boundary, IpcContext, error model
+sources:
+  - src/main/ipc
+  - src/shared/ipc
+---
+
 # IpcApi Overview
 
 ## Paradigm Split — Why IpcApi Is Independent of DataApi
@@ -20,7 +27,7 @@ IPC / RPC / REST are layered, not rival:
 
 DataApi deliberately rejects RPC semantics and side effects to keep "swap in a real remote server" possible. System/command IPC therefore needs a **separate channel with explicit RPC semantics** — IpcApi.
 
-**Independent implementation, not a shared kernel.** IpcApi borrows DataApi's *ideas* (single-point schema, compile-time exhaustiveness, one channel, Disposable cleanup) but shares no code: DataApi's `ApiServer` (path matching + HTTP-status inference + middleware) and `DataApiError` (HTTP mapping) are REST-shaped and unneeded. IpcApi is a flat `route → { input, output }` map with pure key routing — `IpcRouter.dispatch` (~12 lines), `IpcHandlersFor` (~5-line mapped type), `IpcError` (~40 lines). Same idea, different implementation.
+**Independent implementation, not a shared kernel.** IpcApi borrows DataApi's *ideas* (single-point schema, compile-time exhaustiveness, one channel, Disposable cleanup) but shares no code: DataApi's `ApiServer` (path matching + HTTP-status inference + middleware) and `DataApiError` (HTTP mapping) are REST-shaped and unneeded. IpcApi instead uses a flat `route → { input, output }` map, a mapped handler type, and its own RPC error envelope. Same idea, different implementation.
 
 ## Why Narrow the Surface — Fewer Channels, Full Types
 
@@ -35,7 +42,7 @@ IpcApi deliberately **narrows** what renderer→main IPC can be: only routes dec
 In practice this is a net convenience, not a constraint:
 
 - **Full type-checking** — routes autocomplete; a wrong route, input, or output is a compile error; schema drift fails the build.
-- **One cheat sheet** — `IpcRoute` / `handlers/ipcHandlers.ts` is the discoverable list of everything the renderer can call (see [Direction Cheat Sheet](#direction-cheat-sheet)).
+- **One cheat sheet for migrated capabilities** — `IpcRoute` / `handlers/ipcHandlers.ts` is the discoverable list of everything exposed through IpcApi (see [Direction Cheat Sheet](#direction-cheat-sheet)). Until migration finishes, audit the remaining `IpcChannel.ts` and bare native registrations separately.
 - **Auditable** — one place to confirm the exposure surface was neither widened nor dropped (see the migration guide's exposure audit).
 
 The trade is deliberate: give up the freedom to add arbitrary channels, gain full types, single-point discoverability, and auditability. Narrowing is the norm; the rare channel that may stay out is a single-digit, controlled exception (see [escape hatch](./ipc-migration-guide.md)).
@@ -85,7 +92,7 @@ The two directions are two independent registries — look them up by direction:
 | **M→R** (main pushes renderer) | `IpcEventName` (`keyof IpcEventSchemas`) | every event name |
 | **Outside IpcApi** | migration guide's [Not In Scope](./ipc-migration-guide.md) table + Preference / Cache / DataApi subsystems | escape-hatch carve-outs (`Tab_MoveWindow`), `Preference_Changed`, `Cache_Sync`, DataApi subscribe |
 
-Point at the unions — never hand-copy a route list into docs, it drifts. Both unions are `never` until a domain is migrated, and grow per migration.
+Point at the unions — never hand-copy the full route list into docs, because it drifts. Both unions are derived from the currently composed domain registries and grow or shrink with those registries.
 
 ## No One-Way R→M Primitive
 

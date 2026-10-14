@@ -1,15 +1,16 @@
+import { memo, useCallback, useMemo, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { useMessageImageCaptureMessages } from '@renderer/components/chat/messages/hooks/useMessageImageCaptureMessages'
 import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageImageCaptureHost'
 import { getAgentSessionExportTitle, getAgentSessionMessagesForExport } from '@renderer/services/agentSessionExport'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Topic } from '@renderer/types/topic'
-import { TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
+import { TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { ModelSnapshot } from '@shared/data/types/message'
-import { memo, useCallback, useMemo, useRef } from 'react'
 
 import { useAgentMessageListProviderValue } from './agentMessageListAdapter'
 import { rejectPendingAgentSessionImageActions } from './agentSessionImageActionBus'
@@ -47,7 +48,7 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
   const topic = useMemo<Topic>(
     () => ({
       id: topicId,
-      type: TopicType.Session as TopicTypeEnum,
+      type: TopicType.Session,
       assistantId: captureTarget.session.agentId ?? undefined,
       name: sessionExportTitle,
       lastActivityAt: captureTarget.session.lastActivityAt,

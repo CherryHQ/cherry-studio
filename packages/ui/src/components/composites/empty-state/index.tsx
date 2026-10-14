@@ -1,6 +1,7 @@
+import type { ComponentType } from 'react'
+
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentType } from 'react'
 
 /**
  * @deprecated Presets no longer affect rendering — every preset renders the

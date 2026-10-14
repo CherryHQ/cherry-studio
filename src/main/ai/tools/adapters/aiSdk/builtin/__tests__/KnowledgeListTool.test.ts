@@ -1,8 +1,9 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const knowledgeServiceListBasesForDiscovery = vi.fn()
 const knowledgeServiceListRootItems = vi.fn<(baseId: string) => KnowledgeItem[]>()
@@ -181,7 +182,7 @@ function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}):
         knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
         abortSignal: new AbortController().signal
       }
-    } as ToolExecutionOptions
+    }
   )
 }
 
@@ -198,6 +199,11 @@ describe('kb_list', () => {
     expect(entry.defer).toBe('never')
     // kb_list only reads — no per-call approval prompt (the auto-approve half of the carve-out).
     expect(entry.tool.needsApproval).toBeFalsy()
+  })
+
+  it('tells the model that browse results are not retrieved evidence', () => {
+    expect(entry.tool.description).toMatch(/metadata.*structure.*not.*retrieved evidence/i)
+    expect(entry.tool.description).toMatch(/content questions.*kb_search.*kb_read/i)
   })
 
   it('passes the assistant scope into the paged service query', async () => {

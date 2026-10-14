@@ -1,9 +1,10 @@
-import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
-import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
+import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 interface Props {
   title: string
@@ -72,7 +73,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                      * custom rows carry a main-resolved image URL on `app.logoSrc` —
                      * MiniAppLogoAvatar branches between the brand icon and the image.
                      */}
-                    <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={16} />
+                    <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={16} alt="" />
                     <span className="min-w-0 flex-1 truncate text-left text-foreground text-sm">{displayName}</span>
                     <span
                       className="flex size-6 shrink-0 items-center justify-center text-foreground-tertiary"

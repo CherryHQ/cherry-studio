@@ -1,11 +1,12 @@
+import { describe, expect, it } from 'vitest'
+
 import { findTextMatches } from '@renderer/utils/contentSearch'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import type { MessageListItem } from '../../types'
 import { computeMessageSearchMatches } from '../messageSearch'
 
-const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
+const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
 const toolPart = (): CherryMessagePart =>
   ({ type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' }) as CherryMessagePart
 

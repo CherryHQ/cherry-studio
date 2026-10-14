@@ -1,4 +1,4 @@
-import { mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,6 +26,7 @@ describe('useTranslateHistories', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseDataApiUtils.resetMocks()
     // The hook fires a one-shot toast when SWR returns an error; the test env
     // doesn't provide a toast shim by default, so install one here.
     Object.defineProperty(window, 'toast', { value: toast, writable: true, configurable: true })
@@ -101,6 +102,29 @@ describe('useTranslateHistories', () => {
       limit: 5,
       swrOptions: { keepPreviousData: false }
     })
+  })
+
+  it('revalidates current pages in place when another window changes history membership (REGRESSION #19687)', async () => {
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    const reset = vi.fn()
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteState({ refresh, reset, mutate }))
+    renderHook(() => useTranslateHistories())
+    reset.mockClear()
+    refresh.mockClear()
+
+    await act(async () => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/translate/histories', kind: 'membership' }])
+      await Promise.resolve()
+    })
+
+    // Must use `mutate()` (SWR-infinite revalidation) so already-loaded
+    // pages survive the broadcast. Calling `reset()` shrinks the cache
+    // back to size=1, the scroll container collapses, and the browser
+    // then triggers a redundant page-2 fetch (issue #19687).
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(reset).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
   })
 
   it('exposes SWR errors so consumers can distinguish loading from failure', () => {

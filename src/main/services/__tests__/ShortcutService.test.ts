@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -83,9 +84,10 @@ vi.mock('electron', () => ({
   globalShortcut: globalShortcutMock
 }))
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
 import { ShortcutService } from '../ShortcutService'
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { firstQuickPanelSelectableIndex, moveQuickPanelSelectableIndex } from '../list'
+import { firstQuickPanelSelectableIndex, initialQuickPanelFocusIndex, moveQuickPanelSelectableIndex } from '../list'
 
 const createItems = (): { id: string; disabled?: boolean }[] => [
   { id: 'one' },
@@ -13,6 +13,22 @@ const createItems = (): { id: string; disabled?: boolean }[] => [
 describe('QuickPanel list primitives', () => {
   it('finds the first selectable item', () => {
     expect(firstQuickPanelSelectableIndex([{ id: 'disabled', disabled: true }, ...createItems()])).toBe(1)
+  })
+
+  describe('initialQuickPanelFocusIndex', () => {
+    it('honors the opener focus request when the row is selectable', () => {
+      const items: { id: string; disabled?: boolean }[] = [{ id: 'one' }, { id: 'two' }, { id: 'three' }]
+
+      expect(initialQuickPanelFocusIndex(items, 2)).toBe(2)
+    })
+
+    it('falls back to the first selectable item for a disabled, negative, or out-of-range request', () => {
+      const items: { id: string; disabled?: boolean }[] = [{ id: 'disabled', disabled: true }, { id: 'one' }]
+
+      expect(initialQuickPanelFocusIndex(items, 0)).toBe(1)
+      expect(initialQuickPanelFocusIndex(items, -1)).toBe(1)
+      expect(initialQuickPanelFocusIndex(items, 9)).toBe(1)
+    })
   })
 
   it('moves by one with wrapping while skipping disabled items', () => {

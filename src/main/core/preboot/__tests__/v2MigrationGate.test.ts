@@ -1,3 +1,7 @@
+import { promises as fsp } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -39,6 +43,7 @@ const showMessageBoxMock = vi.fn()
 const appQuitMock = vi.fn()
 const appRelaunchMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
+const getLocaleMock = vi.fn().mockReturnValue('en-US')
 const relaunchMock = vi.fn()
 const exitMock = vi.fn()
 
@@ -51,7 +56,10 @@ const getBlockMessageMock = vi.fn()
 const defaultMigrationPaths = {
   userData: '/mock/userData',
   versionLogFile: '/mock/version.log',
-  databaseFile: '/mock/userData/Data/cherrystudio.sqlite'
+  databaseFile: '/mock/userData/Data/cherrystudio.sqlite',
+  // The gate's sweep rm's this for real in every skipped-path test, so the default must
+  // point somewhere guaranteed absent and harmless (never a plausible real path).
+  migrationTempDir: path.join(os.tmpdir(), `v2gate-absent-${process.pid}-${Math.random().toString(36).slice(2)}`)
 }
 const defaultResolveResult = {
   paths: defaultMigrationPaths,
@@ -63,10 +71,15 @@ const defaultResolveResult = {
 
 function stubMigrationV2() {
   vi.doMock('@data/migration/v2', async () => {
-    // The gate now imports the version-policy fns and isSchemaOutOfSyncError through
-    // the barrel, so they live on this mock. isSchemaOutOfSyncError is a pure predicate —
-    // keep the real implementation so schemaOutOfSyncError() fixtures are still detected.
-    const { isSchemaOutOfSyncError } = (await vi.importActual('@data/migration/v2/core/migrationErrors')) as {
+    // The gate now imports the version-policy fns and the error helpers through the
+    // barrel, so they live on this mock. The helpers are pure — keep the real
+    // implementations so schemaOutOfSyncError() fixtures are still detected and the
+    // dialogs carry the real flattened cause chain.
+    const { describeErrorChain, isMigrationStorageError, isSchemaOutOfSyncError } = (await vi.importActual(
+      '@data/migration/v2/core/migrationErrors'
+    )) as {
+      describeErrorChain: (error: unknown) => string
+      isMigrationStorageError: (error: unknown) => boolean
       isSchemaOutOfSyncError: (error: unknown) => boolean
     }
     return {
@@ -90,6 +103,8 @@ function stubMigrationV2() {
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
+      describeErrorChain,
+      isMigrationStorageError,
       isSchemaOutOfSyncError
     }
   })
@@ -102,6 +117,7 @@ function stubElectron() {
       whenReady: whenReadyMock,
       relaunch: relaunchMock,
       exit: exitMock,
+      getLocale: getLocaleMock,
       getVersion: vi.fn().mockReturnValue('2.0.0')
     },
     dialog: {
@@ -114,6 +130,7 @@ function stubElectron() {
 function stubApplication() {
   vi.doMock('@application', () => ({
     application: {
+      getPath: vi.fn((key: string) => (key === 'cherry.home' ? '/mock/cherry-home' : undefined)),
       quit: appQuitMock,
       relaunch: appRelaunchMock
     }
@@ -128,6 +145,13 @@ function stubPlatform(isDev: boolean) {
 function schemaOutOfSyncError(): Error {
   const inner = Object.assign(new Error('table `agent` already exists'), { code: 'SQLITE_ERROR' })
   return Object.assign(new Error('SQLITE_ERROR: table `agent` already exists'), { code: 'SQLITE_ERROR', cause: inner })
+}
+
+function storageError(): Error {
+  const cause = Object.assign(new Error('attempt to write a readonly database at /Users/private/cherrystudio.sqlite'), {
+    code: 'SQLITE_READONLY'
+  })
+  return new Error('Database WAL setup failed at /Users/private/cherrystudio.sqlite', { cause })
 }
 
 async function loadModule() {
@@ -151,6 +175,7 @@ beforeEach(() => {
   appQuitMock.mockReset()
   appRelaunchMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
+  getLocaleMock.mockReset().mockReturnValue('en-US')
   relaunchMock.mockReset()
   exitMock.mockReset()
   setVersionIncompatibleMock.mockReset()
@@ -202,6 +227,91 @@ describe('runV2MigrationGate', () => {
     })
   })
 
+  describe('staging sweep (S11)', () => {
+    const fixtureRoots: string[] = []
+
+    /** Real `{userData}/migration_temp` fixture holding a plaintext-looking dump residue. */
+    async function createStagingFixture(): Promise<string> {
+      const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'v2gate-sweep-'))
+      fixtureRoots.push(root)
+      await fsp.mkdir(path.join(root, 'redux_export'), { recursive: true })
+      await fsp.writeFile(path.join(root, 'redux_export', 'provider.json'), '{"apiKeys":["sk-plaintext"]}')
+      return root
+    }
+
+    afterEach(async () => {
+      await Promise.all(fixtureRoots.splice(0).map((dir) => fsp.rm(dir, { recursive: true, force: true })))
+    })
+
+    it('removes leftover migration_temp when no migration is needed (S11: crash residues are never read again)', async () => {
+      const staging = await createStagingFixture()
+      needsMigrationMock.mockResolvedValue(false)
+      resolveMigrationPathsMock.mockReturnValue({
+        ...defaultResolveResult,
+        paths: { ...defaultMigrationPaths, migrationTempDir: staging }
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('skipped')
+      await expect(fsp.access(staging)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('never touches migration_temp while migration is still pending (PrepareExport owns that cleanup)', async () => {
+      const staging = await createStagingFixture()
+      needsMigrationMock.mockResolvedValue(true)
+      evaluateCandidateVersionMock.mockReturnValue({
+        check: { outcome: 'pass' },
+        previousVersion: '1.9.0',
+        versionLogExists: true
+      })
+      resolveMigrationPathsMock.mockReturnValue({
+        ...defaultResolveResult,
+        paths: { ...defaultMigrationPaths, migrationTempDir: staging }
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      await expect(fsp.access(path.join(staging, 'redux_export', 'provider.json'))).resolves.toBeUndefined()
+    })
+
+    it('logs and continues boot when the sweep fails (residue only outlives one launch)', async () => {
+      const staging = await createStagingFixture()
+      const rmSpy = vi
+        .spyOn(fsp, 'rm')
+        .mockRejectedValueOnce(Object.assign(new Error('EACCES: permission denied, unlink'), { code: 'EACCES' }))
+      needsMigrationMock.mockResolvedValue(false)
+      resolveMigrationPathsMock.mockReturnValue({
+        ...defaultResolveResult,
+        paths: { ...defaultMigrationPaths, migrationTempDir: staging }
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      try {
+        const { runV2MigrationGate } = await loadModule()
+        const result = await runV2MigrationGate()
+
+        expect(result).toBe('skipped')
+        expect(rmSpy).toHaveBeenCalledWith(staging, { recursive: true, force: true })
+        expect(showErrorBoxMock).not.toHaveBeenCalled()
+        expect(appQuitMock).not.toHaveBeenCalled()
+      } finally {
+        rmSpy.mockRestore()
+      }
+    })
+  })
+
   describe('handled path — migration runs', () => {
     it("returns 'handled' and leaves IPC handlers registered when the migration window starts", async () => {
       needsMigrationMock.mockResolvedValue(true)
@@ -236,6 +346,93 @@ describe('runV2MigrationGate', () => {
   })
 
   describe('handled path — migration check fails', () => {
+    it('localizes a production storage retry and continues after the next initialization succeeds', async () => {
+      initializeMock.mockImplementationOnce(() => {
+        throw storageError()
+      })
+      needsMigrationMock.mockResolvedValue(false)
+      showMessageBoxMock.mockResolvedValueOnce({ response: 0 })
+      getLocaleMock.mockReturnValue('zh')
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+      stubPlatform(false)
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+      const { loggerService } = await import('@logger')
+
+      expect(result).toBe('skipped')
+      expect(initializeMock).toHaveBeenCalledTimes(2)
+      expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
+      expect(closeMock).toHaveBeenCalledTimes(2)
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
+      expect(showMessageBoxMock.mock.calls[0][0]).toMatchObject({
+        title: '数据库不可用',
+        message: 'Cherry Studio 无法访问本地数据库。',
+        detail: '请检查数据存储位置是否可用且可写，并确保磁盘有足够的可用空间，然后重试。',
+        buttons: ['重试', '退出'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      expect(JSON.stringify(showMessageBoxMock.mock.calls[0][0])).not.toContain('/Users/private')
+      const storageLog = vi
+        .mocked(loggerService.error)
+        .mock.calls.map(([message]) => String(message))
+        .find((message) => message.startsWith('Migration database unavailable:'))
+      expect(storageLog).toContain(
+        '[SQLITE_READONLY] attempt to write a readonly database at /Users/private/cherrystudio.sqlite'
+      )
+      expect(storageLog?.match(/attempt to write a readonly database/g)).toHaveLength(1)
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(appQuitMock).not.toHaveBeenCalled()
+    })
+
+    it('closes partial state and quits when the user declines a production storage retry', async () => {
+      initializeMock.mockImplementation(() => {
+        throw storageError()
+      })
+      showMessageBoxMock.mockResolvedValueOnce({ response: 1 })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+      stubPlatform(false)
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(initializeMock).toHaveBeenCalledTimes(1)
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['SQLITE_NOTADB', 'SQLITE_CORRUPT'])(
+      'keeps an open-stage %s failure on the fatal production path',
+      async (code) => {
+        const { MigrationDatabaseError } = await vi.importActual<{
+          MigrationDatabaseError: new (stage: 'open' | 'wal' | 'schema', cause: unknown) => Error
+        }>('@data/migration/v2/core/migrationErrors')
+        initializeMock.mockImplementation(() => {
+          throw new MigrationDatabaseError('open', Object.assign(new Error('database file is invalid'), { code }))
+        })
+        stubMigrationV2()
+        stubElectron()
+        stubApplication()
+        stubPlatform(false)
+
+        const { runV2MigrationGate } = await loadModule()
+        const result = await runV2MigrationGate()
+
+        expect(result).toBe('handled')
+        expect(showMessageBoxMock).not.toHaveBeenCalled()
+        expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+        expect(appQuitMock).toHaveBeenCalledTimes(1)
+      }
+    )
+
     it("returns 'handled', shows an error dialog, and quits when the engine fails to initialize", async () => {
       initializeMock.mockImplementation(() => {
         throw new Error('DB unavailable')
@@ -571,6 +768,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(showErrorBoxMock.mock.calls[0][1]).toContain('/mock/cherry-home')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })

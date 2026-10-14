@@ -1,3 +1,10 @@
+---
+description: Entry point for the job and scheduler docs — doc map and quick navigation for JobManager and SchedulerService
+sources:
+  - src/main/core/job
+  - src/main/core/scheduler
+---
+
 # Job & Scheduler
 
 Cherry Studio unified background job + time-scheduling system.
@@ -17,4 +24,4 @@ Cherry Studio unified background job + time-scheduling system.
 - Migrating from a custom queue? → see [migration-checklist.md](./migration-checklist.md)
 - Handler tripping over concurrent base writes? → see [concurrency-and-locks.md](./concurrency-and-locks.md)
 - How does startup recovery work (60 s quiet window, mid-flight shutdown)? → see [overview.md / Startup Recovery](./overview.md#startup-recovery)
-- Where do handlers get registered, and why does `onAllReady` registration fail silently? → see [handler-authoring.md / Registration timing](./handler-authoring.md#registration-timing)
+- Where do handlers get registered, and why is fire-and-forget `onAllReady` not a registration boundary? → see [handler-authoring.md / Registration timing](./handler-authoring.md#registration-timing)

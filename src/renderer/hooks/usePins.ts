@@ -5,10 +5,11 @@
  * conservatively refetch so every window observes the same pin order.
  */
 
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { EntityType } from '@shared/data/types/entityType'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('usePins')
 
@@ -43,9 +44,7 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
     refetch
   } = useQuery('/pins', { enabled, query: { entityType } })
 
-  useDataChange('/pins', () => {
-    if (enabled) void refetch()
-  })
+  useDataChange(enabled ? '/pins' : [], () => void refetch())
 
   const {
     trigger: createPin,

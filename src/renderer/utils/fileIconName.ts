@@ -238,7 +238,10 @@ const DEFAULT_ICON = 'document'
 export function getFileIconName(filePath: string): string {
   if (!filePath) return DEFAULT_ICON
 
-  const filename = filePath.split('/').pop() ?? ''
+  // Split on both separators: Windows paths (`C:\dir\file.ts`) reach this helper
+  // through tool-provided absolute paths, and a POSIX-only split left the whole
+  // path as the "file name", so every icon lookup fell back to `document`.
+  const filename = filePath.split(/[\\/]/).pop() ?? ''
   const lowerFilename = filename.toLowerCase()
 
   // Check exact filename match first

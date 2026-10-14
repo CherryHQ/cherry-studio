@@ -1,8 +1,9 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import TextFilePreview from '../TextFilePreview'
 
@@ -36,7 +37,12 @@ const filePath = '/tmp/workspace/example.ts' as AbsoluteFilePath
 
 function renderPreview(refreshKey = 0, size = 24) {
   return render(
-    <TextFilePreview filePath={filePath} fileName="example.ts" metadata={{ size }} refreshKey={refreshKey} />
+    <TextFilePreview
+      filePath={filePath}
+      fileName="example.ts"
+      metadata={{ size, modifiedAt: 1 }}
+      refreshKey={refreshKey}
+    />
   )
 }
 
@@ -52,13 +58,14 @@ describe('TextFilePreview', () => {
     })
   })
 
-  it('renders highlighted source without line wrapping', async () => {
+  it('renders highlighted source with line wrapping', async () => {
     renderPreview()
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('const answer = 42')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ language: 'TypeScript', value: 'const answer = 42', wrapped: false })
+      // CodeViewer defaults to wrapped=true; TextFilePreview must not override it with false.
+      expect.not.objectContaining({ wrapped: false })
     )
   })
 
@@ -131,7 +138,14 @@ describe('TextFilePreview', () => {
     const view = renderPreview()
     await screen.findByTestId('code-viewer')
 
-    view.rerender(<TextFilePreview filePath={filePath} fileName="example.ts" metadata={{ size: 24 }} refreshKey={1} />)
+    view.rerender(
+      <TextFilePreview
+        filePath={filePath}
+        fileName="example.ts"
+        metadata={{ size: 24, modifiedAt: 1 }}
+        refreshKey={1}
+      />
+    )
 
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(2))
   })

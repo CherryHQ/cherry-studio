@@ -1,9 +1,10 @@
-import { mcpServerTable } from '@data/db/schemas/mcpServer'
-import { McpServerService, mcpServerService } from '@data/services/McpServerService'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { McpServerService, mcpServerService } from '@data/services/McpServerService'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 describe('McpServerService', () => {
   const dbh = setupTestDatabase()
@@ -103,6 +104,19 @@ describe('McpServerService', () => {
     it('should throw validation error when name is whitespace only', () => {
       expect(() => mcpServerService.create({ name: '   ' })).toThrow(DataApiError)
     })
+
+    it('rejects an enabled QVeris server without an API key', () => {
+      expect(() =>
+        mcpServerService.create({
+          name: '@cherry/qveris',
+          type: 'inMemory',
+          env: { QVERIS_API_KEY: '' },
+          isActive: true
+        })
+      ).toThrow(DataApiError)
+
+      expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
+    })
   })
 
   describe('createMany', () => {
@@ -168,6 +182,16 @@ describe('McpServerService', () => {
         err = e
       }
       expect(err).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+    })
+
+    it('requires an API key before enabling QVeris', async () => {
+      await seedServer({ name: '@cherry/qveris', type: 'inMemory', env: { QVERIS_API_KEY: '' }, isActive: false })
+
+      expect(() => mcpServerService.update('srv-1', { isActive: true })).toThrow(DataApiError)
+      expect(mcpServerService.getById('srv-1').isActive).toBe(false)
+
+      mcpServerService.update('srv-1', { env: { QVERIS_API_KEY: 'qveris-test-key' } })
+      expect(mcpServerService.update('srv-1', { isActive: true }).isActive).toBe(true)
     })
   })
 

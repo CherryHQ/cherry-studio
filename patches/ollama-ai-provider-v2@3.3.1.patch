@@ -130,7 +130,8 @@ index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae
        ...(responseFormat == null ? void 0 : responseFormat.type) === "json" && {
          format: responseFormat.schema != null ? responseFormat.schema : "json"
        },
-       think: (_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? _a : false,
+-      think: (_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? _a : false,
++      ...((_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? { think: _a } : {}),
 -      options: (_b = ollamaOptions == null ? void 0 : ollamaOptions.options) != null ? _b : void 0
 +      options: {
 +        ...temperature !== void 0 && { temperature },
@@ -193,7 +194,8 @@ index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0a
        ...(responseFormat == null ? void 0 : responseFormat.type) === "json" && {
          format: responseFormat.schema != null ? responseFormat.schema : "json"
        },
-       think: (_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? _a : false,
+-      think: (_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? _a : false,
++      ...((_a = ollamaOptions == null ? void 0 : ollamaOptions.think) != null ? { think: _a } : {}),
 -      options: (_b = ollamaOptions == null ? void 0 : ollamaOptions.options) != null ? _b : void 0
 +      options: {
 +        ...temperature !== void 0 && { temperature },

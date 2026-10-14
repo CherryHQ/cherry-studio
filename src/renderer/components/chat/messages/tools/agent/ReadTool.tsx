@@ -1,7 +1,8 @@
+import { useTranslation } from 'react-i18next'
+
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { formatFileSize } from '@renderer/utils/file'
-import { useTranslation } from 'react-i18next'
 
 import type {
   ReadToolInput as ReadToolInputType,

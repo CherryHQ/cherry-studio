@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -5,17 +11,14 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
-import dayjs from 'dayjs'
-import { Sparkle } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 
 import {
   useMessageListActions,
   useMessageListMeta,
   useMessageListSelection,
-  useMessageRenderConfig
+  useMessageRenderConfig,
+  useOptionalMessageListActions
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
@@ -30,6 +33,67 @@ interface Props {
   actionsSlot?: ReactNode
   contentSlot?: ReactNode
   footerSlot?: ReactNode
+}
+
+/** Why a runtime opened an assistant turn with no user message; the transcript's only explanation. */
+export const AutonomousTurnOriginBadge: FC<{ origin: AutonomousTurnOrigin }> = ({ origin }) => {
+  const { t } = useTranslation()
+  const label =
+    origin.kind === 'goal-round'
+      ? t('agent.session_turn_origin.goal_round', { round: origin.round })
+      : t('agent.session_turn_origin.background_work')
+  const Icon = origin.kind === 'goal-round' ? Target : Bot
+  return (
+    <Tooltip content={label}>
+      <span className="flex h-5 min-w-0 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
+        <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
+    </Tooltip>
+  )
+}
+
+export const AgentSessionDeliveryBadge: FC<{
+  delivery: NonNullable<MessageListItem['delivery']>
+}> = ({ delivery }) => {
+  const { t } = useTranslation()
+  const actions = useOptionalMessageListActions()
+  const senderSessionLabel = delivery.senderSnapshot?.sessionName.trim() || delivery.sender.sessionId
+  const senderAgentLabel = delivery.senderSnapshot?.agentName.trim() || delivery.sender.agentId
+  const senderLabel = t('agent.session_delivery.from', {
+    agent: senderAgentLabel,
+    session: senderSessionLabel
+  })
+  const content = (
+    <>
+      <MousePointerClick aria-hidden="true" className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">{senderLabel}</span>
+      {actions?.navigateToRoute ? <ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /> : null}
+    </>
+  )
+
+  const openSenderSession = () => {
+    if (!actions?.navigateToRoute) return
+    void actions.navigateToRoute({ path: '/app/agents', query: { sessionId: delivery.sender.sessionId } })
+  }
+
+  return (
+    <Tooltip content={senderLabel}>
+      {actions?.navigateToRoute ? (
+        <button
+          type="button"
+          aria-label={senderLabel}
+          className="flex h-5 max-w-[min(18rem,45vw)] cursor-pointer items-center gap-1 text-foreground-tertiary text-xs hover:text-link hover:underline focus-visible:text-link focus-visible:underline focus-visible:outline-none"
+          onClick={openSenderSession}>
+          {content}
+        </button>
+      ) : (
+        <span className="flex h-5 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
+          {content}
+        </span>
+      )}
+    </Tooltip>
+  )
 }
 
 const MessageHeader: FC<Props> = memo(
@@ -71,6 +135,7 @@ const MessageHeader: FC<Props> = memo(
     }, [authorName, displayModel, message.role, t, userName])
 
     const isAssistantMessage = message.role === 'assistant'
+    const delivery = message.delivery
     const hiddenContentHoverClass = isAssistantMessage
       ? 'group-hover/header:opacity-100'
       : 'group-hover/message:opacity-100'
@@ -120,6 +185,8 @@ const MessageHeader: FC<Props> = memo(
               }}>
               {username}
             </span>
+            {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
+            {isAssistantMessage && message.turnOrigin && <AutonomousTurnOriginBadge origin={message.turnOrigin} />}
             {isAssistantMessage && showModelIdentity && displayModelName && (
               <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
                 <span aria-hidden="true" className="shrink-0">
@@ -134,7 +201,7 @@ const MessageHeader: FC<Props> = memo(
               </Tooltip>
             )}
             <div
-              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-tertiary leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
+              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-tertiary leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
               <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
               {renderConfig.showEstimatedTokens &&
                 isBubbleStyle &&
@@ -148,7 +215,7 @@ const MessageHeader: FC<Props> = memo(
             </div>
             {actionsSlot && (
               <div
-                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 ${hiddenActionsHoverClass}`}>
+                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100 ${hiddenActionsHoverClass}`}>
                 {actionsSlot}
               </div>
             )}
