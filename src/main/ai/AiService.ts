@@ -8,6 +8,7 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
+  NoTranscriptGeneratedError,
   type UIMessageChunk
 } from 'ai'
 
@@ -16,9 +17,15 @@ import {
   type AiPlugin,
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
+  generateSpeech as aiCoreGenerateSpeech,
   rerank as aiCoreRerank,
   type RuntimeProviderCallEvent,
-  type RuntimeProviderCallHandler
+  type RuntimeProviderCallHandler,
+  type SpeechOptions,
+  type SpeechResult,
+  transcribe as aiCoreTranscribe,
+  type TranscriptionOptions,
+  type TranscriptionResult
 } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
@@ -40,6 +47,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import type { LocalSpeechModelId, LocalTranscriptionModelId } from '@shared/ai/localVoice'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -94,14 +102,15 @@ import type {
   AiTransportOptions,
   AppProviderSettingsMap,
   InProcessUsageContext,
-  ListModelsRequest,
-  ModelUsageFeature
+  ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
+import { createLocalSpeechModel, createLocalTranscriptionModel } from './voice/localAdapters'
+import { VoiceRuntimeError } from './voice/VoiceRuntimeError'
 
 const logger = loggerService.withContext('AiService')
 
@@ -273,8 +282,6 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
-  /** Trusted in-process feature used by managed providers for model admission. */
-  modelUsageFeature?: ModelUsageFeature
   resolvedModel?: { readonly provider: Provider; readonly model: Model }
 }
 
@@ -705,7 +712,6 @@ export class AiService extends BaseService {
         },
         fallbacks: buildFallbackModels({
           request,
-          modelUsageFeature: request.modelUsageFeature ?? 'chat',
           assistant,
           signal,
           primaryUniqueModelId: model.id,
@@ -869,7 +875,6 @@ export class AiService extends BaseService {
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
           request,
-          modelUsageFeature: request.modelUsageFeature ?? 'chat',
           assistant,
           signal,
           primaryUniqueModelId: model.id,
@@ -1228,6 +1233,38 @@ export class AiService extends BaseService {
     throw new Error(snapshot.error?.message || 'Image generation failed')
   }
 
+  // ── Local one-shot voice ──
+
+  async generateSpeech(
+    modelId: LocalSpeechModelId,
+    text: string,
+    options: SpeechOptions,
+    signal: AbortSignal
+  ): Promise<SpeechResult> {
+    signal.throwIfAborted()
+    return aiCoreGenerateSpeech(createLocalSpeechModel(modelId, options), text, options, signal)
+  }
+
+  async transcribe(
+    modelId: LocalTranscriptionModelId,
+    audio: Uint8Array,
+    options: TranscriptionOptions,
+    signal: AbortSignal
+  ): Promise<TranscriptionResult> {
+    signal.throwIfAborted()
+    try {
+      const result = await aiCoreTranscribe(createLocalTranscriptionModel(modelId, options), audio, options, signal)
+      if (!result.text.trim()) throw new VoiceRuntimeError('no_speech')
+      return result
+    } catch (error) {
+      if (NoTranscriptGeneratedError.isInstance(error)) {
+        signal.throwIfAborted()
+        throw new VoiceRuntimeError('no_speech')
+      }
+      throw error
+    }
+  }
+
   // ── Embedding ──
 
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
@@ -1564,7 +1601,6 @@ export class AiService extends BaseService {
       provider,
       model,
       assistant,
-      modelUsageFeature: request.modelUsageFeature ?? 'chat',
       extraFeatures,
       getRepairUsagePlugins,
       compactionSink: request.compactionSink

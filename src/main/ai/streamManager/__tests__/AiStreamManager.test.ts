@@ -333,7 +333,6 @@ describe('AiStreamManager', () => {
         listener: new FakeListener('gateway:request-1'),
         contextOwner: 'caller',
         tokenUsageSource: 'agent',
-        modelUsageFeature: 'agent',
         usageContext: {
           agentSessionId: 'session-1',
           assistantMessageId: 'message-1',
@@ -344,7 +343,6 @@ describe('AiStreamManager', () => {
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
           conversation: { id: 'session-1', topicId: 'gateway-request-1' },
-          modelUsageFeature: 'agent',
           tokenUsageSource: 'agent'
         })
       )

@@ -20,7 +20,7 @@ export type AuthFailure = { status: 401 | 403; error: string }
  * `Authorization: Bearer <token>` (extracted by the `@elysia/bearer` plugin in
  * `app.ts` and passed here as `bearerToken`), and the Gemini `x-goog-api-key`
  * header / `?key=` query param (passed here as `googleApiKey`). All are compared
- * timing-safely against `feature.api_gateway.api_key`.
+ * timing-safely against `feature.api_gateway.api_key` or an in-memory internal key.
  *
  * Returns an `AuthFailure` to short-circuit the request, or `undefined` to allow it.
  */
@@ -36,6 +36,6 @@ export const authorizeApiRequest = (
   }
 
   const apiKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
-  if (!apiKey) return { status: 403, error: 'Forbidden' }
-  return isValidToken(token, apiKey) ? undefined : { status: 403, error: 'Forbidden' }
+  if (apiKey && isValidToken(token, apiKey)) return undefined
+  return application.get('ApiGatewayService').isInternalApiKey(token) ? undefined : { status: 403, error: 'Forbidden' }
 }

@@ -132,6 +132,37 @@ invading an existing generic surface; do not demand new layers, registries, or
 extension points where the code is already domain-local (see
 Anti-Fragmentation principle 3).
 
+## Existing Module Reuse
+
+For added or materially changed logic, explicitly search the reviewed checkout
+for existing capabilities before accepting a local implementation. This check
+is not limited to `utils/async`: include utilities, owning services, hooks,
+components, and package APIs relevant to the change, even when the diff adds
+no imports or shared surface.
+
+- Search by behavior as well as symbol name; read candidate implementations,
+  their README/API contracts, and representative callers. Similar names alone
+  do not establish that a module can replace the new code.
+- For async coordination, inspect `src/shared/utils/async/README.md` and the
+  public exports of `@shared/utils/async`. Compare ordering, result sharing,
+  coalescing, failure, cancellation, and resource ownership before recommending
+  a primitive. Do not treat different coordination contracts as interchangeable.
+- Recommend reuse only when the existing API fits the required behavior and
+  permits the dependency direction. If it lacks a required capability, name
+  the upstream limitation for a decision; do not force an incompatible import
+  or invent a new shared abstraction solely for hypothetical reuse.
+- A reuse finding must name the duplicated behavior, the existing module and
+  exported API, and why its contract fits. State the concrete maintenance or
+  correctness cost; do not stop at "reuse a utility".
+
+For PR/diff reviews, pre-existing `delay`/sleep calls whose semantics the change
+leaves intact are allowed; do not demand their removal or migration merely
+because they appear in a touched file. For added or changed waits, assess their
+purpose and available APIs rather than banning delays outright. A delay that
+the change introduces or makes unsafe as a substitute for completion/readiness
+signaling is a separate correctness finding, even if it uses a shared helper.
+Do not assume `@shared/utils/async` exports `delay`; verify the reviewed head.
+
 ## Fix Recommendation Policy (Fix Altitude)
 
 "Minimal fix" versus "thorough fix" is the wrong axis. The right axis is the

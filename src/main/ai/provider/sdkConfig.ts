@@ -2,7 +2,7 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import type { AppProviderSettingsMap, ModelUsageFeature } from '../types'
+import type { AppProviderSettingsMap } from '../types'
 import { resolveProviderAiSdkConfig } from './config'
 import type { ServingCredentialReceipt } from './credential'
 import { type ResolvedEndpoint, resolveProviderOptionsKey, resolveWireModelId } from './endpoint'
@@ -28,13 +28,11 @@ export async function resolveSdkConfig(
   provider: Provider,
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string,
-  modelUsageFeature?: ModelUsageFeature
+  apiKeyOverride?: string
 ): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
   const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
-    resolvedEndpoint,
-    modelUsageFeature
+    resolvedEndpoint
   })
   return {
     sdkConfig: {

@@ -56,7 +56,7 @@ describe('estimateAnthropicRequestTokens', () => {
   it('resolves an internal Work token-count request through the agent route', async () => {
     resolveTo(textModel)
 
-    await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hello' }]), undefined, true)
+    await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hello' }]), undefined, 'agent')
 
     expect(mocks.resolveGatewayModelAddress).toHaveBeenCalledWith('p:m', 'agent')
   })
