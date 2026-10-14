@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "Το OCR του συστήματος καλεί απευθείας την εγγενή μηχανή του συστήματος. Είναι το πιο γρήγορο, αλλά η ακρίβεια εξαρτάται από την έκδοση του λειτουργικού συστήματος.",
   "settings.tool.file_processing.processors.tesseract.description": "Η μηχανή OCR ανοιχτού κώδικα της Google που λειτουργεί πλήρως τοπικά.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Περιγράφει επιλεγμένα καρέ βίντεο με ένα μοντέλο συνομιλίας που υποστηρίζει εικόνες. Τα καρέ αποστέλλονται στον επιλεγμένο πάροχο, ενώ το κείμενο στην οθόνη αναγνωρίζεται από τον επεξεργαστή OCR στις ρυθμίσεις OCR.",
+  "settings.tool.file_processing.video_vision.title": "Μοντέλο όρασης βίντεο",
   "settings.tool.websearch.blacklist": "Μαύρη Λίστα",
   "settings.tool.websearch.blacklist_invalid_entries": "Μη έγκυρες καταχωρήσεις μαύρης λίστας: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Παρακαλώ χρησιμοποιήστε την ακόλουθη μορφή (διαχωρισμός με αλλαγή γραμμής)\nΜοτίβο αντιστοίχισης: *://*.example.com/*\nΚανονική έκφραση: /example\\.(net|org)/",

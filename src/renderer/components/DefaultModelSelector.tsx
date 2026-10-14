@@ -72,7 +72,8 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   filter,
   isModelDisabled,
   noneOptionLabel,
-  onSelect
+  onSelect,
+  'aria-label': ariaLabel
 }) => (
   <ModelSelector
     multiple={false}
@@ -82,7 +83,13 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     isModelDisabled={isModelDisabled}
     noneOptionLabel={noneOptionLabel}
     trigger={
-      <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
+      <ModelSelectorTriggerButton
+        aria-label={ariaLabel}
+        model={model}
+        providers={providers}
+        placeholder={placeholder}
+        compact={compact}
+      />
     }
   />
 )

@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version.",
   "settings.tool.file_processing.processors.tesseract.description": "Google's open-source OCR engine that runs fully locally.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Describes sampled video frames with a vision-capable chat model. Frame images are sent to the selected provider; on-screen text still uses the OCR processor configured in OCR settings.",
+  "settings.tool.file_processing.video_vision.title": "Video Vision Model",
   "settings.tool.websearch.blacklist": "Blacklist",
   "settings.tool.websearch.blacklist_invalid_entries": "Invalid blacklist entries: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",

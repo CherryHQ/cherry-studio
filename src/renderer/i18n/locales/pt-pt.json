@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "OCR do sistema chama o mecanismo nativo do sistema diretamente. É o mais rápido, mas a precisão depende da versão do SO.",
   "settings.tool.file_processing.processors.tesseract.description": "O motor OCR de código aberto da Google que funciona totalmente localmente.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Descreve fotogramas selecionados do vídeo com um modelo de conversação com capacidade visual. As imagens são enviadas ao fornecedor selecionado; o texto no ecrã usa o processador OCR configurado nas definições de OCR.",
+  "settings.tool.file_processing.video_vision.title": "Modelo de visão de vídeo",
   "settings.tool.websearch.blacklist": "Lista Negra",
   "settings.tool.websearch.blacklist_invalid_entries": "Entradas inválidas na lista negra: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Por favor, utilize o seguinte formato (separado por quebras de linha)\nPadrão de correspondência: *://*.exemplo.com/*\nExpressão regular: /exemplo\\.(net|org)/",

@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "系统 OCR 直接调用系统底层能力。速度最快，但准确率受系统版本影响。",
   "settings.tool.file_processing.processors.tesseract.description": "Google 开源的光学字符识别引擎，完全本地运行。",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "使用支持图像输入的对话模型描述视频抽帧。帧图像会发送到所选模型提供商；画面文字仍由 OCR 设置中配置的 OCR 处理器识别。",
+  "settings.tool.file_processing.video_vision.title": "视频视觉模型",
   "settings.tool.websearch.blacklist": "黑名单",
   "settings.tool.websearch.blacklist_invalid_entries": "以下黑名单条目无效：{{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",

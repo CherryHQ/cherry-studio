@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "System-OCR greift direkt auf die native Systemengine zu. Es ist am schnellsten, aber die Genauigkeit hängt von der Betriebssystemversion ab.",
   "settings.tool.file_processing.processors.tesseract.description": "Googles quelloffene OCR-Engine, die vollständig lokal läuft.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract-OCR",
+  "settings.tool.file_processing.video_vision.description": "Beschreibt ausgewählte Videobilder mit einem bildfähigen Chatmodell. Die Bilder werden an den ausgewählten Anbieter gesendet; Text im Bild wird weiterhin mit dem in den OCR-Einstellungen konfigurierten OCR-Prozessor erkannt.",
+  "settings.tool.file_processing.video_vision.title": "Videovisionsmodell",
   "settings.tool.websearch.blacklist": "Schwarze Liste",
   "settings.tool.websearch.blacklist_invalid_entries": "Ungültige Blacklist-Einträge: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Verwenden Sie das folgende Format (Zeilenumbruch getrennt)\nÜbereinstimmungsmodus: *://*.example.com/*\nRegex: /example\\.(net|org)/",

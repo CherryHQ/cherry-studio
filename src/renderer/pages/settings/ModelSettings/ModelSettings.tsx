@@ -1,5 +1,5 @@
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { FC, ReactNode, Ref } from 'react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2, Video } from 'lucide-react'
+import type { ComponentProps, FC, ReactNode, Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +17,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useDefaultModel, useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -25,8 +25,8 @@ import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import type { Model } from '@shared/data/types/model'
-import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
+import { isUniqueModelId, type Model } from '@shared/data/types/model'
+import { isGenerateImageModel, isNonChatModel, isVideoVisionSelectableModel } from '@shared/utils/model'
 
 const TopicNamingSettings = lazy(() =>
   import('./TopicNamingSettings').then((module) => ({ default: module.TopicNamingSettings }))
@@ -112,6 +112,43 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
     </SettingRow>
   </div>
 )
+
+interface VideoVisionModelSettingsProps {
+  providers: ComponentProps<typeof DefaultModelSelector>['providers']
+  showDescription: boolean
+}
+
+const VideoVisionModelSettings: FC<VideoVisionModelSettingsProps> = ({ providers, showDescription }) => {
+  const { t } = useTranslation()
+  const [modelId, setModelId] = usePreference('feature.file_processing.default_video_vision_model')
+  const selectedModelId = isUniqueModelId(modelId) ? modelId : undefined
+  const { model } = useModelById(selectedModelId)
+  const title = t('settings.tool.file_processing.video_vision.title')
+  const handleSelect = useCallback(
+    (selected: Model | undefined) => {
+      void setModelId(selected?.id ?? null)
+    },
+    [setModelId]
+  )
+
+  return (
+    <ModelSettingRow
+      id="setting-model-video-vision-model"
+      icon={<Video size={16} className="lucide-custom shrink-0 text-foreground" />}
+      title={title}
+      description={showDescription ? t('settings.tool.file_processing.video_vision.description') : undefined}>
+      <DefaultModelSelector
+        aria-label={title}
+        model={model}
+        providers={providers}
+        filter={isVideoVisionSelectableModel}
+        noneOptionLabel={t('common.none')}
+        onSelect={handleSelect}
+        placeholder={t('settings.models.empty')}
+      />
+    </ModelSettingRow>
+  )
+}
 
 type ModelSettingsPanel = 'quick-model' | 'translate' | null
 
@@ -348,6 +385,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   placeholder={t('settings.models.empty')}
                 />
               </ModelSettingRow>
+            </>
+          )}
+          {!compact && (
+            <>
+              {showDividers && <SettingDivider />}
+              <VideoVisionModelSettings providers={providers} showDescription={showDescription} />
             </>
           )}
         </SettingGroup>

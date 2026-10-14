@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "Системное OCR напрямую вызывает родной системный движок. Это самый быстрый способ, но точность зависит от версии ОС.",
   "settings.tool.file_processing.processors.tesseract.description": "Открытый OCR-движок от Google, работающий полностью локально.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Описывает выбранные кадры видео с помощью чат-модели, поддерживающей изображения. Кадры отправляются выбранному провайдеру, а текст на экране распознаётся OCR-процессором из настроек OCR.",
+  "settings.tool.file_processing.video_vision.title": "Модель анализа видео",
   "settings.tool.websearch.blacklist": "Черный список",
   "settings.tool.websearch.blacklist_invalid_entries": "Недяверныя запісы ў чорным спісе: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Используйте следующий формат (каждое правило с новой строки)\nШаблон: *://*.example.com/*\nРегулярное выражение: /example\\.(net|org)/",

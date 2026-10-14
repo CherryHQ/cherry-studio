@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "Sistem OCR'si, yerel sistem motorunu doğrudan çağırır. En hızlı seçenektir ancak doğruluk, işletim sistemi sürümüne bağlıdır.",
   "settings.tool.file_processing.processors.tesseract.description": "Tamamen yerel olarak çalışan Google'ın açık kaynaklı OCR motoru.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Videodan örneklenen kareleri görüntü destekli bir sohbet modeliyle açıklar. Kareler seçilen sağlayıcıya gönderilir; ekrandaki metin, OCR ayarlarında yapılandırılan OCR işlemcisiyle tanınır.",
+  "settings.tool.file_processing.video_vision.title": "Video görsel modeli",
   "settings.tool.websearch.blacklist": "Kara Liste",
   "settings.tool.websearch.blacklist_invalid_entries": "Geçersiz kara liste girdileri: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Lütfen aşağıdaki biçimi kullanın (satır sonlarıyla ayrılmış)\nDesen eşleştirme: *://*.example.com/*\nDüzenli ifade: /example\\.(net|org)/",

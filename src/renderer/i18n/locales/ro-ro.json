@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "OCR-ul de sistem apelează direct motorul nativ al sistemului. Este cel mai rapid, dar acuratețea depinde de versiunea sistemului de operare.",
   "settings.tool.file_processing.processors.tesseract.description": "Motorul OCR open-source de la Google care rulează complet local.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Descrie cadre selectate din videoclip cu un model de chat capabil să proceseze imagini. Cadrele sunt trimise furnizorului selectat, iar textul de pe ecran folosește procesorul OCR configurat în setările OCR.",
+  "settings.tool.file_processing.video_vision.title": "Model de viziune video",
   "settings.tool.websearch.blacklist": "Listă neagră",
   "settings.tool.websearch.blacklist_invalid_entries": "Intrări nevalide pe lista neagră: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Te rugăm să folosești următorul format (separate prin linie nouă)\nPotrivire model: *://*.exemplu.com/*\nExpresie regulată: /exemplu\\.(net|org)/",

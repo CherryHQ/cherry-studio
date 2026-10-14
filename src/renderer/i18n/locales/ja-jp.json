@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "システム OCR はネイティブのシステムエンジンを直接呼び出します。最も高速ですが、精度は OS のバージョンに依存します。",
   "settings.tool.file_processing.processors.tesseract.description": "GoogleのオープンソースOCRエンジンで、完全にローカルで動作します。",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "画像入力に対応したチャットモデルで、動画から抽出したフレームを説明します。フレーム画像は選択したプロバイダーに送信され、画面内の文字は OCR 設定の OCR プロセッサーで認識されます。",
+  "settings.tool.file_processing.video_vision.title": "動画ビジョンモデル",
   "settings.tool.websearch.blacklist": "ブラックリスト",
   "settings.tool.websearch.blacklist_invalid_entries": "無効なブラックリストエントリー: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "以下の形式を使用してください（改行区切り）\nパターンマッチ: *://*.example.com/*\n正規表現: /example\\.(net|org)/",

@@ -5620,6 +5620,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "系統 OCR 直接呼叫系統底層能力。速度最快，但準確率受系統版本影響。",
   "settings.tool.file_processing.processors.tesseract.description": "Google 開源的光學字元辨識引擎，完全本機執行。",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "使用支援圖片輸入的對話模型描述影片抽幀。幀圖片會傳送至所選模型供應商；畫面文字仍由 OCR 設定中配置的 OCR 處理器辨識。",
+  "settings.tool.file_processing.video_vision.title": "影片視覺模型",
   "settings.tool.websearch.blacklist": "黑名單",
   "settings.tool.websearch.blacklist_invalid_entries": "以下黑名單項目無效：{{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "請使用以下格式（以換行分隔）\n模式比對：*://*.example.com/*\n規則運算式：/example\\.(net|org)/",
