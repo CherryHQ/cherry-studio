@@ -8,7 +8,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getCliConfigTargets, isFileConfiguredCli, isModelConfiguredCli } from '@shared/utils/cliConfig'
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
-import { getAdapter, sanitizeCliConfigBlob } from './adapters'
+import { getAdapter, resolveCliConfigOptionChanges, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
 import { readConfigFiles } from './file'
 import type {
@@ -122,6 +122,9 @@ export async function readCliConfigFiles(
 export async function readCliConfigDraft(args: CliConfigDraftBuildArgs): Promise<CliConfigFileDraft[]> {
   const context = await resolveContext(args)
   if (!context) return []
+  if (args.files && args.configBlob) {
+    context.configBlob = resolveCliConfigOptionChanges(args.cliTool, args.files, context.configBlob)
+  }
   return buildCliConfigDraftFiles(args, context)
 }
 

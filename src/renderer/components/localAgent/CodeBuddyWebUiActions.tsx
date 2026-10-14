@@ -6,9 +6,12 @@ import { Button } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
+import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { cliTabIcon } from '@renderer/utils/tabIcons'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+
+const logger = loggerService.withContext('CodeBuddyWebUiActions')
 
 export function CodeBuddyWebUiActions({ config, disabled }: { config: LocalAgentConfiguration; disabled: boolean }) {
   const { t } = useTranslation()
@@ -16,8 +19,10 @@ export function CodeBuddyWebUiActions({ config, disabled }: { config: LocalAgent
   const status = useSharedCacheValue('feature.codebuddy.web_ui.status')
   const [pending, setPending] = useState(false)
   useEffect(() => {
-    void ipcApi.request('ai.codebuddy_web.status').catch(() => toast.error(t('code.launch.error')))
-  }, [t])
+    void ipcApi.request('ai.codebuddy_web.status').catch((error) => {
+      logger.warn('Failed to read CodeBuddy WebUI status', error as Error)
+    })
+  }, [])
   const open = (url: string) => {
     const target = new URL(url)
     target.searchParams.set('cherry_navigation_revision', String(Date.now()))

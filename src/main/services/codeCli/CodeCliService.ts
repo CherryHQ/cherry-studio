@@ -102,7 +102,7 @@ export class CodeCliService extends BaseService {
     const preset = this.requirePreset(request.name)
     const manager = application.get('BinaryManager')
     const available = (await manager.getToolSnapshots([preset.executable]))[preset.executable]?.availability
-    if (available?.source === 'system') {
+    if (available?.source === 'system' || available?.source === 'mise') {
       const removed = await application.get('LocalAgentInstallService').uninstallCli(preset.executable, available.path)
       if (!removed.ok)
         return { status: 'cleanup_blocked', reason: 'cleanup_failed', message: removed.detail ?? removed.reason }
@@ -803,8 +803,7 @@ export class CodeCliService extends BaseService {
           `title ${cliTool} - Cherry Studio`,
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${CodeCliService.escapeBatchTextForEcho(cliTool)}`,
-          `echo Directory: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
+          `echo Tool: ${cliTool}`,
           `echo Time: ${new Date().toLocaleString()}`,
           'echo ================================================',
           '',
@@ -826,7 +825,6 @@ export class CodeCliService extends BaseService {
           ':: Error handlers (using labels to ensure entire branch is conditional)',
           ':dir_missing',
           'echo ERROR: Directory does not exist',
-          `echo Target: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
           'pause',
           'exit /b 1',
           '',
@@ -1013,21 +1011,6 @@ export class CodeCliService extends BaseService {
         message: failureMessage
       }
     }
-  }
-
-  /**
-   * Escape text for safe use in batch echo statements
-   * Only handles critical issues: newlines and % characters
-   * Preserves command syntax (e.g., &&) - use for constructed command strings
-   * @param text - Raw text from command output or user input
-   * @returns Escaped text safe for batch echo statements
-   */
-  private static escapeBatchTextForEcho(text: string): string {
-    if (!text) return ''
-    return text
-      .replace(/%/g, '%%') // Escape % to avoid variable expansion
-      .replace(/\r\n/g, ' ') // Windows newline to space
-      .replace(/\n/g, ' ') // Unix newline to space
   }
 }
 

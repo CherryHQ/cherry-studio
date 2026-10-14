@@ -114,6 +114,19 @@ describe('useCliVersionStatuses', () => {
     expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
   })
 
+  it('does not offer a managed upgrade when a system CLI shadows an old mise installation', async () => {
+    setSnapshots({
+      claude: {
+        ...miseSnapshot('claude'),
+        availability: { source: 'system', path: '/usr/local/bin/claude' }
+      }
+    })
+    ipcMocks.latestVersions.mockResolvedValue({ claude: '2.0.0' })
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await waitFor(() => expect(result.current.resolved).toBe(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({ source: 'system', canUpgrade: false })
+  })
+
   it('queries latest for an applied mise CLI', async () => {
     // A fixed CLI carries no definition, so latest authority is the application
     // fact — an applied CLI is still checked for updates.

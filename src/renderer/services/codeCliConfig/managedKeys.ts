@@ -1,3 +1,9 @@
+import {
+  codexPermissionModeToConfig,
+  isCodexPermissionMode,
+  isCodexReasoningEffort,
+  isOpenCodePermissionMode
+} from './permissionModes'
 import { asRecord } from './values'
 
 export const CLAUDE_MANAGED_TOP_LEVEL_KEYS = ['attribution', 'effortLevel'] as const
@@ -36,21 +42,6 @@ export const CLAUDE_MANAGED_ENV_KEYS = [
   'DISABLE_EXTRA_USAGE_COMMAND',
   'CLAUDE_CODE_ATTRIBUTION_HEADER'
 ] as const
-
-export const CODEX_MANAGED_TOP_LEVEL_KEYS = [
-  'approval_policy',
-  'sandbox_mode',
-  'default_permissions',
-  'model_reasoning_effort',
-  'disable_response_storage',
-  'personality',
-  'model_verbosity',
-  'model_context_window',
-  'model_auto_compact_token_limit',
-  'review_model'
-] as const
-
-export const OPEN_CODE_MANAGED_TOP_LEVEL_KEYS = ['autoCompact', 'maxTurns', 'permission'] as const
 
 export const OPEN_CODE_WRITABLE_TOP_LEVEL_KEYS = ['autoCompact', 'permissionMode'] as const
 
@@ -134,4 +125,43 @@ export function applyManagedTomlSettings(target: Record<string, any>, source: Re
 /** Kimi's TOML config build path: only clears/restores the WRITABLE subset (unlike clear.ts's full wipe). */
 export function applyWritableTomlSettings(target: Record<string, any>, source: Record<string, any>): void {
   applyManagedJsonSettings(target, source, KIMI_WRITABLE_SECTION_KEYS, KIMI_WRITABLE_TOP_LEVEL_KEYS)
+}
+
+export function applyCodexOptions(config: Record<string, any>, options: Record<string, any>): void {
+  if ('disableResponseStorage' in options) {
+    if (options.disableResponseStorage === true) config.disable_response_storage = true
+    else delete config.disable_response_storage
+  }
+  if ('goalMode' in options) {
+    const features = { ...asRecord(config.features) }
+    if (options.goalMode === true) features.goals = true
+    else delete features.goals
+    if (Object.keys(features).length) config.features = features
+    else delete config.features
+  }
+  if ('permissionMode' in options) {
+    delete config.approval_policy
+    delete config.sandbox_mode
+    if (isCodexPermissionMode(options.permissionMode))
+      Object.assign(config, codexPermissionModeToConfig(options.permissionMode))
+  }
+  if ('reasoningEffort' in options) {
+    if (isCodexReasoningEffort(options.reasoningEffort)) config.model_reasoning_effort = options.reasoningEffort
+    else delete config.model_reasoning_effort
+  }
+}
+
+export function applyOpenCodeOptions(config: Record<string, any>, options: Record<string, any>): void {
+  if ('autoCompact' in options) {
+    delete config.autoCompact
+    const compaction = { ...asRecord(config.compaction) }
+    if (typeof options.autoCompact === 'boolean') compaction.auto = options.autoCompact
+    else delete compaction.auto
+    if (Object.keys(compaction).length) config.compaction = compaction
+    else delete config.compaction
+  }
+  if ('permissionMode' in options) {
+    if (isOpenCodePermissionMode(options.permissionMode)) config.permission = options.permissionMode
+    else delete config.permission
+  }
 }

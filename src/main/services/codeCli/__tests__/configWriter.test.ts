@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -162,6 +162,31 @@ describe('writeCliConfigFiles', () => {
       })
     ).rejects.toThrow('Database write failed')
     expect(await readFile(claudeSettings(), 'utf8')).toBe(original)
+  })
+
+  it.skipIf(isWin)('preserves a config symlink and rolls back its target after a failed commit', async () => {
+    await mkdir(path.dirname(codexConfig()), { recursive: true })
+    const target = path.join(home, 'dotfiles.toml')
+    await writeFile(target, 'personality = "pragmatic"')
+    await symlink(target, codexConfig())
+    await writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'model = "first"' }])
+    expect(await readlink(codexConfig())).toBe(target)
+    expect(await readFile(target, 'utf8')).toBe('model = "first"')
+    await expect(
+      writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'model = "second"' }], () => {
+        throw new Error('commit failed')
+      })
+    ).rejects.toThrow('commit failed')
+    expect(await readlink(codexConfig())).toBe(target)
+    expect(await readFile(target, 'utf8')).toBe('model = "first"')
+  })
+
+  it.skipIf(isWin)('writes through a dangling relative config symlink without replacing it', async () => {
+    await mkdir(path.dirname(codexConfig()), { recursive: true })
+    await symlink('../dotfiles.toml', codexConfig())
+    await writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'model = "first"' }])
+    expect(await readlink(codexConfig())).toBe('../dotfiles.toml')
+    expect(await readFile(path.join(home, 'dotfiles.toml'), 'utf8')).toBe('model = "first"')
   })
 
   it('writes each file 0600 under the resolved home path, creating parent dirs', async () => {

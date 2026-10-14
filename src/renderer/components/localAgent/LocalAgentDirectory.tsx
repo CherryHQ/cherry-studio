@@ -40,6 +40,7 @@ import { useLocalAgentVersion } from '@renderer/hooks/agent/useLocalAgentVersion
 import { useCurrentTabId, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
+import { loggerService } from '@renderer/services/LoggerService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -79,6 +80,8 @@ const installErrorKeys = {
 const CLI_ONLY_TOOLS = CODE_CLI_TOOL_PRESETS.filter(
   (tool) => !LOCAL_AGENT_PRESETS.some((preset) => codeCliForLocalAgent(preset.id) === tool.id)
 )
+
+const logger = loggerService.withContext('LocalAgentDirectory')
 
 export function LocalAgentDirectory({
   destination = '/settings/local-agents',
@@ -121,33 +124,37 @@ export function LocalAgentDirectory({
     void navigate({ to: destination, search: { id: selected }, replace: true })
   }, [navigate, selected, destination])
   const includeCli = !!renderCli
-  const refresh = useCallback(async () => {
-    setDetecting(true)
-    try {
-      const [localDetections, cliSnapshots] = await Promise.all([
-        ipcApi.request('ai.local_agents.detect', {}),
-        includeCli
-          ? ipcApi.request(
-              'binary.get_tool_snapshots',
-              CLI_ONLY_TOOLS.map((tool) => tool.executable)
-            )
-          : undefined
-      ])
-      setDetections([
-        ...localDetections,
-        ...(cliSnapshots
-          ? CLI_ONLY_TOOLS.map((tool) => ({
-              presetId: `cli:${tool.id}`,
-              ...(cliSnapshots[tool.executable]?.availability ?? { source: 'none' })
-            }))
-          : [])
-      ])
-    } catch (error) {
-      toast.error(String(error))
-    } finally {
-      setDetecting(false)
-    }
-  }, [includeCli])
+  const refresh = useCallback(
+    async (manual = false) => {
+      setDetecting(true)
+      try {
+        const [localDetections, cliSnapshots] = await Promise.all([
+          ipcApi.request('ai.local_agents.detect', {}),
+          includeCli
+            ? ipcApi.request(
+                'binary.get_tool_snapshots',
+                CLI_ONLY_TOOLS.map((tool) => tool.executable)
+              )
+            : undefined
+        ])
+        setDetections([
+          ...localDetections,
+          ...(cliSnapshots
+            ? CLI_ONLY_TOOLS.map((tool) => ({
+                presetId: `cli:${tool.id}`,
+                ...(cliSnapshots[tool.executable]?.availability ?? { source: 'none' })
+              }))
+            : [])
+        ])
+      } catch (error) {
+        logger.warn('Failed to refresh local agent installations', error as Error)
+        if (manual) toast.error(String(error))
+      } finally {
+        setDetecting(false)
+      }
+    },
+    [includeCli]
+  )
   useEffect(() => {
     void refresh()
   }, [refresh])
@@ -227,7 +234,7 @@ export function LocalAgentDirectory({
                   size="icon-xs"
                   aria-label={t('local_agents.detect')}
                   disabled={detecting}
-                  onClick={() => void refresh()}>
+                  onClick={() => void refresh(true)}>
                   <RefreshCw
                     className={cn('lucide-custom size-3.5 text-muted-foreground', detecting && 'animate-spin')}
                   />

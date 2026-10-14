@@ -1,3 +1,4 @@
+import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
@@ -35,11 +36,6 @@ const responsesProvider = {
   id: 'deepseek',
   name: 'DeepSeek',
   endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.deepseek.com/v1' } }
-} as unknown as Provider
-const anthropicProvider = {
-  id: 'anthropic',
-  name: 'Anthropic',
-  endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
 } as unknown as Provider
 const chatProvider = {
   id: 'deepseek',
@@ -137,6 +133,67 @@ describe('updateCliConfigDraftConfig', () => {
 
     const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, files, {})
     expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual({})
+    const preview = await readCliConfigDraft({
+      cliTool: CodeCli.OPENAI_CODEX,
+      modelId: 'deepseek::gpt-5',
+      files,
+      configBlob: {}
+    })
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, preview)).toEqual({})
+  })
+
+  it('keeps native Codex settings and custom permissions through model selection and an effort edit', async () => {
+    const files = await buildCodexDraft()
+    const config = files.find((file) => file.target === 'codex-config')!
+    const native = {
+      personality: 'pragmatic',
+      model_verbosity: 'low',
+      model_context_window: 100000,
+      model_auto_compact_token_limit: 80000,
+      review_model: 'review-model',
+      approval_policy: 'never',
+      sandbox_mode: 'read-only',
+      default_permissions: ':read-only'
+    }
+    config.content = stringifyToml({ ...parseToml(config.content), ...native })
+    const selected = await readCliConfigDraft({
+      cliTool: CodeCli.OPENAI_CODEX,
+      modelId: 'deepseek::new-model',
+      files,
+      configBlob: extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files) ?? {}
+    })
+    expect(parseToml(selected.find((file) => file.target === 'codex-config')!.content)).toMatchObject({
+      ...native,
+      model: 'new-model'
+    })
+    const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, selected, { reasoningEffort: 'high' })
+    expect(parseToml(updated.find((file) => file.target === 'codex-config')!.content)).toMatchObject({
+      ...native,
+      model_reasoning_effort: 'high'
+    })
+  })
+
+  it('keeps OpenCode permission rules and disabled compaction when selecting a model or editing another option', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'old-model')
+    const permission = { bash: { 'rm *': 'deny' }, edit: 'deny' }
+    files[0].content = JSON.stringify({
+      ...JSON.parse(files[0].content),
+      permission,
+      compaction: { auto: false, prune: false }
+    })
+    const selected = await readCliConfigDraft({
+      cliTool: CodeCli.OPEN_CODE,
+      modelId: 'deepseek::new-model',
+      files,
+      configBlob: extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, files) ?? {}
+    })
+    expect(JSON.parse(selected[0].content)).toMatchObject({
+      permission,
+      compaction: { auto: false, prune: false },
+      model: 'cherry-DeepSeek/new-model'
+    })
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, selected, { autoCompact: true })
+    expect(JSON.parse(updated[0].content)).toMatchObject({ permission, compaction: { auto: true, prune: false } })
   })
 
   it('preserves OpenCode provider headers during a config-only update', async () => {
@@ -193,40 +250,6 @@ describe('updateCliConfigDraftConfig', () => {
     const files: CliConfigFileDraft[] = [{ target: 'codex-config', label: '', path: '', language: 'toml', content: '' }]
     expect(updateCliConfigDraftConfig('unknown-tool', files, { goalMode: true })).toBe(files)
   })
-
-  // Parity across every file-based CLI (the previous cases only covered Codex): a config-only
-  // update must (1) leave the connection untouched and (2) land the same managed config the write
-  // path would have produced for that blob. Comparing against a freshly built draft avoids
-  // hard-coding each tool's managed shape while still catching a mis-extracted adapter branch.
-  const parityCases: Array<[string, CodeCli, Provider, string, Record<string, unknown>]> = [
-    [
-      'claude',
-      CodeCli.CLAUDE_CODE,
-      anthropicProvider,
-      'claude-sonnet-4-5',
-      { effortLevel: 'high', permissions: { defaultMode: 'plan' } }
-    ],
-    ['codex', CodeCli.OPENAI_CODEX, responsesProvider, 'gpt-5', { goalMode: true, permissionMode: 'workspace' }],
-    ['opencode', CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', { autoCompact: true, permissionMode: 'ask' }],
-    ['qwen', CodeCli.QWEN_CODE, chatProvider, 'qwen3-max', { tools: { approvalMode: 'plan' } }],
-    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', { default_permission_mode: 'auto' }]
-  ]
-
-  it.each(parityCases)(
-    'preserves the connection and applies config for %s',
-    async (_n, tool, provider, model, blob) => {
-      const files = await buildDraft(tool, provider, model)
-      const before = extractConnectionFromCliConfigDraft(tool, files)
-
-      const updated = updateCliConfigDraftConfig(tool, files, blob)
-
-      expect(extractConnectionFromCliConfigDraft(tool, updated)).toEqual(before)
-      const freshlyBuilt = await buildDraft(tool, provider, model, blob)
-      expect(extractConfigFromCliConfigDraft(tool, updated)).toEqual(
-        extractConfigFromCliConfigDraft(tool, freshlyBuilt)
-      )
-    }
-  )
 
   // A config-only edit rebuilds opencode.json without a model record, so the display name
   // written for the model key (gateway mode writes a human-readable one) must be carried

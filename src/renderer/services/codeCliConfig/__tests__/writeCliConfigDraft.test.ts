@@ -820,9 +820,7 @@ describe('writeCliConfigDraft', () => {
       expect(parsed).not.toHaveProperty('default_permissions')
     })
 
-    it('clears stale goal-mode / OpenAI name from a previous config when toggles are off', async () => {
-      // Previous config had goal mode + remote compaction on; the new config
-      // asserts neither, so both must be cleared (configs are independent).
+    it('preserves native tool options when applying only a new provider connection', async () => {
       existing['/resolved~/.codex/config.toml'] = [
         'model = "deepseek-chat"',
         'model_provider = "cherry-DeepSeek"',
@@ -855,11 +853,13 @@ describe('writeCliConfigDraft', () => {
 
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
-      expect(parsed).not.toHaveProperty('features')
-      expect(parsed).not.toHaveProperty('approval_policy')
-      expect(parsed).not.toHaveProperty('sandbox_mode')
-      expect(parsed).not.toHaveProperty('default_permissions')
-      expect(parsed).not.toHaveProperty('model_reasoning_effort')
+      expect(parsed).toMatchObject({
+        features: { goals: true },
+        approval_policy: 'never',
+        sandbox_mode: 'danger-full-access',
+        default_permissions: ':danger-full-access',
+        model_reasoning_effort: 'high'
+      })
       expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
     })
 

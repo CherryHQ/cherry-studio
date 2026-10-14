@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TabIdContext, TabsContext, type Tab, type TabsContextValue } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 
 import { LocalAgentDirectory } from '../LocalAgentDirectory'
 
@@ -43,6 +44,32 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('local agent settings navigation', () => {
+  it('keeps failed installation discovery quiet until the user explicitly retries', async () => {
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') throw new Error('discovery unavailable')
+      return { models: [] } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    const retry = screen.getByRole('button', { name: '重新检测' })
+    await waitFor(() => expect(retry).toBeEnabled())
+    expect(toast.error).not.toHaveBeenCalled()
+    await userEvent.click(retry)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Error: discovery unavailable'))
+  })
+
+  it('does not report a launch failure while merely reading CodeBuddy WebUI status', async () => {
+    navigation.search = { id: 'codebuddy-code' }
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect')
+        return [{ presetId: 'codebuddy-code', path: '/usr/local/bin/codebuddy' }] as never
+      if (route === 'ai.codebuddy_web.status') throw new Error('status unavailable')
+      return { models: [] } as never
+    })
+    render(<LocalAgentSettingsPage />)
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('ai.codebuddy_web.status'))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('keeps automatic authentication failures quiet and reports failures after a manual model refresh', async () => {
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [{ presetId: 'claude', path: '/usr/local/bin/claude' }] as never

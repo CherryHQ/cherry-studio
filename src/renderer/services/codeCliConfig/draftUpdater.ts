@@ -1,4 +1,4 @@
-import { getAdapter, sanitizeCliConfigBlob } from './adapters'
+import { getAdapter, resolveCliConfigOptionChanges, sanitizeCliConfigBlob } from './adapters'
 import { parseJsonOrThrow, renderJsonFile } from './file'
 import { extractConnectionFromCliConfigDraft } from './parser'
 import type { CliConfigFileDraft } from './types'
@@ -17,5 +17,7 @@ export function updateCliConfigDraftConfig(
   const connection = extractConnectionFromCliConfigDraft(cliTool, files)
   const blob = sanitizeCliConfigBlob(cliTool, asRecord(configBlob))
   if (!connection) return files
-  return getAdapter(cliTool)?.updateDraftConfig(files, connection, blob) ?? files
+  const adapter = getAdapter(cliTool)
+  if (!adapter) return files
+  return adapter.updateDraftConfig(files, connection, resolveCliConfigOptionChanges(cliTool, files, blob))
 }

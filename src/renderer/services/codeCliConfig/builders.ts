@@ -5,28 +5,13 @@ import {
   CLAUDE_MANAGED_ENV_KEYS,
   CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
-  CODEX_MANAGED_TOP_LEVEL_KEYS,
-  OPEN_CODE_MANAGED_TOP_LEVEL_KEYS,
+  applyCodexOptions,
+  applyOpenCodeOptions,
   QWEN_WRITABLE_SETTINGS_KEYS
 } from './managedKeys'
-import {
-  codexPermissionModeToConfig,
-  isCodexPermissionMode,
-  isCodexReasoningEffort,
-  isOpenCodePermissionMode
-} from './permissionModes'
 import type { OpenCodeNpmInfo, PiApi } from './resolvers'
 import { sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
-import {
-  asRecord,
-  cliProviderKeyName,
-  dropFeatureGoalsIfEmpty,
-  isCherryManagedModel,
-  normalizeUrl,
-  omitKeysByPrefix
-} from './values'
-
-const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
+import { asRecord, cliProviderKeyName, isCherryManagedModel, normalizeUrl, omitKeysByPrefix } from './values'
 
 interface OpenCodeProviderIdentity {
   id: string
@@ -95,16 +80,8 @@ export function buildCodexConfig(
 ): Record<string, any> {
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${resolved.providerName.replace(/\./g, '-')}`
   const preservedProviders = omitKeysByPrefix(asRecord(existingToml.model_providers), CHERRY_PROVIDER_PREFIX)
-  const cleaned: Record<string, any> = {}
-  for (const [key, value] of Object.entries(existingToml)) {
-    if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key)) {
-      cleaned[key] = value
-    }
-  }
-  dropFeatureGoalsIfEmpty(cleaned)
-
   const merged: Record<string, any> = {
-    ...cleaned,
+    ...existingToml,
     model: resolved.model,
     model_provider: providerKey,
     model_providers: {
@@ -117,16 +94,7 @@ export function buildCodexConfig(
       }
     }
   }
-  if (options.disableResponseStorage === true) merged.disable_response_storage = true
-  if (options.goalMode === true) {
-    const features = asRecord(merged.features)
-    features.goals = true
-    merged.features = features
-  }
-  if (isCodexPermissionMode(options.permissionMode)) {
-    Object.assign(merged, codexPermissionModeToConfig(options.permissionMode))
-  }
-  if (isCodexReasoningEffort(options.reasoningEffort)) merged.model_reasoning_effort = options.reasoningEffort
+  applyCodexOptions(merged, options)
   return merged
 }
 
@@ -214,15 +182,9 @@ export function buildOpenCodeConfig(
     supportsReasoningEffort: options.supportsReasoningEffort === true
   })
   const preservedProviders = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
-  const cleaned: Record<string, any> = { ...existing }
-  for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
-  const compaction = { ...asRecord(existing.compaction) }
-  delete cleaned.compaction
-  delete compaction.auto
-  if (options.autoCompact === true) compaction.auto = true
   const merged: Record<string, any> = {
     $schema: OPENCODE_SCHEMA,
-    ...cleaned,
+    ...existing,
     // OpenCode's default-model selector. It splits at the FIRST "/", so the model id may
     // itself contain "/" (gateway ids do) but providerKey must not — cliProviderKeyName
     // strips it. Without this field OpenCode falls back to its own last-used model.
@@ -241,8 +203,9 @@ export function buildOpenCodeConfig(
       }
     }
   }
-  if (Object.keys(compaction).length > 0) merged.compaction = compaction
-  if (isOpenCodePermissionMode(options.permissionMode)) merged.permission = options.permissionMode
+  delete merged.autoCompact
+  delete merged.maxTurns
+  applyOpenCodeOptions(merged, options)
   return merged
 }
 

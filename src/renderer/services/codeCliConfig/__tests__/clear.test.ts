@@ -66,7 +66,7 @@ describe('clearCliConfig', () => {
     })
   })
 
-  it('codex: strips cherry provider + model + goals + auth key, keeps user entries', async () => {
+  it('codex: clears Cherry connection and credentials while preserving tool settings', async () => {
     existing['/resolved~/.codex/config.toml'] = [
       'model = "gpt-5"',
       'model_provider = "cherry-deepseek"',
@@ -101,7 +101,11 @@ describe('clearCliConfig', () => {
     expect(parseToml(writes['/resolved~/.codex/config.toml'])).toEqual({
       user_key: 'keep',
       model_providers: { userprov: { base_url: 'https://user.example' } },
-      features: { other: true }
+      approval_policy: 'never',
+      sandbox_mode: 'danger-full-access',
+      default_permissions: ':danger-full-access',
+      model_reasoning_effort: 'high',
+      features: { goals: true, other: true }
     })
     expect(JSON.parse(writes['/resolved~/.codex/auth.json'])).toEqual({
       auth_mode: 'chatgpt',
@@ -181,7 +185,8 @@ describe('clearCliConfig', () => {
     expect(JSON.parse(writes['/resolved~/.config/opencode/opencode.json'])).toEqual({
       $schema: 'https://opencode.ai/config.json',
       provider: { userprov: { npm: 'y' } },
-      compaction: { prune: false, reserved: 10000 },
+      compaction: { auto: true, prune: false, reserved: 10000 },
+      permission: 'ask',
       userTop: 'keep'
     })
   })

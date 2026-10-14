@@ -3,6 +3,7 @@ import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { parseDotenv } from './dotenv'
 import {
   type CliConfigReadFiles,
+  type CliConfigReadFile,
   parseJsonOrThrow,
   parseTomlOrThrow,
   parseYamlOrThrow,
@@ -39,6 +40,13 @@ export async function readConfigFilesForDraft(
 export function makeDraftFile(target: CliConfigTarget, content: string, read: CliConfigReadFiles): CliConfigFileDraft {
   const spec = CLI_CONFIG_FILE_SPECS[target]
   return { target, label: spec.label, path: requireReadFile(target, read).path, language: spec.language, content }
+}
+
+export function createCliConfigDraftFiles(
+  files: Array<CliConfigReadFile & { target: CliConfigTarget }>
+): CliConfigFileDraft[] {
+  const read = new Map(files.map((file) => [file.target, file]))
+  return files.map((file) => makeDraftFile(file.target, file.content ?? '', read))
 }
 
 /** Current text of `target`: an in-progress draft overrides the on-disk file ('' when missing on disk). */

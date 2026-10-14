@@ -7,20 +7,20 @@ import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvide
 import { ipcApi } from '@renderer/ipc'
 import {
   CLI_TOOL_PROVIDER_MAP,
-  modelSupportsCliTool,
+  filterCliProviders,
+  isCliChatModel,
+  getGatewayProviderIds,
+  isCliGatewayModel,
   extractConfigFromCliConfigDraft,
-  readCliConfigFiles,
+  createCliConfigDraftFiles,
   prepareCliConfigClear,
   stripClaudeDetailedModels,
   prepareCliModelConfig
 } from '@renderer/services/codeCliConfig'
-import { getAppEdition } from '@renderer/utils/appEdition'
 import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
-import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
-import { isAgentOnlyProvider, isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 export interface LocalAgentModelOption {
   id: string
@@ -49,30 +49,16 @@ export function useLocalAgentModelSelection(
   const native = LOCAL_AGENT_MODEL_CONFIG[config?.presetId ?? '']
   const { models } = useModels({ enabled: true }, { fetchEnabled: !!native })
   const { providers } = useProviders(undefined, { enabled: !!native })
-  const compatibleProviders = native
-    ? CLI_TOOL_PROVIDER_MAP[native.tool](providers).filter(
-        (provider) => provider.isEnabled && !isCherryAIProvider(provider) && !isLoginBasedProvider(provider)
-      )
-    : []
+  const compatibleProviders = native ? filterCliProviders(native.tool, providers) : []
   const providerById = new Map(compatibleProviders.map((provider) => [provider.id, provider]))
   const cherryModels = native
-    ? models.filter(
-        (model) =>
-          providerById.has(model.providerId) &&
-          modelSupportsCliTool(native.tool, model) &&
-          !isEmbeddingModel(model) &&
-          !isRerankModel(model) &&
-          !isTextToImageModel(model)
-      )
+    ? models.filter((model) => providerById.has(model.providerId) && isCliChatModel(native.tool, model))
     : []
-  const gatewayProviders = new Map(
-    providers
-      .filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider, getAppEdition()))
-      .map((provider) => [provider.id, provider])
-  )
+  const gatewayProviders = getGatewayProviderIds(providers)
+  const allProvidersById = new Map(providers.map((provider) => [provider.id, provider]))
   const gatewayModels =
     native && gateway && CLI_TOOL_PROVIDER_MAP[native.tool]([gateway.provider]).length
-      ? models.filter((model) => gatewayProviders.has(model.providerId) && isGatewayRoutableModel(model))
+      ? models.filter((model) => isCliGatewayModel(gatewayProviders, model))
       : []
   const options: LocalAgentModelOption[] = [
     ...nativeModels
@@ -81,7 +67,7 @@ export function useLocalAgentModelSelection(
     ...gatewayModels.map((model) => ({
       id: `${GATEWAY_MODEL_PREFIX}${model.id}`,
       name: model.name,
-      group: getProviderDisplayName(gatewayProviders.get(model.providerId)),
+      group: getProviderDisplayName(allProvidersById.get(model.providerId)),
       source: 'gateway' as const
     })),
     ...cherryModels.map((model) => ({
@@ -106,9 +92,8 @@ export function useLocalAgentModelSelection(
     const { files: expectedFiles } = await ipcApi.request('code_cli.read_config', {
       targets: [...getCliConfigTargets(native.tool)]
     })
-    const configBlob = stripClaudeDetailedModels(
-      extractConfigFromCliConfigDraft(native.tool, await readCliConfigFiles(native.tool)) ?? {}
-    )
+    const drafts = createCliConfigDraftFiles(expectedFiles)
+    const configBlob = stripClaudeDetailedModels(extractConfigFromCliConfigDraft(native.tool, drafts) ?? {})
     const viaGateway = id?.startsWith(GATEWAY_MODEL_PREFIX) ?? false
     const model = (viaGateway ? gatewayModels : cherryModels).find(
       (model) => `${viaGateway ? GATEWAY_MODEL_PREFIX : CHERRY_MODEL_PREFIX}${model.id}` === id
@@ -124,6 +109,7 @@ export function useLocalAgentModelSelection(
         modelId: model.id,
         writePrimaryModel: true,
         configBlob,
+        files: drafts,
         gateway: gatewayContext
       })
       return updateNativeModel(agent.id, undefined, {

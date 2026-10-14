@@ -247,14 +247,16 @@ describe('CodeCliService', () => {
     })
 
     it('does not change the skill when binary removal is blocked', async () => {
-      binaryManagerMock.removeTool.mockResolvedValue({ status: 'cleanup_blocked', reason: 'conflict' })
+      installerMock.uninstallCli.mockResolvedValue({ ok: false, reason: 'busy' })
       const { codeCliService } = await loadModules()
 
       await expect(codeCliService.removeCli({ name: 'codex' })).resolves.toEqual({
         status: 'cleanup_blocked',
-        reason: 'conflict'
+        reason: 'cleanup_failed',
+        message: 'busy'
       })
 
+      expect(binaryManagerMock.removeTool).not.toHaveBeenCalled()
       expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
       expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
     })
@@ -883,7 +885,7 @@ describe('CodeCliService', () => {
         const result = await codeCliService.run({
           mode: 'login-flow',
           cliTool: CodeCli.CLAUDE_CODE,
-          directory: 'C:\\Users\\me\\100% proj'
+          directory: 'C:\\Users\\me\\100% proj&calc&rem demo'
         })
 
         expect(result.success).toBe(true)
@@ -893,8 +895,9 @@ describe('CodeCliService', () => {
         const [batPath, batContent] = writeCall! as unknown as [string, string]
         expect(batPath).toMatch(/launch_claude-code_\d+\.bat$/)
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
-        expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
-        expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
+        expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj&calc&rem demo" goto :dir_missing')
+        expect(batContent).not.toMatch(/^echo .*&calc&/m)
+        expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj&calc&rem demo"')
         // The executable path crosses the same boundary as the directory paths.
         expect(batContent).toContain('"C:\\Tools\\100%% cli\\claude.exe"')
         // The temp script can embed injected credentials via the env prefix; keep it owner-only.

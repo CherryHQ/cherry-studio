@@ -60,15 +60,6 @@ export function findCherryProviderKey(providers: Record<string, any>): string | 
   return Object.keys(providers).find((key) => key.startsWith(CHERRY_PROVIDER_PREFIX))
 }
 
-/** Delete `target.features.goals`, dropping the whole `features` object if it becomes empty. */
-export function dropFeatureGoalsIfEmpty(target: Record<string, any>): void {
-  if (!target.features || typeof target.features !== 'object') return
-  const features = { ...(target.features as Record<string, any>) }
-  delete features.goals
-  if (Object.keys(features).length === 0) delete target.features
-  else target.features = features
-}
-
 /** Delete `target.security.auth.selectedType`, dropping `auth`/`security` when they become empty. */
 export function dropSecurityAuthSelectedTypeIfEmpty(target: Record<string, any>): void {
   if (!target.security || typeof target.security !== 'object') return

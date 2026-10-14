@@ -1,8 +1,9 @@
+import { readlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { atomicWriteFile, ensureDir, read, remove } from '@main/utils/file'
+import { atomicWriteFile, ensureDir, read, realpath, remove } from '@main/utils/file'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
@@ -152,6 +153,21 @@ export async function readCliConfigFiles(targets: readonly CliConfigTarget[]): P
   )
 }
 
+async function resolveWritePath(filename: AbsoluteFilePath): Promise<AbsoluteFilePath> {
+  try {
+    return await realpath(filename)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    try {
+      const target = await readlink(filename)
+      return resolveWritePath(AbsoluteFilePathSchema.parse(path.resolve(path.dirname(filename), target)))
+    } catch (linkError) {
+      if ((linkError as NodeJS.ErrnoException).code !== 'ENOENT') throw linkError
+      return filename
+    }
+  }
+}
+
 /**
  * Transactional batch write of a file-configured CLI's config files — the only
  * disk-write path for `code_cli.write_config`. The target enum is the write
@@ -183,7 +199,7 @@ export async function writeCliConfigFiles<T = void>(
   const snapshots: FileSnapshot[] = []
   try {
     for (const file of files) {
-      const absPath = await resolveTargetPath(file.target)
+      const absPath = await resolveWritePath(await resolveTargetPath(file.target))
       const previousContent = await readOrNull(absPath)
       snapshots.push({ absPath, existed: previousContent !== null, previousContent: previousContent ?? '' })
       if ('delete' in file) {

@@ -19,7 +19,7 @@ export {
   writeCliConfigDraft,
   writeOwnLoginCliConfigDraft
 } from './draft'
-export { validateCliConfigDraftForWrite } from './draftFiles'
+export { createCliConfigDraftFiles, validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
 export { gatewayExpectedModel, gatewayModelIdFromAddress } from './gatewayModel'
 export { resolveLaunchModelId } from './launchModelId'
@@ -44,4 +44,12 @@ export type {
 } from './types'
 export { safeCreateUniqueModelId } from './values'
 
-export { CLI_TOOL_PROVIDER_MAP, PROVIDERLESS_CLI_TOOLS, modelSupportsCliTool } from './modelSupport'
+export {
+  CLI_TOOL_PROVIDER_MAP,
+  PROVIDERLESS_CLI_TOOLS,
+  modelSupportsCliTool,
+  filterCliProviders,
+  isCliChatModel,
+  getGatewayProviderIds,
+  isCliGatewayModel
+} from './modelSupport'

@@ -2,17 +2,10 @@ import { CHERRY_PROVIDER_PREFIX } from './constants'
 import {
   applyManagedJsonSettings,
   applyManagedTomlSettings,
-  CODEX_MANAGED_TOP_LEVEL_KEYS,
+  applyCodexOptions,
   QWEN_MANAGED_SETTINGS_KEYS
 } from './managedKeys'
-import { codexPermissionModeToConfig, isCodexPermissionMode, isCodexReasoningEffort } from './permissionModes'
-import {
-  asRecord,
-  dropFeatureGoalsIfEmpty,
-  dropSecurityAuthSelectedTypeIfEmpty,
-  isCherryManagedModel,
-  omitKeysByPrefix
-} from './values'
+import { dropSecurityAuthSelectedTypeIfEmpty, isCherryManagedModel, omitKeysByPrefix } from './values'
 
 /**
  * "Own login" config builders for the tool-param file of each login-capable CLI.
@@ -24,33 +17,20 @@ import {
  * tool params and are scrubbed by `clearCliConfig` on select, not here.
  */
 
-const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
-
 export function buildCodexOwnLoginConfig(
   existingToml: Record<string, any>,
   blob: Record<string, any>
 ): Record<string, any> {
   const next: Record<string, any> = {}
   for (const [key, value] of Object.entries(existingToml)) {
-    if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key) && key !== 'model' && key !== 'model_provider') {
+    if (key !== 'model' && key !== 'model_provider') {
       next[key] = value
     }
   }
   if (next.model_providers && typeof next.model_providers === 'object') {
     next.model_providers = omitKeysByPrefix(next.model_providers as Record<string, any>, CHERRY_PROVIDER_PREFIX)
   }
-  if (blob.disableResponseStorage === true) next.disable_response_storage = true
-  if (isCodexPermissionMode(blob.permissionMode)) {
-    Object.assign(next, codexPermissionModeToConfig(blob.permissionMode))
-  }
-  if (isCodexReasoningEffort(blob.reasoningEffort)) next.model_reasoning_effort = blob.reasoningEffort
-  if (blob.goalMode === true) {
-    const features = asRecord(next.features)
-    features.goals = true
-    next.features = features
-  } else {
-    dropFeatureGoalsIfEmpty(next)
-  }
+  applyCodexOptions(next, blob)
   return next
 }
 

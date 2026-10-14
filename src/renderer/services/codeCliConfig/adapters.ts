@@ -52,8 +52,6 @@ import {
   CLAUDE_MANAGED_ENV_KEYS,
   CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
-  CODEX_MANAGED_TOP_LEVEL_KEYS,
-  OPEN_CODE_MANAGED_TOP_LEVEL_KEYS,
   QWEN_MANAGED_SETTINGS_KEYS
 } from './managedKeys'
 import { buildCodexOwnLoginConfig, buildKimiOwnLoginConfig, buildQwenOwnLoginConfig } from './ownLogin'
@@ -95,7 +93,6 @@ import type {
 import {
   asRecord,
   cliProviderKeyName,
-  dropFeatureGoalsIfEmpty,
   dropSecurityAuthSelectedTypeIfEmpty,
   findCherryProviderKey,
   isCherryManagedModel,
@@ -148,7 +145,6 @@ export interface CliConfigAdapter {
   extractConfig(files: CliConfigFileDraft[]): Record<string, unknown> | null
 }
 
-const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
 const HERMES_API_KEY_ENV = 'CHERRY_HERMES_API_KEY'
 const HERMES_API_KEY_ENV_REFERENCE = '${CHERRY_HERMES_API_KEY}'
 
@@ -443,14 +439,13 @@ const codexAdapter: CliConfigAdapter = {
     if (existing) {
       const next: Record<string, any> = {}
       for (const [key, value] of Object.entries(existing)) {
-        if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key) && key !== 'model' && key !== 'model_provider') {
+        if (key !== 'model' && key !== 'model_provider') {
           next[key] = value
         }
       }
       if (next.model_providers && typeof next.model_providers === 'object') {
         next.model_providers = omitKeysByPrefix(next.model_providers as Record<string, any>, CHERRY_PROVIDER_PREFIX)
       }
-      dropFeatureGoalsIfEmpty(next)
       files.push({ target: 'codex-config', content: stringifyToml(next) })
     }
     if (existingAuth && (existingAuth.OPENAI_API_KEY !== undefined || existingAuth.auth_mode === 'apikey')) {
@@ -518,8 +513,7 @@ const openCodeAdapter: CliConfigAdapter = {
             {
               reasoning: env.OPENCODE_REASONING === 'true',
               supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
-              autoCompact: configBlob.autoCompact === true,
-              permissionMode: configBlob.permissionMode,
+              ...configBlob,
               providerHeaders: provider.settings?.extraHeaders,
               contextWindow: modelRecord?.contextWindow,
               maxOutputTokens: modelRecord?.maxOutputTokens
@@ -561,8 +555,7 @@ const openCodeAdapter: CliConfigAdapter = {
       {
         reasoning: env.OPENCODE_REASONING === 'true',
         supportsReasoningEffort: true,
-        autoCompact: configBlob.autoCompact === true,
-        permissionMode: configBlob.permissionMode,
+        ...configBlob,
         providerHeaders: providerOptions.headers,
         contextWindow: existingLimit.context,
         maxOutputTokens: existingLimit.output
@@ -575,11 +568,8 @@ const openCodeAdapter: CliConfigAdapter = {
     const existing = readValidatedJsonOrNull('opencode-config', read, 'OpenCode config')
     if (!existing) return []
     const next: Record<string, any> = { ...existing }
-    for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
-    const compaction = { ...asRecord(next.compaction) }
-    delete compaction.auto
-    if (Object.keys(compaction).length > 0) next.compaction = compaction
-    else delete next.compaction
+    delete next.autoCompact
+    delete next.maxTurns
     // Only drop the top-level model when it points at a cherry-* provider (about to be
     // removed below — keeping it would leave a dangling reference); a user's own value
     // referencing their own provider stays.
@@ -1090,4 +1080,14 @@ export function sanitizeCliConfigBlob(
 ): Record<string, any> {
   if (cliTool === CodeCli.DEEPSEEK_HARNESS) return normalizeDeepSeekHarnessSettings(configBlob)
   return getAdapter(cliTool)?.sanitize(configBlob) ?? asRecord(configBlob)
+}
+
+export function resolveCliConfigOptionChanges(
+  cliTool: string,
+  files: CliConfigFileDraft[],
+  next: Record<string, any>
+): Record<string, any> {
+  // Only options represented in the editor can be reset by removing a field.
+  const previous = getAdapter(cliTool)?.extractConfig(files) ?? {}
+  return { ...Object.fromEntries(Object.keys(previous).map((key) => [key, undefined])), ...next }
 }

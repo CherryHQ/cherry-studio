@@ -35,8 +35,8 @@ describe('ownLogin builders', () => {
       expect(result.approval_policy).toBe('on-request')
       expect(result.sandbox_mode).toBe('workspace-write')
       expect(result.model_reasoning_effort).toBe('low')
-      // goalMode absent → Cherry-injected features.goals dropped.
-      expect(result.features).toBeUndefined()
+      // Switching credentials leaves unrelated tool settings intact.
+      expect(result.features).toEqual({ goals: true })
       // Unrelated user keys preserved.
       expect(result.userKey).toBe('keep')
     })

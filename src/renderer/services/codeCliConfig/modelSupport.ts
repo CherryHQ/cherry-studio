@@ -1,8 +1,16 @@
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import type { ModelConfiguredCli } from '@shared/utils/cliConfig'
-import { isGeminiProvider, isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
+import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import {
+  isAgentOnlyProvider,
+  isCherryAIProvider,
+  isGeminiProvider,
+  isLoginBasedProvider,
+  resolveEndpointDialect
+} from '@shared/utils/provider'
 
 /**
  * Provider-less CLI tools: authenticate through their own login flow (OAuth /
@@ -117,4 +125,28 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
     default:
       return false
   }
+}
+
+export function filterCliProviders(tool: CodeCli | ModelConfiguredCli, providers: Provider[]): Provider[] {
+  return CLI_TOOL_PROVIDER_MAP[tool](providers).filter(
+    (provider) => provider.isEnabled && !isCherryAIProvider(provider) && !isLoginBasedProvider(provider)
+  )
+}
+
+export function isCliChatModel(tool: CodeCli | ModelConfiguredCli, model: Model): boolean {
+  return (
+    modelSupportsCliTool(tool, model) && !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
+  )
+}
+
+export function getGatewayProviderIds(providers: Provider[]): Set<string> {
+  return new Set(
+    providers
+      .filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider, getAppEdition()))
+      .map((provider) => provider.id)
+  )
+}
+
+export function isCliGatewayModel(providerIds: ReadonlySet<string>, model: Model): boolean {
+  return providerIds.has(model.providerId) && isGatewayRoutableModel(model)
 }
