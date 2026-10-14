@@ -1,5 +1,4 @@
-import { Type } from '@earendil-works/pi-ai'
-import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import type { SubagentPort } from '../src'
@@ -8,7 +7,9 @@ import {
   outputText,
   recordingSubagentPort,
   routedModel,
+  stopTurnTool,
   subagentCall,
+  subagentsDone,
   subagentStates,
   subagentViews,
   toolCallPart,
@@ -77,31 +78,16 @@ describe('background subagents', () => {
   it('keeps running when the turn that launched it is aborted', async () => {
     const held = gate()
     const parent: { session?: AgentSession } = {}
-    const abortTurn = defineTool({
-      name: 'abort_turn',
-      label: 'Abort turn',
-      description: 'Aborts the turn',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        await held.reached
-        void parent.session!.abort()
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'aborted' }], details: undefined }
-      }
-    })
     const { model } = routedModel(({ userText, lastText }) => {
       if (userText.includes('TASK-A')) return held.wait([...textParts('r', 'REPORT-A'), finish('stop')])
       return lastText === 'Check A, then stop'
-        ? [subagentCall('call_a', BG_A), toolCallPart('abort_1', 'abort_turn'), finish('tool-calls')]
+        ? [subagentCall('call_a', BG_A), toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const store = hostStore()
     const runtime = await createTestSession({
       port: streamTextPort(model).port,
-      tools: [abortTurn],
+      tools: [stopTurnTool(parent, () => held.reached)],
       subagents: recordingSubagentPort().port,
       onEvent: store.onEvent
     })
@@ -132,9 +118,11 @@ describe('background subagents', () => {
         finish('tool-calls')
       ]
     })
+    const parent = hostStore()
     const { session } = await createTestSession({
       port: streamTextPort(model).port,
-      subagents: recordingSubagentPort().port
+      subagents: recordingSubagentPort().port,
+      onEvent: parent.onEvent
     })
 
     await session.prompt('Start 21 in the background')
@@ -148,6 +136,7 @@ describe('background subagents', () => {
     await session.prompt('Now one in the foreground')
     expect(textOf(toolResultOf(session, 'call_fg'))).toMatch(/^REPORT-FG/)
     held.open()
+    await subagentsDone(session, parent.events)
   })
 
   // Review focus 1. Breaks when a launch whose configure fails keeps its background slot: after
@@ -172,13 +161,19 @@ describe('background subagents', () => {
         ? [subagentCall('call_a', BG_A), finish('tool-calls')]
         : [...textParts('d', 'Done'), finish('stop')]
     })
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: port })
+    const parent = hostStore()
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: port,
+      onEvent: parent.onEvent
+    })
 
     await session.prompt('Check A in the background')
     expect(textOf(toolResultOf(session, 'call_a'))).toBe('no workspace for subagents')
     await session.prompt('Check A again')
     expect(textOf(toolResultOf(session, 'call_a'))).toMatch(/^Subagent started in the background/)
     held.open()
+    await subagentsDone(session, parent.events)
   })
 
   // Review focus 3. Breaks when a background fork is built unlike a foreground one: no forked
@@ -191,9 +186,11 @@ describe('background subagents', () => {
         ? [subagentCall('call_a', { ...BG_A, fork: true }), finish('tool-calls')]
         : [...textParts('d', 'Launched.'), finish('stop')]
     })
+    const parent = hostStore()
     const { session } = await createTestSession({
       port: streamTextPort(model).port,
-      subagents: recordingSubagentPort().port
+      subagents: recordingSubagentPort().port,
+      onEvent: parent.onEvent
     })
 
     await session.prompt('Fork A in the background; the codename is ORCHID')
@@ -205,6 +202,7 @@ describe('background subagents', () => {
       ['call_a', 'This tool call was still running when the subagent started; its result is not available here.']
     ])
     held.open()
+    await subagentsDone(session, parent.events)
   })
 
   // Breaks when shutdown leaks a running subagent session, or writes a snapshot or event after the

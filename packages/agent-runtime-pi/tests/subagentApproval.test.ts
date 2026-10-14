@@ -1,4 +1,3 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
@@ -7,6 +6,7 @@ import type { SubagentPort, ToolApprovalEvent } from '../src'
 import {
   gate,
   recordingSubagentPort,
+  reply,
   routedModel,
   subagentCall,
   subagentViews,
@@ -14,11 +14,10 @@ import {
   toolResultOf,
   waitFor
 } from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort, textParts } from './support'
+import { createTestSession, finish, hostStore, streamTextPort } from './support'
 import { textOf } from './toolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
-const reply = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 
 /** The host's approval registry: one place every approval event goes through. */
 function approvalHub() {

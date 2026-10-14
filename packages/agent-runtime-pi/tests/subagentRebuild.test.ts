@@ -1,28 +1,28 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { Type } from '@earendil-works/pi-ai'
-import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import { SUBAGENT_STATUS_TYPE } from '../src'
 import {
   gate,
+  NOTE,
+  reply,
+  roundCommand,
   type RoutedCall,
   routedModel,
+  stopTurnTool,
   storingSubagentPort,
   subagentCall,
+  subagentsDone,
   subagentStates,
   toolCallPart,
   toolResultOf,
   waitFor
 } from './subagentSupport'
-import { createTestSession, finish, hostStore, plain, streamTextPort, tempDir, textParts } from './support'
+import { createTestSession, finish, hostStore, plain, streamTextPort, tempDir } from './support'
 import { textOf } from './toolResults'
 
-const NOTE = 'Background subagent update (automatic message, not from the user):'
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
-const reply = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
-const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
 const lastTwoTexts = (call: RoutedCall) =>
   call.options.prompt
     .slice(-2)
@@ -61,7 +61,8 @@ describe('subagents after a rebuild', () => {
       transcript: plain(first.entries),
       onEvent: second.onEvent
     })
-    await settle()
+    // Only a delivery could start a run, and nothing delivers before the user's next message.
+    expect(rebuilt.session.isIdle).toBe(true)
     expect(notified(calls)).toEqual([])
     await rebuilt.prompt('Where were we?')
 
@@ -136,14 +137,6 @@ describe('subagents after a rebuild', () => {
     const cwd = tempDir('cwd')
     const held = gate()
     const host = storingSubagentPort()
-    const roundCommand: ExtensionFactory = (pi) => {
-      pi.registerCommand('round', {
-        description: 'Starts a turn of its own, like /goal resume',
-        handler: async () => {
-          pi.sendMessage({ customType: 'test.round', content: 'ROUND', display: false }, { triggerTurn: true })
-        }
-      })
-    }
     const { model, calls } = routedModel(({ userText, humanText }) => {
       if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
       if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
@@ -234,20 +227,7 @@ describe('subagents after a rebuild', () => {
     const cwd = tempDir('cwd')
     const held = gate()
     const parent: { session?: AgentSession } = {}
-    const stopTurn = defineTool({
-      name: 'stop_turn',
-      label: 'Stop turn',
-      description: 'The user presses stop',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        void parent.session!.abort()
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
-      }
-    })
+    const stopTurn = stopTurnTool(parent)
     const host = storingSubagentPort()
     const { model, calls } = routedModel(({ userText, humanText }) => {
       if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
@@ -369,5 +349,6 @@ describe('subagent status after a compaction', () => {
     ])
     expect(lastTwoTexts(calls.at(-1)!)).toEqual([status, 'What is running?'])
     held.open()
+    await subagentsDone(runtime.session, parent.events)
   })
 })

@@ -1,4 +1,3 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
@@ -11,20 +10,22 @@ import {
 } from '../src'
 import {
   gate,
+  NOTE,
   recordingSubagentPort,
+  reply,
+  roundCommand,
   type RoutedCall,
   routedModel,
+  stopTurnTool,
   subagentCall,
   subagentStates,
   toolCallPart,
   waitFor
 } from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort, textParts } from './support'
+import { createTestSession, finish, hostStore, streamTextPort } from './support'
 
-const NOTE = 'Background subagent update (automatic message, not from the user):'
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 const BG_B = { description: 'Check B', prompt: 'TASK-B', background: true }
-const reply = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 
 /** The parent's requests: a subagent's carry its task. */
 const parentCalls = (calls: readonly RoutedCall[]) => calls.filter((call) => !call.userText.includes('TASK-'))
@@ -379,20 +380,6 @@ describe('background subagent delivery', () => {
     const heldA = gate()
     const heldB = gate()
     const parent: { session?: AgentSession } = {}
-    const stopTurn = defineTool({
-      name: 'stop_turn',
-      label: 'Stop turn',
-      description: 'The user presses stop',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        void parent.session!.abort()
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
-      }
-    })
     const { model, calls } = routedModel(({ userText, lastText }) => {
       if (userText.includes('TASK-A')) return heldA.wait(reply('REPORT-A'))
       if (userText.includes('TASK-B')) return heldB.wait(reply('REPORT-B'))
@@ -404,7 +391,7 @@ describe('background subagent delivery', () => {
     const store = hostStore()
     const runtime = await createTestSession({
       port: streamTextPort(model).port,
-      tools: [stopTurn],
+      tools: [stopTurnTool(parent)],
       subagents: recordingSubagentPort().port,
       onEvent: store.onEvent
     })
@@ -414,8 +401,9 @@ describe('background subagent delivery', () => {
 
     heldA.open()
     await waitFor(() => finishedCount(store.entries) === 1)
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(calls.some((call) => call.lastText.startsWith(NOTE))).toBe(false)
+    // A run the result would start begins as the result is recorded, so it would show by now.
+    expect(runtime.session.isIdle).toBe(true)
+    expect(notifications(store.entries)).toEqual([])
 
     await runtime.prompt('What did A find?')
     const prompt = calls.at(-1)!.options.prompt
@@ -437,28 +425,6 @@ describe('background subagent delivery', () => {
   it('delivers a waiting result in a turn a command starts', async () => {
     const held = gate()
     const parent: { session?: AgentSession } = {}
-    const stopTurn = defineTool({
-      name: 'stop_turn',
-      label: 'Stop turn',
-      description: 'The user presses stop',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        void parent.session!.abort()
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
-      }
-    })
-    const roundCommand: ExtensionFactory = (pi) => {
-      pi.registerCommand('round', {
-        description: 'Starts a turn of its own',
-        handler: async () => {
-          pi.sendMessage({ customType: 'test.round', content: 'ROUND', display: false }, { triggerTurn: true })
-        }
-      })
-    }
     const { model, calls } = routedModel(({ userText, lastText }) => {
       if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
       if (lastText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
@@ -468,7 +434,7 @@ describe('background subagent delivery', () => {
     const store = hostStore()
     const runtime = await createTestSession({
       port: streamTextPort(model).port,
-      tools: [stopTurn],
+      tools: [stopTurnTool(parent)],
       subagents: recordingSubagentPort().port,
       extensionFactories: [roundCommand],
       onEvent: store.onEvent

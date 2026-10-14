@@ -1,4 +1,3 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
@@ -6,9 +5,12 @@ import { describe, expect, it } from 'vitest'
 import type { TranscriptEntry } from '../src'
 import {
   gate,
+  NOTE,
   outputText,
+  reply,
   type RoutedCall,
   routedModel,
+  stopTurnTool,
   storingSubagentPort,
   subagentCall,
   subagentStates,
@@ -18,12 +20,10 @@ import {
   untilStopped,
   waitFor
 } from './subagentSupport'
-import { createTestSession, finish, hostStore, MODEL, streamTextPort, textParts } from './support'
+import { createTestSession, finish, hostStore, MODEL, streamTextPort } from './support'
 import { textOf } from './toolResults'
 
-const NOTE = 'Background subagent update (automatic message, not from the user):'
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
-const reply = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
 const message = (toolCallId: string, id: string, text: string) => [
   toolCallPart(toolCallId, 'message_subagent', { id, message: text }),
@@ -79,22 +79,9 @@ describe('continuing a finished subagent', () => {
 
   // Breaks when stop_subagent ends a subagent for good, or a subagent the user stopped can be revived.
   it('continues a subagent the model stopped but refuses one the user stopped', async () => {
-    const work = gate()
-    const workTool = defineTool({
-      name: 'work',
-      label: 'Work',
-      description: 'Works until stopped',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        void work.wait(undefined)
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'stopped working' }], details: undefined }
-      }
-    })
+    const work = untilStopped()
     const host = storingSubagentPort()
+    const parent = hostStore()
     const id = (description: string) =>
       host.subagents.find((subagent) => subagent.description === description)!.sessionId
     const { model, calls } = routedModel(({ userText, lastText, humanText }) => {
@@ -121,8 +108,9 @@ describe('continuing a finished subagent', () => {
     })
     const runtime = await createTestSession({
       port: streamTextPort(model).port,
-      tools: [workTool],
-      subagents: host.port
+      tools: [work.tool],
+      subagents: host.port,
+      onEvent: parent.onEvent
     })
     await runtime.prompt('Start A and B')
     await work.reached
@@ -131,7 +119,7 @@ describe('continuing a finished subagent', () => {
     )
     await runtime.prompt('Stop A')
     expect(runtime.stopSubagent(id('Check B'))).toBe(true)
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await waitFor(() => subagentStates(parent.entries).some((state) => state.stoppedBy === 'user'))
 
     await runtime.prompt('Go on with A and B')
 
@@ -176,7 +164,7 @@ describe('continuing a finished subagent', () => {
           parameters: Type.Object({}),
           async execute() {
             runtime.stopSubagent!(id('Check B'))
-            // Once the calls of this step have run.
+            // After the other calls of this step, so B's message comes while its stop is under way.
             setTimeout(stopping.open, 0)
             return { content: [{ type: 'text', text: 'pressed' }], details: undefined }
           }
@@ -228,31 +216,19 @@ describe('continuing a finished subagent', () => {
   // when the answer is not stored by the host, or when the subagent gets no warning to check first.
   it('answers the calls an interrupted run left open and tells the subagent to check before going on', async () => {
     const parent: { session?: AgentSession } = {}
-    const stopTurn = defineTool({
-      name: 'work',
-      label: 'Work',
-      description: 'Works until the turn stops',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        void parent.session!.abort()
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
-      }
-    })
     const host = storingSubagentPort()
     const { model, calls } = routedModel(({ userText, lastText }) => {
       if (userText.includes('TASK-A'))
-        return lastText.includes('TASK-A') ? [toolCallPart('work_1', 'work'), finish('tool-calls')] : reply('REPORT-A')
+        return lastText.includes('TASK-A')
+          ? [toolCallPart('work_1', 'stop_turn'), finish('tool-calls')]
+          : reply('REPORT-A')
       if (lastText === 'Check A') return [subagentCall('call_a', TASK_A), finish('tool-calls')]
       if (lastText === 'Go on with A') return message('call_msg', host.subagents[0].sessionId, 'GO-ON')
       return reply('OK.')
     })
     const runtime = await createTestSession({
       port: streamTextPort(model).port,
-      tools: [stopTurn],
+      tools: [stopTurnTool(parent)],
       subagents: host.port
     })
     parent.session = runtime.session
