@@ -11,6 +11,7 @@ import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserCursor } from './BrowserCursor'
+import type { CommandOptions } from './browserUse'
 import { BrowserSessionError } from './session/BrowserSessionError'
 
 const logger = loggerService.withContext('BrowserGuestRegistry')
@@ -28,12 +29,14 @@ export interface BrowserGuestTarget extends BrowserGuestContext {
   cursor: BrowserCursor
   popupBlocked?: boolean
   beginExecution: () => Disposable
+  focusInput: (options: CommandOptions) => Promise<void>
   dispose: () => void
 }
 
 export class BrowserGuestRegistry implements Disposable {
   private readonly targets = new Map<string, BrowserGuestTarget>()
   private readonly changed = new Emitter<void>()
+  private readonly pendingFocus = new Map<string, { target: BrowserGuestTarget; finish: (error?: unknown) => void }>()
 
   constructor(
     private readonly resolveOwner: (id: string) => string,
@@ -142,6 +145,7 @@ export class BrowserGuestRegistry implements Disposable {
       abort,
       cursor,
       beginExecution,
+      focusInput: (options) => this.focusInput({ sessionId, ownerId }, options),
       dispose
     })
     this.claims.set(guest, this.targets.get(sessionId)!)
@@ -155,6 +159,52 @@ export class BrowserGuestRegistry implements Disposable {
     if (!target || target.tabId !== tabId || target.abort.signal.aborted) return undefined
     if (target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
     return target.cursor
+  }
+
+  private async focusInput(context: BrowserGuestContext, options: CommandOptions): Promise<void> {
+    const target = this.get(context)
+    if (!target) throw new BrowserSessionError('not_found')
+    const expiresAt = Math.min(Date.now() + 2000, options.deadline ?? Infinity)
+    if (expiresAt <= Date.now()) throw new BrowserSessionError('timeout')
+    const signal = AbortSignal.any([
+      target.abort.signal,
+      AbortSignal.timeout(Math.max(1, expiresAt - Date.now())),
+      ...(options.signal ? [options.signal] : [])
+    ])
+    signal.throwIfAborted()
+    const requestId = randomUUID()
+    await new Promise<void>((resolve, reject) => {
+      const finish = (error?: unknown) => {
+        this.pendingFocus.delete(requestId)
+        signal.removeEventListener('abort', onAbort)
+        if (error) reject(error)
+        else resolve()
+      }
+      const onAbort = () =>
+        finish(signal.reason?.name === 'TimeoutError' ? new BrowserSessionError('timeout') : signal.reason)
+      this.pendingFocus.set(requestId, { target, finish })
+      signal.addEventListener('abort', onAbort, { once: true })
+      try {
+        application.get('IpcApiService').send(target.windowId, 'browser.input.focus_requested', {
+          sessionId: target.sessionId,
+          scope: this.scope,
+          tabId: target.tabId,
+          requestId,
+          expiresAt
+        })
+      } catch (error) {
+        finish(error)
+      }
+    })
+    signal.throwIfAborted()
+    if (this.get(context) !== target) throw new BrowserSessionError('not_found')
+  }
+
+  inputFocused(sessionId: string, tabId: string, requestId: string, focused: boolean, senderId: WindowId | null): void {
+    const pending = this.pendingFocus.get(requestId)
+    if (!pending || pending.target !== this.targets.get(sessionId) || pending.target.tabId !== tabId) return
+    if (pending.target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
+    pending.finish(focused ? undefined : new BrowserSessionError('not_found'))
   }
 
   handlePopup(guest: WebContents, details: Electron.HandlerDetails): boolean {

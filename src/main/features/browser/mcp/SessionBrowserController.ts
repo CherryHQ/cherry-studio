@@ -99,6 +99,7 @@ export class SessionBrowserController extends BrowserPageController {
         tabId: target.tabId,
         session: this.lease.session,
         pointer: this.pointerFeedback(target, this.lease.session),
+        focusInput: target.focusInput,
         signal: AbortSignal.any([this.operationSignal, target.abort.signal])
       }
     })

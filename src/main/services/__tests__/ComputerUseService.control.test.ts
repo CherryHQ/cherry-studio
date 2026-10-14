@@ -34,6 +34,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
   }
   const client: ComputerUseClient = {
+    ...{ resolveApp: vi.fn(), perform: vi.fn() },
     getCapabilities: async () => ({ platform: 'darwin', capabilities: [] }),
     getPermissionStatus: async () => ({ permissions: [] }),
     requestPermissions: async () => ({ permissions: [] }),
@@ -75,6 +76,28 @@ beforeEach(() => {
 })
 
 describe('desktop control ownership and user stop', () => {
+  it('reports an unexpected unconfirmed native exit separately from user stop and keeps ownership blocked', async () => {
+    const native = backend({
+      close: async () => {
+        throw new Error('Native runtime is gone')
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Conversation')
+    await service.openApp(task, 'app')
+    native.disconnect({ cleanup: 'unconfirmed' })
+    await expect(service.listApps(task)).rejects.toMatchObject({ code: 'CLEANUP_UNCONFIRMED' })
+    service.allowControl('owner')
+    await expect(service.listApps(service.createTask('owner', 'Conversation'))).rejects.toMatchObject({
+      code: 'CLEANUP_UNCONFIRMED'
+    })
+    await expect(service.openApp(service.createTask('other', 'Other'), 'app')).rejects.toMatchObject({
+      code: 'APP_BUSY'
+    })
+    await service.stop()
+  })
+
   it('restores permission queries after a service restart without reviving stopped tasks', async () => {
     const native = backend()
     vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
@@ -254,7 +277,7 @@ describe('desktop control ownership and user stop', () => {
     expect(service.getControls().filter((row) => row.appId === 'app')).toMatchObject([{ status: 'unconfirmed' }])
     service.allowControl('owner')
     await expect(service.openApp(service.createTask('owner', 'Conversation'), 'app')).rejects.toMatchObject({
-      code: 'USER_STOPPED'
+      code: 'CLEANUP_UNCONFIRMED'
     })
     await expect(service.openApp(service.createTask('other', 'Other'), 'app')).rejects.toMatchObject({
       code: 'APP_BUSY'

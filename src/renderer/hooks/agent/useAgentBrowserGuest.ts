@@ -21,6 +21,33 @@ export function useAgentBrowserGuest(
     let cancelled = false
     let attaching = false
     let tabId: string | undefined
+    const unsubscribeFocus = ipcApi.on('browser.input.focus_requested', (request) => {
+      if (
+        request.sessionId !== sessionId ||
+        request.scope !== (scope ?? 'agent') ||
+        request.tabId !== tabId ||
+        request.expiresAt <= Date.now()
+      )
+        return
+      let focused = false
+      try {
+        if (guest?.isConnected) {
+          guest.focus()
+          focused = guest.ownerDocument.activeElement === guest
+        }
+      } catch (error) {
+        logger.debug('Browser guest could not receive input focus', { error })
+      }
+      void ipcApi
+        .request('browser.input.focused', {
+          sessionId: request.sessionId,
+          scope: request.scope,
+          tabId: request.tabId,
+          requestId: request.requestId,
+          focused
+        })
+        .catch((error) => logger.debug('Browser input focus request ended', { error }))
+    })
     const detach = (id: string) =>
       ipcApi.request('browser.pane.detach', { sessionId, tabId: id, ...(scope ? { scope } : {}) })
     const attach = () => {
@@ -52,6 +79,7 @@ export function useAgentBrowserGuest(
     attach()
     return () => {
       cancelled = true
+      unsubscribeFocus()
       guest.removeEventListener('dom-ready', attach)
       if (tabId) {
         const detachedId = tabId

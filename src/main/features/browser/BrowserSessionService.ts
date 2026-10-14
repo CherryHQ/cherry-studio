@@ -14,6 +14,7 @@ import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/sche
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { type AgentBrowserContext, AgentBrowserRegistry } from './AgentBrowserRegistry'
+import { BrowserControlSession } from './BrowserControlSession'
 import { captureBrowserFavicon, clearBrowserFavicons } from './browserFavicons'
 import { BrowserGuestRegistry, type BrowserGuestTarget } from './BrowserGuestRegistry'
 import type { SessionOwnership } from './browserUse'
@@ -59,8 +60,8 @@ export class BrowserSessionService extends BaseService {
     string,
     { ownerId: string; server: BrowserServer; active: number; lastUsed: number }
   >()
-  private readonly agentServers = new Set<BrowserServer>()
-  private readonly servers = new Set<BrowserServer>()
+  private readonly agentServers = new Set<BrowserServer | BrowserControlSession>()
+  private readonly servers = new Set<BrowserServer | BrowserControlSession>()
   private readonly sessions = new Map<number, SessionEntry>()
 
   protected onInit(): void {
@@ -157,6 +158,30 @@ export class BrowserSessionService extends BaseService {
       this.agentServers.add(server)
       return server.serve(transport)
     }
+  }
+
+  createControl(owner: { kind: 'agent' | 'topic'; sessionId: string; ownerId: string }): BrowserControlSession {
+    this.assertServing()
+    const context = { sessionId: owner.sessionId, ownerId: owner.ownerId }
+    const controller =
+      owner.kind === 'agent'
+        ? new AgentBrowserController(this, this.agentBrowser, { agentId: owner.ownerId, sessionId: owner.sessionId })
+        : new SessionBrowserController(this, {
+            assertAvailable: () => this.assertTopicAvailable(owner.sessionId, owner.ownerId),
+            get: () => this.topicBrowser.get(context),
+            ensureGuest: (signal, url) => this.topicBrowser.ensureGuest(context, signal, url),
+            reveal: (target) =>
+              application
+                .get('IpcApiService')
+                .send(target.windowId, 'browser.pane.open_requested', { scope: 'topic', sessionId: owner.sessionId })
+          })
+    const control = new BrowserControlSession(() => {
+      this.servers.delete(control)
+      this.agentServers.delete(control)
+    }, controller)
+    this.servers.add(control)
+    this.agentServers.add(control)
+    return control
   }
 
   private assertServing(): void {

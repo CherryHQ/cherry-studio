@@ -3,6 +3,16 @@ import type { browserRequestSchemas } from '@shared/ipc/schemas/browser'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 export const browserHandlers: IpcHandlersFor<typeof browserRequestSchemas> = {
+  'browser.input.focused': async ({ sessionId, scope, tabId, requestId, focused }, { senderId }) =>
+    application
+      .get('BrowserSessionService')
+      [scope === 'topic' ? 'topicBrowser' : 'agentBrowser'].inputFocused(
+        sessionId,
+        tabId,
+        requestId,
+        focused,
+        senderId
+      ),
   'browser.import.sources': async () => application.get('BrowserSessionService').listImportSources(),
   'browser.import.run': async (options, { senderId }) => {
     const window = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
