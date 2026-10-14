@@ -1562,6 +1562,58 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
+    it.each([true, false])(
+      'rejects an Interactions endpoint from model metadata or provider fallback (%s)',
+      async (explicit) => {
+        const { modelService } = await import('@data/services/ModelService')
+        const { providerService } = await import('@data/services/ProviderService')
+        vi.mocked(providerService.getByProviderId).mockReturnValue(
+          createProvider({
+            defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_INTERACTIONS,
+            endpointConfigs: {
+              [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]: { baseUrl: 'https://generativelanguage.googleapis.com' }
+            }
+          })
+        )
+        const model = createModel({ endpointTypes: explicit ? [ENDPOINT_TYPE.GOOGLE_INTERACTIONS] : [] })
+        vi.mocked(modelService.getByKey).mockReturnValue(model)
+        vi.mocked(modelService.list).mockReturnValue([model])
+        vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+        const sync = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+        expect(await service.syncConfig(model.id)).toEqual({
+          success: false,
+          message: 'Selected OpenClaw model must support chat through a supported endpoint'
+        })
+        expect(sync).not.toHaveBeenCalled()
+      }
+    )
+
+    it('exports the effective provider endpoint and omits Interactions models', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(
+        createProvider({
+          defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+          endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' } }
+        })
+      )
+      const model = createModel({ endpointTypes: [] })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([
+        model,
+        createModel({ id: 'openai::interactions', endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS] })
+      ])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const sync = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      expect(await service.syncConfig(model.id)).toEqual({ success: true })
+      expect(sync).toHaveBeenCalledWith(
+        expect.objectContaining({ models: [expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'anthropic' })] }),
+        expect.objectContaining({ endpoint_type: 'anthropic' })
+      )
+    })
+
     it('returns an error for invalid model selections', async () => {
       // Bypasses the compile-time UniqueModelId contract on purpose: the service's
       // runtime safeParse is the boundary defense for non-IPC callers.
@@ -1649,7 +1701,10 @@ describe('OpenClawService gateway status state machine', () => {
 
       const result = await service.syncConfig('openai::text-embedding-3-large')
 
-      expect(result).toEqual({ success: false, message: 'Selected OpenClaw model must support chat' })
+      expect(result).toEqual({
+        success: false,
+        message: 'Selected OpenClaw model must support chat through a supported endpoint'
+      })
       expect(syncProviderConfigSpy).not.toHaveBeenCalled()
     })
 

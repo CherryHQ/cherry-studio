@@ -74,10 +74,17 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
         if (isApiGatewayProviderId(providerId)) {
           return gatewayProviderIds.has(model.providerId) && isGatewayRoutableModel(model)
         }
-        if (!modelSupportsCliTool(selectedCliTool, model)) return false
+        if (
+          !modelSupportsCliTool(
+            selectedCliTool,
+            model,
+            providers.find((p) => p.id === model.providerId)?.defaultChatEndpoint
+          )
+        )
+          return false
         return model.providerId === providerId
       },
-    [gatewayProviderIds, selectedCliTool]
+    [gatewayProviderIds, selectedCliTool, providers]
   )
 
   const resolveProviderMetaForTool = useCallback(

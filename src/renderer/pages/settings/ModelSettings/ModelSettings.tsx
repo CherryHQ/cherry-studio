@@ -158,14 +158,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
-  const translateModelFilter = useCallback(
+  const textModelFilter = useCallback(
     (model: Model) => isTextChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
   const paintingModelFilter = useCallback((model: Model) => isGenerateImageModel(model), [])
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
-  const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
-  const selectableTranslateModel = translateModel && translateModelFilter(translateModel) ? translateModel : undefined
+  const selectableQuickModel = quickModel && textModelFilter(quickModel) ? quickModel : undefined
+  const selectableTranslateModel = translateModel && textModelFilter(translateModel) ? translateModel : undefined
   const shouldAutoFillEmptyModels =
     autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
@@ -277,7 +277,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             <DefaultModelSelector
               model={selectableQuickModel}
               providers={providers}
-              filter={chatModelFilter}
+              filter={textModelFilter}
               compact={compact}
               onSelect={onSelectQuick}
               placeholder={t('settings.models.empty')}
@@ -305,7 +305,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             <DefaultModelSelector
               model={selectableTranslateModel}
               providers={providers}
-              filter={translateModelFilter}
+              filter={textModelFilter}
               compact={compact}
               onSelect={onSelectTranslate}
               placeholder={t('settings.models.empty')}

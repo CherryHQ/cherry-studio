@@ -14,7 +14,7 @@
 import { ENDPOINT_TYPE, endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
-import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { type EndpointType, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 /** Check if model has reasoning capability */
 export const isReasoningModel = (model: Model): boolean =>
@@ -99,6 +99,21 @@ export const isNonChatModel = (model: Model): boolean =>
 export const isTextChatModel = (model: Model): boolean =>
   !isNonChatModel(model) &&
   (model.outputModalities?.length ? model.outputModalities.includes(MODALITY.TEXT) : !isGenerateVideoModel(model))
+
+/** OpenClaw exports only the first effective endpoint, without protocol conversion. */
+export const isOpenClawModel = (
+  model: Model,
+  defaultChatEndpoint: EndpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+): boolean => {
+  const endpoint = model.endpointTypes?.[0] ?? defaultChatEndpoint
+  return (
+    !isNonChatModel(model) &&
+    (endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ||
+      endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ||
+      endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
+      endpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+  )
+}
 
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's

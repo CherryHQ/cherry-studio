@@ -31,7 +31,7 @@ import {
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
-import { isNonChatModel } from '@shared/utils/model'
+import { isTextChatModel } from '@shared/utils/model'
 
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
   <SettingRowTitle className="gap-1">
@@ -51,7 +51,7 @@ const SettingRowTitleWithTooltip = ({ title, description }: { title: string; des
  */
 export const ContextManagementSettings = () => {
   const { t } = useTranslation()
-  const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const textModelFilter = useCallback<ModelSelectorFilter>((model) => isTextChatModel(model), [])
   const { theme } = useTheme()
   const [enabled, setEnabled] = usePreference('chat.context_settings.enabled')
   const [maxMessages, setMaxMessages] = usePreference('chat.context_settings.max_messages')
@@ -186,9 +186,9 @@ export const ContextManagementSettings = () => {
                 <SettingRowTitle>{t('settings.models.context_management.compress_model')}</SettingRowTitle>
                 <div className="flex w-[220px] min-w-0 items-center">
                   <DefaultModelSelector
-                    model={compressModel}
+                    model={compressModel && isTextChatModel(compressModel) ? compressModel : undefined}
                     providers={providers}
-                    filter={chatModelFilter}
+                    filter={textModelFilter}
                     onSelect={handleSelectCompressModel}
                     placeholder={t('settings.models.context_management.compress_model_follow')}
                     noneOptionLabel={t('settings.models.context_management.compress_model_follow')}

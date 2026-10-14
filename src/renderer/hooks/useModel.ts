@@ -25,7 +25,7 @@ const EMPTY_MODELS: readonly Model[] = Object.freeze([])
  * Reactive read of the user's default / quick / translate / painting models.
  * Each id lives in Preference; the Model record lives in DataApi. Quick /
  * translate fall back to the default-model id when their dedicated preference
- * is unset. Translation requires text output, including for that fallback.
+ * is unset. Both require text output, including for that fallback.
  * Painting stays empty (and out of the cascade) until the user picks an
  * image-generation model.
  */
@@ -45,14 +45,16 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
 
   return {
     defaultModel,
-    quickModel,
+    quickModel: quickModel && isTextChatModel(quickModel) ? quickModel : undefined,
     translateModel: translateModel && isTextChatModel(translateModel) ? translateModel : undefined,
     paintingModel,
     // v2 Model.id is already the UniqueModelId — store it directly.
     setDefaultModel: async (next: Model, options?: { forceCascade?: boolean }) => {
       await setDefaultModelId(next.id)
       await Promise.all([
-        options?.forceCascade || !quickModelId ? setQuickModelId(next.id) : Promise.resolve(),
+        isTextChatModel(next) && (options?.forceCascade || !quickModelId)
+          ? setQuickModelId(next.id)
+          : Promise.resolve(),
         isTextChatModel(next) && (options?.forceCascade || !translateModelId)
           ? setTranslateModelId(next.id)
           : Promise.resolve()

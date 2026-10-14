@@ -1,5 +1,6 @@
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
+import { isOpenClawModel } from '@shared/utils/model'
 
 const OPENAI_LIKE_ENDPOINTS = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
 
@@ -13,7 +14,7 @@ function hasAnyModelEndpoint(model: Model, endpoints: string[]): boolean {
   return model.endpointTypes.some((endpoint) => endpoints.includes(endpoint))
 }
 
-export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
+export function modelSupportsCliTool(cliTool: CodeCli, model: Model, defaultChatEndpoint?: EndpointType): boolean {
   switch (cliTool) {
     case CodeCli.CLAUDE_CODE:
       return hasModelEndpoint(model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
@@ -26,6 +27,7 @@ export function modelSupportsCliTool(cliTool: CodeCli, model: Model): boolean {
         ...OPENAI_LIKE_ENDPOINTS
       ])
     case CodeCli.OPENCLAW:
+      return isOpenClawModel(model, defaultChatEndpoint)
     case CodeCli.DEEPSEEK_HARNESS:
     case CodeCli.HERMES:
     case CodeCli.MINIMAX_CODE:

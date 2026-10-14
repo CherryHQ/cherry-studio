@@ -17,6 +17,7 @@ import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { isTextChatModel } from '@shared/utils/model'
 
 import type { ConversationRef } from '../types'
 import { resolveContextWindow } from './resolveContextWindow'
@@ -62,6 +63,11 @@ export async function resolveCompressionModel(
       modelId,
       error: (error as Error).message
     })
+    return null
+  }
+
+  if (!isTextChatModel(model)) {
+    logger.warn('compression model does not support text output', { modelIdRaw })
     return null
   }
 

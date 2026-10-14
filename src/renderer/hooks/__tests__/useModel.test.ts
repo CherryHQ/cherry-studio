@@ -617,9 +617,10 @@ describe('useDefaultModel', () => {
   })
 
   it.each([null, 'openai::gpt-4o'] as const)(
-    'does not cascade a video default into translation (%s)',
+    'does not cascade a video default into quick or translation models (%s)',
     async (configured) => {
       MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', configured)
+      MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', configured)
       const { result } = renderHook(() => useDefaultModel())
       const videoModel: Model = {
         ...mockModel1,
@@ -635,30 +636,37 @@ describe('useDefaultModel', () => {
 
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.default_model_id')).toBe(videoModel.id)
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.model_id')).toBe(configured)
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.model_id')).toBe(configured)
     }
   )
 
-  it('does not offer a media-only default as the fallback translation model', () => {
-    const videoModel: Model = {
-      ...mockModel1,
-      capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
-      endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
-      outputModalities: ['video']
+  it.each([null, 'openai::gpt-4o'] as const)(
+    'rejects media-only quick and translation models from preferences or fallback (%s)',
+    (configured) => {
+      const videoModel: Model = {
+        ...mockModel1,
+        capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+        outputModalities: ['video']
+      }
+      MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', videoModel.id)
+      MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', configured)
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', configured)
+      mockUseQuery.mockReturnValue({
+        data: videoModel,
+        isLoading: false,
+        isRefreshing: false,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      })
+
+      const { result } = renderHook(() => useDefaultModel())
+
+      expect(result.current.defaultModel).toEqual(videoModel)
+      expect(result.current.translateModel).toBeUndefined()
+      expect(result.current.quickModel).toBeUndefined()
     }
-    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', videoModel.id)
-    mockUseQuery.mockReturnValue({
-      data: videoModel,
-      isLoading: false,
-      isRefreshing: false,
-      refetch: vi.fn(),
-      mutate: vi.fn()
-    })
-
-    const { result } = renderHook(() => useDefaultModel())
-
-    expect(result.current.defaultModel).toEqual(videoModel)
-    expect(result.current.translateModel).toBeUndefined()
-  })
+  )
 
   it('keeps every model entity query inactive when its owner is closed', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
