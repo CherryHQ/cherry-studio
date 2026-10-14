@@ -13,7 +13,6 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { topicService } from '@data/services/TopicService'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { conversationPartEvidence } from '@main/ai/messages/conversationEvidence'
@@ -81,8 +80,11 @@ export function conversationIdOf(topicId: string): string {
 export function readIncidentMessage(incident: DoctorAgentIncident): IncidentMessage | undefined {
   const conversationId = conversationIdOf(incident.topicId)
   try {
-    if (temporaryChatService.hasTopic(conversationId)) {
-      return temporaryChatService.listMessages(conversationId).find((message) => message.id === incident.messageId)
+    if (application.get('TemporaryChatService').hasTopic(conversationId)) {
+      return application
+        .get('TemporaryChatService')
+        .listMessages(conversationId)
+        .find((message) => message.id === incident.messageId)
     }
     const result = readConversation({ sessionId: conversationId, messageId: incident.messageId })
     return 'message' in result ? result.message : undefined
@@ -118,7 +120,7 @@ export function incidentErrors(message: IncidentMessage): unknown[] {
 
 function conversationKind(incident: DoctorAgentIncident): 'agent' | 'temporary' | 'topic' {
   if (isAgentSessionTopic(incident.topicId)) return 'agent'
-  return temporaryChatService.hasTopic(incident.topicId) ? 'temporary' : 'topic'
+  return application.get('TemporaryChatService').hasTopic(incident.topicId) ? 'temporary' : 'topic'
 }
 
 function compactPart(part: Parameters<typeof conversationPartEvidence>[0]): unknown {
@@ -184,7 +186,7 @@ function precedingMessages(incident: DoctorAgentIncident, count: number): Incide
   if (kind === 'topic') return messageService.getPathToNode(incident.messageId).slice(-(count + 1))
   const chronological =
     kind === 'temporary'
-      ? temporaryChatService.listMessages(conversationId)
+      ? application.get('TemporaryChatService').listMessages(conversationId)
       : // ponytail: only the 50 newest messages are searched; an older incident returns just itself.
         agentSessionMessageService.listSessionMessages(conversationId, { limit: 50 }).items.slice().reverse()
   const index = chronological.findIndex((message) => message.id === incident.messageId)

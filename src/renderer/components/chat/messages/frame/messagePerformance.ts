@@ -1,5 +1,12 @@
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
-import type { MessageRuntimeSpan, MessageStats } from '@shared/data/types/message'
+import type { CherryMessagePart, MessageRuntimeSpan, MessageStats } from '@shared/data/types/message'
+
+export function hasVideoOutput(parts: readonly CherryMessagePart[]): boolean {
+  // Video arrives as a completed artifact; its delivery rate is not token generation speed.
+  return parts.some(
+    (part) => part.type === 'data-video' || (part.type === 'file' && part.mediaType.startsWith('video/'))
+  )
+}
 
 export type MessagePerformanceLaneId = 'model' | 'tool' | 'approval' | 'other'
 

@@ -6,6 +6,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
@@ -105,7 +106,8 @@ function createMessage(
 
 function renderWithProvider(
   message: MessageListItem,
-  aiUsageMessageKind?: MessageListProviderValue['meta']['aiUsageMessageKind']
+  aiUsageMessageKind?: MessageListProviderValue['meta']['aiUsageMessageKind'],
+  parts: CherryMessagePart[] = []
 ) {
   const locateMessage = vi.fn()
   const value: MessageListProviderValue = {
@@ -113,7 +115,7 @@ function renderWithProvider(
       topic,
       messages: [message],
       partsByMessageId: {
-        [message.id]: []
+        [message.id]: parts
       },
       hasOlder: false,
       messageNavigation: 'none',
@@ -189,6 +191,30 @@ describe('MessageTokens', () => {
     )
 
     expect(screen.getByRole('button', { name: '3.3K Tokens' })).toHaveClass('message-tokens')
+  })
+
+  it('preserves provider token counts for video output without showing text-stream throughput', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        inputTokens: 19,
+        outputTokens: 6305,
+        totalTokens: 6324,
+        outputTokenDetails: { reasoningTokens: 168 },
+        providerPerformance: { measuredOutputTokens: 6305, generationDurationMs: 4 },
+        runtimeTiming: { startedAt: 1000, completedAt: 19217, spans: [] }
+      }),
+      undefined,
+      [{ type: 'file', url: 'file:///generated/video.mp4', mediaType: 'video/mp4' }]
+    )
+
+    expect(screen.getByRole('button', { name: '6.3K Tokens' })).toBeInTheDocument()
+    openDetails()
+    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('19 Tokens')
+    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('6,305 Tokens')
+    expect(screen.queryByTestId('message-metric-speed')).not.toBeInTheDocument()
+    expandMoreDetails()
+    expect(getDetailsCard()).not.toHaveTextContent('Tokens/s')
+    expect(getDetailsCard()).toHaveTextContent('End-to-end duration')
   })
 
   it('shows localized unavailable values without false throughput for empty runtime token counters', () => {

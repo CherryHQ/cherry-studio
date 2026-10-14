@@ -32,6 +32,7 @@ import {
   AgentWorkspaceNameSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
+import { CreateTopicSchema } from '@shared/data/api/schemas/topics'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -40,6 +41,7 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
+import type { Topic } from '@shared/data/types/topic'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
@@ -189,6 +191,19 @@ const mentionedModelIdsSchema = z
   .optional()
 
 export const aiRequestSchemas = {
+  'ai.temporary_chat.create': defineRoute({
+    input: CreateTopicSchema,
+    output: z.custom<Topic>()
+  }),
+  'ai.temporary_chat.delete': defineRoute({
+    input: z.object({ topicId: z.string() }),
+    output: z.void()
+  }),
+  'ai.temporary_chat.persist': defineRoute({
+    input: z.object({ topicId: z.string() }),
+    output: z.object({ topicId: z.string(), messageCount: z.number() })
+  }),
+
   'ai.claude_code.binary.status': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
   'ai.claude_code.binary.ensure': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),
   'ai.claude_code.binary.retry': defineRoute({ input: z.void(), output: z.custom<ClaudeCodeBinaryStatus>() }),

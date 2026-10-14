@@ -5,6 +5,8 @@
  * of them.
  */
 
+import type { FileHandle } from '@shared/data/types/file'
+
 /**
  * One attachment the `read_file` tool may read this request, and an entry in the
  * per-request allow-list.
@@ -15,12 +17,12 @@
  *   unambiguous.
  * - `displayName` is the original filename, kept for logs/observability.
  *
- * The internal `fileEntryId` never reaches the model *through this ref* — handles are
+ * The internal file reference never reaches the model *through this ref* — handles are
  * what resolve. Agent sessions separately announce managed paths, whose UUID filename is
  * the entry id; that disclosure is inherent to handing out a path, not a leak of this type.
  */
 export interface FileAttachmentRef {
-  readonly fileEntryId: string
+  readonly file: FileHandle
   readonly handle: string
   readonly displayName: string
 }

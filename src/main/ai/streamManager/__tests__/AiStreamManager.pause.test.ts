@@ -189,7 +189,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     // `startAgentSessionRun` resolves the manager via the container.
     ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       if (name === 'AiStreamManager') return mgr
-      throw new Error(`AiStreamManager.pause.test: unexpected application.get('${name}')`)
+      return application.getContainer().get(name)
     })
     // onInit resolves the reconcile gate `dispatch` awaits.
     await runOnInit(mgr)

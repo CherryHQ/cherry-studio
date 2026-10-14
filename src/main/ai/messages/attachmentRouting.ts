@@ -1,6 +1,6 @@
 /**
  * Chat-path attachment routing. In one pass over each message's parts, every
- * first-party (`fileEntryId`-backed) file part is either:
+ * entry-backed or local-path file part is either:
  *   - **native** for the target provider/model (image→vision, pdf→native
  *     provider, audio/video→model + endpoint capable) → left in place and
  *     materialized as the real file via `materializeNativeFilePart`; or
@@ -15,7 +15,7 @@
  * to call `read_file` — weak and non-tool models see it too. Other failures
  * (missing entry, parse error, native materialization) degrade to a model-visible
  * note rather than silently dropping the file or failing the request. Unreadable
- * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
+ * non-vision images stop the request. Remote / inline gateway parts
  * keep the eager materialization path, but their image/audio/video parts remain
  * capability-gated.
  *
@@ -26,6 +26,7 @@
 
 import { isAbortError } from '@ai-sdk/provider-utils'
 import type { UIMessage } from 'ai'
+import mime from 'mime'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -33,15 +34,15 @@ import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
+import type { FileHandle } from '@shared/data/types/file'
 import type { FileUIPart } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
-import { materializeNativeFilePart } from './fileProcessor'
+import { getFileHandleExtension, getFilePartHandle, materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
 
@@ -67,7 +68,7 @@ function uniqueHandle(base: string, used: Set<string>): string {
 }
 
 /**
- * Flat allow-list of fileEntry-backed attachments across all messages. Each gets
+ * Flat allow-list of entry-backed and local-path attachments across all messages. Each gets
  * a **unique** model-facing `handle` (normalized + deduped) plus the original
  * `displayName`, so `read_file` can resolve a handle unambiguously.
  */
@@ -78,12 +79,12 @@ export function collectFileAttachments(messages: UIMessage[] | undefined): FileA
     const composerFileTokenIds = collectComposerFileTokenIds(message)
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
-      const fileEntryId = readCherryMeta(part)?.fileEntryId
-      if (!fileEntryId) continue
+      const file = getFilePartHandle(part)
+      if (!file) continue
       if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
       const displayName = part.filename ?? 'file'
       const handle = uniqueHandle(displayName.trim() || 'file', used)
-      refs.push({ fileEntryId, handle, displayName })
+      refs.push({ file, handle, displayName })
     }
   }
   return refs
@@ -120,9 +121,9 @@ function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boole
  * OCR a non-vision image. Returns trimmed text, or `null` when OCR found no
  * text or is unavailable (unconfigured / failed). Abort rethrows.
  */
-async function ocrNonVisionImage(entryId: string, signal?: AbortSignal): Promise<string | null> {
+async function ocrNonVisionImage(file: FileHandle, signal?: AbortSignal): Promise<string | null> {
   try {
-    const text = (await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)).trim()
+    const text = (await application.get('FileProcessingService').ocrImage(file, signal)).trim()
     return text || null
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
@@ -134,7 +135,7 @@ async function ocrNonVisionImage(entryId: string, signal?: AbortSignal): Promise
 /** Extract a non-native attachment's model-visible text by file type. `handle`
  *  is the model-facing name used in any note. */
 async function extractNonNativeText(
-  entryId: string,
+  file: FileHandle,
   ext: string,
   fileType: FileType,
   handle: string,
@@ -144,7 +145,7 @@ async function extractNonNativeText(
     return `This model can't process the attached ${fileType} file "${handle}".`
   }
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || !ext) {
-    const extracted = await extractDocumentText(entryId, { signal })
+    const extracted = await extractDocumentText(file, { signal })
     if (extracted === null) {
       return `Cannot read the attached file "${handle}" as text (unsupported file type).`
     }
@@ -197,9 +198,9 @@ async function prepareChatMessage<T extends UIMessage>(
       continue
     }
 
-    const fileEntryId = readCherryMeta(part)?.fileEntryId
-    if (!fileEntryId) {
-      // Legacy / gateway part — eager materialization, but do not let media
+    const file = getFilePartHandle(part)
+    if (!file) {
+      // Remote / inline gateway part — eager materialization, but do not let media
       // bypass the native-support gate applied to first-party attachments.
       const name = part.filename ?? 'file'
       const inlined = await materializeNativeFilePart(part)
@@ -224,7 +225,7 @@ async function prepareChatMessage<T extends UIMessage>(
       logger.warn('Ignoring orphaned managed file part', {
         messageId: message.id,
         displayName: part.filename ?? 'file',
-        fileEntryId
+        file
       })
       continue
     }
@@ -234,12 +235,22 @@ async function prepareChatMessage<T extends UIMessage>(
     // materialization — must degrade to a model-visible note rather than reject
     // the whole request before the model is even called (mirrors `read_file`'s
     // graceful failure). Abort rethrows.
-    const ref = ctx.attachments.find((a) => a.fileEntryId === fileEntryId)
+    const ref = ctx.attachments.find((a) =>
+      file.kind === 'entry'
+        ? a.file.kind === 'entry' && a.file.entryId === file.entryId
+        : a.file.kind === 'path' && a.file.path === file.path
+    )
     const handle = ref?.handle ?? part.filename ?? 'file'
     const displayName = ref?.displayName ?? handle
     try {
-      const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
-      const fileType = getFileTypeByExt(bareExt)
+      const bareExt = await getFileHandleExtension(file)
+      let fileType = getFileTypeByExt(bareExt)
+      if (fileType === FILE_TYPE.OTHER && !ctx.keepUnroutableFileParts) {
+        const mediaKind = mime.getType(bareExt)?.split('/')[0]
+        if (mediaKind === FILE_TYPE.IMAGE || mediaKind === FILE_TYPE.AUDIO || mediaKind === FILE_TYPE.VIDEO) {
+          fileType = mediaKind
+        }
+      }
 
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {
@@ -252,12 +263,12 @@ async function prepareChatMessage<T extends UIMessage>(
       // Non-vision image → OCR text when available; otherwise stop before the
       // provider request. Gateway-backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
-        const ocrText = await ocrNonVisionImage(fileEntryId, ctx.signal)
+        const ocrText = await ocrNonVisionImage(file, ctx.signal)
         if (ocrText === null) {
           logger.warn('Non-vision image OCR produced no readable text', {
             messageId: message.id,
             displayName,
-            fileEntryId
+            file
           })
           throw new NonVisionImageOcrError()
         }
@@ -273,7 +284,7 @@ async function prepareChatMessage<T extends UIMessage>(
       }
 
       // Non-native first-party attachment → inline its (capped) text.
-      const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal)
+      const body = await extractNonNativeText(file, bareExt, fileType, handle, ctx.signal)
       defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error

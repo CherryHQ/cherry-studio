@@ -1167,6 +1167,24 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'doc.pdf')
     })
 
+    it('renders generated video files inline without a duplicate generic attachment card', async () => {
+      renderParts([
+        {
+          type: 'file',
+          url: 'file:///generated/result.mp4',
+          mediaType: 'video/mp4',
+          filename: 'result.mp4',
+          providerMetadata: { cherry: { fileEntryId: 'generated-video' } }
+        }
+      ])
+
+      expect(await screen.findByTestId('mock-message-video')).toHaveAttribute(
+        'data-url',
+        'file:///generated/result.mp4'
+      )
+      expect(screen.queryByTestId('mock-attachments')).not.toBeInTheDocument()
+    })
+
     it('renders a composer file token when it is the only user message content', () => {
       renderParts(
         [

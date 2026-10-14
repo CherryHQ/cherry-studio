@@ -7,6 +7,7 @@ import { MockMainDbServiceExport } from './DbService'
 import { mockFileIntakeService } from './FileIntakeService'
 import { MockMainFileManagerExport } from './FileManager'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
+import { mockTemporaryChatService } from './TemporaryChatService'
 
 /**
  * Unified mock application factory for main process testing.
@@ -84,6 +85,7 @@ export const mockJobManager = {
 
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
+  TemporaryChatService: mockTemporaryChatService,
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
   CacheService: MockMainCacheServiceExport.cacheService,
   DataApiService: MockMainDataApiServiceExport.dataApiService,

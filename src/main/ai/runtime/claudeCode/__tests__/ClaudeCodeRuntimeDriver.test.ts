@@ -1564,7 +1564,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.createClaudeQuery.mockReturnValue(query)
     mocks.getModelByKey.mockReturnValue({ capabilities: [] })
     mocks.collectFileAttachments.mockReturnValueOnce([
-      { fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }
+      { file: { kind: 'entry', entryId: 'entry-1' }, handle: 'pixel.png', displayName: 'pixel.png' }
     ])
     mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
       {
@@ -1612,7 +1612,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     expect(mocks.getModelByKey).toHaveBeenCalledWith('claude-code', 'sonnet')
     expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
-      attachments: [{ fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }],
+      attachments: [{ file: { kind: 'entry', entryId: 'entry-1' }, handle: 'pixel.png', displayName: 'pixel.png' }],
       nativeSupport: { image: false, pdf: false, audio: false, video: false },
       isToolCapable: false,
       keepUnroutableFileParts: true

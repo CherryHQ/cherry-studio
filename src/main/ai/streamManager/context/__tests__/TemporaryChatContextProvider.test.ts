@@ -1,6 +1,7 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 
 // ── Service mocks ────────────────────────────────────────────────────
@@ -10,14 +11,14 @@ const hasTopicMock = vi.fn()
 const appendMessageMock = vi.fn()
 const listMessagesMock = vi.fn()
 
-vi.mock('@main/data/services/TemporaryChatService', () => ({
-  temporaryChatService: {
+beforeEach(() => {
+  Object.assign(application.get('TemporaryChatService'), {
     getTopic: getTopicMock,
     hasTopic: hasTopicMock,
     appendMessage: appendMessageMock,
     listMessages: listMessagesMock
-  }
-}))
+  })
+})
 
 const getAssistantByIdMock = vi.fn()
 vi.mock('@data/services/AssistantService', () => ({
@@ -202,12 +203,11 @@ describe('TemporaryChatContextProvider', () => {
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
 
     const listeners = prepared.listeners
-    expect(listeners).toHaveLength(2)
     expect(listeners[0]).toBe(subscriber)
     // Persistence is strategy-based: a PersistenceListener wrapping the
     // in-memory temp backend. We assert via the public `backendKind` getter
     // rather than reaching into private fields.
-    const persist = listeners[1]
+    const persist = listeners.find((listener) => listener instanceof PersistenceListener)
     expect(persist).toBeInstanceOf(PersistenceListener)
     expect((persist as InstanceType<typeof PersistenceListener>).backendKind).toBe('temp')
 

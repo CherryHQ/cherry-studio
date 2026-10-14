@@ -928,7 +928,7 @@ type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest
 | Provider | `canHandle` | Data layer | User message | Assistant message |
 |---|---|---|---|---|
 | **AgentChatContextProvider** | `topicId.startsWith('agent-session:')` | `agentMessageRepository` | written upfront | runtime provides `PersistenceListener(AgentSessionMessageBackend)` |
-| **TemporaryChatContextProvider** | `temporaryChatService.hasTopic(topicId)` | `TemporaryChatService` (in-memory) | appended upfront | `PersistenceListener(TemporaryChatBackend)` appends on done |
+| **TemporaryChatContextProvider** | `application.get('TemporaryChatService').hasTopic(topicId)` | `TemporaryChatService` (in-memory) | appended upfront | `PersistenceListener(TemporaryChatBackend)` appends on done |
 | **PersistentChatContextProvider** | `true` (catch-all) | `messageService` + SQLite | transactional create | `PersistenceListener(MessageServiceBackend)` updates pending on done |
 
 Order: Agent → Temporary → Persistent (first `canHandle === true`
@@ -1023,3 +1023,28 @@ still completes, but a stale callback cannot mutate its replacement.
   vehicle covers the observer protocol once for every backend.
 - All internal state has a public inspection API; production and tests
   share the same contract.
+
+## Temporary conversation ownership
+
+`src/main/ai/TemporaryChatService.ts` owns temporary messages and their local attachments.
+Renderer commands use `ai.temporary_chat.create/delete/persist` over IpcApi; temporary state
+has no DataApi endpoints. The stream context provider supplies the generated-file storage
+callback, and `TemporaryChatBackend` only delegates completed-message writes.
+
+Temporary attachments live under the current profile's `feature.temporary_chat.temp` directory,
+outside FileManager's managed entries. Incoming managed attachments are copied there too, so
+deleting the original owner cannot invalidate temporary history. Deletion aborts the turn and
+waits for admitted writes; shutdown drains admitted operations before removing temporary files.
+Startup removes stale files left by a previous process.
+
+Promotion is rejected during an active turn. Otherwise the service imports files through
+FileManager, rewrites a snapshot, and passes it to `TopicService.importConversation`.
+That data-layer operation inserts the topic, message tree, usage projections and attachment
+references in one transaction; `MessageService.importMessageTx` owns each message's references.
+A failed import removes newly created permanent copies and leaves the temporary conversation
+available for retry.
+
+After a successful commit, `onPersisted` lets AiStreamManager evict its old replay buffer
+before temporary files are removed. Later reads use the permanent message URLs. The dependency
+direction is `AiStreamManager → TemporaryChatService → FileManager`; data services do not
+call either AI service, and FileManager cleanup has no temporary-chat exceptions.

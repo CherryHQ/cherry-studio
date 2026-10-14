@@ -12,11 +12,13 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { decodeTextBufferIfText } from '@main/utils/file'
+import { decodeTextBufferIfText, read, stat } from '@main/utils/file'
 import { decodeTextWithAutoEncoding } from '@main/utils/legacyFile'
 import { extractPdfText } from '@main/utils/pdf'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { FileHandle } from '@shared/data/types/file'
 import { documentExts } from '@shared/utils/file'
+
+import { getFileHandleExtension } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:documentExtraction')
 
@@ -32,8 +34,11 @@ export function noExtractableTextNote(filename: string): string {
   return `No extractable text found in "${filename}" — it may be a scanned or image-only document.`
 }
 
-async function extract(entryId: FileEntryId, ext: string): Promise<string | null> {
-  const { content } = await application.get('FileManager').read(entryId, { encoding: 'binary' })
+async function extract(file: FileHandle, ext: string): Promise<string | null> {
+  const content =
+    file.kind === 'entry'
+      ? (await application.get('FileManager').read(file.entryId, { encoding: 'binary' })).content
+      : (await read(file.path, { encoding: 'binary' })).data
 
   if (ext === 'pdf') return (await extractPdfText(content)).trim()
 
@@ -54,30 +59,32 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string | null
 }
 
 /**
- * Extract plain text from a file entry. Returns `null` when an extensionless
+ * Extract plain text from a file entry or local path. Returns `null` when an extensionless
  * file is detected as binary, and may return an empty string for scanned /
  * image-only docs (the caller emits {@link noExtractableTextNote}). Throws on
  * unreadable file / parse failure, and rethrows the abort reason if `signal`
  * is aborted.
  */
 export async function extractDocumentText(
-  entryId: FileEntryId,
+  file: FileHandle,
   opts: { signal?: AbortSignal } = {}
 ): Promise<string | null> {
-  const fileManager = application.get('FileManager')
   const cache = application.get('CacheService')
-
-  const version = await fileManager.getVersion(entryId)
-  const cacheKey = `doc-extraction:${entryId}:${version.mtime}:${version.size}`
+  if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
+  const version =
+    file.kind === 'entry'
+      ? await application.get('FileManager').getVersion(file.entryId)
+      : await stat(file.path).then(({ modifiedAt, size }) => ({ mtime: modifiedAt, size }))
+  const identity = file.kind === 'entry' ? file.entryId : file.path
+  const cacheKey = `doc-extraction:${file.kind}:${identity}:${version.mtime}:${version.size}`
   const cached = cache.get<string | null>(cacheKey)
   if (cached !== undefined) return cached
 
   if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
-  const entry = await fileManager.getById(entryId)
-  const ext = entry.ext?.toLowerCase() ?? ''
-  const text = await extract(entryId, ext)
+  const ext = await getFileHandleExtension(file)
+  const text = await extract(file, ext)
 
-  logger.debug('Processed document text', { entryId, ext, chars: text?.length ?? 0, binary: text === null })
+  logger.debug('Processed document text', { file, ext, chars: text?.length ?? 0, binary: text === null })
   cache.set(cacheKey, text, CACHE_TTL_MS)
   return text
 }

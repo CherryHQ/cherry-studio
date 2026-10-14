@@ -1,6 +1,7 @@
 import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { LanguageModelUsage, ModelMessage } from 'ai'
 
+import { application } from '@application'
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
  * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
@@ -37,7 +38,6 @@ import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOu
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
-import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
 
@@ -139,7 +139,7 @@ export const inLoopCompactionFeature: RequestFeature = {
     const topicId = scope.request.conversation.topicId
     if (!topicId) return false
     if (isAgentSessionTopic(topicId)) return false
-    if (temporaryChatService.hasTopic(topicId)) return false
+    if (application.get('TemporaryChatService').hasTopic(topicId)) return false
     return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
   },
   contributeHooks: (scope) => {

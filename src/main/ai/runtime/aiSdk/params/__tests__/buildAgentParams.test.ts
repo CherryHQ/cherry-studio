@@ -2030,7 +2030,9 @@ describe('buildAgentParams retained context', () => {
   it('prefers the request-carried retained context over scanning messages', async () => {
     const { provider, model } = makeSetup()
     const retainedContext = {
-      fileAttachments: [{ fileEntryId: 'fe-raw', handle: 'folded.txt', displayName: 'folded.txt' }],
+      fileAttachments: [
+        { file: { kind: 'entry' as const, entryId: 'fe-raw' }, handle: 'folded.txt', displayName: 'folded.txt' }
+      ],
       persistedOutputPaths: new Set(['/blobs/fe-blob.txt'])
     }
 
@@ -2078,7 +2080,9 @@ describe('buildAgentParams retained context', () => {
       model
     })
 
-    expect(result.fileAttachments).toEqual([{ fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }])
+    expect(result.fileAttachments).toEqual([
+      { file: { kind: 'entry', entryId: 'fe-1' }, handle: 'log.txt', displayName: 'log.txt' }
+    ])
     expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths?.size).toBe(0)
   })
 })

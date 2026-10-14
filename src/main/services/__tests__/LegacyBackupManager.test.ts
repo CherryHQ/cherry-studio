@@ -2,6 +2,7 @@ import type * as CryptoModule from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
 import type * as PathModule from 'path'
 
+import { mockTemporaryChatService } from '@test-mocks/main/TemporaryChatService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -287,6 +288,7 @@ vi.mock('@application', () => ({
       if (name === 'JobManager') {
         return mockJobManager
       }
+      if (name === 'TemporaryChatService') return mockTemporaryChatService
       if (name === 'AiStreamManager') {
         return mockAiStreamManager
       }
@@ -868,6 +870,18 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
     expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
     expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
+
+  it('refuses backup capture until admitted temporary-chat promotions have drained', async () => {
+    mockTemporaryChatService.drainInFlight.mockResolvedValueOnce({ stragglerIds: ['pending-topic'] })
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      BACKUP_BACKGROUND_TASKS_ERROR_CODE
+    )
+
+    expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+    expect(mockTemporaryChatService.pause.mock.results.at(-1)?.value.dispose).toHaveBeenCalledOnce()
   })
 
   it('opens staged files with write access before fsync on Windows', () => {

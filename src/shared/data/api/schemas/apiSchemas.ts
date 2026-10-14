@@ -46,7 +46,6 @@ import type { ProviderSchemas } from './providers'
 import type { SearchSchemas } from './search'
 import type { SkillSchemas } from './skills'
 import type { TagSchemas } from './tags'
-import type { TemporaryChatSchemas } from './temporaryChats'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
 
@@ -67,7 +66,6 @@ export type ApiSchemas = AssertValidSchemas<
     ApiGatewayPairedDeviceSchemas &
     TopicSchemas &
     MessageSchemas &
-    TemporaryChatSchemas &
     ModelSchemas &
     ProviderSchemas &
     PaintingsSchemas &

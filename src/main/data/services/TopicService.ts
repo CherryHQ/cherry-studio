@@ -30,6 +30,7 @@ import type {
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -308,6 +309,40 @@ export class TopicService {
     ) as TopicRow
     getDataService('MessageService').createRootMessageTx(tx, topicRow.id)
     return topicRow
+  }
+
+  importConversation(topic: Topic, messages: Message[]): void {
+    application.get('DbService').withWriteTx((tx) => {
+      insertWithOrderKey(
+        tx,
+        topicTable,
+        {
+          id: topic.id,
+          name: topic.name,
+          assistantId: topic.assistantId,
+          lastActivityAt: Date.parse(topic.lastActivityAt),
+          createdAt: Date.parse(topic.createdAt),
+          updatedAt: Date.parse(topic.updatedAt)
+        },
+        { pkColumn: topicTable.id, scope: isNull(topicTable.deletedAt) }
+      )
+      const messageService = getDataService('MessageService')
+      const rootId = messageService.createRootMessageTx(tx, topic.id)
+      let parentId = rootId
+      for (const message of messages) {
+        messageService.importMessageTx(tx, message, topic.id, parentId)
+        parentId = message.id
+      }
+      tx.update(topicTable)
+        .set({
+          activeNodeId: parentId === rootId ? null : parentId,
+          lastActivityAt: Date.parse(topic.lastActivityAt),
+          updatedAt: Date.parse(topic.updatedAt)
+        })
+        .where(eq(topicTable.id, topic.id))
+        .run()
+    })
+    this.notifyReadModelChange([topic.id], 'membership')
   }
 
   duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Topic {

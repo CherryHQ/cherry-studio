@@ -1,6 +1,7 @@
 import type { ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type * as AiCore from '@cherrystudio/ai-core'
 
 const compactModelMessages = vi.fn()
@@ -11,9 +12,9 @@ vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
 vi.mock('@main/ai/agentSession/topic', () => ({
   isAgentSessionTopic: (id: string) => id.startsWith('agent-session:')
 }))
-vi.mock('@main/data/services/TemporaryChatService', () => ({
-  temporaryChatService: { hasTopic: (id: string) => id.startsWith('temp:') }
-}))
+beforeEach(() => {
+  Object.assign(application.get('TemporaryChatService'), { hasTopic: (id: string) => id.startsWith('temp:') })
+})
 
 import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
 
