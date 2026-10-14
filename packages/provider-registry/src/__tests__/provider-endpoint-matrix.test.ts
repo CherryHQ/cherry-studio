@@ -208,8 +208,8 @@ describe('new-api single-host endpoints', () => {
 // Hugging Face documents Chat Completions for general chat and Anthropic Messages for Claude Code.
 // Declaring both lets Agents reach the router directly while keeping Responses selectable (#18676).
 describe('huggingface (router) endpoint matrix', () => {
-  it('defaults to Chat Completions rather than the beta Responses API', () => {
-    expect(provider('huggingface').defaultChatEndpoint).toBe('openai-chat-completions')
+  it('preserves the Responses default inherited by existing unpinned models', () => {
+    expect(provider('huggingface').defaultChatEndpoint).toBe('openai-responses')
   })
 
   it('configures a base URL for Anthropic Messages so Claude Code Agents can address the router', () => {

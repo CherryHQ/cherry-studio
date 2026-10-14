@@ -2506,7 +2506,7 @@
     },
     {
       "availableInEditions": ["global"],
-      "defaultChatEndpoint": "openai-chat-completions",
+      "defaultChatEndpoint": "openai-responses",
       "description": "Hugging Face - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2722,5 +2722,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "6348e5db4b6db5e9"
+  "version": "defc6a5ac2bc457b"
 }

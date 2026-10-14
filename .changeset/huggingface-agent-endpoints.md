@@ -2,4 +2,4 @@
 '@cherrystudio/provider-registry': patch
 ---
 
-Use Chat Completions as the Hugging Face provider's default chat endpoint while keeping Anthropic Messages available for Agent sessions and preserving explicit Responses selections.
+Expose the Hugging Face router's Chat Completions endpoint alongside Anthropic Messages and Responses while preserving the default inherited by existing configurations.

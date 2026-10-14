@@ -20,6 +20,7 @@ import {
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
+import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
@@ -909,12 +910,16 @@ const jinaFetcher: ModelFetcher = {
   }
 }
 
-// The router's listing omits endpoint support; declare both dialects so Agents can use Messages
-// directly while ordinary chat keeps using Chat Completions.
+// The public router serves both dialects; custom destinations may only support their configured one.
 const huggingFaceFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.huggingface),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
+    const routerBaseUrl = providerRegistryService.getProviderPreset(SystemProviderIds.huggingface, ['endpointConfigs'])
+      .endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl
+    if (!routerBaseUrl || baseUrl !== formatApiHost(routerBaseUrl)) {
+      return listOpenAICompatibleModels(provider, baseUrl, signal)
+    }
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),
