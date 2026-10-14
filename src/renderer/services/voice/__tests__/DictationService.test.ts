@@ -979,14 +979,15 @@ describe('DictationService failure and retry', () => {
 })
 
 describe('DictationService private recovery', () => {
-  it('keeps an unavailable completion only in memory and inserts it into an explicitly current recovery target', async () => {
+  it.each(['unbound', 'read-only'])('keeps a %s target completion private and recoverable', async (targetState) => {
     const transcription = deferred<{ sessionId: string; requestId: string; text: string }>()
     const harness = createHarness()
     harness.voice.transcribe.mockReturnValueOnce(operation('session-1', 'request-asr', transcription.promise))
     await harness.service.start()
     const stopping = harness.service.stop()
     await vi.waitFor(() => expect(harness.voice.transcribe).toHaveBeenCalledOnce())
-    harness.unbind()
+    if (targetState === 'unbound') harness.unbind()
+    else harness.replaceRange.mockReturnValue(false)
     transcription.resolve({ sessionId: 'session-1', requestId: 'request-asr', text: 'private transcript' })
     await stopping
 

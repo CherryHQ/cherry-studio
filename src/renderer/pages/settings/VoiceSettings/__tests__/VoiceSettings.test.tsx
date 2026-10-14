@@ -1,3 +1,4 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,14 +6,21 @@ import i18n from 'i18next'
 import { Activity } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { type SpeechPlaybackSnapshot, VoiceDomainError } from '@renderer/services/voice'
 import { SpeechPlaybackService } from '@renderer/services/voice/SpeechPlaybackService'
 import { VoiceService } from '@renderer/services/voice/VoiceService'
 import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, VoiceResourceOperation } from '@shared/ai/localVoice'
+import {
+  LOCAL_MODEL_BUNDLE_BY_CAPABILITY,
+  LOCAL_MODEL_STATUS_CACHE_KEY,
+  type LocalModelStatusSnapshot
+} from '@shared/data/presets/localModel'
 import type { VoicePlaybackState, VoiceSessionEvent } from '@shared/ipc/schemas/voice'
 
 vi.unmock('@cherrystudio/ui')
+vi.unmock('@data/hooks/useCache')
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -119,6 +127,16 @@ function publishSpeech(snapshot: SpeechPlaybackSnapshot) {
   })
 }
 
+function publishAsrInstallation(snapshot: LocalModelStatusSnapshot) {
+  voice.funAsrModel = snapshot
+  act(() => {
+    cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, {
+      ...cacheService.getShared(LOCAL_MODEL_STATUS_CACHE_KEY),
+      [LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr]: snapshot
+    })
+  })
+}
+
 async function renderPreviewTest() {
   MockUsePreferenceUtils.setMultiplePreferenceValues({
     'feature.voice.speech.model_id': APPLE_TTS_MODEL_ID,
@@ -145,6 +163,7 @@ describe('VoiceSettings', () => {
     vi.restoreAllMocks()
     await i18n.changeLanguage('en-US')
     MockUsePreferenceUtils.resetMocks()
+    MockCacheUtils.resetMocks()
     voice.enumerateMicrophones.mockReset().mockResolvedValue([{ deviceId: 'usb-mic', label: 'USB Microphone' }])
     voice.testMicrophone.mockReset().mockResolvedValue([{ deviceId: 'usb-mic', label: 'USB Microphone' }])
     voice.microphone.mockReset()
@@ -364,8 +383,8 @@ describe('VoiceSettings', () => {
     expect(voice.funAsrDownload).not.toHaveBeenCalled()
   })
 
-  it('selects an installed FunASR model without navigating or offering another download', async () => {
-    voice.funAsrModel = { status: 'ready', percent: 100, isStatusResolved: true }
+  it('selects FunASR when its download completes while the recognition menu stays open', async () => {
+    publishAsrInstallation({ status: 'downloading', percent: 25 })
     voice.resolveTranscription.mockImplementation(async ({ modelId }) => ({
       modelId: modelId || APPLE_ASR_MODEL_ID,
       status: { status: 'ready' }
@@ -373,13 +392,102 @@ describe('VoiceSettings', () => {
     render(<VoiceSettings />)
     const user = userEvent.setup()
     await user.click(screen.getByRole('combobox', { name: 'Recognition model' }))
+    expect(await screen.findByRole('option', { name: /FunASR Nano Downloading/ })).toBeEnabled()
+    voice.getModelStatus.mockClear()
+    voice.resolveTranscription.mockClear()
+    publishAsrInstallation({ status: 'downloading', percent: 75 })
+    act(() => {
+      cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, {
+        ...cacheService.getShared(LOCAL_MODEL_STATUS_CACHE_KEY),
+        [LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr]: { status: 'ready', percent: 100 }
+      })
+    })
+    expect(voice.getModelStatus).not.toHaveBeenCalled()
+    expect(voice.resolveTranscription).not.toHaveBeenCalled()
+
+    publishAsrInstallation({ status: 'ready', percent: 100 })
     const option = await screen.findByRole('option', { name: 'FunASR Nano' })
     await waitFor(() => expect(option).toBeEnabled())
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBeNull()
     await user.click(option)
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(FUNASR_MODEL_ID)
     )
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it.each([null, FUNASR_MODEL_ID])('refreshes the effective recognition status for preference %s', async (modelId) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', modelId)
+    publishAsrInstallation({ status: 'not_downloaded', percent: 0 })
+    voice.resolveTranscription.mockResolvedValue({
+      modelId: FUNASR_MODEL_ID,
+      status: { status: 'not_installed', reason: 'model_required' }
+    })
+    render(<VoiceSettings />)
+    const status = await screen.findByText('Download a speech recognition model in Local Models.')
+
+    voice.resolveTranscription.mockResolvedValue({ modelId: FUNASR_MODEL_ID, status: { status: 'ready' } })
+    publishAsrInstallation({ status: 'ready', percent: 100 })
+
+    await waitFor(() => expect(status).toHaveTextContent('Ready'))
+    expect(screen.getByRole('combobox', { name: 'Recognition model' })).toHaveTextContent('FunASR Nano')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(modelId)
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBeNull()
+  })
+
+  it.each(['downloading', 'ready'] as const)(
+    'offers downloading again after %s becomes unavailable',
+    async (initialStatus) => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+      publishAsrInstallation({ status: initialStatus, percent: 100 })
+      voice.resolveTranscription.mockResolvedValue({ modelId: FUNASR_MODEL_ID, status: { status: 'ready' } })
+      render(<VoiceSettings />)
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('combobox', { name: 'Recognition model' }))
+      await screen.findByRole('option', { name: initialStatus === 'ready' ? 'FunASR Nano' : /FunASR Nano Downloading/ })
+
+      voice.resolveTranscription.mockResolvedValue({
+        modelId: FUNASR_MODEL_ID,
+        status: { status: 'not_installed', reason: 'model_required' }
+      })
+      publishAsrInstallation({ status: 'not_downloaded', percent: 0 })
+      await user.click(await screen.findByRole('option', { name: 'FunASR Nano Download' }))
+
+      expect(navigate).toHaveBeenCalledWith({ to: '/settings/local-models', hash: 'voice-resources' })
+      expect(await screen.findByText('Download a speech recognition model in Local Models.')).toBeInTheDocument()
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(FUNASR_MODEL_ID)
+    }
+  )
+
+  it('ignores status responses from before the model finished downloading', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
+    publishAsrInstallation({ status: 'not_downloaded', percent: 0 })
+    voice.resolveTranscription.mockResolvedValue({
+      modelId: FUNASR_MODEL_ID,
+      status: { status: 'not_installed', reason: 'model_required' }
+    })
+    render(<VoiceSettings />)
+    const status = await screen.findByText('Download a speech recognition model in Local Models.')
+    const oldModelStatus = deferred<Awaited<ReturnType<VoiceService['getModelStatus']>>>()
+    const oldConfiguration = deferred<Awaited<ReturnType<VoiceService['resolveTranscriptionConfiguration']>>>()
+    voice.getModelStatus.mockReturnValueOnce(oldModelStatus.promise)
+    voice.resolveTranscription.mockReturnValueOnce(oldConfiguration.promise)
+    publishAsrInstallation({ status: 'downloading', percent: 25 })
+    await waitFor(() => expect(status).toHaveTextContent('Loading'))
+
+    voice.resolveTranscription.mockResolvedValue({ modelId: FUNASR_MODEL_ID, status: { status: 'ready' } })
+    publishAsrInstallation({ status: 'ready', percent: 100 })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: 'Recognition model' }))
+    expect(await screen.findByRole('option', { name: 'FunASR Nano' })).toBeEnabled()
+    await act(async () => {
+      oldModelStatus.resolve({ status: 'installing' })
+      oldConfiguration.resolve({ modelId: FUNASR_MODEL_ID, status: { status: 'installing' } })
+    })
+
+    await waitFor(() => expect(status).toHaveTextContent('Ready'))
+    expect(screen.getByRole('option', { name: 'FunASR Nano' })).toBeEnabled()
+    expect(screen.queryByRole('option', { name: /FunASR Nano.*Download/ })).not.toBeInTheDocument()
   })
 
   it('lets an already-selected missing FunASR model open its download page again', async () => {
@@ -1026,7 +1134,7 @@ describe('VoiceSettings', () => {
           </Activity>
         )
       if (action !== 'unmount') {
-        expect(await screen.findByRole('button', { name: 'Preview voice' })).toBeEnabled()
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled())
         expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       }
     }
