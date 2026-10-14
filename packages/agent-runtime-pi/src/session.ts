@@ -98,6 +98,11 @@ export interface AgentRuntimeSession {
   compact(customInstructions?: string): Promise<void>
   /** The user stops a background subagent (the host's stop button); false when it is not running. */
   stopSubagent(sessionId: string): boolean
+  /**
+   * The user moves a running foreground subagent to the background: its call returns at once and
+   * the same run goes on, ending in a notification. False for any other subagent.
+   */
+  backgroundSubagent(sessionId: string): boolean
 }
 
 /** The port and host summarizer of `options`, each request first passing `before` (a subagent's request cap). */
@@ -271,6 +276,7 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
     compact: (customInstructions) => held(() => session.compact(customInstructions)),
     stopSubagent: (sessionId) => subagents?.controls.stopSubagent(sessionId) ?? false,
+    backgroundSubagent: (sessionId) => subagents?.controls.backgroundSubagent(sessionId) ?? false,
     async dispose() {
       try {
         await session.abort()
