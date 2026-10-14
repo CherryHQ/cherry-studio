@@ -530,6 +530,24 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.onSendDraft).toHaveBeenCalledWith(expect.anything(), { steer: true })
   })
 
+  it('uses save-only for the edit shortcut before the rich runtime loads', () => {
+    const onSave = vi.fn()
+    const onSendDraft = vi.fn()
+    render(
+      <Harness
+        text="edited draft"
+        onSendDraft={onSendDraft}
+        editingState={{ messageId: 'message-1', onCancel: vi.fn(), onSave }}
+      />
+    )
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter' })
+
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave).toHaveBeenCalledWith({ text: 'edited draft', tokens: [] })
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
   it('ignores the steer shortcut in the deferred textarea when the caller does not pass one', () => {
     render(<Harness />)
 

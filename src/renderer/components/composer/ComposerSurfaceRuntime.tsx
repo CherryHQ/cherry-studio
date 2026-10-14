@@ -132,7 +132,7 @@ export interface ComposerSurfaceEditingState {
   highlightKey?: number
   onCancel: () => void
   onLocate?: () => void
-  /** Save the edit in place, without resending. Omitted when the send button already saves. */
+  /** Save the edit in place without regenerating. */
   onSave?: (draft: ComposerSerializedDraft) => void | Promise<void>
 }
 
@@ -569,6 +569,7 @@ export default function ComposerSurfaceRuntime({
   const steerShortcutRef = useRef(steerShortcut)
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
+  const onSaveEditingRef = useRef(editingState?.onSave)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
@@ -592,10 +593,12 @@ export default function ComposerSurfaceRuntime({
     steerShortcutRef.current = steerShortcut
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
+    onSaveEditingRef.current = editingState?.onSave
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
     filesCount,
+    editingState?.onSave,
     steerShortcut,
     isExpanded,
     isInputHistoryActive,
@@ -777,7 +780,14 @@ export default function ComposerSurfaceRuntime({
 
       const draft = serializeComposerDocument(editorRef.current)
       const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
-      const sent = steer ? onSendDraftRef.current(draft, { steer: true }) : onSendDraftRef.current(draft)
+      let sent: void | Promise<unknown>
+      if (steer) {
+        sent = onSendDraftRef.current(draft, { steer: true })
+      } else if (onSaveEditingRef.current) {
+        sent = onSaveEditingRef.current(draft)
+      } else {
+        sent = onSendDraftRef.current(draft)
+      }
       void Promise.resolve(sent).finally(() => {
         if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
       })
@@ -2166,13 +2176,17 @@ export default function ComposerSurfaceRuntime({
         <CirclePause size={20} />
       </button>
     </Tooltip>
+  ) : editingState?.sendLabel ? (
+    <Tooltip content={editingState.sendLabel}>
+      <SendMessageButton
+        sendMessage={sendDraft}
+        disabled={sendDisabled}
+        onDisabledClick={showBlockedSendReason}
+        label={editingState.sendLabel}
+      />
+    </Tooltip>
   ) : (
-    <SendMessageButton
-      sendMessage={sendDraft}
-      disabled={sendDisabled}
-      onDisabledClick={showBlockedSendReason}
-      label={editingState?.sendLabel}
-    />
+    <SendMessageButton sendMessage={sendDraft} disabled={sendDisabled} onDisabledClick={showBlockedSendReason} />
   )
   const editingModeHeader = editingState ? (
     <div
