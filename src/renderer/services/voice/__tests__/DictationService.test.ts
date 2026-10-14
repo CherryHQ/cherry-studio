@@ -193,6 +193,18 @@ afterEach(() => {
 })
 
 describe('DictationService recording lifecycle', () => {
+  it('does not let a released shortcut stop a newer dictation run', async () => {
+    const harness = createHarness()
+    const first = harness.service.startScoped()
+    await first.result
+    const second = harness.service.startScoped()
+    await second.result
+    await first.stop()
+    expect(harness.service.getSnapshot().phase).toBe('recording')
+    await second.stop()
+    expect(harness.service.getSnapshot().phase).toBe('idle')
+    expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'hello world')
+  })
   it('preserves interrupted audio until the user explicitly transcribes it', async () => {
     const harness = createHarness()
     await harness.service.start()

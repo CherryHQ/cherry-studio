@@ -992,6 +992,20 @@
       "defaultValue": "none",
       "status": "classified",
       "description": "Reasoning effort for the translate model; 'none' reproduces the hardcoded behaviour that predates this setting (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "feature.voice.dictation.hold_shortcut",
+      "type": "string",
+      "defaultValue": "AltLeft",
+      "status": "classified",
+      "description": "Physical key codes for application-local hold dictation; empty disables the shortcut"
+    },
+    {
+      "targetKey": "feature.voice.dictation.toggle_shortcut",
+      "type": "string",
+      "defaultValue": "AltLeft+ControlLeft",
+      "status": "classified",
+      "description": "Physical key codes for application-local toggle dictation; empty disables the shortcut"
     }
   ]
 }
