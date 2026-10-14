@@ -138,10 +138,11 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 
 /** Check if model supports temperature parameter */
 export const isSupportTemperatureModel = (model: Model): boolean =>
-  model.parameterSupport?.temperature?.supported !== false
+  !isGemini4Model(model) && model.parameterSupport?.temperature?.supported !== false
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
+export const isSupportTopPModel = (model: Model): boolean =>
+  !isGemini4Model(model) && model.parameterSupport?.topP?.supported !== false
 
 /** Whether temperature and top_p are mutually exclusive for this model */
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
@@ -216,6 +217,10 @@ export const isGemini3ModelId = (modelId: string): boolean => {
 
 /** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
 export const isGemini3Model = (model: Model): boolean => isGemini3ModelId(getRawModelId(model))
+
+/** Gemini 4 uses level-based thinking and ignores sampling parameters. */
+export const isGemini4Model = (model: Model): boolean =>
+  /^gemini-4(?:[.-]|$)/.test(getLowerBaseModelName(getRawModelId(model)))
 
 /** Check if model is a Grok model */
 export const isGrokModel = (model: Model): boolean =>

@@ -36,6 +36,8 @@ import AgentComposerImpl, {
 } from '../AgentComposer'
 
 const mocks = vi.hoisted(() => ({
+  screenshotEnabled: false,
+  screenshotListeners: new Map<string, (payload: any) => void>(),
   draftText: 'hello',
   draftTokens: undefined as ComposerSerializedToken[] | undefined,
   files: [] as FileMetadata[],
@@ -276,7 +278,16 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
+vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
 vi.mock('@renderer/ipc', () => ({
+  useIpcOn: (event: string, callback: (payload: any) => void) => {
+    useEffect(() => {
+      mocks.screenshotListeners.set(event, callback)
+      return () => {
+        mocks.screenshotListeners.delete(event)
+      }
+    }, [event, callback])
+  },
   ipcApi: {
     request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
   }
@@ -319,6 +330,12 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         replaceDraft: mocks.replaceDraft,
+        appendText: (text) => {
+          const next = text ? (props.text ? `${props.text}\n${text}` : text) : props.text
+          if (next.length > 40000) return false
+          props.onTextChange(next)
+          return true
+        },
         getDraft: () => {
           // Default: mirror the live composer state. Individual tests override via
           // mocks.getDraft.mockImplementation to inject specific tokens.
@@ -659,6 +676,7 @@ vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     const values: Record<string, unknown> = {
+      'feature.screenshot.enabled': mocks.screenshotEnabled,
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
@@ -756,8 +774,14 @@ function getQueueDock(): any {
   return children.flat().find((child: any) => child?.props?.items)
 }
 
+const originalFetch = globalThis.fetch
+
 describe('AgentComposer', () => {
   beforeEach(() => {
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob([new Uint8Array(42)], { type: 'image/png' })
+    })) as unknown as typeof fetch
     // The `@` panel's entity-reference merge hits these paths; the mock factory has no
     // canned data for them, so default both to empty results.
     const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
@@ -830,6 +854,7 @@ describe('AgentComposer', () => {
     mocks.getPhysicalPath.mockReset()
     mocks.getPhysicalPath.mockResolvedValue('/p/fe-1.png')
     mocks.ipcApiRequest.mockReset()
+    mocks.screenshotEnabled = false
     mocks.ipcApiRequest.mockImplementation(
       async (route: string, input: { items?: { key: string }[]; kind?: string; path?: string }) => {
         if (route === 'file.get_metadata') {
@@ -931,9 +956,48 @@ describe('AgentComposer', () => {
   })
 
   afterEach(() => {
+    globalThis.fetch = originalFetch
     globalThis.ResizeObserver = originalResizeObserver
     restoreRequestAnimationFrame?.()
     restoreRequestAnimationFrame = undefined
+  })
+
+  it('receives a screenshot and optional text into the Agent draft without sending', async () => {
+    mocks.screenshotEnabled = true
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('Agent draft'))
+    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'composer:screenshot' })])
+    )
+    const scopeKey = mocks.ipcApiRequest.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1]
+      .scopeKey
+    expect(scopeKey).toBeTruthy()
+    const capture = {
+      deliveryId: 'agent-capture',
+      scopeKey,
+      imageUrl: 'cherry-media://image/capture',
+      name: 'capture.png',
+      size: 42,
+      text: 'Explain this'
+    }
+    await act(async () => mocks.screenshotListeners.get('chat.screenshot.attachment')?.(capture))
+    expect(mocks.surfaceProps?.text).toBe('Agent draft\nExplain this')
+    expect(mocks.files).toEqual([expect.objectContaining({ blob: expect.any(Blob), type: 'image' })])
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    await act(async () => mocks.screenshotListeners.get('chat.screenshot.attachment')?.(capture))
+    expect(mocks.files).toHaveLength(1)
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('chat.screenshot.received', {
+      deliveryId: 'agent-capture',
+      accepted: true
+    })
   })
 
   it('uses the page-resolved model', () => {
