@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
-import { dictationShortcutMatches } from '@renderer/utils/dictationShortcut'
+import { dictationShortcutMatches, parseDictationShortcut } from '@renderer/utils/dictationShortcut'
 
 const HOLD_DELAY_MS = 300
 
@@ -12,6 +12,12 @@ export function useDictationShortcuts(): void {
 
   useEffect(() => {
     const pressed = new Set<string>()
+    const holdCodes = parseDictationShortcut(hold)
+    const toggleCodes = parseDictationShortcut(toggle)
+    const isCompletingToggle = () =>
+      pressed.size < toggleCodes.length &&
+      holdCodes.every((code) => pressed.has(code)) &&
+      [...pressed].every((code) => toggleCodes.includes(code))
     let timer: ReturnType<typeof setTimeout> | undefined
     let owned:
       | { run: ReturnType<typeof dictationService.startScoped>; mode: 'hold' | 'toggle'; ready: boolean }
@@ -69,7 +75,9 @@ export function useDictationShortcuts(): void {
         if (
           pressed.has(event.code) &&
           (owned || canStart()) &&
-          (dictationShortcutMatches(hold, pressed) || dictationShortcutMatches(toggle, pressed))
+          (dictationShortcutMatches(hold, pressed) ||
+            dictationShortcutMatches(toggle, pressed) ||
+            (owned?.mode === 'hold' && isCompletingToggle()))
         ) {
           event.preventDefault()
           event.stopPropagation()
@@ -88,7 +96,12 @@ export function useDictationShortcuts(): void {
         else start('toggle')
         return
       }
-      if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed)) stopOwned()
+      if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed)) {
+        if (isCompletingToggle()) {
+          event.preventDefault()
+          event.stopPropagation()
+        } else stopOwned()
+      }
       if (dictationShortcutMatches(hold, pressed) && canStart()) {
         event.preventDefault()
         timer = setTimeout(() => start('hold'), HOLD_DELAY_MS)
@@ -97,7 +110,7 @@ export function useDictationShortcuts(): void {
     const keyup = (event: KeyboardEvent) => {
       pressed.delete(event.code)
       clearTimer()
-      if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed)) {
+      if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed) && !isCompletingToggle()) {
         event.preventDefault()
         stopOwned()
       }

@@ -115,45 +115,113 @@ describe('application-local dictation shortcuts', () => {
     expect(start).toHaveBeenCalledOnce()
   })
 
-  it.each(['starting', 'recording'] as const)(
-    'keeps the same %s run when a hold becomes a toggle chord',
-    async (initialPhase) => {
-      let phase: 'idle' | 'starting' | 'recording' = 'idle'
-      let finishStart!: () => void
-      const result = new Promise<void>((resolve) => {
-        finishStart = resolve
-      })
-      vi.mocked(dictationService.getSnapshot).mockImplementation(() => ({
-        phase,
-        elapsedMs: 0,
-        recoveryAvailable: false
-      }))
-      start.mockImplementation(() => {
-        phase = initialPhase
-        return { result, stop, cancel }
-      })
-      mount()
-      down('AltLeft')
-      void act(() => vi.advanceTimersByTime(350))
-      down('ControlLeft')
+  it.each([
+    ['starting', ['ControlLeft']],
+    ['recording', ['ControlLeft']],
+    ['starting', ['ControlLeft', 'ShiftLeft']],
+    ['recording', ['ControlLeft', 'ShiftLeft']],
+    ['starting', ['ShiftLeft', 'ControlLeft']],
+    ['recording', ['ShiftLeft', 'ControlLeft']]
+  ] as const)('keeps the same %s run when a hold becomes a toggle chord with %j', async (initialPhase, extraKeys) => {
+    MockUsePreferenceUtils.setPreferenceValue(
+      'feature.voice.dictation.toggle_shortcut',
+      `AltLeft+${extraKeys.join('+')}`
+    )
+    let phase: 'idle' | 'starting' | 'recording' = 'idle'
+    let finishStart!: () => void
+    const result = new Promise<void>((resolve) => {
+      finishStart = resolve
+    })
+    vi.mocked(dictationService.getSnapshot).mockImplementation(() => ({
+      phase,
+      elapsedMs: 0,
+      recoveryAvailable: false
+    }))
+    start.mockImplementation(() => {
+      phase = initialPhase
+      return { result, stop, cancel }
+    })
+    mount()
+    down('AltLeft')
+    void act(() => vi.advanceTimersByTime(350))
+    for (const code of extraKeys) {
+      expect(down(code)).toBe(false)
       expect(stop).not.toHaveBeenCalled()
-      up('ControlLeft')
-      up('AltLeft')
-      await act(async () => {
-        phase = 'recording'
-        finishStart()
-      })
-      expect(start).toHaveBeenCalledTimes(1)
-      expect(stop).not.toHaveBeenCalled()
-      expect(cancel).not.toHaveBeenCalled()
-      down('ControlLeft')
-      down('AltLeft')
-      up('AltLeft')
-      up('ControlLeft')
-      expect(stop).toHaveBeenCalledOnce()
-      expect(start).toHaveBeenCalledTimes(1)
     }
-  )
+    for (const code of extraKeys) up(code)
+    up('AltLeft')
+    await act(async () => {
+      phase = 'recording'
+      finishStart()
+    })
+    expect(start).toHaveBeenCalledTimes(1)
+    expect(stop).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
+    for (const code of extraKeys) down(code)
+    down('AltLeft')
+    up('AltLeft')
+    for (const code of extraKeys) up(code)
+    expect(stop).toHaveBeenCalledOnce()
+    expect(start).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['release', 'unrelated key', 'blur'] as const)('ends an unfinished toggle chord on %s', (reason) => {
+    MockUsePreferenceUtils.setPreferenceValue(
+      'feature.voice.dictation.toggle_shortcut',
+      'AltLeft+ControlLeft+ShiftLeft'
+    )
+    mount()
+    down('AltLeft')
+    void act(() => vi.advanceTimersByTime(350))
+    down('ControlLeft')
+    expect(stop).not.toHaveBeenCalled()
+    if (reason === 'release') up('AltLeft')
+    else if (reason === 'unrelated key') down('KeyX')
+    else fireEvent.blur(window)
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it('consumes editing keys and their repeats while completing a toggle chord', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'ControlLeft')
+    MockUsePreferenceUtils.setPreferenceValue(
+      'feature.voice.dictation.toggle_shortcut',
+      'Backspace+ControlLeft+ShiftLeft'
+    )
+    mount()
+    down('ControlLeft')
+    void act(() => vi.advanceTimersByTime(350))
+    expect(down('Backspace')).toBe(false)
+    expect(down('Backspace', true)).toBe(false)
+    expect(stop).not.toHaveBeenCalled()
+    down('ShiftLeft')
+    up('ShiftLeft')
+    up('Backspace')
+    up('ControlLeft')
+    expect(stop).not.toHaveBeenCalled()
+    down('ShiftLeft')
+    down('ControlLeft')
+    down('Backspace')
+    expect(stop).toHaveBeenCalledOnce()
+    expect(start).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a held run when an intermediate chord shrinks without releasing the hold key', () => {
+    MockUsePreferenceUtils.setPreferenceValue(
+      'feature.voice.dictation.toggle_shortcut',
+      'AltLeft+ControlLeft+MetaLeft+ShiftLeft'
+    )
+    mount()
+    down('AltLeft')
+    void act(() => vi.advanceTimersByTime(350))
+    down('ControlLeft')
+    down('ShiftLeft')
+    up('ShiftLeft')
+    expect(stop).not.toHaveBeenCalled()
+    up('ControlLeft')
+    expect(stop).not.toHaveBeenCalled()
+    up('AltLeft')
+    expect(stop).toHaveBeenCalledOnce()
+  })
 
   it('stops its recording on window blur and can start after focus returns', () => {
     mount()
