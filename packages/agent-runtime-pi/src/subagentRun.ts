@@ -1,4 +1,5 @@
 import type { AssistantMessage, Usage } from '@earendil-works/pi-ai'
+import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import type { ToolCallPart } from 'ai'
 
 import type { AgentRuntimeSession } from './session'
@@ -11,6 +12,9 @@ export const MAX_SUBAGENT_REQUESTS = 200
 
 /** State entry naming the call that created a session; it marks a subagent's session. */
 export const SUBAGENT_ORIGIN_STATE = 'cherry.subagent-origin'
+
+/** Custom message of a subagent's session: a message the parent sent it with `message_subagent`. */
+export const SUBAGENT_MESSAGE_TYPE = 'cherry.subagent-message'
 
 /** How one run of a subagent session ended, as the session itself saw it. */
 export type RunEnd = 'completed' | 'failed' | 'truncated' | 'aborted' | 'limit_reached'
@@ -52,6 +56,61 @@ export interface SubagentSessionOverrides {
 }
 
 export type CreateSubagentSession = (overrides: SubagentSessionOverrides) => Promise<AgentRuntimeSession>
+
+/** How a run starts: with the task prompt (a new subagent) or with a message from the parent. */
+export type RunStart = { prompt: string } | { message: string }
+
+const messageOf = (text: string) => ({ customType: SUBAGENT_MESSAGE_TYPE, content: text, display: false })
+
+/**
+ * Messages for a running subagent. While its run goes on they are steered in, so it reads them
+ * after its current tool batch; once the run starts to settle they wait for the next run.
+ */
+export class SubagentInbox {
+  private pending: string[] = []
+  private send: ((text: string) => void) | undefined
+  private running: () => boolean = () => false
+  private holding = false
+  private closed = false
+
+  /** The subagent's own extension; it goes first among the session's extensions. */
+  readonly extension: ExtensionFactory = (pi) => {
+    this.send = (text) => pi.sendMessage(messageOf(text), { triggerTurn: true })
+    pi.on('session_start', (_event, ctx) => {
+      this.running = () => !ctx.isIdle()
+    })
+    pi.on('turn_start', () => {
+      this.holding = false
+      for (const text of this.take()) this.send!(text)
+    })
+    // A steer sent once Pi has decided to settle would stay unread in its queue.
+    pi.on('agent_before_settle', () => {
+      this.holding = true
+    })
+  }
+
+  /** False once the run has ended: the message must start a new run instead. */
+  push(text: string): boolean {
+    if (this.closed) return false
+    if (this.send && this.running() && !this.holding) this.send(text)
+    else this.pending.push(text)
+    return true
+  }
+
+  close(): void {
+    this.closed = true
+  }
+
+  hasPending(): boolean {
+    return this.pending.length > 0
+  }
+
+  take(): string[] {
+    const taken = this.pending
+    this.pending = []
+    return taken
+  }
+}
 
 const PLACEHOLDER = 'This tool call was still running when the subagent started; its result is not available here.'
 
@@ -110,6 +169,7 @@ export async function openChild(input: {
   options: SubagentSessionOptions
   prefix: TranscriptEntry[]
   parentModelKey: string
+  inbox: SubagentInbox
   createSession: CreateSubagentSession
 }): Promise<AgentRuntimeSession> {
   const { subagent, options, prefix } = input
@@ -128,7 +188,7 @@ export async function openChild(input: {
     sessionId: subagent.sessionId,
     transcript,
     fork: subagent.fork,
-    extensionFactories: options.extensionFactories ?? [],
+    extensionFactories: [input.inbox.extension, ...(options.extensionFactories ?? [])],
     onEvent: options.onEvent,
     beforeModelRequest: limit.beforeModelRequest
   })
@@ -212,11 +272,25 @@ function endOf(last: AssistantMessage | undefined, stopped: 'aborted' | 'limit_r
 const textOf = (message: AssistantMessage) =>
   message.content.map((block) => (block.type === 'text' ? block.text : '')).join('')
 
+/** Starts a run with the parent's messages and waits for it to settle. */
+async function runMessages(child: AgentRuntimeSession, texts: string[]): Promise<void> {
+  const [first, ...rest] = texts
+  const run = child.session.sendCustomMessage(messageOf(first), { triggerTurn: true })
+  // The run is live once the first message started it, so these are steered into it.
+  for (const text of rest) void child.session.sendCustomMessage(messageOf(text), { triggerTurn: true })
+  await run
+}
+
 /**
- * Runs `task` on the subagent's session until it settles. `signal` stops the run; the result carries
- * the final message (or the reason and last partial output) and the sum of the run's usage.
+ * Runs the subagent's session until it settles with its inbox empty. `signal` stops the run; the
+ * result carries the final message (or the reason and last partial output) and the run's usage.
  */
-export async function runSubagent(child: AgentRuntimeSession, task: string, signal: AbortSignal): Promise<RunResult> {
+export async function runSubagent(
+  child: AgentRuntimeSession,
+  start: RunStart,
+  signal: AbortSignal,
+  inbox: SubagentInbox
+): Promise<RunResult> {
   const { session } = child
   let stopped: 'aborted' | 'limit_reached' | undefined
   const stop = (reason: 'aborted' | 'limit_reached') => {
@@ -236,10 +310,16 @@ export async function runSubagent(child: AgentRuntimeSession, task: string, sign
   let error: string | undefined
   try {
     if (signal.aborted) stop('aborted')
-    else await session.prompt(task, { expandPromptTemplates: false, source: 'extension' })
+    else if ('prompt' in start)
+      await session.prompt(start.prompt, { expandPromptTemplates: false, source: 'extension' })
+    else await runMessages(child, [start.message])
+    // Messages that came while the run settled start the next run on the same session.
+    while (!stopped && inbox.hasPending()) await runMessages(child, inbox.take())
   } catch (thrown) {
     error = thrown instanceof Error ? thrown.message : String(thrown)
   } finally {
+    // In the same tick as the last check, so no message slips in between.
+    inbox.close()
     unsubscribe()
     signal.removeEventListener('abort', onAbort)
   }

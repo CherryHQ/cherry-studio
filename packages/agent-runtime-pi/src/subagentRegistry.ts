@@ -2,7 +2,7 @@ import type { Usage } from '@earendil-works/pi-ai'
 
 import type { AgentRuntimeSession } from './session'
 import type { SubagentOutcome } from './subagent'
-import { type RunResult, runSubagent } from './subagentRun'
+import { type RunResult, type RunStart, runSubagent, type SubagentInbox } from './subagentRun'
 import type { AgentRuntimeEvent } from './transcriptTap'
 
 /** State entry of the parent: one snapshot per change of a subagent's run. */
@@ -67,9 +67,13 @@ export interface RegistryHost {
 
 interface LiveRun {
   controller: AbortController
+  inbox: SubagentInbox
   /** Settles once the run's session is disposed and its end is recorded. */
   done: Promise<void>
 }
+
+/** Ids listed in status messages and errors (spec §5.4). */
+const LISTED = 20
 
 const snapshot = (record: SubagentRecord, result?: RunResult): SubagentState => ({
   sessionId: record.sessionId,
@@ -103,6 +107,16 @@ export class SubagentRegistry {
 
   get(sessionId: string): SubagentRecord | undefined {
     return this.records.get(sessionId)
+  }
+
+  /** The most recently active subagents first, at most 20. */
+  recent(): SubagentRecord[] {
+    return [...this.records.values()].reverse().slice(0, LISTED)
+  }
+
+  /** Queues `text` for a running subagent; false when its run has just ended. */
+  message(sessionId: string, text: string): boolean {
+    return this.live.get(sessionId)?.inbox.push(text) ?? false
   }
 
   /** Background subagents running or waiting for an approval. */
@@ -139,8 +153,37 @@ export class SubagentRegistry {
       }))
   }
 
-  /** Runs `task` on `child` in the background; the parent's turn does not wait for it or stop it. */
-  startBackground(record: SubagentRecord, child: AgentRuntimeSession, task: string): void {
+  /**
+   * Runs a foreground subagent within the parent's call: `signal` (the call's) stops it. Its result
+   * is the call's, so nothing is written to the transcript.
+   */
+  async runForeground(
+    record: SubagentRecord,
+    child: AgentRuntimeSession,
+    start: RunStart,
+    inbox: SubagentInbox,
+    signal: AbortSignal | undefined
+  ): Promise<RunResult> {
+    this.track(record)
+    const controller = new AbortController()
+    const onAbort = () => controller.abort()
+    if (signal?.aborted) controller.abort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
+    const run = runSubagent(child, start, controller.signal, inbox)
+    this.live.set(record.sessionId, { controller, inbox, done: run.then(() => undefined) })
+    try {
+      const result = await run
+      record.status = 'finished'
+      record.outcome = result.end
+      return result
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+      this.live.delete(record.sessionId)
+    }
+  }
+
+  /** Runs `child` in the background; the parent's turn does not wait for it or stop it. */
+  startBackground(record: SubagentRecord, child: AgentRuntimeSession, start: RunStart, inbox: SubagentInbox): void {
     if (this.closing) {
       void child.dispose()
       return
@@ -148,17 +191,17 @@ export class SubagentRegistry {
     record.background = true
     record.status = 'running'
     delete record.outcome
-    this.records.set(record.sessionId, record)
+    this.track(record)
     this.host.appendState(snapshot(record))
     this.changed()
     const controller = new AbortController()
-    const done = runSubagent(child, task, controller.signal).then((result) => {
+    const done = runSubagent(child, start, controller.signal, inbox).then((result) => {
       // Finished at once, so a message sent from now on continues the subagent instead of joining this run.
       record.status = 'finished'
       record.outcome = result.end
       return this.record(record, child, result)
     })
-    this.live.set(record.sessionId, { controller, done })
+    this.live.set(record.sessionId, { controller, inbox, done })
   }
 
   /** Session shutdown: stops every live run and disposes its session, writing nothing. */
@@ -176,9 +219,16 @@ export class SubagentRegistry {
     this.live.delete(record.sessionId)
     // Rebuilt from the transcript, a run whose last snapshot is `running` is interrupted.
     if (this.closing) return
+    this.track(record)
     this.host.appendState(snapshot(record, shortened))
     this.changed()
     this.host.finished(record, shortened)
+  }
+
+  /** Adds `record` or moves it to the most recently active place. */
+  private track(record: SubagentRecord): void {
+    this.records.delete(record.sessionId)
+    this.records.set(record.sessionId, record)
   }
 
   private changed(): void {
