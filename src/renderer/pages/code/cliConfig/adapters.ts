@@ -2,7 +2,7 @@ import { stringify as stringifyToml } from 'smol-toml'
 import { type Document, isMap, isScalar } from 'yaml'
 
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_NAME, CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
@@ -1200,7 +1200,16 @@ const commandCodeAdapter: CliConfigAdapter = {
     // assertCredentials below checks it is present for the launch env.
     const { model, modelRecord, provider } = context
     const providerInfo = resolveCommandCodeProviderInfo(provider, modelRecord?.endpointTypes)
-    const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
+    // Stable provider identity in the key: the managed-credential sync on main
+    // resolves `cherry-<segment>` back to the provider, and display-name
+    // sanitization can collide ("Work" / "Work!" sanitize identically), which
+    // would fail-closed the headless credential for an unrelated rename. The
+    // gateway keeps its fixed reserved key; the human-readable segment rides
+    // on the entry's `name` field.
+    const providerKey = isApiGatewayProviderId(provider.id)
+      ? `${CHERRY_PROVIDER_PREFIX}${CLI_API_GATEWAY_PROVIDER_NAME}`
+      : `${CHERRY_PROVIDER_PREFIX}${provider.id}`
+    const providerName = cliProviderKeyName(provider)
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const providers = readAndParseDraftFile('commandcode-providers', parseJsonOrThrow, args.files, read)
     const config = readAndParseDraftFile('commandcode-config', parseJsonOrThrow, args.files, read)
@@ -1212,7 +1221,8 @@ const commandCodeAdapter: CliConfigAdapter = {
             api: providerInfo.api,
             baseUrl: providerInfo.baseUrl,
             model,
-            providerKey
+            providerKey,
+            providerName
           })
         ),
         read
@@ -1237,6 +1247,11 @@ const commandCodeAdapter: CliConfigAdapter = {
       findCherryProviderKey(asRecord(providers.provider)),
       'Command Code provider key'
     )
+    // Keep the entry's existing display name; only model/baseUrl updates flow
+    // through here, and the key itself never changes on this path.
+    const providerName =
+      stringValue(asRecord(asRecord(providers.provider)[providerKey]).name) ||
+      providerKey.slice(CHERRY_PROVIDER_PREFIX.length)
     const model = requireDraftValue(connection.model, 'Command Code model')
     return [
       ...replaceDraftContent(
@@ -1247,7 +1262,8 @@ const commandCodeAdapter: CliConfigAdapter = {
             api: commandCodeManagedApi(providers, providerKey),
             baseUrl: requireDraftValue(connection.baseUrl, 'Command Code base URL'),
             model,
-            providerKey
+            providerKey,
+            providerName
           })
         )
       ),

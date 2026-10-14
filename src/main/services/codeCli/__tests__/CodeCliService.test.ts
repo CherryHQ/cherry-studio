@@ -766,6 +766,30 @@ describe('CodeCliService', () => {
       expect(fileUtilsMock.atomicWriteFile).toHaveBeenCalledWith('/mock/binary-data', 'ollama-local', { mode: 0o600 })
     })
 
+    it('exports the shared ollama placeholder for a custom Ollama provider without preset flags', async () => {
+      providerServiceMock.getApiKeys.mockReturnValue([])
+      // A CUSTOM Ollama provider: no preset ⇒ authOptional unset, but the
+      // ollama-chat endpoint makes it the same keyless local server the
+      // renderer drafts with the shared 'ollama' placeholder.
+      providerServiceMock.getByProviderId.mockReturnValue({
+        id: 'my-ollama',
+        presetProviderId: null,
+        authOptional: null,
+        defaultChatEndpoint: 'ollama-chat'
+      })
+
+      const { env } = await launch({
+        mode: 'normal',
+        cliTool: CodeCli.COMMAND_CODE,
+        providerId: 'my-ollama',
+        model: 'qwen3:8b',
+        directory: '/tmp/project'
+      })
+
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('ollama')
+      expect(fileUtilsMock.atomicWriteFile).toHaveBeenCalledWith('/mock/binary-data', 'ollama', { mode: 0o600 })
+    })
+
     it('refuses the launch on POSIX when the credential file cannot be persisted', async () => {
       fileUtilsMock.atomicWriteFile.mockRejectedValue(new Error('EACCES: permission denied'))
       preferenceServiceMock.get.mockReturnValue('gateway-secret')
@@ -872,18 +896,22 @@ describe('CodeCliService', () => {
     }
 
     it('rewrites the credential file when the config names a real provider', async () => {
-      // The renderer writes `cherry-<sanitizeProviderName(name, id)>`; the sync
-      // matches back through the same sanitization.
+      // The renderer writes stable provider identity into the key
+      // (`cherry-<providerId>`); the sync resolves the id directly.
       configWriterMock.readCliConfigFiles.mockResolvedValue([
-        { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-DeepSeek') }
+        {
+          target: 'commandcode-providers',
+          path: '/mock/providers.json',
+          content: providersContent('cherry-deepseek-uuid')
+        }
       ])
-      providerServiceMock.list.mockReturnValue([
-        { id: 'deepseek', name: 'DeepSeek' },
-        { id: 'openai', name: 'OpenAI' }
-      ])
+      providerServiceMock.getByProviderId.mockImplementation((id: string) => {
+        if (id === 'deepseek-uuid') return { id: 'deepseek-uuid', name: 'DeepSeek' }
+        throw new Error('NOT_FOUND')
+      })
       providerServiceMock.getApiKeys.mockReturnValue([{ key: 'deepseek-secret' }])
 
-      await writeProviders(providersContent('cherry-DeepSeek'))
+      await writeProviders(providersContent('cherry-deepseek-uuid'))
 
       expect(configWriterMock.writeCliConfigFiles).toHaveBeenCalledWith(CodeCli.COMMAND_CODE, expect.any(Array))
       expect(fileUtilsMock.atomicWriteFile).toHaveBeenCalledWith('/mock/binary-data', 'deepseek-secret', {
@@ -908,7 +936,7 @@ describe('CodeCliService', () => {
       configWriterMock.readCliConfigFiles.mockResolvedValue([
         { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-ollama') }
       ])
-      providerServiceMock.list.mockReturnValue([{ id: 'ollama-local', name: 'ollama' }])
+      providerServiceMock.getByProviderId.mockReturnValue({ id: 'ollama-local', name: 'ollama' })
       providerServiceMock.getApiKeys.mockReturnValue([])
       const fs = (await import('node:fs')).default
 
@@ -922,9 +950,12 @@ describe('CodeCliService', () => {
       configWriterMock.readCliConfigFiles.mockResolvedValue([
         { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-ollama') }
       ])
-      providerServiceMock.list.mockReturnValue([
-        { id: 'ollama-local', name: 'ollama', presetProviderId: 'ollama', authOptional: true }
-      ])
+      providerServiceMock.getByProviderId.mockReturnValue({
+        id: 'ollama-local',
+        name: 'ollama',
+        presetProviderId: 'ollama',
+        authOptional: true
+      })
       providerServiceMock.getApiKeys.mockReturnValue([])
 
       await writeProviders(providersContent('cherry-ollama'))
@@ -934,10 +965,34 @@ describe('CodeCliService', () => {
       expect(fileUtilsMock.atomicWriteFile).toHaveBeenCalledWith('/mock/binary-data', 'ollama', { mode: 0o600 })
     })
 
+    it('writes the shared ollama placeholder for a custom Ollama provider without preset flags', async () => {
+      configWriterMock.readCliConfigFiles.mockResolvedValue([
+        { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-my-ollama') }
+      ])
+      // A CUSTOM Ollama provider: no preset ⇒ authOptional unset, but the
+      // ollama-chat default endpoint makes it the same keyless local server —
+      // the renderer drafts the config with the shared 'ollama' placeholder.
+      providerServiceMock.getByProviderId.mockReturnValue({
+        id: 'my-ollama',
+        name: 'My Ollama',
+        presetProviderId: null,
+        authOptional: null,
+        defaultChatEndpoint: 'ollama-chat'
+      })
+      providerServiceMock.getApiKeys.mockReturnValue([])
+
+      await writeProviders(providersContent('cherry-my-ollama'))
+
+      expect(fileUtilsMock.atomicWriteFile).toHaveBeenCalledWith('/mock/binary-data', 'ollama', { mode: 0o600 })
+    })
+
     it('removes the credential file when the config key matches no known provider', async () => {
       configWriterMock.readCliConfigFiles.mockResolvedValue([
         { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-gone') }
       ])
+      providerServiceMock.getByProviderId.mockImplementation(() => {
+        throw new Error('NOT_FOUND')
+      })
       const fs = (await import('node:fs')).default
 
       await writeProviders(providersContent('cherry-gone'))
@@ -1012,6 +1067,24 @@ describe('CodeCliService', () => {
       // The file did not exist before the write — restore means hard unlink,
       // never the trash (config files may hold secrets).
       expect(fileUtilsMock.remove).toHaveBeenCalledWith('/mock/providers.json')
+    })
+
+    it('tombstones the credential before the config write', async () => {
+      configWriterMock.readCliConfigFiles.mockResolvedValue([
+        { target: 'commandcode-providers', path: '/mock/providers.json', content: providersContent('cherry-gateway') }
+      ])
+      preferenceServiceMock.get.mockReturnValue('gateway-secret')
+
+      await writeProviders(providersContent('cherry-gateway'))
+
+      // The bundled headless skill reads the credential file FIRST and the CLI
+      // config second. Tombstoning before the config lands means a reader that
+      // races the swap sees a missing credential (clean auth failure) — never
+      // the old key paired with the new endpoint.
+      const fs = (await import('node:fs')).default
+      expect(vi.mocked(fs.unlinkSync).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(configWriterMock.writeCliConfigFiles).mock.invocationCallOrder[0]
+      )
     })
 
     it('does not touch the credential file for other CLI tools', async () => {

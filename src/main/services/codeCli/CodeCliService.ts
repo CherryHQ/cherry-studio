@@ -41,11 +41,12 @@ import {
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
+import type { EndpointType } from '@shared/data/types/model'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { CHERRY_PROVIDER_KEY_PREFIX } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
-import { sanitizeProviderName } from '@shared/utils/provider'
+import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
@@ -499,18 +500,29 @@ export class CodeCliService extends BaseService {
       return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
     }
     if (cliTool === CodeCli.COMMAND_CODE) {
-      // The config and the managed credential move as one pair: a config write
-      // whose credential sync fails is rolled back to the pre-write content, so
-      // a committed configuration can never pair with the previous provider's
-      // credential (the bundled headless skill reads that file — it would send
-      // the old key to the new endpoint). Best effort; the original error still
-      // surfaces to the renderer.
+      // The config and the managed credential move as one pair. The bundled
+      // headless skill reads the credential file FIRST (shell `$(cat …)`) and
+      // the CLI config second, so the swap must never let (old credential,
+      // new config) be observable — tombstone the credential before the config
+      // lands, then write the new one. A reader racing the swap sees a missing
+      // file and fails auth cleanly (the skill then asks the user to
+      // reconfigure) instead of replaying provider A's key to provider B's
+      // endpoint. If the post-write sync fails, the config rolls back to its
+      // pre-write content and the sync re-runs against it, so the error the
+      // renderer sees pairs with a consistent on-disk state (or a tombstone —
+      // also fail-closed).
       const snapshots = await readCliConfigFiles(files.map((file) => file.target))
       try {
+        await this.removeCommandCodeCredentialFile()
         await writeCliConfigFiles(cliTool, files)
         await this.syncCommandCodeCredentialFile()
       } catch (error) {
         await this.restoreCommandCodeConfigFiles(snapshots)
+        await this.syncCommandCodeCredentialFile().catch((syncError) => {
+          logger.warn('Post-rollback credential re-sync failed; the headless skill stays tombstoned', {
+            error: syncError instanceof Error ? syncError.message : String(syncError)
+          })
+        })
         throw error
       }
       return
@@ -567,35 +579,32 @@ export class CodeCliService extends BaseService {
   }
 
   /**
-   * Resolve the credential for a `cherry-<name>` provider key from the on-disk
-   * Command Code providers.json. `cherry-gateway` is the gateway's fixed key
-   * and resolves to the gateway preference — unless a real provider's
-   * sanitized name also claims it, in which case the intent is ambiguous and
-   * nothing resolves. Real providers are matched back through the same
-   * sanitization the renderer applied when writing the key; zero or multiple
-   * matches resolve to nothing rather than risk delivering the wrong key.
+   * Resolve the credential for the `cherry-…` provider key from the on-disk
+   * Command Code providers.json. The renderer writes stable provider identity
+   * into the key (`cherry-<providerId>`; `cherry-gateway` for the gateway), so
+   * resolution is a direct id lookup — display-name sanitization can collide
+   * ("Work" / "Work!" both sanitize to the same segment) and must never decide
+   * which credential is delivered. Unknown ids fail closed (config references
+   * a deleted provider).
    */
   private async resolveCommandCodeApiKeyForProviderKey(providerKey: string): Promise<string | null> {
     const nameSegment = providerKey.slice(CHERRY_PROVIDER_KEY_PREFIX.length)
-    const providers = providerService.list({})
-    const matches = providers.filter((provider) => sanitizeProviderName(provider.name, provider.id) === nameSegment)
     if (nameSegment === CLI_API_GATEWAY_PROVIDER_NAME) {
-      if (matches.length > 0) {
-        logger.warn(`Command Code provider key "${providerKey}" is ambiguous between the gateway and a real provider`)
-        return null
-      }
       return application.get('PreferenceService').get('feature.api_gateway.api_key') || null
     }
-    if (matches.length !== 1) {
-      logger.warn(`Command Code provider key "${providerKey}" matches ${matches.length} known providers`)
+    let provider: ReturnType<typeof providerService.getByProviderId>
+    try {
+      provider = providerService.getByProviderId(nameSegment)
+    } catch {
+      logger.warn(`Command Code provider key "${providerKey}" matches no known provider`)
       return null
     }
-    const stored = providerService.getApiKeys(matches[0].id, { enabled: true })[0]?.key
+    const stored = providerService.getApiKeys(provider.id, { enabled: true })[0]?.key
     if (stored) return stored
-    // Keyless local servers (authOptional, e.g. Ollama) still need a non-empty
-    // token on the wire — the same stand-in the renderer injects when drafting
-    // the config (draft.ts), now resolved main-side for the headless path.
-    return matches[0].authOptional === true ? (matches[0].presetProviderId ?? matches[0].id) : null
+    // Keyless local servers still need a non-empty token on the wire — the same
+    // stand-in the renderer injects when drafting the config (draft.ts), now
+    // resolved main-side for the headless path.
+    return this.commandCodeKeylessStandIn(provider)
   }
 
   private get commandCodeCredentialFile(): string {
@@ -603,17 +612,28 @@ export class CodeCliService extends BaseService {
   }
 
   /**
-   * The non-empty token an authOptional (keyless) provider expects on the wire —
-   * the same stand-in the renderer injects (provider.presetProviderId ?? id).
-   * Null when the provider is unknown or not keyless: a stored-key-less PAID
-   * provider must not authenticate with a made-up token.
+   * The non-empty token a keyless provider expects on the wire, mirroring the
+   * renderer's draft-time resolution: `authOptional` providers use their
+   * preset id (or own id), and custom Ollama providers — which carry no preset
+   * flags — use the shared `ollama` placeholder. Null when the provider is
+   * neither: a stored-key-less PAID provider must not authenticate with a
+   * made-up token.
    */
-  private commandCodeKeylessStandIn(providerId: string): string | null {
-    try {
-      const provider = providerService.getByProviderId(providerId)
-      if (provider.authOptional === true) return provider.presetProviderId ?? provider.id
-    } catch {
-      // Unknown provider: no stand-in.
+  private commandCodeKeylessStandIn(provider: {
+    id: string
+    presetProviderId?: string | null
+    authOptional?: boolean | null
+    defaultChatEndpoint?: EndpointType | null
+  }): string | null {
+    if (provider.authOptional === true) return provider.presetProviderId ?? provider.id
+    if (
+      isOllamaProvider({
+        id: provider.id,
+        presetProviderId: provider.presetProviderId ?? undefined,
+        defaultChatEndpoint: provider.defaultChatEndpoint ?? undefined
+      })
+    ) {
+      return OLLAMA_PLACEHOLDER_AUTH_TOKEN
     }
     return null
   }
@@ -676,7 +696,12 @@ export class CodeCliService extends BaseService {
         ? application.get('PreferenceService').get('feature.api_gateway.api_key')
         : providerService.getApiKeys(providerId, { enabled: true })[0]?.key
     if (!apiKey) {
-      const standIn = this.commandCodeKeylessStandIn(providerId)
+      let standIn: string | null = null
+      try {
+        standIn = this.commandCodeKeylessStandIn(providerService.getByProviderId(providerId))
+      } catch {
+        // Unknown provider: no stand-in.
+      }
       if (standIn) {
         logger.info(`No stored key for ${providerId}; exporting the keyless stand-in token`)
         env.CHERRY_COMMAND_CODE_API_KEY = standIn

@@ -392,11 +392,11 @@ export const COMMAND_CODE_API_KEY_ENV_REF = '$CHERRY_COMMAND_CODE_API_KEY'
 
 export function buildCommandCodeProvidersConfig(
   existing: Record<string, any>,
-  resolved: { api: CommandCodeApi; baseUrl: string; model: string; providerKey: string }
+  resolved: { api: CommandCodeApi; baseUrl: string; model: string; providerKey: string; providerName: string }
 ): Record<string, any> {
   const providerMap = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
   const entry: Record<string, any> = {
-    name: resolved.providerKey.slice(CHERRY_PROVIDER_PREFIX.length),
+    name: resolved.providerName,
     baseURL: resolved.baseUrl,
     apiKey: COMMAND_CODE_API_KEY_ENV_REF,
     models: { [resolved.model]: {} }

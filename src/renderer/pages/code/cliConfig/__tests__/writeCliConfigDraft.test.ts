@@ -429,7 +429,7 @@ describe('writeCliConfigDraft', () => {
       const providers = JSON.parse(files[0].content!)
       expect(providers).toEqual({
         provider: {
-          'cherry-DeepSeek': {
+          'cherry-deepseek': {
             name: 'DeepSeek',
             baseURL: 'https://api.deepseek.com/v1',
             apiKey: '$CHERRY_COMMAND_CODE_API_KEY',
@@ -437,7 +437,7 @@ describe('writeCliConfigDraft', () => {
           }
         }
       })
-      expect(JSON.parse(files[1].content!)).toEqual({ model: 'cherry-DeepSeek/deepseek-chat' })
+      expect(JSON.parse(files[1].content!)).toEqual({ model: 'cherry-deepseek/deepseek-chat' })
     })
 
     it('writes the anthropic wire explicitly for an Anthropic-compatible provider', async () => {
@@ -451,7 +451,7 @@ describe('writeCliConfigDraft', () => {
 
       const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
       const providers = JSON.parse(files[0].content!)
-      expect(providers.provider['cherry-Anthropic']).toMatchObject({
+      expect(providers.provider['cherry-anthropic']).toMatchObject({
         api: 'anthropic-messages',
         baseURL: 'https://api.anthropic.com'
       })
@@ -462,7 +462,7 @@ describe('writeCliConfigDraft', () => {
         provider: {
           // The exact incoming key sits BEFORE another stale one so an
           // early-stopping sweep would leave `cherry-older` behind.
-          'cherry-DeepSeek': { baseURL: 'https://stale.example', models: { old: {} } },
+          'cherry-deepseek': { baseURL: 'https://stale.example', models: { old: {} } },
           'cherry-older': { baseURL: 'https://older.example', models: { elder: {} } },
           'user-relay': { baseURL: 'https://relay.example', models: { relay: {} } }
         }
@@ -477,7 +477,7 @@ describe('writeCliConfigDraft', () => {
 
       const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
       const providers = JSON.parse(files[0].content!)
-      expect(Object.keys(providers.provider)).toEqual(['user-relay', 'cherry-DeepSeek'])
+      expect(Object.keys(providers.provider)).toEqual(['user-relay', 'cherry-deepseek'])
       expect(providers.provider['user-relay']).toEqual({
         baseURL: 'https://relay.example',
         models: { relay: {} }
@@ -495,11 +495,11 @@ describe('writeCliConfigDraft', () => {
 
       const files = vi.mocked(mocks.request).mock.calls.at(-1)?.[1].files as CliConfigWriteFile[]
       const providers = JSON.parse(files[0].content!)
-      expect(providers.provider['cherry-Ollama']).toMatchObject({
+      expect(providers.provider['cherry-ollama']).toMatchObject({
         baseURL: 'http://localhost:11434',
         apiKey: '$CHERRY_COMMAND_CODE_API_KEY'
       })
-      expect(JSON.parse(files[1].content!)).toEqual({ model: 'cherry-Ollama/llama3' })
+      expect(JSON.parse(files[1].content!)).toEqual({ model: 'cherry-ollama/llama3' })
     })
 
     it('round-trips the connection through extract and update without drift', async () => {
