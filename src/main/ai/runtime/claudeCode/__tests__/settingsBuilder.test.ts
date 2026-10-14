@@ -1,8 +1,10 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
-import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
+import { Server } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,12 +40,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getBuiltinAgentPluginDirectory: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
-  createAssistantServer: vi.fn(function () {
-    return { mcpServer: {} }
-  }),
-  createAssistantFileToolsServer: vi.fn(function () {
-    return { mcpServer: {} }
-  }),
+  createAssistantFileToolsServer: vi.fn(),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
@@ -68,28 +65,14 @@ const mocks = vi.hoisted(() => ({
   ensureAgentStorageDirectory: vi.fn(),
   buildPrompt: vi.fn(),
   getAppLanguage: vi.fn(),
-  resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
-  createAgentsMdLoader: vi.fn(),
-  loadAgentsMdInitialContext: vi.fn(),
-  agentsMdHook: vi.fn(async () => ({})),
   platform: { isLinux: false, isMac: false },
   isWin: false
 }))
-
-vi.mock('node:module', async (importOriginal) => {
-  const actual = await importOriginal<typeof NodeModule>()
-  return {
-    ...actual,
-    createRequire: vi.fn(() => ({
-      resolve: mocks.resolveRequire
-    }))
-  }
-})
 
 vi.mock('electron', () => ({
   app: { getVersion: vi.fn(() => '1.0.0-test') }
@@ -160,10 +143,8 @@ vi.mock('@main/ai/agents/prompt', () => ({
   })
 }))
 
-vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
-
 vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
-  AssistantFileToolsServer: mocks.createAssistantFileToolsServer
+  createAssistantFileToolsServer: mocks.createAssistantFileToolsServer
 }))
 
 vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({
@@ -179,6 +160,7 @@ vi.mock('@application', () => ({
     // Session-keyed live state always resolves to the one real service instance (created below),
     // so the many per-test `applicationGet` overrides don't each have to register it.
     get: (name: string) => {
+      if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
       if (name === 'AgentSessionRuntimeService') {
         try {
@@ -209,10 +191,6 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
   CHERRY_NODE_PROXY_BYPASS_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
   CHERRY_NODE_PROXY_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_RULES',
   getProxyEnvironment: mocks.getProxyEnvironment
-}))
-
-vi.mock('@main/utils/asar', () => ({
-  toAsarUnpackedPath: (input: string) => input
 }))
 
 vi.mock('@main/utils/file', async (importOriginal) => ({
@@ -261,12 +239,6 @@ vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   }
 }))
 
-vi.mock('../AgentsMdLoader', () => ({
-  AgentsMdLoader: {
-    create: mocks.createAgentsMdLoader
-  }
-}))
-
 const {
   assertClaudeCodeWorkspaceDirectory,
   buildClaudeCodeSessionSettings,
@@ -278,6 +250,26 @@ const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStat
 // One real instance per test file — the facade resolves it via application.get, and the real Maps
 // preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
 const sessionStateService = new ClaudeCodeSessionStateService()
+
+async function listCherryTools(settings: { mcpServers?: Record<string, unknown> }) {
+  const { instance } = settings.mcpServers!['cherry-tools'] as McpSdkServerConfigWithInstance
+  const client = await connectMcpTestClient(instance)
+  try {
+    return await client.listTools()
+  } finally {
+    await client.close()
+  }
+}
+
+async function listAssistantToolNames(settings: { mcpServers?: Record<string, unknown> }) {
+  const assistant = settings.mcpServers?.assistant as McpSdkServerConfigWithInstance
+  const client = await connectMcpTestClient(assistant.instance)
+  try {
+    return (await client.listTools()).tools.map((tool) => tool.name)
+  } finally {
+    await client.close()
+  }
+}
 
 function systemPromptText(systemPrompt: unknown): string {
   if (typeof systemPrompt === 'string') return systemPrompt
@@ -297,10 +289,6 @@ describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
-    mocks.resolveRequire.mockImplementation((specifier: string) => {
-      if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
-      return `/native/${specifier}/claude`
-    })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -326,12 +314,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listMcpTools.mockReturnValue([])
     mocks.onToolsCacheUpdated.mockReturnValue({ dispose: mocks.mcpSubscriptionDispose })
     mocks.findByIdOrName.mockImplementation((idOrName: string) => ({ id: idOrName, name: idOrName }))
-    mocks.loadAgentsMdInitialContext.mockResolvedValue(undefined)
-    mocks.agentsMdHook.mockResolvedValue({})
-    mocks.createAgentsMdLoader.mockResolvedValue({
-      loadInitialContext: mocks.loadAgentsMdInitialContext,
-      createPreToolUseHook: () => mocks.agentsMdHook
-    })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -589,8 +571,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
-  it('appends root AGENTS.md context and wires lazy nested-instruction loading', async () => {
-    mocks.loadAgentsMdInitialContext.mockResolvedValue('ROOT AGENTS INSTRUCTIONS')
+  it.each([undefined, 'support'])('enables native AGENTS.md alongside CLAUDE.md (role: %s)', async (builtinRole) => {
+    mocks.getAgent.mockReturnValue({
+      ...mocks.getAgent(),
+      configuration: { builtin_role: builtinRole }
+    })
 
     const settings = await buildClaudeCodeSessionSettings(
       {
@@ -601,9 +586,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(mocks.createAgentsMdLoader).toHaveBeenCalledWith('/workspace/project')
-    expect(systemPromptText(settings.systemPrompt)).toContain('ROOT AGENTS INSTRUCTIONS')
-    expect(settings.hooks?.PreToolUse?.[0]?.hooks).toContain(mocks.agentsMdHook)
+    expect(settings.settings).toMatchObject({
+      pluginConfigs: {
+        'agents-md@builtin': { options: { instructionFiles: 'claude-md-and-agents-md' } }
+      }
+    })
+    expect(settings.settingSources).toEqual(builtinRole === 'support' ? [] : ['user', 'project', 'local'])
   })
 
   // The 400 this whole path exists to prevent: a turn is billed `input + max_tokens` against the
@@ -847,14 +835,25 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    await buildClaudeCodeSessionSettings(
+    mocks.createMcpBridgeServer.mockImplementation(
+      () => new Server({ name: 'bridge', version: '1' }, { capabilities: { tools: {} } })
+    )
+    const settings = await buildClaudeCodeSessionSettings(
       session as never,
       {} as never,
       { mcpServerSnapshots: new Map([['mcp-1', materializedServer as never]]) },
       agent as never
     )
+    // Bridges are built per connection, so connect once to materialize it.
+    const { instance } = settings.mcpServers!['mcp-1'] as McpSdkServerConfigWithInstance
+    await (await connectMcpTestClient(instance)).close()
 
-    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, {
+      interactionContext: expect.objectContaining({
+        topicId: 'agent-session:session-1',
+        model: 'anthropic::claude-sonnet'
+      })
+    })
   })
 
   it('mounts the pane browser while excluding only a duplicate built-in bridge from the captured snapshot', async () => {
@@ -2564,7 +2563,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listLocalSkillFolderNames).not.toHaveBeenCalled()
     expect(settings.mcpServers?.skills).toBeUndefined()
     expect(settings.allowedTools).not.toContain('mcp__skills__search_skills')
-    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [
+    expect(await listAssistantToolNames(settings)).toEqual([
       'navigate',
       'diagnose',
       'product_info',
@@ -2616,15 +2615,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect.arrayContaining(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
     )
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
-    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', undefined)
-    expect(mocks.createAssistantFileToolsServer).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      workspacePath: '/workspace/project'
-    })
+    expect(await listAssistantToolNames(settings)).toContain('create_agent')
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const handlers = cherryServer.server._requestHandlers
-    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
     )
@@ -2639,9 +2632,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const handlers = cherryServer.server._requestHandlers
-    const listed = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    const listed = await listCherryTools(settings)
 
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toEqual(
       expect.arrayContaining(['cli_list', 'cli_search', 'cli_install'])
@@ -2694,11 +2685,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       notificationContext
     })
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
-      { method: 'tools/list', params: {} },
-      {}
-    )
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).toContain('notify')
     expect(mocks.getTurnTrustedNotifyChannels).not.toHaveBeenCalled()
   })
@@ -2772,7 +2759,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.mcpServers?.assistant).toBeDefined()
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
-    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [
+    expect(await listAssistantToolNames(settings)).toEqual([
       'navigate',
       'diagnose',
       'product_info',
@@ -2794,11 +2781,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never)
     ).resolves.toMatchObject({ behavior: 'allow' })
 
-    const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
-    const listed = await cherryServer.server._requestHandlers.get('tools/list')(
-      { method: 'tools/list', params: {} },
-      {}
-    )
+    const listed = await listCherryTools(settings)
     expect(listed.tools.map((tool: { name: string }) => tool.name)).not.toEqual(
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
     )
@@ -2838,10 +2821,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // toolGuardHook (the declarative guard table) + skillDependencyAdvisoryHook + agentsMdHook +
-    // rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(5)
-
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>

@@ -740,11 +740,23 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const imagePreviewUrl = props.readOnlyFilePreview?.mediaType?.startsWith('image/')
     ? props.readOnlyFilePreview.url
     : undefined
-  const presentation = getFileTokenPresentation(file, label, imagePreviewUrl)
+  const [blobPreview, setBlobPreview] = useState<{ blob: Blob; url: string }>()
+  const blob = file?.blob
+  useEffect(() => {
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
+    setBlobPreview({ blob, url })
+    return () => URL.revokeObjectURL(url)
+  }, [blob])
+  const presentation = getFileTokenPresentation(
+    file,
+    label,
+    imagePreviewUrl ?? (blobPreview?.blob === blob ? blobPreview?.url : undefined)
+  )
   const openImagePreview = useCallback(() => {
     if (!presentation.previewUrl) return
-    void ImagePreviewService.show(presentation.previewUrl)
-  }, [presentation.previewUrl])
+    void ImagePreviewService.show(blob ?? presentation.previewUrl)
+  }, [blob, presentation.previewUrl])
   const title = props.token.description ?? props.token.promptText ?? label
   const accessibleTitle = props.readOnly ? label : title
   const removeLabel = removeLabelProp ?? 'Remove'

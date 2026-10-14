@@ -48,11 +48,13 @@ async function runUv(args: string[], env: Record<string, string>, timeoutMs: num
 }
 
 /**
- * The interpreter uv already has for `version`, or null when it has none that
- * runs. `uv python find` is offline, so a hit costs nothing; the extra
- * `--version` spawn is what keeps a half-written download from passing as usable.
+ * The interpreter uv lists for `version` in Cherry storage, including a failed
+ * `--version` check so the caller can repair it and preserve the cause.
  */
-async function findInstalled(version: string, env: Record<string, string>): Promise<string | null> {
+async function findInstalled(
+  version: string,
+  env: Record<string, string>
+): Promise<{ kind: 'found'; path: string; error?: string } | { kind: 'missing'; error: string } | null> {
   let pythonPath: string | undefined
   try {
     const stdout = await runUv(
@@ -61,11 +63,19 @@ async function findInstalled(version: string, env: Record<string, string>): Prom
       FIND_TIMEOUT_MS
     )
     pythonPath = stdout.trim().split(/\r?\n/)[0]
-  } catch {
-    return null
+  } catch (error) {
+    const message = sanitizedCommandError(error)
+    if (
+      message.includes('No interpreter found for Python') ||
+      message.includes('Failed to inspect Python interpreter from managed installations')
+    ) {
+      return { kind: 'missing', error: message }
+    }
+    throw new Error(`Failed to find managed Python ${version}: ${message}`)
   }
+  if (!pythonPath) throw new Error(`uv python find returned no path for Python ${version}`)
   // Never adopt a system interpreter: only Cherry's own install dir counts.
-  if (!pythonPath || !path.isAbsolute(pythonPath) || !isPathWithin(env.UV_PYTHON_INSTALL_DIR, pythonPath)) return null
+  if (!path.isAbsolute(pythonPath) || !isPathWithin(env.UV_PYTHON_INSTALL_DIR, pythonPath)) return null
   try {
     await execFileAsync(pythonPath, ['--version'], {
       cwd: application.getPath('app.temp'),
@@ -73,13 +83,14 @@ async function findInstalled(version: string, env: Record<string, string>): Prom
       timeout: FIND_TIMEOUT_MS
     })
   } catch (error) {
+    const message = sanitizedCommandError(error)
     logger.warn('Cherry-managed Python runtime is not runnable', {
       path: pythonPath,
-      error: sanitizedCommandError(error)
+      error: message
     })
-    return null
+    return { kind: 'found', path: pythonPath, error: message }
   }
-  return pythonPath
+  return { kind: 'found', path: pythonPath }
 }
 
 /**
@@ -101,7 +112,7 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
   }
 
   const existing = await findInstalled(version, env)
-  if (existing) return existing
+  if (existing?.kind === 'found' && existing.error === undefined) return existing.path
 
   await fsp.mkdir(dir, { recursive: true })
   const installArgs = [
@@ -117,7 +128,7 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
     '--managed-python',
     '--no-config'
   ]
-  const inChina = await regionService.isInChina().catch(() => false)
+  const inChina = await regionService.detectIsInChina()
   const failures: string[] = []
 
   if (inChina) {
@@ -138,6 +149,12 @@ export async function provideManagedPython(requestedVersion: string, baseEnv: Re
   }
 
   const installed = await findInstalled(version, env)
+  if (installed?.kind === 'missing') {
+    throw new Error(`Managed Python in ${dir} is not runnable after install: ${installed.error}`)
+  }
+  if (installed?.kind === 'found' && installed.error !== undefined) {
+    throw new Error(`Managed Python at ${installed.path} is not runnable after install: ${installed.error}`)
+  }
   if (!installed) throw new Error(`Managed Python is not runnable after install: ${version}`)
-  return installed
+  return installed.path
 }

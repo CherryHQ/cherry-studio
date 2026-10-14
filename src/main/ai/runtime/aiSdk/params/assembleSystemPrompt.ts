@@ -24,6 +24,7 @@ export interface AssembleSystemPromptInput {
   hasCitableTools?: boolean
   /** Add a volatile local-date anchor when this request can execute web search. */
   webSearchEnabled?: boolean
+  mcpInstructions?: string
   /** Injectable clock for deterministic tests. */
   now?: Date
 }
@@ -55,6 +56,8 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   if (webSearchEnabled) {
     sections.push(buildWebSearchDateContext(input.now ?? new Date()))
   }
+
+  if (input.mcpInstructions) sections.push(input.mcpInstructions)
 
   if (sections.length === 0) return undefined
   return sections.join('\n\n')

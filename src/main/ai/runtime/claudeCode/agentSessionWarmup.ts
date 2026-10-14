@@ -21,7 +21,7 @@ import {
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -189,7 +189,7 @@ function buildUsageModels(
     {
       apiModelId: string
       modelName: string | null
-      pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
+      pricingSnapshot: ReturnType<typeof createAiUsageCaptureContext>['pricingSnapshot']
       aliases: Set<string>
     }
   >()
@@ -197,7 +197,13 @@ function buildUsageModels(
     const current = byModelId.get(ref.modelId) ?? {
       apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
-      pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
+      pricingSnapshot: createAiUsageCaptureContext({
+        providerId: ref.providerId,
+        modelId: ref.modelId,
+        pricing: ref.model?.pricing,
+        billing: ref.provider?.settings?.billing,
+        invocationStartedAt: null
+      }).pricingSnapshot,
       aliases: new Set<string>()
     }
     current.aliases.add(sdkModelId)
@@ -434,7 +440,7 @@ async function deriveConnectionConfigFromSnapshot(
   }
 }
 
-/** DB-definition facts for each referenced MCP server (read-only rows; no client connections). */
+/** Server definitions and connected metadata; never starts client connections. */
 function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots?: McpServerSnapshotMap): unknown[] {
   return [...(mcpIds ?? [])].sort().map((mcpId) => {
     const server = snapshots ? snapshots.get(mcpId) : mcpServerService.findByIdOrName(mcpId)
@@ -443,6 +449,7 @@ function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots
       mcpId,
       id: server.id,
       name: server.name,
+      instructions: application.get('McpRuntimeService').getConnectedServerInstructions(server.id) ?? null,
       type: server.type,
       command: server.command ?? null,
       args: server.args ?? null,
