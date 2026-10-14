@@ -890,7 +890,14 @@ async function finalizeDetachedBackgroundTask(
 ): Promise<void> {
   await withRecordLock(record.id, async () => {
     try {
-      const current = await readRecord(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`)
+      let current: BackgroundTaskRecord | undefined
+      try {
+        current = await readRecord(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`)
+      } catch {
+        // Present but unreadable: the task did finish, so its completion is persisted either way,
+        // and the access() check below still separates a purged record from a corrupt one.
+        current = undefined
+      }
       if (!current) {
         // The record is gone (purged with the agent, or the spawn write failed) — a late exit must
         // not resurrect files or notify. A present-but-unreadable record still falls through.
@@ -991,13 +998,17 @@ async function writeSentinel(storageDir: string, taskId: string, completion: Bac
   }
 }
 
+/**
+ * Only a confirmed absence yields `undefined`: any other read failure propagates, because a record
+ * that exists but cannot be read may still describe live work, and callers that decide whether work
+ * can be destroyed must not treat it as "no record".
+ */
 async function readRecord(storageDir: string, entry: string): Promise<BackgroundTaskRecord | undefined> {
   try {
     return JSON.parse(await readFile(path.join(storageDir, entry), 'utf8')) as BackgroundTaskRecord
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-    logger.warn('Unreadable background task record skipped', { entry, error })
-    return undefined
+    throw new Error(`Failed to read background task record ${entry}`, { cause: error })
   }
 }
 

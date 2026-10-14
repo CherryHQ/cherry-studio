@@ -958,7 +958,14 @@ class BackupManager {
         // protect it — the task is not the write — so the restore is refused while one is live,
         // the way every other unsatisfied precondition here is refused: before the journal is
         // committed, so nothing is staged and the write holds are released.
-        const liveTasks = await listLiveDetachedBackgroundTasks()
+        const liveTasks = await listLiveDetachedBackgroundTasks().catch((error: unknown) => {
+          // A failed inventory is not a confirmed-empty one: promotion deletes every task record,
+          // so this refuses exactly like a confirmed live task instead of assuming there is none.
+          logger.error('[restoreDirect] Failed to inventory detached background tasks', error as Error)
+          throw new Error(
+            `${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Cannot confirm whether a detached background task is still running, so the restore was stopped. (${(error as Error).message})`
+          )
+        })
         if (liveTasks.length > 0) {
           throw new Error(
             `${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: A detached background task is still running (${liveTasks

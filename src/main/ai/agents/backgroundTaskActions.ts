@@ -74,18 +74,22 @@ export async function purgeAgentBackgroundTasks<T>(agentId: string, runDeletion:
  * not made safe by stopping the task into it first.
  */
 export async function listLiveDetachedBackgroundTasks(): Promise<Array<{ agentId: string; id: string; pid: number }>> {
+  // Only a confirmed absence counts as empty. Restore treats the result as "no live detached task",
+  // so an inventory read that fails for any reason must reach its caller as a failure instead of
+  // being flattened into the same empty list a genuinely task-free install produces.
   let agentIds: string[]
   try {
     agentIds = (await readdir(application.getPath('feature.agents.data'), { withFileTypes: true }))
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
-  } catch {
-    return []
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw new Error(`Failed to inventory detached background tasks: ${String(error)}`, { cause: error })
   }
 
   const perAgent = await Promise.all(
     agentIds.map(async (agentId) => {
-      const records = await listDetachedBackgroundTasks(storageDirFor(agentId)).catch(() => [])
+      const records = await listDetachedBackgroundTasks(storageDirFor(agentId))
       return (
         records
           // A record reconciles to `unknown` for two very different reasons: real work this app can

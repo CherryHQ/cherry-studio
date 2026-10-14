@@ -330,7 +330,7 @@ vi.mock('node-stream-zip', () => ({
 // promotion would strand with no control record. It is mocked rather than spawned: the condition
 // under test is the restore ordering, not whether a detached process stays up.
 const { mockLiveDetachedTasks } = vi.hoisted(() => ({
-  mockLiveDetachedTasks: vi.fn((): Array<{ id: string; agentId: string }> => [])
+  mockLiveDetachedTasks: vi.fn((): Promise<Array<{ id: string; agentId: string }>> => Promise.resolve([]))
 }))
 
 vi.mock('@main/ai/agents/backgroundTaskActions', () => ({
@@ -398,7 +398,7 @@ describe('BackupManager direct v2 data compatibility', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockLiveDetachedTasks.mockReturnValue([])
+    mockLiveDetachedTasks.mockResolvedValue([])
     backupManager = new BackupManager()
     mockRandomUUID.mockReturnValue('operation-id')
     mockHashDbFile.mockResolvedValue('same-fingerprint')
@@ -901,10 +901,24 @@ describe('BackupManager direct v2 data compatibility', () => {
 
   it('refuses restore promotion while a detached background task is still live', async () => {
     arrangeDirectRestore()
-    mockLiveDetachedTasks.mockReturnValue([{ id: 'bt-1', agentId: 'agent-1' }])
+    mockLiveDetachedTasks.mockResolvedValue([{ id: 'bt-1', agentId: 'agent-1' }])
 
     await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
       'detached background task is still running'
+    )
+
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('refuses restore promotion when the detached-task inventory cannot be read', async () => {
+    // A failed inventory is not a confirmed-empty one: treating it as empty would commit a journal
+    // whose promotion deletes the records of a task this restore can no longer even see.
+    arrangeDirectRestore()
+    mockLiveDetachedTasks.mockRejectedValueOnce(new Error('EACCES: permission denied, scandir'))
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      `${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Cannot confirm whether a detached background task is still running`
     )
 
     expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
