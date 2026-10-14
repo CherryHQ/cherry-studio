@@ -464,18 +464,20 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
 
   try {
-    aiStreamManager.streamPrompt({
-      streamId,
-      uniqueModelId,
-      messages,
-      listener,
-      callOverrides,
-      contextOwner: 'caller',
-      ...(usageContext ? { usageContext } : {}),
-      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const, modelUsageFeature: 'agent' as const } : {}),
-      ...(isInternalTranslationRequest ? { modelUsageFeature: 'translate' as const } : {}),
-      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
-    })
+    if (!aborted) {
+      aiStreamManager.streamPrompt({
+        streamId,
+        uniqueModelId,
+        messages,
+        listener,
+        callOverrides,
+        contextOwner: 'caller',
+        ...(usageContext ? { usageContext } : {}),
+        ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const, modelUsageFeature: 'agent' as const } : {}),
+        ...(isInternalTranslationRequest ? { modelUsageFeature: 'translate' as const } : {}),
+        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+      })
+    }
 
     await done
 
