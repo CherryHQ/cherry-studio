@@ -376,53 +376,53 @@ export class ExportService {
   }
 
   public exportToWord = async (markdown: string, fileName: string): Promise<boolean> => {
-    try {
-      // Dialog-first is perf-driven: canceling costs zero conversion, and the dialog
-      // opens without waiting on the markdown→docx conversion.
-      const { canceled, filePath } = await dialog.showSaveDialog({
-        title: t('dialog.save_file'),
-        filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
-        defaultPath: fileName
-      })
-      if (canceled || !filePath) {
-        return false
-      }
+    return withNotesFilesystemMutation(async () => {
+      try {
+        // Dialog-first is perf-driven: canceling costs zero conversion, and the dialog
+        // opens without waiting on the markdown→docx conversion.
+        const { canceled, filePath } = await dialog.showSaveDialog({
+          title: t('dialog.save_file'),
+          filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
+          defaultPath: fileName
+        })
+        if (canceled || !filePath) {
+          return false
+        }
 
-      const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
-      const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
+        const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
+        const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
 
-      const doc = new docx.Document({
-        styles: {
-          paragraphStyles: [
-            {
-              id: 'Normal',
-              name: 'Normal',
-              run: {
-                size: 24,
-                font: 'Arial'
+        const doc = new docx.Document({
+          styles: {
+            paragraphStyles: [
+              {
+                id: 'Normal',
+                name: 'Normal',
+                run: {
+                  size: 24,
+                  font: 'Arial'
+                }
               }
+            ]
+          },
+          sections: [
+            {
+              properties: {},
+              children: elements
             }
           ]
-        },
-        sections: [
-          {
-            properties: {},
-            children: elements
-          }
-        ]
-      })
+        })
 
-      const buffer = await docx.Packer.toBuffer(doc)
+        const buffer = await docx.Packer.toBuffer(doc)
 
-      await withNotesFilesystemMutation(async () => {
         assertNotesPathNotMutatingDuringMigration(filePath)
         await fs.promises.writeFile(filePath, buffer)
-      })
-      logger.debug('Document exported successfully')
-      return true
-    } catch (error) {
-      logger.error('Export to Word failed:', error as Error)
-      throw error
-    }
+        logger.debug('Document exported successfully')
+        return true
+      } catch (error) {
+        logger.error('Export to Word failed:', error as Error)
+        throw error
+      }
+    })
   }
 }

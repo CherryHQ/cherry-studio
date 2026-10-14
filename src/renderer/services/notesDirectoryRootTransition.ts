@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import { cacheService } from '@renderer/data/CacheService'
 import { normalizePathValue } from '@renderer/services/NotesTreeService'
 
@@ -10,7 +8,7 @@ export function recordNotesDirectoryRootTransition(from: string, to: string): vo
   const chainedFrom =
     pending && normalizePathValue(pending.to) === normalizedFrom ? normalizePathValue(pending.from) : normalizedFrom
   cacheService.setShared('notes.directory_root_transition', {
-    id: randomUUID(),
+    id: crypto.randomUUID(),
     from: chainedFrom,
     to: normalizedTo
   })

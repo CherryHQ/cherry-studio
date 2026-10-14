@@ -293,36 +293,36 @@ export class PrintService {
   }
 
   async exportToPdf(payload: PrintableDocumentPayload): Promise<boolean> {
-    const { canceled, filePath } = await dialog.showSaveDialog({
-      title: t('dialog.save_as_pdf'),
-      defaultPath: getDefaultPdfPath(payload.title),
-      filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
-    })
-
-    if (canceled || !filePath) {
-      return false
-    }
-
-    const { windowId, window } = await this.openPrintWindow(payload)
-    const windowManager = application.get('WindowManager')
-
-    try {
-      const pdfData = await window.webContents.printToPDF({
-        pageSize: 'A4',
-        preferCSSPageSize: true,
-        printBackground: true
+    return withNotesFilesystemMutation(async () => {
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: t('dialog.save_as_pdf'),
+        defaultPath: getDefaultPdfPath(payload.title),
+        filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
       })
-      await withNotesFilesystemMutation(async () => {
+
+      if (canceled || !filePath) {
+        return false
+      }
+
+      const { windowId, window } = await this.openPrintWindow(payload)
+      const windowManager = application.get('WindowManager')
+
+      try {
+        const pdfData = await window.webContents.printToPDF({
+          pageSize: 'A4',
+          preferCSSPageSize: true,
+          printBackground: true
+        })
         assertNotesPathNotMutatingDuringMigration(filePath)
         await fs.writeFile(filePath, pdfData)
-      })
-      return true
-    } catch (error) {
-      logger.error('Failed to export printable document to PDF', error as Error)
-      throw error
-    } finally {
-      windowManager.close(windowId)
-    }
+        return true
+      } catch (error) {
+        logger.error('Failed to export printable document to PDF', error as Error)
+        throw error
+      } finally {
+        windowManager.close(windowId)
+      }
+    })
   }
 
   async print(payload: PrintableDocumentPayload): Promise<void> {
