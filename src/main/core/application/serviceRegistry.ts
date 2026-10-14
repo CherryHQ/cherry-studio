@@ -66,6 +66,7 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
+import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
@@ -139,6 +140,7 @@ export const services = {
   ProtocolService,
   MediaProtocolService,
   ScreenshotOverlayService,
+  ScreenshotChatService,
   ProxyService,
   NetworkService,
   StorageMonitorService,

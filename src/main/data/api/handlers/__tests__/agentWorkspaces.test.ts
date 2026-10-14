@@ -1,18 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SuccessStatus } from '@shared/data/api/types'
-
-const {
-  listMock,
-  findOrCreateByPathResultMock,
-  getByIdMock,
-  getReferencesMock,
-  updateMock,
-  reorderMock,
-  reorderBatchMock
-} = vi.hoisted(() => ({
+const { listMock, getByIdMock, getReferencesMock, updateMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
   listMock: vi.fn(),
-  findOrCreateByPathResultMock: vi.fn(),
   getByIdMock: vi.fn(),
   getReferencesMock: vi.fn(),
   updateMock: vi.fn(),
@@ -23,7 +12,6 @@ const {
 vi.mock('@data/services/AgentWorkspaceService', () => ({
   agentWorkspaceService: {
     list: listMock,
-    findOrCreateByPathResult: findOrCreateByPathResultMock,
     getById: getByIdMock,
     getReferences: getReferencesMock,
     update: updateMock,
@@ -35,10 +23,10 @@ vi.mock('@data/services/AgentWorkspaceService', () => ({
 import { agentWorkspaceHandlers } from '../agentWorkspaces'
 
 const workspace = {
-  additionalDirectories: [],
   id: 'workspace-1',
   name: 'Workspace',
   path: '/tmp/workspace',
+  additionalDirectories: [],
   type: 'user' as const,
   orderKey: 'a0',
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -65,51 +53,17 @@ describe('agentWorkspaceHandlers', () => {
     expect(getByIdMock).toHaveBeenCalledWith(workspace.id)
   })
 
-  it('delegates create and update to AgentWorkspaceService', async () => {
-    findOrCreateByPathResultMock.mockReturnValueOnce({ workspace, created: true })
+  it('delegates update to AgentWorkspaceService', async () => {
     updateMock.mockReturnValueOnce({ ...workspace, name: 'Renamed' })
 
     await expect(
-      agentWorkspaceHandlers['/agent-workspaces'].POST({
-        body: { path: workspace.path, name: workspace.name, additionalDirectories: ['/tmp/shared'] }
-      })
-    ).resolves.toEqual({ data: workspace, status: SuccessStatus.CREATED })
-    await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
         params: { workspaceId: workspace.id },
-        body: { name: 'Renamed', path: '/tmp/shared', additionalDirectories: [workspace.path] }
+        body: { name: 'Renamed' }
       })
     ).resolves.toMatchObject({ name: 'Renamed' })
 
-    expect(findOrCreateByPathResultMock).toHaveBeenCalledWith(workspace.path, {
-      name: workspace.name,
-      additionalDirectories: ['/tmp/shared']
-    })
-    expect(updateMock).toHaveBeenCalledWith(workspace.id, {
-      name: 'Renamed',
-      path: '/tmp/shared',
-      additionalDirectories: [workspace.path]
-    })
-  })
-
-  it('returns 200 OK when POST finds an existing workspace', async () => {
-    findOrCreateByPathResultMock.mockReturnValueOnce({ workspace, created: false })
-
-    await expect(
-      agentWorkspaceHandlers['/agent-workspaces'].POST({
-        body: { path: workspace.path, name: 'Ignored Rename' }
-      })
-    ).resolves.toEqual({ data: workspace, status: SuccessStatus.OK })
-  })
-
-  it('rejects invalid create body before calling the service', async () => {
-    await expect(
-      agentWorkspaceHandlers['/agent-workspaces'].POST({
-        body: { name: workspace.name }
-      } as never)
-    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-
-    expect(findOrCreateByPathResultMock).not.toHaveBeenCalled()
+    expect(updateMock).toHaveBeenCalledWith(workspace.id, { name: 'Renamed' })
   })
 
   it('rejects invalid update body before calling the service', async () => {
@@ -117,10 +71,19 @@ describe('agentWorkspaceHandlers', () => {
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
         params: { workspaceId: workspace.id },
         body: {}
-      })
+      } as never)
     ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects directory mutations that bypass the workspace storage IPC command', async () => {
+    await expect(
+      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
+        params: { workspaceId: workspace.id },
+        body: { name: 'Renamed', additionalDirectories: ['/tmp/shared'] }
+      } as never)
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
   })
 
   it('delegates workspace reference lookup to AgentWorkspaceService', async () => {

@@ -78,11 +78,6 @@ export type AgentWorkspaceSchemas = {
     GET: {
       response: AgentWorkspaceEntity[]
     }
-    // find-or-create by path: idempotent on the `agent_workspace.path` unique index.
-    POST: {
-      body: CreateAgentWorkspaceDto
-      response: AgentWorkspaceEntity
-    }
   }
 
   '/agent-workspaces/:workspaceId': {
@@ -92,7 +87,7 @@ export type AgentWorkspaceSchemas = {
     }
     PATCH: {
       params: { workspaceId: string }
-      body: UpdateAgentWorkspaceDto
+      body: Pick<AgentWorkspaceEntity, 'name'>
       response: AgentWorkspaceEntity
     }
   }

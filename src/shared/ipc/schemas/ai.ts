@@ -26,7 +26,12 @@ import {
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
-import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
+import {
+  AgentSessionWorkspaceSourceSchema,
+  AgentWorkspaceEntitySchema,
+  CreateAgentWorkspaceSchema,
+  UpdateAgentWorkspaceSchema
+} from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -37,7 +42,7 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
-import { FileVersionSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
@@ -414,6 +419,26 @@ export const aiRequestSchemas = {
   'ai.agent.session.reuse_or_create': defineRoute({
     input: ReuseOrCreateAgentSessionSchema,
     output: z.custom<ReusableAgentSessionPlaceholdersResponse>()
+  }),
+  'ai.agent.workspace.register': defineRoute({
+    input: CreateAgentWorkspaceSchema.extend({
+      path: z.string().trim().pipe(AbsoluteFilePathSchema),
+      additionalDirectories: z.array(z.string().trim().pipe(AbsoluteFilePathSchema)).optional()
+    }),
+    output: AgentWorkspaceEntitySchema
+  }),
+  'ai.agent.workspace.update': defineRoute({
+    input: z.strictObject({
+      workspaceId: z.string().min(1),
+      changes: UpdateAgentWorkspaceSchema.refine(
+        (changes) =>
+          [changes.path, ...(changes.additionalDirectories ?? [])].every(
+            (directory) => directory === undefined || AbsoluteFilePathSchema.safeParse(directory.trim()).success
+          ),
+        'Workspace directories must be absolute paths'
+      )
+    }),
+    output: AgentWorkspaceEntitySchema
   }),
   'ai.agent.workspace.delete': defineRoute({
     input: z.strictObject({ workspaceId: z.string().min(1) }),

@@ -30,7 +30,9 @@ vi.mock('@application', async () => {
     },
     AgentSessionRuntimeService: {
       isSessionBusy: () => false,
+      isSessionBusyForArchive: () => false,
       closeSession: mocks.closeSession,
+      closeSessionForArchive: vi.fn().mockResolvedValue(undefined),
       cancelSessionForks: vi.fn().mockResolvedValue(undefined),
       recoverSessionForks: vi.fn().mockResolvedValue(undefined)
     },
@@ -89,7 +91,7 @@ describe('Agent Lifecycle workspace cleanup', () => {
     if (source === 'recycle-bin') {
       await lifecycle.archiveSessions(sessionIds)
       expect(readFileSync(path.join(shared.workspace.path, 'keep.txt'), 'utf8')).toBe('Workspace contents')
-      expect(existsSync(unclaimed.workspace.path)).toBe(true)
+      expect(existsSync(`${unclaimed.workspace.path}.tar.gz`)).toBe(true)
       await lifecycle.purgeSessions(sessionIds)
     } else if (source === 'active-session') {
       await lifecycle.deleteActiveSessionsPermanently(sessionIds)
@@ -108,6 +110,7 @@ describe('Agent Lifecycle workspace cleanup', () => {
     expect(agentWorkspaceService.getById(workspace.id).additionalDirectories).toEqual([claimedDirectory])
     expect(readFileSync(claimedFile, 'utf8')).toBe('Workspace contents')
     expect(existsSync(unclaimed.workspace.path)).toBe(false)
+    expect(existsSync(`${unclaimed.workspace.path}.tar.gz`)).toBe(false)
 
     const stale = new Date(Date.now() - 60 * 60 * 1000)
     for (const entry of [

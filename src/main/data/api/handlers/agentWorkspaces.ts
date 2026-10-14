@@ -1,29 +1,13 @@
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
-import {
-  type AgentWorkspaceSchemas,
-  CreateAgentWorkspaceSchema,
-  UpdateAgentWorkspaceSchema
-} from '@shared/data/api/schemas/agentWorkspaces'
-import { type HandlersFor, SuccessStatus } from '@shared/data/api/types'
+import { AgentWorkspaceEntitySchema, type AgentWorkspaceSchemas } from '@shared/data/api/schemas/agentWorkspaces'
+import { type HandlersFor } from '@shared/data/api/types'
 
 export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
   '/agent-workspaces': {
     GET: async () => {
       return agentWorkspaceService.list()
-    },
-    POST: async ({ body }) => {
-      const parsed = CreateAgentWorkspaceSchema.safeParse(body)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const result = agentWorkspaceService.findOrCreateByPathResult(parsed.data.path, {
-        name: parsed.data.name,
-        additionalDirectories: parsed.data.additionalDirectories
-      })
-      return {
-        data: result.workspace,
-        status: result.created ? SuccessStatus.CREATED : SuccessStatus.OK
-      }
     }
   },
 
@@ -32,7 +16,7 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
       return agentWorkspaceService.getById(params.workspaceId)
     },
     PATCH: async ({ params, body }) => {
-      const parsed = UpdateAgentWorkspaceSchema.safeParse(body)
+      const parsed = AgentWorkspaceEntitySchema.pick({ name: true }).safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentWorkspaceService.update(params.workspaceId, parsed.data)
     }

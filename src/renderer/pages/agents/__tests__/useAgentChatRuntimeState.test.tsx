@@ -1,4 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, renderHook } from '@testing-library/react'
 import { Activity } from 'react'
@@ -9,6 +10,7 @@ import {
   writeAskUserQuestionDraftCache
 } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
+import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -163,6 +165,32 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 }
 
 describe('useAgentChatRuntimeState', () => {
+  it('blocks edit entry while the session is closing even after the stream stops', async () => {
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY('session-1'), true)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    expect(result.current.editBusy).toBe(true)
+    await act(() => result.current.startEditing('user-1'))
+    expect(mocks.editTarget).not.toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('allows edit entry when the session is no longer closing', async () => {
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY('session-1'), false)
+    const draft = { messageId: 'user-1', version: 'version-1', parts: [{ type: 'text' as const, text: 'Original' }] }
+    mocks.editTarget.mockResolvedValue(draft)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    expect(result.current.editBusy).toBe(false)
+    await act(() => result.current.startEditing('user-1'))
+    expect(mocks.editTarget).toHaveBeenCalledWith({ sessionId: 'session-1', messageId: 'user-1' })
+    expect(result.current.editing).toMatchObject(draft)
+  })
+
   it('replaces the edited tail before streaming even when history refresh still returns cached rows', async () => {
     MockUseDataApiUtils.resetMocks()
     const { useAgentSessionParts } = await vi.importActual<typeof AgentSessionPartsModule>(
@@ -333,6 +361,7 @@ describe('useAgentChatRuntimeState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockCacheUtils.resetMocks()
+    MockUseCacheUtils.resetMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)

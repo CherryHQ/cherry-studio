@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -16,9 +17,8 @@ export function WorkspaceEditDialog({ workspace, onClose }: { workspace: AgentWo
   const [mainDirectory, setMainDirectory] = useState(workspace.path)
   const [directories, setDirectories] = useState([workspace.path, ...workspace.additionalDirectories])
   const [isSelecting, setIsSelecting] = useState(false)
-  const { trigger: updateWorkspace, isLoading } = useMutation('PATCH', '/agent-workspaces/:workspaceId', {
-    refresh: ['/agent-workspaces', '/agent-sessions']
-  })
+  const [isLoading, setIsLoading] = useState(false)
+  const invalidate = useInvalidateCache()
 
   const addDirectory = async () => {
     setIsSelecting(true)
@@ -35,19 +35,23 @@ export function WorkspaceEditDialog({ workspace, onClose }: { workspace: AgentWo
 
   const save = async () => {
     if (!name.trim() || isLoading || isSelecting) return
+    setIsLoading(true)
     try {
-      await updateWorkspace({
-        params: { workspaceId: workspace.id },
-        body: {
+      await ipcApi.request('ai.agent.workspace.update', {
+        workspaceId: workspace.id,
+        changes: {
           name: name.trim(),
           path: mainDirectory,
           additionalDirectories: directories.filter((directory) => directory !== mainDirectory)
         }
       })
+      await Promise.all([invalidate('/agent-workspaces'), invalidate('/agent-sessions')])
       onClose()
     } catch (error) {
       logger.error('Failed to update workspace', error as Error)
       toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
+    } finally {
+      setIsLoading(false)
     }
   }
 

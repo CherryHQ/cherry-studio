@@ -1,5 +1,11 @@
 # @cherrystudio/ai-sdk-provider
 
+## 0.1.8
+
+### Patch Changes
+
+- [#21625](https://github.com/CherryHQ/cherry-studio/pull/21625) [`7a7a424`](https://github.com/CherryHQ/cherry-studio/commit/7a7a4247185a8187e54bb09b77f407bd0c04981c) Thanks [@DeJeune](https://github.com/DeJeune)! - Support Gemini 4 Argon with the updated Google adapter and model catalog. Export context usage helpers that exclude repeated continuation prompts from context occupancy while preserving billed token counts, and allow catalog generation to refresh selected models.
+
 ## 0.1.7
 
 ### Patch Changes

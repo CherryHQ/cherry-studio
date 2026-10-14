@@ -10,7 +10,9 @@ import { loggerService } from '@logger'
 import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
-import { isOutsidePath } from '@main/utils/file'
+
+import { WORKSPACE_STORAGE_SUFFIXES } from './agentWorkspaceStorage'
+import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 
 const logger = loggerService.withContext('AgentOrphanSweep')
 
@@ -37,13 +39,13 @@ export interface AgentSweepReport {
  *    to the app-owned runtime roots (`.claude`, `.pi`, `system`), so
  *    only uuid-named children are ever candidates.
  *  - `{agents.system_workspaces}/{date}/{sessionId}` — app-owned session
- *    workspaces, claimed by workspace main and additional paths. Workspace rows survive
+ *    workspaces, protected by registered main and additional directories, including descendants. Workspace rows survive
  *    Delete and are removed at session purge.
  *  - each runtime driver's own session persistence, claimed by the union of
  *    resume tokens on surviving `agent_session_message` rows and the live runtime snapshot.
  *
- * Trashed agents/sessions keep everything: their rows (and tokens) are still
- * there, so restore stays lossless. Removal failures are logged for the next run.
+ * Trashed sessions claim compressed workspaces and interrupted-operation artifacts
+ * too, so restore stays lossless. Removal failures are logged for the next run.
  *
  * Every pass is freshness-gated: the keep-sets are one snapshot, so a dir created
  * before its claiming row commits would otherwise read as an orphan and be lost.
@@ -68,11 +70,13 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       .all()
       .map((row) => row.id)
   )
-  const claimedWorkspaces = db
-    .select({ path: agentWorkspaceTable.path, additionalDirectories: agentWorkspaceTable.additionalDirectories })
-    .from(agentWorkspaceTable)
-    .all()
-    .flatMap((row) => [row.path, ...row.additionalDirectories])
+  const claimedWorkspaces = new Set(
+    db
+      .select({ path: agentWorkspaceTable.path })
+      .from(agentWorkspaceTable)
+      .all()
+      .map((row) => path.resolve(row.path))
+  )
 
   const removed: string[] = []
   let agentDirs = 0
@@ -89,14 +93,37 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
   for (const dateEntry of await listEntries(workspacesRoot)) {
     if (!dateEntry.isDirectory()) continue
     const dateDir = path.resolve(workspacesRoot, dateEntry.name)
+    const candidates = new Set<string>()
     for (const sessionEntry of await listEntries(dateDir)) {
       signal?.throwIfAborted()
-      if (!sessionEntry.isDirectory()) continue
+      if (
+        !sessionEntry.isDirectory() &&
+        !WORKSPACE_STORAGE_SUFFIXES.some((suffix) => sessionEntry.name.endsWith(suffix))
+      )
+        continue
       const sessionDir = path.resolve(dateDir, sessionEntry.name)
-      if (claimedWorkspaces.some((directory) => !isOutsidePath(path.relative(sessionDir, directory)))) continue
-      if (await reclaim(sessionDir, removed, options)) workspaceDirs++
+      const suffix = WORKSPACE_STORAGE_SUFFIXES.find((suffix) => sessionDir.endsWith(suffix))
+      const workspace = suffix ? sessionDir.slice(0, -suffix.length) : sessionDir
+      if (!claimedWorkspaces.has(workspace)) candidates.add(workspace)
     }
-    await removeIfEmpty(dateDir, removed)
+    for (const workspace of candidates) {
+      signal?.throwIfAborted()
+      try {
+        const artifacts = await agentWorkspaceStorageService.reclaimOrphanWorkspace(workspace, options)
+        removed.push(...artifacts)
+        if (artifacts.length) workspaceDirs++
+      } catch (error) {
+        logger.warn('Workspace orphan cleanup retained for retry', { workspace, error })
+      }
+    }
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([dateDir])
+    if (release) {
+      try {
+        await removeIfEmpty(dateDir, removed)
+      } finally {
+        release()
+      }
+    }
   }
 
   signal?.throwIfAborted()
