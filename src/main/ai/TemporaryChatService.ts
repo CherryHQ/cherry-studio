@@ -259,7 +259,7 @@ export class TemporaryChatService extends BaseService {
     const inline = parseDataUrl(part.url)
     if (!source && !inline) return part
     if (inline && (!inline.isBase64 || !inline.data)) throw new Error('Generated attachment has no file content')
-    const ext = mime.getExtension(part.mediaType) ?? (source ? path.extname(source).slice(1) : '')
+    const ext = (source ? path.extname(source).slice(1) : '') || mime.getExtension(part.mediaType) || ''
     const target = AbsoluteFilePathSchema.parse(path.join(directory, uuidv7() + (ext ? '.' + ext : '')))
     await ensureDir(AbsoluteFilePathSchema.parse(directory))
     if (source) await copy(AbsoluteFilePathSchema.parse(source), target)

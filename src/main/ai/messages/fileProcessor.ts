@@ -14,6 +14,7 @@
  * currently fall back to inline base64 here.
  */
 
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import mime from 'mime'
@@ -21,11 +22,26 @@ import mime from 'mime'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { read as fsRead } from '@main/utils/file'
+import type { FileHandle } from '@shared/data/types/file'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { tryFileUrlToPath } from '@shared/utils/file'
 
 const logger = loggerService.withContext('ai:fileProcessor')
+
+export function getFilePartHandle(part: FileUIPart): FileHandle | undefined {
+  const entryId = readCherryMeta(part)?.fileEntryId
+  if (entryId) return { kind: 'entry', entryId }
+  const localPath = tryFileUrlToPath(part.url)
+  return localPath ? { kind: 'path', path: AbsoluteFilePathSchema.parse(localPath) } : undefined
+}
+
+export async function getFileHandleExtension(file: FileHandle): Promise<string> {
+  return file.kind === 'entry'
+    ? ((await application.get('FileManager').getById(file.entryId)).ext ?? '').toLowerCase()
+    : path.extname(file.path).slice(1).toLowerCase()
+}
 
 // `type/subtype`, per RFC 6838; `*` in the subtype allows the `image/*`
 // placeholder the ai-sdk gateway converters emit for remote images with no

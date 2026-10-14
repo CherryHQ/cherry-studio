@@ -22,6 +22,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import { getFileHandleExtension } from '@main/ai/messages/fileProcessor'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import {
   READ_FILE_PAGE_SIZE,
@@ -84,19 +85,17 @@ export async function readFile(
   { attachments }: ReadFileContext,
   signal?: AbortSignal
 ): Promise<ReadFileResult> {
-  // Resolve the model-facing handle to an internal entry id against the request's
-  // allow-list — the model never sees (or can guess) entry ids, and can only read
-  // files attached to this conversation.
+  // Resolve only model-facing handles from this request's allow-list.
+  // Internal entry IDs and local paths are never accepted as tool input.
   const entry = attachments.find((a) => a.handle === input.filename)
   if (!entry) {
     const available = attachments.map((a) => a.handle).join(', ') || '(none)'
     return { error: `No attached file named "${input.filename}". Available: ${available}` }
   }
-  const entryId = entry.fileEntryId
+  const file = entry.file
 
   try {
-    const { ext } = await application.get('FileManager').getById(entryId)
-    const bareExt = ext?.toLowerCase() ?? ''
+    const bareExt = await getFileHandleExtension(file)
     const fileType = getFileTypeByExt(bareExt)
 
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
@@ -109,8 +108,8 @@ export async function readFile(
 
     const text =
       fileType === FILE_TYPE.IMAGE
-        ? await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
-        : await extractDocumentText(entryId, { signal })
+        ? await application.get('FileProcessingService').ocrImage(file, signal)
+        : await extractDocumentText(file, { signal })
 
     if (text === null) {
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)

@@ -25,7 +25,11 @@ import type { ReadFileInput } from '@shared/ai/builtinTools'
 
 import { readFile, readFileModelOutput } from '../ReadFileTool'
 
-const att = (handle: string): FileAttachmentRef => ({ fileEntryId: 'e1', handle, displayName: handle })
+const att = (handle: string): FileAttachmentRef => ({
+  file: { kind: 'entry', entryId: 'e1' },
+  handle,
+  displayName: handle
+})
 const ctx = (attachments: FileAttachmentRef[]) => ({ attachments })
 
 // offset/limit are plain optionals — omitting one means "use the default", so pass `rest` through.

@@ -83,7 +83,7 @@ export async function saveAttachmentToWorkspace(
   )
 
   try {
-    await application.get('FileManager').withTempCopy(attachment.fileEntryId, async (tempPath) => {
+    const publish = async (tempPath: string) => {
       signal.throwIfAborted()
       await publishFileNoClobber(AbsoluteFilePathSchema.parse(tempPath), outputPath, {
         signal,
@@ -95,7 +95,12 @@ export async function saveAttachmentToWorkspace(
             'Attachment output path changed while being saved'
           )
       })
-    })
+    }
+    if (attachment.file.kind === 'entry') {
+      await application.get('FileManager').withTempCopy(attachment.file.entryId, publish)
+    } else {
+      await publish(attachment.file.path)
+    }
   } catch (error) {
     if (signal.aborted || isAbortError(error)) throw error
     if (isErrno(error, 'EEXIST')) {

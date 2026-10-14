@@ -7,6 +7,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { type FileUIPart, streamText, type UIMessageChunk } from 'ai'
 import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test'
+import { Document, Packer, Paragraph } from 'docx'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +23,9 @@ import * as fileUtils from '@main/utils/file'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { tryFileUrlToPath } from '@shared/utils/file'
 
+import { collectFileAttachments, prepareChatMessages } from '../../messages/attachmentRouting'
 import { materializeNativeFilePart } from '../../messages/fileProcessor'
+import { readFile as readAttachedFile } from '../../tools/adapters/aiSdk/builtin/ReadFileTool'
 import { pipeStreamLoop } from '../pipeStreamLoop'
 import { withGeneratedFiles } from '../withGeneratedFiles'
 
@@ -45,6 +48,7 @@ describe('generated conversation attachments', () => {
     MockMainCacheServiceUtils.resetMocks()
     directory = await mkdtemp(path.join(tmpdir(), 'cherry-generated-file-'))
     await mkdir(path.join(directory, 'files'))
+    await mkdir(path.join(directory, 'app.temp'))
     vi.mocked(application.getPath).mockImplementation((_key: string, filename?: string) =>
       path.join(directory, _key === 'feature.files.data' ? 'files' : _key, filename ?? '')
     )
@@ -214,6 +218,63 @@ describe('generated conversation attachments', () => {
     expect(await materializeNativeFilePart(part)).toMatchObject({ url: DATA_URL })
     await temporary.deleteTopic(topic.id)
     await expect(access(tryFileUrlToPath(part.url)!)).rejects.toThrow()
+  })
+
+  it.each(['png', 'txt', 'docx'])('processes a temporary %s copy after its original entry is deleted', async (ext) => {
+    const text = 'Independent attachment text. '.repeat(1000).trim()
+    const bytes =
+      ext === 'docx'
+        ? await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph(text)] }] }))
+        : Buffer.from(text)
+    const original = await manager.createInternalEntry({
+      source: 'bytes',
+      data: bytes,
+      name: 'input',
+      ext,
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    const topic = temporary.createTopic({})
+    const message = await temporary.appendMessage(topic.id, {
+      role: 'user',
+      data: {
+        parts: [
+          {
+            type: 'file',
+            filename: 'input.' + ext,
+            mediaType: ext === 'png' ? 'image/png' : 'application/octet-stream',
+            url: manager.getUrl(original.id),
+            providerMetadata: { cherry: { fileEntryId: original.id } }
+          }
+        ]
+      }
+    })
+    await manager.permanentDelete(original.id)
+    const ocr = vi.fn(async (file: { kind: string; path?: string }) => {
+      if (file.kind !== 'path' || !file.path) throw new Error('OCR must read the independent copy')
+      return readFile(file.path, 'utf8')
+    })
+    const getService = vi.mocked(application.get).getMockImplementation()!
+    vi.mocked(application.get).mockImplementation(((name: string) =>
+      name === 'FileProcessingService' ? { ocrImage: ocr } : getService(name as never)) as typeof application.get)
+    const messages = [{ id: message.id, role: 'user' as const, parts: message.data.parts! }]
+    const attachments = collectFileAttachments(messages)
+    const [prepared] = await prepareChatMessages(messages, {
+      attachments,
+      nativeSupport: { image: false, pdf: false, audio: false, video: false },
+      isToolCapable: true,
+      budget: { tokens: 100, tokenizer: { id: 'chars', count: (s) => s.length } }
+    })
+    expect(prepared.parts).toContainEqual({ type: 'text', text: expect.stringContaining(text.slice(0, 80)) })
+    expect(prepared.parts).toContainEqual({
+      type: 'text',
+      text: expect.stringContaining('read_file("input.' + ext + '"')
+    })
+    expect(await readAttachedFile({ filename: 'input.' + ext, offset: 100, limit: 200 }, { attachments })).toEqual({
+      text: text.trim().slice(100, 300),
+      totalChars: text.trim().length,
+      nextOffset: 300
+    })
+    expect(dbh.db.select().from(fileEntryTable).all()).toHaveLength(0)
   })
 
   it('retains temporary bytes on failed promotion and reclaims failed permanent copies before retry', async () => {

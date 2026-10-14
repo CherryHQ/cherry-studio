@@ -50,7 +50,9 @@ async function isAuthorizedOutsideWorkspace(context: CherryDocumentContext, requ
 
   const fileManager = application.get('FileManager')
   for (const attachment of listAgentSessionAttachments(context.sessionId)) {
-    const physicalPath = await realpath(fileManager.getPhysicalPath(attachment.fileEntryId)).catch(() => null)
+    const sourcePath =
+      attachment.file.kind === 'entry' ? fileManager.getPhysicalPath(attachment.file.entryId) : attachment.file.path
+    const physicalPath = await realpath(sourcePath).catch(() => null)
     if (physicalPath === requestedPath) return true
   }
   return false

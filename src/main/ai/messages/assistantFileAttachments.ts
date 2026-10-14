@@ -24,7 +24,7 @@ export function collectAssistantFileAttachments(messages: UIMessage[] | undefine
       if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
 
       attachments.set(fileEntryId, {
-        fileEntryId,
+        file: { kind: 'entry', entryId: fileEntryId },
         handle: createAssistantFileAttachmentHandle(fileEntryId),
         displayName: part.filename?.trim() || 'file'
       })

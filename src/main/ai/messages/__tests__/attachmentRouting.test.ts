@@ -19,7 +19,10 @@ vi.mock('@application', () => ({
 }))
 
 const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
-vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
+vi.mock('../fileProcessor', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileProcessor>()),
+  materializeNativeFilePart: resolveMock
+}))
 
 const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
 vi.mock('../attachmentTextExtraction', () => ({
@@ -28,6 +31,7 @@ vi.mock('../attachmentTextExtraction', () => ({
 }))
 
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import type * as FileProcessor from '../fileProcessor'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -150,7 +154,7 @@ describe('prepareChatMessages — routing', () => {
     const message = userMessage([{ type: 'text', text: 'text only' }])
 
     const out = await prepareChatMessages([message] as UIMessage[], {
-      attachments: [{ fileEntryId: 'stale-entry', handle: 'stale.png', displayName: 'stale.png' }],
+      attachments: [{ file: { kind: 'entry', entryId: 'stale-entry' }, handle: 'stale.png', displayName: 'stale.png' }],
       nativeSupport: NONE,
       isToolCapable: true
     })
@@ -247,7 +251,7 @@ describe('prepareChatMessages — routing', () => {
     const part = fileWithEntry('e1', 'photo.avif', 'image/avif')
 
     const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
-      attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+      attachments: [{ file: { kind: 'entry', entryId: 'e1' }, handle: 'photo.avif', displayName: 'photo.avif' }],
       nativeSupport: ALL,
       isToolCapable: true,
       keepUnroutableFileParts: true
@@ -335,7 +339,7 @@ describe('prepareChatMessages — routing', () => {
     getByIdMock.mockRejectedValueOnce(new Error('aborted'))
     await expect(
       prepareChatMessages([userMessage([fileWithEntry('e1', 'a.pdf', 'application/pdf')])] as UIMessage[], {
-        attachments: [{ fileEntryId: 'e1', handle: 'a.pdf', displayName: 'a.pdf' }],
+        attachments: [{ file: { kind: 'entry', entryId: 'e1' }, handle: 'a.pdf', displayName: 'a.pdf' }],
         nativeSupport: NONE,
         isToolCapable: true,
         signal: controller.signal
@@ -343,12 +347,12 @@ describe('prepareChatMessages — routing', () => {
     ).rejects.toThrow()
   })
 
-  it('eager-inlines legacy parts without a fileEntryId (no getById)', async () => {
+  it('inlines a native local-path PDF without looking up an entry', async () => {
     resolveMock.mockResolvedValueOnce({ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' })
     const legacy = { type: 'file', url: 'file:///x/legacy.pdf', mediaType: 'application/pdf' } as CherryMessagePart
     const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
       attachments: [],
-      nativeSupport: NONE,
+      nativeSupport: ALL,
       isToolCapable: true
     })
     expect(getByIdMock).not.toHaveBeenCalled()
@@ -375,7 +379,7 @@ describe('prepareChatMessages — routing', () => {
 
       expect(getByIdMock).not.toHaveBeenCalled()
       expect(out.parts).toEqual([
-        { type: 'text', text: `[${kind} attachment omitted: this model does not accept ${kind} input]` }
+        { type: 'text', text: `Attached file "file":\nThis model can't process the attached ${kind} file "file".` }
       ])
     }
   )
@@ -410,8 +414,8 @@ describe('collectFileAttachments', () => {
       userMessage([fileWithEntry('e2', 'report.pdf', 'application/pdf')])
     ] as UIMessage[]
     expect(collectFileAttachments(messages)).toEqual([
-      { fileEntryId: 'e1', handle: 'report.pdf', displayName: 'report.pdf' },
-      { fileEntryId: 'e2', handle: 'report.pdf (2)', displayName: 'report.pdf' }
+      { file: { kind: 'entry', entryId: 'e1' }, handle: 'report.pdf', displayName: 'report.pdf' },
+      { file: { kind: 'entry', entryId: 'e2' }, handle: 'report.pdf (2)', displayName: 'report.pdf' }
     ])
   })
 
@@ -426,8 +430,12 @@ describe('collectFileAttachments', () => {
     expect(new Set(handles).size).toBe(3)
   })
 
-  it('ignores file parts without a fileEntryId', () => {
-    const legacy = { type: 'file', url: 'file:///x/legacy.pdf', mediaType: 'application/pdf' } as CherryMessagePart
+  it('ignores remote file parts without a local source', () => {
+    const legacy = {
+      type: 'file',
+      url: 'https://example.com/legacy.pdf',
+      mediaType: 'application/pdf'
+    } as CherryMessagePart
     expect(collectFileAttachments([userMessage([legacy])] as UIMessage[])).toEqual([])
   })
 
@@ -442,8 +450,8 @@ describe('collectFileAttachments', () => {
     ] as UIMessage[]
 
     expect(collectFileAttachments(messages)).toEqual([
-      { fileEntryId: 'live', handle: 'live.png', displayName: 'live.png' },
-      { fileEntryId: 'legacy', handle: 'legacy.png', displayName: 'legacy.png' }
+      { file: { kind: 'entry', entryId: 'live' }, handle: 'live.png', displayName: 'live.png' },
+      { file: { kind: 'entry', entryId: 'legacy' }, handle: 'legacy.png', displayName: 'legacy.png' }
     ])
   })
 })

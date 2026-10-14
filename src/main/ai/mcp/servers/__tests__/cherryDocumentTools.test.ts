@@ -120,24 +120,35 @@ describe('cherry-tools to_markdown', () => {
 
   it('rejects relative traversal and symlinks that leave the workspace', async () => {
     const { tools, workspacePath } = await makeTools()
-    const outside = path.join(path.dirname(workspacePath), 'outside.docx')
-    await writeFile(outside, 'document')
-    await symlink(outside, path.join(workspacePath, 'link.docx'))
+    const outsideDirectory = path.join(path.dirname(workspacePath), 'outside')
+    await mkdir(outsideDirectory)
+    await writeFile(path.join(outsideDirectory, 'report.docx'), 'document')
+    await symlink(
+      outsideDirectory,
+      path.join(workspacePath, 'linked'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    )
 
-    const traversal = await tools.call({ path: '../outside.docx' })
-    const symlinkResult = await tools.call({ path: 'link.docx' })
+    const traversal = await tools.call({ path: '../outside/report.docx' })
+    const symlinkResult = await tools.call({ path: 'linked/report.docx' })
 
     expect(traversal.isError).toBe(true)
     expect(symlinkResult.isError).toBe(true)
     expect(toMarkdownBytesMock).not.toHaveBeenCalled()
   })
 
-  it('converts a managed file attached to the current session', async () => {
+  it.each(['entry', 'path'])('converts an attached %s file in the current session', async (kind) => {
     const { tools, workspacePath } = await makeTools()
     const managed = path.join(path.dirname(workspacePath), 'managed-entry.pdf')
     const bytes = Buffer.from([1, 2, 3])
     await writeFile(managed, bytes)
-    listAgentSessionAttachmentsMock.mockReturnValue([{ fileEntryId: 'entry-1', handle: 'a.pdf', displayName: 'a.pdf' }])
+    listAgentSessionAttachmentsMock.mockReturnValue([
+      {
+        file: kind === 'entry' ? { kind: 'entry', entryId: 'entry-1' } : { kind: 'path', path: managed },
+        handle: 'a.pdf',
+        displayName: 'a.pdf'
+      }
+    ])
     getPhysicalPathMock.mockReturnValue(managed)
     formatFromExtensionMock.mockReturnValue('pdf')
     toMarkdownBytesMock.mockResolvedValue('# Converted report')
@@ -154,7 +165,9 @@ describe('cherry-tools to_markdown', () => {
     const mine = path.join(managedDirectory, 'mine.pdf')
     const someoneElses = path.join(managedDirectory, 'other-session.pdf')
     await Promise.all([writeFile(mine, 'a'), writeFile(someoneElses, 'b')])
-    listAgentSessionAttachmentsMock.mockReturnValue([{ fileEntryId: 'entry-1', handle: 'a.pdf', displayName: 'a.pdf' }])
+    listAgentSessionAttachmentsMock.mockReturnValue([
+      { file: { kind: 'entry', entryId: 'entry-1' }, handle: 'a.pdf', displayName: 'a.pdf' }
+    ])
     getPhysicalPathMock.mockReturnValue(mine)
 
     // Sharing a parent directory with an authorized attachment must not authorize a sibling.

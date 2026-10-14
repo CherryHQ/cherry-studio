@@ -55,35 +55,35 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
   it('extracts PDF via extractPdfText on the raw bytes (no physical path)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
     extractPdfTextMock.mockResolvedValueOnce('  pdf body  ')
-    expect(await extractDocumentText('e1')).toBe('pdf body')
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBe('pdf body')
     expect(extractPdfTextMock).toHaveBeenCalledWith(BYTES)
   })
 
   it('normalizes ext case (PDF → pdf)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'PDF' })
     extractPdfTextMock.mockResolvedValueOnce('x')
-    expect(await extractDocumentText('e1')).toBe('x')
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBe('x')
     expect(extractPdfTextMock).toHaveBeenCalled()
   })
 
   it('extracts .doc via word-extractor (buffer)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'doc' })
     wordExtractMock.mockResolvedValueOnce({ getBody: () => ' word body ' })
-    expect(await extractDocumentText('e1')).toBe('word body')
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBe('word body')
     expect(wordExtractMock).toHaveBeenCalledWith(expect.any(Buffer))
   })
 
   it('extracts office formats via officeparser (buffer)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     parseOfficeAsyncMock.mockResolvedValueOnce(' office body ')
-    expect(await extractDocumentText('e1')).toBe('office body')
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBe('office body')
     expect(parseOfficeAsyncMock).toHaveBeenCalledWith(expect.any(Buffer), { tempFilesLocation: '/tmp' })
   })
 
   it('decodes text/code files with auto encoding', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'md' })
     decodeTextMock.mockReturnValueOnce(' markdown ')
-    expect(await extractDocumentText('e1')).toBe('markdown')
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBe('markdown')
     expect(decodeTextMock).toHaveBeenCalledWith(expect.any(Buffer))
   })
 
@@ -92,27 +92,27 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     const text = '这是一个没有扩展名的 GBK 文本文件，用于验证自动编码检测。'
     const content = iconv.encode(text, 'gbk')
     readMock.mockResolvedValueOnce({ content })
-    expect(await extractDocumentText('e1')).toBe(text)
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBe(text)
     expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('rejects ambiguous short legacy-encoded files instead of returning mojibake', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     readMock.mockResolvedValueOnce({ content: iconv.encode('中文', 'big5') })
-    expect(await extractDocumentText('e1')).toBeNull()
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBeNull()
     expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('does not decode an extensionless binary file as text', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     readMock.mockResolvedValueOnce({ content: Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj') })
-    expect(await extractDocumentText('e1')).toBeNull()
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBeNull()
     expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('caches by entry version and skips re-extraction on hit', async () => {
     cacheGet.mockReturnValueOnce('cached text')
-    expect(await extractDocumentText('e1')).toBe('cached text')
+    expect(await extractDocumentText({ kind: 'entry', entryId: 'e1' })).toBe('cached text')
     expect(getByIdMock).not.toHaveBeenCalled()
     expect(readMock).not.toHaveBeenCalled()
   })
@@ -120,14 +120,16 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
   it('writes the extracted text to cache', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
     decodeTextMock.mockReturnValueOnce('hello')
-    await extractDocumentText('e1')
-    expect(cacheSet).toHaveBeenCalledWith('doc-extraction:e1:1:2', 'hello', expect.any(Number))
+    await extractDocumentText({ kind: 'entry', entryId: 'e1' })
+    expect(cacheSet).toHaveBeenCalledWith('doc-extraction:entry:e1:1:2', 'hello', expect.any(Number))
   })
 
   it('throws the abort reason when the signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort()
-    await expect(extractDocumentText('e1', { signal: controller.signal })).rejects.toBeDefined()
+    await expect(
+      extractDocumentText({ kind: 'entry', entryId: 'e1' }, { signal: controller.signal })
+    ).rejects.toBeDefined()
     expect(getByIdMock).not.toHaveBeenCalled()
   })
 })

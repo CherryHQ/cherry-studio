@@ -57,12 +57,12 @@ describe('assistantFileAttachments', () => {
 
     expect(attachments).toEqual([
       {
-        fileEntryId: 'entry-1',
+        file: { kind: 'entry', entryId: 'entry-1' },
         handle: createAssistantFileAttachmentHandle('entry-1'),
         displayName: 'first.txt'
       },
       {
-        fileEntryId: 'entry-2',
+        file: { kind: 'entry', entryId: 'entry-2' },
         handle: createAssistantFileAttachmentHandle('entry-2'),
         displayName: 'file'
       }
@@ -81,12 +81,12 @@ describe('assistantFileAttachments', () => {
 
     expect(attachments).toEqual([
       {
-        fileEntryId: 'entry-live',
+        file: { kind: 'entry', entryId: 'entry-live' },
         handle: createAssistantFileAttachmentHandle('entry-live'),
         displayName: 'live.txt'
       },
       {
-        fileEntryId: 'entry-legacy',
+        file: { kind: 'entry', entryId: 'entry-legacy' },
         handle: createAssistantFileAttachmentHandle('entry-legacy'),
         displayName: 'legacy.txt'
       }

@@ -7,13 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { saveAttachmentInputSchema, saveAttachmentToWorkspace } from '../saveAttachment'
 
 const signal = new AbortController().signal
 const sourceBytes = Buffer.from([0x52, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x00, 0xff])
 const attachment: FileAttachmentRef = {
-  fileEntryId: 'entry-secret',
+  file: { kind: 'entry', entryId: 'entry-secret' },
   handle: createAssistantFileAttachmentHandle('entry-secret'),
   displayName: 'sales.csv'
 }
@@ -78,6 +79,24 @@ describe('saveAttachmentToWorkspace', () => {
     expect(await readFile(path.join(workspacePath, 'sales.csv'))).toEqual(sourceBytes)
     expect(result).toEqual({ path: 'sales.csv' })
     expect(JSON.stringify(result)).not.toContain('entry-secret')
+  })
+
+  it('copies a path-backed attachment using only its allowed handle', async () => {
+    const local: FileAttachmentRef = {
+      file: { kind: 'path', path: AbsoluteFilePathSchema.parse(sourcePath) },
+      handle: 'sales.csv',
+      displayName: 'sales.csv'
+    }
+    expect(
+      await saveAttachmentToWorkspace(
+        workspacePath,
+        { filename: local.handle, output_path: 'copy.csv' },
+        [local],
+        signal
+      )
+    ).toEqual({ path: 'copy.csv' })
+    expect(await readFile(path.join(workspacePath, 'copy.csv'))).toEqual(sourceBytes)
+    expect(withTempCopy).not.toHaveBeenCalled()
   })
 
   it('saves into an existing workspace subdirectory', async () => {
@@ -159,7 +178,11 @@ describe('saveAttachmentToWorkspace', () => {
 
   it('rejects an output directory symlink that escapes the workspace', async () => {
     const outsideDirectory = path.dirname(sourcePath)
-    await symlink(outsideDirectory, path.join(workspacePath, 'escaped'))
+    await symlink(
+      outsideDirectory,
+      path.join(workspacePath, 'escaped'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    )
 
     let error: Error | undefined
     try {
