@@ -13,6 +13,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelSessionTable, agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import type { AgentSessionTurnTerminalEvent } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { BaseService, Emitter } from '@main/core/lifecycle'
 import { ComputerUseService } from '@main/services/ComputerUseService'
 
@@ -30,7 +31,7 @@ describe.each(['modern', 'legacy'] as const)('Agent Computer Use adapter (%s)', 
   let handle: StdioServerHandle
   let service: ComputerUseService
   let messageId: string | undefined
-  let terminal: Emitter<{ sessionId: string; assistantMessageId: string }>
+  let terminal: Emitter<AgentSessionTurnTerminalEvent>
   let idle: Emitter<{ sessionId: string }>
   let events: string[]
 
@@ -73,7 +74,14 @@ describe.each(['modern', 'legacy'] as const)('Agent Computer Use adapter (%s)', 
         listApps: vi.fn(),
         listAppSessions: vi.fn(),
         stopAppSession: vi.fn(),
-        getAppState: vi.fn(),
+        getAppState: async ({ appSessionId }) => ({
+          id: `snapshot-${id}`,
+          appSessionId,
+          app: { id: 'editor', name: 'editor' },
+          window: { id: 'window', title: 'Editor' },
+          tree: { status: 'available', elements: [], truncated: [] },
+          screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture in fixture' } }
+        }),
         act: vi.fn(),
         onClosed: () => () => {},
         openAppSession: async ({ appId }) => {
@@ -121,7 +129,7 @@ describe.each(['modern', 'legacy'] as const)('Agent Computer Use adapter (%s)', 
     ])
     expect(await openApp()).toMatchObject({ content: [{ text: expect.stringContaining('"id":"app-session-1"') }] })
     messageId = undefined
-    terminal.fire({ sessionId: 'session', assistantMessageId: 'message-1' })
+    terminal.fire({ sessionId: 'session', assistantMessageId: 'message-1', status: 'success', boundary: 'turn' })
     await vi.waitFor(() => expect(events).toEqual(['open:1', 'close:1']))
     expect(await openApp()).toHaveProperty('isError', true)
     messageId = 'message-2'
@@ -133,6 +141,49 @@ describe.each(['modern', 'legacy'] as const)('Agent Computer Use adapter (%s)', 
     expect(JSON.stringify(stopped)).toContain('USER_STOPPED')
     expect(events).toEqual(['open:1', 'close:1', 'open:2', 'close:2'])
   })
+
+  it('keeps an application session through repeated row rolls and releases it at actual completion', async () => {
+    await openApp()
+    for (let row = 1; row <= 2; row++) {
+      messageId = undefined
+      terminal.fire({
+        sessionId: 'session',
+        assistantMessageId: `message-${row}`,
+        status: 'success',
+        boundary: 'row-roll'
+      })
+      messageId = `message-${row + 1}`
+      const state = await client.callTool({ name: 'get_app_state', arguments: { appSessionId: 'app-session-1' } })
+      expect(state).not.toHaveProperty('isError', true)
+      expect(JSON.stringify(state)).toContain('snapshot-1')
+      expect(events).toEqual(['open:1'])
+    }
+    messageId = undefined
+    terminal.fire({ sessionId: 'session', assistantMessageId: 'message-3', status: 'success', boundary: 'turn' })
+    await vi.waitFor(() => expect(events).toEqual(['open:1', 'close:1']))
+    messageId = 'message-4'
+    expect(
+      await client.callTool({ name: 'get_app_state', arguments: { appSessionId: 'app-session-1' } })
+    ).toHaveProperty('isError', true)
+  })
+
+  it.each(['terminal', 'idle', 'disconnect'] as const)(
+    'cleans up a carried task on %s without another tool call',
+    async (end) => {
+      await openApp()
+      messageId = undefined
+      terminal.fire({ sessionId: 'session', assistantMessageId: 'message-1', status: 'success', boundary: 'row-roll' })
+      terminal.fire({ sessionId: 'session', assistantMessageId: 'message-2', status: 'success', boundary: 'row-roll' })
+      expect(events).toEqual(['open:1'])
+      expect(service.getControls()).toMatchObject([{ appId: 'editor', status: 'active' }])
+      if (end === 'terminal')
+        terminal.fire({ sessionId: 'session', assistantMessageId: 'message-3', status: 'success', boundary: 'turn' })
+      else if (end === 'idle') idle.fire({ sessionId: 'session' })
+      else await client.close()
+      await vi.waitFor(() => expect(events).toEqual(['open:1', 'close:1']))
+      expect(service.getControls()).toEqual([])
+    }
+  )
 
   it('rechecks live Agent opt-out and channel binding even on an existing connection', async () => {
     dbh.db

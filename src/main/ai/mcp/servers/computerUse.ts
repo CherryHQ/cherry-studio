@@ -14,6 +14,7 @@ export function createComputerUseMcpServer(sessionId: string, agentId: string): 
   const service = application.get('ComputerUseService')
   const runtime = application.get('AgentSessionRuntimeService')
   const tasks = new Map<string, ComputerUseTask>()
+  let continuedFrom: string | undefined
   let closed = false
 
   const finish = async (messageId: string) => {
@@ -23,11 +24,19 @@ export function createComputerUseMcpServer(sessionId: string, agentId: string): 
     if (tasks.get(messageId) === task) tasks.delete(messageId)
   }
   const terminal = runtime.onTurnTerminal((event) => {
-    if (event.sessionId === sessionId) void finish(event.assistantMessageId)
+    if (event.sessionId !== sessionId) return
+    if (event.boundary === 'row-roll') {
+      if (tasks.has(event.assistantMessageId)) continuedFrom = event.assistantMessageId
+      return
+    }
+    void finish(continuedFrom ?? event.assistantMessageId)
+    continuedFrom = undefined
   })
   const idle = runtime.onRuntimeIdle((event) => {
-    if (event.sessionId === sessionId && !runtime.getLiveAssistantMessageId(sessionId))
+    if (event.sessionId === sessionId && !runtime.getLiveAssistantMessageId(sessionId)) {
+      continuedFrom = undefined
       for (const messageId of tasks.keys()) void finish(messageId)
+    }
   })
 
   for (const { name, description, inputSchema } of computerUseToolDefinitions) {
@@ -46,10 +55,16 @@ export function createComputerUseMcpServer(sessionId: string, agentId: string): 
       )
         throw new Error('Computer Use requires an active local Agent task')
       let task = tasks.get(messageId)
+      // The continuation row may not exist yet when the row-roll event arrives.
+      if (!task && continuedFrom) {
+        task = tasks.get(continuedFrom)
+        tasks.delete(continuedFrom)
+        continuedFrom = undefined
+      }
       if (!task) {
         task = service.createTask(`agent:${sessionId}:${agentId}`, `${agent.name} · ${sessionId.slice(0, 8)}`)
-        tasks.set(messageId, task)
       }
+      tasks.set(messageId, task)
       return callComputerUseTool(task, name, args, context.mcpReq.signal)
     })
   }

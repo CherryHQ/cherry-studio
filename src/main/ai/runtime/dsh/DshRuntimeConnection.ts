@@ -23,7 +23,8 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { getAutoApprovedBrowserTools, resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
+import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
+import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
@@ -58,9 +59,7 @@ import { DshBridgeServer, type DshBridgeServerOptions } from './DshBridgeServer'
 import {
   buildDshCherryToolBridge,
   buildDshCherryToolName,
-  DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS,
   DSH_AUTO_APPROVED_BRIDGED_TOOLS,
-  DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS,
   type DshCherryToolBridge
 } from './DshCherryToolBridge'
 import { DshSubagentCoordinator, type DshSubagentSink } from './dshChildFlow'
@@ -163,6 +162,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    */
   private runtimePlanActive?: boolean
   private disabledTools = new Set<string>()
+  private mountedServers: ReadonlySet<string> = new Set()
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
   /** Serializes push/pull reconciles so snapshot reads and live policy writes cannot land out of order. */
@@ -387,6 +387,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
         channelLinked: snapshot.linkedChannel !== null
       })
+      this.mountedServers = mountedServers
       const toolBridge = await buildDshCherryToolBridge(
         buildAgentMcpServers(
           session,
@@ -788,6 +789,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private buildPolicy(): BridgePolicy {
+    const policies = listBuiltinToolPolicies({ mountedServers: this.mountedServers })
+    const names = (entries: typeof policies) =>
+      entries.map(({ serverName, toolName }) => buildDshCherryToolName(serverName, toolName))
+    const autoApprovedTools = names(policies.filter(({ approval }) => approval === 'auto'))
     return {
       permissionMode: this.effectivePermissionMode(),
       disabledTools: [...this.disabledTools],
@@ -795,16 +800,16 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       allowedRoots: [this.workspacePath, this.agentDataPath],
       readTools: DSH_READ_TOOLS,
       editTools: DSH_EDIT_TOOLS,
-      autoApprovedTools: [
-        ...DSH_AUTO_APPROVED_BUILTIN_TOOLS,
-        ...DSH_AUTO_APPROVED_BRIDGED_TOOLS,
-        ...getAutoApprovedBrowserTools()
-      ],
-      approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
-      nonBypassableApprovalTools: [...DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS],
-      // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved
-      // bridged tools; the subagent tools stay out (delegation bypasses read-only).
-      planSafeTools: [...DSH_PLAN_SAFE_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS]
+      autoApprovedTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...autoApprovedTools],
+      approvalRequiredTools: names(policies.filter(({ approval }) => approval === 'required')),
+      nonBypassableApprovalTools: names(
+        policies.filter(({ approval, bypassApproval }) => approval === 'required' && bypassApproval === 'enforce')
+      ),
+      // Mounted desktop/browser approval does not grant read-only plan access.
+      planSafeTools: [
+        ...DSH_PLAN_SAFE_BUILTIN_TOOLS,
+        ...autoApprovedTools.filter((name) => DSH_AUTO_APPROVED_BRIDGED_TOOLS.has(name))
+      ]
     }
   }
 

@@ -49,18 +49,6 @@ export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
   )
 )
 
-export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
-  listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
-    buildDshCherryToolName(serverName, toolName)
-  )
-)
-
-export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
-  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
-    buildDshCherryToolName(serverName, toolName)
-  )
-)
-
 /** Adapt every runtime-neutral MCP server into host-dispatched dsh native tools. */
 export async function buildDshCherryToolBridge(
   servers: Record<string, AgentMcpServer>,

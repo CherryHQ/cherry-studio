@@ -495,6 +495,46 @@ it('rejects a Pi checkpoint with a missing native leaf before looking for histor
 })
 
 describe('PiRuntimeConnection', () => {
+  it.each(['default', 'acceptEdits'] as const)(
+    'auto-approves mounted desktop tools in %s without a responder',
+    async (mode) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', true)
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: { permission_mode: mode } })
+      mocks.getInteractionState.mockReturnValue({ currentTurn: 'unattended', userResponse: 'unavailable' })
+      const connection = await new PiRuntimeConnection(input).start()
+      try {
+        const authorize = approvalGateHandler()
+        for (const toolName of ['mcp__computer__open_app', 'mcp__computer__click', 'mcp__computer__type_text']) {
+          await expect(
+            authorize({ type: 'tool_call', toolName, toolCallId: toolName, input: {} }, {})
+          ).resolves.toBeUndefined()
+        }
+        await expect(
+          authorize({ type: 'tool_call', toolName: 'mcp__computer__undeclared', toolCallId: 'unknown', input: {} }, {})
+        ).resolves.toMatchObject({ block: true })
+      } finally {
+        await connection.close()
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
+      }
+    }
+  )
+
+  it('does not auto-approve desktop tools when the server is not mounted', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
+    mocks.getInteractionState.mockReturnValue({ currentTurn: 'unattended', userResponse: 'unavailable' })
+    const connection = await new PiRuntimeConnection(input).start()
+    try {
+      await expect(
+        approvalGateHandler()(
+          { type: 'tool_call', toolName: 'mcp__computer__click', toolCallId: 'click', input: {} },
+          {}
+        )
+      ).resolves.toMatchObject({ block: true })
+    } finally {
+      await connection.close()
+    }
+  })
+
   it('prompts the current Agent session when its gateway route is disabled', async () => {
     mocks.resolveInjection.mockRejectedValueOnce(new ApiGatewayNotRunningError())
 

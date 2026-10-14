@@ -3,10 +3,14 @@ import path from 'node:path'
 
 import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { BridgePolicy } from '@cherrystudio/dsh-bridge'
 
 import { AgentSessionForkError, type RuntimeForkInput } from '../../fork'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
+import type * as DshCherryToolBridgeModule from '../DshCherryToolBridge'
 
 interface FakeSpan {
   name: string
@@ -134,16 +138,13 @@ vi.mock('../DshBridgeServer', () => ({
     }
   })
 }))
-vi.mock('../DshCherryToolBridge', () => ({
+vi.mock('../DshCherryToolBridge', async (importOriginal) => ({
+  ...(await importOriginal<typeof DshCherryToolBridgeModule>()),
   buildDshCherryToolBridge: vi.fn().mockResolvedValue({
     tools: [],
     callTool: vi.fn(),
     close: vi.fn().mockResolvedValue(undefined)
-  }),
-  buildDshCherryToolName: (server: string, tool: string) => `mcp__${server}__${tool}`,
-  DSH_AUTO_APPROVED_BRIDGED_TOOLS: new Set<string>(),
-  DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: new Set<string>(),
-  DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: new Set<string>()
+  })
 }))
 vi.mock('../dshSdk', () => ({
   loadDshSdk: vi.fn().mockResolvedValue({
@@ -234,6 +235,28 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it.each([true, false])(
+    'derives desktop approval from mounting (%s) without granting plan-mode access',
+    async (enabled) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', enabled)
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      try {
+        const open = runtimeMocks.bridgeRequest.mock.calls.find(([method]) => method === 'session/open')
+        expect(open).toBeDefined()
+        const policy = open![1].policy as BridgePolicy
+        for (const name of ['mcp__computer__open_app', 'mcp__computer__click', 'mcp__computer__type_text']) {
+          expect(policy.autoApprovedTools.includes(name)).toBe(enabled)
+          expect(policy.planSafeTools).not.toContain(name)
+        }
+        expect(policy.autoApprovedTools).not.toContain('mcp__computer__undeclared')
+        expect(policy.approvalRequiredTools).toContain('mcp__skills__install_skill')
+      } finally {
+        await connection.close()
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
+      }
+    }
+  )
+
   it('records the exact completed turn without a separate checkpoint request', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const events: AgentRuntimeEvent[] = []

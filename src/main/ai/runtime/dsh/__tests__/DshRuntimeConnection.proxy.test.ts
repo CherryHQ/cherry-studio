@@ -78,9 +78,7 @@ vi.mock('../DshCherryToolBridge', () => ({
     close: vi.fn().mockResolvedValue(undefined)
   }),
   buildDshCherryToolName: (server: string, tool: string) => `mcp__${server}__${tool}`,
-  DSH_AUTO_APPROVED_BRIDGED_TOOLS: new Set<string>(),
-  DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: new Set<string>(),
-  DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: new Set<string>()
+  DSH_AUTO_APPROVED_BRIDGED_TOOLS: new Set<string>()
 }))
 vi.mock('../dshSdk', () => ({
   loadDshSdk: vi.fn().mockResolvedValue({
