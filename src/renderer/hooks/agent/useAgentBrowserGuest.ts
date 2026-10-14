@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { Sequencer } from '@shared/utils/async'
 
 const logger = loggerService.withContext('useAgentBrowserGuest')
 
@@ -13,9 +14,10 @@ export function useAgentBrowserGuest(
   scope?: 'agent' | 'topic'
 ): string | undefined {
   const [binding, setBinding] = useState<{ guest: WebviewTag; sessionId: string; tabId: string }>()
-  const operations = useRef<Promise<void>>(Promise.resolve())
+  const operations = useRef(new Sequencer())
   useEffect(() => {
     if (!sessionId || !guest) return
+    const queue = operations.current
     let cancelled = false
     let attaching = false
     let tabId: string | undefined
@@ -24,7 +26,7 @@ export function useAgentBrowserGuest(
     const attach = () => {
       if (attaching || tabId) return
       attaching = true
-      operations.current = operations.current.then(async () => {
+      void queue.queue(async () => {
         try {
           if (cancelled) return
           const webviewId = guest.getWebContentsId()
@@ -53,8 +55,8 @@ export function useAgentBrowserGuest(
       guest.removeEventListener('dom-ready', attach)
       if (tabId) {
         const detachedId = tabId
-        operations.current = operations.current
-          .then(() => detach(detachedId))
+        void queue
+          .queue(() => detach(detachedId))
           .catch((error) => logger.debug('Browser guest already detached', { error }))
       }
     }

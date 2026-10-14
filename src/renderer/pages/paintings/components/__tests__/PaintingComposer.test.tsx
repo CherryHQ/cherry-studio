@@ -206,6 +206,10 @@ describe('PaintingComposer', () => {
     expect(captured.surfaceProps?.topContent).toBeUndefined()
     expect(captured.surfaceProps?.leadingContent).toBeUndefined()
     expect(captured.surfaceProps?.managedTokenKinds).toEqual(['file'])
+    expect(captured.surfaceProps?.voiceTarget).toEqual({
+      targetId: 'composer:painting:p1',
+      sourceEntityId: 'p1'
+    })
   })
 
   it('gates send and shows a reason for edit-only models missing an image', () => {

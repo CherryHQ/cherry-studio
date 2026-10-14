@@ -8,7 +8,7 @@ type Glossary = { doNotTranslate: string[] }
 
 const ROOT = path.resolve(__dirname, '..')
 const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
-const CATALOG_DIRECTORIES = ['src/renderer/i18n/locales', 'src/main/i18n/locales']
+const CATALOG_DIRECTORIES = ['src/renderer/i18n/locales', 'src/main/i18n/locales', 'packages/file-preview/src/locales']
 const ALLOWED_EMPTY_SOURCE_KEYS = new Set(['src/renderer/i18n/locales:settings.provider.oauth.provided_by_suffix'])
 
 const interpolations = (text: string) => (text.match(/{{[^}]*}}/g) ?? []).sort()

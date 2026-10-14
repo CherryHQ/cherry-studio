@@ -9,7 +9,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
  * filesystem agents (they have no native multimodal channel here), so attached
  * files are forwarded as their original filenames and absolute paths appended
  * to the text — the agent reads them with its own tools. Driver-neutral: shared
- * by the DSH and pi drivers so they cannot drift on attachment handling.
+ * by the agent drivers to keep attachment handling consistent.
  */
 export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
   const text = extractMessageText(message)

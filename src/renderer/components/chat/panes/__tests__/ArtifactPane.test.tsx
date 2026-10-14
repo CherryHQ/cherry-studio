@@ -9,6 +9,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
+import type * as LazyCodeEditorModule from '@renderer/components/LazyCodeEditor'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -193,8 +194,10 @@ const mocks = vi.hoisted(() => ({
   nextTreeId: 0,
   useRealCodeEditor: false,
   codeEditorRef: null as null | {
-    getContent?: () => string
-    insertText?: (text: string) => boolean
+    current: null | {
+      getContent?: () => string
+      insertText?: (text: string) => boolean
+    }
   }
 }))
 
@@ -299,9 +302,34 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCmTheme: () => 'light'
 }))
 
+vi.mock('@renderer/components/LazyCodeEditor', async (importOriginal) => {
+  const actual = await importOriginal<typeof LazyCodeEditorModule>()
+
+  return {
+    LazyCodeEditor: (props: React.ComponentProps<typeof actual.LazyCodeEditor>) => {
+      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>['current']>(null)
+      useEffect(() => {
+        mocks.codeEditorRef = ref
+      })
+
+      if (mocks.useRealCodeEditor) return <actual.LazyCodeEditor {...props} ref={ref} />
+
+      return (
+        <textarea
+          data-testid="code-editor"
+          data-font-size={props.fontSize}
+          data-wrapped={String(props.wrapped)}
+          readOnly={props.editable === false}
+          value={props.value}
+          onChange={(event) => props.onChange?.(event.currentTarget.value)}
+        />
+      )
+    }
+  }
+})
+
 vi.mock('@cherrystudio/ui', async (importActual) => {
-  const actual = await importActual<typeof CherryStudioUi>()
-  const RealCodeEditor = actual.CodeEditor
+  await importActual<typeof CherryStudioUi>()
 
   return {
     Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
@@ -316,25 +344,6 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
       const domProps = { ...props }
       delete domProps.attached
       return <div {...domProps}>{children}</div>
-    },
-    CodeEditor: (props: React.ComponentProps<typeof RealCodeEditor>) => {
-      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>>(null)
-      useEffect(() => {
-        mocks.codeEditorRef = ref.current
-      })
-
-      if (mocks.useRealCodeEditor) return <RealCodeEditor {...props} ref={ref} />
-
-      return (
-        <textarea
-          data-testid="code-editor"
-          data-font-size={props.fontSize}
-          data-wrapped={String(props.wrapped)}
-          readOnly={props.editable === false}
-          value={props.value}
-          onChange={(event) => props.onChange?.(event.currentTarget.value)}
-        />
-      )
     },
     ConfirmDialog: ({
       cancelText,
@@ -1899,9 +1908,9 @@ describe('ArtifactPane', () => {
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
-    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    await waitFor(() => expect(mocks.codeEditorRef?.current).toBeTruthy())
     act(() => {
-      expect(mocks.codeEditorRef?.insertText?.(oversizedDraft)).toBe(true)
+      expect(mocks.codeEditorRef?.current?.insertText?.(oversizedDraft)).toBe(true)
     })
 
     // The debounced autosave persists the large draft; the size cap only blocks
@@ -1917,7 +1926,7 @@ describe('ArtifactPane', () => {
     // large to reopen. Switching to Preview delegates the saved file back to
     // FilePreview while the edit-size metadata refresh is still pending.
     await waitFor(() => expect(mocks.getMetadata.mock.calls.length).toBeGreaterThanOrEqual(3))
-    expect(mocks.codeEditorRef).not.toBeNull()
+    expect(mocks.codeEditorRef?.current).toBeTruthy()
     mocks.fsReadText.mockClear()
     fireEvent.click(within(overlay).getByRole('button', { name: 'common.preview' }))
 
@@ -2003,12 +2012,12 @@ describe('ArtifactPane', () => {
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
 
-    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    await waitFor(() => expect(mocks.codeEditorRef?.current).toBeTruthy())
     expect(document.querySelector('.code-editor')).toHaveStyle({ fontSize: '14px' })
-    expect(mocks.codeEditorRef?.getContent?.()).toBe('first\nsecond\n')
+    expect(mocks.codeEditorRef?.current?.getContent?.()).toBe('first\nsecond\n')
 
     act(() => {
-      expect(mocks.codeEditorRef?.insertText?.('changed\ncontent\n')).toBe(true)
+      expect(mocks.codeEditorRef?.current?.insertText?.('changed\ncontent\n')).toBe(true)
     })
 
     // Autosave (debounced) writes without a manual save button.
