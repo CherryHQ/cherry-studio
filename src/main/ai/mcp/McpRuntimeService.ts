@@ -1,5 +1,9 @@
 import {
   isInputRequiredResult,
+  ProtocolError,
+  ProtocolErrorCode,
+  SdkError,
+  SdkErrorCode,
   SdkHttpError,
   SseError,
   UnauthorizedError,
@@ -146,6 +150,22 @@ export function connectRetryDelayMs(error: unknown, attempts: number): number {
   return MCP_CONNECT_RETRY_BASE_MS * 2 ** (attempts - 1)
 }
 
+/** Probe outcomes that do not evidence a dead transport. */
+export function isInconclusiveHealthProbeError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  for (let cause: unknown = error, depth = 0; cause instanceof Error && depth < 5; cause = cause.cause, depth++) {
+    if (SdkHttpError.isInstance(cause) || SseError.isInstance(cause)) return false
+    if (
+      (SdkError.isInstance(cause) &&
+        (cause.code === SdkErrorCode.RequestTimeout ||
+          cause.code === SdkErrorCode.MethodNotSupportedByProtocolVersion)) ||
+      (ProtocolError.isInstance(cause) && cause.code === ProtocolErrorCode.MethodNotFound)
+    )
+      return true
+  }
+  return false
+}
+
 interface PendingInteraction {
   windowId: WindowId
   validate?: (value: unknown) => boolean
@@ -232,6 +252,8 @@ export class McpRuntimeService extends BaseService {
   private pendingProbes = new Map<string, Promise<McpConnection | undefined>>()
   // Keyed by server key, so a config change starts fresh; restart/stop/remove clear it.
   private connectFailures = new Map<string, ConnectFailure>()
+  // A successful connect cannot reset a connection's repeated probe failures.
+  private probeFailures = new Map<string, { error: unknown; attempts: number; retryAt: number }>()
   private removedServerIds = new Set<string>()
   private pendingRemovals = new Map<string, Promise<void>>()
   private activeToolCalls = new Map<string, Set<ActiveToolCall>>()
@@ -273,6 +295,7 @@ export class McpRuntimeService extends BaseService {
     this.pendingConnectionControllers.clear()
     this.pendingProbes.clear()
     this.connectFailures.clear()
+    this.probeFailures.clear()
     this.connections.clear()
     this.serverLogs.clear()
   }
@@ -446,7 +469,14 @@ export class McpRuntimeService extends BaseService {
     if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
     const pendingAfterProbe = this.pendingConnections.get(serverKey)
     if (pendingAfterProbe) return waitForConnection(pendingAfterProbe, signal)
+    // A concurrent restart can install a replacement while this caller awaits the probe.
+    const installed = this.connections.get(serverKey)
+    if (installed) return installed
     const interactive = canAuthorizeInteractively(requestContext)
+    const probeFailure = this.probeFailures.get(serverKey)
+    // health() has no interaction context; a window-backed caller must still be able to sign in.
+    const probeSignInPending = probeFailure && interactive && UnauthorizedError.isInstance(probeFailure.error)
+    if (probeFailure && Date.now() < probeFailure.retryAt && !probeSignInPending) throw probeFailure.error
     const failure = this.connectFailures.get(serverKey)
     // A background attempt cannot open the browser, so it must not block a caller that can sign in.
     const signInPending = failure && !failure.interactive && interactive && UnauthorizedError.isInstance(failure.error)
@@ -520,10 +550,29 @@ export class McpRuntimeService extends BaseService {
     const probe = (async () => {
       try {
         await existing.health()
+        this.probeFailures.delete(serverKey)
       } catch (error) {
-        getServerLogger(server).warn('Existing MCP connection failed health check', { error })
-        await this.closeConnection(serverKey, existing).catch(() => undefined)
-        return undefined
+        if (isInconclusiveHealthProbeError(error)) {
+          getServerLogger(server).warn('Existing MCP connection failed health check; reusing connection', { error })
+        } else {
+          const attempts = (this.probeFailures.get(serverKey)?.attempts ?? 0) + 1
+          const retryAt = attempts === 1 ? 0 : Date.now() + connectRetryDelayMs(error, attempts)
+          const record = { error, attempts, retryAt }
+          this.probeFailures.set(serverKey, record)
+          getServerLogger(server).warn('Existing MCP connection failed health check', { error, attempts })
+          await this.closeConnection(serverKey, existing).catch(() => undefined)
+          if (this.probeFailures.get(serverKey) !== record) return undefined
+          if (retryAt > Date.now()) this.setServerStatus(server.id, 'error', error)
+          if (retryAt === Infinity) {
+            this.emitServerLog(server, {
+              timestamp: Date.now(),
+              level: 'error',
+              message: `Stopped reconnecting after ${attempts} failed health checks`,
+              source: 'client'
+            })
+          }
+          return undefined
+        }
       }
       if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
       if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
@@ -1129,6 +1178,12 @@ export class McpRuntimeService extends BaseService {
     this.abortActiveToolCalls(serverId)
     for (const key of this.connectFailures.keys()) {
       if (this.isServerKeyForId(key, serverId)) this.connectFailures.delete(key)
+    }
+    for (const key of this.probeFailures.keys()) {
+      if (this.isServerKeyForId(key, serverId)) this.probeFailures.delete(key)
+    }
+    for (const key of this.pendingProbes.keys()) {
+      if (this.isServerKeyForId(key, serverId)) this.pendingProbes.delete(key)
     }
     const pendingKeys = [...this.pendingConnections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
     for (const key of pendingKeys) {
