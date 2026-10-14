@@ -12,14 +12,14 @@ description: Runs Command Code headlessly for repository analysis and coding tas
 3. Run one task and exit:
 
 ```bash
-command-code -p "<prompt>"
+CHERRY_COMMAND_CODE_API_KEY="$(cat ~/.cherrystudio/code-cli/command-code.credentials)" command-code -p "<prompt>"
 ```
 
-Pass the prompt as one quoted argument. Cap long tasks with `--max-turns`. For analysis-only tasks pass `--permission-mode plan`; never pass `--permission-mode yolo` or `--yolo`. Treat a nonzero exit as failure, and treat the printed answer as the result. Never start the interactive TUI or login flow from the agent task.
+Pass the prompt as one quoted argument. The shell resolves the managed credential from Cherry Studio's protected credential file at runtime — the key itself never appears in the command, the transcript, or the environment you can inspect. Do not print, redirect, or inline that file's contents; substitute it only into `CHERRY_COMMAND_CODE_API_KEY` as shown. Cap long tasks with `--max-turns`. For analysis-only tasks pass `--permission-mode plan`; never pass `--permission-mode yolo` or `--yolo`. Treat a nonzero exit as failure, and treat the printed answer as the result. Never start the interactive TUI or login flow from the agent task.
 
 ## Authentication And Permissions
 
-If Command Code reports missing login, API key, model, or provider configuration, stop and ask the user to configure Command Code in Code Mate. Never request, read, print, or copy credentials.
+The command above authenticates against the managed endpoint configured in Code Mate; the credential file is written by Cherry Studio when Command Code is launched from the CLI page. If the credential file is missing or Command Code still reports missing login, API key, model, or provider configuration, stop and ask the user to launch Command Code once from Cherry Studio's CLI page (or reconfigure it in Code Mate). Never request, read, print, or copy credentials.
 
 Only allow modification tools when the user explicitly requests workspace changes, and prefer read-only instructions in the prompt otherwise. Never pass a flag or setting that relaxes the permission mode.
 

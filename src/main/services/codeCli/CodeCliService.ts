@@ -485,19 +485,28 @@ export class CodeCliService extends BaseService {
   /**
    * Command Code refuses raw secrets inside its own config files — the renderer
    * writes a `$CHERRY_COMMAND_CODE_API_KEY` reference into providers.json, so
-   * the real key has to ride the launch environment. Resolved main-side from
-   * the gateway preference for gateway-backed runs (the config's baseURL points
-   * at the gateway regardless of which provider was selected), otherwise from
-   * the selected Cherry provider. A keyless provider (local Ollama) still
+   * the real key has to reach the launched CLI out of band. Resolved main-side
+   * from the gateway preference for gateway-backed runs (the config's baseURL
+   * points at the gateway regardless of which provider was selected), otherwise
+   * from the selected Cherry provider. A keyless provider (local Ollama) still
    * exports the variable — empty — so the config reference resolves.
+   *
+   * The resolved key is persisted to a 0600 file and, on POSIX, the launch
+   * exports it via `$(cat <file>)` at shell runtime: macOS Tabby pastes the
+   * whole command through the system clipboard, where an inlined secret would
+   * be captured by clipboard history. Windows keeps the inline export inside
+   * its 0600 temp .bat, which is never clipboard-bound. The file also gives
+   * the headless Code Mate skill path a credential source. Returns the file
+   * path, or null when no key resolves / the write fails (then the launch
+   * falls back to the inline environment variable).
    */
-  private applyCommandCodeCredentialEnv(
+  private applyCommandCodeCredential(
     env: Record<string, string>,
     cliTool: CodeCli,
     providerId?: string,
     gateway?: boolean
-  ): void {
-    if (cliTool !== CodeCli.COMMAND_CODE || !providerId?.trim()) return
+  ): string | null {
+    if (cliTool !== CodeCli.COMMAND_CODE || !providerId?.trim()) return null
     const apiKey =
       gateway || isApiGatewayProviderId(providerId)
         ? application.get('PreferenceService').get('feature.api_gateway.api_key')
@@ -505,9 +514,22 @@ export class CodeCliService extends BaseService {
     if (!apiKey) {
       logger.warn(`No enabled API key for ${providerId}; exporting an empty CHERRY_COMMAND_CODE_API_KEY`)
       env.CHERRY_COMMAND_CODE_API_KEY = ''
-      return
+      return null
     }
-    env.CHERRY_COMMAND_CODE_API_KEY = apiKey
+    let credentialFile: string | null = null
+    try {
+      credentialFile = application.getPath('cherry.code_cli.command_code.credentials_file')
+      fs.mkdirSync(path.dirname(credentialFile), { recursive: true })
+      fs.writeFileSync(credentialFile, apiKey, 'utf8')
+      fs.chmodSync(credentialFile, 0o600)
+    } catch (error) {
+      logger.warn('Failed to persist the Command Code credential file', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      credentialFile = null
+    }
+    if (!credentialFile || isWin) env.CHERRY_COMMAND_CODE_API_KEY = apiKey
+    return credentialFile
   }
 
   async run(input: CodeCliRunInput): Promise<OperationResult> {
@@ -623,7 +645,12 @@ export class CodeCliService extends BaseService {
     // terminal from `env`, so the bundled-git tail must land here too, not only
     // in the spawn env assembled below.
     if (usesCherryExecutionEnv && isWin) appendBundledGitPathTail(env)
-    this.applyCommandCodeCredentialEnv(env, cliTool, normal?.providerId, normal?.gateway)
+    const commandCodeCredentialFile = this.applyCommandCodeCredential(env, cliTool, normal?.providerId, normal?.gateway)
+    // POSIX shells expand the credential at runtime, so the command text only
+    // ever carries the 0600 file's path — never the secret itself.
+    const commandCodeCredentialPrefix = commandCodeCredentialFile
+      ? `export CHERRY_COMMAND_CODE_API_KEY="$(cat ${posixQuote(commandCodeCredentialFile)})" && `
+      : ''
     logger.debug(`Environment variables:`, Object.keys(env))
 
     // Select different terminal based on operating system
@@ -761,7 +788,7 @@ export class CodeCliService extends BaseService {
         // macOS - Support multiple terminals
         const envPrefix = buildEnvPrefix(false)
 
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+        const command = `${commandCodeCredentialPrefix}${envPrefix ? `${envPrefix} && ` : ''}${baseCommand}`
 
         // Combine directory change with the main command to ensure they execute in the same shell session.
         // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
@@ -905,7 +932,7 @@ export class CodeCliService extends BaseService {
       case 'linux': {
         // Linux - Prefer the XDG-configured default terminal, then try common emulators.
         const envPrefix = buildEnvPrefix(false)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+        const command = `${commandCodeCredentialPrefix}${envPrefix ? `${envPrefix} && ` : ''}${baseCommand}`
 
         const linuxTerminals = [
           'xdg-terminal-exec',

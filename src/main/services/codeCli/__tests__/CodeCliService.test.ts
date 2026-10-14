@@ -133,6 +133,11 @@ vi.mock('semver', () => ({
   default: { coerce: vi.fn(), gte: vi.fn().mockReturnValue(false) }
 }))
 
+// @node-rs/xxhash loads a platform-specific native binding; with the test's
+// darwin platform stub on a Windows host the binding is absent, so keep the
+// native module out of the import graph (it is not under test here).
+vi.mock('@node-rs/xxhash', () => ({ xxh3: vi.fn() }))
+
 vi.mock('node:fs', () => ({
   default: {
     promises: { access: vi.fn().mockResolvedValue(undefined) },
@@ -638,9 +643,6 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const call = vi.mocked(spawn).mock.calls.at(-1)
         expect(call).toBeDefined()
-        // The macOS terminal command embeds the export prefix in an osascript
-        // string where single quotes are escaped to `'\''`, so the credential
-        // value is asserted against the spawned process env instead of the script.
         return {
           script: (call![1] as string[]).join(' '),
           env: (call![2] as { env: Record<string, string> }).env
@@ -650,11 +652,11 @@ describe('CodeCliService', () => {
       }
     }
 
-    it('uses the gateway key when the launch is gateway-backed, even with a regular provider selected', async () => {
+    it('delivers the gateway key via the credential file on a gateway-backed run', async () => {
       preferenceServiceMock.get.mockReturnValue('gateway-secret')
       providerServiceMock.getApiKeys.mockReturnValue([{ key: 'provider-secret' }])
 
-      const { env } = await launch({
+      const { env, script } = await launch({
         mode: 'normal',
         cliTool: CodeCli.COMMAND_CODE,
         providerId: 'minimax',
@@ -663,11 +665,20 @@ describe('CodeCliService', () => {
         directory: '/tmp/project'
       })
 
-      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('gateway-secret')
+      // macOS Tabby pastes the whole command through the system clipboard, so
+      // the secret must ride the 0600 credential file and be expanded by the
+      // shell at runtime — it may not appear in the command text at all.
+      const fs = (await import('node:fs')).default
+      expect(fs.writeFileSync).toHaveBeenCalledWith('/mock/binary-data', 'gateway-secret', 'utf8')
+      expect(fs.chmodSync).toHaveBeenCalledWith('/mock/binary-data', 0o600)
+      expect(script).toContain('$(cat ')
+      expect(script).toContain('/mock/binary-data')
+      expect(script).not.toContain('gateway-secret')
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBeUndefined()
       expect(providerServiceMock.getApiKeys).not.toHaveBeenCalled()
     })
 
-    it('uses the selected provider key for a direct (non-gateway) run', async () => {
+    it('delivers the selected provider key via the credential file on a direct run', async () => {
       providerServiceMock.getApiKeys.mockReturnValue([{ key: 'provider-secret' }])
 
       const { env, script } = await launch({
@@ -678,15 +689,15 @@ describe('CodeCliService', () => {
         directory: '/tmp/project'
       })
 
-      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('provider-secret')
-      expect(script).toContain('CHERRY_COMMAND_CODE_API_KEY=')
+      expect(script).not.toContain('provider-secret')
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBeUndefined()
       expect(preferenceServiceMock.get).not.toHaveBeenCalled()
     })
 
-    it('uses the gateway key when the gateway pseudo-provider is selected directly', async () => {
+    it('delivers the gateway key via the credential file when the gateway pseudo-provider is selected directly', async () => {
       preferenceServiceMock.get.mockReturnValue('gateway-secret')
 
-      const { env } = await launch({
+      const { env, script } = await launch({
         mode: 'normal',
         cliTool: CodeCli.COMMAND_CODE,
         providerId: CLI_API_GATEWAY_PROVIDER_ID,
@@ -694,7 +705,8 @@ describe('CodeCliService', () => {
         directory: '/tmp/project'
       })
 
-      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBe('gateway-secret')
+      expect(script).not.toContain('gateway-secret')
+      expect(env.CHERRY_COMMAND_CODE_API_KEY).toBeUndefined()
       expect(providerServiceMock.getApiKeys).not.toHaveBeenCalled()
     })
 
