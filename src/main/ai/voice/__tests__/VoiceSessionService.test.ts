@@ -887,6 +887,28 @@ describe('VoiceSessionService file and admission contract', () => {
   })
 
   it.each([WindowType.QuickAssistant, WindowType.SelectionAction])(
+    'keeps a new non-owner %s snapshot idle while another window plays',
+    async (type) => {
+      const playback = await speech(a)
+      await report(a, { sessionId: playback.input.sessionId, phase: 'playing' })
+      const other = owner()
+      managedWindows.get(other.windowId)!.type = type
+
+      const initial = service.getState(other)
+      expect(initial).toEqual({ phase: 'idle', revision: service.getState(a).revision })
+      expect(service.getState(a)).toMatchObject({ phase: 'playing', sessionId: playback.input.sessionId })
+      await service.discard(a, playback.input.sessionId)
+
+      expect(service.getState(other).phase).toBe('idle')
+      const ownPlayback = await speech(other)
+      expect(service.getState(other)).toMatchObject({ sessionId: ownPlayback.input.sessionId, source: 'playback' })
+      expect(service.getState(a)).toEqual(service.getState(other))
+      await service.discard(other, ownPlayback.input.sessionId)
+      expect(service.getState(other).phase).toBe('idle')
+    }
+  )
+
+  it.each([WindowType.QuickAssistant, WindowType.SelectionAction])(
     'lets the %s playback owner receive state and control only its own session',
     async (type) => {
       managedWindows.get(a.windowId)!.type = type

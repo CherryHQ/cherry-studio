@@ -426,7 +426,7 @@ describe('voice admission coordination through the renderer coordinators', () =>
   })
 
   it.each(['abort', 'remote-stop', 'teardown', 'power', 'paused-power'] as const)(
-    'releases an unstarted playback lease when configuration is cancelled by %s',
+    'allows the same preview consumer to restart after configuration is cancelled by %s',
     async (mode) => {
       let releaseConfiguration!: (value: ReturnType<typeof readySpeech>) => void
       native.resolveSpeech.mockImplementationOnce(
@@ -451,8 +451,8 @@ describe('voice admission coordination through the renderer coordinators', () =>
       const started = playback.start({
         text: 'configure me',
         trigger: 'manual',
-        sourceLabel: 'message',
-        sourceEntityId: 'message-1',
+        sourceLabel: 'preview',
+        sourceEntityId: 'voice-settings',
         signal: controller.signal
       })
       const cancelled = started.catch((error: unknown) => error)
@@ -480,17 +480,19 @@ describe('voice admission coordination through the renderer coordinators', () =>
       await expect(cancelled).resolves.toMatchObject({ reason: 'aborted' })
       expect(native.speech).not.toHaveBeenCalled()
       expect(rootService.getState(voiceOwner)).toMatchObject({ phase: 'idle' })
+      expect(playback.getSnapshot()).toMatchObject({ phase: 'idle' })
 
-      const next = observer.playback.start({
-        text: 'next read',
-        trigger: 'auto_read',
-        sourceLabel: 'message',
-        sourceEntityId: 'next'
+      const next = playback.start({
+        text: 'next preview',
+        trigger: 'manual',
+        sourceLabel: 'preview',
+        sourceEntityId: 'voice-settings'
       })
       await vi.waitFor(() => expect(native.speech).toHaveBeenCalledOnce())
       native.releases[0]?.()
       await expect(next).resolves.toEqual({ status: 'started' })
-      expect(rootService.getState(observer.voiceOwner)).toMatchObject({ phase: 'playing', trigger: 'auto_read' })
+      expect(rootService.getState(voiceOwner)).toMatchObject({ phase: 'playing', trigger: 'manual' })
+      expect(playback.getSnapshot()).toMatchObject({ phase: 'playing', sourceLabel: 'preview' })
     }
   )
 
