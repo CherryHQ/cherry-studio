@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { mockUseInfiniteFlatItems, mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ReactNode, StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -631,7 +631,7 @@ describe('FilesPage incremental hydration', () => {
   })
 
   it('deduplicates in-flight IDs and merges pages that resolve out of order', async () => {
-    const secondImageEntry = { ...imageEntry, id: 'file-image-2', name: 'photo-2' } as unknown as FileEntry
+    const secondImageEntry = { ...imageEntry, id: 'file-image-2', name: 'photo-2' }
     let activePages: Array<{ items: FileEntry[]; total: number; nextCursor?: string }> = [
       { items: [imageEntry], total: 2, nextCursor: 'next-page' }
     ]
