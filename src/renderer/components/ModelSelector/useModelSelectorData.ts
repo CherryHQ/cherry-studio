@@ -2,6 +2,7 @@ import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -109,6 +110,7 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
+  const { isModelHidden, isModelUnavailable, getModelDescription } = useCherryCloudModelAvailability(enabled)
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
   const baseModelFilter = useCallback(
@@ -140,6 +142,9 @@ export function useModelSelectorData({
       if (!includeAgentOnlyModels && agentOnlyProviderIds.has(model.providerId)) {
         continue
       }
+      if (isModelHidden(model, includeAgentOnlyModels)) {
+        continue
+      }
 
       const existingModels = grouped.get(model.providerId)
       if (existingModels) {
@@ -150,7 +155,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, models, sortedProviders])
+  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, isModelHidden, models, sortedProviders])
 
   const availableTags = useMemo(() => {
     if (modelsByProvider.size === 0) {
@@ -357,6 +362,8 @@ export function useModelSelectorData({
 
   return {
     availableTags,
+    getModelDescription,
+    isModelUnavailable,
     isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
     isPinActionDisabled: isPinsLoading || isPinsRefreshing || isPinsMutating,
     listItems,
