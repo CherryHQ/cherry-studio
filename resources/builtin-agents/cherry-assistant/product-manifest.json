@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.4",
+    "version": "2.1.6",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -496,8 +496,8 @@
     }
   ],
   "providers": {
-    "version": "a97aae2405a78d18",
-    "count": 65,
+    "version": "932c0006165e4fcb",
+    "count": 66,
     "entries": [
       {
         "id": "cherryin",
@@ -590,6 +590,10 @@
       {
         "id": "lmstudio",
         "name": "LM Studio"
+      },
+      {
+        "id": "litellm",
+        "name": "LiteLLM"
       },
       {
         "id": "anthropic",

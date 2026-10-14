@@ -113,3 +113,21 @@ Source **correctness** (as opposed to "the JSON matches the source") is covered 
 ## Runtime side
 
 The app does **not** import the generation pipeline. It reads the JSON via `src/registry-loader.ts` (the `@cherrystudio/provider-registry/node` entry) + the `src/schemas/*` types, and resolves a model with `normalizeModelId`. `registry-loader` / `patterns` / `schemas` are the published surface; `creators` / `provider` / `scripts` are build-time only (not in `dist`).
+
+
+## Published runtime boundary
+
+The default entry exports schemas, catalog contracts and pure query helpers without
+loading JSON or Node code. `createRegistry` builds a query view over a validated
+catalog; `parseModelSnapshot` parses the two remotely replaceable model files.
+`registry-index.ts` owns model size and provider API ID matching for the portable
+core, legacy lookup helpers and Node loader.
+
+The `/data` entry provides a complete validated offline catalog. Individual data
+entries and explicit raw JSON exports support consumers that only need one catalog.
+The `/node` entry retains lazy file reads and idle cache expiry. Applications own
+networking, persistence, runtime capability projection and atomic snapshot activation.
+
+The manifest and schema constants live in `src/catalog.ts`. `/node` preserves its
+existing re-exports and Desktop compatibility policy. Moving the contract does not
+change the remote schema or any frozen validator.

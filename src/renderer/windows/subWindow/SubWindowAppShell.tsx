@@ -2,23 +2,17 @@ import { Activity, type CSSProperties, useCallback, useEffect, useRef } from 're
 
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
-import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
-import {
-  LINUX_WINDOW_CONTROLS_OVERLAY_WIDTH,
-  useHasWindowControls,
-  WindowControls
-} from '@renderer/components/WindowControls'
+import { WINDOW_CONTROLS_OVERLAY_WIDTH } from '@renderer/components/WindowControls'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
-import { isLinux } from '@renderer/utils/platform'
+import { isLinux, isWin } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
-import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
@@ -36,17 +30,13 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const SubWindowAppShell = () => {
-  const { tabs, activeTabId, updateTab, openTab } = useTabs()
+  const { tabs, activeTabId, updateTab, attachTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
   const isFullscreen = useNativeFullscreen()
-
-  // A sub-window hosts a single detached tab and draws no tab bar, so the tab-close
-  // shortcut keeps the meaning it had before the tab bar claimed Command+W: close this window.
   const handleCloseTab = useCallback(() => {
     void ipcApi.request('window.close')
   }, [])
-
   useCommandHandler('tab.close', handleCloseTab)
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
@@ -56,15 +46,16 @@ export const SubWindowAppShell = () => {
     if (!init || initialized.current) return
     initialized.current = true
 
-    openTab(init.url, {
+    attachTab({
       id: init.tabId,
-      title: init.title,
+      url: init.url,
+      title: init.title ?? '',
       icon: init.icon,
-      type: init.type || 'route',
+      type: init.type ?? 'route',
       isPinned: init.isPinned,
-      forceNew: true
+      metadata: init.metadata
     })
-  }, [init, openTab])
+  }, [init, attachTab])
 
   // Sync internal navigation back to tab state. Mirror the main AppShell:
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
@@ -84,11 +75,6 @@ export const SubWindowAppShell = () => {
     })
   }
 
-  // Windows sub-windows are frameless, so draw min/max/close in the top-right corner. Linux
-  // gets them from Electron's overlay, macOS from traffic lights. --window-controls-width lets
-  // the standalone title bar reserve the corner either way.
-  const hasWindowControls = useHasWindowControls()
-
   return (
     // The window frame keeps detached-page behavior scoped to this window. The standalone
     // title bar stays outside every route so hosted pages can keep their normal page chrome.
@@ -98,11 +84,7 @@ export const SubWindowAppShell = () => {
         className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
         style={
           {
-            '--window-controls-width': hasWindowControls
-              ? '138px'
-              : isLinux
-                ? LINUX_WINDOW_CONTROLS_OVERLAY_WIDTH
-                : '0px'
+            '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
           } as CSSProperties
         }>
         <SubWindowTitleBar isFullscreen={isFullscreen} />
@@ -129,22 +111,9 @@ export const SubWindowAppShell = () => {
               <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
             ))}
 
-          {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
-              route tabs, same as the main AppShell. The cache backing the pool
-              is per-window (Memory tier) so this sub-window manages its own
-              list independently of the main window. */}
+          {/* Keep window-local guests outside route Activities so page dormancy does not release them. */}
           <MiniAppTabsPool />
         </main>
-
-        {/* OS window controls overlay — flush in the corner, above the title bar (z-[9999]),
-            sitting in the space it reserves via --window-controls-width. Gated to
-            Windows, the only platform where the renderer draws them. */}
-        {hasWindowControls && (
-          <div
-            className={cn('absolute top-0 right-0 z-[9999] flex [-webkit-app-region:no-drag]', TITLE_BAR_HEIGHT_CLASS)}>
-            <WindowControls />
-          </div>
-        )}
       </div>
     </WindowFrameProvider>
   )

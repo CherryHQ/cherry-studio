@@ -251,6 +251,9 @@ jobs:
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
       - run: pnpm check --group packages
+      - name: Check Provider Registry Package
+        if: contains(fromJSON(needs.changes.outputs.plan).projects, 'provider-registry')
+        run: pnpm --filter @cherrystudio/provider-registry test:package
 
   platform-test:
     name: platform-test (${{ matrix.os }})

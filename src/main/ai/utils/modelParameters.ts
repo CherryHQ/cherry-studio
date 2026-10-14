@@ -15,6 +15,7 @@ import {
   isClaude47SeriesModel,
   isClaudeReasoningModel,
   isGemini3Model,
+  isGemini4Model,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
   isSupportTemperatureModel,
@@ -41,10 +42,11 @@ type SamplingParams = {
   bodyParams: Record<string, unknown>
 }
 
-/** Omit rejected sampling from all merged parameters before SDK serialization or body passthrough. */
-export function stripRejectedSamplingParams(params: SamplingParams, model: Model): SamplingParams {
+/** Omit unsupported parameters after all request overrides have been merged. */
+export function stripUnsupportedModelParams(params: SamplingParams, model: Model): SamplingParams {
   const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
   const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
+  const gemini4 = isGemini4Model(model)
   if (acceptsTemperature && acceptsTopP) return params
 
   function strip<T>(values: Record<string, T>): Record<string, T> {
@@ -53,6 +55,12 @@ export function stripRejectedSamplingParams(params: SamplingParams, model: Model
     if (!acceptsTopP) {
       delete cleaned.topP
       delete cleaned.top_p
+    }
+    if (gemini4) {
+      delete cleaned.topK
+      delete cleaned.top_k
+      delete cleaned.cachedContent
+      delete cleaned.cached_content
     }
     return cleaned
   }
@@ -153,9 +161,9 @@ export function filterStandardParams(
   standardParams: Partial<Record<AiSdkParam, any>>,
   model: Model
 ): Partial<Record<AiSdkParam, any>> {
-  if (isGemini3Model(model) && 'topK' in standardParams) {
+  if ((isGemini3Model(model) || isGemini4Model(model)) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
-    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
+    logger.info(`Gemini model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
     return rest
   }
 
