@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { mockUseInfiniteFlatItems, mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render as renderView, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ReactNode, StrictMode } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
@@ -98,6 +99,15 @@ vi.mock('react-i18next', () => ({
 }))
 
 import FilesPage from '../FilesPage'
+
+function render(view: ReactNode) {
+  const cache = new Map()
+  return renderView(view, {
+    wrapper: ({ children }) => (
+      <SWRConfig value={{ provider: () => cache, errorRetryInterval: 10 }}>{children}</SWRConfig>
+    )
+  })
+}
 
 const entry = {
   id: 'file-1',
@@ -629,7 +639,7 @@ describe('FilesPage incremental hydration', () => {
     expect(ipcMocks.request).toHaveBeenCalledTimes(3)
   })
 
-  it('deduplicates in-flight IDs and merges pages that resolve out of order', async () => {
+  it('preserves pending page enrichment when another page is appended', async () => {
     const secondImageEntry = { ...imageEntry, id: 'file-image-2', name: 'photo-2' }
     let activePages: Array<{ items: FileEntry[]; total: number; nextCursor?: string }> = [
       { items: [imageEntry], total: 2, nextCursor: 'next-page' }
@@ -674,13 +684,6 @@ describe('FilesPage incremental hydration', () => {
     ]
     view.rerender(<FilesPage />)
 
-    await waitFor(() => expect(requests).toHaveLength(6))
-    expect(requests.slice(3).map(({ ids, route }) => ({ ids, route }))).toEqual([
-      { ids: [secondImageEntry.id], route: 'file.batch_get_metadata' },
-      { ids: [secondImageEntry.id], route: 'file.batch_get_physical_paths' },
-      { ids: [secondImageEntry.id], route: 'file.batch_get_dangling_states' }
-    ])
-
     const resolveRequestsFor = async (id: string) => {
       for (const request of requests.filter(({ ids }) => ids.includes(id))) {
         const value = Object.fromEntries(
@@ -700,17 +703,24 @@ describe('FilesPage incremental hydration', () => {
       })
     }
 
+    await resolveRequestsFor(imageEntry.id)
+    await waitFor(() => expect(requests).toHaveLength(6))
+    expect(requests.slice(3).map(({ ids }) => ids)).toEqual([
+      [secondImageEntry.id],
+      [secondImageEntry.id],
+      [secondImageEntry.id]
+    ])
     await resolveRequestsFor(secondImageEntry.id)
-    await resolveRequestsFor(imageEntry.id)
     fireEvent.click(screen.getByText('files.image'))
-    await waitFor(() => expect(requests).toHaveLength(9))
+    await waitFor(() => expect(requests).toHaveLength(12))
     await resolveRequestsFor(imageEntry.id)
+    await resolveRequestsFor(secondImageEntry.id)
 
     expect(await screen.findByAltText('photo.png')).toBeInTheDocument()
     expect(screen.getByAltText('photo-2.png')).toBeInTheDocument()
   })
 
-  it('invalidates hydrated IDs on refresh and ignores the previous generation', async () => {
+  it('refreshes metadata after rename without letting the previous response overwrite it', async () => {
     const staleMetadata = deferred<Record<string, unknown>>()
     let metadataRequestCount = 0
     const activePages = [{ items: [externalEntry] }]
@@ -870,7 +880,7 @@ describe('FilesPage incremental hydration', () => {
     expect(ipcMocks.request).not.toHaveBeenCalled()
   })
 
-  it('retries pending hydration after leaving and re-entering a filter', async () => {
+  it('reuses pending hydration after leaving and re-entering a filter', async () => {
     const firstActiveMetadata = deferred<Record<string, unknown>>()
     let activeMetadataRequestCount = 0
     mockFileStats(statsForEntries([externalEntry, imageEntry]))
@@ -906,7 +916,11 @@ describe('FilesPage incremental hydration', () => {
     await screen.findByText('photo.png')
     fireEvent.click(screen.getByText('files.all'))
 
-    await waitFor(() => expect(activeMetadataRequestCount).toBe(2))
+    firstActiveMetadata.resolve({
+      [externalEntry.id]: { size: 2048, createdAt: externalEntry.createdAt, modifiedAt: externalEntry.updatedAt }
+    })
+    expect(await screen.findByText('2.0 KB')).toBeInTheDocument()
+    expect(activeMetadataRequestCount).toBe(1)
   })
 
   it('applies a pending hydration response after StrictMode replays effects', async () => {
@@ -1933,7 +1947,7 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('files.image'))
 
     await waitFor(() => {
-      expect(errorSpy).toHaveBeenCalledWith('Failed to load file IPC metadata', expect.any(Error))
+      expect(errorSpy).toHaveBeenCalledWith('Failed to load file.batch_get_physical_paths', expect.any(Error))
     })
     expect(screen.getByText('photo.png')).toBeInTheDocument()
     expect(screen.queryByText('files.empty.title')).toBeNull()
