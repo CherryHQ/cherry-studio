@@ -45,13 +45,16 @@ remain covered. Pushes compare the event's before/after range. A daily schedule 
 manual dispatch run the full plan. PR concurrency cancels superseded runs; pushes
 are not cancelled. Pull requests targeting a parent stack branch also run CI.
 
-Repository, lint, typecheck, and i18n groups run independently. Main/preload retain
+Repository and typecheck groups share one dependency installation in `validation-checks`,
+with separate plan conditions and step outcomes. Lint and i18n remain independent. Main/preload retain
 three Linux shards; renderer retains five. Selected package tests run once in their
 own job. macOS/Windows retain the platform-gated test inventory; platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and
-accepts a skipped dependency only when the plan explicitly excludes it. Schema drift,
+accepts a skipped dependency only when the plan explicitly excludes it. The basic
+gate also checks both group outcomes from the shared job, rejecting missing or
+unexpectedly skipped work even if that job reports success. Schema drift,
 provider generation, changeset policy, and catalog edit guards remain CI checks.
 
 ## Performance observations
@@ -79,3 +82,27 @@ baseline samples. The report shows sample size and applies no regression thresho
 
 This observes ordinary CI work without rerunning tests. Controlled repeated benchmarks
 and local 1/2/4-worktree contention tests remain separate from this observer.
+
+## Queue and dependency preparation follow-up
+
+Sharing repository and typecheck setup removes one Ubuntu job when both groups are
+selected: a full healthy CI workflow run goes from 19 runners (17 Ubuntu) to 18
+(16 Ubuntu). The separate performance observer is excluded from those counts.
+The PR description workflow also shares its
+synchronize reminder with description validation, reducing that event from two
+Ubuntu jobs to one and cancelling superseded runs for the same PR.
+
+In [run 38523296197, type-checks](https://github.com/CherryHQ/cherry-studio/actions/runs/38523296197/job/115719283049),
+an exact pnpm store hit restored about 2383 MB in 64 seconds, installation took
+18 seconds, and typechecking took 19 seconds. Removing one repeated setup therefore
+avoids roughly 82 seconds of aggregate runner preparation at that sample's cost.
+This is a static estimate, not a measured wall-time speedup: the groups now run in
+sequence, and hosted queueing plus workload variation still affect completion time.
+
+The store cache and frozen-lockfile install remain unchanged. Before narrowing the
+cache, inventory its files and sizes on Linux/macOS/Windows, separate immutable
+package content from native side effects, and benchmark exact-hit, fallback and cold
+installs with unchanged plans. Verify native builds and selected checks on every
+platform before changing cache paths or keys. A store-path glob without that evidence
+could discard required indexes or native artifacts; filtered dependency installation
+would require a separate dependency-boundary change.
