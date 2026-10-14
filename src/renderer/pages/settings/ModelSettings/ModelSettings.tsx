@@ -26,7 +26,7 @@ import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
-import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
+import { isGenerateImageModel, isNonChatModel, isTextChatModel } from '@shared/utils/model'
 
 const TopicNamingSettings = lazy(() =>
   import('./TopicNamingSettings').then((module) => ({ default: module.TopicNamingSettings }))
@@ -159,7 +159,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     [modelFilter]
   )
   const translateModelFilter = useCallback(
-    (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
+    (model: Model) => isTextChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
   const paintingModelFilter = useCallback((model: Model) => isGenerateImageModel(model), [])

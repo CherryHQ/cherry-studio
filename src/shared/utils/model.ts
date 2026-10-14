@@ -95,6 +95,11 @@ export const isNonChatModel = (model: Model): boolean =>
   isTextToSpeechModel(model) ||
   isSpeechToTextModel(model)
 
+/** Text tasks cannot consume media-only responses, even when the chat UI can. */
+export const isTextChatModel = (model: Model): boolean =>
+  !isNonChatModel(model) &&
+  (model.outputModalities?.length ? model.outputModalities.includes(MODALITY.TEXT) : !isGenerateVideoModel(model))
+
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's
  * `/v1/models` listing and the renderer's gateway model picker, so the CLI can only

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -178,8 +179,18 @@ const mockModel = {
   isHidden: false
 }
 
+const omniModel = {
+  ...mockModel,
+  id: 'gemini::gemini-omni-flash-preview',
+  providerId: 'gemini',
+  name: 'Gemini Omni',
+  capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION],
+  endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+  outputModalities: ['video']
+}
+
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModels: () => ({ models: [mockModel] }),
+  useModels: () => ({ models: [mockModel, omniModel] }),
   useModelById: (uniqueModelId: string | null | undefined) => ({
     model: uniqueModelId === mockModel.id ? mockModel : undefined
   })
@@ -587,6 +598,19 @@ describe('TranslatePage', () => {
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('requires a text model before translating with a previously saved Omni selection', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', omniModel.id)
+    MockUseCacheUtils.setCacheValue('translate.input', 'Hello')
+
+    render(<TranslatePage />)
+
+    expect(screen.getByRole('button', { name: 'translate.settings.model_placeholder' })).toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'translate.button.translate' })
+    expect(button).toBeDisabled()
+    await userEvent.setup().click(button)
+    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
   })
 
   it('hides the model tag filter on the inline selector', () => {

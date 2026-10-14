@@ -14,6 +14,7 @@ import {
   isReasoningModel,
   isRerankModel,
   isSpeechToTextModel,
+  isTextChatModel,
   isTextToSpeechModel,
   isVideoModel,
   isVisionModel,
@@ -38,8 +39,24 @@ describe('shared model capability helpers', () => {
       endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS]
     }
     expect(isNonChatModel(model)).toBe(false)
+    expect(isTextChatModel(model)).toBe(false)
     expect(isGatewayRoutableModel(model)).toBe(false)
     expect(isNonChatModel({ ...model, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })).toBe(true)
+  })
+
+  it('requires text output for text tasks while allowing incomplete custom model metadata', () => {
+    const omni: Model = {
+      ...createModel([MODEL_CAPABILITY.VIDEO_GENERATION]),
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_INTERACTIONS],
+      outputModalities: ['video']
+    }
+
+    expect(isTextChatModel(omni)).toBe(false)
+    expect(isTextChatModel({ ...omni, outputModalities: ['text', 'video'] })).toBe(true)
+    expect(isTextChatModel({ ...createModel(), outputModalities: ['audio'] })).toBe(false)
+    expect(isTextChatModel({ ...createModel(), outputModalities: ['text', 'audio'] })).toBe(true)
+    expect(isTextChatModel(createModel())).toBe(true)
+    expect(isTextChatModel(createModel([MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
   })
   it.each([
     [undefined, 'gpt-4o'],
