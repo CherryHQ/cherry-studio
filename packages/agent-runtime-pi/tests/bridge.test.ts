@@ -394,6 +394,37 @@ describe('Pi agent loop over the AI SDK port', () => {
     expect(unmapped).toEqual([])
   })
 
+  // Breaks when malformed input reaches a tool whose schema accepts `{}` and the tool runs on defaults.
+  it.each([
+    { kind: 'unparsable', input: '{"path":"/tm', error: 'Invalid input for tool list_files' },
+    { kind: 'non-object', input: '"/tmp"', error: 'must be a JSON object' }
+  ])('never runs a tool on $kind input, even when its schema accepts an empty object', async ({ input, error }) => {
+    const listCalls: unknown[] = []
+    const listFiles = defineTool({
+      name: 'list_files',
+      label: 'List files',
+      description: 'List a directory, the workspace root by default',
+      parameters: Type.Object({ path: Type.Optional(Type.String()) }),
+      async execute(_id, params) {
+        listCalls.push(params)
+        return { content: [{ type: 'text', text: 'a.txt' }], details: undefined }
+      }
+    })
+    const { model, calls } = scriptedModel([
+      [{ type: 'tool-call', toolCallId: 'call_1', toolName: 'list_files', input }, finish('tool-calls')],
+      [...textParts('t', 'Let me retry.'), finish('stop')]
+    ])
+    const { session } = await createTestSession({ port: streamTextPort(model).port, tools: [listFiles] })
+    await session.prompt('List my files')
+
+    expect(listCalls).toEqual([])
+    const [toolMessage] = messagesOf(calls[1].prompt, 'tool')
+    expect(toolMessage.content[0]).toMatchObject({
+      toolCallId: 'call_1',
+      output: { type: 'error-text', value: expect.stringContaining(error) }
+    })
+  })
+
   it('runs the tool a repaired call names, not the name the stream started with', async () => {
     const weatherCalls: unknown[] = []
     const { model } = scriptedModel([

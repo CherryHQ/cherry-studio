@@ -52,6 +52,10 @@ extensions are added by subsequent layers; this adapter is not wired into the de
   `statusCode` and `responseBody`), and `onUnmappedPart` receives `source`, `file` and
   provider-executed tool parts. Both get the request identity. Pi keeps only the error message, as
   the provider wrote it, so Pi's context-overflow detection still works.
+- **Invalid tool calls** – a call whose input the AI SDK rejected (unparsable, unknown tool) or that
+  is not a JSON object is replayed with `{}` and answered with the error; the tool never runs. The
+  session builder does this through `onInvalidToolCall`; a host registering `createAiSdkProvider`
+  itself must block those calls the same way.
 - **Usage** – the usage handed to Pi feeds its context accounting and compaction only. The host's AI SDK
   call already accounts it, so it must not be billed again.
 - **Retries** – Pi's retry is always disabled. Retries belong to the AI SDK layer.
