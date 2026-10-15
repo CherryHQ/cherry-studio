@@ -610,7 +610,7 @@ export class CherryCloudService extends BaseService {
       return {
         entitledModelIds: [],
         freeModelIds: [],
-        availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
+        availableModelIds: { agent: [], general: [] },
         quotaExhaustedModelIds: []
       }
     }
@@ -650,25 +650,31 @@ export class CherryCloudService extends BaseService {
           .map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
       )
     ]
-    const availableModelIdsByFeature = {
-      agent: [] as CherryCloudModelSyncResult['availableModelIdsByFeature']['agent'],
-      chat: [] as CherryCloudModelSyncResult['availableModelIdsByFeature']['chat'],
-      translate: [] as CherryCloudModelSyncResult['availableModelIdsByFeature']['translate']
-    }
+    const agentModelIds: CherryCloudModelSyncResult['availableModelIds']['agent'] = []
+    const generalModelIds: CherryCloudModelSyncResult['availableModelIds']['general'] = []
     const freeModelIds: CherryCloudModelSyncResult['freeModelIds'] = []
     for (const model of models) {
       const uniqueModelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)
       if (freeApiModelIds.has(model.id) && !paidApiModelIds.has(model.id)) freeModelIds.push(uniqueModelId)
-      for (const feature of model.available_features) availableModelIdsByFeature[feature].push(uniqueModelId)
+      const features = new Set(model.available_features)
+      if (features.has('agent')) agentModelIds.push(uniqueModelId)
+      if (features.has('chat') && features.has('translate')) {
+        generalModelIds.push(uniqueModelId)
+      } else if (features.has('chat') || features.has('translate')) {
+        // Chat and translate are granted together; fail closed on a model that breaks that contract.
+        logger.warn('Cherry Cloud model grants chat and translate separately; offering it in neither', {
+          modelId: model.id,
+          features: model.available_features
+        })
+      }
     }
     this.reconcileEntitledModels(models)
     return {
       entitledModelIds: models.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)),
       freeModelIds: [...new Set(freeModelIds)],
-      availableModelIdsByFeature: {
-        agent: [...new Set(availableModelIdsByFeature.agent)],
-        chat: [...new Set(availableModelIdsByFeature.chat)],
-        translate: [...new Set(availableModelIdsByFeature.translate)]
+      availableModelIds: {
+        agent: [...new Set(agentModelIds)],
+        general: [...new Set(generalModelIds)]
       },
       quotaExhaustedModelIds
     }

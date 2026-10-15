@@ -168,7 +168,7 @@ describe('ApiGatewayService internal gateway', () => {
     const translate = await service.ensureInternalGateway('translate')
 
     expect(vi.mocked(ApiGateway)).toHaveBeenCalledOnce()
-    expect(vi.mocked(ApiGateway)).toHaveBeenCalledWith({ host: '127.0.0.1', port: 0 })
+    expect(vi.mocked(ApiGateway)).toHaveBeenCalledWith({ host: '127.0.0.1', port: 0 }, 'internal')
     expect(translate.baseUrl).toBe(agent.baseUrl)
     expect(service.getInternalGatewayOrigin()).toBe(agent.baseUrl)
     expect(service.isActivated).toBe(false)

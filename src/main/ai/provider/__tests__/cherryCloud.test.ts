@@ -28,7 +28,7 @@ describe('Cherry Cloud provider transport', () => {
     mocks.syncEntitledModelsIfStale.mockResolvedValue({
       entitledModelIds: [MODEL_ID],
       freeModelIds: [MODEL_ID],
-      availableModelIdsByFeature: { agent: [MODEL_ID], chat: [MODEL_ID], translate: [MODEL_ID] },
+      availableModelIds: { agent: [MODEL_ID], general: [MODEL_ID] },
       quotaExhaustedModelIds: []
     })
   })
@@ -123,7 +123,7 @@ describe('Cherry Cloud provider transport', () => {
     mocks.syncEntitledModelsIfStale.mockResolvedValueOnce({
       entitledModelIds: [],
       freeModelIds: [],
-      availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
+      availableModelIds: { agent: [], general: [] },
       quotaExhaustedModelIds: []
     })
 
@@ -141,7 +141,7 @@ describe('Cherry Cloud provider transport', () => {
     mocks.syncEntitledModelsIfStale.mockResolvedValueOnce({
       entitledModelIds: [MODEL_ID],
       freeModelIds: [MODEL_ID],
-      availableModelIdsByFeature: { agent: [], chat: [MODEL_ID], translate: [] },
+      availableModelIds: { agent: [], general: [MODEL_ID] },
       quotaExhaustedModelIds: [MODEL_ID]
     })
 
@@ -172,7 +172,7 @@ describe('Cherry Cloud provider transport', () => {
       mocks.syncEntitledModelsIfStale.mockResolvedValue({
         entitledModelIds: [MODEL_ID],
         freeModelIds: [],
-        availableModelIdsByFeature: { agent: [], chat: [MODEL_ID], translate: [] },
+        availableModelIds: { agent: [], general: [MODEL_ID] },
         quotaExhaustedModelIds: [MODEL_ID]
       })
       const config = buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID)
