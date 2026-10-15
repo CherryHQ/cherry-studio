@@ -1,8 +1,9 @@
 import * as z from 'zod'
 
-import { decimal, opaqueId, timestamp, unicodeText } from '../values'
+import { remoteFailureSchema } from './errors'
+import { decimal, opaqueId, timestamp, unicodeText } from './values'
 
-export const agentUploadLimits = Object.freeze({
+export const uploadLimits = Object.freeze({
   fileBytes: 1024 ** 3,
   messageBytes: 2 * 1024 ** 3,
   files: 8,
@@ -11,6 +12,8 @@ export const agentUploadLimits = Object.freeze({
   deviceBytes: 4 * 1024 ** 3,
   stagingBytes: 8 * 1024 ** 3
 })
+/** Capability whose grant owns an upload; consumers accept only uploads owned by their own grant. */
+export const uploadDomainSchema = z.enum(['agent', 'assistant'])
 export const uploadMetadataSchema = z.strictObject({
   uploadId: opaqueId,
   filename: unicodeText
@@ -30,7 +33,7 @@ export const uploadMetadataSchema = z.strictObject({
     .regex(/^[a-zA-Z0-9!#$&^_.+-]+\/[a-zA-Z0-9!#$&^_.+-]+$/)
     .max(128),
   checksumAlgorithm: z.literal('sha256').optional(),
-  byteLength: z.number().int().min(0).max(agentUploadLimits.fileBytes)
+  byteLength: z.number().int().min(0).max(uploadLimits.fileBytes)
 })
 export const uploadReferenceSchema = z.strictObject({ uploadId: opaqueId })
 export const uploadWriterSchema = uploadReferenceSchema.extend({ writerEpoch: decimal })
@@ -40,7 +43,6 @@ export const uploadCompleteSchema = uploadWriterSchema.extend({
     .regex(/^[a-f0-9]{64}$/)
     .optional()
 })
-export type AgentUploadComplete = z.infer<typeof uploadCompleteSchema>
 export const uploadStateSchema = z.looseObject({
   uploadId: opaqueId,
   state: z.enum(['receiving', 'verifying', 'ready', 'failed']),
@@ -58,9 +60,28 @@ export const uploadResumeSchema = uploadReferenceSchema.extend({ resumeId: opaqu
 export const uploadReferencesSchema = z
   .array(uploadReferenceSchema)
   .min(1)
-  .max(agentUploadLimits.files)
+  .max(uploadLimits.files)
   .refine((files) => new Set(files.map((file) => file.uploadId)).size === files.length)
-export type AgentUploadMetadata = z.infer<typeof uploadMetadataSchema>
-export type AgentUploadReference = z.infer<typeof uploadReferenceSchema>
-export type AgentUploadState = z.infer<typeof uploadStateSchema>
-export type AgentUploadResume = z.infer<typeof uploadResumeSchema>
+
+const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
+  params,
+  result,
+  errors: remoteFailureSchema
+})
+const domain = { domain: uploadDomainSchema }
+export const uploadMethods = {
+  'uploads.prepare': method(uploadMetadataSchema.extend(domain), uploadStateSchema),
+  'uploads.get': method(uploadReferenceSchema.extend(domain), uploadStateSchema),
+  'uploads.resume': method(uploadResumeSchema.extend(domain), uploadStateSchema),
+  'uploads.complete': method(uploadCompleteSchema.extend(domain), uploadStateSchema),
+  'uploads.cancel': method(uploadReferenceSchema.extend(domain), z.looseObject({ cancelled: z.literal(true) }))
+}
+
+export type UploadDomain = z.infer<typeof uploadDomainSchema>
+export type UploadMethod = keyof typeof uploadMethods
+export type UploadParams<M extends UploadMethod> = z.infer<(typeof uploadMethods)[M]['params']>
+export type UploadComplete = z.infer<typeof uploadCompleteSchema>
+export type UploadMetadata = z.infer<typeof uploadMetadataSchema>
+export type UploadReference = z.infer<typeof uploadReferenceSchema>
+export type UploadState = z.infer<typeof uploadStateSchema>
+export type UploadResume = z.infer<typeof uploadResumeSchema>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { agentMethods, agentUploadLimits, encodeAgentCommand } from '../src/agent'
+import { uploadAckSchema, uploadChunkHeaderSchema, uploadMethods } from '../src/index'
 
 describe('Agent attachments', () => {
   const send = { commandId: 'command', sessionId: 'session', expectedIdleRevision: '0', text: '' }
@@ -67,5 +68,25 @@ describe('Agent attachments', () => {
     expect(
       agentMethods['agent.uploads.prepare'].params.safeParse({ ...metadata, sha256: 'a'.repeat(64) }).success
     ).toBe(false)
+  })
+})
+
+describe('Domain-neutral uploads', () => {
+  const metadata = { uploadId: 'u', filename: 'report.pdf', mediaType: 'application/pdf', byteLength: 1 }
+  it('requires an upload-owning capability on every control method', () => {
+    expect(uploadMethods['uploads.prepare'].params.parse({ ...metadata, domain: 'assistant' }).domain).toBe('assistant')
+    expect(uploadMethods['uploads.prepare'].params.safeParse(metadata).success).toBe(false)
+    expect(uploadMethods['uploads.get'].params.safeParse({ uploadId: 'u', domain: 'configuration' }).success).toBe(
+      false
+    )
+  })
+  it('keeps legacy Agent DATA records valid while routing new records by domain', () => {
+    const header = { kind: 'upload', requestId: 'r', uploadId: 'u', writerEpoch: '0', offset: '0' }
+    expect(uploadChunkHeaderSchema.parse(header)).toEqual(header)
+    expect(uploadChunkHeaderSchema.parse({ ...header, domain: 'assistant' }).domain).toBe('assistant')
+    expect(uploadChunkHeaderSchema.safeParse({ ...header, domain: 'configuration' }).success).toBe(false)
+    const params = { ok: true, requestId: 'r', uploadId: 'u', writerEpoch: '0', committedOffset: '1' }
+    for (const method of ['agent.uploads.ack', 'uploads.ack'])
+      expect(uploadAckSchema.safeParse({ jsonrpc: '2.0', method, params }).success).toBe(true)
   })
 })

@@ -22,6 +22,7 @@ import { RemoteAdvertisement } from './RemoteAdvertisement'
 import { RemoteConnection } from './RemoteConnection'
 import { RemotePairing } from './RemotePairing'
 import { RemoteTokens } from './RemoteTokens'
+import { RemoteUploads } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAccessService')
 const transportLog: ChannelOptions['logger'] = {
@@ -56,6 +57,7 @@ export class RemoteAccessService extends BaseService {
   private readonly hub = new RemoteAgentHub(() => this.enforceReplayBudget())
   private readonly assistantHub = new RemoteAssistantHub(() => this.enforceReplayBudget())
   private readonly snapshotBudget = { bytes: 0 }
+  private readonly uploads = new RemoteUploads()
   private enforceReplayBudget(): void {
     const excess = this.hub.replayBytes + this.assistantHub.replayBytes - remoteLimits.globalReplayBytes
     if (excess <= 0) return
@@ -82,6 +84,7 @@ export class RemoteAccessService extends BaseService {
       this.tokens.sweep()
       this.hub.sweep()
       this.assistantHub.sweep()
+      this.uploads.sweep()
       for (const [socket, entry] of this.connections) {
         try {
           entry.remote?.sweep()
@@ -217,7 +220,8 @@ export class RemoteAccessService extends BaseService {
       this.hub,
       () => this.getConnectionEndpoints(),
       this.assistantHub,
-      this.snapshotBudget
+      this.snapshotBudget,
+      this.uploads
     )
     entry.remote = remote
     let windowStart = Date.now()

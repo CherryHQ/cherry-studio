@@ -420,7 +420,7 @@ describe('remote agent access', () => {
       const { session: current } = await call('agent.sessions.get', { sessionId })
       const history = await call('agent.messages.list', { sessionId, historyRevision: current.historyRevision })
       const message = history.items.find((item: { role: string }) => item.role === 'user')
-      expect((await presence.list(sessionId))[0].messageId).toBe(message.messageId)
+      expect((await presence.list({ sessionId }))[0].messageId).toBe(message.messageId)
       const file = (
         await call('agent.parts.list', { sessionId, messageId: message.messageId, messageRevision: message.revision })
       ).items[0]

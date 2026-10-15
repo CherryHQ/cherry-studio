@@ -42,14 +42,19 @@ export { encodeAgentCommand } from './agent/commands'
 export { applyAgentEvents, installAgentCheckpoint, textByteLength } from './agent/reducer'
 export type { MaterializedContent, ApplyAgentEventsResult, InstallAgentCheckpointResult } from './agent/reducer'
 
-export { agentUploadLimits, uploadMetadataSchema, uploadReferenceSchema, uploadReferencesSchema } from './agent/uploads'
+export {
+  uploadLimits as agentUploadLimits,
+  uploadMetadataSchema,
+  uploadReferenceSchema,
+  uploadReferencesSchema
+} from './uploads'
 export type {
-  AgentUploadComplete,
-  AgentUploadMetadata,
-  AgentUploadReference,
-  AgentUploadState,
-  AgentUploadResume
-} from './agent/uploads'
+  UploadComplete as AgentUploadComplete,
+  UploadMetadata as AgentUploadMetadata,
+  UploadReference as AgentUploadReference,
+  UploadState as AgentUploadState,
+  UploadResume as AgentUploadResume
+} from './uploads'
 
 export {
   attachmentSelectionSchema,

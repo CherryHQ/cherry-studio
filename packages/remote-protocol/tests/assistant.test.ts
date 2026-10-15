@@ -65,6 +65,42 @@ describe('Assistant remote contract', () => {
     )
   })
 
+  it('accepts uploaded files without text and binds the references to command identity', () => {
+    const send = {
+      commandId: 'command',
+      topicId: 'topic',
+      assistantId: 'assistant',
+      expectedAssistantRevision: 'a'.repeat(64),
+      parentAnchorId: null,
+      expectedHistoryRevision: '1',
+      text: ''
+    }
+    const schema = assistantMethods['assistant.messages.send'].params
+    expect(schema.safeParse(send).success).toBe(false)
+    expect(schema.parse({ ...send, attachments: [{ uploadId: 'a' }], selectionId: 'draft' }).attachments).toEqual([
+      { uploadId: 'a' }
+    ])
+    for (const attachments of [[{ uploadId: 'a' }, { uploadId: 'a' }], [{ path: '/etc/passwd' }]])
+      expect(schema.safeParse({ ...send, attachments }).success).toBe(false)
+    expect(
+      encodeAssistantCommand('assistant.messages.send', { ...send, attachments: [{ uploadId: 'a' }] })
+    ).not.toEqual(encodeAssistantCommand('assistant.messages.send', { ...send, attachments: [{ uploadId: 'b' }] }))
+    const presence = assistantMethods['assistant.attachments.present'].params
+    const item = {
+      attachmentId: 'a',
+      uploadId: 'a',
+      filename: 'report.pdf',
+      mediaType: 'application/pdf',
+      byteLength: 1
+    }
+    expect(presence.safeParse({ selectionId: 'draft', topicId: 'topic', sequence: '1', items: [item] }).success).toBe(
+      true
+    )
+    expect(presence.safeParse({ selectionId: 'draft', sessionId: 'topic', sequence: '1', items: [item] }).success).toBe(
+      false
+    )
+  })
+
   it('keeps simultaneous model replies separate and applies replay atomically with UTF-8 offsets', () => {
     const original = state()
     const initial = batch([

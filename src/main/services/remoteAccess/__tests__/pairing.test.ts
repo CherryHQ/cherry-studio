@@ -1,6 +1,7 @@
 import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { remoteAuthorizationSchema as legacyAuthorizationSchema } from '@cherrystudio/remote-protocol-v0'
 import { type SecureChannel } from '@cherrystudio/remote-transport'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
@@ -230,7 +231,7 @@ describe('pairing-time capability authorization', () => {
       async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     expect(await request(connection, 'connection.hello', { protocolVersions: [2] })).toMatchObject({
-      result: { assistantVersion: 1 }
+      result: { assistantVersion: 1, uploadsVersion: 1 }
     })
     expect(await request(connection, 'connection.authenticate', { deviceId: approved.device.id })).toMatchObject({
       result: { authorization: { grants: [{ domain: 'assistant' }] } }
@@ -242,10 +243,58 @@ describe('pairing-time capability authorization', () => {
     expect(await request(connection, 'agent.agents.list', {})).toMatchObject({
       error: { data: { reason: 'FORBIDDEN' } }
     })
+    expect(await request(connection, 'uploads.get', { domain: 'agent', uploadId: 'upload' })).toMatchObject({
+      error: { data: { reason: 'FORBIDDEN' } }
+    })
     apiGatewayPairedDeviceService.revokeRemoteCapability(approved.device.id, 'assistant')
     expect(await request(connection, 'assistant.assistants.list', {})).toMatchObject({
       error: { data: { reason: 'GRANT_REVOKED' } }
     })
+    connection.dispose()
+  })
+
+  it('routes domain-tagged DATA records to their grant and keeps legacy Agent acknowledgements', async () => {
+    const approved = apiGatewayPairedDeviceService.approveRemote({
+      name: 'Phone',
+      platform: 'ios',
+      peerIdentity: 'phone',
+      capabilities: ['agent', 'assistant']
+    })
+    const writes: unknown[] = []
+    const connection = new RemoteConnection(
+      {
+        ...channel('phone', 2),
+        async write(value) {
+          writes.push(value)
+        }
+      },
+      new RemotePairing(),
+      new RemoteTokens(),
+      () => {},
+      new RemoteAgentHub(),
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
+    )
+    await request(connection, 'connection.hello', { protocolVersions: [2] })
+    await request(connection, 'connection.authenticate', { deviceId: approved.device.id })
+    const intakeWrite = vi.mocked(application.get('FileIntakeService').write)
+    intakeWrite.mockResolvedValue({ uploadId: 'upload', writerEpoch: '0', committedOffset: '1' })
+    const chunk = {
+      kind: 'upload' as const,
+      uploadId: 'upload',
+      writerEpoch: '0',
+      offset: '0',
+      bytes: new Uint8Array([1])
+    }
+    await connection.receiveUpload({ ...chunk, requestId: 'assistant', domain: 'assistant' })
+    await connection.receiveUpload({ ...chunk, requestId: 'legacy' })
+    expect(writes).toMatchObject([
+      { method: 'uploads.ack', params: { ok: true, requestId: 'assistant' } },
+      { method: 'agent.uploads.ack', params: { ok: true, requestId: 'legacy' } }
+    ])
+    expect(intakeWrite.mock.calls.map(([scope]) => JSON.parse(scope.ownerId)[0])).toEqual([
+      'remote-assistant',
+      'remote-agent'
+    ])
     connection.dispose()
   })
 })

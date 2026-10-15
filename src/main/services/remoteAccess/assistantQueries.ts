@@ -22,10 +22,13 @@ import {
   inputDigest,
   interactionKind,
   notFound,
+  partTarget,
   projectPersistedParts,
+  readUploadedFile,
   sha256,
   toMessage,
   toMessageModel,
+  uploadedFileOf,
   utf8
 } from './agentQueries'
 
@@ -213,7 +216,7 @@ export function listAssistantParts(params: AssistantParams<'assistant.parts.list
   if (params.messageRevision !== params.historyRevision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'Message revision expired')
   return scopedPage(
-    projectPersistedParts(getBranchMessage(params.topicId, params.messageId), params.messageRevision, false).map(
+    projectPersistedParts(getBranchMessage(params.topicId, params.messageId), params.messageRevision).map(
       ({ part }) => part
     ),
     `${grantId}:parts:${params.topicId}:${params.parentAnchorId}:${params.historyRevision}:${params.messageId}`,
@@ -233,10 +236,19 @@ export function readAssistantContent(params: AssistantParams<'assistant.content.
       isToolUIPart(part) && 'approval' in part && `${message.id}:approval:${part.approval.id}` === params.contentId
   )
   if (approval && isToolUIPart(approval)) return utf8(JSON.stringify(approval.input ?? null))
-  const projected = projectPersistedParts(message, params.revision, false).find(
-    ({ part }) => part.partId === params.contentId
-  )
+  const projected = projectPersistedParts(message, params.revision).find(({ part }) => part.partId === params.contentId)
   return projected ? utf8(projected.text) : undefined
+}
+
+export async function readAssistantFileContent(params: AssistantParams<'assistant.content.read'>) {
+  assertView(params)
+  const target = partTarget(params.contentId)
+  if (!target) return undefined
+  const file = uploadedFileOf(getBranchMessage(params.topicId, target.messageId).data.parts?.[target.index])
+  if (!file) return undefined
+  if (params.revision !== params.historyRevision)
+    throw new RemoteRpcError('REVISION_EXPIRED', 'Content revision expired')
+  return readUploadedFile(file, params)
 }
 
 export function persistedAssistantInteractions(topicId: string): AssistantInteraction[] {

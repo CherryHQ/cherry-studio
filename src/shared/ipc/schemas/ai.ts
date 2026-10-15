@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import type { AssistantAttachmentSelection } from '@cherrystudio/remote-protocol/assistant'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type {
   AiStreamAttachResponse,
@@ -195,6 +196,10 @@ export const aiRequestSchemas = {
   'ai.agent.attachment_selections.list': defineRoute({
     input: z.object({ sessionId: z.string() }),
     output: z.custom<AgentAttachmentSelection[]>()
+  }),
+  'ai.topic.attachment_selections.list': defineRoute({
+    input: z.object({ topicId: z.string() }),
+    output: z.custom<AssistantAttachmentSelection[]>()
   }),
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
@@ -505,6 +510,7 @@ export const aiRequestSchemas = {
 export type AiEventSchemas = {
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
+  'ai.topic.attachment_selections.changed': { topicId: string }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload

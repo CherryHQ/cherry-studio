@@ -34,7 +34,7 @@ describe('durable remote uploads', () => {
       peerIdentity,
       capabilities: ['agent']
     })
-    return { deviceId: device.id, grantId: authorization.grants[0].grantId, peerIdentity }
+    return { domain: 'agent', deviceId: device.id, grantId: authorization.grants[0].grantId, peerIdentity }
   }
   beforeEach(async () => {
     MockMainDbServiceUtils.setDb(db.db)
@@ -278,10 +278,47 @@ describe('durable remote uploads', () => {
     await expect(uploads.prepare(owner, metadata)).rejects.toMatchObject({ data: { reason: 'NOT_FOUND' } })
     const next = prepare(bytes)
     await next.started
+    apiGatewayPairedDeviceService.revokeRemoteCapability(owner.deviceId, 'agent')
     approve('phone')
     await expect(uploads.get(owner, next.metadata.uploadId)).rejects.toMatchObject({
       data: { reason: 'GRANT_REVOKED' }
     })
+  })
+  it('scopes uploads to the owning capability grant and revokes only that grant', async () => {
+    const { device, authorization } = apiGatewayPairedDeviceService.approveRemote({
+      name: 'tablet',
+      platform: 'ios',
+      peerIdentity: 'tablet',
+      capabilities: ['agent', 'assistant']
+    })
+    const grantOf = (domain: string) => authorization.grants.find((grant) => grant.domain === domain)!.grantId
+    const agent: UploadOwner = {
+      domain: 'agent',
+      deviceId: device.id,
+      grantId: grantOf('agent'),
+      peerIdentity: 'tablet'
+    }
+    const assistant: UploadOwner = { ...agent, domain: 'assistant', grantId: grantOf('assistant') }
+    const metadata = { filename: 'a.txt', mediaType: 'text/plain', byteLength: 1 }
+    const agentUpload = randomUUID()
+    const assistantUpload = randomUUID()
+    await uploads.prepare(agent, { ...metadata, uploadId: agentUpload })
+    await uploads.prepare(assistant, { ...metadata, uploadId: assistantUpload })
+    await expect(uploads.get(assistant, agentUpload)).rejects.toMatchObject({ data: { reason: 'NOT_FOUND' } })
+    await expect(uploads.get({ ...assistant, grantId: grantOf('agent') }, agentUpload)).rejects.toMatchObject({
+      data: { reason: 'GRANT_REVOKED' }
+    })
+    apiGatewayPairedDeviceService.revokeRemoteCapability(device.id, 'assistant')
+    uploads.sweep()
+    await expect
+      .poll(() =>
+        intake.get(uploads.scope(assistant), assistantUpload).then(
+          () => 'present',
+          (error) => error.code
+        )
+      )
+      .toBe('NOT_FOUND')
+    expect(await uploads.get(agent, agentUpload)).toMatchObject({ state: 'receiving' })
   })
   it('reserves device capacity before receiving bytes and releases cancelled reservations', async () => {
     const metadata = {

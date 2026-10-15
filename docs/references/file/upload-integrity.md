@@ -1,7 +1,7 @@
 ---
 description: Implementation plan for native mobile SHA-256, verified upload completion, and restart-safe integrity checks
 sources:
-  - packages/remote-protocol/src/agent/uploads.ts
+  - packages/remote-protocol/src/uploads.ts
   - packages/remote-protocol/src/agent/methods.ts
   - packages/remote-protocol/src/connection.ts
   - src/main/services/file/FileIntakeService.ts
@@ -76,6 +76,10 @@ Optional fields preserve already-published clients. New desktop accepts absent-m
 with the existing behavior; new mobile must never interpret their `ready` as checksum-verified.
 Reject a digest supplied to a legacy-mode upload with `CONFLICT`; prepare a fresh verified upload.
 Changing mode on repeated prepare is `IDEMPOTENCY_CONFLICT`.
+
+On wire protocol 2, `uploadsVersion: 1` exposes the same contract as domain-tagged
+`uploads.*` methods and DATA records; it always supports `sha256`. Agent and Assistant
+uploads share this path and differ only in their owning grant.
 
 Complete checks owner, epoch, durable size and required digest before transitioning state.
 Same expected digest is idempotent; replacing a recorded digest is `IDEMPOTENCY_CONFLICT`, even
@@ -194,7 +198,7 @@ Desktop paths are relative to the repository; mobile service names refer to exis
 
 | Owner | Changes |
 |---|---|
-| `packages/remote-protocol/src/connection.ts`, `agent/uploads.ts`, `agent/methods.ts`, `agent.ts` | Capability, prepare/complete/state schemas, exported types, changeset |
+| `packages/remote-protocol/src/connection.ts`, `uploads.ts`, `agent/methods.ts`, `agent.ts` | Capability, prepare/complete/state schemas, exported types, changeset |
 | `src/main/services/remoteAccess/RemoteConnection.ts`, `RemoteUploads.ts`, `agentHandlers.ts` | Advertise support and forward typed input while preserving grant enforcement |
 | `src/main/services/file/intakeTypes.ts`, `internal/IntakeStore.ts` | Types, checkpoint fields and recovery validation |
 | `src/main/services/file/FileIntakeService.ts` | `prepare` freezes mode; `complete` binds expected digest; `verify` compares before publication; snapshot returns durable verification outcome |

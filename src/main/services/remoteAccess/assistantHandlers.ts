@@ -37,9 +37,11 @@ import {
   listAssistantParts,
   persistedAssistantInteractions,
   readAssistantContent,
+  readAssistantFileContent,
   scopedPage
 } from './assistantQueries'
 import { RemoteSubscriptions, type SubscriptionBudget } from './RemoteSubscriptions'
+import type { DeviceGrant, RemoteUploads, UploadOwner } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAssistantHandlers')
 export type AssistantSubscriptions = RemoteSubscriptions<AssistantCursor, AssistantCheckpointPage, AssistantEvent>
@@ -61,7 +63,7 @@ export function createAssistantSubscriptions(
   )
 }
 interface AssistantAccess {
-  requireAssistant(): { deviceId: string; grantId: string; peerIdentity: string }
+  requireAssistant(): DeviceGrant
   afterReply(fn: () => void): void
 }
 
@@ -69,7 +71,8 @@ export function registerAssistantMethods(
   rpc: RemoteRpcServer<void>,
   access: AssistantAccess,
   hub: RemoteAssistantHub,
-  subscriptions: AssistantSubscriptions
+  subscriptions: AssistantSubscriptions,
+  uploads: RemoteUploads
 ): void {
   type Auth = ReturnType<AssistantAccess['requireAssistant']>
   const requireGrant = (auth: Auth) => {
@@ -77,6 +80,9 @@ export function registerAssistantMethods(
     if (!current?.grants.some((grant) => grant.domain === 'assistant' && grant.grantId === auth.grantId))
       throw new RemoteRpcError('GRANT_REVOKED', 'Assistant authorization changed')
   }
+  const assistantUploads = (auth: Auth): UploadOwner => ({ ...auth, domain: 'assistant' })
+  const presence = application.get('AttachmentPresenceService')
+  const generation = presence.connection()
   const on = <M extends AssistantMethod>(
     name: M,
     handler: (params: AssistantParams<M>, auth: Auth) => AssistantResult<M> | Promise<AssistantResult<M>>
@@ -176,15 +182,24 @@ export function registerAssistantMethods(
       })
     }
   })
+  on('assistant.attachments.present', (params, auth) => {
+    getAssistantTopic(params.topicId)
+    return presence.present(uploads.scope(assistantUploads(auth)), auth, generation, params)
+  })
   on('assistant.messages.list', (params, auth) => listAssistantMessages(params, auth.grantId))
   on('assistant.parts.list', (params, auth) => listAssistantParts(params, auth.grantId))
-  on('assistant.content.read', (params) => {
+  on('assistant.content.read', async (params) => {
     assertView(params)
     getBranchMessage(params.topicId, params.contentId.split(':')[0])
     const bytes =
       subscriptions.readContent(params.topicId, params.contentId, params.revision) ??
       hub.journal(params.topicId).readContent(params.contentId, params.revision) ??
       readAssistantContent(params)
+    const file = !bytes?.length ? await readAssistantFileContent(params) : undefined
+    if (file) {
+      access.requireAssistant()
+      return file
+    }
     if (!bytes) throw new RemoteRpcError('NOT_FOUND', 'Content not available at this revision')
     return {
       contentId: params.contentId,
@@ -194,75 +209,87 @@ export function registerAssistantMethods(
   })
   on('assistant.messages.send', (params, auth) =>
     command(auth, 'assistant.messages.send', params, async () => {
-      const journal = hub.journal(params.topicId)
-      const manager = application.get('AiStreamManager')
-      const executionId = randomUUID()
-      let reservedView: ReturnType<typeof getAssistantTopic> | undefined
-      let reservedHistory: string | undefined
-      const fingerprint = () =>
-        sha256(
-          utf8(
-            JSON.stringify(
-              branchMessages(params.topicId).map(({ id, parentId, data, status, modelId, messageSnapshot }) => ({
-                id,
-                parentId,
-                data,
-                status,
-                modelId,
-                messageSnapshot
-              }))
+      const owner = assistantUploads(auth)
+      const scope = uploads.scope(owner)
+      presence.submitting(scope, params.selectionId, params.commandId)
+      try {
+        return await uploads.withFiles(owner, params.attachments ?? [], async (attachments) => {
+          const journal = hub.journal(params.topicId)
+          const manager = application.get('AiStreamManager')
+          const executionId = randomUUID()
+          let reservedView: ReturnType<typeof getAssistantTopic> | undefined
+          let reservedHistory: string | undefined
+          const fingerprint = () =>
+            sha256(
+              utf8(
+                JSON.stringify(
+                  branchMessages(params.topicId).map(({ id, parentId, data, status, modelId, messageSnapshot }) => ({
+                    id,
+                    parentId,
+                    data,
+                    status,
+                    modelId,
+                    messageSnapshot
+                  }))
+                )
+              )
             )
-          )
-        )
-      const beforePersist = () => {
-        requireGrant(auth)
-        if (manager.hasUnsettledTopicWork(params.topicId)) throw new RemoteRpcError('CONFLICT', 'Topic is busy')
-        assertAssistantSend(params)
-      }
-      const result = await manager.dispatch(
-        journal,
-        {
-          trigger: 'submit-message',
-          topicId: params.topicId,
-          targetMode: 'active-path',
-          ...(params.parentAnchorId ? { parentAnchorId: params.parentAnchorId } : {}),
-          userMessageParts: [{ type: 'text', text: params.text }]
-        },
-        {
-          beforePersist,
-          onPersist: (tx, reserved) => {
-            const messageId = reserved.placeholders[0].id
-            remoteCommandService.reserveExecutionTx(
-              tx,
-              { ...auth, commandId: params.commandId },
-              { executionId, messageId, userMessageId: reserved.userMessage.id }
-            )
-            journal.reserve(messageId, executionId)
-            reservedView = getAssistantTopic(params.topicId)
-            reservedHistory = fingerprint()
-          },
-          beforeActivate: () => {
+          const beforePersist = () => {
             requireGrant(auth)
-            const current = getAssistantTopic(params.topicId)
-            if (
-              !reservedView ||
-              current.parentAnchorId !== reservedView.parentAnchorId ||
-              current.assistantId !== params.assistantId ||
-              fingerprint() !== reservedHistory ||
-              assistantRevision(getAssistant(params.assistantId)) !== params.expectedAssistantRevision
-            )
-              throw new RemoteRpcError('CONFLICT', 'Topic changed while preparing the message')
+            if (manager.hasUnsettledTopicWork(params.topicId)) throw new RemoteRpcError('CONFLICT', 'Topic is busy')
+            assertAssistantSend(params)
           }
-        }
-      )
-      if (result.mode === 'blocked')
-        return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Desktop execution is paused' } }
-      journal.poll()
-      return {
-        status: 'applied',
-        topicId: params.topicId,
-        executionId,
-        result: { executionId, disposition: 'started' }
+          const result = await manager.dispatch(
+            journal,
+            {
+              trigger: 'submit-message',
+              topicId: params.topicId,
+              targetMode: 'active-path',
+              ...(params.parentAnchorId ? { parentAnchorId: params.parentAnchorId } : {}),
+              userMessageParts: [
+                ...(params.text.trim() ? [{ type: 'text' as const, text: params.text }] : []),
+                ...attachments
+              ]
+            },
+            {
+              beforePersist,
+              onPersist: (tx, reserved) => {
+                const messageId = reserved.placeholders[0].id
+                remoteCommandService.reserveExecutionTx(
+                  tx,
+                  { ...auth, commandId: params.commandId },
+                  { executionId, messageId, userMessageId: reserved.userMessage.id }
+                )
+                journal.reserve(messageId, executionId)
+                reservedView = getAssistantTopic(params.topicId)
+                reservedHistory = fingerprint()
+              },
+              beforeActivate: () => {
+                requireGrant(auth)
+                const current = getAssistantTopic(params.topicId)
+                if (
+                  !reservedView ||
+                  current.parentAnchorId !== reservedView.parentAnchorId ||
+                  current.assistantId !== params.assistantId ||
+                  fingerprint() !== reservedHistory ||
+                  assistantRevision(getAssistant(params.assistantId)) !== params.expectedAssistantRevision
+                )
+                  throw new RemoteRpcError('CONFLICT', 'Topic changed while preparing the message')
+              }
+            }
+          )
+          if (result.mode === 'blocked')
+            return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Desktop execution is paused' } }
+          journal.poll()
+          return {
+            status: 'applied',
+            topicId: params.topicId,
+            executionId,
+            result: { executionId, disposition: 'started' }
+          }
+        })
+      } finally {
+        presence.submitting(scope, params.selectionId, params.commandId)
       }
     })
   )

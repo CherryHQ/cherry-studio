@@ -32,7 +32,10 @@ Continuation history is prepared without consuming the decision; final conflict 
 the transaction committing the decision, pending status and receipt association before activation.
 Inputs are immutable from Mobile; question forms, OAuth, elicitation and browser confirmations
 remain desktop interactions. Current-branch history includes immutable author/model identity
-and attachment metadata, with bounded text/tool content reads.
+and attachment metadata, with bounded text/tool content reads. Remote-uploaded files are read back
+through the same revision-bound file pages as Agent history. Sends resolve `assistant` uploads into
+managed file parts before entering the AI pipeline, and `AttachmentPresenceService` keys in-progress
+selections by Agent session or Assistant topic.
 Every refresh checks the current stream's listener IDs before publishing execution state,
 including delayed chunk callbacks and checkpoints, so short chained turns retain terminal delivery.
 
@@ -147,12 +150,14 @@ The file module owns checkpoint-based recovery and retention. Selection is dispo
 explicit upload references. Intake/draft tables and their unpublished development migrations were removed.
 
 `FileIntakeService` owns durable staging under `feature.files.intakes`; `RemoteUploads`
-binds its operations to the current device grant.
+binds its operations to the current device grant of the owning domain (`agent` or `assistant`).
+`RemoteAccessService` owns one instance for both domains; `agent.uploads.*` and the domain-neutral
+`uploads.*` routes share it, and DATA records route by their optional `domain` (absent means Agent).
 File data is synced before the atomically replaced checkpoint is acknowledged. Recovery
 truncates uncommitted tails; a shorter file fails verification. Shutdown drains work and
 retains resumable records. Each upload is serialized independently and fenced by writer epoch.
 
-Upload capability 1 exposes a single `agent.uploads.prepare` without draft membership;
+Upload capability 1 exposes a single `agent.uploads.prepare` (or `uploads.prepare`) without draft membership;
 binary DATA carries at most 1 MiB per record with two outstanding blocks. ACK notifications
 report durable offsets independently of RPC admission. JSON control remains limited to 64 KiB.
 There is no legacy upload format: desktop computes the final hash after receiving authenticated

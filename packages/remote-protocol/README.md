@@ -99,6 +99,14 @@ They must never replace expired upload references inside an already submitted co
 Uploaded file history uses a revision-bound content reference, never a desktop filesystem path.
 Content pages are read under the current Agent grant and checked against the complete digest.
 
+Wire protocol 2 also advertises `connection.hello.uploadsVersion: 1`: the same transfer through
+domain-neutral `uploads.prepare/get/resume/complete/cancel`. Each call names the owning
+`domain` (`agent` or `assistant`); DATA records carry the same `domain` and are acknowledged with
+`uploads.ack`. Records without `domain` remain the Agent path acknowledged by `agent.uploads.ack`.
+Uploads are scoped to that domain's grant: a message can only reference uploads owned by its own
+grant, and revoking one capability cancels only that capability's uploads. Neutral limits are
+advertised as `upload*` keys with the same values as their `agentUpload*` counterparts.
+
 ## Assistant access
 
 `./assistant` exports the Assistant schemas, command encoding, checkpoint installation,
@@ -112,9 +120,9 @@ An `assistant` grant authorizes all active desktop Assistants and existing topic
 It does not authorize provider credential export. Approval adds missing grants while
 preserving existing IDs; revocation removes only the requested capability.
 
-The first contract supports text with the desktop Assistant's default model, current-branch
-history, independent model/message stream identity, expected-execution cancellation,
-and ordinary approval/denial. Uploads, model selection, branch editing and configuration
+The first contract supports text and uploaded files with the desktop Assistant's default model,
+current-branch history, independent model/message stream identity, expected-execution
+cancellation, and ordinary approval/denial. Model selection, branch editing and configuration
 mutation are excluded. Question forms, MCP OAuth, elicitation and browser confirmation
 require the desktop; interaction resources state whether a decision is remotely answerable.
 
@@ -127,12 +135,18 @@ Catalog pages are bounded by both item count and encoded byte size. Treat their 
 the next cursor advances only over returned entries, including when a byte limit shortens the page.
 Message revisions use the view's history revision, so any visible mutation invalidates
 its content references. Messages preserve their producing Assistant and model snapshots.
-Historical attachments expose metadata only.
+Files uploaded by a paired device expose revision-bound file references; other historical
+attachments expose metadata only.
 Message headers carry `partCount`; historical headers leave `partIds` empty and clients
 page through `assistant.parts.list`. Each `part.updated` names `afterPartId` (`null` for
 the first part), positioning both new and replaced parts within their message; an unknown
 predecessor requires recovery. Checkpoint parts follow the message's canonical order.
 These rebuild the ordered part IDs, keeping large tool transcripts out of individual message headers.
+
+Sends attach files through `uploads.*` with `domain: 'assistant'` and the same limits and
+checksum rules as Agent attachments; text may be empty when files are attached.
+`assistant.attachments.present` publishes a topic's in-progress selection to the desktop,
+matching `agent.attachments.present`.
 
 Create/send/cancel/respond use stable command IDs and `assistant.commands.get` for uncertain
 outcomes. A receipt records admission independently of runtime and persistence results.

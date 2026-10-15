@@ -403,28 +403,48 @@ export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParam
 
 /** Resolve bytes only through a current message reference, never a client-supplied file path. */
 export async function readPersistedFileContent(params: AgentParams<'agent.content.read'>) {
-  const [messageId] = params.contentId.split(':')
-  const index = Number(params.contentId.slice(messageId.length + 1))
-  if (`${messageId}:${index}` !== params.contentId) return undefined
+  const target = partTarget(params.contentId)
+  if (!target) return undefined
   let message: AgentSessionMessageEntity
   try {
-    message = agentSessionMessageService.getSessionMessage(params.sessionId, messageId)
+    message = agentSessionMessageService.getSessionMessage(params.sessionId, target.messageId)
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return undefined
     throw error
   }
-  const part = message.data.parts?.[index]
-  if (part?.type !== 'file') return undefined
-  const meta = readCherryMeta(part)
-  if (!meta?.remoteAttachment || !meta.fileEntryId) return undefined
+  const file = uploadedFileOf(message.data.parts?.[target.index])
+  if (!file) return undefined
   if (revisionOf(message.updatedAt) !== params.revision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'Content revision expired')
+  return readUploadedFile(file, params)
+}
+
+/** Split a `messageId:index` content ID that addresses a persisted message part. */
+export function partTarget(contentId: string): { messageId: string; index: number } | undefined {
+  const [messageId] = contentId.split(':')
+  const index = Number(contentId.slice(messageId.length + 1))
+  return `${messageId}:${index}` === contentId ? { messageId, index } : undefined
+}
+
+/** Only remote uploads carry the digest that file pages are verified against. */
+export function uploadedFileOf(part: CherryMessagePart | undefined) {
+  if (part?.type !== 'file') return undefined
+  const meta = readCherryMeta(part)
+  return meta?.remoteAttachment && meta.fileEntryId
+    ? { fileEntryId: meta.fileEntryId, ...meta.remoteAttachment }
+    : undefined
+}
+
+export async function readUploadedFile<P extends { offset: string; maxBytes: number }>(
+  file: { fileEntryId: string; byteLength: number; sha256: string },
+  params: P
+) {
   const offset = Number(params.offset)
-  const { byteLength, sha256 } = meta.remoteAttachment
+  const { byteLength, sha256 } = file
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > byteLength)
     throw new RemoteRpcError('NOT_FOUND', 'Invalid file offset')
   const handle = await open(
-    application.get('FileManager').getPhysicalPath(FileEntryIdSchema.parse(meta.fileEntryId)),
+    application.get('FileManager').getPhysicalPath(FileEntryIdSchema.parse(file.fileEntryId)),
     'r'
   )
   try {

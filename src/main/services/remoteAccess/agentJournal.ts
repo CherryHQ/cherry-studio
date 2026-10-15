@@ -40,7 +40,6 @@ import {
   utf8
 } from './agentQueries'
 import { toMessageUsage } from './agentUsage'
-import { RemoteUploads } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentJournal')
 const integrity = { sha256 }
@@ -877,7 +876,6 @@ class RemoteAgentListener implements StreamListener {
 
 /** Shared journals: one per session regardless of how many devices subscribe. */
 export class RemoteAgentHub {
-  readonly uploads = new RemoteUploads()
   constructor(private readonly onAppend: () => void = () => {}) {}
   get replayBytes(): number {
     return [...this.journals.values()].reduce((bytes, journal) => bytes + journal.replayBytes, 0)
@@ -923,7 +921,6 @@ export class RemoteAgentHub {
   }
 
   sweep(): void {
-    this.uploads.sweep()
     for (const journal of this.journals.values()) {
       if (journal.disposable && journal.lastUsedAt <= Date.now() - remoteLimits.replayMs) {
         journal.dispose()

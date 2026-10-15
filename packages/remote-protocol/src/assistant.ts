@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { attachmentDraftManifestSchema, type AgentAttachmentSelection } from './agent/attachmentDrafts'
 import {
   commandReceiptSchema,
   executionSchema,
@@ -10,6 +11,7 @@ import {
 } from './agent/resources'
 import { encodeCanonical } from './encoding'
 import { remoteFailureSchema } from './errors'
+import { uploadReferencesSchema } from './uploads'
 import { decimal, digest, opaqueId, pageOf, pageParams, timestamp, unicodeText } from './values'
 
 export const assistantCatalogSchema = z.looseObject({
@@ -42,6 +44,12 @@ export const assistantInteractionSchema = interactionSchema.extend({
   configurationRevision: digest,
   respondable: z.boolean(),
   desktopRequired: z.boolean()
+})
+export const assistantAttachmentSelectionSchema = z.strictObject({
+  selectionId: opaqueId,
+  topicId: opaqueId,
+  sequence: decimal,
+  items: attachmentDraftManifestSchema
 })
 export const assistantCursorSchema = z.strictObject({ topicId: opaqueId, streamEpoch: opaqueId, seq: decimal })
 const event = { seq: decimal }
@@ -161,15 +169,23 @@ export const assistantMethods = {
       sha256: digest
     })
   ),
+  'assistant.attachments.present': method(
+    assistantAttachmentSelectionSchema,
+    z.strictObject({ accepted: z.boolean() })
+  ),
   'assistant.messages.send': method(
-    z.strictObject({
-      ...command,
-      assistantId: opaqueId,
-      expectedAssistantRevision: digest,
-      parentAnchorId: opaqueId.nullable(),
-      expectedHistoryRevision: decimal,
-      text: unicodeText.max(32_768).refine((value) => Boolean(value.trim()))
-    }),
+    z
+      .strictObject({
+        ...command,
+        assistantId: opaqueId,
+        expectedAssistantRevision: digest,
+        parentAnchorId: opaqueId.nullable(),
+        expectedHistoryRevision: decimal,
+        text: unicodeText.max(32_768),
+        attachments: uploadReferencesSchema.optional(),
+        selectionId: opaqueId.optional()
+      })
+      .refine((input) => Boolean(input.text.trim()) || Boolean(input.attachments?.length)),
     commandReceiptSchema
   ),
   'assistant.executions.cancel': method(
@@ -236,6 +252,8 @@ export type AssistantMutation =
 export type AssistantTopic = z.infer<typeof assistantTopicSchema>
 export type AssistantMessage = z.infer<typeof assistantMessageSchema>
 export type AssistantInteraction = z.infer<typeof assistantInteractionSchema>
+export type AssistantAttachmentSelection = Omit<z.infer<typeof assistantAttachmentSelectionSchema>, 'items'> &
+  Pick<AgentAttachmentSelection, 'messageId' | 'items'>
 export type AssistantCursor = z.infer<typeof assistantCursorSchema>
 export type AssistantEvent = z.infer<typeof assistantEventSchema>
 export type AssistantBatch = z.infer<typeof assistantBatchSchema>

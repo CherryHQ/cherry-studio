@@ -1,4 +1,4 @@
-import type { FC } from 'react'
+import { type FC, useMemo } from 'react'
 
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -7,11 +7,13 @@ import type {
   MessageListSelectAllPagination,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
+import { TopicPendingAttachments } from './messages/TopicPendingAttachments'
 
 interface ChatMainProps {
   topic: Topic
@@ -44,6 +46,11 @@ const ChatMain: FC<ChatMainProps> = ({
   openCitationsPanel,
   onStartBranchDraft
 }) => {
+  const messageIds = useStableStringArray(messages.map((message) => message.id))
+  const afterMessages = useMemo(
+    () => <TopicPendingAttachments key={topic.id} topicId={topic.id} messageIds={messageIds} />,
+    [messageIds, topic.id]
+  )
   const value = useHomeMessageListProviderValue({
     topic,
     assistant,
@@ -57,7 +64,8 @@ const ChatMain: FC<ChatMainProps> = ({
     hasOlder,
     selectAllPagination,
     openCitationsPanel,
-    onStartBranchDraft
+    onStartBranchDraft,
+    afterMessages
   })
   return (
     <MessageListProvider value={value}>
