@@ -501,7 +501,10 @@ describe('useAgentChatRuntimeState', () => {
           .get('ai.stream.error')
           ?.forEach((listener) => listener({ topicId: 'agent-session:session-1', ...execution, attemptId, error }))
       }
-      await act(async () => emitError(1))
+      const emitPassiveErrors = () => {
+        for (let attemptId = 100; attemptId < 356; attemptId++) emitError(attemptId)
+      }
+      await act(async () => emitPassiveErrors())
       expect(toast.getToastQueue().toasts).toEqual([])
       let send!: Promise<boolean>
       await act(async () => {
@@ -516,7 +519,11 @@ describe('useAgentChatRuntimeState', () => {
         acknowledge(ack)
         expect(await send).toBe(true)
       })
-      if (!beforeAck) await act(async () => emitError())
+      if (!beforeAck)
+        await act(async () => {
+          emitPassiveErrors()
+          emitError()
+        })
       await waitFor(() => expect(toast.getToastQueue().toasts).toHaveLength(1))
       const notification = toast.getToastQueue().toasts[0]
       expect(notification).toMatchObject({ key: 'error:agent-session:session-1:assistant-1', type: 'warning' })

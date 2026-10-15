@@ -130,7 +130,10 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
               modelId: model.id,
               error
             })
-            toast.warning(i18n.t('settings.provider.enable_failed_after_connection'))
+            if (notify) toast.warning(i18n.t('settings.provider.enable_failed_after_connection'))
+            else if (result.kind === 'ok') {
+              throw new Error(i18n.t('settings.provider.enable_failed_after_connection'), { cause: error })
+            }
           }
         }
 

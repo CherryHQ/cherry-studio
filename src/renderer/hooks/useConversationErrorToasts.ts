@@ -1,3 +1,4 @@
+import { LRUCache } from 'lru-cache'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { dataApiService } from '@data/DataApiService'
@@ -40,6 +41,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       active: true,
       generation: 0,
       attempts: new Map<string, Attempt>(),
+      unmatched: new LRUCache<string, Attempt>({ max: 128 }),
       keys: new Set<string>(),
       waiting: new Map<string, Completion>(),
       pending: undefined as Completion | undefined
@@ -58,6 +60,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       state.waiting.forEach((completion) => completion.cancel())
       state.waiting.clear()
       state.attempts.clear()
+      state.unmatched.clear()
       state.keys.clear()
     }
   }, [state])
@@ -159,8 +162,9 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       if (!state.active) return
       for (const execution of executions) {
         const key = `${execution.executionId}:${execution.attemptId}`
-        const attempt = state.attempts.get(key) ?? {}
+        const attempt = state.attempts.get(key) ?? state.unmatched.get(key) ?? {}
         if (attempt.accepted) continue
+        state.unmatched.delete(key)
         attempt.accepted = true
         attempt.message = messages.find((message) => message.id === execution.anchorMessageId) ?? attempt.message
         state.attempts.set(key, attempt)
@@ -180,7 +184,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
     (executionId: string, event: ExecutionFinishEvent) => {
       if (!state.active) return
       const key = `${executionId}:${event.attemptId}`
-      const attempt = state.attempts.get(key) ?? {}
+      const attempt = state.attempts.get(key) ?? state.unmatched.get(key) ?? {}
       if (attempt.handled) return
       const error = event.message.parts.findLast((part) => part.type === 'data-error')?.data
       attempt.result = {
@@ -191,7 +195,8 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
             : undefined
       }
       attempt.message ??= { ...event.message, parts: [] }
-      state.attempts.set(key, attempt)
+      if (attempt.accepted) state.attempts.set(key, attempt)
+      else state.unmatched.set(key, attempt)
       finishAttempt(executionId, key, attempt)
     },
     [finishAttempt, state]

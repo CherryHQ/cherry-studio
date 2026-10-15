@@ -1,9 +1,10 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HealthStatus, type ModelCheckCredential } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type * as HealthCheckUtils from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { toast } from '@renderer/services/toast'
+import type * as ToastServiceModule from '@renderer/services/toast'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import { errorToastPresentations, serializeToastError } from '@renderer/utils/errorToast'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
@@ -20,6 +21,25 @@ const prepareCredentialsMock = vi.fn()
 
 let apiKeyEntries: ApiKeyEntry[]
 let credentialChangeVersion = 0
+
+vi.mock('@cherrystudio/ui', async () => {
+  const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
+  const { getToastUtilities } = await import('@cherrystudio/ui/components/primitives/toast')
+  return { ...MockCherrystudioUI, getToastUtilities }
+})
+
+vi.mock('@renderer/services/toast', async (importOriginal) => {
+  const { toast: actual } = await importOriginal<typeof ToastServiceModule>()
+  return {
+    toast: {
+      ...actual,
+      error: vi.fn(actual.error),
+      warning: vi.fn(actual.warning),
+      success: vi.fn(actual.success),
+      errorFromException: vi.fn(actual.errorFromException)
+    }
+  }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -95,6 +115,8 @@ describe('useProviderConnectionCheck', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    toast.closeAll()
+    enableProviderMock.mockReset()
     credentialChangeVersion = 0
     apiKeyEntries = [
       { id: 'key-1', key: 'sk-primary', label: 'Primary', isEnabled: true },
@@ -204,6 +226,51 @@ describe('useProviderConnectionCheck', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it.each([false, true])('keeps retry enablement failures in the owning toast (dismissed: %s)', async (dismissed) => {
+    checkModelWithMultipleKeysMock.mockImplementationOnce(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => failedResult(credential, 'fetch failed'))
+    )
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+    const original = toast.getToastQueue().toasts[0]
+    expect(original.action).toBeDefined()
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) =>
+      credentials.map((credential) => successfulResult(credential))
+    )
+    let rejectEnable!: (error: Error) => void
+    enableProviderMock.mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectEnable = reject)))
+    let recovery!: Promise<void>
+    await act(async () => {
+      recovery = Promise.resolve(original.action!.onClick())
+    })
+    await waitFor(() => expect(enableProviderMock).toHaveBeenCalledOnce())
+    expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })
+    if (dismissed) toast.closeToast(original.key)
+    await act(async () => {
+      rejectEnable(new Error('Enablement unavailable'))
+      await recovery
+    })
+    if (dismissed) expect(toast.getToastQueue().toasts).toEqual([])
+    else
+      expect(toast.getToastQueue().toasts).toEqual([
+        expect.objectContaining({
+          key: original.key,
+          type: 'error',
+          title: 'settings.provider.enable_failed_after_connection'
+        })
+      ])
+    expect(result.current.singleModelResult?.kind).toBe('ok')
+    expect(toast.warning).not.toHaveBeenCalled()
+    toast.closeAll()
+    enableProviderMock.mockRejectedValueOnce(new Error('Enablement unavailable'))
+    await act(async () => {
+      expect(await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })).toBe('passed')
+    })
+    expect(toast.getToastQueue().toasts.map(({ type }) => type)).toEqual(['warning', 'success'])
+  })
+
   it.each([
     { statusCode: 401, message: 'Invalid credentials', category: 'auth', action: 'configure' },
     { statusCode: 429, message: 'Resource exhausted', category: 'rate_limit', action: 'retry' }
@@ -272,6 +339,12 @@ describe('useProviderConnectionCheck', () => {
       expect.objectContaining({ error: firstFailure }),
       expect.objectContaining({ error: expect.objectContaining({ statusCode: 401 }) })
     ])
+    const retry = vi.mocked(toast.errorFromException).mock.calls[0][1]?.actions?.retry
+    enableProviderMock.mockRejectedValueOnce(new Error('Enablement unavailable'))
+    await act(async () => {
+      await expect(retry!()).rejects.toEqual(firstFailure)
+    })
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('leaves save failure feedback to the API key owner before stopping', async () => {
