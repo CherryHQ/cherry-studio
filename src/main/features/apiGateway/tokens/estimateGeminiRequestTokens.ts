@@ -11,7 +11,6 @@ import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 
 import { type InputParamsMap, MessageConverterFactory } from '../adapters'
-import type { InternalGatewayFeature } from '../ApiGatewayService'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
 import { boundedBodyTokens } from './fallbackEstimate'
 import { toWireToolDefs } from './wireToolDefs'
@@ -41,10 +40,10 @@ export async function estimateGeminiRequestTokens(
   body: GeminiGenerateContentRequest,
   modelString: string,
   signal?: AbortSignal,
-  internalFeature?: InternalGatewayFeature
+  internal = false
 ): Promise<number> {
   try {
-    return await estimateConvertedRequest(body, modelString, signal, internalFeature)
+    return await estimateConvertedRequest(body, modelString, signal, internal)
   } catch (error) {
     logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
     return boundedBodyTokens(body, tokenxTokenizer)
@@ -55,7 +54,7 @@ async function estimateConvertedRequest(
   body: GeminiGenerateContentRequest,
   modelString: string,
   signal: AbortSignal | undefined,
-  internalFeature: InternalGatewayFeature | undefined
+  internal: boolean
 ): Promise<number> {
   const converter = MessageConverterFactory.create('gemini')
   const uiMessages = converter.toUIMessages(body)
@@ -66,7 +65,7 @@ async function estimateConvertedRequest(
   let caps = ALL_MEDIA
   let resolved: ResolvedGatewayModelAddress | undefined
   try {
-    resolved = await resolveGatewayModelAddress(modelString, internalFeature)
+    resolved = await resolveGatewayModelAddress(modelString, internal)
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
   } catch (error) {

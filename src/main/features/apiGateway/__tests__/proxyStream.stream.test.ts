@@ -50,8 +50,8 @@ vi.mock('@application', () => ({
         : name === 'ApiGatewayService'
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
-              getInternalFeature: (headers: Headers) => (mockIsInternalAgentRequest(headers) ? 'agent' : undefined),
-              getAgentSessionId: vi.fn(() => undefined)
+              isInternalRequest: (headers: Headers) => mockIsInternalAgentRequest(headers),
+              getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id') ?? undefined
             }
           : undefined
     )
@@ -575,7 +575,7 @@ describe('processMessage (streaming)', () => {
     }
     mockIsInternalAgentRequest.mockReturnValue(true)
     mockResolveAgentSessionUsage.mockReturnValue(usageContext)
-    const requestHeaders = new Headers({ 'x-api-key': 'internal-agent-key' })
+    const requestHeaders = new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     const response = processMessage({
       params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
@@ -616,7 +616,7 @@ describe('processMessage (streaming)', () => {
       params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
@@ -739,7 +739,7 @@ describe('processMessage (streaming)', () => {
       params: { model: 'openai:gpt-4', messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     })
 
     await vi.waitFor(() => expect(captured.listener).toBeDefined())

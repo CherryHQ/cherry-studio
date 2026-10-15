@@ -21,8 +21,8 @@ const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 
-/** Cherry-launched gateway consumers; each authenticates with in-memory keys. */
-export type InternalGatewayFeature = 'agent' | 'translate'
+/** What a scoped internal credential may call: one generation path, one model address. */
+export type InternalCredentialScope = { path: string; model: string }
 
 function presentedToken(headers: Headers): string | undefined {
   return (
@@ -41,10 +41,10 @@ function presentedToken(headers: Headers): string | undefined {
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
-  /** Never persisted or shown to the user; identifies requests from Cherry-launched Agent runtimes. */
-  private readonly agentApiKey = `cs-internal-${uuidv4()}`
-  /** Live PDF translation credentials, each bound to the one model address its job selected. */
-  private readonly translationCredentials = new Map<string, string>()
+  /** Never persisted or shown to the user; unrestricted on the internal listener. */
+  private readonly internalApiKey = `cs-internal-${uuidv4()}`
+  /** Live scoped credentials; each authorizes only its own scope until disposed. */
+  private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
   /** Loopback listener for internal consumers, started on first use and independent of `enabled`. */
   private internalGateway: Promise<ApiGateway> | null = null
   private internalOrigin: string | undefined
@@ -332,26 +332,25 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Base URL and credential for Cherry-launched Agent runtimes. */
-  async ensureAgentGateway(): Promise<{ baseUrl: string; apiKey: string }> {
-    return { baseUrl: await this.ensureInternalGateway(), apiKey: this.agentApiKey }
-  }
-
-  /** Job-scoped credential: chat completions for `modelAddress` only, revoked by `dispose`. */
-  async createTranslationCredential(
-    modelAddress: string
-  ): Promise<{ baseUrl: string; apiKey: string; dispose: () => void }> {
-    const baseUrl = await this.ensureInternalGateway()
-    const apiKey = `cs-internal-${uuidv4()}`
-    this.translationCredentials.set(apiKey, modelAddress)
-    return { baseUrl, apiKey, dispose: () => this.translationCredentials.delete(apiKey) }
-  }
-
   /**
-   * Dedicated loopback listener for internal consumers, so internal traffic never depends on,
-   * or turns on, the user-facing gateway.
+   * Base URL and unrestricted credential for Cherry-launched consumers. Served by a dedicated loopback
+   * listener so internal traffic never depends on, or turns on, the user-facing gateway.
    */
-  private async ensureInternalGateway(): Promise<string> {
+  async ensureInternalGateway(): Promise<{ baseUrl: string; apiKey: string }> {
+    return { baseUrl: await this.ensureInternalListener(), apiKey: this.internalApiKey }
+  }
+
+  /** A credential for one consumer run that authorizes only `scope`, revoked by `dispose`. */
+  async createScopedCredential(
+    scope: InternalCredentialScope
+  ): Promise<{ baseUrl: string; apiKey: string; dispose: () => void }> {
+    const baseUrl = await this.ensureInternalListener()
+    const apiKey = `cs-internal-${uuidv4()}`
+    this.scopedCredentials.set(apiKey, scope)
+    return { baseUrl, apiKey, dispose: () => this.scopedCredentials.delete(apiKey) }
+  }
+
+  private async ensureInternalListener(): Promise<string> {
     this.internalGateway ??= this.startInternalGateway().catch((error: unknown) => {
       this.internalGateway = null
       throw error
@@ -374,18 +373,16 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return gateway
   }
 
-  /** The internal feature whose key authenticated the request; undefined for external callers. */
-  getInternalFeature(headers: Headers): InternalGatewayFeature | undefined {
+  /** Whether the request presents an internal credential; external callers never hold one. */
+  isInternalRequest(headers: Headers): boolean {
     const token = presentedToken(headers)
-    if (!token) return undefined
-    if (isValidToken(token, this.agentApiKey)) return 'agent'
-    return this.translationCredentials.has(token) ? 'translate' : undefined
+    return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
   }
 
-  /** The model a live translation credential is bound to; undefined for every other request. */
-  getTranslationModel(headers: Headers): string | undefined {
+  /** The scope of a live scoped credential; undefined for every other request. */
+  getCredentialScope(headers: Headers): InternalCredentialScope | undefined {
     const token = presentedToken(headers)
-    return token ? this.translationCredentials.get(token) : undefined
+    return token ? this.scopedCredentials.get(token) : undefined
   }
 
   getCurrentConfig(): ApiGatewayConfig {
@@ -415,9 +412,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return { [AGENT_SESSION_ID_HEADER]: sessionId }
   }
 
-  /** Agent session id of an internal Agent request; undefined for every other caller. */
+  /** Agent session id of an unrestricted internal request; undefined for every other caller. */
   getAgentSessionId(headers: Headers): string | undefined {
-    if (this.getInternalFeature(headers) !== 'agent') return undefined
+    const token = presentedToken(headers)
+    if (!token || !isValidToken(token, this.internalApiKey)) return undefined
     return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
   }
 

@@ -70,7 +70,7 @@ const managedPath = (id: string) => path.join(TEST_ROOT, 'files', `${id}.pdf`)
 
 const binaryManager = { getToolSnapshots: vi.fn() }
 const apiGateway = {
-  createTranslationCredential: vi.fn()
+  createScopedCredential: vi.fn()
 }
 const disposeCredential = vi.fn()
 const fileManager = {
@@ -143,7 +143,7 @@ describe('PdfTranslationService', () => {
         application: { status: 'applied', version: '0.6.4.post4' }
       }
     })
-    apiGateway.createTranslationCredential.mockResolvedValue({
+    apiGateway.createScopedCredential.mockResolvedValue({
       baseUrl: 'http://127.0.0.1:23333',
       apiKey: 'cs-sk-test',
       dispose: disposeCredential
@@ -189,7 +189,10 @@ describe('PdfTranslationService', () => {
     })
 
     expect(binaryManager.getToolSnapshots).toHaveBeenCalledTimes(1)
-    expect(apiGateway.createTranslationCredential).toHaveBeenCalledWith('openai:gpt-4.1')
+    expect(apiGateway.createScopedCredential).toHaveBeenCalledWith({
+      path: '/v1/chat/completions',
+      model: 'openai:gpt-4.1'
+    })
     expect(mocks.spawn).toHaveBeenCalledWith(
       MANAGED_BINARY,
       expect.arrayContaining([
@@ -895,7 +898,7 @@ describe('PdfTranslationService', () => {
     })
 
     it('strips the brackets an IPv6 gateway host carries', async () => {
-      apiGateway.createTranslationCredential.mockResolvedValue({
+      apiGateway.createScopedCredential.mockResolvedValue({
         baseUrl: 'http://[::1]:23333',
         apiKey: 'cs-sk-test',
         dispose: disposeCredential
