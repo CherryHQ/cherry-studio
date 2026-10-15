@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   availableCloudModelIds: {
     agent: new Set<string>(),
-    chat: new Set<string>()
+    general: new Set<string>()
   },
   getProvider: vi.fn(),
   listProviders: vi.fn(),
@@ -48,7 +48,7 @@ describe('api gateway model listing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.availableCloudModelIds.agent.clear()
-    mocks.availableCloudModelIds.chat.clear()
+    mocks.availableCloudModelIds.general.clear()
     mocks.applicationGet.mockImplementation((service: string) => {
       if (service !== 'CherryCloudService') throw new Error(`Unexpected service: ${service}`)
       return {
@@ -56,12 +56,11 @@ describe('api gateway model listing', () => {
       }
     })
     mocks.syncEntitledModelsIfStale.mockImplementation(async () => ({
-      entitledModelIds: [...mocks.availableCloudModelIds.agent, ...mocks.availableCloudModelIds.chat],
+      entitledModelIds: [...mocks.availableCloudModelIds.agent, ...mocks.availableCloudModelIds.general],
       freeModelIds: [],
-      availableModelIdsByFeature: {
+      availableModelIds: {
         agent: [...mocks.availableCloudModelIds.agent],
-        chat: [...mocks.availableCloudModelIds.chat],
-        translate: []
+        general: [...mocks.availableCloudModelIds.general]
       },
       quotaExhaustedModelIds: []
     }))
@@ -300,7 +299,7 @@ describe('api gateway model listing', () => {
     })
 
     it('does not treat conversation availability as Work availability', async () => {
-      mocks.availableCloudModelIds.chat.add(cloudModel.id)
+      mocks.availableCloudModelIds.general.add(cloudModel.id)
 
       await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, 'agent')).rejects.toThrow(
         'not available through the API gateway'

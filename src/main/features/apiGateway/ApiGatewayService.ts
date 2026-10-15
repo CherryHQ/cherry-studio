@@ -343,7 +343,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   private async startInternalGateway(): Promise<ApiGateway> {
     const { ApiGateway } = await import('./server')
-    const gateway = new ApiGateway({ host: INTERNAL_GATEWAY_HOST, port: 0 })
+    const gateway = new ApiGateway({ host: INTERNAL_GATEWAY_HOST, port: 0 }, 'internal')
     await gateway.start()
     this.internalOrigin = gatewayClientOrigin(INTERNAL_GATEWAY_HOST, gateway.getPort())
     logger.info('Internal API gateway started', { origin: this.internalOrigin })

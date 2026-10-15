@@ -101,11 +101,13 @@ async function read(res: Response): Promise<{ status: number; body: any }> {
 
 describe('API gateway routes (integration)', () => {
   let app: ReturnType<typeof buildApp>
+  let internalApp: ReturnType<typeof buildApp>
 
   beforeEach(() => {
     vi.clearAllMocks()
     mockPreferenceGet.mockReturnValue('test-key')
     app = buildApp()
+    internalApp = buildApp({ surface: 'internal' })
   })
 
   describe('public routes', () => {
@@ -257,7 +259,7 @@ describe('API gateway routes (integration)', () => {
   describe('Anthropic token counting', () => {
     it('preserves the internal Work identity for Cherry Cloud model resolution', async () => {
       const response = await post(
-        app,
+        internalApp,
         '/v1/messages/count_tokens',
         { model: 'cherryai-subscription:claude', messages: [{ role: 'user', content: 'hello' }] },
         { ...AUTH, 'x-api-key': 'internal-agent-key' }
@@ -347,7 +349,7 @@ describe('API gateway routes (integration)', () => {
     it('accepts Fast only from an internal consumer', async () => {
       await read(
         await post(
-          app,
+          internalApp,
           '/v1/messages',
           { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
           {
@@ -532,10 +534,15 @@ describe('API gateway routes (integration)', () => {
     })
 
     it('countTokens: preserves the internal Work identity for Cherry Cloud model resolution', async () => {
-      const response = await post(app, '/v1beta/models/cherryai-subscription:gemini-2.5:countTokens', geminiBody, {
-        ...AUTH,
-        'x-api-key': 'internal-agent-key'
-      })
+      const response = await post(
+        internalApp,
+        '/v1beta/models/cherryai-subscription:gemini-2.5:countTokens',
+        geminiBody,
+        {
+          ...AUTH,
+          'x-api-key': 'internal-agent-key'
+        }
+      )
 
       expect(response.status).toBe(200)
       expect(mockResolveGatewayModelAddress).toHaveBeenCalledWith('cherryai-subscription:gemini-2.5', 'agent')
@@ -672,8 +679,26 @@ describe('API gateway routes (integration)', () => {
 })
 
 describe('internal consumer authorization', () => {
+  it('accepts only internal keys on the internal listener and only the user key on the public one', async () => {
+    const send = (app: ReturnType<typeof buildApp>, authorization: string) =>
+      app.handle(
+        new Request('http://localhost/v1/chat/completions', {
+          method: 'POST',
+          headers: { authorization, 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'openai:gpt-4o', messages: [{ role: 'user', content: 'hi' }] })
+        })
+      )
+    const internal = buildApp({ surface: 'internal' })
+    const publicApp = buildApp()
+
+    expect((await send(internal, 'Bearer internal-agent-key')).status).toBe(200)
+    expect((await send(internal, 'Bearer test-key')).status).toBe(403)
+    expect((await send(publicApp, 'Bearer test-key')).status).toBe(200)
+    expect((await send(publicApp, 'Bearer internal-agent-key')).status).toBe(403)
+  })
+
   it('accepts an internal key without the user-facing API key', async () => {
-    const app = buildApp()
+    const app = buildApp({ surface: 'internal' })
     const send = (authorization: string) =>
       app.handle(
         new Request('http://localhost/v1/chat/completions', {
@@ -688,7 +713,7 @@ describe('internal consumer authorization', () => {
   })
 
   it('rejects an internal key presented only as a query parameter', async () => {
-    const app = buildApp()
+    const app = buildApp({ surface: 'internal' })
     const post = (path: string, body: unknown) =>
       app.handle(
         new Request(`http://localhost${path}`, {

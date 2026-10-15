@@ -36,7 +36,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── openapiDocs.ts                   ← localized OpenAPI generation and Scalar page
 ├── errors.ts                        ← `gatewayErrorHandler` (path → anthropic/openai/google/rest envelopes),
 │                                       `buildStreamErrorFrame` (streaming error/timeout frames), `transformOpenAiError`
-├── ApiGatewayService.ts             ← lifecycle owner, preference intent, leases, running-state reconciler
+├── ApiGatewayService.ts             ← lifecycle owner, preference intent, internal listener, running-state reconciler
 ├── McpSessionStore.ts               ← bounded live Streamable HTTP MCP sessions
 ├── ModernMcpProxy.ts                ← MCP 2026-07-28 discovery, MRTR and subscriptions
 ├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
@@ -167,6 +167,20 @@ interfaces no longer accept new TCP connections. If opening access fails, the
 service restores loopback intent and attempts to rebind locally. If narrowing
 the listener fails, it remains unbound and the command reports an error.
 
+### Internal listener for Cherry consumers
+
+Agent runtimes and PDF translation reach models through a second listener that
+`ApiGatewayService.ensureInternalGateway(feature)` starts on `127.0.0.1` with an
+ephemeral port the first time it is needed. It is independent of the user's
+`enabled` preference and stays up until the service stops. Each internal feature
+(`agent`, `translate`) has an in-memory key that is never persisted or shown;
+the internal listener accepts only those keys, sent in a header, and the public
+listener accepts only the user's key. The key a request presents is its
+identity: `getInternalFeature` selects Cherry Cloud feature admission, Agent
+session attribution and Fast mode. Gateway requests run without Cherry's
+retries or fallback models, so a request is served only by the model it was
+admitted for.
+
 ## Request flow (generation routes)
 
 The OpenAI, Anthropic, and Gemini generation routes call
@@ -176,11 +190,11 @@ The OpenAI, Anthropic, and Gemini generation routes call
 1. **Resolve model.** Read `params.model`, split on the first `:` into
    `providerId` / `modelId`, build a `uniqueModelId` via `createUniqueModelId`.
    `params.stream === true` selects streaming vs. JSON.
-2. **Validate trusted Agent history.** After the request proves it is an
-   internal Agent request, Anthropic-format history is checked before conversion.
+2. **Validate trusted Agent history.** After the request authenticates with the
+   internal Agent key, Anthropic-format history is checked before conversion.
    Deeply identical duplicate `tool_use` / `tool_result` blocks are
    losslessly folded; conflicting reuse of an ID returns HTTP 400. This condition
-   depends only on the internal proof and Anthropic input format, not the target
+   depends only on the internal Agent key and Anthropic input format, not the target
    provider.
 3. **Convert input.** `MessageConverterFactory.create(inputFormat, …)` returns
    the dialect's `IMessageConverter`, which yields:
@@ -303,19 +317,17 @@ single authority for their running state.
 All activation/deactivation flows through a self-held
 [`createLatestReconciler`](../../../src/main/core/concurrency/README.md), the
 sole caller of `activate`/`deactivate`. It is driven by `onReady`, Preference
-changes, IpcApi actions, and temporary run leases, converging actual state to
-`desiredEnabled || leaseCount > 0` and the requested listening scope. A temporary consumer can therefore keep the
-server up without persisting an enabled intent. Start/stop persist user intent
-before convergence; restart rebinds only when no lease is active.
+changes and IpcApi actions, converging actual state to `desiredEnabled` and the
+requested listening scope. Start/stop persist user intent before convergence.
+Cherry's own consumers never keep this listener up; they use the internal
+listener described below.
 
 LAN commands are serialized with remote-session cleanup. Enabling LAN requires
 an enabled, running gateway and persists `host = 0.0.0.0`. Disabling LAN persists
 `host = 127.0.0.1`, closes remote sessions and rebinds the listener without interrupting local requests.
 
 An explicit gateway stop atomically persists `enabled = false` and disables LAN,
-then closes remote sessions. A `deferred` stop preserves the listener for local
-task leases on `127.0.0.1` / `::1`, while the guard refuses remote access. The final lease release
-stops the listener. An explicit restart retains LAN intent and reuses the
+then closes remote sessions and stops the listener. An explicit restart retains LAN intent and reuses the
 configured gateway port; a fresh QR is only needed if the endpoint changes.
 
 ### Running state — Shared Cache, not IPC
@@ -333,14 +345,12 @@ cache and config lives in the Preference subsystem.
 | Route | Result | Handler |
 |---|---|---|
 | `api_gateway.start` | `{ success } \| { success:false, error }` | `ApiGatewayService.start()` |
-| `api_gateway.stop` | success includes `outcome: 'stopped' \| 'deferred'` | `ApiGatewayService.stop()` |
+| `api_gateway.stop` | success includes `outcome: 'stopped'` | `ApiGatewayService.stop()` |
 | `api_gateway.restart` | `{ success } \| { success:false, error }` | `ApiGatewayService.restart()` |
 | `api_gateway.lan.set_enabled` | `void`; failures use the standard IpcApi error channel | `ApiGatewayService.setLanEnabled(enabled)` |
 | `api_gateway.remote.create_invitation` | active LAN endpoint + one-time invitation and desktop identity; failures use the standard IpcApi error channel | `ApiGatewayService.createRemoteInvitation()` |
 | `api_gateway.remote.list_claims` / `api_gateway.remote.decide_pairing` | pending pairing claims and the local approve/reject decision with granted capabilities | `RemoteAccessService` |
 
-`api_gateway.required` is a Main-to-renderer event for an Agent session whose
-model must use the gateway while the user's persisted gateway intent is off.
 `api_gateway.remote.pairing_changed` is a payload-free signal that refreshes
 pending claims in every settings window.
 

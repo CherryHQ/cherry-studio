@@ -43,7 +43,7 @@ function snapshot(overrides: Partial<CherryCloudModelSyncResult> = {}): CherryCl
   return {
     entitledModelIds: [],
     freeModelIds: [],
-    availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
+    availableModelIds: { agent: [], general: [] },
     quotaExhaustedModelIds: [],
     ...overrides
   }
@@ -75,7 +75,7 @@ describe('useCherryCloudModelAvailability', () => {
     mocks.ipcRequest.mockResolvedValue(
       snapshot({
         entitledModelIds: [workOnly.id, shared.id],
-        availableModelIdsByFeature: { agent: [workOnly.id, shared.id], chat: [shared.id], translate: [shared.id] }
+        availableModelIds: { agent: [workOnly.id, shared.id], general: [shared.id] }
       })
     )
     const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: wrapper() })
@@ -97,10 +97,9 @@ describe('useCherryCloudModelAvailability', () => {
       snapshot({
         entitledModelIds: all,
         freeModelIds: [workOnlyFree.id, sharedFree.id, exhaustedFree.id],
-        availableModelIdsByFeature: {
+        availableModelIds: {
           agent: all,
-          chat: [sharedFree.id, exhaustedFree.id, exhaustedPaid.id, paid.id],
-          translate: []
+          general: [sharedFree.id, exhaustedFree.id, exhaustedPaid.id, paid.id]
         },
         quotaExhaustedModelIds: [exhaustedFree.id, exhaustedPaid.id]
       })
@@ -129,7 +128,7 @@ describe('useCherryCloudModelAvailability', () => {
     const shared = cloud('shared')
     const signedIn = snapshot({
       entitledModelIds: [shared.id],
-      availableModelIdsByFeature: { agent: [shared.id], chat: [shared.id], translate: [] }
+      availableModelIds: { agent: [shared.id], general: [shared.id] }
     })
     mocks.ipcRequest.mockResolvedValue(signedIn)
     const pendingRefresh = Promise.withResolvers<CherryCloudModelSyncResult>()
