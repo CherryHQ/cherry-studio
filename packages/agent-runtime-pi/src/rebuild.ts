@@ -39,6 +39,7 @@ const invalid = (entryId: string | undefined, reason: string) =>
   new TranscriptError('invalid_entry', entryId, `Invalid transcript entry: ${reason}`)
 
 function toPiUsage(usage: TranscriptUsage | undefined, entryId: string): Usage {
+  if (usage !== undefined && !isRecord(usage)) throw invalid(entryId, 'usage must be an object of counts')
   const { input = 0, output = 0, cacheRead = 0, cacheWrite = 0, reasoning } = usage ?? {}
   if (![input, output, cacheRead, cacheWrite].every(isCount) || (reasoning !== undefined && !isCount(reasoning)))
     throw invalid(entryId, 'usage counts must be non-negative numbers')
@@ -100,6 +101,7 @@ export function rebuildSessionEntries(
   let activatedTools: string[] = []
   let parentId: string | null = null
 
+  if (!Array.isArray(transcript)) throw invalid(undefined, 'the transcript must be a list of entries')
   for (const raw of transcript as readonly unknown[]) {
     if (!isRecord(raw) || typeof raw.id !== 'string' || raw.id === '')
       throw invalid(undefined, 'every entry needs a non-empty string id')
