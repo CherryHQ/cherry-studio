@@ -864,6 +864,63 @@ describe('edit dialogs', () => {
     }
   )
 
+  it.each([
+    ['agent', ''],
+    ['assistant', ''],
+    ['agent', 'New name'],
+    ['assistant', 'New name']
+  ] as const)(
+    'preserves newer %s edits with name "%s" made while management navigation awaits a save',
+    async (type, nextName) => {
+      const user = userEvent.setup()
+      const save = createDeferred<AgentDetail | Assistant>()
+      const update = type === 'agent' ? updateAgentMock : updateAssistantMock
+      update.mockImplementationOnce(() => save.promise)
+      function Host() {
+        const [open, setOpen] = useState(true)
+        return type === 'agent' ? (
+          <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} />
+        ) : (
+          <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} />
+        )
+      }
+      render(<Host />)
+      await user.clear(screen.getByLabelText('Description'))
+      await user.type(screen.getByLabelText('Description'), 'First description')
+      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      const frames = mockDeferredAnimationFrames()
+      try {
+        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await waitFor(() => expect(update).toHaveBeenCalled())
+        await user.click(screen.getByRole('tab', { name: 'Basic' }))
+        const nameInput = screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name')
+        await user.clear(nameInput)
+        if (nextName) await user.type(nameInput, nextName)
+        await user.clear(screen.getByLabelText('Description'))
+        await user.type(screen.getByLabelText('Description'), 'Newer description')
+
+        await act(async () => save.resolve(type === 'agent' ? AGENT : ASSISTANT))
+        frames.flushAllFrames()
+        expect(screen.getByRole('dialog')).toBeVisible()
+        expect(nameInput).toHaveValue(nextName)
+        expect(screen.getByLabelText('Description')).toHaveValue('Newer description')
+        expect(openSettingsTabMock).not.toHaveBeenCalled()
+
+        if (!nextName) await user.type(nameInput, 'Corrected name')
+        await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        frames.flushAllFrames()
+        expect(update).toHaveBeenLastCalledWith({
+          body: expect.objectContaining({ name: nextName || 'Corrected name', description: 'Newer description' })
+        })
+        expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+      } finally {
+        frames.restore()
+      }
+    }
+  )
+
   it.each(['agent', 'assistant'] as const)(
     'preserves failed %s edits across repeated management clicks until a corrected edit saves',
     async (type) => {

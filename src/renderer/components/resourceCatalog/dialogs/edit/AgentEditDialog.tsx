@@ -524,8 +524,9 @@ function AgentEditDialogContent({
       onOpenChange(false)
       return true
     }
+    const valuesBeforeSave = JSON.stringify(form.getValues())
     await flush()
-    if (failedSaveKeyRef.current !== null) return false
+    if (failedSaveKeyRef.current !== null || JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
     onOpenChange(false)
     return true
   }
