@@ -18,7 +18,7 @@ describe('Assistant relation writes with duplicate IDs', () => {
       dbh.db.insert(mcpServerTable).values({ id, name: id }).run()
       dbh.db
         .insert(knowledgeBaseTable)
-        .values({ id, name: id, status: 'completed', chunkSize: 1024, chunkOverlap: 200 })
+        .values({ id, name: id, orderKey: 'a0', status: 'completed', chunkSize: 1024, chunkOverlap: 200 })
         .run()
     }
   })
