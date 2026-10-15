@@ -57,3 +57,15 @@ pnpm exec vitest run --project scripts scripts/voice-runtime-smoke/__tests__/smo
 ```
 
 These tests check target selection, installed-model readiness, recording admission and session ownership, explicit model selection without fallback, sensitive-output suppression, cleanup, and empty transcription from either engine. Their browser/IPC doubles reject uploads without an active recording lease and reject access after another session takes ownership; only a real application run is voice-runtime evidence. This differs from the separate [utility-process smoke](../utility-process-smoke/README.md), which boots a throwaway engine test app.
+
+## Sherpa Windows ARM64 runtime
+
+The [runtime workflow](../../.github/workflows/sherpa-win-arm64.yml) builds the Node-API addon on a native `windows-11-arm` runner. It checks out the upstream source revision in [the runtime configuration](./sherpa-arm64-runtime.json), verifies the official shared MT SDK checksum, and applies [the Windows CMake patch](./sherpa-node-addon-win32.patch). The JavaScript package version must match the pinned native SDK version. No inference-engine source is maintained in this repository.
+
+The workflow runs for changes to its build inputs and can also be dispatched manually. It downloads the checksum-verified Kokoro and FunASR bundles from the application catalog. The same addon must synthesize a non-silent Chinese-English WAV and recognize nonempty text in both native Node and the application's Electron version through a utility process. These checks prove native loading and inference, not recognition quality, installed application packaging, or UI support.
+
+Each run uploads the native binaries, dependency inspection, synthetic WAVs, result reports, runtime archive, and SHA256 file as the `sherpa-win-arm64-runtime` artifact. The archive contains only the addon, SDK DLLs, license, and build provenance; smoke models and audio are excluded. The checks reject non-ARM64 binaries and dynamic MSVC runtime dependencies.
+
+To publish a durable download, dispatch the workflow on `main` in `CherryHQ/cherry-studio` with `publish` enabled. Publication runs only after both inference checks pass, creates a new `sherpa-runtime-v<version>-r<runtimeRevision>` tag, and uploads the archive and checksum as a prerelease without changing the latest application release. Existing tags are rejected; increment `runtimeRevision` for a new build. After a failed publication, inspect any tag or partial release before retrying. Client download URLs and platform availability are configured separately after publication and packaged application validation.
+
+When upgrading Sherpa, update the source revision, SDK checksum, and tool versions in the runtime configuration together with the application's JavaScript dependency and its loader patch. Recheck whether the upstream CMake file still needs the Windows patch. An official compatible Windows ARM64 addon can replace this build when available.
