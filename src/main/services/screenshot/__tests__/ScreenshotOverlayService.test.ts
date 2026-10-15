@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WindowType } from '@main/core/window/types'
 import type { DetectedWindow } from '@shared/types/screenshot'
 
+import { ScreenshotChatService } from '../../ScreenshotChatService'
 import type { CaptureResult, RawWindowInfo } from '../types'
 
 // ─── Mutable platform flags (macOS is this suite's default) ───────────────────
@@ -31,8 +32,11 @@ vi.mock('@main/utils/screenCapturePermission', () => capture)
 const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
 vi.mock('../windowEnumerator', () => enumerator)
 
-const localModel = vi.hoisted(() => ({ isCapabilityReady: vi.fn(() => true) }))
+const localModel = vi.hoisted(() => ({ isDefaultModelReady: vi.fn(() => true) }))
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+
+const nativeOcr = vi.hoisted(() => ({ recognize: vi.fn(), OcrAccuracy: { Accurate: 1 } }))
+vi.mock('@napi-rs/system-ocr', () => nativeOcr)
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
 
@@ -48,7 +52,7 @@ const electron = vi.hoisted(() => ({
   displays: [] as unknown[],
   cursorDisplay: undefined as unknown,
   primaryDisplay: undefined as unknown,
-  app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn() },
+  app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
   browserWindows: [] as unknown[],
   clipboard: { write: vi.fn<(items: { data: Record<string, Blob> }[]) => Promise<void>>(async () => {}) },
   dialog: { showSaveDialog: vi.fn(), showMessageBox: vi.fn() },
@@ -60,7 +64,10 @@ const electron = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => ({
   app: electron.app,
-  BrowserWindow: { getAllWindows: () => electron.browserWindows },
+  BrowserWindow: {
+    getAllWindows: () => electron.browserWindows,
+    getFocusedWindow: () => electron.browserWindows[0] ?? null
+  },
   clipboard: electron.clipboard,
   ClipboardItem: class {
     constructor(readonly data: Record<string, Blob>) {}
@@ -79,10 +86,10 @@ vi.mock('electron', () => ({
 /** A stand-in for an encoded PNG; only its identity matters to these assertions. */
 const PNG_BYTES = new Uint8Array([137, 80, 78, 71])
 
-const { writeFileSyncMock } = vi.hoisted(() => ({ writeFileSyncMock: vi.fn() }))
+const { writeFileSyncMock, rmSyncMock } = vi.hoisted(() => ({ writeFileSyncMock: vi.fn(), rmSyncMock: vi.fn() }))
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFs>()
-  return { ...actual, default: actual, writeFileSync: writeFileSyncMock }
+  return { ...actual, default: actual, writeFileSync: writeFileSyncMock, rmSync: rmSyncMock }
 })
 
 // ─── Lifecycle base ───────────────────────────────────────────────────────────
@@ -117,6 +124,9 @@ function createFakeWindow() {
     hide: vi.fn(),
     focus: vi.fn(),
     isDestroyed: vi.fn(() => false),
+    isMinimized: vi.fn(() => false),
+    isFullScreen: vi.fn(() => false),
+    restore: vi.fn(),
     isVisible: vi.fn(() => true),
     webContents: new EventEmitter()
   }
@@ -147,6 +157,7 @@ const container = vi.hoisted(() => {
 
   const openCalls: Array<{ id: string; args: any }> = []
   const windowManager = {
+    onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
     // Keyed on the display origin, so the same display hands back the same window
     // on a later session — the pooled-recycle behaviour this service must survive.
     open: vi.fn((type: string, args: any) => {
@@ -161,6 +172,7 @@ const container = vi.hoisted(() => {
       return id
     }),
     getWindow: vi.fn((id: string) => windows.get(id)),
+    getWindowId: vi.fn((window: unknown) => [...windows].find(([, candidate]) => candidate === window)?.[0]),
     behavior: { setAlwaysOnTopLevel: vi.fn() },
     close: vi.fn(() => true),
     setInitData: vi.fn(),
@@ -185,6 +197,10 @@ const container = vi.hoisted(() => {
     createdListeners,
     openCalls,
     overrides: {
+      ScreenshotOverlayService: {
+        startCapture: (...args: Parameters<InstanceType<typeof ScreenshotOverlayService>['startCapture']>) =>
+          service.startCapture(...args)
+      },
       PreferenceService: preferenceService,
       MediaProtocolService: mediaProtocolService,
       WindowManager: windowManager,
@@ -341,6 +357,7 @@ describe('ScreenshotOverlayService', () => {
     container.reset()
     platform.isMac = true
     platform.isWin = false
+    platform.isLinux = false
     platform.isDev = false
     electron.displays = []
     electron.cursorDisplay = undefined
@@ -352,13 +369,252 @@ describe('ScreenshotOverlayService', () => {
     enumerator.listWindowsOffThread.mockResolvedValue([])
     capture.listMonitors.mockReturnValue([])
     capture.captureAllMonitors.mockReturnValue(new Map())
-    localModel.isCapabilityReady.mockReturnValue(true)
+    localModel.isDefaultModelReady.mockReturnValue(true)
+    nativeOcr.recognize.mockReset().mockResolvedValue({ text: '', confidence: 1, lines: [] })
     container.ocrInferenceService.recognize.mockResolvedValue({ text: '', lines: [] })
     startService()
   })
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  describe('chat delivery integration', () => {
+    let chatService: ScreenshotChatService
+    beforeEach(() => {
+      chatService = new ScreenshotChatService()
+      ;(chatService as any).onInit()
+    })
+    it('keeps a macOS fullscreen source visible throughout capture and dismissal', async () => {
+      singleDisplaySetup()
+      const chat = createFakeWindow()
+      chat.isFullScreen.mockReturnValue(true)
+      chat.hide.mockImplementation(() => {
+        throw new Error('Hiding a fullscreen source would orphan its Space')
+      })
+      container.windows.set('chat', chat)
+      await chatService.startCapture('chat')
+      expect(container.openCalls).toHaveLength(1)
+      service.dismiss()
+      expect(chat.hide).not.toHaveBeenCalled()
+      expect(chat.show).not.toHaveBeenCalled()
+    })
+
+    it.each([false, true])(
+      'handles a late receipt after dismissal without affecting a new capture (accepted: %s)',
+      async (accepted) => {
+        singleDisplaySetup()
+        container.windows.set('chat', createFakeWindow())
+        chatService.setTarget('chat', 'draft')
+        await chatService.startCapture('chat')
+        const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'message' })
+        const rejected = expect(sending).rejects.toThrow('could not accept')
+        const delivery = container.ipcApiService.send.mock.calls.find(
+          (call) => call[1] === 'chat.screenshot.attachment'
+        )![2]
+        service.dismiss()
+        await rejected
+        expect(rmSyncMock).not.toHaveBeenCalled()
+        await chatService.startCapture('chat')
+        chatService.receiveResult('wrong-window', delivery.deliveryId, false)
+        expect(rmSyncMock).not.toHaveBeenCalled()
+        chatService.receiveResult('chat', delivery.deliveryId, accepted)
+        if (accepted) expect(rmSyncMock).not.toHaveBeenCalled()
+        else expect(rmSyncMock).not.toHaveBeenCalled()
+        expect(container.mediaEntries.size).toBe(1)
+        rmSyncMock.mockClear()
+        chatService.receiveResult('chat', delivery.deliveryId, false)
+        expect(rmSyncMock).not.toHaveBeenCalled()
+      }
+    )
+
+    it('uses the most recently focused chat rather than the most recently registered chat', async () => {
+      singleDisplaySetup()
+      const first = createFakeWindow()
+      const second = createFakeWindow()
+      container.windows.set('first', first)
+      container.windows.set('second', second)
+      electron.browserWindows = [first]
+      chatService.setTarget('first', 'first-draft')
+      chatService.setTarget('second', 'second-draft')
+      const focusListener = electron.app.on.mock.calls.find(([event]) => event === 'browser-window-focus')![1]
+      focusListener({}, second)
+      electron.browserWindows = []
+      await chatService.startCapture()
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: '' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'chat.screenshot.attachment')!
+      expect(delivery[0]).toBe('second')
+      expect(delivery[2].scopeKey).toBe('second-draft')
+      chatService.receiveResult('second', delivery[2].deliveryId, true)
+      await sending
+    })
+
+    it('delivers a global shortcut capture to the last focused chat while another app is active', async () => {
+      singleDisplaySetup()
+      const chat = createFakeWindow()
+      container.windows.set('chat', chat)
+      electron.browserWindows = [chat]
+      chatService.setTarget('chat', 'draft')
+      electron.browserWindows = []
+      await chatService.startCapture()
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(true)
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'From another app' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'chat.screenshot.attachment')!
+      expect(delivery[0]).toBe('chat')
+      expect(delivery[2].scopeKey).toBe('draft')
+      chatService.receiveResult('chat', delivery[2].deliveryId, true)
+      await sending
+    })
+
+    it('does not use a closed last-focused chat for a global capture', async () => {
+      singleDisplaySetup()
+      const chat = createFakeWindow()
+      container.windows.set('chat', chat)
+      electron.browserWindows = [chat]
+      chatService.setTarget('chat', 'draft')
+      electron.browserWindows = []
+      chat.isDestroyed.mockReturnValue(true)
+      await chatService.startCapture()
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(false)
+    })
+
+    it.each([false, true])(
+      'hides the in-app source before capture and restores it (capture failure: %s)',
+      async (fails) => {
+        singleDisplaySetup()
+        const chat = createFakeWindow()
+        let visible = true
+        chat.hide.mockImplementation(() => {
+          visible = false
+        })
+        chat.show.mockImplementation(() => {
+          visible = true
+        })
+        container.windows.set('chat', chat)
+        capture.captureAllMonitors.mockImplementation(() => {
+          expect(visible).toBe(false)
+          if (fails) throw new Error('capture failed')
+          return new Map([[1, makeCapture()]])
+        })
+        await chatService.startCapture('chat')
+        if (!fails) {
+          expect(visible).toBe(false)
+          service.dismiss()
+        }
+        expect(visible).toBe(true)
+      }
+    )
+
+    it('does not use another chat when the shortcut source has no composer', async () => {
+      singleDisplaySetup()
+      const focused = createFakeWindow()
+      electron.browserWindows = [focused]
+      container.windows.set('focused', focused)
+      container.windows.set('other', createFakeWindow())
+      chatService.setTarget('other', 'topic-b')
+      await chatService.startCapture()
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(false)
+    })
+
+    it('keeps a rejected capture available for correction and retry', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat', createFakeWindow())
+      chatService.setTarget('chat', 'draft')
+      await chatService.startCapture('chat')
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'too long' })
+      const result = expect(sending).rejects.toThrow('complete screenshot')
+      const payload = container.ipcApiService.send.mock.calls.findLast(
+        (call) => call[1] === 'chat.screenshot.attachment'
+      )![2]
+      chatService.receiveResult('chat', payload.deliveryId, false)
+      await result
+      expect(rmSyncMock).not.toHaveBeenCalled()
+      expect(container.mediaEntries.size).toBe(1)
+      const retry = service.submitResult({ pngBytes: PNG_BYTES, text: '' })
+      const retried = container.ipcApiService.send.mock.calls.findLast(
+        (call) => call[1] === 'chat.screenshot.attachment'
+      )![2]
+      chatService.receiveResult('chat', retried.deliveryId, true)
+      await retry
+      expect(container.mediaEntries.size).toBe(0)
+      expect(rmSyncMock).not.toHaveBeenCalledWith(retried.path, expect.anything())
+    })
+
+    it('reuses the delivery id and file after an unconfirmed timeout', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat', createFakeWindow())
+      chatService.setTarget('chat', 'draft')
+      await chatService.startCapture('chat')
+      vi.useFakeTimers()
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'note' })
+      const result = expect(sending).rejects.toThrow('not been confirmed')
+      const payload = container.ipcApiService.send.mock.calls.findLast(
+        (call) => call[1] === 'chat.screenshot.attachment'
+      )![2]
+      await vi.advanceTimersByTimeAsync(10000)
+      await result
+      expect(container.mediaEntries.size).toBe(2)
+      expect(rmSyncMock).not.toHaveBeenCalled()
+      const retry = service.submitResult({ pngBytes: PNG_BYTES, text: 'note' })
+      const retried = container.ipcApiService.send.mock.calls.findLast(
+        (call) => call[1] === 'chat.screenshot.attachment'
+      )![2]
+      expect(retried).toEqual(payload)
+      chatService.receiveResult('chat', retried.deliveryId, true)
+      await retry
+      expect(writeFileSyncMock).not.toHaveBeenCalled()
+      expect(rmSyncMock).not.toHaveBeenCalled()
+    })
+    it('does not redirect an unregistered source window to another window chat', async () => {
+      singleDisplaySetup()
+      container.windows.set('other-window', createFakeWindow())
+      chatService.setTarget('other-window', 'topic-b')
+      await chatService.startCapture('source-window')
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(false)
+      await expect(service.submitResult({ pngBytes: PNG_BYTES, text: '' })).rejects.toThrow('No result consumer')
+      expect(writeFileSyncMock).not.toHaveBeenCalled()
+    })
+
+    it('delivers the annotated PNG and message only to the capture source chat', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat-window', createFakeWindow())
+      chatService.setTarget('chat-window', 'topic-a')
+      await chatService.startCapture('chat-window')
+      expect(container.openCalls[0].args.initData.canSubmitResult).toBe(true)
+      const sending = service.submitResult({ pngBytes: PNG_BYTES, text: 'Explain this' })
+      const delivery = container.ipcApiService.send.mock.calls.find((call) => call[1] === 'chat.screenshot.attachment')
+      expect(delivery).toEqual([
+        'chat-window',
+        'chat.screenshot.attachment',
+        {
+          deliveryId: expect.any(String),
+          imageUrl: expect.stringMatching(/^cherry-media:\/\/image\//),
+          name: expect.stringMatching(/^screenshot_.*\.png$/),
+          size: PNG_BYTES.byteLength,
+          scopeKey: 'topic-a',
+          text: 'Explain this'
+        }
+      ])
+      expect(writeFileSyncMock).not.toHaveBeenCalled()
+      expect(container.mediaEntries.get(delivery![2].imageUrl.split('/').pop())).toEqual(Buffer.from(PNG_BYTES))
+      expect(container.mediaEntries.size).toBe(2)
+      chatService.receiveResult('wrong-window', delivery![2].deliveryId, true)
+      expect(container.mediaEntries.size).toBe(2)
+      chatService.receiveResult('chat-window', delivery![2].deliveryId, true)
+      await sending
+      expect(container.mediaEntries.size).toBe(0)
+    })
+
+    it('keeps the capture open and does not deliver to a different chat after the target changes', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat-window', createFakeWindow())
+      chatService.setTarget('chat-window', 'topic-a')
+      await chatService.startCapture('chat-window')
+      chatService.setTarget('chat-window', 'topic-b')
+      await expect(service.submitResult({ pngBytes: PNG_BYTES, text: '' })).rejects.toThrow('no longer available')
+      expect(writeFileSyncMock).not.toHaveBeenCalled()
+      expect(container.mediaEntries.size).toBe(1)
+    })
   })
 
   describe('session lifecycle', () => {
@@ -618,6 +874,27 @@ describe('ScreenshotOverlayService', () => {
       await service.startCapture()
 
       expect(container.openCalls.map((c) => c.id)).toEqual(['overlay-0-0', 'overlay-1920-0'])
+    })
+
+    it('matches a mixed-DPI secondary display left of the Windows primary', async () => {
+      platform.isMac = false
+      platform.isWin = true
+      electron.displays = [makeDisplay(100, 0, 0, 1920, 1080, 1.5), makeDisplay(101, -1920, 0, 1920, 1080, 1.25)]
+      electron.cursorDisplay = electron.displays[0]
+      capture.captureAllMonitors.mockReturnValue(
+        new Map([
+          [10, makeCapture(2880, 1620)],
+          [11, makeCapture(2400, 1350)]
+        ])
+      )
+      capture.listMonitors.mockReturnValue([
+        { id: 10, name: 'M1', x: 0, y: 0, width: 2880, height: 1620, scaleFactor: 1.5, isPrimary: true },
+        { id: 11, name: 'M2', x: -2400, y: 0, width: 2400, height: 1350, scaleFactor: 1.25, isPrimary: false }
+      ])
+
+      await service.startCapture()
+
+      expect(container.openCalls.map((c) => c.id)).toEqual(['overlay-0-0', 'overlay--1920-0'])
     })
 
     it('takes the reference scale factor from the primary display, not from a display at the origin', async () => {
@@ -1197,6 +1474,71 @@ describe('ScreenshotOverlayService', () => {
   })
 
   describe('region OCR', () => {
+    beforeEach(() => {
+      platform.isMac = false
+      platform.isLinux = true
+    })
+
+    it.each(['macOS', 'Windows'])(
+      'enables %s OCR without a downloaded model and scales to the clamped crop',
+      async (os) => {
+        platform.isMac = os === 'macOS'
+        platform.isWin = os === 'Windows'
+        platform.isLinux = false
+        localModel.isDefaultModelReady.mockReturnValue(false)
+        nativeOcr.recognize.mockResolvedValue({
+          text: 'native',
+          confidence: 1,
+          lines: [{ text: 'native', confidence: 1, boundingBox: { x: 0.25, y: 0.5, width: 0.5, height: 0.25 } }]
+        })
+        singleDisplaySetup()
+        await service.startCapture()
+        const initData = initDataOf('overlay-0-0')
+
+        expect(initData.ocrAvailable).toBe(true)
+        const result = await service.recognizeText('overlay-0-0', initData.mediaId, {
+          x: 1900,
+          y: 1070,
+          width: 100,
+          height: 100
+        })
+        expect(result).toEqual({
+          status: 'ok',
+          lines: [{ text: 'native', box: { x: 5, y: 5, width: 10, height: 2.5 } }]
+        })
+        expect(container.ocrInferenceService.recognize).not.toHaveBeenCalled()
+      }
+    )
+
+    it('drops native OCR results after a pooled overlay starts a new session', async () => {
+      platform.isMac = true
+      platform.isLinux = false
+      let resolveOld: (result: unknown) => void = () => {}
+      let announceStart: () => void = () => {}
+      const started = new Promise<void>((resolve) => {
+        announceStart = resolve
+      })
+      nativeOcr.recognize.mockImplementationOnce(() => {
+        announceStart()
+        return new Promise((resolve) => {
+          resolveOld = resolve
+        })
+      })
+      singleDisplaySetup()
+      await service.startCapture()
+      const pending = service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(1))
+      await started
+      service.dismiss()
+      await service.startCapture()
+      resolveOld({ text: 'stale', confidence: 1, lines: [] })
+
+      expect(await pending).toEqual({ status: 'rejected' })
+      expect(await service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(2))).toEqual({
+        status: 'ok',
+        lines: []
+      })
+    })
+
     /** Two 1920×1080 displays side by side, each with its own capture. */
     const twoDisplaySetup = () => {
       electron.displays = [makeDisplay(1, 0, 0), makeDisplay(2, 1920, 0)]
@@ -1231,7 +1573,7 @@ describe('ScreenshotOverlayService', () => {
       // later, and reporting "no text" there sends them looking for the wrong problem.
       singleDisplaySetup()
       await service.startCapture()
-      localModel.isCapabilityReady.mockReturnValue(false)
+      localModel.isDefaultModelReady.mockReturnValue(false)
 
       const result = await service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(1))
 

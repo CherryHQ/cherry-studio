@@ -42,6 +42,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
+    if (req.trigger === 'edit-agent-message') throw new Error('Agent editing requires an Agent session')
     if (req.trigger === 'regenerate-message') {
       throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
     }

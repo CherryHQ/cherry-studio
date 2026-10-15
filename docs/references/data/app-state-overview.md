@@ -81,6 +81,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
 | `assistantService:cherryInOfficialAssistants` | `AssistantDataService` | `{ createdIds: string[] }` | Fixed IDs already created after CherryIN OAuth; prevents user-deleted assistants from being recreated by a later successful setup. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
+| `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
 
 ## Related Source Code
 

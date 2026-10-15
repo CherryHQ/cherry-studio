@@ -18,7 +18,8 @@ import {
   useInfiniteQuery,
   useInvalidateCache,
   useMutation,
-  useQuery
+  useQuery,
+  useWriteCache
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
@@ -226,6 +227,7 @@ export const useSessions = (
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
+  const writeCache = useWriteCache()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
@@ -368,6 +370,8 @@ export const useSessions = (
     async (id: string): Promise<AgentSessionEntity> => {
       const session = await ipcApi.request('ai.agent.session.restore', { sessionId: id })
       try {
+        // Inactive detail queries cannot revalidate a cached NOT_FOUND after undo.
+        await writeCache(`/agent-sessions/${id}`, session)
         await invalidate(['/agent-sessions', `/agent-sessions/${id}`, '/agents/*'])
       } catch (error) {
         logger.warn('Failed to refresh after restoring Agent Session', error as Error, { sessionId: id })
@@ -375,7 +379,7 @@ export const useSessions = (
       logger.info('Restored Agent Session', { sessionId: id })
       return session
     },
-    [invalidate]
+    [invalidate, writeCache]
   )
 
   const deleteSessions = useCallback(

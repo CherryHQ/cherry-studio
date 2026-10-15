@@ -34,4 +34,22 @@ describe('getFileTypeByExt', () => {
     expect(getFileTypeByExt('xls')).toBe('document')
     expect(getFileTypeByExt('xlsx')).toBe('document')
   })
+
+  it('classifies C# / CSS / shell sources as text so they attach in chat', () => {
+    for (const ext of ['cs', 'css', 'sh', 'bash']) {
+      expect(getFileTypeByExt(ext)).toBe('text')
+    }
+  })
+
+  it('classifies common configuration formats as text so they attach in chat', () => {
+    for (const ext of ['conf', 'config', 'yaml', 'yml', 'toml', 'ini', 'json']) {
+      expect(getFileTypeByExt(ext)).toBe('text')
+    }
+  })
+
+  it('keeps binary formats as other so they stay rejected in chat', () => {
+    for (const ext of ['exe', 'zip', 'dat', 'bin']) {
+      expect(getFileTypeByExt(ext)).toBe('other')
+    }
+  })
 })

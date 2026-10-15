@@ -78,21 +78,13 @@ describe('deepseek endpoint matrix', () => {
       {
         id: 'web-search',
         modelScope: 'model-dependent',
-        modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'],
+        modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-pro'],
         endpointTypes: ['openai-responses']
       }
     ])
   })
 
-  /**
-   * The Anthropic-compatible endpoint (api-docs.deepseek.com/zh-cn/guides/anthropic_api,
-   * https://api.deepseek.com/anthropic) documents V4 Pro and V4 Flash only — it maps `claude-opus*`
-   * onto v4-pro, `claude-sonnet*`/`claude-haiku*` onto v4-flash, and silently rewrites any other
-   * model name to v4-flash. So chat/reasoner stay off it: reaching them through it would serve a
-   * different model than the one selected. It trails the other two on every V4 SKU because
-   * `endpointTypes[0]` is what routes in-app chat.
-   */
-  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
+  it.each(['deepseek-flash', 'deepseek-v4-pro'])(
     'prefers Responses for %s while keeping Chat Completions selectable',
     (modelId) => {
       expect(endpointsOf('deepseek', modelId)).toEqual([
@@ -103,12 +95,9 @@ describe('deepseek endpoint matrix', () => {
     }
   )
 
-  it.each(['deepseek-chat', 'deepseek-reasoner'])(
-    'pins %s to Chat Completions, the only endpoint DeepSeek serves it on',
-    (modelId) => {
-      expect(endpointsOf('deepseek', modelId)).toEqual(['openai-chat-completions'])
-    }
-  )
+  it('lists only the current official DeepSeek model IDs', () => {
+    expect(provider('deepseek').overrides?.map(({ modelId }) => modelId)).toEqual(['deepseek-flash', 'deepseek-v4-pro'])
+  })
 })
 
 describe('MiniMax endpoint matrix', () => {
@@ -191,6 +180,13 @@ describe('doubao (Ark) endpoint matrix', () => {
  * secondary endpoint silently sends that protocol's traffic to localhost:3000.
  */
 describe('new-api single-host endpoints', () => {
+  it.each(['openai-image-generation', 'openai-image-edit'] as const)(
+    'routes %s through the New API adapter without overriding the user host',
+    (endpointType) => {
+      expect(provider('new-api').endpointConfigs?.[endpointType]).toEqual({ adapterFamily: 'newapi' })
+    }
+  )
+
   it('carries a placeholder baseUrl on the default chat endpoint only', () => {
     const withBaseUrl = Object.entries(provider('new-api').endpointConfigs ?? {})
       .filter(([, config]) => config?.baseUrl)
@@ -206,5 +202,56 @@ describe('new-api single-host endpoints', () => {
    */
   it('declares no per-model overrides', () => {
     expect(provider('new-api').overrides ?? []).toEqual([])
+  })
+})
+
+// Hugging Face documents Chat Completions for general chat and Anthropic Messages for Claude Code.
+// Declaring both lets Agents reach the router directly while keeping Responses selectable (#18676).
+describe('huggingface (router) endpoint matrix', () => {
+  it('preserves the Responses default inherited by existing unpinned models', () => {
+    expect(provider('huggingface').defaultChatEndpoint).toBe('openai-responses')
+  })
+
+  it('configures a base URL for Anthropic Messages so Claude Code Agents can address the router', () => {
+    expect(provider('huggingface').endpointConfigs?.['anthropic-messages']).toEqual({
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://router.huggingface.co/v1/'
+    })
+  })
+
+  it('keeps all three router surfaces on the same host', () => {
+    expect(provider('huggingface').endpointConfigs).toEqual({
+      'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://router.huggingface.co/v1/' },
+      'openai-chat-completions': {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://router.huggingface.co/v1'
+      },
+      'openai-responses': { adapterFamily: 'open-responses', baseUrl: 'https://router.huggingface.co/v1/' }
+    })
+  })
+})
+
+describe('aionly NewAPI relay endpoints (#21168)', () => {
+  const AIONLY_ENDPOINT_TYPES = [
+    'anthropic-messages',
+    'google-generate-content',
+    'openai-responses',
+    'openai-chat-completions'
+  ]
+
+  it('declares all four New API relay protocols', () => {
+    expect(Object.keys(provider('aionly').endpointConfigs ?? {})).toEqual(AIONLY_ENDPOINT_TYPES)
+  })
+
+  it('routes every protocol through the newapi adapter family', () => {
+    const families = Object.values(provider('aionly').endpointConfigs ?? {}).map((config) => config?.adapterFamily)
+    expect(families.every((family) => family === 'newapi')).toBe(true)
+  })
+
+  it('carries a placeholder baseUrl on the default chat endpoint only', () => {
+    const withBaseUrl = Object.entries(provider('aionly').endpointConfigs ?? {})
+      .filter(([, config]) => config?.baseUrl)
+      .map(([endpointType]) => endpointType)
+    expect(withBaseUrl).toEqual(['openai-chat-completions'])
   })
 })

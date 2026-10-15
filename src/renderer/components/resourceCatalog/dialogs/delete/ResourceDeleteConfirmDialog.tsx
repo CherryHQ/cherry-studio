@@ -24,7 +24,6 @@ const logger = loggerService.withContext('ResourceDeleteConfirmDialog')
 
 interface Props {
   resource: ResourceItem | null
-  permanent?: boolean
   onClose: () => void
 }
 
@@ -33,20 +32,14 @@ interface Props {
  * action by `resource.type` — assistants and agents go through their
  * domain owner, while skills retain their IPC-backed uninstall behavior.
  */
-export const ResourceDeleteConfirmDialog: FC<Props> = ({ resource, onClose, permanent = false }) => {
+export const ResourceDeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
   if (!resource) return null
-  return <DeleteDialogBody resource={resource} onClose={onClose} permanent={permanent} />
+  return <DeleteDialogBody resource={resource} onClose={onClose} />
 }
 
-const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void; permanent: boolean }> = ({
-  resource,
-  onClose,
-  permanent
-}) => {
-  if (resource.type === 'assistant')
-    return <AssistantDeleteDialog resource={resource} onClose={onClose} permanent={permanent} />
-  if (resource.type === 'agent')
-    return <AgentDeleteDialog resource={resource} onClose={onClose} permanent={permanent} />
+const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void }> = ({ resource, onClose }) => {
+  if (resource.type === 'assistant') return <AssistantDeleteDialog resource={resource} onClose={onClose} />
+  if (resource.type === 'agent') return <AgentDeleteDialog resource={resource} onClose={onClose} />
   if (resource.type === 'skill') return <SkillDeleteDialog resource={resource} onClose={onClose} />
   return <PromptDeleteDialog resource={resource} onClose={onClose} />
 }
@@ -54,8 +47,7 @@ const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void; perman
 const AssistantDeleteDialog: FC<{
   resource: Extract<ResourceItem, { type: 'assistant' }>
   onClose: () => void
-  permanent: boolean
-}> = ({ resource, permanent, onClose }) => {
+}> = ({ resource, onClose }) => {
   const { t } = useTranslation()
   const { deleteAssistant } = useAssistantMutationsById(resource.id)
   const invalidate = useInvalidateCache()
@@ -76,7 +68,7 @@ const AssistantDeleteDialog: FC<{
     async (deleteTopics: boolean) => {
       let deletedTopicIds: string[] = []
       try {
-        const result = await deleteAssistant({ deleteTopics, permanent })
+        const result = await deleteAssistant({ deleteTopics })
         await refreshAffected()
         if (!result.deleted) {
           toast.info(t('recycle_bin.already_moved'))
@@ -85,16 +77,12 @@ const AssistantDeleteDialog: FC<{
         deletedTopicIds = result.deletedTopicIds ?? []
         if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
       } catch (error) {
-        if (permanent || !isTrashTargetNotFoundError(error)) throw error
+        if (!isTrashTargetNotFoundError(error)) throw error
         await refreshAffected()
         toast.info(t('recycle_bin.already_moved'))
         return
       }
 
-      if (permanent) {
-        toast.success(t('settings.data.trash.permanent_delete.success'))
-        return
-      }
       showRecycleBinUndo({
         itemName: resource.name,
         onUndo: () =>
@@ -116,7 +104,6 @@ const AssistantDeleteDialog: FC<{
     [
       closeConversationTabs,
       deleteAssistant,
-      permanent,
       refreshAffected,
       resource.id,
       resource.name,
@@ -126,21 +113,13 @@ const AssistantDeleteDialog: FC<{
     ]
   )
 
-  return (
-    <ConversationOwnerDeleteDialogContent
-      resource={resource}
-      onClose={onClose}
-      onDelete={onDelete}
-      permanent={permanent}
-    />
-  )
+  return <ConversationOwnerDeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
 }
 
 const AgentDeleteDialog: FC<{
   resource: Extract<ResourceItem, { type: 'agent' }>
   onClose: () => void
-  permanent: boolean
-}> = ({ resource, permanent, onClose }) => {
+}> = ({ resource, onClose }) => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
@@ -159,7 +138,7 @@ const AgentDeleteDialog: FC<{
   }, [invalidate])
   const onDelete = useCallback(
     async (deleteSessions: boolean) => {
-      const result = await ipcApi.request(permanent ? 'ai.agent.delete_permanently' : 'ai.agent.delete', {
+      const result = await ipcApi.request('ai.agent.delete', {
         agentId: resource.id,
         deleteSessions
       })
@@ -171,10 +150,6 @@ const AgentDeleteDialog: FC<{
 
       const deletedSessionIds = result.deletedSessionIds ?? []
       if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
-      if (permanent) {
-        toast.success(t('settings.data.trash.permanent_delete.success'))
-        return
-      }
       showRecycleBinUndo({
         itemName: resource.name,
         title: t('common.archived', { name: resource.name }),
@@ -197,17 +172,10 @@ const AgentDeleteDialog: FC<{
           })
       })
     },
-    [closeConversationTabs, permanent, refreshAffected, resource.id, resource.name, restoreAgent, restoreSession, t]
+    [closeConversationTabs, refreshAffected, resource.id, resource.name, restoreAgent, restoreSession, t]
   )
 
-  return (
-    <ConversationOwnerDeleteDialogContent
-      resource={resource}
-      onClose={onClose}
-      onDelete={onDelete}
-      permanent={permanent}
-    />
-  )
+  return <ConversationOwnerDeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
 }
 
 const SkillDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'skill' }>; onClose: () => void }> = ({
@@ -269,10 +237,9 @@ const DeleteDialogContent: FC<{
 
 const ConversationOwnerDeleteDialogContent: FC<{
   resource: Extract<ResourceItem, { type: 'agent' | 'assistant' }>
-  permanent: boolean
   onClose: () => void
   onDelete: (deleteChildren: boolean) => Promise<void>
-}> = ({ resource, onClose, onDelete, permanent }) => {
+}> = ({ resource, onClose, onDelete }) => {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
   const completedRef = useRef(false)
@@ -285,21 +252,21 @@ const ConversationOwnerDeleteDialogContent: FC<{
         completedRef.current = true
         onClose()
       } catch (error) {
-        if (!permanent && isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
+        if (isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
         else toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
         throw error
       } finally {
         setPending(false)
       }
     },
-    [onClose, onDelete, permanent, t]
+    [onClose, onDelete, t]
   )
 
   return (
     <DeleteConversationOwnerConfirmDialog
       key={`${resource.type}:${resource.id}`}
       type={resource.type}
-      permanent={permanent}
+
       open
       pending={pending}
       onOpenChange={(open) => {

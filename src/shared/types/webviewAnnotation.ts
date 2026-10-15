@@ -4,6 +4,7 @@ export const WEBVIEW_ANNOTATION_BRIDGE_CHANNEL = 'cherry:webview-annotation'
 export const WEBVIEW_SHADOW_SELECTOR_SEPARATOR = ' >>> '
 
 export const WEBVIEW_ANNOTATION_LIMITS = {
+  accent: 64,
   annotations: 50,
   anchorCoord: 10_000_000,
   ariaLabel: 240,
@@ -96,7 +97,10 @@ export const WebviewAnnotationHostCommandSchema = z.discriminatedUnion('type', [
       type: z.literal('configure'),
       sessionId: z.uuid(),
       locale: WebviewAnnotationLocaleSchema,
-      theme: WebviewAnnotationThemeSchema
+      theme: WebviewAnnotationThemeSchema,
+      /** Host-resolved primary colour and its readable foreground for the guest overlay; the guest falls back when either is absent or invalid. */
+      accent: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.accent).optional(),
+      accentForeground: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.accent).optional()
     })
     .strict(),
   z.object({ type: z.literal('set_enabled'), sessionId: z.uuid(), enabled: z.boolean() }).strict(),

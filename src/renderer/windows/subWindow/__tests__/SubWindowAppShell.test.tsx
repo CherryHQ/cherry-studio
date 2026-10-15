@@ -15,6 +15,8 @@ type ShellTab = {
 
 const defaultTabs: ShellTab[] = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 const openTab = vi.fn()
+const closeTab = vi.fn()
+const commandHandlers = new Map<string, () => void>()
 const ipcListeners = new Map<string, (value: boolean) => void>()
 let ipcRequest: ReturnType<typeof vi.fn> = vi.fn()
 let resolveInitialFullscreen: ((value: boolean) => void) | undefined
@@ -45,20 +47,31 @@ async function renderSubWindowAppShell({
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => init
   }))
-  vi.doMock('@renderer/hooks/tab', () => ({
-    useTabs: () => ({
-      tabs: defaultTabs,
-      activeTabId: 'home',
-      setActiveTab: vi.fn(),
-      closeTab: vi.fn(),
-      updateTab: vi.fn(),
-      addTab: vi.fn(),
-      reorderTabs: vi.fn(),
-      openTab,
-      pinTab: vi.fn(),
-      unpinTab: vi.fn()
-    })
+  vi.doMock('@renderer/hooks/command', () => ({
+    useCommandHandler: (command: string, handler: () => void) => {
+      commandHandlers.set(command, handler)
+    }
   }))
+  vi.doMock('@renderer/hooks/tab', async () => {
+    const actual = (await vi.importActual('@renderer/hooks/tab')) as Record<string, unknown>
+    return {
+      ...(actual as object),
+      useTabs: () => ({
+        tabs: defaultTabs,
+        activeTabId: 'home',
+        setActiveTab: vi.fn(),
+        closeTab,
+        closeTabs: vi.fn(),
+        updateTab: vi.fn(),
+        addTab: vi.fn(),
+        reorderTabs: vi.fn(),
+        openTab,
+        attachTab: openTab,
+        pinTab: vi.fn(),
+        unpinTab: vi.fn()
+      })
+    }
+  })
   vi.doMock('@renderer/utils/routeTitle', () => ({
     getDefaultRouteTitle: (url: string) => url,
     isPageTitledRoute: () => false
@@ -73,8 +86,7 @@ async function renderSubWindowAppShell({
     SubWindowTitle: () => <div data-testid="sub-window-title" />
   }))
   vi.doMock('@renderer/components/WindowControls', () => ({
-    WindowControls: () => <div data-testid="window-controls" />,
-    useHasWindowControls: () => false
+    WINDOW_CONTROLS_OVERLAY_WIDTH: '0px'
   }))
   vi.doMock('../SubWindowTitleBar', () => ({
     SubWindowTitleBar: ({ isFullscreen }: { isFullscreen: boolean }) => (
@@ -101,6 +113,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   vi.resetModules()
+  commandHandlers.clear()
   ipcListeners.clear()
   ipcRequest = vi.fn()
   resolveInitialFullscreen = undefined
@@ -130,13 +143,14 @@ describe('SubWindowAppShell', () => {
     })
 
     await waitFor(() => {
-      expect(openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-1', {
+      expect(openTab).toHaveBeenCalledWith({
+        url: '/app/chat?topicId=topic-1',
         id: 'detached-tab',
         title: 'Detached topic',
         icon: '🍒',
         type: 'route',
         isPinned: true,
-        forceNew: true
+        metadata: undefined
       })
     })
     expect(openTab).toHaveBeenCalledOnce()
@@ -167,5 +181,13 @@ describe('SubWindowAppShell', () => {
     })
 
     expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
+  })
+
+  it('closes the detached window from the tab-close shortcut', async () => {
+    await renderSubWindowAppShell()
+
+    commandHandlers.get('tab.close')?.()
+
+    expect(ipcRequest).toHaveBeenCalledWith('window.close')
   })
 })

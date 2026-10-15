@@ -37,6 +37,7 @@ import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/a
 import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
@@ -55,8 +56,8 @@ const READ_ONLY_TOOLS = new Set<string>(
 const EDIT_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'edit').map((tool) => tool.name)
 )
-/** Code Mode discovery and dispatch authorize their target separately, so their own calls never
- * participate in file-path containment or add a redundant prompt. */
+/** Code Mode gates nested effects separately; recall reads only the current session's history.
+ * Neither needs file-path containment or an additional approval. */
 const META_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'meta').map((tool) => tool.name)
 )
@@ -142,6 +143,8 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     const mode = ctx.getPermissionMode() ?? 'default'
     const approvalRequired = ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
+    // Classify what the model wrote: `rtk git …` hides the real command word from detection.
+    const modelInput = { ...input }
 
     // (3)/(4) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
     // in every mode: shared/global installs mutate the cross-agent environment, so this is an
@@ -177,7 +180,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       !(await requiresApproval(
         mode,
         toolName,
-        input,
+        modelInput,
         ctx.workspacePath,
         ctx.agentDataPath,
         ctx.additionalReadOnlyRoots,
@@ -233,7 +236,13 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     if (!decision.approved) {
-      return { block: true, reason: decision.reason ?? 'User denied permission for this tool.' }
+      return {
+        block: true,
+        reason:
+          decision.reasonSource === 'user'
+            ? withUserDenialFeedback(decision.reason)
+            : (decision.reason ?? 'User denied permission for this tool.')
+      }
     }
     if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
     return
