@@ -47,6 +47,7 @@ const PRINT_TEXT_FONT_FAMILY = `${PRINT_CJK_FONT_FACE}, "PingFang SC", "Hiragino
 const PRINT_CODE_FONT_FAMILY = `ui-monospace, SFMono-Regular, Menlo, Consolas, "Sarasa Mono SC", "Noto Sans Mono CJK SC", ${PRINT_CJK_FONT_FACE}, "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", monospace`
 
 const PRINT_RENDER_READY_TIMEOUT_MS = 3000
+const DOCUMENT_PRINT_PHASE_TIMEOUT_MS = 30_000
 
 function escapeHtml(value: string): string {
   return value
@@ -290,17 +291,21 @@ export class PrintService {
       closed = true
       windowManager.close(windowId)
     }
-    let cancel = () => {}
+    let rejectInterrupted: (reason?: unknown) => void = () => {}
     const interrupted = new Promise<never>((_resolve, reject) => {
-      cancel = () => {
-        close()
-        reject(signal?.reason ?? new Error('Document export cancelled'))
-      }
+      rejectInterrupted = reject
+    })
+    const cancel = () => {
+      close()
+      rejectInterrupted(signal?.reason ?? new Error('Document export cancelled'))
+    }
+    const armPhaseTimeout = () => {
+      if (timeout) clearTimeout(timeout)
       timeout = setTimeout(() => {
         close()
-        reject(new Error('Document rendering or printing timed out'))
-      }, 30_000)
-    })
+        rejectInterrupted(new Error('Document rendering or printing timed out'))
+      }, DOCUMENT_PRINT_PHASE_TIMEOUT_MS)
+    }
     try {
       if (!window) throw new Error('Document print window not found')
       const rendered = new Promise<void>((resolve, reject) => {
@@ -308,8 +313,10 @@ export class PrintService {
       })
       signal?.addEventListener('abort', cancel, { once: true })
       if (signal?.aborted) cancel()
+      armPhaseTimeout()
       await Promise.race([rendered, interrupted])
       signal?.throwIfAborted()
+      armPhaseTimeout()
       const data = await Promise.race([
         window.webContents.printToPDF({
           pageSize: 'A4',
