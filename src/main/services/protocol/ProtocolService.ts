@@ -164,6 +164,7 @@ export class ProtocolService extends BaseService {
 
     if (!this.canDispatchProtocolUrl(url)) {
       this.pendingProtocolUrls.push(url)
+      this.ensureMainWindowForPendingUrls()
       return
     }
 
@@ -179,6 +180,17 @@ export class ProtocolService extends BaseService {
     for (const url of pendingUrls) {
       this.handleProtocolUrl(url)
     }
+  }
+
+  /**
+   * Routes other than `chat` wait for Main's renderer. If Main was destroyed (close-to-tray
+   * with Quick Assistant keeping the app alive), nothing would recreate it, so reopen it here;
+   * the queue flushes from onMainRendererReady.
+   */
+  private ensureMainWindowForPendingUrls() {
+    if (!this.areServicesReady || this.isMainRendererReady) return
+    if (application.get('WindowManager').getWindowsByType(WindowType.Main).length > 0) return
+    application.get('MainWindowService').showMainWindow()
   }
 
   private canDispatchProtocolUrl(url: string): boolean {

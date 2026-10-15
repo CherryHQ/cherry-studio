@@ -49,7 +49,8 @@ const {
   const windowManagerMock = {
     getWindowType: vi.fn(() => 'main'),
     onWindowCreatedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn()),
-    onWindowDestroyedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn())
+    onWindowDestroyedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn()),
+    getWindowsByType: vi.fn<(type: string) => unknown[]>(() => [{}])
   }
   return {
     appMock,
@@ -465,6 +466,22 @@ describe('ProtocolService', () => {
         submit: false
       })
       expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+    })
+
+    it('recreates a destroyed Main for deep links that need it, then delivers them once ready', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+      const destroyed = windowManagerMock.onWindowDestroyedByType.mock.calls[0][1] as () => void
+      destroyed()
+      windowManagerMock.getWindowsByType.mockReturnValueOnce([])
+
+      getSecondInstanceHandler()({}, ['CherryStudio', 'cherrystudio://navigate/agents'])
+
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
+      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+      service.onMainRendererReady('main-1')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledWith(new URL('cherrystudio://navigate/agents'))
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
     })
 
     it('dispatches the URL when argv carries a cherrystudio:// deep link', async () => {

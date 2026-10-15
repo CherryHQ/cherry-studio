@@ -114,6 +114,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const lastLaunchRequestId = useRef<string | null>(null)
 
   const lastClipboardTextRef = useRef<string | null>(null)
+  // Bumped by Stop; a send still preparing (saving the topic) bails out when it changes.
+  const sendGenerationRef = useRef(0)
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
@@ -327,17 +329,21 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       if (!isTopicReady || !temporaryTopicId) return
       if (!currentModel) return
 
+      const generation = ++sendGenerationRef.current
+      const isCancelled = () => sendGenerationRef.current !== generation
       try {
         setFlowError(null)
         setIsPreparing(true)
         if (saveOnSend && !isStoredChat) {
           await persistTemporaryTopic(text)
           setSavedTopicId(temporaryTopicId)
+          if (isCancelled()) return
         }
         const parentAnchorId =
           isStoredChat || saveOnSend
             ? (await dataApiService.get(`/topics/${temporaryTopicId}`)).activeNodeId
             : undefined
+        if (isCancelled()) return
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
@@ -372,6 +378,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   )
 
   const handlePause = useCallback(() => {
+    sendGenerationRef.current++
+    setIsPreparing(false)
     void stopChat()
   }, [stopChat])
 

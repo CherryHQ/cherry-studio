@@ -438,6 +438,28 @@ describe('HomeWindow', () => {
     expect(screen.getByTestId('quick-input')).toHaveValue('where is paris')
   })
 
+  it('Stop cancels a saved send that is still saving and keeps the prompt', async () => {
+    let finishSave!: () => void
+    state.persistTemporaryTopic.mockReturnValue(new Promise<void>((resolve) => (finishSave = resolve)))
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'launch-stop',
+      prompt: 'where is paris',
+      temporary: false,
+      submit: true
+    }
+    const user = userEvent.setup()
+    render(<HomeWindow draggable={false} />)
+
+    await waitFor(() => expect(state.persistTemporaryTopic).toHaveBeenCalledTimes(1))
+    await user.click(await screen.findByRole('button', { name: 'common.stop' }))
+    finishSave()
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'common.stop' })).not.toBeInTheDocument())
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    expect(screen.getByTestId('quick-input')).toHaveValue('where is paris')
+  })
+
   it('keeps a temporary conversation open when discarding is cancelled', async () => {
     state.launchRequest = {
       kind: 'chat',
