@@ -110,6 +110,20 @@ function statusText(goal: GoalSnapshot, armed: boolean): string {
   ].join('\n')
 }
 
+type ContextMessage = ReturnType<typeof buildSessionContext>['messages'][number]
+
+/** `messages` without the round messages Pi committed but never sent on (spec §6.3); the same list when there are none. */
+function withoutUnadmittedRounds(messages: ContextMessage[], ctx: ExtensionContext): ContextMessage[] {
+  const stale = unadmittedRounds(ctx.sessionManager.getBranch())
+  if (stale.size === 0) return messages
+  return messages.filter(
+    (message) =>
+      message.role !== 'custom' ||
+      message.customType !== GOAL_ROUND_TYPE ||
+      !stale.has(roundKey(message.details as RoundDetails))
+  )
+}
+
 const createParams = Type.Object({
   objective: Type.String({ description: 'The concrete completion objective from the direct human request.' }),
   max_goal_rounds: Type.Optional(Type.Number({ description: 'Round cap for this goal; omit for the default.' })),
@@ -167,13 +181,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
   return (pi) => {
     // Spec §6.3: Pi commits a round before it knows whether the run goes on; one that never ran stays out of requests.
     pi.on('context', (event, ctx) => {
-      const stale = unadmittedRounds(ctx.sessionManager.getBranch())
-      if (stale.size === 0) return undefined
-      const ran = (message: (typeof event.messages)[number]) =>
-        message.role !== 'custom' ||
-        message.customType !== GOAL_ROUND_TYPE ||
-        !stale.has(roundKey(message.details as RoundDetails))
-      return { messages: event.messages.filter(ran) }
+      const messages = withoutUnadmittedRounds(event.messages, ctx)
+      return messages === event.messages ? undefined : { messages }
     })
     if (!port.modelSupportsTools()) {
       // Spec §8.3: no tools and no command; an active goal on the branch records why nothing continues.
@@ -447,7 +456,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     /** The conversation as the session model would get it, for the host's verifier (spec §9). */
     const conversation = (ctx: ExtensionContext): ConversationModelMessage[] => {
       const { messages } = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId())
-      return toModelMessages(convertToLlm(messages), ctx.model!)
+      return toModelMessages(convertToLlm(withoutUnadmittedRounds(messages, ctx)), ctx.model!)
     }
     const finishGoal = (): AgentToolResult<unknown> => {
       stop('complete')
