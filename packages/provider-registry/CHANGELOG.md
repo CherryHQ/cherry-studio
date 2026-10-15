@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.0
+
+### Minor Changes
+
+- [#21675](https://github.com/CherryHQ/cherry-studio/pull/21675) [`a6e7c0f`](https://github.com/CherryHQ/cherry-studio/commit/a6e7c0fcdc0fe0f43e3c63702bf18cf56e72a5ae) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add optional billing URLs to provider website metadata and include billing destinations for OpenAI, Anthropic, CherryIN, and DeepSeek so applications can offer quota-recovery actions.
+
 ## 0.1.4
 
 ### Patch Changes
