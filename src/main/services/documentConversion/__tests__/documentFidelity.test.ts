@@ -12,6 +12,20 @@ import { documentToMarkdown } from '../serializeDocument'
 
 afterEach(() => vi.restoreAllMocks())
 
+function wordRuns(xml: string) {
+  return [...xml.matchAll(/<w:r\b[^>]*>[\s\S]*?<\/w:r>/g)].map((match) => {
+    const run = match[0]
+    const marked = (tag: 'b' | 'i') =>
+      new RegExp(`<w:${tag}(?:\\s[^>]*?)?(?:/>|>)`).test(run) &&
+      !new RegExp(`<w:${tag}[^>]*w:val="(?:0|false|off)"`).test(run)
+    return {
+      text: [...run.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((part) => part[1]).join(''),
+      bold: marked('b'),
+      italic: marked('i')
+    }
+  })
+}
+
 describe('document conversion fidelity', () => {
   const literals = [
     '# keep the hash',
@@ -174,6 +188,86 @@ describe('document conversion fidelity', () => {
       ])
     }
   )
+
+  it('keeps outer emphasis after a nested span in Markdown, a table cell, an image, and DOCX', async () => {
+    const paragraphCases = [
+      {
+        source: '**outer __inner__ tail**',
+        runs: [
+          { text: 'outer ', bold: true },
+          { text: 'inner', bold: true },
+          { text: ' tail', bold: true }
+        ]
+      },
+      {
+        source: '*outer _inner_ tail*',
+        runs: [
+          { text: 'outer ', italic: true },
+          { text: 'inner', italic: true },
+          { text: ' tail', italic: true }
+        ]
+      }
+    ] as const
+    for (const { source, runs } of paragraphCases) {
+      const blocks = parseMarkdown(source)
+      expect(blocks).toMatchObject([{ type: 'text', text: 'outer inner tail', runs }])
+      const xml = await JSZip.loadAsync(await convertDocx(blocks, new Map(), 'Emphasis')).then((zip) =>
+        zip.file('word/document.xml')!.async('string')
+      )
+      const word = wordRuns(xml).filter((run) => run.text.trim())
+      expect(word.map((run) => run.text)).toEqual(['outer ', 'inner', ' tail'])
+      expect(word.every((run) => ('bold' in runs[0] ? run.bold : run.italic))).toBe(true)
+    }
+
+    const table = parseMarkdown('| H |\n| --- |\n| **outer __inner__ tail** |\n')
+    expect(table).toMatchObject([
+      {
+        type: 'table',
+        rows: [['H'], ['outer inner tail']],
+        cells: [
+          [{ runs: [{ text: 'H' }] }],
+          [
+            {
+              runs: [
+                { text: 'outer ', bold: true },
+                { text: 'inner', bold: true },
+                { text: ' tail', bold: true }
+              ]
+            }
+          ]
+        ]
+      }
+    ])
+    const tableXml = await JSZip.loadAsync(await convertDocx(table, new Map(), 'Table')).then((zip) =>
+      zip.file('word/document.xml')!.async('string')
+    )
+    const tableRuns = wordRuns(tableXml).filter((run) => /outer|inner|tail/.test(run.text))
+    expect(tableRuns.map((run) => run.text)).toEqual(['outer ', 'inner', ' tail'])
+    expect(tableRuns.every((run) => run.bold)).toBe(true)
+
+    const imageBlocks = parseMarkdown('**outer __inner__ ![logo](logo.png) tail**')
+    expect(imageBlocks.map((block) => block.type)).toEqual(['text', 'image', 'text'])
+    expect(imageBlocks[0]).toMatchObject({
+      text: 'outer inner ',
+      runs: [
+        { text: 'outer ', bold: true },
+        { text: 'inner', bold: true },
+        { text: ' ', bold: true }
+      ]
+    })
+    expect(imageBlocks[1]).toMatchObject({ type: 'image', text: 'logo', source: 'logo.png' })
+    expect(imageBlocks[2]).toMatchObject({ text: ' tail', runs: [{ text: ' tail', bold: true }] })
+    const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    const imageXml = await JSZip.loadAsync(await convertDocx(imageBlocks, new Map([['logo.png', png]]), 'Image')).then(
+      (zip) => zip.file('word/document.xml')!.async('string')
+    )
+    expect(imageXml).toContain('descr="logo"')
+    const imageRuns = wordRuns(imageXml).filter((run) => /outer|inner|tail/.test(run.text))
+    expect(imageRuns.map((run) => run.text)).toEqual(['outer ', 'inner', ' tail'])
+    expect(imageRuns.every((run) => run.bold)).toBe(true)
+  })
 
   it.each([
     ['https://example.test/a)b', 'https://example.test/a)b'],

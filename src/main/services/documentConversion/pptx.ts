@@ -225,8 +225,10 @@ export async function convertPptx(
         y = autoPage ? 7 : y + height + 0.15
       } else if ('text' in block) {
         const isHeading = block.type === 'heading'
-        const frame = placed(block, !!block.bullet)
-        for (const { chunk, baseSize, height } of textLayout(block, frame.w)) {
+        const layouts = textLayout(block, placed(block, !!block.bullet).w)
+        for (const [index, { chunk, baseSize, height }] of layouts.entries()) {
+          const marker = index === 0 && !!block.bullet
+          const frame = placed(block, marker)
           const target = ensureSpace(height)
           target.addText(textRuns(chunk), {
             x: frame.x,
@@ -243,7 +245,7 @@ export async function convertPptx(
             fill: block.style?.background ? { color: block.style.background } : undefined,
             paraSpaceBefore: block.style?.before,
             paraSpaceAfter: block.style?.after ?? 5,
-            bullet: bulletOptions(block)
+            bullet: marker ? bulletOptions(block) : undefined
           })
           y += height + 0.15
         }

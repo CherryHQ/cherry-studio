@@ -30,9 +30,9 @@ function inlineRuns(tokens: Token[], interpretSafeHtml = false): DocumentTextRun
 function readInline(tokens: Token[], interpretSafeHtml = false): InlinePiece[] {
   const pieces: InlinePiece[] = []
   let current: DocumentTextRun[] = []
-  let bold = false
-  let italic = false
-  let strike = false
+  let bold = 0
+  let italic = 0
+  let strike = 0
   let link: string | undefined
   let htmlBold = 0
   let htmlItalic = 0
@@ -49,9 +49,9 @@ function readInline(tokens: Token[], interpretSafeHtml = false): InlinePiece[] {
     const activeLink = link ?? htmlLinks.at(-1)
     current.push({
       text,
-      bold: bold || htmlBold > 0,
-      italic: italic || htmlItalic > 0,
-      strike: strike || htmlStrike > 0,
+      bold: bold > 0 || htmlBold > 0,
+      italic: italic > 0 || htmlItalic > 0,
+      strike: strike > 0 || htmlStrike > 0,
       ...(htmlUnderline > 0 ? { underline: true } : {}),
       ...(activeLink ? { link: activeLink } : {}),
       ...(font ? { font } : {})
@@ -65,12 +65,12 @@ function readInline(tokens: Token[], interpretSafeHtml = false): InlinePiece[] {
         source: token.attrGet('src') ?? '',
         text: inlineText(token.children ?? [], interpretSafeHtml)
       })
-    } else if (token.type === 'strong_open') bold = true
-    else if (token.type === 'strong_close') bold = false
-    else if (token.type === 'em_open') italic = true
-    else if (token.type === 'em_close') italic = false
-    else if (token.type === 's_open') strike = true
-    else if (token.type === 's_close') strike = false
+    } else if (token.type === 'strong_open') bold++
+    else if (token.type === 'strong_close') bold = Math.max(0, bold - 1)
+    else if (token.type === 'em_open') italic++
+    else if (token.type === 'em_close') italic = Math.max(0, italic - 1)
+    else if (token.type === 's_open') strike++
+    else if (token.type === 's_close') strike = Math.max(0, strike - 1)
     else if (token.type === 'link_open') link = token.attrGet('href') ?? undefined
     else if (token.type === 'link_close') link = undefined
     else if (interpretSafeHtml && token.type === 'html_inline') {

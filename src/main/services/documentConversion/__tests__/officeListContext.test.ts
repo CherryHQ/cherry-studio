@@ -127,6 +127,38 @@ function tableIndents(xml: string) {
   }))
 }
 
+type PptxChunkShape = {
+  text: string
+  x: number
+  slide: number
+  marker: 'number' | 'bullet' | 'none' | 'absent'
+  startAt: string | undefined
+}
+
+async function listChunkShapes(markdown: string) {
+  const blocks = parseMarkdown(markdown)
+  const zip = await JSZip.loadAsync(await convertPptx(blocks, new Map(), 'Chunks'))
+  const slides = Object.keys(zip.files)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+    .sort()
+  const items: PptxChunkShape[] = []
+  for (const [slide, name] of slides.entries()) {
+    const xml = await zip.file(name)!.async('string')
+    for (const match of xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)) {
+      const body = match[0]
+      const off = body.match(/<a:off x="(-?\d+)" y="(-?\d+)"/)
+      items.push({
+        text: [...body.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)].map((part) => part[1]).join(''),
+        x: Number(off?.[1]),
+        slide,
+        marker: pptxMarker(body),
+        startAt: body.match(/startAt="(\d+)"/)?.[1]
+      })
+    }
+  }
+  return { blocks, items }
+}
+
 function pptxMarker(xml: string) {
   if (/<a:buAutoNum\b/.test(xml)) return 'number'
   if (/<a:buChar\b/.test(xml)) return 'bullet'
@@ -249,6 +281,57 @@ describe('Office list membership', () => {
     expectStep(next!.x - parent!.x, 0)
     expectStep(outside!.x - parent!.x, 0)
     expect(chart!.slide < more!.slide || (chart!.slide === more!.slide && chart!.y <= more!.y)).toBe(true)
+  })
+
+  it('numbers only the first PowerPoint chunk when an ordered item wraps onto another slide', async () => {
+    const long = 'longtext '.repeat(120)
+    const { blocks, items } = await listChunkShapes(`1. ${long}\n    1. Child\n2. Next\n`)
+    const parent = blocks.find((block) => block.type === 'text' && block.text.startsWith('longtext'))
+    if (!parent || parent.type !== 'text') throw new Error('expected the long ordered item')
+    const content = items.filter((item) => item.text && item.text !== 'Chunks')
+    const chunks = content.filter((item) => parent.text.includes(item.text))
+    const child = content.find((item) => item.text === 'Child')
+    const next = content.find((item) => item.text === 'Next')
+    expect(chunks.map((item) => item.text).join('')).toBe(parent.text)
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks[0]).toMatchObject({ marker: 'number', startAt: '1' })
+    expect(chunks.slice(1).every((item) => item.marker !== 'number' && item.marker !== 'bullet')).toBe(true)
+    expectStep(chunks[1].x - chunks[0].x, STEP)
+    expect(child).toMatchObject({ marker: 'number', startAt: '1' })
+    expect(next).toMatchObject({ marker: 'number', startAt: '2' })
+    expectStep(child!.x - chunks[0].x, STEP)
+
+    const wide = 'longtext '.repeat(200)
+    const spanned = await listChunkShapes(`1. ${wide}\n2. Next\n`)
+    const wideParent = spanned.blocks.find((block) => block.type === 'text' && block.text.startsWith('longtext'))
+    if (!wideParent || wideParent.type !== 'text') throw new Error('expected the multi-slide ordered item')
+    const wideChunks = spanned.items.filter((item) => item.text && wideParent.text.includes(item.text))
+    const wideNext = spanned.items.find((item) => item.text === 'Next')
+    expect(wideChunks.map((item) => item.text).join('')).toBe(wideParent.text)
+    expect(new Set(wideChunks.map((item) => item.slide)).size).toBeGreaterThan(1)
+    expect(wideChunks[0]).toMatchObject({ marker: 'number', startAt: '1' })
+    expect(wideChunks.slice(1).every((item) => item.marker !== 'number' && item.marker !== 'bullet')).toBe(true)
+    expect(wideNext).toMatchObject({ marker: 'number', startAt: '2' })
+  })
+
+  it('bullets only the first PowerPoint chunk when an unordered item wraps', async () => {
+    const long = 'longtext '.repeat(120)
+    const { blocks, items } = await listChunkShapes(`- ${long}\n    - Child\n- Next\n`)
+    const parent = blocks.find((block) => block.type === 'text' && block.text.startsWith('longtext'))
+    if (!parent || parent.type !== 'text') throw new Error('expected the long unordered item')
+    const content = items.filter((item) => item.text && item.text !== 'Chunks')
+    const chunks = content.filter((item) => parent.text.includes(item.text))
+    const child = content.find((item) => item.text === 'Child')
+    const next = content.find((item) => item.text === 'Next')
+    expect(chunks.map((item) => item.text).join('')).toBe(parent.text)
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks[0]).toMatchObject({ marker: 'bullet' })
+    expect(chunks[0].startAt).toBeUndefined()
+    expect(chunks.slice(1).every((item) => item.marker !== 'bullet' && item.marker !== 'number')).toBe(true)
+    expectStep(chunks[1].x - chunks[0].x, STEP)
+    expect(child).toMatchObject({ marker: 'bullet' })
+    expect(next).toMatchObject({ marker: 'bullet' })
+    expectStep(child!.x - chunks[0].x, STEP)
   })
 
   it('reads a numbered Word paragraph with an inline image, a nested child, and the next item', async () => {
