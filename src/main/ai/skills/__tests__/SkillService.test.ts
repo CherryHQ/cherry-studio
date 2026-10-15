@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -19,6 +19,8 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
+import { buildPluginDirectoryIndex, checkSkillRuntimeDependencies } from '@main/ai/runtime/claudeCode/skillDependencies'
+import type * as Platform from '@main/core/platform'
 import { isWin } from '@main/core/platform'
 import { skillHandlers } from '@main/ipc/handlers/skill'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -32,6 +34,11 @@ import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
+vi.mock('@main/core/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof Platform>()
+  return { ...actual, isWin: true }
+})
 
 vi.mock('@main/utils/markdownParser', () => ({
   parseSkillMetadata: vi.fn(),
@@ -2203,6 +2210,141 @@ describe('SkillService', () => {
         ...overrides
       } as unknown as Awaited<ReturnType<typeof parseSkillMetadata>>
     }
+
+    async function seedEnabledSkill(folderName: string, body: string) {
+      await seedAgent()
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: folderName,
+        folderName,
+        source: 'local',
+        contentHash: 'catalog-hash',
+        isEnabled: true
+      })
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: SKILL_ID_1,
+        isEnabled: true
+      })
+      await writeLibrarySkill(folderName, body)
+    }
+
+    it('keeps prior content-addressed snapshots immutable when skill content changes', async () => {
+      await seedEnabledSkill('pdf', '# Version 1')
+
+      const first = await skillService.prepareSnapshotForSession(AGENT_ID)
+      const firstFile = path.join(first.pluginDirectory, 'skills', 'pdf', 'SKILL.md')
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'pdf', 'SKILL.md'), '# Version 2')
+
+      const second = await skillService.prepareSnapshotForSession(AGENT_ID)
+      const secondFile = path.join(second.pluginDirectory, 'skills', 'pdf', 'SKILL.md')
+
+      expect(second.pluginDirectory).not.toBe(first.pluginDirectory)
+      await expect(fs.promises.readFile(firstFile, 'utf-8')).resolves.toBe('# Version 1')
+      await expect(fs.promises.readFile(secondFile, 'utf-8')).resolves.toBe('# Version 2')
+      expect(first.skills.map((skill) => skill.folderName)).toEqual(['pdf'])
+      expect(second.skills.map((skill) => skill.folderName)).toEqual(['pdf'])
+      await expect(fs.promises.access(mirrorRoot)).rejects.toThrow()
+    })
+
+    it('publishes a discoverable plugin and keeps the legacy user mirror absent', async () => {
+      await seedEnabledSkill('pdf', '# PDF')
+      await fs.promises.mkdir(path.join(mirrorRoot, 'stale'), { recursive: true })
+      await fs.promises.writeFile(path.join(mirrorRoot, 'stale', 'SKILL.md'), '# stale')
+
+      const snapshot = await skillService.prepareSnapshotForSession(AGENT_ID)
+      const manifestPath = path.join(snapshot.pluginDirectory, '.claude-plugin', 'plugin.json')
+      const index = await buildPluginDirectoryIndex([snapshot.pluginDirectory])
+
+      await expect(fs.promises.readFile(manifestPath, 'utf-8')).resolves.toBe(
+        '{\n  "name": "cherry-studio-skills"\n}\n'
+      )
+      expect(index).toEqual(new Map([['cherry-studio-skills', snapshot.pluginDirectory]]))
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('pdf'))
+      await expect(checkSkillRuntimeDependencies('cherry-studio-skills:pdf', dataSkillsRoot, index)).resolves.toEqual(
+        {}
+      )
+      expect(parseSkillMetadata).toHaveBeenCalledWith(
+        path.join(snapshot.pluginDirectory, 'skills', 'pdf'),
+        'cherry-studio-skills:pdf',
+        'skills',
+        { calculateSize: false }
+      )
+
+      await expect(fs.promises.access(mirrorRoot)).rejects.toThrow()
+      await skillService.linkMirror('pdf')
+      await expect(fs.promises.access(mirrorRoot)).rejects.toThrow()
+    })
+
+    it('keeps an existing session snapshot readable while the next snapshot is copied', async () => {
+      await seedEnabledSkill('pdf', '# Version 1')
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'pdf', 'details.txt'), 'old details')
+      const existing = await skillService.prepareSnapshotForSession(AGENT_ID)
+      const existingSkill = path.join(existing.pluginDirectory, 'skills', 'pdf')
+
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'pdf', 'SKILL.md'), '# Version 2')
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'pdf', 'details.txt'), 'new details')
+      const copyStarted = Promise.withResolvers<void>()
+      const releaseCopy = Promise.withResolvers<void>()
+      const realCopy = fs.promises.cp.bind(fs.promises)
+      const copySpy = vi.spyOn(fs.promises, 'cp').mockImplementation(async (source, destination, options) => {
+        const destinationPath = typeof destination === 'string' ? destination : fileURLToPath(destination)
+        await fs.promises.mkdir(destinationPath, { recursive: true })
+        await fs.promises.writeFile(path.join(destinationPath, 'SKILL.md'), '# partial version')
+        copyStarted.resolve()
+        await releaseCopy.promise
+        await realCopy(source, destination, options)
+      })
+
+      try {
+        const refresh = skillService.prepareSnapshotForSession(AGENT_ID)
+        await copyStarted.promise
+
+        await expect(fs.promises.readFile(path.join(existingSkill, 'SKILL.md'), 'utf-8')).resolves.toBe('# Version 1')
+        await expect(fs.promises.readFile(path.join(existingSkill, 'details.txt'), 'utf-8')).resolves.toBe(
+          'old details'
+        )
+
+        releaseCopy.resolve()
+        const next = await refresh
+        const nextSkill = path.join(next.pluginDirectory, 'skills', 'pdf')
+
+        await expect(fs.promises.readFile(path.join(nextSkill, 'SKILL.md'), 'utf-8')).resolves.toBe('# Version 2')
+        await expect(fs.promises.readFile(path.join(nextSkill, 'details.txt'), 'utf-8')).resolves.toBe('new details')
+        await expect(fs.promises.readFile(path.join(existingSkill, 'SKILL.md'), 'utf-8')).resolves.toBe('# Version 1')
+        expect(
+          (await fs.promises.readdir(path.dirname(existing.pluginDirectory))).every(
+            (entry) => !entry.startsWith('.staging-')
+          )
+        ).toBe(true)
+      } finally {
+        releaseCopy.resolve()
+        copySpy.mockRestore()
+      }
+    })
+
+    it('excludes a skill whose snapshot copy fails without disturbing an existing session snapshot', async () => {
+      await seedEnabledSkill('pdf', '# Version 1')
+      const existing = await skillService.prepareSnapshotForSession(AGENT_ID)
+      const existingFile = path.join(existing.pluginDirectory, 'skills', 'pdf', 'SKILL.md')
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'pdf', 'SKILL.md'), '# Version 2')
+
+      const copySpy = vi.spyOn(fs.promises, 'cp').mockRejectedValue(new Error('copy failed'))
+
+      try {
+        const failed = await skillService.prepareSnapshotForSession(AGENT_ID)
+        expect(failed.skills).toEqual([])
+        await expect(fs.promises.readdir(path.join(failed.pluginDirectory, 'skills'))).resolves.toEqual([])
+        await expect(fs.promises.readFile(existingFile, 'utf-8')).resolves.toBe('# Version 1')
+        expect(
+          (await fs.promises.readdir(path.dirname(existing.pluginDirectory))).every(
+            (entry) => !entry.startsWith('.staging-')
+          )
+        ).toBe(true)
+      } finally {
+        copySpy.mockRestore()
+      }
+    })
 
     it('reconcileSkills heals mirrors, prunes non-builtin skills whose files are gone, keeps builtins', async () => {
       vi.mocked(parseSkillMetadata).mockReset()

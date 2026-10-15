@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -41,8 +41,14 @@ import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
 
-const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
+export const SKILLS_PLUGIN_NAME = 'cherry-studio-skills'
+const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: SKILLS_PLUGIN_NAME }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
+
+export interface SessionSkillSnapshot {
+  skills: InstalledSkill[]
+  pluginDirectory: string
+}
 
 type SkillRemoteUpdateErrorCode = (typeof skillErrorCodes)[keyof typeof skillErrorCodes]
 
@@ -60,10 +66,9 @@ export class SkillRemoteUpdateError extends Error {
  * Skill management service.
  *
  * Skills are stored in `{dataPath}/Skills/{folderName}/` — the app-owned canonical
- * library. They are mirrored into `CLAUDE_CONFIG_DIR/skills` (where the Claude Agent
- * SDK discovers them) at install / uninstall / startup reconcile — see `linkMirror` /
- * `reconcileSkills`. Per-session the SDK is given only a name whitelist
- * (`buildSkillWhitelist`), so the mirror is never mutated at session-build time.
+ * library. Initial session preparation copies enabled skills into an immutable,
+ * content-addressed plugin snapshot so a running SDK session never reads a shared
+ * mirror while another session refreshes it.
  *
  * Skill library metadata lives in `agent_global_skill`. Per-agent enablement
  * state lives in the `agent_skill` join table.
@@ -75,6 +80,9 @@ export class SkillService {
   private readonly mutationLock = new Mutex()
   // Dedupes concurrent reconcile-on-open triggers onto a single run.
   private reconcileInFlight: Promise<void> | null = null
+  // Once the first immutable session snapshot exists, the legacy shared mirror stays empty so
+  // Claude's user setting source cannot discover stale duplicates alongside the snapshot plugin.
+  private sessionSnapshotsActive = false
 
   constructor() {
     this.installer = new SkillInstaller()
@@ -97,6 +105,14 @@ export class SkillService {
 
   async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
     return agentGlobalSkillService.list(query)
+  }
+
+  /** Build an immutable plugin snapshot of an agent's enabled skills before launch. */
+  async prepareSnapshotForSession(agentId: string): Promise<SessionSkillSnapshot> {
+    return this.mutationLock.runExclusive(async () => {
+      const skills = await this.list({ agentId })
+      return this.createSessionSkillSnapshot(skills.filter((skill) => skill.isEnabled))
+    })
   }
 
   /** Enable or disable a skill for a specific agent. */
@@ -619,7 +635,8 @@ export class SkillService {
   // The Claude Agent SDK discovers skill files from CLAUDE_CONFIG_DIR/skills
   // (`feature.agents.claude.skills` = <userData>/Data/Agents/.claude/skills).
   // We keep that directory as a mirror of the owned `Data/Skills` library,
-  // maintained at install / uninstall / startup reconcile — NOT per session.
+  // maintained at install / uninstall / startup reconcile and refreshed for enabled
+  // entries during initial session preparation.
   // The SDK's `Options.skills` is only a name whitelist, so the files must
   // physically live here for a whitelisted name to load.
   // ===========================================================================
@@ -638,8 +655,110 @@ export class SkillService {
     await fs.promises.writeFile(path.join(manifestDirectory, 'plugin.json'), SKILLS_PLUGIN_MANIFEST, 'utf-8')
   }
 
+  private async createSessionSkillSnapshot(skills: InstalledSkill[]): Promise<SessionSkillSnapshot> {
+    const snapshotsRoot = path.join(this.getSkillPluginDirectory(), 'session-skill-snapshots')
+    if (!this.sessionSnapshotsActive) {
+      await Promise.all([
+        fs.promises.rm(this.getMirrorRoot(), { recursive: true, force: true }),
+        fs.promises.rm(snapshotsRoot, { recursive: true, force: true })
+      ])
+      this.sessionSnapshotsActive = true
+    }
+
+    await fs.promises.mkdir(snapshotsRoot, { recursive: true })
+    const stagingDirectory = path.join(snapshotsRoot, `.staging-${randomUUID()}`)
+    const stagingSkillsDirectory = path.join(stagingDirectory, 'skills')
+    const preparedSkills: InstalledSkill[] = []
+    const fingerprints: string[] = []
+
+    try {
+      await fs.promises.mkdir(path.join(stagingDirectory, '.claude-plugin'), { recursive: true })
+      await fs.promises.mkdir(stagingSkillsDirectory, { recursive: true })
+      await fs.promises.writeFile(
+        path.join(stagingDirectory, '.claude-plugin', 'plugin.json'),
+        SKILLS_PLUGIN_MANIFEST,
+        'utf-8'
+      )
+
+      const groups = new Map<string, InstalledSkill[]>()
+      for (const skill of skills) {
+        const key = normalizeFolderKey(skill.folderName)
+        const group = groups.get(key)
+        if (group) group.push(skill)
+        else groups.set(key, [skill])
+      }
+
+      for (const group of groups.values()) {
+        if (group.length !== 1) {
+          logger.warn('Skipping case-ambiguous skills in session snapshot', {
+            folderNames: group.map((skill) => skill.folderName)
+          })
+          continue
+        }
+
+        const skill = group[0]
+        const sourceDirectory = this.getSkillStoragePath(skill.folderName)
+        const snapshotDirectory = path.join(stagingSkillsDirectory, skill.folderName)
+        try {
+          const descriptor = await this.readSkillMdState(sourceDirectory)
+          if (descriptor.status !== 'found') {
+            logger.warn('Skipping unavailable skill in session snapshot', {
+              folderName: skill.folderName,
+              status: descriptor.status
+            })
+            continue
+          }
+          if (skill.source === 'builtin') {
+            const actualHash = await this.computeBuiltinDirectoryHash(sourceDirectory)
+            if (actualHash !== skill.contentHash) {
+              logger.warn('Skipping modified built-in skill in session snapshot', { folderName: skill.folderName })
+              continue
+            }
+          }
+
+          const sourceHash = await this.installer.computeContentHash(sourceDirectory)
+          await fs.promises.cp(sourceDirectory, snapshotDirectory, { recursive: true, force: true })
+          const snapshotHash = await this.installer.computeContentHash(snapshotDirectory)
+          if (snapshotHash !== sourceHash) {
+            await fs.promises.rm(snapshotDirectory, { recursive: true, force: true })
+            logger.warn('Skipping skill changed while preparing session snapshot', { folderName: skill.folderName })
+            continue
+          }
+
+          preparedSkills.push(skill)
+          fingerprints.push(`${normalizeFolderKey(skill.folderName)}\0${snapshotHash}`)
+        } catch (error) {
+          await fs.promises.rm(snapshotDirectory, { recursive: true, force: true })
+          logger.warn('Failed to copy skill into session snapshot; skipping it', {
+            folderName: skill.folderName,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+
+      const snapshotId = createHash('sha256').update(fingerprints.sort().join('\0')).digest('hex')
+      const pluginDirectory = path.join(snapshotsRoot, snapshotId)
+      if (!(await directoryExists(pluginDirectory))) {
+        try {
+          await fs.promises.rename(stagingDirectory, pluginDirectory)
+        } catch (error) {
+          if (!(await directoryExists(pluginDirectory))) throw error
+        }
+      }
+
+      return { skills: preparedSkills, pluginDirectory }
+    } finally {
+      await fs.promises.rm(stagingDirectory, { recursive: true, force: true })
+    }
+  }
+
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
   async linkMirror(folderName: string, options: { throwOnError?: boolean } = {}): Promise<void> {
+    if (this.sessionSnapshotsActive) {
+      await this.unlinkMirror(folderName)
+      return
+    }
+
     const sourceDir = this.getSkillStoragePath(folderName)
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
@@ -748,8 +867,8 @@ export class SkillService {
    *    successful library scan so a transient read error can't wipe the catalog.
    * 2. DB → mirror: heal every trusted catalog mirror entry and drop managed orphans.
    *
-   * Idempotent. Mutations never happen at session build, so concurrent session
-   * builds only read these directories.
+   * Idempotent. Initial session preparation uses a narrower mirror refresh for enabled
+   * skills; both operations share the mutation lock with install and uninstall.
    */
   async reconcileSkills(): Promise<void> {
     // Single-flight: reconcile-on-open can fire from several UI entry points at once — dedupe
