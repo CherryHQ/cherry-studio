@@ -1,5 +1,5 @@
 import { Type } from '@earendil-works/pi-ai'
-import { defineTool } from '@earendil-works/pi-coding-agent'
+import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -9,10 +9,12 @@ import {
   reply,
   type RoutedCall,
   routedModel,
+  storingSubagentPort,
   subagentCall,
   subagentStates,
   toolCallPart,
   toolResultOf,
+  toolResults,
   untilStopped,
   waitFor
 } from './subagentSupport'
@@ -233,5 +235,60 @@ describe('stopping subagents', () => {
 
     expect(stopped).toBe(false)
     expect(textOf(toolResultOf(created.session, 'call_a'))).toMatch(/^REPORT-A/)
+  })
+
+  // Breaks when a later stop replaces the user's while the run winds down: once it is over, the
+  // model could continue a subagent the user stopped.
+  it("keeps the user's stop when the model stops the same run before it ends, so it cannot be continued", async () => {
+    const started = gate()
+    const windDown = gate()
+    const slowWork = defineTool({
+      name: 'work',
+      label: 'Work',
+      description: 'Works until stopped, then takes a while to wind down',
+      parameters: Type.Object({}),
+      async execute(_id, _params, signal) {
+        void started.wait(undefined)
+        await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), { once: true }))
+        await windDown.wait(undefined)
+        return { content: [{ type: 'text', text: 'stopped working' }], details: undefined }
+      }
+    })
+    // A macrotask after the model's stop_subagent call is prepared, its execute has made its stop.
+    const windDownAfterModelStop: ExtensionFactory = (pi) => {
+      pi.on('tool_call', (event) => {
+        if (event.toolName === 'stop_subagent') setTimeout(windDown.open, 0)
+      })
+    }
+    const host = storingSubagentPort()
+    const parent = hostStore()
+    const { model } = routedModel((call) => {
+      const { userText, lastText } = call
+      if (userText.includes('TASK-A'))
+        return lastText.includes('TASK-A') ? [toolCallPart('work_1', 'work'), finish('tool-calls')] : reply('LATE-A')
+      if (lastText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      const id = host.subagents[0]?.sessionId
+      if (lastText === 'Stop A, then go on with it')
+        return [toolCallPart('call_stop', 'stop_subagent', { id }), finish('tool-calls')]
+      if (toolResults(call).at(-1)?.toolCallId === 'call_stop')
+        return [toolCallPart('call_msg', 'message_subagent', { id, message: 'GO-ON' }), finish('tool-calls')]
+      return reply('OK.')
+    })
+    const runtime = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [slowWork],
+      subagents: host.port,
+      extensionFactories: [windDownAfterModelStop],
+      onEvent: parent.onEvent
+    })
+    await runtime.prompt('Check A in the background')
+    await started.reached
+    expect(runtime.stopSubagent(host.subagents[0].sessionId)).toBe(true)
+    await runtime.prompt('Stop A, then go on with it')
+
+    const refused = toolResultOf(runtime.session, 'call_msg')
+    expect(refused.isError).toBe(true)
+    expect(textOf(refused)).toMatch(/was stopped by the user and cannot be continued/)
+    expect(subagentStates(parent.entries).at(-1)).toMatchObject({ outcome: 'stopped', stoppedBy: 'user' })
   })
 })
