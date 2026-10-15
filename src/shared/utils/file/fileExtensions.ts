@@ -108,6 +108,8 @@ export const customTextExts = new Map([
       '.authors', // 作者文件
       '.changelog', // 变更日志
       '.license', // 许可证
+      '.lrm', // Personnel approval form XML
+      '.lrmx', // Personnel approval form XML
       '.nfo', // 信息文件
       '.readme',
       '.text' // 纯文本

@@ -47,6 +47,13 @@ describe('getFileTypeByExt', () => {
     }
   })
 
+  it.each(['lrm', '.lrm', 'LRM', 'lrmx', '.lrmx', 'LRMX'])(
+    'classifies personnel approval XML format %s as text',
+    (ext) => {
+      expect(getFileTypeByExt(ext)).toBe('text')
+    }
+  )
+
   it('keeps binary formats as other so they stay rejected in chat', () => {
     for (const ext of ['exe', 'zip', 'dat', 'bin']) {
       expect(getFileTypeByExt(ext)).toBe('other')

@@ -90,6 +90,16 @@ const textOf = (parts: UIMessage['parts']) =>
 afterEach(() => vi.clearAllMocks())
 
 describe('prepareChatMessages — routing', () => {
+  it.each(['lrm', 'lrmx'])('inlines .%s XML attachments as model-visible text', async (ext) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+    extractMock.mockResolvedValueOnce('<Form><Field>示例</Field></Form>')
+
+    const [out] = await run([fileWithEntry('e1', `form.${ext}`, 'application/octet-stream')], NONE)
+
+    expect(textOf(out.parts)).toEqual([`Attached file "form.${ext}":\n<Form><Field>示例</Field></Form>`])
+    expect(out.parts.filter((part) => part.type === 'file')).toHaveLength(0)
+  })
+
   it('keeps a native image inline (no extraction)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     resolveMock.mockImplementation(async (p) => p)
