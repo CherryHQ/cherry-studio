@@ -152,6 +152,11 @@ function loadState(scopeKey: string): FollowupQueueState {
  * which is exactly when pending sends die too. */
 const liveSends = new Set<string>()
 
+type RemoveIdOptions = {
+  /** When false, dequeue after a successful send must not immediately drain the next head. */
+  continueAfterFailedHead?: boolean
+}
+
 type ScopeListener = () => void
 const scopeListeners = new Map<string, Set<ScopeListener>>()
 
@@ -260,7 +265,7 @@ export interface FollowupQueueController {
    * Only `ok` means the caller may clear the draft.
    */
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => EnqueueResult
-  removeId: (id: string) => void
+  removeId: (id: string, options?: RemoveIdOptions) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
   /** Drop every pending message (and any failure state) and resume auto-drain. */
   clear: () => void
@@ -451,7 +456,7 @@ export function useFollowupQueue({
           // Back on (or never left) the sent scope with the same head live:
           // dequeue it so the sent payload can never be redelivered.
           if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
-          removeIdRef.current(head.id)
+          removeIdRef.current(head.id, { continueAfterFailedHead: false })
         } else {
           removeIdFromScope(drainScope, head.id)
           if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
@@ -536,7 +541,7 @@ export function useFollowupQueue({
           // A successful send opens a new turn, so dequeue without re-arming: the
           // next head waits for that turn's completion edge instead of sending
           // into the still-streaming turn. removeId clears the draining claim.
-          if (sent) removeIdRef.current(head.id)
+          if (sent) removeIdRef.current(head.id, { continueAfterFailedHead: false })
           else {
             setDraining(null)
             drainNextAfterGhostSend(head)
@@ -588,13 +593,21 @@ export function useFollowupQueue({
     })
   }, [scopeKey, syncFromEntry])
 
-  // A late-settling send must not apply to whatever a remounted hook loads next.
+  // TabRouter keeps composers mounted under <Activity>; hiding a tab runs this
+  // cleanup without destroying hook state, so setup must restore mountedRef and
+  // reconcile from the persisted entry when the tab is shown again.
   useEffect(() => {
+    mountedRef.current = true
+    syncFromEntry()
+    const entry = loadState(scopeKeyRef.current)
+    if (!entry.pendingDrainId || !liveSends.has(entry.pendingDrainId)) {
+      setDraining(null)
+    }
     return () => {
       mountedRef.current = false
       drainEpochRef.current += 1
     }
-  }, [])
+  }, [syncFromEntry, setDraining])
 
   // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
   useEffect(() => {
@@ -686,7 +699,7 @@ export function useFollowupQueue({
   }, [persist, setDraining])
 
   const removeId = useCallback(
-    (id: string) => {
+    (id: string, options?: RemoveIdOptions) => {
       // A manual-steer success routes by its own claim scope first: after a scope
       // switch, an unmount, or both, the live ref scope is stale, but the per-send
       // claim record still names the scope the item was sent from. Dequeue it there
@@ -727,7 +740,9 @@ export function useFollowupQueue({
       // unless the deleted item still has a send in flight (removal during a retry):
       // that send may yet open a turn whose completion drains the next item, so
       // starting another send now would put two sends in flight.
-      if (wasFailed && remaining.length > 0 && !wasDraining) drainHead(remaining[0])
+      if (wasFailed && remaining.length > 0 && !wasDraining && options?.continueAfterFailedHead !== false) {
+        drainHead(remaining[0])
+      }
     },
     [persist, drainHead, setDraining, dropExpiredLiveState]
   )

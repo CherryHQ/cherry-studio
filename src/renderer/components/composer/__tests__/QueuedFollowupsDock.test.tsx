@@ -162,6 +162,8 @@ describe('QueuedFollowupsDock', () => {
     await user.click(screen.getByRole('button', { name: 'Queued (2)' }))
     expect(screen.getByText('first')).toBeInTheDocument()
     expect(screen.getByText('second')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reorder queued message: first' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reorder queued message: second' })).toBeInTheDocument()
     expect(screen.queryByText('first https://example.com/docs')).not.toBeInTheDocument()
     // Composer token chip is rendered read-only from the stored draft tokens.
     expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')

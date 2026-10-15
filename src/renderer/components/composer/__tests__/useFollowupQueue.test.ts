@@ -1,8 +1,9 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { act, renderHook } from '@testing-library/react'
+import { act, render, renderHook } from '@testing-library/react'
+import { Activity, createElement, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
+import { QUEUE_LIMIT, type FollowupQueueController, useFollowupQueue } from '../useFollowupQueue'
 
 const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
 
@@ -1718,5 +1719,86 @@ describe('useFollowupQueue', () => {
     // The expired item is gone from the view and the entry — only the new send persists.
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['new'])
     expect(persistedTexts('s1')).toEqual(['new'])
+  })
+
+  it('reconciles live state after an Activity hide/show when a hidden drain succeeds', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    let api: FollowupQueueController | null = null
+    function QueueHost({ isFulfilled }: { isFulfilled: boolean }) {
+      const queue = useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain })
+      useEffect(() => {
+        api = queue
+      }, [queue])
+      return createElement('div')
+    }
+
+    const view = render(createElement(Activity, { mode: 'visible' }, createElement(QueueHost, { isFulfilled: false })))
+
+    await act(async () => {
+      view.rerender(createElement(Activity, { mode: 'visible' }, createElement(QueueHost, { isFulfilled: true })))
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(api?.drainingId).toBe('h1')
+
+    act(() => {
+      view.rerender(createElement(Activity, { mode: 'hidden' }, createElement(QueueHost, { isFulfilled: true })))
+    })
+
+    await act(async () => {
+      resolveDrain(true)
+    })
+
+    act(() => {
+      view.rerender(createElement(Activity, { mode: 'visible' }, createElement(QueueHost, { isFulfilled: true })))
+    })
+
+    expect(api?.items).toEqual([])
+    expect(api?.drainingId).toBeNull()
+    expect(persistedTexts('s1')).toEqual([])
+  })
+
+  it('does not drain the next item when a stale successful retry settles after a scope round-trip', async () => {
+    let resolveRetry!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ scopeKey: 's1', isFulfilled: true })
+    })
+    expect(result.current.failedItemId).toBe('h1')
+
+    await act(async () => {
+      result.current.retryFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+
+    act(() => {
+      rerender({ scopeKey: 's2', isFulfilled: false })
+    })
+
+    await act(async () => {
+      resolveRetry(true)
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+
+    act(() => {
+      rerender({ scopeKey: 's1', isFulfilled: false })
+    })
+
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(result.current.items.map((i) => i.id)).toEqual(['h2'])
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
   })
 })

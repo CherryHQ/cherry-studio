@@ -101,6 +101,13 @@ function QueuedFollowupRow({
         {...dragHandleProps?.attributes}
         {...dragHandleProps?.listeners}
         aria-hidden={dragHandleProps ? undefined : true}
+        aria-label={
+          dragHandleProps
+            ? t('chat.input.followup_queue.reorder_item', {
+                message: previewText || t('chat.input.followup_queue.untitled_message')
+              })
+            : undefined
+        }
         data-dragging={dragging ? 'true' : 'false'}
         className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 data-[dragging=true]:opacity-100">
         <GripVertical className="size-4" />
