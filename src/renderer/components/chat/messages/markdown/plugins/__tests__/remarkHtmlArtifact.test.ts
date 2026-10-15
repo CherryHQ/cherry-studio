@@ -189,6 +189,27 @@ After`
     expect(htmlValues).toEqual(['<details>\n<summary>Answer</summary>', '<!-- </details> -->', '</details>'])
   })
 
+  it('keeps an unfinished streamed comment from pairing on tag-like text inside it', () => {
+    const source = `<details>
+<summary>Outer</summary>
+
+Body
+
+<!-- note </details>`
+    const tree = parse(source)
+
+    // A streamed comment prefix swallows the rest of the input until `-->`: the decoy inside
+    // must not pair the disclosure into a native collapsed element hiding `Body` — the
+    // unpaired opening keeps the artifact path like base.
+    expect(tree.children.map((child) => child.type)).toEqual(['code', 'paragraph', 'code'])
+    expect(tree.children[0]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: expect.stringContaining('<details>')
+    })
+    expect(tree.children[1]).toMatchObject({ type: 'paragraph', children: [{ value: 'Body' }] })
+  })
+
   it('keeps both disclosures raw when the close and the next open share one html node', () => {
     const source = `Before
 
@@ -253,6 +274,38 @@ After`
     })
     const document = (tree.children[1] as { value: string }).value
     expect(document).toContain('</details>')
+    expect(document).toContain('</textarea>')
+    expect(document).toContain('<style>p { color: red; }</style>')
+    expect(document).toContain('</html>')
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+  })
+
+  it('keeps the raw-text state alive across several continuation nodes before its end tag', () => {
+    const source = `<details>
+<summary>Doc</summary>
+
+<html><body><textarea>
+
+</details>
+
+</details>
+
+</textarea>
+<style>p { color: red; }</style><p>Doc</p></body></html>
+
+</details>`
+    const tree = parse(source)
+
+    // The textarea body spans MULTIPLE html nodes without its end tag: the raw-text state must
+    // survive every continuation node until `</textarea>` shows up, so neither literal
+    // `</details>` ends the disclosure and the document still assembles ONE artifact.
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: expect.stringContaining('<html><body><textarea>')
+    })
+    const document = (tree.children[1] as { value: string }).value
     expect(document).toContain('</textarea>')
     expect(document).toContain('<style>p { color: red; }</style>')
     expect(document).toContain('</html>')
@@ -453,6 +506,35 @@ After`
     ])
     const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
     expect(htmlValues.filter((value) => value.startsWith('<details')).length).toBe(1)
+    expect(htmlValues.filter((value) => value.startsWith('</details')).length).toBe(2)
+    // `After` renders after the outer close, outside both disclosures.
+    expect(tree.children.at(-1)).toMatchObject({
+      type: 'paragraph',
+      children: [{ value: 'After' }]
+    })
+  })
+
+  // The document ending in the SAME html node as the inner close must not swallow that close
+  // into the artifact: both retained openings need their raw closes or the outer disclosure
+  // swallows the following prose.
+  it('keeps a retained close out of a document artifact sharing its node', () => {
+    const source = `<details><summary>Outer</summary>
+<details><summary>Inner</summary>
+
+<html><body>Doc</body></html></details>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: '<html><body>Doc</body></html>'
+    })
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
     expect(htmlValues.filter((value) => value.startsWith('</details')).length).toBe(2)
     // `After` renders after the outer close, outside both disclosures.
     expect(tree.children.at(-1)).toMatchObject({

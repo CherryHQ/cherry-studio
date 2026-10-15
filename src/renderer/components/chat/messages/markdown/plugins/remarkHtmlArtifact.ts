@@ -112,11 +112,13 @@ const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
 
 /**
  * Lexical position carried across the html nodes of one pairing search: the open `<details>`
- * depth plus a raw-text element whose body has not seen its end tag yet.
+ * depth, a raw-text element whose body has not seen its end tag yet, and an unterminated
+ * `<!--` comment swallowing input until its `-->`.
  */
 interface ContainerScanState {
   count: number
   rawText?: string
+  inComment?: boolean
 }
 
 interface ContainerScanResult {
@@ -133,21 +135,42 @@ interface ContainerScanResult {
 function scanContainerBoundaries(value: string, state: ContainerScanState): ContainerScanResult {
   let position = 0
   while (position < value.length) {
+    // An unterminated comment keeps swallowing content — across later nodes — until its `-->`.
+    if (state.inComment) {
+      const end = value.indexOf('-->', position)
+      if (end === -1) return { closed: false }
+      position = end + 3
+      state.inComment = false
+      continue
+    }
+
     // A raw-text body opened earlier keeps swallowing content — across the blank lines that
-    // split html blocks — until its end tag shows up; nothing else matches inside it.
+    // split html blocks — until its end tag shows up; nothing else matches inside it. The
+    // state survives every continuation node: only the matching end tag ends the body.
     if (state.rawText !== undefined) {
       const closeRegex = RAW_TEXT_CLOSE_REGEXES.get(state.rawText)
-      state.rawText = undefined
-      if (!closeRegex) continue
+      if (!closeRegex) {
+        state.rawText = undefined
+        continue
+      }
       closeRegex.lastIndex = position
       const close = closeRegex.exec(value)
       if (!close) return { closed: false }
       position = close.index + close[0].length
+      state.rawText = undefined
       continue
     }
 
     CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = position
     const match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
+    // A comment opening before the next token cannot terminate in the remaining input (a
+    // complete comment would have matched as the token itself): it swallows the rest of the
+    // input — across later nodes — so no boundary inside it may be trusted.
+    const commentStart = value.indexOf('<!--', position)
+    if (commentStart !== -1 && (match === null || commentStart < match.index)) {
+      state.inComment = true
+      return { closed: false }
+    }
     if (!match) return { closed: false }
     position = match.index + match[0].length
 
@@ -179,13 +202,20 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
 }
 
 // First `</details>` boundary not matched by an opening inside the same node — i.e. one that
-// closes a boundary retained in an enclosing shared opening node. Comments, raw-text bodies and
-// quoted attributes are skipped exactly like in the pairing scan.
+// closes a boundary retained in an enclosing shared opening node. Comments (an unfinished one
+// swallows the rest of the node), raw-text bodies and quoted attributes are skipped exactly
+// like in the pairing scan.
 function findUnmatchedDetailsClose(value: string): { start: number; end: number } | undefined {
   let depth = 0
+  let scanned = 0
   CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = 0
   let match: RegExpExecArray | null
   while ((match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)) !== null) {
+    const commentStart = value.indexOf('<!--', scanned)
+    if (commentStart !== -1 && commentStart < match.index) {
+      return undefined // an unfinished comment opens before the boundary and never terminates
+    }
+    scanned = match.index + match[0].length
     if (match[1] !== undefined) continue // a same-node raw-text body holds no real boundary
     const token = match[0].toLowerCase()
     if (!token.startsWith('<details') && !token.startsWith('</details')) continue
@@ -371,14 +401,32 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
     for (let index = from; index < to; index += 1) {
       const documentEndIndex = findHtmlDocumentEnd(items, index, to)
       if (documentEndIndex !== undefined) {
-        const documentNodes = items.slice(index, documentEndIndex + 1)
+        let documentNodes = items.slice(index, documentEndIndex + 1)
+        let resumeIndex = documentEndIndex
+        // A document tail sharing its node with the closes owed to retained openings (a shared
+        // opening node's `</details>` merged after `</html>`) must not be swallowed into the
+        // artifact: split the tail off so the pending-close path below can keep those closes
+        // raw.
+        if (pendingCloses > 0) {
+          const last = items[documentEndIndex]
+          if (last?.type === 'html') {
+            const htmlEndMatch = HTML_DOCUMENT_END_REGEX.exec(last.value)
+            const htmlEnd = htmlEndMatch ? htmlEndMatch.index + htmlEndMatch[0].length : last.value.length
+            const tail = last.value.slice(htmlEnd)
+            if (htmlEnd < last.value.length && findUnmatchedDetailsClose(tail) !== undefined) {
+              documentNodes = [...items.slice(index, documentEndIndex), sliceHtmlNode(last, 0, htmlEnd)]
+              items.splice(documentEndIndex, 1, sliceHtmlNode(last, htmlEnd, last.value.length))
+              resumeIndex = documentEndIndex - 1 // the loop increment lands on the tail node
+            }
+          }
+        }
         const codeNode = createHtmlDocumentCodeNode(documentNodes, source)
         if (codeNode) {
           children.push(codeNode)
         } else {
           children.push(...documentNodes)
         }
-        index = documentEndIndex
+        index = resumeIndex
         continue
       }
 
