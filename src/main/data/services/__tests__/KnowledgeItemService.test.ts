@@ -686,6 +686,78 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('external synchronization mutations', () => {
+    it('commits a deleting external staging row that stays hidden from normal reads', () => {
+      const stagedItemId = '0198f3f2-7d21-7abc-8def-123456789abc'
+
+      const created = service.createDeletingExternal(KNOWLEDGE_BASE_ID, stagedItemId, {
+        source: 'Feishu Wiki',
+        title: 'Document 1',
+        relativePath: 'external/staged-document-1.md' as PosixRelativeFilePath
+      })
+
+      expect(created).toMatchObject({ id: stagedItemId, type: 'external', status: 'deleting' })
+      expect(
+        dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, stagedItemId)).get()
+      ).toMatchObject({
+        id: stagedItemId,
+        status: 'deleting'
+      })
+      expect(service.getItemsByBaseId(KNOWLEDGE_BASE_ID)).toEqual([])
+    })
+
+    it('promotes only the matching deleting external row and keeps metadata updates available', () => {
+      const relativePath = 'external/document-1.md' as PosixRelativeFilePath
+      const itemId = '0198f3f2-7d22-7abc-8def-123456789abc'
+
+      service.createDeletingExternal(KNOWLEDGE_BASE_ID, itemId, {
+        source: 'Feishu Wiki',
+        title: 'Document 1',
+        relativePath
+      })
+      const created = service.promoteDeletingExternalTx(dbh.db, KNOWLEDGE_BASE_ID, itemId, {
+        source: 'Feishu Wiki',
+        title: 'Document 1',
+        relativePath
+      })
+
+      expect(created).toMatchObject({
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: null,
+        type: 'external',
+        status: 'completed',
+        error: null,
+        data: { source: 'Feishu Wiki', title: 'Document 1', relativePath }
+      })
+      if (!created) throw new Error('Expected deleting external item to be promoted')
+      expect(
+        service.updateCompletedExternalMetadataTx(dbh.db, created.id, {
+          baseId: KNOWLEDGE_BASE_ID,
+          source: 'Engineering Wiki',
+          title: 'Document 1 renamed'
+        })
+      ).toMatchObject({
+        data: { source: 'Engineering Wiki', title: 'Document 1 renamed', relativePath }
+      })
+    })
+
+    it('does not promote another knowledge item type', async () => {
+      const note = await seedItem({ id: NOTE_1_ID, status: 'completed' })
+
+      expect(
+        service.promoteDeletingExternalTx(dbh.db, KNOWLEDGE_BASE_ID, note.id, {
+          source: 'Feishu Wiki',
+          title: 'Document 1',
+          relativePath: 'external/document-1.md' as PosixRelativeFilePath
+        })
+      ).toBeNull()
+      expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, note.id)).get()).toMatchObject({
+        type: 'note',
+        status: 'completed'
+      })
+    })
+  })
+
   describe('getById', () => {
     it('returns a knowledge item by id', async () => {
       const seeded = await seedItem({ data: { source: 'stored note', content: 'stored note' } })

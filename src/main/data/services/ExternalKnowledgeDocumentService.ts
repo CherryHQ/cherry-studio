@@ -1,12 +1,15 @@
-import { and, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, asc, eq, exists, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 
 import { application } from '@application'
 import {
   type ExternalKnowledgeDocumentRow,
   externalKnowledgeDocumentTable
 } from '@data/db/schemas/externalKnowledgeDocument'
+import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
-import type { DbOrTx } from '@data/db/types'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbOrTx, DbType } from '@data/db/types'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   ExternalKnowledgeDocumentListResponse,
   ListExternalKnowledgeDocumentsQuery
@@ -18,6 +21,51 @@ import { timestampToISO } from './utils/rowMappers'
 
 // Stay below SQLite host-parameter limits across builds and leave room for other bound values.
 const SQLITE_INARRAY_CHUNK = 500
+
+export type ExternalKnowledgeSourceSyncFence = {
+  baseId: string
+  sourceId: string
+  expectedSourceRevision: number
+  activeJobId: string
+}
+
+export type ExternalKnowledgeDocumentVersion = Pick<
+  ExternalKnowledgeDocumentRow,
+  'knowledgeItemId' | 'contentHash' | 'remoteRevision'
+>
+
+export type ExternalKnowledgeDocumentSyncMetadata = Pick<
+  ExternalKnowledgeDocumentRow,
+  | 'canonicalNodeId'
+  | 'parentNodeId'
+  | 'relativeBreadcrumb'
+  | 'title'
+  | 'originalUrl'
+  | 'remoteRevision'
+  | 'lastSeenAt'
+  | 'currentWarning'
+>
+
+export type ExternalKnowledgeDocumentWarningMetadata = Omit<ExternalKnowledgeDocumentSyncMetadata, 'remoteRevision'>
+
+export type CreateActiveExternalKnowledgeDocumentInput = ExternalKnowledgeDocumentSyncMetadata & {
+  remoteObjectId: string
+  contentHash: string
+  knowledgeItemId: string
+}
+
+export type PublishExternalKnowledgeDocumentInput = {
+  knowledgeItemId: string
+  contentHash: string
+  remoteRevision: string | null
+}
+
+export class ExternalKnowledgeDocumentOwnershipChangedError extends Error {
+  constructor() {
+    super('External knowledge document ownership changed during reconciliation')
+    this.name = 'ExternalKnowledgeDocumentOwnershipChangedError'
+  }
+}
 
 function rowToEntity(row: ExternalKnowledgeDocumentRow): ExternalKnowledgeDocument {
   return ExternalKnowledgeDocumentSchema.parse({
@@ -67,6 +115,16 @@ export class ExternalKnowledgeDocumentService {
     }
   }
 
+  listBySourceIdTx(tx: Pick<DbType, 'select'>, sourceId: string): ExternalKnowledgeDocument[] {
+    return tx
+      .select()
+      .from(externalKnowledgeDocumentTable)
+      .where(eq(externalKnowledgeDocumentTable.sourceId, sourceId))
+      .orderBy(asc(externalKnowledgeDocumentTable.id))
+      .all()
+      .map(rowToEntity)
+  }
+
   getById(id: string): ExternalKnowledgeDocument | null {
     const row = this.db
       .select()
@@ -75,6 +133,143 @@ export class ExternalKnowledgeDocumentService {
       .limit(1)
       .get()
     return row ? rowToEntity(row) : null
+  }
+
+  getByRemoteObjectIdTx(
+    tx: Pick<DbType, 'select'>,
+    baseId: string,
+    sourceId: string,
+    remoteObjectId: string
+  ): ExternalKnowledgeDocument | null {
+    const row = tx
+      .select({ document: externalKnowledgeDocumentTable })
+      .from(externalKnowledgeDocumentTable)
+      .innerJoin(
+        externalKnowledgeSourceTable,
+        eq(externalKnowledgeSourceTable.id, externalKnowledgeDocumentTable.sourceId)
+      )
+      .where(
+        and(
+          eq(externalKnowledgeSourceTable.baseId, baseId),
+          eq(externalKnowledgeDocumentTable.sourceId, sourceId),
+          eq(externalKnowledgeDocumentTable.remoteObjectId, remoteObjectId)
+        )
+      )
+      .limit(1)
+      .get()
+    return row ? rowToEntity(row.document) : null
+  }
+
+  createActiveTx(
+    tx: Pick<DbType, 'select' | 'insert'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    input: CreateActiveExternalKnowledgeDocumentInput
+  ): ExternalKnowledgeDocument | null {
+    if (!this.matchesSourceFenceTx(tx, fence)) return null
+    this.assertPublishableItemTx(tx, fence.baseId, input.knowledgeItemId)
+
+    const [row] = withSqliteErrors(
+      () =>
+        tx
+          .insert(externalKnowledgeDocumentTable)
+          .values({ ...input, sourceId: fence.sourceId, availability: 'active' })
+          .returning()
+          .all(),
+      defaultHandlersFor('ExternalKnowledgeDocument', `${fence.sourceId}:${input.remoteObjectId}`)
+    )
+    if (!row) {
+      throw DataApiErrorFactory.dataInconsistent('ExternalKnowledgeDocument', 'Document create result missing')
+    }
+    return rowToEntity(row)
+  }
+
+  updateSyncMetadataTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documentId: string,
+    expected: ExternalKnowledgeDocumentVersion,
+    metadata: ExternalKnowledgeDocumentSyncMetadata
+  ): ExternalKnowledgeDocument | null {
+    const [row] = tx
+      .update(externalKnowledgeDocumentTable)
+      .set(metadata)
+      .where(this.documentFence(tx, fence, documentId, expected))
+      .returning()
+      .all()
+    return row ? rowToEntity(row) : null
+  }
+
+  updateSyncWarningTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documentId: string,
+    expected: ExternalKnowledgeDocumentVersion,
+    metadata: ExternalKnowledgeDocumentWarningMetadata
+  ): ExternalKnowledgeDocument | null {
+    const { canonicalNodeId, parentNodeId, relativeBreadcrumb, title, originalUrl, lastSeenAt, currentWarning } =
+      metadata
+    const [row] = tx
+      .update(externalKnowledgeDocumentTable)
+      .set({
+        canonicalNodeId,
+        parentNodeId,
+        relativeBreadcrumb,
+        title,
+        originalUrl,
+        lastSeenAt,
+        currentWarning
+      })
+      .where(this.documentFence(tx, fence, documentId, expected))
+      .returning()
+      .all()
+    return row ? rowToEntity(row) : null
+  }
+
+  publishTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documentId: string,
+    expected: ExternalKnowledgeDocumentVersion,
+    publication: PublishExternalKnowledgeDocumentInput
+  ): ExternalKnowledgeDocument | null {
+    if (!this.matchesDocumentFenceTx(tx, fence, documentId, expected)) return null
+    this.assertPublishableItemTx(tx, fence.baseId, publication.knowledgeItemId)
+
+    const [row] = tx
+      .update(externalKnowledgeDocumentTable)
+      .set({ ...publication, availability: 'active', currentWarning: null })
+      .where(this.documentFence(tx, fence, documentId, expected))
+      .returning()
+      .all()
+    return row ? rowToEntity(row) : null
+  }
+
+  markUnavailableTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documentId: string,
+    expected: ExternalKnowledgeDocumentVersion,
+    currentWarning: string
+  ): boolean {
+    const result = tx
+      .update(externalKnowledgeDocumentTable)
+      .set({ availability: 'unavailable', knowledgeItemId: null, contentHash: null, currentWarning })
+      .where(this.documentFence(tx, fence, documentId, expected))
+      .run()
+    return result.changes > 0
+  }
+
+  markUnavailableBatchTx(
+    tx: Pick<DbType, 'select' | 'update'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documents: ReadonlyArray<{ documentId: string; expected: ExternalKnowledgeDocumentVersion }>,
+    currentWarning: string
+  ): void {
+    for (const document of documents) {
+      if (!this.markUnavailableTx(tx, fence, document.documentId, document.expected, currentWarning)) {
+        throw new ExternalKnowledgeDocumentOwnershipChangedError()
+      }
+    }
   }
 
   getActiveOwnedKnowledgeItemIds(itemIds: readonly string[], db: DbOrTx = this.db): Set<string> {
@@ -138,6 +333,101 @@ export class ExternalKnowledgeDocumentService {
     `)
 
     return new Set(rows.map((row) => row.rootId))
+  }
+
+  private matchesSourceFenceTx(tx: Pick<DbType, 'select'>, fence: ExternalKnowledgeSourceSyncFence): boolean {
+    return Boolean(
+      tx
+        .select({ id: externalKnowledgeSourceTable.id })
+        .from(externalKnowledgeSourceTable)
+        .where(this.sourceFence(fence))
+        .limit(1)
+        .get()
+    )
+  }
+
+  private sourceFenceExists(tx: Pick<DbType, 'select'>, fence: ExternalKnowledgeSourceSyncFence): SQL {
+    return exists(
+      tx
+        .select({ id: externalKnowledgeSourceTable.id })
+        .from(externalKnowledgeSourceTable)
+        .where(this.sourceFence(fence))
+    )
+  }
+
+  private sourceFence(fence: ExternalKnowledgeSourceSyncFence): SQL {
+    return and(
+      eq(externalKnowledgeSourceTable.id, fence.sourceId),
+      eq(externalKnowledgeSourceTable.baseId, fence.baseId),
+      eq(externalKnowledgeSourceTable.revision, fence.expectedSourceRevision),
+      eq(externalKnowledgeSourceTable.activeJobId, fence.activeJobId)
+    )!
+  }
+
+  private documentFence(
+    tx: Pick<DbType, 'select'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documentId: string,
+    expected: ExternalKnowledgeDocumentVersion
+  ): SQL {
+    return and(
+      eq(externalKnowledgeDocumentTable.id, documentId),
+      eq(externalKnowledgeDocumentTable.sourceId, fence.sourceId),
+      ...this.ownershipFence(expected),
+      this.sourceFenceExists(tx, fence)
+    )!
+  }
+
+  private matchesDocumentFenceTx(
+    tx: Pick<DbType, 'select'>,
+    fence: ExternalKnowledgeSourceSyncFence,
+    documentId: string,
+    expected: ExternalKnowledgeDocumentVersion
+  ): boolean {
+    return Boolean(
+      tx
+        .select({ id: externalKnowledgeDocumentTable.id })
+        .from(externalKnowledgeDocumentTable)
+        .where(this.documentFence(tx, fence, documentId, expected))
+        .limit(1)
+        .get()
+    )
+  }
+
+  private assertPublishableItemTx(tx: Pick<DbType, 'select'>, baseId: string, knowledgeItemId: string): void {
+    const item = tx
+      .select({ id: knowledgeItemTable.id })
+      .from(knowledgeItemTable)
+      .where(
+        and(
+          eq(knowledgeItemTable.id, knowledgeItemId),
+          eq(knowledgeItemTable.baseId, baseId),
+          eq(knowledgeItemTable.type, 'external'),
+          eq(knowledgeItemTable.status, 'completed')
+        )
+      )
+      .limit(1)
+      .get()
+    if (!item) {
+      throw DataApiErrorFactory.invalidOperation(
+        'publish external knowledge document',
+        'knowledge item must be a completed external item in the source knowledge base'
+      )
+    }
+  }
+
+  private ownershipFence(expected: ExternalKnowledgeDocumentVersion): SQL[] {
+    return [
+      expected.knowledgeItemId === null
+        ? isNull(externalKnowledgeDocumentTable.knowledgeItemId)
+        : eq(externalKnowledgeDocumentTable.knowledgeItemId, expected.knowledgeItemId),
+      expected.contentHash === null
+        ? isNull(externalKnowledgeDocumentTable.contentHash)
+        : eq(externalKnowledgeDocumentTable.contentHash, expected.contentHash),
+      expected.remoteRevision === null
+        ? isNull(externalKnowledgeDocumentTable.remoteRevision)
+        : eq(externalKnowledgeDocumentTable.remoteRevision, expected.remoteRevision)
+    ]
   }
 }
 

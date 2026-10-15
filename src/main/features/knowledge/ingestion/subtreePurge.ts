@@ -4,7 +4,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { isIndexableKnowledgeItem } from '../items'
-import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
+import { deleteKnowledgeItemFiles, deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
 import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanup'
 
 export function assertNoActiveExternalOwner(itemIds: readonly string[], operation: string): void {
@@ -41,9 +41,14 @@ export async function purgeKnowledgeSubtreeWithinLock(
 
   // Vector cleanup precedes DB deletion so a retry can still discover affected item ids.
   await deleteKnowledgeItemVectors(base, leafItemIds)
-  // Best-effort: a file-removal failure must not abort the row deletion below,
-  // which would otherwise strand rows after their vectors are gone.
-  await deleteKnowledgeItemFilesBestEffort(base.id, subtreeItems, logContext)
+  const externalItems = subtreeItems.filter((item) => item.type === 'external')
+  const ordinaryItems = subtreeItems.filter((item) => item.type !== 'external')
+  if (externalItems.length > 0) {
+    await deleteKnowledgeItemFiles(base.id, externalItems)
+  }
+  if (ordinaryItems.length > 0) {
+    await deleteKnowledgeItemFilesBestEffort(base.id, ordinaryItems, logContext)
+  }
 
   knowledgeItemService.deleteItemsByIds(base.id, subtreeItemIds)
 }
