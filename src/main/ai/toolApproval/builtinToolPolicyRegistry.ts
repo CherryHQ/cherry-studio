@@ -2,7 +2,7 @@
  * Runtime-neutral approval policy for Cherry-owned MCP tools.
  *
  * This is a registry of tool entries, not parallel allow/approval name lists. Each tool declares
- * its canonical MCP identity and approval behavior once; Claude, Pi, and DSH only translate that
+ * its canonical MCP identity and approval behavior once; Claude and Pi only translate that
  * identity into their runtime-specific wire names. Arrays or sets produced by consumers are
  * derived boundary formats for the SDK/bridge and are never policy sources.
  *
@@ -12,6 +12,7 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
@@ -48,11 +49,13 @@ export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
   BROWSER: 'browser',
+  COMPUTER: 'computer',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',
   ASSISTANT: 'assistant',
-  ASSISTANT_FILES: 'assistant-files'
+  ASSISTANT_FILES: 'assistant-files',
+  DOCTOR: 'doctor'
 } as const
 
 export interface BuiltinToolPolicyEntry {
@@ -118,10 +121,23 @@ const BUILTIN_TOOL_POLICIES = {
   assistantPrepareDiagnosticReport: tool(CHERRY_MCP_SERVER.ASSISTANT, 'prepare_diagnostic_report', 'auto'),
   assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),
   assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required'),
-  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required')
+  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required'),
+
+  // The doctor turn is headless; writes are gated by DoctorAgentService proposals, not by approval.
+  doctorSession: tool(CHERRY_MCP_SERVER.DOCTOR, 'session', 'auto'),
+  doctorReadFile: tool(CHERRY_MCP_SERVER.DOCTOR, 'read_file', 'auto'),
+  doctorReport: tool(CHERRY_MCP_SERVER.DOCTOR, 'report', 'auto'),
+  doctorDataApi: tool(CHERRY_MCP_SERVER.DOCTOR, 'data_api', 'auto'),
+  doctorPreference: tool(CHERRY_MCP_SERVER.DOCTOR, 'preference', 'auto'),
+  doctorProbeEndpoint: tool(CHERRY_MCP_SERVER.DOCTOR, 'probe_endpoint', 'auto'),
+  doctorFix: tool(CHERRY_MCP_SERVER.DOCTOR, 'doctor_fix', 'auto')
 } as const satisfies Record<string, BuiltinToolPolicyEntry>
 
 export const BUILTIN_TOOL_POLICY_ENTRIES: readonly BuiltinToolPolicyEntry[] = Object.values(BUILTIN_TOOL_POLICIES)
 export const MOUNTED_TOOL_POLICY_PROVIDERS: ReadonlyMap<string, () => BuiltinToolPolicyEntry[]> = new Map([
-  [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies]
+  [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies],
+  [
+    CHERRY_MCP_SERVER.COMPUTER,
+    () => computerUseToolDefinitions.map(({ name }) => tool(CHERRY_MCP_SERVER.COMPUTER, name, 'auto'))
+  ]
 ])

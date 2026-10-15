@@ -17,6 +17,7 @@ import { parse } from 'yaml'
 import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
+import { claudeCodeBinaryManifest } from './scripts/claudeCodeBinaryManifest'
 import { piVccBundlePlugin } from './scripts/piVccBundle'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
@@ -158,7 +159,10 @@ export const mainResolveAlias = {
 
 export default defineConfig({
   main: {
-    define: { __APP_EDITION__: JSON.stringify(rendererEdition) },
+    define: {
+      __APP_EDITION__: JSON.stringify(rendererEdition),
+      __CLAUDE_CODE_BINARY_MANIFEST__: JSON.stringify(claudeCodeBinaryManifest(__dirname))
+    },
     plugins: [
       {
         name: 'cherry-selection-panel',
@@ -173,7 +177,13 @@ export default defineConfig({
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
     ],
-    resolve: { alias: mainResolveAlias },
+    resolve: {
+      alias: [
+        ...Object.entries(mainResolveAlias).map(([find, replacement]) => ({ find, replacement })),
+        // file-stream-rotator requires Moment's callable CommonJS export, not its ESM namespace.
+        { find: /^moment$/, replacement: 'moment/moment.js' }
+      ]
+    },
     build: {
       externalizeDeps: {
         include: mainExternalModules

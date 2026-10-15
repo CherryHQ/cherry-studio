@@ -779,6 +779,12 @@
             "type": "openai-chat"
           }
         },
+        "openai-image-edit": {
+          "adapterFamily": "newapi"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "newapi"
+        },
         "openai-responses": {
           "adapterFamily": "newapi"
         }
@@ -831,6 +837,30 @@
         }
       },
       "name": "LM Studio"
+    },
+    {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "LiteLLM - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:4000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "litellm",
+      "metadata": {
+        "website": {
+          "apiKey": "https://docs.litellm.ai/docs/proxy/virtual_keys",
+          "docs": "https://docs.litellm.ai/docs/proxy/quick_start",
+          "official": "https://www.litellm.ai/"
+        }
+      },
+      "name": "LiteLLM"
     },
     {
       "availableInEditions": ["global"],
@@ -2483,6 +2513,10 @@
           "adapterFamily": "anthropic",
           "baseUrl": "https://router.huggingface.co/v1/"
         },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.huggingface.co/v1"
+        },
         "openai-responses": {
           "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
@@ -2688,5 +2722,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a97aae2405a78d18"
+  "version": "defc6a5ac2bc457b"
 }

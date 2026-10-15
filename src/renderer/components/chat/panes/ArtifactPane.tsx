@@ -23,7 +23,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
@@ -34,6 +34,7 @@ import {
   useOptionalOpenFilePreviewTab
 } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import {
@@ -897,7 +898,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             editor runs full height under the elevated composer with trailing scroll room. */}
         <div className="relative min-h-0 flex-1 overflow-hidden [&_.cm-scroller]:pb-[var(--chat-composer-inset,0px)]">
           {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
-            <CodeEditor
+            <LazyCodeEditor
               key={previewKey}
               value={fileSession.draft}
               language={getFileExtension(overlaySelection.filePath)}

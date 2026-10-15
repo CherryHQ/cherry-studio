@@ -15,8 +15,8 @@ import i18n from 'i18next'
 import resourcesToBackend from 'i18next-resources-to-backend'
 import { initReactI18next } from 'react-i18next'
 
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { preferenceService } from '@renderer/data/PreferenceService'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 

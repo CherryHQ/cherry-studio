@@ -773,7 +773,7 @@ jobs:
 
       - name: Verify draft matches approved archive
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
           RELEASE_SHA: ${{ inputs.expected_sha }}
@@ -889,7 +889,10 @@ jobs:
     if: >-
       !cancelled() && github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' &&
       (needs.publish.result == 'success' || inputs.mode == 'sync-only')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows-signing]
+    defaults:
+      run:
+        shell: bash
     concurrency:
       group: gitcode-sync-${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
       cancel-in-progress: false
@@ -909,6 +912,12 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
+
+      - name: Check sync tools
+        run: |
+          gh --version
+          curl --version
+          jq --binary --version
 
       - name: Install release script dependencies
         shell: bash
@@ -946,6 +955,10 @@ jobs:
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
         run: bash scripts/release/sync-gitcode.sh
+
+      - name: Clean sync artifacts
+        if: always()
+        run: rm -rf release-bundle release-assets release_body.txt
 
   notify:
     runs-on: ubuntu-latest
