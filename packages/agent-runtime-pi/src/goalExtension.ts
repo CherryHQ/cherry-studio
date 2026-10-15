@@ -33,9 +33,11 @@ import {
   renderRoundPrompt,
   resumeGoal,
   type RoundDetails,
+  roundKey,
   stopGoal,
   tailRound,
-  toolCallKey
+  toolCallKey,
+  unadmittedRounds
 } from './goalState'
 import { type ConversationModelMessage, toModelMessages } from './modelMessages'
 import { isSubagentSession } from './subagent'
@@ -163,6 +165,16 @@ interface Runtime {
  */
 export function createGoalExtension(port: GoalPort): ExtensionFactory {
   return (pi) => {
+    // Spec §6.3: Pi commits a round before it knows whether the run goes on; one that never ran stays out of requests.
+    pi.on('context', (event, ctx) => {
+      const stale = unadmittedRounds(ctx.sessionManager.getBranch())
+      if (stale.size === 0) return undefined
+      const ran = (message: (typeof event.messages)[number]) =>
+        message.role !== 'custom' ||
+        message.customType !== GOAL_ROUND_TYPE ||
+        !stale.has(roundKey(message.details as RoundDetails))
+      return { messages: event.messages.filter(ran) }
+    })
     if (!port.modelSupportsTools()) {
       // Spec §8.3: no tools and no command; an active goal on the branch records why nothing continues.
       pi.on('session_start', (_event, ctx) => {
