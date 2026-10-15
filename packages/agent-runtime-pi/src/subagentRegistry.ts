@@ -38,6 +38,11 @@ export interface SubagentRecord {
   outcome?: SubagentOutcome
   /** Set when the latest run was stopped. */
   stoppedBy?: SubagentStopper
+  /**
+   * The model stopped the latest run (perhaps after the user did): `stop_subagent` gave it the
+   * result, so no notification follows.
+   */
+  modelStopped?: boolean
 }
 
 /** Data of a `cherry.subagent-state` entry. */
@@ -52,6 +57,7 @@ export interface SubagentState {
   status: 'running' | 'finished'
   outcome?: SubagentOutcome
   stoppedBy?: SubagentStopper
+  modelStopped?: boolean
   report?: string
   reason?: string
   partial?: string
@@ -103,6 +109,7 @@ const snapshot = (record: SubagentRecord, result?: RunResult): SubagentState => 
   status: record.status === 'finished' ? 'finished' : 'running',
   ...(record.outcome === undefined ? {} : { outcome: record.outcome }),
   ...(record.stoppedBy === undefined ? {} : { stoppedBy: record.stoppedBy }),
+  ...(record.modelStopped ? { modelStopped: true } : {}),
   ...(result === undefined
     ? {}
     : {
@@ -123,7 +130,8 @@ const fromState = (state: SubagentState): SubagentRecord => ({
   run: state.run,
   status: state.status,
   ...(state.outcome === undefined ? {} : { outcome: state.outcome }),
-  ...(state.stoppedBy === undefined ? {} : { stoppedBy: state.stoppedBy })
+  ...(state.stoppedBy === undefined ? {} : { stoppedBy: state.stoppedBy }),
+  ...(state.modelStopped ? { modelStopped: true } : {})
 })
 
 /**
@@ -188,7 +196,7 @@ export function restoreSubagents(
   }
   const undelivered: PendingDelivery[] = []
   for (const [run, state] of runs) {
-    if (delivered.has(run) || state.stoppedBy === 'model') continue
+    if (delivered.has(run) || state.modelStopped) continue
     undelivered.push({
       sessionId: state.sessionId,
       run: state.run,
@@ -246,6 +254,7 @@ export class SubagentRegistry {
     if (!run || !record || record.status === 'finished') return undefined
     // A run the user stopped stays theirs while it winds down: it must not become continuable.
     if (record.stoppedBy !== 'user') record.stoppedBy = by
+    if (by === 'model') record.modelStopped = true
     run.controller.abort()
     return run.done
   }
@@ -371,6 +380,7 @@ export class SubagentRegistry {
     record.status = 'running'
     delete record.outcome
     delete record.stoppedBy
+    delete record.modelStopped
     this.track(record)
     this.host.appendState(snapshot(record))
     this.changed()
@@ -415,7 +425,7 @@ export class SubagentRegistry {
     this.host.appendState(snapshot(record, shortened))
     this.changed()
     // The model that stopped it has its partial output from stop_subagent already.
-    if (record.stoppedBy !== 'model' && !this.closing) this.host.finished(record, shortened)
+    if (!record.modelStopped && !this.closing) this.host.finished(record, shortened)
   }
 
   /** Follows the tool calls executing in a subagent's session, for its approval events. */

@@ -280,6 +280,64 @@ describe('goal and background subagents', () => {
     expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 5_050, lastStop: { code: 'round_limit' } })
   })
 
+  // Breaks when a run the user stopped and the model then stopped as it wound down is reported
+  // again after stop_subagent returned it: its notification would count its usage a second time.
+  it('counts a run the user and then the model stopped once', async () => {
+    const started = gate()
+    const windDown = gate()
+    const slowWork = defineTool({
+      name: 'work',
+      label: 'Work',
+      description: 'Works until stopped, then takes a while to wind down',
+      parameters: Type.Object({}),
+      async execute(_id, _params, signal) {
+        void started.wait(undefined)
+        await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), { once: true }))
+        await windDown.wait(undefined)
+        return { content: [{ type: 'text', text: 'stopped working' }], details: undefined }
+      }
+    })
+    // A macrotask after the model's stop_subagent call is prepared, its execute has made its stop.
+    const windDownAfterModelStop: ExtensionFactory = (pi) => {
+      pi.on('tool_call', (event) => {
+        if (event.toolName === 'stop_subagent') setTimeout(windDown.open, 0)
+      })
+    }
+    const host = recordingSubagentPort()
+    const user: { stopSubagent?: (sessionId: string) => boolean } = {}
+    const { model, calls } = routedModel(async (call) => {
+      if (call.userText.includes('TASK-B'))
+        return call.lastText.includes('TASK-B')
+          ? [toolCallPart('work_1', 'work'), finish('tool-calls', 5_000, 0)]
+          : reply('LATE', 10, 0)
+      if (round(call) === 1) return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
+      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
+        await started.reached
+        user.stopSubagent!(host.subagents[0].sessionId)
+        return [
+          toolCallPart('call_stop', 'stop_subagent', { id: host.subagents[0].sessionId }),
+          finish('tool-calls', 10, 0)
+        ]
+      }
+      return reply(`working ${calls.length}`, 10, 0)
+    })
+    const opened = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 2 } }), {
+      tools: [slowWork],
+      subagents: host.port,
+      extensionFactories: [windDownAfterModelStop]
+    })
+    user.stopSubagent = opened.stopSubagent
+    const { session: s, host: store } = opened
+    await promptIdle(s, '/goal Check B')
+    await waitFor(() => lastSnapshot(store.entries)?.phase === 'blocked')
+    await promptIdle(s, 'Any news?')
+
+    expect(toolResultOf(s, 'call_stop').details).toMatchObject({ stopped: true, run: 1 })
+    expect(calls.filter(isNotice)).toEqual([])
+    // Four parent requests of 12 tokens (10 + 2 cached), and B's 5002 once.
+    expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 5_050, lastStop: { code: 'round_limit' } })
+  })
+
   // Breaks when a continuation a goal round starts is left out of the budget because the goal did
   // not start that subagent in the background (here it ran in the foreground first).
   it('counts the continuation a goal round starts toward the goal', async () => {
