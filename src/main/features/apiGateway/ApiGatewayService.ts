@@ -20,10 +20,20 @@ import type { ApiGateway } from './server'
 const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
-const INTERNAL_GATEWAY_FEATURES = ['agent', 'translate'] as const
 
-/** Cherry-launched gateway consumers; each authenticates with its own in-memory key. */
-export type InternalGatewayFeature = (typeof INTERNAL_GATEWAY_FEATURES)[number]
+/** Cherry-launched gateway consumers; each authenticates with in-memory keys. */
+export type InternalGatewayFeature = 'agent' | 'translate'
+
+function presentedToken(headers: Headers): string | undefined {
+  return (
+    headers.get('x-api-key')?.trim() ||
+    headers
+      .get('authorization')
+      ?.match(/^Bearer\s+(.+)$/i)?.[1]
+      ?.trim() ||
+    headers.get('x-goog-api-key')?.trim()
+  )
+}
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
@@ -31,11 +41,10 @@ export type InternalGatewayFeature = (typeof INTERNAL_GATEWAY_FEATURES)[number]
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
-  /** Never persisted or shown to the user; the key a request presents identifies its internal feature. */
-  private readonly internalApiKeys: Record<InternalGatewayFeature, string> = {
-    agent: `cs-internal-${uuidv4()}`,
-    translate: `cs-internal-${uuidv4()}`
-  }
+  /** Never persisted or shown to the user; identifies requests from Cherry-launched Agent runtimes. */
+  private readonly agentApiKey = `cs-internal-${uuidv4()}`
+  /** Live PDF translation credentials, each bound to the one model address its job selected. */
+  private readonly translationCredentials = new Map<string, string>()
   /** Loopback listener for internal consumers, started on first use and independent of `enabled`. */
   private internalGateway: Promise<ApiGateway> | null = null
   private internalOrigin: string | undefined
@@ -323,17 +332,32 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
+  /** Base URL and credential for Cherry-launched Agent runtimes. */
+  async ensureAgentGateway(): Promise<{ baseUrl: string; apiKey: string }> {
+    return { baseUrl: await this.ensureInternalGateway(), apiKey: this.agentApiKey }
+  }
+
+  /** Job-scoped credential: chat completions for `modelAddress` only, revoked by `dispose`. */
+  async createTranslationCredential(
+    modelAddress: string
+  ): Promise<{ baseUrl: string; apiKey: string; dispose: () => void }> {
+    const baseUrl = await this.ensureInternalGateway()
+    const apiKey = `cs-internal-${uuidv4()}`
+    this.translationCredentials.set(apiKey, modelAddress)
+    return { baseUrl, apiKey, dispose: () => this.translationCredentials.delete(apiKey) }
+  }
+
   /**
-   * Base URL and credential for a Cherry-launched consumer of `feature`. Served by a dedicated loopback
-   * listener so internal traffic never depends on, or turns on, the user-facing gateway.
+   * Dedicated loopback listener for internal consumers, so internal traffic never depends on,
+   * or turns on, the user-facing gateway.
    */
-  async ensureInternalGateway(feature: InternalGatewayFeature): Promise<{ baseUrl: string; apiKey: string }> {
+  private async ensureInternalGateway(): Promise<string> {
     this.internalGateway ??= this.startInternalGateway().catch((error: unknown) => {
       this.internalGateway = null
       throw error
     })
     await this.internalGateway
-    return { baseUrl: this.internalOrigin!, apiKey: this.internalApiKeys[feature] }
+    return this.internalOrigin!
   }
 
   /** The internal listener's origin once started; read-only, for connection signatures. */
@@ -350,20 +374,18 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return gateway
   }
 
-  private internalFeatureForKey(token: string): InternalGatewayFeature | undefined {
-    return INTERNAL_GATEWAY_FEATURES.find((feature) => isValidToken(token, this.internalApiKeys[feature]))
-  }
-
   /** The internal feature whose key authenticated the request; undefined for external callers. */
   getInternalFeature(headers: Headers): InternalGatewayFeature | undefined {
-    const token =
-      headers.get('x-api-key')?.trim() ||
-      headers
-        .get('authorization')
-        ?.match(/^Bearer\s+(.+)$/i)?.[1]
-        ?.trim() ||
-      headers.get('x-goog-api-key')?.trim()
-    return token ? this.internalFeatureForKey(token) : undefined
+    const token = presentedToken(headers)
+    if (!token) return undefined
+    if (isValidToken(token, this.agentApiKey)) return 'agent'
+    return this.translationCredentials.has(token) ? 'translate' : undefined
+  }
+
+  /** The model a live translation credential is bound to; undefined for every other request. */
+  getTranslationModel(headers: Headers): string | undefined {
+    const token = presentedToken(headers)
+    return token ? this.translationCredentials.get(token) : undefined
   }
 
   getCurrentConfig(): ApiGatewayConfig {

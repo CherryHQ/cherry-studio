@@ -152,8 +152,8 @@ beforeEach(() => {
   mockStop.mockResolvedValue(undefined)
 })
 
-async function startInternalGateway(service: ApiGatewayService, feature: 'agent' | 'translate' = 'agent') {
-  const pending = service.ensureInternalGateway(feature)
+async function startAgentGateway(service: ApiGatewayService) {
+  const pending = service.ensureAgentGateway()
   await vi.waitFor(() => expect(startResolvers.length).toBeGreaterThan(0))
   startResolvers.at(-1)!()
   return pending
@@ -164,8 +164,8 @@ describe('ApiGatewayService internal gateway', () => {
     const service = new ApiGatewayService()
     await service._doInit()
 
-    const agent = await startInternalGateway(service, 'agent')
-    const translate = await service.ensureInternalGateway('translate')
+    const agent = await startAgentGateway(service)
+    const translate = await service.createTranslationCredential('openai:gpt-4o')
 
     expect(vi.mocked(ApiGateway)).toHaveBeenCalledOnce()
     expect(vi.mocked(ApiGateway)).toHaveBeenCalledWith({ host: '127.0.0.1', port: 0 }, 'internal')
@@ -178,17 +178,17 @@ describe('ApiGatewayService internal gateway', () => {
   it('retries the internal listener after a failed start', async () => {
     const service = new ApiGatewayService()
     rejectStart = true
-    await expect(service.ensureInternalGateway('agent')).rejects.toThrow('port in use')
+    await expect(service.ensureAgentGateway()).rejects.toThrow('port in use')
 
     rejectStart = false
-    await expect(startInternalGateway(service)).resolves.toMatchObject({ baseUrl: expect.any(String) })
+    await expect(startAgentGateway(service)).resolves.toMatchObject({ baseUrl: expect.any(String) })
     expect(vi.mocked(ApiGateway)).toHaveBeenCalledTimes(2)
   })
 
   it('identifies the internal feature from its key in every credential dialect', async () => {
     const service = new ApiGatewayService()
-    const agent = await startInternalGateway(service, 'agent')
-    const translate = await service.ensureInternalGateway('translate')
+    const agent = await startAgentGateway(service)
+    const translate = await service.createTranslationCredential('openai:gpt-4o')
 
     expect(agent.apiKey).not.toBe(translate.apiKey)
     expect(service.getInternalFeature(new Headers({ 'x-api-key': agent.apiKey }))).toBe('agent')
@@ -198,10 +198,27 @@ describe('ApiGatewayService internal gateway', () => {
     expect(service.getInternalFeature(new Headers())).toBeUndefined()
   })
 
+  it('binds each translation credential to its job model and revokes it on dispose', async () => {
+    const service = new ApiGatewayService()
+    await startAgentGateway(service)
+    const first = await service.createTranslationCredential('openai:gpt-4o')
+    const second = await service.createTranslationCredential('cherryai-subscription:qwen3.8-flash')
+    const headers = (apiKey: string) => new Headers({ authorization: `Bearer ${apiKey}` })
+
+    expect(first.apiKey).not.toBe(second.apiKey)
+    expect(service.getTranslationModel(headers(first.apiKey))).toBe('openai:gpt-4o')
+    expect(service.getTranslationModel(headers(second.apiKey))).toBe('cherryai-subscription:qwen3.8-flash')
+
+    first.dispose()
+    expect(service.getInternalFeature(headers(first.apiKey))).toBeUndefined()
+    expect(service.getTranslationModel(headers(first.apiKey))).toBeUndefined()
+    expect(service.getInternalFeature(headers(second.apiKey))).toBe('translate')
+  })
+
   it('attributes usage to an Agent session only for internal Agent requests', async () => {
     const service = new ApiGatewayService()
-    const agent = await startInternalGateway(service, 'agent')
-    const translate = await service.ensureInternalGateway('translate')
+    const agent = await startAgentGateway(service)
+    const translate = await service.createTranslationCredential('openai:gpt-4o')
     const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
 
     expect(service.resolveAgentSessionUsage(new Headers({ ...sessionHeaders, 'x-api-key': agent.apiKey }))).toEqual({
