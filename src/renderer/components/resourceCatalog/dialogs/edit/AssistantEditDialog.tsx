@@ -232,6 +232,8 @@ function AssistantEditDialogContent({
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
+  const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
+  const formBaselineRef = useRef(formBaseline)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -239,9 +241,8 @@ function AssistantEditDialogContent({
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
-    const baseline = initialAssistantFormState(resource)
-    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, resource)
-  }, [resource, values])
+    return diffAssistantSaveIntent(buildAssistantFormState(formBaseline, values), formBaseline, resource)
+  }, [formBaseline, resource, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -276,6 +277,8 @@ function AssistantEditDialogContent({
     if (!justOpened) return
 
     form.reset(defaultValues)
+    formBaselineRef.current = initialAssistantFormState(resource)
+    setFormBaseline(formBaselineRef.current)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
@@ -293,10 +296,20 @@ function AssistantEditDialogContent({
   const changeKey = canPersist ? JSON.stringify(values) : null
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
 
+  const getCurrentSaveIntent = () =>
+    diffAssistantSaveIntent(
+      buildAssistantFormState(formBaselineRef.current, form.getValues()),
+      formBaselineRef.current,
+      resource
+    )
+
   const persist = async () => {
-    const pending = saveIntent
-    if (!pending || !changeKey) return
-    const attemptedKey = changeKey
+    const submittedValues = structuredClone(form.getValues())
+    if (!submittedValues.name.trim()) return
+    const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)
+    const pending = diffAssistantSaveIntent(submittedFormState, formBaselineRef.current, resource)
+    if (!pending) return
+    const attemptedKey = JSON.stringify(submittedValues)
 
     // A close-triggered flush does not cancel the already scheduled debounce.
     // Keep both paths from resending an unchanged payload that already failed.
@@ -312,14 +325,14 @@ function AssistantEditDialogContent({
       failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: saveFailedMessage })
       toast.error(saveFailedMessage)
+      return
     }
+
+    formBaselineRef.current = submittedFormState
+    setFormBaseline(submittedFormState)
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /assistants/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
-  const flush = useDebouncedAutoSave({
+  const { flush, getPendingSave } = useDebouncedAutoSave({
     enabled: open,
     changeKey,
     onSave: persist
@@ -327,20 +340,35 @@ function AssistantEditDialogContent({
 
   // Keep failed saves visible and gate settings navigation on successful closure.
   const handleOpenChange = async (next: boolean, allowDiscard = true): Promise<boolean> => {
-    if (next || !saveIntent || (!canPersist && allowDiscard)) {
+    if (next) {
       onOpenChange(next)
       return true
     }
-    if (!canPersist) return false
-    if (failedSaveKeyRef.current === changeKey) {
-      toast.error(saveFailedMessage)
-      if (!allowDiscard) return false
+    const valuesBeforeSave = JSON.stringify(form.getValues())
+    const pendingSave = getPendingSave()
+    if (pendingSave) await pendingSave
+    if (JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
+
+    const currentValues = form.getValues()
+    const pending = getCurrentSaveIntent()
+    if (!pending || (!currentValues.name.trim() && allowDiscard)) {
       onOpenChange(false)
       return true
     }
-    const valuesBeforeSave = JSON.stringify(form.getValues())
+    if (!currentValues.name.trim()) return false
+    if (failedSaveKeyRef.current === JSON.stringify(currentValues)) {
+      toast.error(saveFailedMessage)
+      if (!allowDiscard || pendingSave) return false
+      onOpenChange(false)
+      return true
+    }
     await flush()
-    if (failedSaveKeyRef.current !== null || JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
+    if (
+      failedSaveKeyRef.current !== null ||
+      JSON.stringify(form.getValues()) !== valuesBeforeSave ||
+      getCurrentSaveIntent()
+    )
+      return false
     onOpenChange(false)
     return true
   }

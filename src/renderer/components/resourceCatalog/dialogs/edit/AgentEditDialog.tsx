@@ -465,14 +465,17 @@ function AgentEditDialogContent({
   const rootError = form.formState.errors.root?.message
   const autoSaveChangeKey =
     saveIntent && values.name.trim().length > 0 ? serializeAgentSaveAttempt(values, saveIntent.payload) : null
-  const canPersist = autoSaveChangeKey !== null
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
+
+  const getCurrentSaveIntent = () =>
+    diffAgentSaveIntent(buildAgentFormState(formBaselineRef.current, form.getValues()), formBaselineRef.current)
 
   const persist = async () => {
     // Recompute from refs at execution time: the serialized autosave queue may
     // start its follow-up pass before React has rendered the baseline state
     // advanced by the previous pass.
     const submittedValues = form.getValues()
+    if (!submittedValues.name.trim()) return
     const submittedFormState = buildAgentFormState(formBaselineRef.current, submittedValues)
     const pending = diffAgentSaveIntent(submittedFormState, formBaselineRef.current)
     if (!pending) return
@@ -505,7 +508,7 @@ function AgentEditDialogContent({
   // can queue a newly meaningful diff even when form values return to the
   // snapshot that save captured. Values remain in the key to distinguish DTO
   // clears represented by explicit `undefined`.
-  const flush = useDebouncedAutoSave({
+  const { flush, getPendingSave } = useDebouncedAutoSave({
     enabled: open,
     changeKey: autoSaveChangeKey,
     onSave: persist
@@ -513,20 +516,35 @@ function AgentEditDialogContent({
 
   // Keep failed saves visible and gate settings navigation on successful closure.
   const handleOpenChange = async (next: boolean, allowDiscard = true): Promise<boolean> => {
-    if (next || !saveIntent || (!canPersist && allowDiscard)) {
+    if (next) {
       onOpenChange(next)
       return true
     }
-    if (!canPersist) return false
-    if (failedSaveKeyRef.current === autoSaveChangeKey) {
-      toast.error(saveFailedMessage)
-      if (!allowDiscard) return false
+    const valuesBeforeSave = JSON.stringify(form.getValues())
+    const pendingSave = getPendingSave()
+    if (pendingSave) await pendingSave
+    if (JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
+
+    const currentValues = form.getValues()
+    const pending = getCurrentSaveIntent()
+    if (!pending || (!currentValues.name.trim() && allowDiscard)) {
       onOpenChange(false)
       return true
     }
-    const valuesBeforeSave = JSON.stringify(form.getValues())
+    if (!currentValues.name.trim()) return false
+    if (failedSaveKeyRef.current === serializeAgentSaveAttempt(currentValues, pending.payload)) {
+      toast.error(saveFailedMessage)
+      if (!allowDiscard || pendingSave) return false
+      onOpenChange(false)
+      return true
+    }
     await flush()
-    if (failedSaveKeyRef.current !== null || JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
+    if (
+      failedSaveKeyRef.current !== null ||
+      JSON.stringify(form.getValues()) !== valuesBeforeSave ||
+      getCurrentSaveIntent()
+    )
+      return false
     onOpenChange(false)
     return true
   }

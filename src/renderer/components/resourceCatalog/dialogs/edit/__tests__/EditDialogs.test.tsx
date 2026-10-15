@@ -865,6 +865,136 @@ describe('edit dialogs', () => {
   )
 
   it.each([
+    ['agent', 'management', 'success'],
+    ['assistant', 'management', 'success'],
+    ['agent', 'autosave', 'success'],
+    ['assistant', 'autosave', 'success'],
+    ['agent', 'management', 'failure'],
+    ['assistant', 'management', 'failure']
+  ] as const)(
+    'guards reverted %s edits while %s is pending and the reversion ends in %s',
+    async (type, source, outcome) => {
+      const user = userEvent.setup()
+      const firstSave = createDeferred<AgentDetail | Assistant>()
+      const revertSave = createDeferred<AgentDetail | Assistant>()
+      const update = type === 'agent' ? updateAgentMock : updateAssistantMock
+      const resource = type === 'agent' ? AGENT : ASSISTANT
+      update.mockImplementationOnce(() => firstSave.promise).mockImplementationOnce(() => revertSave.promise)
+      function Host() {
+        const [open, setOpen] = useState(true)
+        return type === 'agent' ? (
+          <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} />
+        ) : (
+          <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} />
+        )
+      }
+      render(<Host />)
+      await user.clear(screen.getByLabelText('Description'))
+      await user.type(screen.getByLabelText('Description'), 'Temporary description')
+      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      if (source === 'management') await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+      await waitFor(() => expect(update).toHaveBeenCalled())
+      await user.click(screen.getByRole('tab', { name: 'Basic' }))
+      await user.clear(screen.getByLabelText('Description'))
+      if (resource.description) await user.type(screen.getByLabelText('Description'), resource.description)
+      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      const frames = mockDeferredAnimationFrames()
+      try {
+        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        frames.flushAllFrames()
+        expect(screen.getByRole('dialog')).toBeVisible()
+        expect(openSettingsTabMock).not.toHaveBeenCalled()
+
+        await act(async () => firstSave.resolve({ ...resource, description: 'Temporary description' }))
+        await waitFor(() =>
+          expect(update).toHaveBeenLastCalledWith({
+            body: expect.objectContaining({ description: resource.description })
+          })
+        )
+        frames.flushAllFrames()
+        expect(screen.getByRole('dialog')).toBeVisible()
+        expect(openSettingsTabMock).not.toHaveBeenCalled()
+
+        if (outcome === 'failure') {
+          await act(async () => revertSave.reject(new Error('Reversion failed')))
+          frames.flushAllFrames()
+          expect(screen.getByRole('dialog')).toBeVisible()
+          expect(screen.getByText('Save failed')).toBeVisible()
+          expect(openSettingsTabMock).not.toHaveBeenCalled()
+          await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+          frames.flushAllFrames()
+          expect(screen.getByRole('dialog')).toBeVisible()
+          expect(openSettingsTabMock).not.toHaveBeenCalled()
+          await user.click(screen.getByRole('tab', { name: 'Basic' }))
+          expect(screen.getByLabelText('Description')).toHaveValue(resource.description)
+          await user.clear(screen.getByLabelText('Description'))
+          await user.type(screen.getByLabelText('Description'), 'Recovered description')
+          await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+          await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+          expect(update).toHaveBeenLastCalledWith({
+            body: expect.objectContaining({ description: 'Recovered description' })
+          })
+        } else {
+          await act(async () => revertSave.resolve(resource))
+        }
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        frames.flushAllFrames()
+        expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+      } finally {
+        frames.restore()
+      }
+    }
+  )
+
+  it('persists reverted assistant custom parameters before leaving a pending save', async () => {
+    const user = userEvent.setup()
+    const firstSave = createDeferred<Assistant>()
+    const revertSave = createDeferred<Assistant>()
+    const resource = {
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, customParameters: [{ name: 'stop', type: 'string' as const, value: 'END' }] }
+    }
+    updateAssistantMock.mockImplementationOnce(() => firstSave.promise).mockImplementationOnce(() => revertSave.promise)
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AssistantEditDialog open={open} resource={resource} onOpenChange={setOpen} />
+    }
+    render(<Host />)
+    await user.click(screen.getByRole('tab', { name: 'Model' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Parameter value: stop' }))
+    await user.type(screen.getByRole('textbox', { name: 'Parameter value: stop' }), 'TEMP')
+    await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+    await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
+    await user.click(screen.getByRole('tab', { name: 'Model' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Parameter value: stop' }))
+    await user.type(screen.getByRole('textbox', { name: 'Parameter value: stop' }), 'END')
+    await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+    const frames = mockDeferredAnimationFrames()
+    try {
+      await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+      frames.flushAllFrames()
+      expect(screen.getByRole('dialog')).toBeVisible()
+      expect(openSettingsTabMock).not.toHaveBeenCalled()
+      await act(async () => firstSave.resolve(resource))
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenLastCalledWith({
+          body: { settings: { customParameters: resource.settings.customParameters } }
+        })
+      )
+      frames.flushAllFrames()
+      expect(screen.getByRole('dialog')).toBeVisible()
+      expect(openSettingsTabMock).not.toHaveBeenCalled()
+      await act(async () => revertSave.resolve(resource))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      frames.flushAllFrames()
+      expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+    } finally {
+      frames.restore()
+    }
+  })
+
+  it.each([
     ['agent', ''],
     ['assistant', ''],
     ['agent', 'New name'],

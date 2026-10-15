@@ -28,9 +28,9 @@ describe('useDebouncedAutoSave', () => {
       { initialProps: { changeKey: 'first' } }
     )
 
-    const firstFlush = result.current()
+    const firstFlush = result.current.flush()
     rerender({ changeKey: 'intermediate' })
-    const closingFlush = result.current()
+    const closingFlush = result.current.flush()
     rerender({ changeKey: 'latest' })
     let closed = false
     void closingFlush.then(() => {
@@ -68,8 +68,8 @@ describe('useDebouncedAutoSave', () => {
       })
     )
 
-    const firstFlush = result.current()
-    const closingFlush = result.current()
+    const firstFlush = result.current.flush()
+    const closingFlush = result.current.flush()
     await act(async () => {
       write.resolve()
       await Promise.all([firstFlush, closingFlush])
@@ -94,9 +94,9 @@ describe('useDebouncedAutoSave', () => {
       { initialProps: { changeKey: 'first' } }
     )
 
-    const firstFlush = result.current()
+    const firstFlush = result.current.flush()
     rerender({ changeKey: 'latest' })
-    const closingFlush = result.current()
+    const closingFlush = result.current.flush()
     const firstFailure = expect(firstFlush).rejects.toBe(failure)
     const closingFailure = expect(closingFlush).rejects.toBe(failure)
     await act(async () => {
@@ -106,7 +106,7 @@ describe('useDebouncedAutoSave', () => {
     expect(persisted).toEqual([])
 
     await act(async () => {
-      await result.current()
+      await result.current.flush()
     })
     expect(persisted).toEqual(['latest'])
   })
