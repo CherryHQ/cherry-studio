@@ -8,16 +8,27 @@ vi.mock('@application', () => ({
   application: { getExisting: mocks.applicationGetExisting }
 }))
 
-const { prepareClaudeCodeSpawnCapacity } = await import('../claudeCodeSpawnCapacity')
+const { ensureClaudeCodeSpawnCapacity, prepareClaudeCodeSpawnCapacity } = await import('../claudeCodeSpawnCapacity')
 
 type ManagerCounts = { active: number; capSlots: number }
 
-function mockManagers(counts: ManagerCounts, evictOldestWarmQuery = vi.fn(() => false)) {
+function mockManagers(
+  counts: ManagerCounts,
+  evictOldestWarmQuery = vi.fn(() => false),
+  preflightReservations = { value: 0 }
+) {
   mocks.applicationGetExisting.mockImplementation((name: string) => {
     if (name === 'ClaudeCodeProcessManager') {
+      const getActiveProcessCount = () => counts.active + preflightReservations.value
       return {
-        getActiveProcessCount: () => counts.active,
-        getCapSlotProcessCount: () => counts.capSlots
+        getActiveProcessCount,
+        getCapSlotProcessCount: () => counts.capSlots,
+        tryReserveLiveSpawnPreflight: () => {
+          if (getActiveProcessCount() >= 6) return false
+          preflightReservations.value++
+          return true
+        },
+        waitForActiveProcessBelowCap: vi.fn(async () => undefined)
       }
     }
     if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
@@ -75,5 +86,17 @@ describe('claudeCodeSpawnCapacity', () => {
 
     expect(prepareClaudeCodeSpawnCapacity('warm')).toBe(true)
     expect(evictOldestWarmQuery).not.toHaveBeenCalled()
+  })
+
+  it('reserves a live preflight slot when ensure admits a cold start', async () => {
+    const preflightReservations = { value: 0 }
+    mockManagers(
+      { active: 5, capSlots: 5 },
+      vi.fn(() => false),
+      preflightReservations
+    )
+
+    expect(await ensureClaudeCodeSpawnCapacity('live')).toBe(true)
+    expect(preflightReservations.value).toBe(1)
   })
 })

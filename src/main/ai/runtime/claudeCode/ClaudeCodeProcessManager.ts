@@ -194,13 +194,29 @@ export class ClaudeCodeProcessManager extends BaseService {
   private readonly processesByDiagnostics = new Map<string, TrackedSpawnedProcess>()
   /** In-flight spawn attempts reserve a cap slot until the child is tracked or admission fails. */
   private reservedSpawnSlots = 0
+  /** Live cold starts between ensureClaudeCodeSpawnCapacity and SDK spawn hold a slot here. */
+  private preflightLiveReservations = 0
 
   /** Seam for tests. A constructor parameter would break the container's `ServiceConstructor` shape. */
   protected spawnProcess: SpawnProcess = (command, args, options) => spawn(command, args, options)
 
   /** Every CLI child still running, including evicted warm ones finishing their SIGTERM. */
   getActiveProcessCount(): number {
-    return this.processes.size + this.evictingProcesses.size + this.reservedSpawnSlots
+    return this.processes.size + this.evictingProcesses.size + this.reservedSpawnSlots + this.preflightLiveReservations
+  }
+
+  tryReserveLiveSpawnPreflight(): boolean {
+    if (this.getActiveProcessCount() >= MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES) return false
+    this.preflightLiveReservations++
+    return true
+  }
+
+  releaseLiveSpawnPreflight(): void {
+    if (this.preflightLiveReservations > 0) this.preflightLiveReservations--
+  }
+
+  private consumeLiveSpawnPreflight(): void {
+    if (this.preflightLiveReservations > 0) this.preflightLiveReservations--
   }
 
   /**
@@ -254,6 +270,7 @@ export class ClaudeCodeProcessManager extends BaseService {
     diagnostics = createClaudeCodeProcessDiagnostics(),
     priority: ClaudeCodeSpawnPriority = 'live'
   ): SpawnedProcess {
+    if (priority === 'live') this.consumeLiveSpawnPreflight()
     if (!prepareClaudeCodeSpawnCapacity(priority)) {
       const error = new Error('Claude Code CLI process cap reached')
       recordClaudeCodeSpawnError(diagnostics, error)

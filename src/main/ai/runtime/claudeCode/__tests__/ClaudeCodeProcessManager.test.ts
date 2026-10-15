@@ -396,6 +396,19 @@ describe('ClaudeCodeProcessManager', () => {
     await vi.waitFor(() => expect(manager.getActiveProcessCount()).toBe(0))
   })
 
+  it('holds a live preflight reservation against the last spawn slot', () => {
+    const manager = new TestProcessManager(vi.fn(() => createFakeChild().process))
+    for (let i = 0; i < 5; i++) {
+      manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics(`warm-${i}`), 'warm')
+    }
+    expect(manager.getActiveProcessCount()).toBe(5)
+    expect(manager.tryReserveLiveSpawnPreflight()).toBe(true)
+    expect(manager.getActiveProcessCount()).toBe(6)
+    expect(manager.tryReserveLiveSpawnPreflight()).toBe(false)
+    manager.releaseLiveSpawnPreflight()
+    expect(manager.getActiveProcessCount()).toBe(5)
+  })
+
   it('refuses a live spawn at the active cap until an evicted warm child exits', async () => {
     const warmChildren = Array.from({ length: 6 }, () => createFakeChild())
     const liveChild = createFakeChild()
