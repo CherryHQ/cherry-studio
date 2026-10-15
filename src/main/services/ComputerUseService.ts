@@ -198,9 +198,9 @@ export class ComputerUseService extends BaseService {
           if ([...(blocked?.values() ?? [])].some((app) => !app.identity))
             throw new ComputerUseControlError('USER_STOPPED')
           options.signal.throwIfAborted()
-          mayHaveLaunched = true
           const input = { query: identity.query, launch: true, expectedIdentity: identity.id }
           app = await client.resolveApp(input, options)
+          mayHaveLaunched = true
         } else {
           app = await client.resolveApp({ query, launch: false }, options)
         }
@@ -210,6 +210,8 @@ export class ComputerUseService extends BaseService {
     } catch (error) {
       if (mayHaveLaunched && error instanceof ComputerUseControlError)
         throw new ComputerUseControlError(error.code, 'possible')
+      if (mayHaveLaunched && error instanceof ComputerUseError)
+        throw new ComputerUseError(error.code, error.message, { effect: 'possible', cause: error })
       throw error
     }
   }
