@@ -50,22 +50,35 @@ export const getCopyableAbsolutePath = (path: string, isWindows: boolean): strin
 export const getArtifactPaneSelectionDisplayPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
   selection.displayPath ?? getArtifactPaneSelectionPath(selection)
 
+export const isUncPath = (path: string): boolean => /^(?:\\\\|\/\/)[^\\/]+[\\/]+[^\\/]+/.test(path.trim())
+
+// `\` separates Windows drive, UNC, and Windows-relative paths. A POSIX absolute
+// path keeps it, so `/tmp/a\b.txt` is not rewritten to the different file `/tmp/a/b.txt`.
+const backslashIsSeparator = (path: string): boolean => {
+  const trimmed = path.trim()
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return false
+  if (/^[A-Za-z]:[/\\]/.test(trimmed) || isUncPath(trimmed)) return true
+  return process.platform === 'win32'
+}
+
+const pathSegmentPattern = (path: string): RegExp => (backslashIsSeparator(path) ? /[/\\]+/ : /\/+/)
+
 export const getPathBasename = (path: string): string => {
-  const trimmed = path.trim().replace(/[\\/]+$/, '')
-  if (!trimmed) return path
-  const segments = trimmed.split(/[/\\]+/).filter(Boolean)
-  return segments.at(-1) ?? trimmed
+  const trimmed = path.trim()
+  const withoutTrailing = trimmed.replace(backslashIsSeparator(trimmed) ? /[\\/]+$/ : /\/+$/, '')
+  if (!withoutTrailing) return path
+  const segments = withoutTrailing.split(pathSegmentPattern(withoutTrailing)).filter(Boolean)
+  return segments.at(-1) ?? withoutTrailing
 }
 
 export const normalizeTreePath = (path: string): string => {
-  const normalized = path.trim().replace(/\\/g, '/')
+  const trimmed = path.trim()
+  const normalized = backslashIsSeparator(trimmed) ? trimmed.replace(/\\/g, '/') : trimmed
   const withoutTrailingSlash = normalized.replace(/\/+$/, '')
   if (/^[A-Za-z]:$/.test(withoutTrailingSlash)) return `${withoutTrailingSlash}/`
   if (!withoutTrailingSlash && normalized.startsWith('/')) return '/'
   return withoutTrailingSlash
 }
-
-export const isUncPath = (path: string): boolean => /^(?:\\\\|\/\/)[^\\/]+[\\/]+[^\\/]+/.test(path.trim())
 
 export const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
 

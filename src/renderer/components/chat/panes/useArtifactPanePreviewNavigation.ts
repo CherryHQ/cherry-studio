@@ -191,10 +191,19 @@ export function useArtifactPanePreviewNavigation({
     })
   }, [beginRequest, panelActions, requestFileSelection])
 
-  const clearReturnTarget = useCallback(() => {
+  const invalidatePreviewRequests = useCallback(() => {
     requestRef.current += 1
-    returnRef.current = null
   }, [requestRef])
 
-  return { captureInputPreviewReturnTarget, clearReturnTarget, closeFilePreview, previewInputFile }
+  const clearReturnTarget = useCallback(() => {
+    returnRef.current = null
+  }, [])
+
+  return {
+    captureInputPreviewReturnTarget,
+    clearReturnTarget,
+    closeFilePreview,
+    invalidatePreviewRequests,
+    previewInputFile
+  }
 }

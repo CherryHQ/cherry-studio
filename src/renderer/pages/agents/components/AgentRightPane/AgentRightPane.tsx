@@ -353,7 +353,7 @@ interface AgentRightPaneActionsProviderProps {
   openBrowserUrl: (url: string) => void
   previewFileSelection: ArtifactPaneFileSelection | null
   requestFileSelection: (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => void
-  selectFile: (file: string | null) => void
+  selectFile: (file: string | null, onAccepted?: () => void) => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
@@ -423,6 +423,7 @@ function AgentRightPaneActionsProvider({
     captureInputPreviewReturnTarget,
     clearReturnTarget,
     closeFilePreview,
+    invalidatePreviewRequests,
     previewInputFile: previewInputFileInRightPane
   } = useArtifactPanePreviewNavigation({
     enabled: canPreviewInputFileInRightPane,
@@ -507,10 +508,10 @@ function AgentRightPaneActionsProvider({
   )
   const setSelectedFile = useCallback(
     (file: string | null) => {
-      clearReturnTarget()
-      selectFile(file)
+      invalidatePreviewRequests()
+      selectFile(file, clearReturnTarget)
     },
-    [clearReturnTarget, selectFile]
+    [clearReturnTarget, invalidatePreviewRequests, selectFile]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
@@ -832,8 +833,11 @@ function AgentRightPaneStateProvider({
   )
 
   const selectFile = useCallback(
-    (file: string | null) => {
-      requestFileSelection(file && fileWorkspace.path ? { workspacePath: fileWorkspace.path, filePath: file } : null)
+    (file: string | null, onAccepted?: () => void) => {
+      requestFileSelection(
+        file && fileWorkspace.path ? { workspacePath: fileWorkspace.path, filePath: file } : null,
+        onAccepted
+      )
     },
     [fileWorkspace.path, requestFileSelection]
   )

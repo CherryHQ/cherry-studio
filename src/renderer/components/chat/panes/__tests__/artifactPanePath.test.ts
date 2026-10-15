@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -32,6 +36,40 @@ describe('artifactPanePath', () => {
     const selection = resolveArtifactPaneFileSelection('D:/work', '\\\\server\\share\\docs\\report.md')
 
     expect(selection && getArtifactPaneSelectionPath(selection)).toBe('\\\\server\\share\\docs\\report.md')
+  })
+
+  it('folds a Windows drive path that uses backslash separators onto that same file', () => {
+    const selection = resolveArtifactPaneFileSelection('D:/work', 'D:\\work\\notes\\report.md')
+
+    expect(selection).toMatchObject({ workspacePath: 'D:/work', filePath: 'notes/report.md' })
+    expect(selection && getArtifactPaneSelectionPath(selection)).toBe('D:\\work\\notes\\report.md')
+  })
+
+  it('selects the POSIX file whose name contains a backslash, not the slash-normalized path', () => {
+    const original = '/tmp/a\\b.txt'
+    const selection = resolveArtifactPaneFileSelection('/workspace', original)
+
+    expect(selection && getArtifactPaneSelectionPath(selection)).toBe(original)
+
+    if (process.platform === 'win32') return
+
+    const root = mkdtempSync(join(tmpdir(), 'artifact-backslash-'))
+    const originalFile = join(root, 'a\\b.txt')
+    const differentFile = join(root, 'a', 'b.txt')
+    try {
+      mkdirSync(join(root, 'a'))
+      writeFileSync(originalFile, 'CORRECT ORIGINAL')
+      writeFileSync(differentFile, 'DIFFERENT FILE')
+
+      const liveSelection = resolveArtifactPaneFileSelection(root, originalFile)
+      const selectedPath = liveSelection ? getArtifactPaneSelectionPath(liveSelection) : null
+
+      expect(selectedPath).toBe(originalFile)
+      expect(readFileSync(selectedPath!, 'utf8')).toBe('CORRECT ORIGINAL')
+      expect(readFileSync(differentFile, 'utf8')).toBe('DIFFERENT FILE')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 

@@ -6,6 +6,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { ArtifactPaneFileSelection } from '../artifactPanePath'
+import { getArtifactPaneSelectionPath } from '../artifactPanePath'
 import { useArtifactPanePreviewNavigation } from '../useArtifactPanePreviewNavigation'
 
 const panelActions = vi.hoisted(() => ({ close: vi.fn(), requestOpen: vi.fn() }))
@@ -232,6 +233,40 @@ describe('useArtifactPanePreviewNavigation', () => {
       expect.objectContaining({ workspacePath: '//server/share/docs', filePath: 'report.md' }),
       expect.any(Function)
     )
+  })
+
+  it('previews a readable POSIX original whose filename contains a backslash', async () => {
+    const originalPath = '/tmp/a\\b.txt' as AbsoluteFilePath
+    const requestFileSelection = vi.fn()
+    vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
+    const { result } = renderHook(() =>
+      useArtifactPanePreviewNavigation({
+        paneId: 'files',
+        previewFileSelection: null,
+        requestFileSelection,
+        workspacePath: '/workspace'
+      })
+    )
+
+    act(() => {
+      result.current.previewInputFile({
+        displayName: 'a\\b.txt',
+        previewPath: '/managed/a/b.txt' as AbsoluteFilePath,
+        fileEntryId: 'entry-backslash',
+        originalPath
+      })
+    })
+
+    await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
+    const selection = requestFileSelection.mock.calls[0]?.[0] as ArtifactPaneFileSelection
+    expect(getArtifactPaneSelectionPath(selection)).toBe(originalPath)
+    expect(selection).toMatchObject({ displayPath: originalPath, previewType: 'file', readOnly: true })
+    const metadataPaths = vi
+      .mocked(ipcApi.request)
+      .mock.calls.filter(([route]) => route === 'file.get_metadata')
+      .map(([, handle]) => (handle as { path?: string } | undefined)?.path)
+    expect(metadataPaths).toEqual([originalPath, originalPath])
+    expect(getPhysicalPath).not.toHaveBeenCalled()
   })
 
   it('uses the managed file when the original path stats as a file but cannot be read', async () => {
