@@ -26,7 +26,7 @@ describe('document export feedback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(toast.loading).mockImplementation(({ promise }) => {
-      void promise.catch(() => undefined)
+      void promise?.catch(() => undefined)
       return 'document-export'
     })
   })
