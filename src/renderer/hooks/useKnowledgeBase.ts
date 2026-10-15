@@ -317,18 +317,25 @@ export const useDeleteKnowledgeBase = () => {
   const [deleteError, setDeleteError] = useState<Error | undefined>()
   const invalidateCache = useInvalidateCache()
 
-  const deleteBase = useCallback(
-    async (baseId: string) => {
+  const deleteBases = useCallback(
+    async (baseIds: string[]) => {
+      const uniqueBaseIds = [...new Set(baseIds.map((baseId) => baseId.trim()).filter(Boolean))]
       setDeleteError(undefined)
       setIsDeleting(true)
       let mutationError: Error | undefined
+      let failedBaseId: string | undefined
 
       try {
-        await ipcApi.request('knowledge.delete_base', { baseId })
+        for (const baseId of uniqueBaseIds) {
+          failedBaseId = baseId
+          await ipcApi.request('knowledge.delete_base', { baseId })
+        }
+        failedBaseId = undefined
       } catch (error) {
         const normalizedError = normalizeError(error)
         logger.error('Failed to delete knowledge base', normalizedError, {
-          baseId
+          baseId: failedBaseId,
+          baseIds: uniqueBaseIds
         })
         setDeleteError(normalizedError)
         mutationError = normalizedError
@@ -338,7 +345,7 @@ export const useDeleteKnowledgeBase = () => {
         await invalidateCache(['/knowledge-bases', '/agents', '/agents/*', '/assistants', '/assistants/*'])
       } catch (invalidateError) {
         logger.error('Failed to refresh dependent data after knowledge base delete', normalizeError(invalidateError), {
-          baseId
+          baseIds: uniqueBaseIds
         })
       }
 
@@ -351,8 +358,11 @@ export const useDeleteKnowledgeBase = () => {
     [invalidateCache]
   )
 
+  const deleteBase = useCallback((baseId: string) => deleteBases([baseId]), [deleteBases])
+
   return {
     deleteBase,
+    deleteBases,
     isDeleting,
     deleteError
   }

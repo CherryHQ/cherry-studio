@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Accordion, EmptyState, Scrollbar } from '@cherrystudio/ui'
+import { Accordion, Checkbox, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { knowledgeDataSourceCheckboxClassName } from '@renderer/pages/knowledge/panels/dataSource/styles'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 
@@ -17,8 +18,11 @@ const BaseNavigatorContent = ({
   groups,
   groupById,
   selectedBaseId,
+  checkedBaseIds,
   getGroupLabel,
   onSelectBase,
+  onToggleBaseChecked,
+  onToggleAllChecked,
   onMoveBase,
   onRenameBase,
   onRenameGroup,
@@ -76,6 +80,12 @@ const BaseNavigatorContent = ({
   // points at a deleted group still yields its own section, so that (unexpected)
   // shape keeps the accordion.
   const flatSection = groups.length === 0 && sections.length === 1 && sections[0].groupId === null ? sections[0] : null
+  const visibleBases = useMemo(
+    () => (flatSection ? flatSection.items : sections.flatMap((section) => section.items)),
+    [flatSection, sections]
+  )
+  const allChecked = visibleBases.length > 0 && visibleBases.every((base) => checkedBaseIds.has(base.id))
+  const someChecked = !allChecked && visibleBases.some((base) => checkedBaseIds.has(base.id))
 
   // `pt-1 pb-3` mirrors the assistant and agent rails' list padding — the top inset is
   // what separates the first row from the create action above it.
@@ -89,52 +99,72 @@ const BaseNavigatorContent = ({
         // KnowledgePage normally owns the zero-base empty state; keep a defensive fallback
         // for a transient empty collection while navigator data changes.
         <EmptyState preset="no-result" title={t('common.no_results')} compact className="h-full" />
-      ) : flatSection ? (
-        <div className="space-y-1">
-          {flatSection.items.map((base) => (
-            <KnowledgeBaseRow
-              key={base.id}
-              base={base}
-              groups={groups}
-              selected={base.id === selectedBaseId}
-              onSelectBase={onSelectBase}
-              onMoveBase={onMoveBase}
-              onRenameBase={onRenameBase}
-              onCreateGroup={onCreateGroup}
-              onDeleteBase={onDeleteBase}
-              onToggleSidebar={handleToggleSidebar}
-              sidebarPinned={sidebarPinnedBaseIds.has(base.id)}
-            />
-          ))}
-        </div>
       ) : (
-        <Accordion type="multiple" value={openValues} onValueChange={handleValueChange} className="space-y-3">
-          {sections.map((section) => {
-            const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
-            const group = section.groupId ? groupById.get(section.groupId) : undefined
-
-            return (
-              <BaseNavigatorGroupSection
-                key={groupValue}
-                section={section}
-                group={group}
-                groupLabel={group?.name ?? getGroupLabel(section.groupId)}
+        <div className="space-y-1">
+          <div className="flex h-8 items-center gap-1 px-2.5">
+            <label className="flex h-full shrink-0 cursor-pointer items-center pr-1">
+              <Checkbox
+                size="sm"
+                className={knowledgeDataSourceCheckboxClassName}
+                aria-label={t('knowledge.navigator.select_all')}
+                checked={allChecked ? true : someChecked ? 'indeterminate' : false}
+                onCheckedChange={(checked) => onToggleAllChecked(checked === true)}
+              />
+            </label>
+            <span className="min-w-0 truncate text-xs font-medium text-foreground-tertiary">
+              {t('knowledge.navigator.select_all')}
+            </span>
+          </div>
+          {flatSection ? (
+            flatSection.items.map((base) => (
+              <KnowledgeBaseRow
+                key={base.id}
+                base={base}
                 groups={groups}
-                selectedBaseId={selectedBaseId}
+                selected={base.id === selectedBaseId}
+                checked={checkedBaseIds.has(base.id)}
                 onSelectBase={onSelectBase}
+                onToggleChecked={(next) => onToggleBaseChecked(base.id, next)}
                 onMoveBase={onMoveBase}
                 onRenameBase={onRenameBase}
-                onRenameGroup={onRenameGroup}
-                onCreateBaseInGroup={onCreateBaseInGroup}
                 onCreateGroup={onCreateGroup}
-                onDeleteGroup={onDeleteGroup}
                 onDeleteBase={onDeleteBase}
                 onToggleSidebar={handleToggleSidebar}
-                sidebarPinnedBaseIds={sidebarPinnedBaseIds}
+                sidebarPinned={sidebarPinnedBaseIds.has(base.id)}
               />
-            )
-          })}
-        </Accordion>
+            ))
+          ) : (
+            <Accordion type="multiple" value={openValues} onValueChange={handleValueChange} className="space-y-3">
+              {sections.map((section) => {
+                const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
+                const group = section.groupId ? groupById.get(section.groupId) : undefined
+
+                return (
+                  <BaseNavigatorGroupSection
+                    key={groupValue}
+                    section={section}
+                    group={group}
+                    groupLabel={group?.name ?? getGroupLabel(section.groupId)}
+                    groups={groups}
+                    selectedBaseId={selectedBaseId}
+                    checkedBaseIds={checkedBaseIds}
+                    onSelectBase={onSelectBase}
+                    onToggleBaseChecked={onToggleBaseChecked}
+                    onMoveBase={onMoveBase}
+                    onRenameBase={onRenameBase}
+                    onRenameGroup={onRenameGroup}
+                    onCreateBaseInGroup={onCreateBaseInGroup}
+                    onCreateGroup={onCreateGroup}
+                    onDeleteGroup={onDeleteGroup}
+                    onDeleteBase={onDeleteBase}
+                    onToggleSidebar={handleToggleSidebar}
+                    sidebarPinnedBaseIds={sidebarPinnedBaseIds}
+                  />
+                )
+              })}
+            </Accordion>
+          )}
+        </div>
       )}
     </Scrollbar>
   )
