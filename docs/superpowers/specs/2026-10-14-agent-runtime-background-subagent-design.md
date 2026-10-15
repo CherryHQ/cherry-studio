@@ -582,3 +582,6 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 10. 7.4、13.1：宿主在 `turn-complete` 里调 `AgentRuntimeSession.prompt` / `compact` 时，包等这次 settle 和期间 Pi 开出的运行都结束，再在锁内执行，结果如实 resolve 或 reject（Pi 会推迟 settle 派发期间的 prompt 并立即返回，原来会丢用户消息）。
 11. 7.5：不是由 prompt 开出的运行（如 `/goal resume`），settle 时队列非空就并入，包括只有静默项或重建恢复项的情况。
 
+2026-10-15，按 PR #21693 的评审修订：
+
+12. 9：用户停止的运行在收尾期间又被 `stop_subagent` 或预算停止时，停止来源仍记为用户，运行结束后不能续接。
