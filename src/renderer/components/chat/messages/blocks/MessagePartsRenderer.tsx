@@ -405,28 +405,35 @@ function getFileEntryName(entry: PartEntry): string {
   )
 }
 
+const EMPTY_ASSOCIATED_READ_ONLY_FILE_PREVIEWS: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview> = new Map()
+
+function readOnlyFileTokenPreviewFromPart(part: CherryMessagePart): ReadOnlyComposerFileTokenPreview | undefined {
+  if (!isFileUIPart(part)) return undefined
+
+  const cherryMeta = getCherryMeta(part)
+  const originalPath = cherryMeta?.originalPath
+    ? AbsoluteFilePathSchema.safeParse(cherryMeta.originalPath).data
+    : undefined
+
+  return {
+    url: part.url,
+    ...(cherryMeta?.fileEntryId && { fileEntryId: cherryMeta.fileEntryId }),
+    mediaType: part.mediaType,
+    ...(originalPath && { originalPath }),
+    ...(cherryMeta?.composerFileKind && { composerFileKind: cherryMeta.composerFileKind })
+  }
+}
+
 function getReadOnlyFileTokenPreviews(
   parts: readonly CherryMessagePart[]
 ): ReadonlyMap<string, ReadOnlyComposerFileTokenPreview> {
   const previews = new Map<string, ReadOnlyComposerFileTokenPreview>()
 
   for (const part of parts) {
-    if (!isFileUIPart(part)) continue
-
-    const cherryMeta = getCherryMeta(part)
-    const sourceId = cherryMeta?.fileTokenSourceId
+    const sourceId = getCherryMeta(part)?.fileTokenSourceId
     if (!sourceId) continue
-    const originalPath = cherryMeta.originalPath
-      ? AbsoluteFilePathSchema.safeParse(cherryMeta.originalPath).data
-      : undefined
-
-    previews.set(sourceId, {
-      url: part.url,
-      ...(cherryMeta.fileEntryId && { fileEntryId: cherryMeta.fileEntryId }),
-      mediaType: part.mediaType,
-      ...(originalPath && { originalPath }),
-      ...(cherryMeta.composerFileKind && { composerFileKind: cherryMeta.composerFileKind })
-    })
+    const preview = readOnlyFileTokenPreviewFromPart(part)
+    if (preview) previews.set(sourceId, preview)
   }
 
   return previews
@@ -470,13 +477,18 @@ function getDisplayProjection(
   message: MessageListItem,
   visibleComposerFileTokens: readonly VisibleComposerFileToken[],
   hoistAttachments: boolean
-): { entries: PartEntry[]; hiddenImageTokens: ReadonlySet<ComposerMessageToken> } {
+): {
+  entries: PartEntry[]
+  hiddenImageTokens: ReadonlySet<ComposerMessageToken>
+  associatedReadOnlyFilePreviews: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+} {
   const isHoistedEntry = (entry: PartEntry) => hoistAttachments && isHoistableFilePart(entry.part)
 
   if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
     return {
       entries: entries.filter((entry) => !isHoistedEntry(entry)),
-      hiddenImageTokens: EMPTY_HIDDEN_COMPOSER_TOKENS
+      hiddenImageTokens: EMPTY_HIDDEN_COMPOSER_TOKENS,
+      associatedReadOnlyFilePreviews: EMPTY_ASSOCIATED_READ_ONLY_FILE_PREVIEWS
     }
   }
 
@@ -488,9 +500,24 @@ function getDisplayProjection(
     if (name) fileEntryNameCounts.set(name, (fileEntryNameCounts.get(name) ?? 0) + 1)
   }
 
+  // Explicit source ids claim their tokens before any filename fallback, independent of part order.
+  const explicitTokenIndexes = new Set<number>()
+  for (const entry of entries) {
+    if ((entry.part.type as string) !== 'file') continue
+    const sourceId = getFileEntrySourceId(entry)
+    if (!sourceId) continue
+    const matchIndex = findUniqueVisibleFileTokenIndex(
+      visibleComposerFileTokens,
+      explicitTokenIndexes,
+      (token) => token.sourceId === sourceId
+    )
+    if (matchIndex !== undefined) explicitTokenIndexes.add(matchIndex)
+  }
+
   const usedTokenIndexes = new Set<number>()
   const displayEntries: PartEntry[] = []
   const hiddenImageTokens = new Set<ComposerMessageToken>()
+  const associatedReadOnlyFilePreviews = new Map<string, ReadOnlyComposerFileTokenPreview>()
   for (const entry of entries) {
     if ((entry.part.type as string) !== 'file') {
       displayEntries.push(entry)
@@ -508,9 +535,10 @@ function getDisplayProjection(
 
     if (matchIndex === undefined) {
       const name = getFileEntryName(entry)
+      const filenameExcluded = new Set<number>([...usedTokenIndexes, ...explicitTokenIndexes])
       matchIndex =
         name && fileEntryNameCounts.get(name) === 1
-          ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) =>
+          ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, filenameExcluded, (token) =>
               token.names.has(name)
             )
           : undefined
@@ -521,18 +549,35 @@ function getDisplayProjection(
       continue
     }
 
+    const matchedToken = visibleComposerFileTokens[matchIndex]
+    const mappedPreview =
+      matchedToken.sourceId && !isImageFilePart(entry.part) ? readOnlyFileTokenPreviewFromPart(entry.part) : undefined
+    const imageKeepsOwnControl = isHoistedEntry(entry) || (isImageFilePart(entry.part) && !!extractImageUrl(entry.part))
+    // A filename hit with no token key must not drop the only remaining control.
+    if (!mappedPreview && !imageKeepsOwnControl) {
+      if (!isHoistedEntry(entry)) displayEntries.push(entry)
+      continue
+    }
+
     usedTokenIndexes.add(matchIndex)
+    if (mappedPreview && matchedToken.sourceId) {
+      associatedReadOnlyFilePreviews.set(matchedToken.sourceId, mappedPreview)
+    }
     if (isHoistedEntry(entry)) {
-      hiddenImageTokens.add(visibleComposerFileTokens[matchIndex].token)
+      hiddenImageTokens.add(matchedToken.token)
     } else if (isImageFilePart(entry.part) && extractImageUrl(entry.part)) {
       displayEntries.push(entry)
-      hiddenImageTokens.add(visibleComposerFileTokens[matchIndex].token)
+      hiddenImageTokens.add(matchedToken.token)
     }
   }
 
   return {
     entries: displayEntries.filter((entry) => !rendersOnlyHoistedTokens(entry, hiddenImageTokens)),
-    hiddenImageTokens
+    hiddenImageTokens,
+    associatedReadOnlyFilePreviews:
+      associatedReadOnlyFilePreviews.size === 0
+        ? EMPTY_ASSOCIATED_READ_ONLY_FILE_PREVIEWS
+        : associatedReadOnlyFilePreviews
   }
 }
 
@@ -1566,8 +1611,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
             .filter(isCherrySessionToolResponse),
     [isActiveTurnProcessing, message.id, partEntries]
   )
-  const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
-  const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
+  const explicitReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
   const handleReadOnlyFilePreviewActivate = useCallback(
     (preview: ReadOnlyComposerFileTokenPreview, token: ChatTokenView) => {
       if (!previewInputFile) return
@@ -1593,6 +1637,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistAttachments),
     [hoistAttachments, message, partEntries, visibleComposerFileTokens]
   )
+  const nextReadOnlyFilePreviews = useMemo(() => {
+    const associated = displayProjection.associatedReadOnlyFilePreviews
+    if (associated.size === 0) return explicitReadOnlyFilePreviews
+
+    const merged = new Map(explicitReadOnlyFilePreviews)
+    for (const [sourceId, preview] of associated) merged.set(sourceId, preview)
+    return merged
+  }, [displayProjection.associatedReadOnlyFilePreviews, explicitReadOnlyFilePreviews])
+  const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
   const subagentEntries = useMemo(
     () =>
       openAgentToolFlow
