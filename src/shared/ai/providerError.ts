@@ -90,11 +90,11 @@ function payloadText(value: unknown, decodeDepth = 0): string {
   )
 }
 
-function providerErrorCodes(value: unknown, decodeDepth = 0): string {
+function providerErrorCodes(value: unknown, decodeDepth = 0, codesOnly = false): string {
   if (typeof value === 'string') {
     if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return ''
     try {
-      return providerErrorCodes(JSON.parse(value), decodeDepth + 1)
+      return providerErrorCodes(JSON.parse(value), decodeDepth + 1, codesOnly)
     } catch {
       return ''
     }
@@ -103,11 +103,11 @@ function providerErrorCodes(value: unknown, decodeDepth = 0): string {
   const payload = value as Record<string, unknown>
   const detail =
     payload.detail && typeof payload.detail === 'object' ? (payload.detail as Record<string, unknown>) : null
-  return [payload, payload.error, detail, detail?.error]
+  return [payload.error, payload, detail?.error, detail]
     .flatMap((entry) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
       const record = entry as Record<string, unknown>
-      return [record.code, record.type].filter(
+      return (codesOnly ? [record.code] : [record.code, record.type]).filter(
         (code): code is string => typeof code === 'string' && code.length <= MAX_PROVIDER_ERROR_MESSAGE_LENGTH
       )
     })
@@ -117,6 +117,13 @@ function providerErrorCodes(value: unknown, decodeDepth = 0): string {
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
   const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
+}
+
+export function getSafeProviderErrorCode(source: ProviderErrorSource): string {
+  const code = (providerErrorCodes(source.responseBody, 0, true) || providerErrorCodes(source.data, 0, true))
+    .split('\n')
+    .find(Boolean)
+  return getSafeProviderErrorMessage({ message: code })
 }
 
 export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>): Record<string, Serializable> {
@@ -165,9 +172,11 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
   if (depth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return null
   if (APICallError.isInstance(value)) {
     const message = getSafeProviderErrorMessage(value)
+    const providerErrorCode = getSafeProviderErrorCode(value)
     return {
       name: value.name,
       message,
+      ...(providerErrorCode ? { providerErrorCode } : {}),
       providerErrorCategory: classifyErrorCategory({
         text: [message, providerErrorCodes(value.responseBody), providerErrorCodes(value.data)].join('\n'),
         status: value.statusCode

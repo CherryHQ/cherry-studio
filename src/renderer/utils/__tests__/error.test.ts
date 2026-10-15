@@ -349,6 +349,21 @@ describe('error', () => {
   })
 
   describe('providerErrorText', () => {
+    it('shows the safe provider code and message from the final retry attempt', () => {
+      const error = new APICallError({
+        message: 'The provided URL does not appear to be valid.',
+        url: 'https://provider.example/chat',
+        requestBodyValues: {},
+        statusCode: 400,
+        data: { code: 'invalid_parameter_error', message: 'The provided URL does not appear to be valid.' },
+        isRetryable: false
+      })
+      const retry = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [error] })
+      expect(providerErrorText(serializeError(retry))).toBe(
+        'invalid_parameter_error: The provided URL does not appear to be valid.'
+      )
+    })
+
     // AI SDK degrades `message` to the HTTP statusText when the body does not match the
     // provider's error schema; the real reason only survives in `responseBody`.
     it('prefers a non-OpenAI-shaped body over the degraded message', () => {

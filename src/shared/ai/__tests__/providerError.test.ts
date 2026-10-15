@@ -14,6 +14,42 @@ const PROVIDER_TEXT_FIELDS = [
 ] as const
 
 describe('getSafeProviderErrorMessage', () => {
+  it('retains the provider code from an SSE failure while removing private payload fields', () => {
+    const error = new APICallError({
+      message: 'The provided URL does not appear to be valid. Ensure it is correctly formatted.',
+      url: 'https://provider.example/chat?token=private-token',
+      requestBodyValues: { messages: ['private conversation'] },
+      statusCode: 400,
+      data: {
+        code: 'invalid_parameter_error',
+        message: 'The provided URL does not appear to be valid. Ensure it is correctly formatted.'
+      },
+      responseBody: '',
+      isRetryable: false
+    })
+
+    const serialized = serializeNestedProviderError(error)
+    expect(serialized).toMatchObject({
+      providerErrorCode: 'invalid_parameter_error',
+      message: error.message,
+      data: null,
+      responseBody: null,
+      requestBodyValues: null,
+      url: ''
+    })
+    expect(JSON.stringify(serialized)).not.toContain('private-token')
+    expect(JSON.stringify(serialized)).not.toContain('private conversation')
+    const unsafeCode = new APICallError({
+      message: error.message,
+      url: error.url,
+      requestBodyValues: {},
+      statusCode: 400,
+      data: { code: '{"authorization":"Bearer private-code-token"}' },
+      isRetryable: false
+    })
+    expect(serializeNestedProviderError(unsafeCode)).not.toHaveProperty('providerErrorCode')
+  })
+
   it.each(PROVIDER_TEXT_FIELDS)(
     'rejects closed unquoted and numeric-leading containers in %s',
     (_field, payloadFor) => {
