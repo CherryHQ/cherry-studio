@@ -10,7 +10,7 @@ import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
 import { createAiSdkProvider, type ModelCallInfo, type ModelCallPort } from '../src'
-import { createTestSession, MODEL, streamTextPort } from './support'
+import { createTestSession, lastAssistant, MODEL, streamTextPort } from './support'
 
 const rateLimited = () =>
   new APICallError({
@@ -65,6 +65,34 @@ describe('model call failures', () => {
     expect(assistants).toHaveLength(1)
     expect(assistants[0]).toMatchObject({ stopReason: 'error', errorMessage: (error as Error).message })
     expect(events).not.toContain('auto_retry_start')
+  })
+
+  // Breaks when a failure JSON cannot encode leaves the turn hanging and never reaches the host.
+  const circular = () => {
+    const error: Record<string, unknown> = { code: 'E_LOOP' }
+    error.self = error
+    return error
+  }
+  const sources = {
+    'an error part in the AI SDK stream': (error: unknown) => streamTextPort(failingModel(error)).port,
+    'a rejected port call': (error: unknown): ModelCallPort => ({ streamText: async () => Promise.reject(error) })
+  }
+  it.each(
+    Object.entries(sources).flatMap(([source, port]) => [
+      { source, value: 'a circular object', error: circular(), port },
+      { source, value: 'a bigint', error: 10n, port }
+    ])
+  )('fails the turn and hands $value from $source to the host', async ({ error, port }) => {
+    const failures: unknown[] = []
+    const { session } = await createTestSession({
+      port: port(error),
+      sideChannel: { onError: (e) => failures.push(e) }
+    })
+    await session.prompt('hi').catch(() => {})
+
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toBe(error)
+    expect(lastAssistant(session)).toMatchObject({ stopReason: 'error', errorMessage: expect.any(String) })
   })
 
   it('keeps the provider’s context-overflow text so Pi recognizes the overflow', async () => {

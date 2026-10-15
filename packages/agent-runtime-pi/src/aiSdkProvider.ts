@@ -78,7 +78,13 @@ function toPiUsage(usage: LanguageModelUsage, model: Model<Api>): Usage {
 // Kept verbatim: Pi detects context overflow from the provider's own error text.
 function errorMessageOf(error: unknown): string {
   if (error instanceof Error) return error.message
-  return typeof error === 'string' ? error : JSON.stringify(error)
+  if (typeof error === 'string') return error
+  // Ports may fail with any value; one JSON cannot encode (a cycle, a bigint) must not leave the turn open.
+  try {
+    return JSON.stringify(error) ?? String(error)
+  } catch {
+    return Object.prototype.toString.call(error)
+  }
 }
 
 function toPiStopReason(reason: FinishReason): StopReason {
