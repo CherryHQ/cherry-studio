@@ -23,10 +23,6 @@ vi.mock('../UsageEntriesTable', () => ({
   UsageEntriesTable: () => null
 }))
 
-vi.mock('@renderer/components/UserProfileEditor', () => ({
-  UserProfileEditor: () => <div data-testid="user-profile-editor" />
-}))
-
 vi.mock('../useUsageData', () => {
   const totals = {
     costCurrency: null,
@@ -149,9 +145,9 @@ describe('UsageSettings', () => {
     expect(screen.getByText('日均')).toBeInTheDocument()
   })
 
-  it('renders the personal profile editor above usage analytics', () => {
+  it('shows usage analytics without the personal profile editor', () => {
     render(<UsageSettings />)
-    expect(screen.getByTestId('user-profile-editor')).toBeInTheDocument()
-    expect(document.getElementById('setting-usage-profile')).toContainElement(screen.getByTestId('user-profile-editor'))
+    expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '头像' })).not.toBeInTheDocument()
   })
 })

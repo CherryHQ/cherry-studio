@@ -1,6 +1,6 @@
-import { LogIn, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunMoon } from 'lucide-react'
+import { CreditCard, LogIn, LogOut, Monitor, Moon, RotateCcw, Settings, Sun, SunMoon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -17,13 +17,22 @@ import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
+import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { isEmoji } from '@renderer/utils/naming'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+
+import UserPopup from './UserPopup'
+
+type SubscriptionLookup = { status: 'loading' } | { status: 'ready'; planName: string | null } | { status: 'error' }
 
 export function UserAccountPanel({ active = true, onRequestClose }: { active?: boolean; onRequestClose?: () => void }) {
   const [userName] = usePreference('app.user.name')
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+  const [subscriptionLookup, setSubscriptionLookup] = useState<SubscriptionLookup>({ status: 'loading' })
+  const [planRequestVersion, setPlanRequestVersion] = useState(0)
   const { t } = useTranslation()
   const avatar = useAvatar()
   const { settedTheme, setTheme } = useTheme()
@@ -38,10 +47,35 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
     isRevokingSession,
     isAuthorizing
   } = useCherryAccountSession(active)
+  const isGlobalEdition = getAppEdition() === 'global'
+  const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
 
-  const openPersonalInformation = () => {
+  useEffect(() => {
+    if (!active || !isGlobalEdition || !isCloudSignedIn) return
+    let cancelled = false
+    setSubscriptionLookup({ status: 'loading' })
+    void ipcApi
+      .request('cherry_cloud.account_plans.get')
+      .then((plans) => {
+        if (cancelled) return
+        const paidPlan = plans.entitlements.find((item) => item.state === 'active' && !item.plan.is_free)
+        setSubscriptionLookup({ status: 'ready', planName: paidPlan?.plan.display_name ?? null })
+      })
+      .catch(() => {
+        if (!cancelled) setSubscriptionLookup({ status: 'error' })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [active, cloudStatus?.displayName, isCloudSignedIn, isGlobalEdition, planRequestVersion])
+
+  const handleOpenAccountDetails = () => {
     onRequestClose?.()
-    openSettingsTab('/settings/usage')
+    if (isGlobalEdition) {
+      openSettingsTab('/settings/profile')
+    } else {
+      void UserPopup.show()
+    }
   }
 
   const handleOpenSettings = () => {
@@ -49,7 +83,6 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
     openSettingsTab()
   }
 
-  const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
   const cloudSubtitle = isCloudSignedIn
     ? cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
     : isAuthorizing
@@ -59,6 +92,35 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
         : t('settings.provider.cherry_cloud.title')
   const cloudSubtitleRole =
     isCloudSignedIn || isAuthorizing ? 'status' : cloudStatusLoadState === 'error' ? 'alert' : undefined
+  const useCloudSubtitleAsTitle = !userName
+  const paidPlanName = isCloudSignedIn && subscriptionLookup.status === 'ready' ? subscriptionLookup.planName : null
+  const subscriptionLoading =
+    cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && subscriptionLookup.status === 'loading')
+  const subscriptionFailed =
+    cloudStatusLoadState === 'error' || (isCloudSignedIn && subscriptionLookup.status === 'error')
+  const subscriptionAction = subscriptionLoading
+    ? t('common.loading')
+    : subscriptionFailed
+      ? t('common.retry')
+      : paidPlanName
+        ? t('settings.subscription.view_usage')
+        : t('settings.subscription.go_to_subscribe')
+  const handleSubscriptionClick = () => {
+    if (cloudStatusLoadState === 'error') {
+      void loadCloudStatus()
+    } else if (!isCloudSignedIn) {
+      void handleCloudLogin()
+    } else if (subscriptionLookup.status === 'error') {
+      setPlanRequestVersion((version) => version + 1)
+    } else if (subscriptionLookup.status === 'ready') {
+      onRequestClose?.()
+      if (subscriptionLookup.planName) {
+        openSettingsTab('/settings/profile')
+      } else {
+        void openCherryCloudAccountPortal()
+      }
+    }
+  }
   const cloudHeaderAction: {
     label: string
     loading: boolean
@@ -124,7 +186,7 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
           variant="ghost"
           aria-label={t('settings.general.user_name.label')}
           className="h-auto min-h-9 w-full items-center justify-start gap-2 px-2 py-1 text-left"
-          onClick={openPersonalInformation}
+          onClick={handleOpenAccountDetails}
           size="sm">
           {isEmoji(avatar) ? (
             <EmojiAvatar size={28} fontSize={14} className="shrink-0">
@@ -136,10 +198,12 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
             </Avatar>
           )}
           <ColFlex className="min-w-0 flex-1 gap-0">
-            <span className="truncate font-medium text-[13px] text-foreground leading-[18px]">
-              {userName || t('settings.general.user_name.placeholder')}
+            <span
+              role={useCloudSubtitleAsTitle ? cloudSubtitleRole : undefined}
+              className="truncate font-medium text-[13px] text-foreground leading-[18px]">
+              {userName || (useCloudSubtitleAsTitle ? cloudSubtitle : t('settings.general.user_name.placeholder'))}
             </span>
-            {cloudSubtitle ? (
+            {!useCloudSubtitleAsTitle && cloudSubtitle ? (
               <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
                 {cloudSubtitle}
               </span>
@@ -148,6 +212,21 @@ export function UserAccountPanel({ active = true, onRequestClose }: { active?: b
         </Button>
       </ColFlex>
       <ColFlex className="border-border-subtle gap-0.5 border-t pt-1">
+        {isGlobalEdition ? (
+          <Button
+            type="button"
+            className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
+            disabled={subscriptionLoading}
+            onClick={handleSubscriptionClick}
+            size="sm"
+            variant="ghost">
+            <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-left" title={paidPlanName ?? undefined}>
+              {paidPlanName ?? t('settings.subscription.card_label')}
+            </span>
+            <span className="shrink-0 text-muted-foreground">{subscriptionAction}</span>
+          </Button>
+        ) : null}
         <Button
           className="min-h-7 w-full justify-start gap-2 px-2 text-[13px] text-foreground leading-5"
           onClick={handleOpenSettings}

@@ -2108,6 +2108,7 @@ describe('ModelService.delete', () => {
       })
     )
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -2296,6 +2297,7 @@ describe('ModelService.bulkDelete', () => {
       })
     ])
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,

@@ -221,12 +221,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     user: sidebarUser,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <>
-        <SidebarSettingsButton layout={footerLayout} />
         <HelpMenu
           layout={footerLayout}
           onFeedbackClick={handleOpenFeedback}
           onOverlayOpenChange={onOverlayOpenChange}
         />
+        <SidebarSettingsButton layout={footerLayout} />
       </>
     ),
     userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : null,

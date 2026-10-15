@@ -1,15 +1,21 @@
 import { useCallback, useMemo } from 'react'
 
 import type { MessageListActions, MessageListMeta } from '@renderer/components/chat/messages/types'
+import UserPopup from '@renderer/components/UserPopup'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { getAppEdition } from '@renderer/utils/appEdition'
 
 export function useMessageHeaderCapabilities(): Pick<MessageListMeta, 'userProfile'> &
   Pick<MessageListActions, 'openUserProfile'> {
   const avatar = useAvatar()
 
   const openUserProfile = useCallback<NonNullable<MessageListActions['openUserProfile']>>(() => {
-    openSettingsTab('/settings/usage')
+    if (getAppEdition() === 'cn') {
+      void UserPopup.show()
+    } else {
+      openSettingsTab('/settings/profile')
+    }
   }, [])
 
   return useMemo(

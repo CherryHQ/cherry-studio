@@ -42,6 +42,7 @@ import { AppMenuService } from '@main/services/AppMenuService'
 import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
+import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
@@ -107,6 +108,7 @@ import { WebviewService } from '@main/services/webview'
  */
 export const services = {
   ComputerUseService,
+  AutomationReplService,
   RemoteAccessService,
   MainNetworkDevtoolsService,
   WindowManager,

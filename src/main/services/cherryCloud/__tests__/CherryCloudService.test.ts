@@ -369,7 +369,7 @@ describe('CherryCloudService', () => {
       )
     )
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     await service['syncEntitledModels']()
     await service._doStop()
   })
@@ -383,7 +383,7 @@ describe('CherryCloudService', () => {
 
     expect(mocks.netFetch).not.toHaveBeenCalled()
     expect(mocks.openExternal).not.toHaveBeenCalled()
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.savedSession).toBeNull()
     await service._doStop()
   })
@@ -411,7 +411,7 @@ describe('CherryCloudService', () => {
       ).rejects.toThrow('Cherry Cloud login request failed (401)')
     }
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.savedSession).toBeNull()
     expect(requestCalls(createPath)).toHaveLength(1)
     expect(requestCalls(exchangePath)).toHaveLength(step === 'exchange' ? 1 : 0)
@@ -423,9 +423,9 @@ describe('CherryCloudService', () => {
     mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
 
     const service = await createService()
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
 
-    expect(await service.startLogin()).toEqual({ phase: 'authorizing', displayName: null })
+    expect(await service.startLogin()).toEqual({ phase: 'authorizing', accountId: null, displayName: null })
     expect(mocks.savedSession).toBeNull()
     expect(mocks.openExternal).toHaveBeenCalledWith(
       `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`
@@ -450,7 +450,7 @@ describe('CherryCloudService', () => {
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     expect(mocks.gatewayStart).toHaveBeenCalledOnce()
     expect(mocks.showMainWindow).toHaveBeenCalledOnce()
 
@@ -468,13 +468,36 @@ describe('CherryCloudService', () => {
     mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
     CherryCloudService.resetInstances()
     const restarted = await createService()
-    expect(await restarted.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await restarted.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(3))
     expect(mocks.netFetch.mock.calls.map(([url]) => url)).toEqual([
       'https://cloud.cherryai.com/api/v1/product-sessions/refresh',
       'https://cloud.cherryai.com/api/v1/account',
       'https://cloud.cherryai.com/v1/models?limit=1000'
     ])
+  })
+
+  it.each([
+    ['another production region', 'https://cloud.cherryai.com.cn'],
+    ['a development server', 'http://localhost:9084'],
+    ['credentials without a recorded origin', undefined]
+  ] as const)('requires login without sending saved credentials when using %s', async (_label, nextOrigin) => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', 'https://cloud.cherryai.com')
+    const service = await createSignedInService()
+    await service._doStop()
+    if (nextOrigin) {
+      vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', nextOrigin)
+    } else {
+      delete mocks.savedSession!.apiOrigin
+    }
+    mocks.netFetch.mockClear()
+    CherryCloudService.resetInstances()
+
+    const restarted = await createService()
+
+    expect(await restarted.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
+    expect((await restarted.authenticatedFetch('/v1/models')).status).toBe(401)
+    expect(mocks.netFetch).not.toHaveBeenCalled()
   })
 
   it('reuses the device key after logout and a service restart', async () => {
@@ -516,7 +539,7 @@ describe('CherryCloudService', () => {
     CherryCloudService.resetInstances()
     const copied = await createService()
     await vi.waitFor(async () => {
-      expect(await copied.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(await copied.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     })
     expect(restoredCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(restoredCode).not.toBe(originalCode)
@@ -557,7 +580,7 @@ describe('CherryCloudService', () => {
     const service = await createSignedInService()
 
     expect(mocks.gatewayStart).toHaveBeenCalledOnce()
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it('reports that a Product Session is required for authenticated requests', async () => {
@@ -594,7 +617,7 @@ describe('CherryCloudService', () => {
       )
     ).rejects.toThrow('database is read-only')
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.savedSession).toBeNull()
     expect(mocks.showMainWindow).not.toHaveBeenCalled()
   })
@@ -639,6 +662,7 @@ describe('CherryCloudService', () => {
 
       expect(mocks.broadcast).toHaveBeenLastCalledWith('cherry_cloud.status_changed', {
         phase: 'signed-out',
+        accountId: null,
         displayName: null
       })
     } finally {
@@ -668,7 +692,7 @@ describe('CherryCloudService', () => {
       pendingExchange.resolve(jsonResponse(exchangeResponse()))
 
       await expect(callback).rejects.toThrow('no longer active')
-      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
       expect(mocks.savedSession).toBeNull()
     } finally {
       vi.useRealTimers()
@@ -683,7 +707,7 @@ describe('CherryCloudService', () => {
     await service._doStop()
     await service._doInit()
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.loopbackReceiver.dispose).toHaveBeenCalledOnce()
   })
 
@@ -699,7 +723,7 @@ describe('CherryCloudService', () => {
     pendingAuthorization.resolve(jsonResponse(authorizationResponse(), 201))
 
     await expect(login).rejects.toThrow('service stopped during login')
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.openExternal).not.toHaveBeenCalled()
   })
 
@@ -734,12 +758,12 @@ describe('CherryCloudService', () => {
     const service = await createService()
 
     await expect(service.startLogin()).rejects.toHaveProperty('name', 'CherryCloudUpgradeRequiredError')
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.openExternal).not.toHaveBeenCalled()
     expect(mocks.loopbackReceiver.dispose).toHaveBeenCalled()
 
     mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
-    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', accountId: null, displayName: null })
   })
 
   it('reports an unavailable login service when the backend cannot be reached', async () => {
@@ -747,7 +771,7 @@ describe('CherryCloudService', () => {
     const service = await createService()
 
     await expect(service.startLogin()).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
   })
 
   it('clears a matching pending authorization when the user denies access', async () => {
@@ -762,11 +786,12 @@ describe('CherryCloudService', () => {
       )
     )
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.netFetch).toHaveBeenCalledTimes(1)
     expect(mocks.savedSession).toBeNull()
     expect(mocks.broadcast).toHaveBeenLastCalledWith('cherry_cloud.status_changed', {
       phase: 'signed-out',
+      accountId: null,
       displayName: null
     })
   })
@@ -776,8 +801,8 @@ describe('CherryCloudService', () => {
     const service = await createService()
 
     await expect(Promise.all([service.startLogin(), service.startLogin()])).resolves.toEqual([
-      { phase: 'authorizing', displayName: null },
-      { phase: 'authorizing', displayName: null }
+      { phase: 'authorizing', accountId: null, displayName: null },
+      { phase: 'authorizing', accountId: null, displayName: null }
     ])
 
     expect(mocks.netFetch).toHaveBeenCalledTimes(1)
@@ -803,11 +828,11 @@ describe('CherryCloudService', () => {
     const cancellation = service.cancelLogin()
 
     expect(requestSignal?.aborted).toBe(true)
-    await expect(login).resolves.toEqual({ phase: 'signed-out', displayName: null })
-    await expect(cancellation).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    await expect(login).resolves.toEqual({ phase: 'signed-out', accountId: null, displayName: null })
+    await expect(cancellation).resolves.toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.loopbackReceiver.dispose).toHaveBeenCalled()
 
-    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', accountId: null, displayName: null })
     expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     expect(mocks.openExternal).toHaveBeenCalledOnce()
   })
@@ -828,11 +853,11 @@ describe('CherryCloudService', () => {
     )
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
     const cancellation = service.cancelLogin()
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
 
     pendingExchange.resolve(jsonResponse(exchangeResponse()))
     await expect(callback).resolves.toBeUndefined()
-    await expect(cancellation).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    await expect(cancellation).resolves.toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.savedSession).toBeNull()
   })
 
@@ -863,7 +888,7 @@ describe('CherryCloudService', () => {
       timeoutController.abort(new DOMException('The operation timed out', 'TimeoutError'))
 
       await loginFailure
-      await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
+      await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', accountId: null, displayName: null })
     } finally {
       timeout.mockRestore()
     }
@@ -889,7 +914,7 @@ describe('CherryCloudService', () => {
 
     await expect(invalidCallback).rejects.toThrow('does not match')
     await expect(validCallback).resolves.toBeUndefined()
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it('does not let a matching error callback clear an exchange in progress', async () => {
@@ -913,10 +938,10 @@ describe('CherryCloudService', () => {
       )
     )
 
-    expect(await service.getStatus()).toEqual({ phase: 'authorizing', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'authorizing', accountId: null, displayName: null })
     pendingExchange.resolve(jsonResponse(exchangeResponse()))
     await expect(Promise.all([validCallback, errorCallback])).resolves.toEqual([undefined, undefined])
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it('clears a matching malformed callback so login can be started again', async () => {
@@ -934,9 +959,9 @@ describe('CherryCloudService', () => {
         new URL(`http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}`)
       )
     ).rejects.toThrow('missing the handoff code')
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
 
-    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', accountId: null, displayName: null })
     expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     expect(mocks.openExternal).toHaveBeenCalledTimes(2)
   })
@@ -1318,7 +1343,7 @@ describe('CherryCloudService', () => {
 
       expect(requestSignals.every((signal) => signal?.aborted)).toBe(true)
       await syncFailure
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     } finally {
       timeout.mockRestore()
     }
@@ -1510,7 +1535,7 @@ describe('CherryCloudService', () => {
         firstTimeout.abort(new DOMException('The operation timed out', 'TimeoutError'))
 
         await requestFailure
-        expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+        expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
 
         mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
         mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
@@ -1542,7 +1567,7 @@ describe('CherryCloudService', () => {
       })
       expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
       expect(requestCalls('/v1/messages')).toHaveLength(status === 200 ? 1 : 0)
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
       expect(mocks.savedSession).toMatchObject({ refreshToken: token(status === 200 ? 'I' : 'G') })
     } finally {
       clock.mockRestore()
@@ -1562,7 +1587,7 @@ describe('CherryCloudService', () => {
 
       await expect(service.authenticatedFetch('/v1/models')).rejects.toThrow('database is read-only')
 
-      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
       expect(mocks.savedSession).toBeNull()
     } finally {
       clock.mockRestore()
@@ -1636,7 +1661,7 @@ describe('CherryCloudService', () => {
       pendingOldRequest.resolve(cloudErrorResponse(401, 'AUTH_REQUIRED'))
       await expect(oldRequest).resolves.toHaveProperty('status', 200)
 
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
       expect(mocks.savedSession).toMatchObject({ refreshToken: token('I') })
       expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
       expect(new Headers(requestCalls('/v1/messages')[1][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
@@ -1670,7 +1695,7 @@ describe('CherryCloudService', () => {
       )
 
       expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     } finally {
       clock.mockRestore()
     }
@@ -1718,7 +1743,7 @@ describe('CherryCloudService', () => {
     const revoke = service.revokeCurrentSession()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.savedSession).toBeNull()
 
     const [url, init] = requestCalls('/api/v1/product-sessions/current')[0]
@@ -1729,7 +1754,7 @@ describe('CherryCloudService', () => {
     expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
     expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
 
-    await expect(revoke).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    await expect(revoke).resolves.toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     pendingRevoke.resolve(new Response(null, { status: 204 }))
   })
 
@@ -1738,7 +1763,11 @@ describe('CherryCloudService', () => {
     const pendingRevoke = deferred<Response>()
     mockCloudRoute('/api/v1/product-sessions/current', pendingRevoke.promise)
 
-    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    await expect(service.revokeCurrentSession()).resolves.toEqual({
+      phase: 'signed-out',
+      accountId: null,
+      displayName: null
+    })
 
     mockAuthorizationFlow()
     mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
@@ -1752,7 +1781,7 @@ describe('CherryCloudService', () => {
     pendingRevoke.resolve(new Response(null, { status: 204 }))
     await pendingRevoke.promise
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     expect(mocks.savedSession).not.toBeNull()
   })
 
@@ -1760,7 +1789,11 @@ describe('CherryCloudService', () => {
     const service = await createSignedInService()
     mockCloudRoute('/api/v1/product-sessions/current', jsonResponse({ type: 'error' }, status))
 
-    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
+    await expect(service.revokeCurrentSession()).resolves.toEqual({
+      phase: 'signed-out',
+      accountId: null,
+      displayName: null
+    })
     expect(mocks.savedSession).toBeNull()
   })
 
@@ -1773,7 +1806,11 @@ describe('CherryCloudService', () => {
     )
 
     try {
-      await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
+      await expect(service.revokeCurrentSession()).resolves.toEqual({
+        phase: 'signed-out',
+        accountId: null,
+        displayName: null
+      })
       expect(timeout).toHaveBeenCalledWith(30_000)
       expect(requestCalls('/api/v1/product-sessions/current')[0][1].signal).toBe(timeoutController.signal)
       expect(mocks.savedSession).toBeNull()
@@ -1791,7 +1828,7 @@ describe('CherryCloudService', () => {
 
     expect(requestCalls('/v1/messages')).toHaveLength(2)
     expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
-    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
     expect(mocks.savedSession).toBeNull()
   })
 
@@ -1806,7 +1843,7 @@ describe('CherryCloudService', () => {
     expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
     expect(new Headers(requestCalls('/v1/messages')[0][1].headers).get('Authorization')).toBe(`Bearer ${token('F')}`)
     expect(new Headers(requestCalls('/v1/messages')[1][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it.each([
@@ -1834,7 +1871,7 @@ describe('CherryCloudService', () => {
 
     expect(requestCalls('/v1/messages')).toHaveLength(2)
     expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     expect(mocks.savedSession).toEqual(savedSession)
     mockCloudRoute('/v1/messages', jsonResponse({ type: 'message' }))
     await expect(service.authenticatedFetch('/v1/messages')).resolves.toHaveProperty('status', 200)
@@ -1852,7 +1889,7 @@ describe('CherryCloudService', () => {
 
       await expect(service.authenticatedFetch('/v1/messages')).rejects.toBe(error)
 
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
       expect(mocks.savedSession).toEqual(savedSession)
       expect(requestCalls('/v1/messages')).toHaveLength(1)
       mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'), jsonResponse({ type: 'message' }))
@@ -1873,7 +1910,7 @@ describe('CherryCloudService', () => {
       expect(response).toBe(failure)
       expect(await response.json()).toHaveProperty('error.code')
       expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     }
   )
 
@@ -1888,7 +1925,7 @@ describe('CherryCloudService', () => {
       expect(response.status).toBe(401)
       expect(await response.json()).toMatchObject({ error: { code } })
       expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
-      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
       expect(mocks.savedSession).toBeNull()
     }
   )
@@ -1905,7 +1942,7 @@ describe('CherryCloudService', () => {
       expect(response.status).toBe(401)
       expect(await response.json()).toMatchObject({ error: { code } })
       expect(requestCalls('/v1/messages')).toHaveLength(1)
-      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
       expect(mocks.savedSession).toBeNull()
     }
   )
@@ -1930,7 +1967,7 @@ describe('CherryCloudService', () => {
       expect(second.get('Cherry-Signature')).not.toBe(first.get('Cherry-Signature'))
       expect(requests.map(([, init]) => Buffer.from(init.body).toString())).toEqual([body, body])
       expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     }
   )
 
@@ -1970,6 +2007,20 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('never returns account data from a session that ended while the request was in flight', async () => {
+    const service = await createSignedInService()
+    const pendingPlans = deferred<Response>()
+    mockCloudRoute('/api/v1/account/plans', pendingPlans.promise)
+    const plans = service.getAccountPlans()
+    await vi.waitFor(() => expect(requestCalls('/api/v1/account/plans')).toHaveLength(1))
+
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+    pendingPlans.resolve(jsonResponse({ measured_at: '2026-09-21T00:00:00Z', entitlements: [], available_plans: [] }))
+
+    await expect(plans).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it('does not retry an old replay after sign-out and a new login', async () => {
     const service = await createSignedInService()
     const pendingOldRequest = deferred<Response>()
@@ -1992,7 +2043,7 @@ describe('CherryCloudService', () => {
 
     expect(await oldRequest).toHaveProperty('status', 409)
     expect(requestCalls('/v1/messages')).toHaveLength(1)
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it.each([
@@ -2021,7 +2072,7 @@ describe('CherryCloudService', () => {
         'caller-key',
         'caller-key'
       ])
-      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     }
   )
 
@@ -2039,7 +2090,7 @@ describe('CherryCloudService', () => {
     expect(await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{}' })).toBe(failure)
     expect(requestCalls('/v1/messages')).toHaveLength(1)
     expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it.each([401, 409])('does not recover a request cancelled when its %s response arrives', async (status) => {
@@ -2056,7 +2107,7 @@ describe('CherryCloudService', () => {
 
     expect(requestCalls('/v1/messages')).toHaveLength(1)
     expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it('does not start a refresh for an already cancelled request', async () => {
@@ -2069,7 +2120,7 @@ describe('CherryCloudService', () => {
     })
 
     expect(mocks.netFetch).not.toHaveBeenCalled()
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it('stops a cancelled waiter while another request finishes the shared refresh', async () => {
@@ -2126,7 +2177,7 @@ describe('CherryCloudService', () => {
     )
 
     await oldResult
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     expect(mocks.savedSession).toEqual(newCredentials)
     expect(requestCalls('/v1/messages')).toHaveLength(1)
   })
@@ -2155,7 +2206,7 @@ describe('CherryCloudService', () => {
 
     expect(requestCalls('/v1/messages')).toHaveLength(1)
     expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
   })
 
   it('keeps the current Session when persisted removal fails', async () => {
@@ -2176,7 +2227,7 @@ describe('CherryCloudService', () => {
 
     await expect(service.revokeCurrentSession()).rejects.toThrow('database is read-only')
 
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', accountId, displayName: 'Sora' })
     expect(mocks.savedSession).not.toBeNull()
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
@@ -2210,9 +2261,10 @@ describe('CherryCloudService', () => {
       expect(mocks.sessionClear).toHaveBeenCalledOnce()
       expect(mocks.broadcast).toHaveBeenLastCalledWith('cherry_cloud.status_changed', {
         phase: 'signed-out',
+        accountId: null,
         displayName: null
       })
-      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(await service.getStatus()).toEqual({ phase: 'signed-out', accountId: null, displayName: null })
       expect(mocks.savedSession).toBeNull()
       expect(mocks.modelCreate).not.toHaveBeenCalled()
       expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
