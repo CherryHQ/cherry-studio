@@ -1,19 +1,18 @@
 import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 
-import type {
-  MlxTtsModel,
-  MlxTtsRuntime,
-  TtsInferenceContract,
-  TtsInitData
-} from '@main/ai/localModel/capabilities/tts/protocol'
+import type * as MlxTtsRuntime from '@cherrystudio/mlx-tts'
+import type { TtsModel } from '@cherrystudio/mlx-tts'
+import type { TtsInferenceContract, TtsInitData } from '@main/ai/localModel/capabilities/tts/protocol'
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 
-let runtimePath: string
-let runtime: MlxTtsRuntime | undefined
-let cached: { modelDir: string; model: MlxTtsModel } | undefined
+let appPath: string
+let runtime: typeof MlxTtsRuntime | undefined
+let cached: { modelDir: string; model: TtsModel } | undefined
 
 export function initializeTts(data: TtsInitData): void {
-  runtimePath = data.runtimePath
+  appPath = data.appPath
+  process.env.NAPI_RS_NATIVE_LIBRARY_PATH = data.bindingPath
 }
 
 export async function disposeTts(): Promise<void> {
@@ -22,11 +21,13 @@ export async function disposeTts(): Promise<void> {
   await previous?.model.dispose()
 }
 
-async function loadModel(modelDir: string): Promise<MlxTtsModel> {
+async function loadModel(modelDir: string): Promise<TtsModel> {
   if (cached?.modelDir === modelDir) return cached.model
   await disposeTts()
   try {
-    runtime ??= createRequire(runtimePath)(runtimePath) as MlxTtsRuntime
+    runtime ??= (await import(
+      pathToFileURL(createRequire(`${appPath}/`).resolve('@cherrystudio/mlx-tts')).href
+    )) as typeof MlxTtsRuntime
     const model = await runtime.loadTtsModel(modelDir)
     cached = { modelDir, model }
     return model

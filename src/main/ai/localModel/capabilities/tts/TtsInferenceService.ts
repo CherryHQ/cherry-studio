@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { LocalModelBundleId } from '@shared/data/presets/localModel'
@@ -13,7 +14,10 @@ export const ttsInferenceProcess = defineUtilityProcess<TtsInferenceContract, Tt
   cancellation: 'terminate',
   idleTimeoutMs: 60_000,
   createEnv: () => ({ TTS_MLX_CACHE_LIMIT: '2' }),
-  createInitData: () => ({ runtimePath: localModelStorageService.artifactPath('mlx-node') })
+  createInitData: () => ({
+    appPath: application.getPath('app.root'),
+    bindingPath: localModelStorageService.artifactPath('mlx-node')
+  })
 })
 
 @Injectable('TtsInferenceService')

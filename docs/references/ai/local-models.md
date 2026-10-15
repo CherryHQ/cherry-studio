@@ -10,7 +10,7 @@ sources:
 
 # Local Models
 
-Cherry Studio can run three model capabilities on the user's own machine: knowledge-base
+Cherry Studio can run four model capabilities on the user's own machine: knowledge-base
 embedding, PaddleOCR text recognition, FunASR Nano speech recognition, and Qwen3-TTS. Their model
 bundles and required native runtimes are fetched on demand rather than shipped in the installer.
 
@@ -342,7 +342,21 @@ rather than on a user's machine.
 
 The initial package is CustomVoice 0.6B, affine 8-bit/group-size 64, with the dense speech
 codec. The mlx-node commit, model revision, archive and every model-file digest are pinned in
-`catalog/mlxNodeRelease.json`. See [runtime packaging](../../../scripts/local-voice-runtime/README.md).
+`catalog/mlxNodeRelease.json`. The JavaScript API is an application dependency,
+`@cherrystudio/mlx-tts`, pinned to a commit in the
+[CherryHQ/mlx-node fork](https://github.com/CherryHQ/mlx-node/tree/cherry/tts-package/distribution).
+The fork owns package generation; Cherry Studio does not compile MLX or repackage its API.
+The package includes the upstream NAPI-RS loader, but no native binaries or model weights.
+The utility process resolves it from the application root and sets
+`NAPI_RS_NATIVE_LIBRARY_PATH` before loading a model.
+
+Native files and model weights remain separate downloads managed by `LocalModelService`.
+The native artifact contains the `.node` entry, Metal libraries and license files. Acquisition
+extracts only these files; it never installs or executes the archive's legacy `runtime.cjs`.
+Until a replacement native archive is reviewed and published in the fork, the catalog retains
+the existing immutable Cherry Studio artifact URL and digest. This avoids making installation
+depend on an unpublished draft release. An existing native installation remains reusable.
+
 It currently requires Apple Silicon and macOS 26.2+. Unsupported targets keep existing speech
 providers; Sherpa 1.13.6 does not implement Qwen3-TTS.
 

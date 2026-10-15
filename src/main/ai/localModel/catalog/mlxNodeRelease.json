@@ -6,8 +6,8 @@
   "runtime": {
     "asset": "mlx-node-darwin-arm64.tgz",
     "sha256": "fd7dce237f3f34dcd407a9ef6d765ca46a5a9e03f394595ca418f61440b97d0d",
-    "entryFile": "runtime.cjs",
-    "supportFiles": ["mlx-core.darwin-arm64.node", "mlx.metallib", "paged_attn.metallib", "LICENSE", "MLX-LICENSE"]
+    "entryFile": "mlx-core.darwin-arm64.node",
+    "supportFiles": ["mlx.metallib", "paged_attn.metallib", "LICENSE", "MLX-LICENSE"]
   },
   "model": {
     "id": "qwen3-tts-0.6b-customvoice-8bit",
