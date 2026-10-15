@@ -119,10 +119,10 @@ type SubagentOutcome =
 
 `awaiting_approval` 是临时状态，不写快照。
 
-**从父 transcript 恢复子代理表**（父会话重建、`session_start` 时）：每个 `sessionId` 取最后一条 `cherry.subagent-state`：
+**从父 transcript 恢复子代理表**（父会话重建、`session_start` 时）：每个 `sessionId` 的状态取最后一条 `cherry.subagent-state`；未送达的结果按 `(sessionId, run)` 逐次运行判断：
 
-- 还是"开始运行"，说明已经没有活着的运行，按 `interrupted` 处理（应用退出和崩溃都一样）。
-- 已结束且没有任何 `cherry.subagent-notification` 的 `details` 记录过它的 `(sessionId, run)`，就是"未送达"。
+- 一次运行的最后一条快照还是"开始运行"，说明已经没有活着的运行，按 `interrupted` 处理（应用退出和崩溃都一样）。
+- 一次运行已结束且没有任何 `cherry.subagent-notification` 的 `details` 记录过它的 `(sessionId, run)`，就是"未送达"，不论它是不是最近一次运行：运行 1 在父会话忙时结束、通知送达前就被续接成运行 2，重建后运行 1 的结果也要送达。
 - 一直在前台、从未续接的子代理没有快照：它的存在由 `subagent` 工具结果的 `details.sessionId` 证明，`description`、`fork`、`model` 取自那次调用的参数，`modelKey` 缺省时取父会话当时的模型（transcript 里 assistant 消息的 `modelKey`）。
 
 "送达"不另写快照：通知消息本身就是送达的记录，`(sessionId, run)` 是去重键。
@@ -585,3 +585,4 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 2026-10-15，按 PR #21693 的评审修订：
 
 12. 9：用户停止的运行在收尾期间又被 `stop_subagent` 或预算停止时，停止来源仍记为用户，运行结束后不能续接。
+13. 4.3：重建时未送达的结果按 `(sessionId, run)` 逐次运行恢复，不再只看每个子代理的最后一条快照。
