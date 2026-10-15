@@ -1556,6 +1556,7 @@ export class AiStreamManager extends BaseService {
     const result: StreamErrorResult = {
       error,
       finalMessage,
+      userMessageId: exec.userMessageId,
       status: 'error',
       modelId: exec.modelId,
       attemptId: exec.attemptId,
@@ -1614,6 +1615,7 @@ export class AiStreamManager extends BaseService {
       status: 'error',
       modelId,
       attemptId: exec?.attemptId,
+      userMessageId: exec?.userMessageId,
       ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
       anchorMessageId: exec?.anchorMessageId,
       isTopicDone
@@ -1944,6 +1946,10 @@ export class AiStreamManager extends BaseService {
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
+      userMessageId:
+        request.runtime?.kind === 'agent-session'
+          ? request.messages?.findLast((message) => message.role === 'user')?.id
+          : undefined,
       attemptId: ++this.nextExecutionAttemptSequence,
       anchorMessageId: request.messageId,
       seedFromEmpty,
@@ -2110,6 +2116,7 @@ export class AiStreamManager extends BaseService {
   private async broadcastExecutionDone(stream: ActiveStream, exec: StreamExecution, isTopicDone = true): Promise<void> {
     const result: StreamDoneResult = {
       finalMessage: exec.finalMessage,
+      userMessageId: exec.userMessageId,
       status: 'success',
       modelId: exec.modelId,
       attemptId: exec.attemptId,
@@ -2132,6 +2139,7 @@ export class AiStreamManager extends BaseService {
     const result = {
       finalMessage: exec.finalMessage,
       status: 'paused' as const,
+      userMessageId: exec.userMessageId,
       modelId: exec.modelId,
       attemptId: exec.attemptId,
       ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),

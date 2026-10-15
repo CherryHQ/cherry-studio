@@ -21,7 +21,7 @@ import {
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -189,7 +189,7 @@ function buildUsageModels(
     {
       apiModelId: string
       modelName: string | null
-      pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
+      pricingSnapshot: ReturnType<typeof createAiUsageCaptureContext>['pricingSnapshot']
       aliases: Set<string>
     }
   >()
@@ -197,7 +197,13 @@ function buildUsageModels(
     const current = byModelId.get(ref.modelId) ?? {
       apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
-      pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
+      pricingSnapshot: createAiUsageCaptureContext({
+        providerId: ref.providerId,
+        modelId: ref.modelId,
+        pricing: ref.model?.pricing,
+        billing: ref.provider?.settings?.billing,
+        invocationStartedAt: null
+      }).pricingSnapshot,
       aliases: new Set<string>()
     }
     current.aliases.add(sdkModelId)
@@ -400,6 +406,7 @@ async function deriveConnectionConfigFromSnapshot(
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName: agent.modelName || null,
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),

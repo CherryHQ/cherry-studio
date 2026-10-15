@@ -39,11 +39,11 @@ function getModelSearchScore(keywords: string, model: Model, provider: Provider,
     { value: model.name, weight: 0, allowAbbreviation: true },
     { value: model.apiModelId, weight: 1, allowAbbreviation: true },
     { value: model.id, weight: 1, allowAbbreviation: true },
-    { value: provider.name, weight: 2, allowAbbreviation: false },
+    { value: provider.name, weight: 2, allowAbbreviation: false, allowPinyin: true },
     { value: provider.id, weight: 2, allowAbbreviation: false },
     { value: provider.presetProviderId, weight: 2, allowAbbreviation: false },
     // UI 展示的 provider 名（内置 provider 走 i18n 翻译），确保用户按界面上看到的名字搜索能命中
-    { value: providerDisplayName, weight: 2, allowAbbreviation: false }
+    { value: providerDisplayName, weight: 2, allowAbbreviation: false, allowPinyin: true }
   ])
 }
 
@@ -87,6 +87,7 @@ export function useModelSelectorData({
   maxSelectedCount,
   searchText,
   filter,
+  visibilityFilter,
   showTagFilter = true,
   showPinnedModels = true,
   prioritizedProviderIds = []
@@ -163,10 +164,12 @@ export function useModelSelectorData({
 
     return MODEL_SELECTOR_TAGS.filter((tag) =>
       sortedProviders.some((provider) =>
-        (modelsByProvider.get(provider.id) ?? []).some((model) => modelMatchesDisplayTag(model, tag, provider))
+        (modelsByProvider.get(provider.id) ?? []).some(
+          (model) => (visibilityFilter?.(model, provider) ?? true) && modelMatchesDisplayTag(model, tag, provider)
+        )
       )
     )
-  }, [modelsByProvider, sortedProviders])
+  }, [modelsByProvider, sortedProviders, visibilityFilter])
 
   const selectableModelsById = useMemo(() => {
     const entries = [...modelsByProvider.values()].flat().map((model) => [model.id, model] as const)
@@ -202,7 +205,9 @@ export function useModelSelectorData({
 
   const searchFilter = useCallback(
     (provider: Provider) => {
-      const providerModels = modelsByProvider.get(provider.id) ?? []
+      const providerModels = (modelsByProvider.get(provider.id) ?? []).filter(
+        (model) => visibilityFilter?.(model, provider) ?? true
+      )
 
       if (searchText.trim()) {
         const providerDisplayName = getProviderDisplayName(provider)
@@ -217,7 +222,7 @@ export function useModelSelectorData({
 
       return sortModels(providerModels)
     },
-    [modelsByProvider, searchText]
+    [modelsByProvider, searchText, visibilityFilter]
   )
 
   const createModelItem = useCallback(
@@ -251,7 +256,11 @@ export function useModelSelectorData({
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
     const finalModelFilter = (model: Model) => {
       const provider = providerById.get(model.providerId)
-      return (!showTagFilter || tagFilter(model, provider)) && baseModelFilter(model, provider)
+      return (
+        (!showTagFilter || tagFilter(model, provider)) &&
+        baseModelFilter(model, provider) &&
+        (visibilityFilter?.(model, provider) ?? true)
+      )
     }
     // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
     // result so display-group duplicate-name detection and the list below share one pass.
@@ -356,7 +365,8 @@ export function useModelSelectorData({
     showPinnedModels,
     showTagFilter,
     sortedProviders,
-    tagFilter
+    tagFilter,
+    visibilityFilter
   ])
 
   return {

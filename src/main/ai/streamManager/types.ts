@@ -42,6 +42,7 @@ export interface TransportTimings {
 // ── Stream terminal results ─────────────────────────────────────────
 
 interface TerminalOutcome {
+  userMessageId?: string
   persistence?: { status: 'saved'; message: PersistedAssistant } | { status: 'failed'; failure: ExecutionFailure }
 }
 
@@ -110,6 +111,8 @@ export interface StreamListener {
  * running independently against the same listeners and siblingsGroupId.
  */
 export interface StreamExecution {
+  /** Agent input identity survives a queued turn receiving a new execution attempt. */
+  userMessageId?: string
   /** Format: "providerId::modelId". */
   modelId: UniqueModelId
   /** Unique identity for this run, even when modelId and anchorMessageId are reused by retry. Monotonic within the Main-process lifetime; newer attempts have larger values. */

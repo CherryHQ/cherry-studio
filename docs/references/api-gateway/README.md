@@ -1,7 +1,9 @@
 ---
-description: Local HTTP gateway for OpenAI, Anthropic, Gemini, Cherry REST, and MCP-compatible clients
+description: API gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference
 sources:
   - src/main/features/apiGateway
+  - src/main/ai/runtime/agentApiGateway.ts
+  - src/main/services/PdfTranslationService.ts
   - src/renderer/hooks/useApiGateway.ts
   - src/renderer/pages/settings/ToolSettings/ApiGatewaySettings
   - src/renderer/pages/settings/DeviceConnectionsSettings
@@ -26,6 +28,63 @@ knowledge, and MCP routes call their owning services directly.
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
 > `feature.api_gateway.*`. The retired `csaas` alias is not part of the current
 > surface.
+
+## Decide whether you need the gateway
+
+The gateway lets other programs use the providers, models, knowledge bases, and
+MCP servers configured in Cherry Studio. It also bridges models for some Agent
+runtimes and PDF translation. Ordinary chats in Cherry Studio do not require you
+to enable it. It is disabled by default.
+
+| Use case | When the gateway is needed |
+|---|---|
+| Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
+| An Agent needs a model bridge | Cherry Studio shows **Enable the API Gateway?** when the selected runtime/model route requires it. Choose **Enable** to use that route, or leave it disabled and choose a route that can connect directly. |
+| PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
+| A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
+
+### Start the gateway for a client
+
+1. Configure a working provider and model in **Settings → Model Provider** for
+   model requests. Keep Cherry Studio running while the client uses the gateway.
+2. Open **Settings → API Gateway**. While stopped, choose an available port
+   between `1000` and `65535` if the default `23333` is already in use.
+3. Click **Start** and wait for **Running**. Cherry Studio generates a gateway
+   API key on first activation.
+4. Copy the server URL and API key from this page into the client. For an
+   OpenAI-compatible client, the default base URL is `http://127.0.0.1:23333/v1`;
+   use the displayed port if you changed it. This is the gateway's key, separate
+   from the upstream provider's credentials.
+5. Select a model from the gateway's model list. Its ID includes the provider,
+   such as `anthropic:claude-sonnet-4-6`; see the [HTTP surface](#http-surface) for
+   each protocol's endpoints and authentication.
+
+Local API clients do not need **Allow network access**. That control is for paired
+remote devices; it does not expose the ordinary HTTP APIs to the LAN.
+
+### Stop the gateway and automatic startup
+
+Open **Settings → API Gateway** and click **Stop**. This clears the saved
+startup setting, disables network access, and closes remote-device sessions.
+Gateway-dependent clients and Agent routes need the gateway again before they can
+be used. Ordinary chats can continue without it.
+
+An active PDF translation can keep the local gateway running after **Stop**;
+the notification explains that shutdown is deferred. Let the translation finish
+or cancel it. Once the last task releases the gateway, it stops unless you have
+chosen **Start** or **Enable** again. **Restart** is unavailable during these
+temporary tasks.
+
+### Understand why it starts automatically
+
+- Clicking **Start**, or accepting an Agent's **Enable the API Gateway?** prompt,
+  saves the enabled setting. The gateway then starts on future Cherry Studio
+  launches until you click **Stop**.
+- PDF translation uses the gateway temporarily without changing that saved
+  setting. If it was disabled, it stops again after the last translation task;
+  if you had enabled it, it stays running.
+- Upgrading from v1 preserves a previously enabled API Server setting. Check
+  **Settings → API Gateway** and click **Stop** if you no longer use it.
 
 ## Where the code lives
 
@@ -350,7 +409,7 @@ pending claims in every settings window.
 |---|---|---|---|
 | `feature.api_gateway.enabled` | `boolean` | `false` | Auto-start on launch / toggled from settings |
 | `feature.api_gateway.host` | `string` | `'127.0.0.1'` | `0.0.0.0` enables remote access on the shared listener; other values disable it |
-| `feature.api_gateway.port` | `number` | `23333` | Local TCP port (UI clamps 1000–65535); LAN uses an OS-assigned port |
+| `feature.api_gateway.port` | `number` | `23333` | TCP port shared by local and LAN listeners; UI accepts 1000–65535 |
 | `feature.api_gateway.api_key` | `string \| null` | `null` | Auto-generated `cs-sk-<uuid>` on first activate |
 
 Migrated from v1 `redux/settings/apiServer.{enabled,host,port,apiKey}` via the

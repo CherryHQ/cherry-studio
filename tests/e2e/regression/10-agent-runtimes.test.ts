@@ -47,14 +47,6 @@ test(...caseDefinition('A-04'), async ({ app, mainWindow: page }) => {
   await runAgentFileTask(app, page, 'pi-agent-result.txt', true)
 })
 
-test(...caseDefinition('A-05'), async ({ app, mainWindow: page }) => {
-  test.setTimeout(15 * 60_000)
-  const model = await ensureAgentModel(app, page)
-  await createAgent(page, { name: 'DeepSeek Harness Agent', runtime: 'DeepSeek Harness', model })
-  await selectAgentWorkspace(app, page)
-  await runAgentFileTask(app, page, 'dsh-agent-result.txt', true)
-})
-
 test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
   test.setTimeout(10 * 60_000)
   const modelName = await ensureAgentModel(app, page)

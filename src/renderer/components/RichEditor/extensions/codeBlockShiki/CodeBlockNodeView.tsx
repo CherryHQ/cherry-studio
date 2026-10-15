@@ -1,10 +1,10 @@
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
 import { Code, Copy, Eye } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
+import { Button, Combobox, Tooltip } from '@cherrystudio/ui'
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from '@renderer/components/CodeBlockView/constants'
 import { DEFAULT_LANGUAGES, getHighlighter, getShiki } from '@renderer/utils/shiki'
 
@@ -43,12 +43,17 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
     void loadLanguageOptions()
   }, [])
 
+  const options = useMemo(() => languageOptions.map((value) => ({ value, label: value })), [languageOptions])
+
   // Handle language change
   const handleLanguageChange = useCallback(
-    (value: string) => {
-      updateAttributes({ language: value })
+    (value: string | string[]) => {
+      if (typeof value === 'string') {
+        editor.view.focus()
+        updateAttributes({ language: value })
+      }
     },
-    [updateAttributes]
+    [editor, updateAttributes]
   )
 
   // Handle copy code block content
@@ -77,7 +82,12 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           <div className="flex items-center gap-1">
             {isEditable && (
               <Tooltip content={t('common.edit')}>
-                <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleToggleView}>
+                <Button
+                  aria-label={t('common.edit')}
+                  size="icon-sm"
+                  variant="ghost"
+                  className="code-block-copy-btn"
+                  onClick={handleToggleView}>
                   <Code size={14} />
                 </Button>
               </Tooltip>
@@ -104,18 +114,18 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
     return (
       <NodeViewWrapper className="code-block-wrapper">
         <div className="code-block-header">
-          <Select value={language} onValueChange={handleLanguageChange}>
-            <SelectTrigger size="sm" className="code-block-language-select min-w-[90px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {languageOptions.map((lang) => (
-                <SelectItem key={lang} value={lang}>
-                  {lang}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={language}
+            options={options}
+            onChange={handleLanguageChange}
+            size="sm"
+            className="code-block-language-select min-w-[90px]"
+            aria-label={t('common.language')}
+            searchPlaceholder={t('common.search')}
+            emptyText={t('common.no_results')}
+            filterOption={(option, search) => option.value.toLowerCase().includes(search.trim().toLowerCase())}
+            renderValue={() => language}
+          />
           <div className="flex items-center gap-1">
             <Tooltip content={t('common.preview')}>
               <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleToggleView}>
@@ -140,18 +150,18 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   return (
     <NodeViewWrapper className="code-block-wrapper">
       <div className="code-block-header">
-        <Select value={language} onValueChange={handleLanguageChange}>
-          <SelectTrigger size="sm" className="code-block-language-select min-w-[90px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {languageOptions.map((lang) => (
-              <SelectItem key={lang} value={lang}>
-                {lang}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          value={language}
+          options={options}
+          onChange={handleLanguageChange}
+          size="sm"
+          className="code-block-language-select min-w-[90px]"
+          aria-label={t('common.language')}
+          searchPlaceholder={t('common.search')}
+          emptyText={t('common.no_results')}
+          filterOption={(option, search) => option.value.toLowerCase().includes(search.trim().toLowerCase())}
+          renderValue={() => language}
+        />
         <Tooltip content={t('common.copy')}>
           <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleCopy}>
             <Copy size={14} />

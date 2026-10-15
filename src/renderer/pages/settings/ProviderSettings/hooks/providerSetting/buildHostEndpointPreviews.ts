@@ -1,5 +1,4 @@
-import { formatApiHost } from '@renderer/utils/api'
-import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
+import { formatApiHost, formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import {
@@ -54,11 +53,9 @@ export function buildHostEndpointPreviews(params: {
     if (primaryEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT) return `${formattedHost}/chat`
     if (provider.id === 'gateway') return `${formattedHost}/language-model`
     if (isAzureOpenAIProvider(provider)) {
-      const version = provider.settings?.apiVersion || ''
-      const path = !['preview', 'v1'].includes(version)
-        ? '/v1/chat/completions?apiVersion=v1'
-        : '/v1/responses?apiVersion=v1'
-      return `${formattedHost}${path}`
+      const version = provider.settings?.apiVersion?.trim() || ''
+      const path = primaryEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ? '/v1/responses' : '/v1/chat/completions'
+      return `${formattedHost}${path}?apiVersion=${version || 'v1'}`
     }
     if (primaryEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) return `${formattedHost}/chat/completions`
     if (primaryEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) return `${formattedHost}/responses`
