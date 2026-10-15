@@ -13,6 +13,7 @@ import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 import { appleSpeechDefinition, appleTranscriptionDefinition } from './localAdapters/apple'
 import { funAsrTranscriptionDefinition } from './localAdapters/funasr'
+import { kokoroSpeechDefinition } from './localAdapters/kokoroTts'
 import { qwen3SpeechDefinition } from './localAdapters/qwen3Tts'
 import { windowsSpeechDefinition, windowsTranscriptionDefinition } from './localAdapters/windows'
 import type { LocalVoiceStatus, SpeechModelDefinition, TranscriptionModelDefinition } from './voiceModelTypes'
@@ -35,7 +36,8 @@ const transcriptionDefinitions: readonly TranscriptionModelDefinition[] = [
 const speechDefinitions: readonly SpeechModelDefinition[] = [
   appleSpeechDefinition,
   windowsSpeechDefinition,
-  qwen3SpeechDefinition
+  qwen3SpeechDefinition,
+  kokoroSpeechDefinition
 ]
 const definitions = [...transcriptionDefinitions, ...speechDefinitions]
 

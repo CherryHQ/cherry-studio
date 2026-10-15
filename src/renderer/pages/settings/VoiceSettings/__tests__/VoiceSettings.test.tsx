@@ -16,6 +16,9 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   QWEN3_TTS_MODEL_ID,
+  QWEN3_TTS_BUNDLE_ID,
+  KOKORO_TTS_MODEL_ID,
+  KOKORO_TTS_BUNDLE_ID,
   VoiceResourceOperation
 } from '@shared/ai/localVoice'
 import {
@@ -964,6 +967,57 @@ describe('VoiceSettings', () => {
     await act(async () => pending.resolve({ modelId: APPLE_TTS_MODEL_ID, voice: 'old', status: { status: 'ready' } }))
     await screen.findByText('The selected system voice is unavailable.')
     expect(screen.getByRole('button', { name: 'Preview voice' })).toBeDisabled()
+  })
+
+  it.each([
+    [QWEN3_TTS_MODEL_ID, QWEN3_TTS_BUNDLE_ID, /Qwen3-TTS.*Download/, false],
+    [KOKORO_TTS_MODEL_ID, KOKORO_TTS_BUNDLE_ID, /Kokoro.*Download/, false],
+    [KOKORO_TTS_MODEL_ID, KOKORO_TTS_BUNDLE_ID, /Kokoro.*Download/, true]
+  ] as const)(
+    'opens the download card for %s without changing the selected model',
+    async (modelId, bundleId, label, onlySpeechModel) => {
+      voice.listModels.mockResolvedValue({
+        models: [
+          ...(onlySpeechModel ? [] : models),
+          { id: modelId, localeSelection: null, resourceOperations: [VoiceResourceOperation.Download] }
+        ]
+      })
+      voice.getModelStatus.mockResolvedValue({ status: 'not_installed', reason: 'model_required' })
+      render(<VoiceSettings />)
+      const user = userEvent.setup()
+      await user.click(await screen.findByRole('combobox', { name: 'Speech model' }))
+      await user.click(await screen.findByRole('option', { name: label }))
+      expect(navigate).toHaveBeenCalledWith({ to: '/settings/local-models', hash: bundleId })
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.model_id')).toBeNull()
+    }
+  )
+
+  it('refreshes Kokoro availability when its download completes', async () => {
+    voice.listModels.mockResolvedValue({
+      models: [
+        ...models,
+        { id: KOKORO_TTS_MODEL_ID, localeSelection: null, resourceOperations: [VoiceResourceOperation.Download] }
+      ]
+    })
+    voice.getModelStatus.mockImplementation(async ({ modelId }) => ({
+      status:
+        modelId !== KOKORO_TTS_MODEL_ID ||
+        cacheService.getSharedSnapshot(LOCAL_MODEL_STATUS_CACHE_KEY)?.[KOKORO_TTS_BUNDLE_ID]?.status === 'ready'
+          ? 'ready'
+          : 'not_installed'
+    }))
+    render(<VoiceSettings />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('combobox', { name: 'Speech model' }))
+    await screen.findByRole('option', { name: /Kokoro.*Download/ })
+    act(() =>
+      cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, {
+        [KOKORO_TTS_BUNDLE_ID]: { status: 'ready', percent: 100 }
+      })
+    )
+    const option = await screen.findByRole('option', { name: 'Kokoro v1.1 (Chinese + English)' })
+    await user.click(option)
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.model_id')).toBe(KOKORO_TTS_MODEL_ID)
   })
 
   it('keeps a multilingual voice selected when changing synthesis language', async () => {

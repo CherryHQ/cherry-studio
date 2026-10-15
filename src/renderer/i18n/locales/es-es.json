@@ -5812,6 +5812,7 @@
   "settings.voice.model.apple_asr": "Reconocimiento de voz del sistema Apple",
   "settings.voice.model.apple_tts": "Voz del sistema Apple",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.kokoro_tts": "Kokoro v1.1 (chino + inglés)",
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Reconocimiento de voz del sistema Windows",
   "settings.voice.model.windows_tts": "Voz del sistema Windows",

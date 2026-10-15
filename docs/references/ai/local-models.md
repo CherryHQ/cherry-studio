@@ -11,7 +11,7 @@ sources:
 # Local Models
 
 Cherry Studio can run four model capabilities on the user's own machine: knowledge-base
-embedding, PaddleOCR text recognition, FunASR Nano speech recognition, and Qwen3-TTS. Their model
+embedding, PaddleOCR text recognition, FunASR Nano speech recognition, and speech synthesis with Qwen3-TTS or Kokoro. Their model
 bundles and required native runtimes are fetched on demand rather than shipped in the installer.
 
 One module owns the whole path: what can be installed, how bytes get onto disk safely,
@@ -102,7 +102,7 @@ names its runtime artifacts directly; it does not resolve them through a default
 ### Shared artifacts
 
 A **shared artifact** is a pinned native runtime. Embedding and OCR use
-`onnxruntime-node`; ASR uses `sherpa-onnx`; Qwen3-TTS uses a Cherry-distributed mlx-node archive. Bundles declare what they need in `requires`, and
+`onnxruntime-node`; ASR and Kokoro use `sherpa-onnx`; Qwen3-TTS uses a Cherry-distributed mlx-node archive. Bundles declare what they need in `requires`, and
 that declaration is what makes the runtime removable: it outlives a bundle exactly as long
 as another *installed* bundle still requires it.
 
@@ -283,8 +283,23 @@ provider that failed once will fail again on the next cache miss, and re-discove
 per request would pay the fallback cost every time. If CPU fails too, the error names both
 failures, since "CoreML crashed" and "the model is corrupt" need different fixes.
 
-This fallback applies to embedding and OCR. FunASR is CPU-only and does not consult the
+This fallback applies to embedding and OCR. FunASR and Kokoro are CPU-only and do not consult the
 hardware-acceleration preference.
+
+### Kokoro Chinese-English speech
+
+The `kokoro-multi-lang-v1.1` bundle pins the full-precision ONNX weights, all 103 voices,
+Chinese normalization rules, both Chinese and English lexicons, and the English eSpeak
+data needed for words absent from the lexicon. Every file is checksummed and fetched from
+an immutable Hugging Face revision, with hf-mirror as a fallback. The native runtime is
+shared with FunASR; removing either model retains it while the other is installed.
+
+Kokoro runs through `inference.tts` on macOS arm64/x64, Linux arm64/x64 and Windows x64.
+The shared Sherpa artifact does not provide Windows ARM64 binaries. The worker loads both
+lexicons together and leaves the language override unset so a single request can contain
+Chinese and English. Language preferences select a default voice; they do not split mixed
+text into separate synthesis requests. The existing host stops the process before changing
+model bundles, on cancellation, or before removing resident model files.
 
 ## Management plane
 

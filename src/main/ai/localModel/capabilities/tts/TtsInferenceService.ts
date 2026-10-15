@@ -16,7 +16,8 @@ export const ttsInferenceProcess = defineUtilityProcess<TtsInferenceContract, Tt
   createEnv: () => ({ TTS_MLX_CACHE_LIMIT: '2' }),
   createInitData: () => ({
     appPath: application.getPath('app.root'),
-    bindingPath: localModelStorageService.artifactPath('mlx-node')
+    bindingPath: localModelStorageService.artifactPath('mlx-node'),
+    sherpaBindingPath: localModelStorageService.artifactPath('sherpa-onnx')
   })
 })
 
@@ -34,12 +35,13 @@ export class TtsInferenceService extends InferenceServiceBase<TtsInferenceContra
       'synthesize',
       () => {
         const bundle = getModelBundle(modelId)
-        if (bundle.capability !== 'tts' || !bundle.requires.includes('mlx-node'))
+        const architecture = bundle.runtime?.architecture
+        if (bundle.capability !== 'tts' || (architecture !== 'qwen3-tts' && architecture !== 'kokoro'))
           throw new Error('Unsupported speech model')
         const modelDir = localModelStorageService.resolveInstalledDir(bundle)
         if (!modelDir || !bundle.requires.every((id) => localModelStorageService.isArtifactReady(id)))
           throw new Error('The selected speech model is not fully downloaded')
-        return { ...input, modelDir }
+        return { ...input, modelDir, architecture }
       },
       { signal }
     )

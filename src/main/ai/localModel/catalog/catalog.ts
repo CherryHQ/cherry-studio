@@ -1,5 +1,6 @@
 import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } from '@shared/data/presets/localModel'
 
+import kokoroRelease from './kokoro-v1.1.json'
 import mlxNodeRelease from './mlxNodeRelease.json'
 import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
@@ -176,6 +177,43 @@ export const SHARED_ARTIFACTS = {
 } as const satisfies Record<SharedArtifactId, SharedArtifact>
 
 export const LOCAL_MODEL_BUNDLES = {
+  'kokoro-multi-lang-v1.1': {
+    id: 'kokoro-multi-lang-v1.1',
+    capability: 'tts',
+    installDirKey: 'feature.tts.kokoro',
+    requires: ['sherpa-onnx'],
+    runtime: { architecture: 'kokoro' },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: `https://huggingface.co/${kokoroRelease.repo}/blob/${kokoroRelease.revision}/LICENSE`
+      },
+      upstream: {
+        url: 'https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh',
+        revision: '01e7505bd6a7a2ac4975463114c3a7650a9f7218'
+      },
+      conversion: {
+        url: `https://huggingface.co/${kokoroRelease.repo}`,
+        revision: kokoroRelease.revision,
+        license: {
+          spdx: 'Apache-2.0',
+          url: `https://huggingface.co/${kokoroRelease.repo}/blob/${kokoroRelease.revision}/LICENSE`
+        }
+      }
+    },
+    files: kokoroRelease.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(0.01, file.sizeBytes / 1_000_000),
+      sources: [
+        { source: 'huggingface', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath },
+        { source: 'hf-mirror', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath }
+      ]
+    }))
+  },
   'qwen3-tts-0.6b-customvoice-8bit': {
     id: 'qwen3-tts-0.6b-customvoice-8bit',
     capability: 'tts',

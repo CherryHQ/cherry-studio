@@ -5812,6 +5812,7 @@
   "settings.voice.model.apple_asr": "Αναγνώριση ομιλίας συστήματος Apple",
   "settings.voice.model.apple_tts": "Ομιλία συστήματος Apple",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.kokoro_tts": "Kokoro v1.1 (Κινεζικά + Αγγλικά)",
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Αναγνώριση ομιλίας συστήματος Windows",
   "settings.voice.model.windows_tts": "Ομιλία συστήματος Windows",

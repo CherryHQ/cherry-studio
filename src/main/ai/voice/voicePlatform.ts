@@ -5,6 +5,8 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   FUNASR_SUPPORTED_PLATFORM_KEYS,
+  KOKORO_TTS_MODEL_ID,
+  SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS,
   WINDOWS_TTS_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
   type LocalSpeechModelId,
@@ -77,6 +79,8 @@ export function resolveDefaultSpeechModel(platform: {
     platform.majorVersion >= 13
   )
     return APPLE_TTS_MODEL_ID
+  if (SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS.some((key) => key === `${platform.platform}-${platform.arch}`))
+    return KOKORO_TTS_MODEL_ID
   return undefined
 }
 

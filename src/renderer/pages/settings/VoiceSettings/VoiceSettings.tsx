@@ -45,7 +45,8 @@ import {
   FUNASR_MODEL_ID,
   FUNASR_BUNDLE_ID,
   QWEN3_TTS_MODEL_ID,
-  QWEN3_TTS_BUNDLE_ID,
+  KOKORO_TTS_MODEL_ID,
+  DOWNLOADABLE_SPEECH_BUNDLES,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
   type LocalSpeechModelId,
@@ -107,6 +108,7 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
   [QWEN3_TTS_MODEL_ID]: 'settings.voice.model.qwen3_tts',
+  [KOKORO_TTS_MODEL_ID]: 'settings.voice.model.kokoro_tts',
   [FUNASR_MODEL_ID]: 'settings.voice.model.funasr',
   [WINDOWS_ASR_MODEL_ID]: 'settings.voice.model.windows_asr',
   [WINDOWS_TTS_MODEL_ID]: 'settings.voice.model.windows_tts'
@@ -222,9 +224,10 @@ function VoiceSettings() {
     [LOCAL_MODEL_STATUS_CACHE_KEY],
     ([snapshots]) => snapshots?.[FUNASR_BUNDLE_ID]?.status
   )
-  const ttsInstallationStatus = useSharedCacheSelector(
-    [LOCAL_MODEL_STATUS_CACHE_KEY],
-    ([snapshots]) => snapshots?.[QWEN3_TTS_BUNDLE_ID]?.status
+  const ttsInstallationStatus = useSharedCacheSelector([LOCAL_MODEL_STATUS_CACHE_KEY], ([snapshots]) =>
+    Object.values(DOWNLOADABLE_SPEECH_BUNDLES)
+      .map((id) => snapshots?.[id]?.status)
+      .join(',')
   )
   const [downloadableModelStatuses, setDownloadableModelStatuses] = useState<
     Partial<Record<LocalVoiceModelId, StatusState>>
@@ -1056,16 +1059,22 @@ function VoiceSettings() {
         <SettingDivider />
         <SettingRow id="setting-voice-speech-model" className="scroll-mt-6 flex-wrap gap-3">
           <SettingRowTitle>{t('settings.voice.speech.model')}</SettingRowTitle>
-          {speechModels.length === 1 && (!speechModel || speechModel === speechModels[0].id) ? (
+          {speechModels.length === 1 &&
+          (!speechModel || speechModel === speechModels[0].id) &&
+          !speechModels[0].resourceOperations.includes(VoiceResourceOperation.Download) ? (
             <span className="text-sm text-muted-foreground">{t(MODEL_LABEL_KEYS[speechModels[0].id])}</span>
           ) : (
             <Select
               value={speechModel || EMPTY_VALUE}
               onValueChange={(value) => {
                 if (value.startsWith(DOWNLOAD_MODEL_PREFIX)) {
-                  void navigate({ to: '/settings/local-models', hash: QWEN3_TTS_BUNDLE_ID }).catch(() =>
-                    setActionFailed(true)
-                  )
+                  const modelId = value.slice(DOWNLOAD_MODEL_PREFIX.length)
+                  if (modelId in DOWNLOADABLE_SPEECH_BUNDLES) {
+                    void navigate({
+                      to: '/settings/local-models',
+                      hash: DOWNLOADABLE_SPEECH_BUNDLES[modelId as keyof typeof DOWNLOADABLE_SPEECH_BUNDLES]
+                    }).catch(() => setActionFailed(true))
+                  }
                   return
                 }
                 savePreference(() => setSpeechPreferences({ modelId: value === EMPTY_VALUE ? '' : value, voiceId: '' }))
