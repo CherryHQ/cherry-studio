@@ -612,6 +612,19 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       // A round a command sent: its message_end comes after turn_start, before Pi persists it.
       else if (message.role === 'custom' && message.customType === GOAL_ROUND_TYPE)
         admit(message.details as RoundDetails)
+      // Counted as each request and tool result ends, so a stop the next tool call makes includes
+      // them; nothing after the stop counts.
+      else if (runtime.inGoalRound && runtime.goal?.phase === 'active') {
+        if (message.role === 'assistant') {
+          const { usage } = message
+          runtime.pendingUsage.tokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite
+          runtime.pendingUsage.usd += usage.cost.total
+        } else if (message.role === 'toolResult' && message.usage) {
+          // A tool's own usage (a subagent's requests) counts too: the host billed it, the budget has not seen it.
+          runtime.pendingUsage.tokens += message.usage.totalTokens
+          runtime.pendingUsage.usd += message.usage.cost.total
+        }
+      }
     })
 
     pi.on('tool_call', (event) => {
@@ -635,15 +648,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
 
     pi.on('turn_end', (event) => {
       if (!runtime.goal || !runtime.inGoalRound || event.message.role !== 'assistant') return
-      const { usage } = event.message
-      runtime.pendingUsage.tokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite
-      runtime.pendingUsage.usd += usage.cost.total
       for (const result of event.toolResults) {
-        // A tool's own usage (a subagent's requests) counts too: the host billed it, the budget has not seen it.
-        if (result.usage) {
-          runtime.pendingUsage.tokens += result.usage.totalTokens
-          runtime.pendingUsage.usd += result.usage.cost.total
-        }
         if (isProgressResult(result)) runtime.round.toolProgress = true
         // Stored sessions and thrown calls carry no `outcome`.
         if (

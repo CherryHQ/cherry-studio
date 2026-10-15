@@ -23,7 +23,7 @@ import {
   working
 } from './goalSupport'
 import { toolCallPart } from './subagentSupport'
-import { finish, lastAssistant, MODEL, scriptedModel, tempDir, textParts } from './support'
+import { finish, lastAssistant, MODEL, plain, scriptedModel, tempDir, textParts } from './support'
 import { textOf, toolResults } from './toolResults'
 
 describe('goal caps and budgets', () => {
@@ -686,6 +686,30 @@ describe('goal self-reports', () => {
     })
     // The verifier gets the session's conversation, round prompt included.
     expect(seen[0]).toContain('<goal_round>')
+  })
+
+  // Breaks when the request that stops the goal is left out of the stop's snapshot: a rebuilt session
+  // would resume a goal whose budget that request used up. The reply after the stop is not counted.
+  it('a stop counts the request that made it, so a rebuilt session cannot resume past the budget', async () => {
+    const cwd = tempDir('cwd')
+    const port = goalPort({
+      defaults: { budget: { tokens: 30 } },
+      verify: { verify: async () => ({ verdict: 'impossible', reason: 'the API is gone' }) }
+    })
+    const live = await goalSession([eachRound(() => ({ action: 'complete', evidence: 'done' }))], port, { cwd })
+    await promptIdle(live.session, '/goal Keep working')
+    // 17 tokens a request: get_goal's and update_goal's.
+    expect(live.calls).toHaveLength(3)
+    expect(lastSnapshot(live.host.entries)).toMatchObject({
+      phase: 'blocked',
+      tokensUsed: 34,
+      lastStop: { code: 'model_blocked' }
+    })
+
+    const rebuilt = await goalSession([working], port, { cwd, transcript: plain(live.host.entries) })
+    await promptIdle(rebuilt.session, '/goal resume')
+    expect(notices(rebuilt.host.entries).at(-1)).toBe('raise max_goal_rounds or the budget before resuming')
+    expect(rebuilt.calls).toHaveLength(0)
   })
 
   // Breaks when a verifier that throws lets the completion through.
