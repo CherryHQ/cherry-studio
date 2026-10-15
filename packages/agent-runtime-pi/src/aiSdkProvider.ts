@@ -39,6 +39,11 @@ export interface AiSdkProviderOptions<TRequestOptions = undefined> {
   requestOptions: TRequestOptions
   models: AiSdkModelSpec[]
   sideChannel?: ModelCallSideChannel
+  /**
+   * A tool call whose input is unusable (the AI SDK rejected it, or it is not a JSON object) reaches
+   * Pi with `{}` arguments. Pi must answer it with `error` instead of running the tool on them.
+   */
+  onInvalidToolCall?(toolCallId: string, error: string): void
 }
 
 type FinishStepPart = Extract<TextStreamPart<ToolSet>, { type: 'finish-step' }>
@@ -245,6 +250,12 @@ function streamModelCall<TRequestOptions>(
             // A repair may rename the call. Unparsable input stays raw text; replay `{}` as the AI SDK does.
             block.name = part.toolName
             block.arguments = isJsonObject(part.input) ? part.input : {}
+            if (part.invalid || !isJsonObject(part.input)) {
+              const error = part.invalid
+                ? errorMessageOf(part.error)
+                : `Invalid input for tool ${part.toolName}: must be a JSON object`
+              provider.onInvalidToolCall?.(part.toolCallId, error)
+            }
             block.thoughtSignature = encodeProviderMetadata(part.providerMetadata)
             stream.push({ type: 'toolcall_end', contentIndex: indexOf(block), toolCall: block, partial: output })
             break
