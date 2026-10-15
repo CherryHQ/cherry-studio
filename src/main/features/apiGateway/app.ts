@@ -43,8 +43,8 @@ const buildV1Routes = (mcpSessions: McpSessionStore) =>
     .use(bearer())
     .guard({
       as: 'scoped',
-      beforeHandle: ({ bearer, headers, set }) => {
-        const failure = authorizeApiRequest(headers['x-api-key'], bearer)
+      beforeHandle: ({ bearer, headers, set, request }) => {
+        const failure = authorizeApiRequest(headers['x-api-key'], bearer, undefined, request.headers)
         if (!failure) return undefined
         set.status = failure.status
         return { error: failure.error }

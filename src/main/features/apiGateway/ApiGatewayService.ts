@@ -354,10 +354,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return INTERNAL_GATEWAY_FEATURES.find((feature) => isValidToken(token, this.internalApiKeys[feature]))
   }
 
-  isInternalApiKey(token: string): boolean {
-    return this.internalFeatureForKey(token) !== undefined
-  }
-
   /** The internal feature whose key authenticated the request; undefined for external callers. */
   getInternalFeature(headers: Headers): InternalGatewayFeature | undefined {
     const token =
