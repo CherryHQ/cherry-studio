@@ -9,9 +9,11 @@ import {
   CherryTextMetaSchema,
   CherryToolMetaSchema,
   createClearContextPart,
+  createDismissedNoResponsePart,
   type DiagnosisResult,
   getKnowledgeBaseIdsFromParts,
   hasClearContextPart,
+  hasDismissedNoResponsePart,
   isBlankUserTurn,
   KnowledgeScopePartDataSchema,
   readCherryMeta,
@@ -162,6 +164,17 @@ describe('clear context parts', () => {
     expect(hasClearContextPart([{ type: 'text', text: 'before' }, part])).toBe(true)
     expect(hasClearContextPart([{ type: 'text', text: 'before' }])).toBe(false)
     expect(hasClearContextPart(undefined)).toBe(false)
+  })
+
+  it('keeps dismissal markers and context boundaries on separate part types', () => {
+    const dismissed = createDismissedNoResponsePart()
+
+    expect(dismissed).toEqual({ type: 'data-no-response-dismissed', data: {} })
+    expect(hasDismissedNoResponsePart([dismissed])).toBe(true)
+    // A context boundary is never a dismissal marker and vice versa — the
+    // dismissal must not ride the data-clear type or it stops truncating history.
+    expect(hasDismissedNoResponsePart([createClearContextPart()])).toBe(false)
+    expect(hasClearContextPart([dismissed])).toBe(false)
   })
 })
 

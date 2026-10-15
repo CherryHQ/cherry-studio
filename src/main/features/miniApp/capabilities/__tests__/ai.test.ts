@@ -356,6 +356,15 @@ describe('cherry.ai.chat — streaming', () => {
     drive.done()
     await call
   })
+
+  it('opts out of the empty-success error so a clean empty completion stays ok', async () => {
+    // The manager folds empty-but-successful turns into NoResponseError unless the
+    // caller opts out; this contract resolves `{ok:true}` whenever the stream ends.
+    const call = chat()
+    expect(lastCall().allowEmptySuccess).toBe(true)
+    drive.done()
+    await expect(call).resolves.toEqual({ ok: true })
+  })
 })
 
 describe('cherry.ai.chat — attribution', () => {

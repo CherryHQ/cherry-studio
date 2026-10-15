@@ -20,6 +20,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { hasSubstantiveAssistantParts } from '@shared/ai/messageRenderability'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -1482,6 +1483,13 @@ export class MessageService {
 
       const existing = rowToMessage(existingRow)
 
+      if (
+        dto.expectedParts !== undefined &&
+        JSON.stringify(existing.data.parts ?? []) !== JSON.stringify(dto.expectedParts)
+      ) {
+        throw DataApiErrorFactory.concurrentModification('Message', id)
+      }
+
       // Single-root guards (mirror createSibling/delete; the CHECK + unique index are the
       // structural backstop, these give clean errors):
       // - the virtual root cannot be reparented (it would lose its null parent → topic
@@ -1618,7 +1626,10 @@ export class MessageService {
       }
 
       const parts = row.data?.parts ?? []
-      if (row.status === 'pending' || (row.status !== 'error' && row.status !== 'paused' && parts.length > 0)) {
+      if (
+        row.status === 'pending' ||
+        (row.status !== 'error' && row.status !== 'paused' && hasSubstantiveAssistantParts(parts))
+      ) {
         throw DataApiErrorFactory.invalidOperation('retry message', 'the assistant message is not failed')
       }
 
