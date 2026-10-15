@@ -60,7 +60,9 @@ const {
   getMaterialByRelativePathMock,
   readMaterialContentMock,
   probeKnowledgeFileMock,
-  probeKnowledgeSourcePathMock
+  probeKnowledgeSourcePathMock,
+  externalKnowledgeRuntimeStartMock,
+  externalKnowledgeRuntimeStopMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -103,7 +105,9 @@ const {
   getMaterialByRelativePathMock: vi.fn(),
   readMaterialContentMock: vi.fn(),
   probeKnowledgeFileMock: vi.fn(),
-  probeKnowledgeSourcePathMock: vi.fn()
+  probeKnowledgeSourcePathMock: vi.fn(),
+  externalKnowledgeRuntimeStartMock: vi.fn(),
+  externalKnowledgeRuntimeStopMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -213,6 +217,13 @@ vi.mock('../pathStorage', async () => {
     probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
   }
 })
+
+vi.mock('../external/ExternalKnowledgeRuntime', () => ({
+  ExternalKnowledgeRuntime: class {
+    start = externalKnowledgeRuntimeStartMock
+    stop = externalKnowledgeRuntimeStopMock
+  }
+}))
 
 vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryPath: async () =>
@@ -425,6 +436,8 @@ describe('KnowledgeService', () => {
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
+    externalKnowledgeRuntimeStartMock.mockResolvedValue(undefined)
+    externalKnowledgeRuntimeStopMock.mockResolvedValue(undefined)
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
@@ -460,6 +473,16 @@ describe('KnowledgeService', () => {
     }
 
     expect(cancelManyMock).not.toHaveBeenCalled()
+  })
+
+  it('owns the External Knowledge runtime for its full service lifetime', async () => {
+    const service = new KnowledgeService()
+
+    await (service as unknown as { onReady: () => Promise<void> }).onReady()
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+
+    expect(externalKnowledgeRuntimeStartMock).toHaveBeenCalledOnce()
+    expect(externalKnowledgeRuntimeStopMock).toHaveBeenCalledOnce()
   })
 
   it('recovers deleting roots by enqueueing delete cleanup jobs after all services are ready', async () => {
