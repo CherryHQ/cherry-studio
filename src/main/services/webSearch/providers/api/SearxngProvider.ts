@@ -35,11 +35,24 @@ const SearxngConfigResponseSchema = z.object({
 })
 
 type SearxngSearchContext = UrlSearchContext
+type SearxngSearchItem = z.infer<typeof SearxngSearchResponseSchema>['results'][number]
 
 const logger = loggerService.withContext('SearxngProvider')
 
 function trimStringList(values: readonly string[]): string[] {
   return values.map((value) => value.trim()).filter(Boolean)
+}
+
+function toSnippetResult(item: SearxngSearchItem): WebSearchResult | undefined {
+  const url = item.url ?? ''
+  // Engines that carry no summary still emit `content: ''`, so pick the first non-empty field
+  // rather than the first present one.
+  const content = [item.content, item.snippet].map((value) => value?.trim() ?? '').find(Boolean) ?? ''
+  if (!content) {
+    return undefined
+  }
+
+  return { title: item.title || url, url, content, sourceInput: url }
 }
 
 export class SearxngProvider extends BaseWebSearchProvider {
@@ -160,7 +173,12 @@ export class SearxngProvider extends BaseWebSearchProvider {
 
     return fetchSearchResultContents(
       validItems.map((item) => item.url || ''),
-      { query: context.query, providerLabel: 'Searxng', signal: context.signal }
+      {
+        query: context.query,
+        providerLabel: 'Searxng',
+        signal: context.signal,
+        getFallbackResult: (_url, index) => toSnippetResult(validItems[index])
+      }
     )
   }
 
