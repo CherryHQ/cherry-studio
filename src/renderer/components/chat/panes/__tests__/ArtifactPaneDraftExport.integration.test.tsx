@@ -11,15 +11,19 @@ import type { FileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ArtifactPaneView } from '../ArtifactPane'
 import type { ArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
+// Opt out of the global UI stand-in so FileTree keeps the real TreeView.
+// CodeEditor is no longer what this pane mounts.
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
-  ...(await importOriginal<typeof CherryStudioUi>()),
-  CodeEditor: () => null
+  ...(await importOriginal<typeof CherryStudioUi>())
+}))
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: () => null
 }))
 vi.mock('@renderer/components/FilePreview', () => ({
   useOptionalOpenFilePreviewTab: () => undefined,
   FilePreview: () => null
 }))
-vi.mock('@renderer/hooks/useCodeStyle', () => ({ useCmTheme: () => null }))
+vi.mock('@renderer/hooks/useCodeStyle', () => ({ useCmTheme: () => 'light' }))
 // JSDOM has no layout; keep the real tree rows and menus while rendering every row.
 vi.mock('@renderer/components/VirtualList', () => ({
   DynamicVirtualList: ({
