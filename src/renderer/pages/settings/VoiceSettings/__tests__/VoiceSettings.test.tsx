@@ -987,6 +987,74 @@ describe('VoiceSettings', () => {
     expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Vivian')
   })
 
+  it.each([
+    {
+      modelId: APPLE_TTS_MODEL_ID,
+      id: 'japanese',
+      name: 'Japanese Voice',
+      language: 'ja-JP',
+      languages: ['ja-JP'],
+      compatible: false
+    },
+    {
+      modelId: QWEN3_TTS_MODEL_ID,
+      id: 'vivian',
+      name: 'Vivian',
+      language: 'zh-CN',
+      languages: ['zh-CN', 'en-US'],
+      compatible: true
+    }
+  ])(
+    'keeps $name when switching to follow-interface and validates English compatibility',
+    async ({ modelId, id, name, language, languages, compatible }) => {
+      MockUsePreferenceUtils.setMultiplePreferenceValues({
+        'feature.voice.speech.model_id': modelId,
+        'feature.voice.speech.voice_id': id,
+        'feature.voice.speech.language': language
+      })
+      voice.listModels.mockResolvedValue({
+        models: [
+          ...models,
+          { id: QWEN3_TTS_MODEL_ID, name: 'Qwen3-TTS', localeSelection: null, resourceOperations: [] }
+        ]
+      })
+      voice.listVoices.mockResolvedValue([{ id, name, language, languages }])
+      voice.resolveSpeech.mockImplementation(async (input) => ({
+        modelId,
+        voice: input.voice ?? id,
+        language: input.language,
+        speed: 1,
+        status:
+          input.voice === 'japanese' && input.language === 'en-US'
+            ? { status: 'not_installed', reason: 'voice_unavailable' }
+            : { status: 'ready' }
+      }))
+      const { rerender } = render(<VoiceSettings />)
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled())
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('combobox', { name: 'Speech language' }))
+      await user.click(screen.getByRole('option', { name: /Follow interface.*English/ }))
+      rerender(<VoiceSettings />)
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('')
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe(id)
+      expect(screen.getByRole('combobox', { name: 'Speech language' })).toHaveTextContent(/Follow interface.*English/)
+      expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent(name)
+      const preview = screen.getByRole('button', { name: 'Preview voice' })
+      if (compatible) {
+        await waitFor(() => expect(preview).toBeEnabled())
+        await user.click(preview)
+        expect(voice.speechStart).toHaveBeenCalledWith(
+          expect.objectContaining({
+            text: 'Hello, this is a preview of the voice used to read your responses.'
+          })
+        )
+      } else {
+        await waitFor(() => expect(preview).toBeDisabled())
+        expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent(/unavailable/i)
+      }
+    }
+  )
+
   it('keeps an incompatible explicit voice unavailable instead of silently substituting one', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.voice.speech.voice_id': 'voice.exact',

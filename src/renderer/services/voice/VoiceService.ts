@@ -213,8 +213,7 @@ export class VoiceService {
     }
     const voice = preferences.voice.trim()
     const language =
-      this.optionalLanguage(preferences.language) ??
-      (voice ? undefined : getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language))
+      this.optionalLanguage(preferences.language) ?? getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
     return {
       ...(modelId && { modelId: modelId as LocalSpeechModelId }),
       ...(voice && { voice }),

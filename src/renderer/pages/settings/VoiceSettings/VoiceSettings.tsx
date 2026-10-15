@@ -334,7 +334,7 @@ function VoiceSettings() {
   const defaultLanguage = getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
   const effectiveRecognitionLanguage = languageValue(recognitionLanguage) ?? defaultLanguage
   const selectedVoice = voices.find((voice) => voice.id === speechVoice)
-  const effectiveSpeechLanguage = languageValue(speechLanguage) ?? selectedVoice?.language ?? defaultLanguage
+  const effectiveSpeechLanguage = languageValue(speechLanguage) ?? defaultLanguage
   useLayoutEffect(() => {
     setPreviewLoading(false)
     return () => {
@@ -1116,7 +1116,7 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-speech-language" className="scroll-mt-6 flex-wrap gap-3">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <Select
-            value={languageValue(speechLanguage) ?? (speechVoice ? selectedVoice?.language : undefined) ?? EMPTY_VALUE}
+            value={languageValue(speechLanguage) ?? EMPTY_VALUE}
             onValueChange={(value) => {
               if (value === SYSTEM_SETTINGS_VALUE) {
                 openSystemVoiceSettings()
