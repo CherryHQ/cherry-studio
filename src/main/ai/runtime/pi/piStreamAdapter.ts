@@ -187,7 +187,9 @@ export class PiStreamAdapter {
       this.sink.enqueue({
         type: 'tool-output-error',
         toolCallId,
-        errorText: stringifyResult(result),
+        errorText: stringifyResult(
+          toolName.startsWith('mcp__automation__') ? projectPiToolOutput(toolName, result) : result
+        ),
         dynamic: true,
         providerExecuted: true,
         providerMetadata: toolProviderMetadata(toolName, this.resolveToolMetadata?.(toolName))

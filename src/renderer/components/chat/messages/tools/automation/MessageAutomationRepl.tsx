@@ -110,11 +110,6 @@ export const MessageAutomationRepl = memo(({ toolResponse }: { toolResponse: Too
           }
         ]}
       />
-      {hasError && (
-        <p className="line-clamp-2 whitespace-pre-wrap break-words text-xs text-error">
-          {output || t('message.tools.error')}
-        </p>
-      )}
     </div>
   )
 })

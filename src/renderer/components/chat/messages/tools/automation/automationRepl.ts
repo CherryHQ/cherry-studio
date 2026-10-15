@@ -12,9 +12,15 @@ export function getAutomationReplKind(tool: BaseTool | McpTool): 'execute' | 're
   return undefined
 }
 
-export function parseAutomationReplOutput(response: unknown) {
+export function parseAutomationReplOutput(response: unknown): { text: string; isError: boolean } {
   const parsed = CallToolResultSchema.safeParse(Array.isArray(response) ? { content: response } : response)
   if (!parsed.success) return { text: typeof response === 'string' ? response : '', isError: false }
+  const [only] = parsed.data.content
+  // Failed results arrive as one text block holding the serialized tool result.
+  if (parsed.data.isError && parsed.data.content.length === 1 && only.type === 'text') {
+    const inner = parseAutomationReplOutput(parseJson(only.text))
+    if (inner.text) return { text: inner.text, isError: true }
+  }
   return {
     text: parsed.data.content
       .flatMap((part) =>
@@ -53,5 +59,13 @@ export function formatAutomationReplOutput(text: string): string {
     return JSON.stringify(value, null, 2)
   } catch {
     return text
+  }
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
   }
 }
