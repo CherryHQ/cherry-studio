@@ -11,7 +11,10 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     PreferenceService: { get: mockPreferenceGet },
-    ApiGatewayService: { isInternalApiKey: (token: string) => token === 'internal-key' }
+    ApiGatewayService: {
+      getInternalFeature: (headers: Headers) =>
+        headers.get('authorization') === 'Bearer internal-key' ? ('agent' as const) : undefined
+    }
   } as never)
 })
 
@@ -55,10 +58,22 @@ describe('authorizeApiRequest', () => {
   })
 
   describe('Internal consumer key', () => {
-    it('authenticates an internal key even when no user API key is configured', () => {
+    it('authenticates an internal key from the headers even when no user API key is configured', () => {
       mockPreferenceGet.mockReturnValue(undefined)
-      expect(authorizeApiRequest(undefined, 'internal-key')).toBeUndefined()
-      expect(authorizeApiRequest(undefined, 'other-key')).toEqual({ status: 403, error: 'Forbidden' })
+      const headers = new Headers({ authorization: 'Bearer internal-key' })
+      expect(authorizeApiRequest(undefined, 'internal-key', undefined, headers)).toBeUndefined()
+      expect(authorizeApiRequest(undefined, 'other-key', undefined, new Headers())).toEqual({
+        status: 403,
+        error: 'Forbidden'
+      })
+    })
+
+    it('does not honour an internal key presented only in the query string', () => {
+      mockPreferenceGet.mockReturnValue('user-key')
+      expect(authorizeApiRequest(undefined, undefined, 'internal-key', new Headers())).toEqual({
+        status: 403,
+        error: 'Forbidden'
+      })
     })
   })
 
