@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "Γίνεται εγγραφή",
   "message.tools.agent_background": "Εκτέλεση στο παρασκήνιο",
   "message.tools.autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
+  "message.tools.automation.execute": "Εκτέλεση σεναρίου αυτοματισμού",
+  "message.tools.automation.reset": "Επαναφορά περιβάλλοντος αυτοματισμού",
   "message.tools.cancelled": "Ακυρώθηκε",
   "message.tools.collapse": "Σύμπτυξη",
   "message.tools.completed": "Ολοκληρώθηκε",

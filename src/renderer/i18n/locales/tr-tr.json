@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "Yazılıyor",
   "message.tools.agent_background": "Arka planda çalışıyor",
   "message.tools.autoApproveEnabled": "Bu araç için otomatik onay etkin",
+  "message.tools.automation.execute": "Otomasyon betiğini çalıştır",
+  "message.tools.automation.reset": "Otomasyon ortamını sıfırla",
   "message.tools.cancelled": "İptal edildi",
   "message.tools.collapse": "Daralt",
   "message.tools.completed": "Tamamlandı",

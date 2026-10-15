@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "書き込み中",
   "message.tools.agent_background": "バックグラウンドで実行中",
   "message.tools.autoApproveEnabled": "このツールは自動承認が有効になっています",
+  "message.tools.automation.execute": "自動操作スクリプトを実行",
+  "message.tools.automation.reset": "自動操作環境をリセット",
   "message.tools.cancelled": "キャンセル",
   "message.tools.collapse": "折りたたむ",
   "message.tools.completed": "完了",

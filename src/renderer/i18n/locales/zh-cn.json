@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "认真写入",
   "message.tools.agent_background": "后台运行中",
   "message.tools.autoApproveEnabled": "此工具已启用自动批准",
+  "message.tools.automation.execute": "运行自动化脚本",
+  "message.tools.automation.reset": "重置自动化环境",
   "message.tools.cancelled": "已取消",
   "message.tools.collapse": "收起",
   "message.tools.completed": "任务已顺利完成",

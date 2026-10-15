@@ -516,7 +516,7 @@ describe('PiRuntimeConnection', () => {
       const connection = await new PiRuntimeConnection(input).start()
       try {
         const authorize = approvalGateHandler()
-        for (const toolName of ['mcp__computer__open_app', 'mcp__computer__click', 'mcp__computer__type_text']) {
+        for (const toolName of ['mcp__automation__js', 'mcp__automation__reset']) {
           await expect(
             authorize({ type: 'tool_call', toolName, toolCallId: toolName, input: {} }, {})
           ).resolves.toBeUndefined()
@@ -2081,7 +2081,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        new Set(['cherry-tools', 'agent-memory', 'browser', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'agent-memory', 'automation', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,
@@ -2181,7 +2181,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
         agentSession,
         expect.objectContaining({ id: 'agent-1' }),
-        new Set(['cherry-tools', 'agent-memory', 'browser', 'skills', 'mcp-manager']),
+        new Set(['cherry-tools', 'agent-memory', 'automation', 'skills', 'mcp-manager']),
         expect.any(Map),
         null,
         AGENT_DATA_PATH,

@@ -6,6 +6,7 @@ import {
   type AppInfo,
   type AppSession,
   ComputerUse,
+  ComputerUseError,
   type ComputerUseClient,
   type ObserveInput,
   type PermissionStatus
@@ -58,14 +59,23 @@ interface ControlOwner {
 }
 
 export class ComputerUseControlError extends Error {
-  readonly effect = 'none'
-
-  constructor(readonly code: 'CONTROL_DISABLED' | 'USER_STOPPED' | 'APP_BUSY' | 'TASK_CLOSED' | 'UNKNOWN_APP_SESSION') {
+  constructor(
+    readonly code:
+      | 'CONTROL_DISABLED'
+      | 'USER_STOPPED'
+      | 'CLEANUP_UNCONFIRMED'
+      | 'APP_BUSY'
+      | 'TASK_CLOSED'
+      | 'UNKNOWN_APP_SESSION',
+    readonly effect: 'none' | 'possible' = 'none'
+  ) {
     super(
       {
         CONTROL_DISABLED: 'Desktop control is disabled in Computer Use settings.',
         USER_STOPPED:
-          'The user stopped desktop control. Do not retry or reopen it; only the user can allow it again from the tray.',
+          'The user stopped desktop control. Only the user can allow it again through Cherry Studio desktop controls. Do not retry or bypass the stop.',
+        CLEANUP_UNCONFIRMED:
+          'Desktop runtime cleanup could not be confirmed. Control remains blocked; this is not a user-stop decision. Do not retry, reset or rebind to bypass it.',
         APP_BUSY: 'Another control task owns this application. Do not bypass its ownership.',
         TASK_CLOSED: 'This control task has ended. Its application sessions and snapshots are no longer usable.',
         UNKNOWN_APP_SESSION: 'This application session does not belong to the current control task.'
@@ -108,7 +118,12 @@ export class ComputerUseService extends BaseService {
     return { apps, capabilities }
   }
 
-  async openApp(context: ComputerUseTask, appId: string, signal?: AbortSignal): Promise<AppSession> {
+  async openApp(
+    context: ComputerUseTask,
+    appId: string,
+    signal?: AbortSignal,
+    resolvedApp?: AppInfo
+  ): Promise<AppSession> {
     const task = this.getTask(context)
     this.assertAvailable(task, appId)
     const current = this.appOwners.get(appId)
@@ -116,7 +131,7 @@ export class ComputerUseService extends BaseService {
     let control = task.apps.get(appId)
     if (!control) {
       const pending = Promise.withResolvers<AppSession>()
-      control = { app: { id: appId, name: appId }, status: 'opening', session: pending.promise }
+      control = { app: resolvedApp ?? { id: appId, name: appId }, status: 'opening', session: pending.promise }
       task.apps.set(appId, control)
       this.appOwners.set(appId, task)
       this.changed.fire()
@@ -143,12 +158,82 @@ export class ComputerUseService extends BaseService {
     return session
   }
 
-  async getAppState(context: ComputerUseTask, input: ObserveInput, signal?: AbortSignal) {
+  async resolveApp(context: ComputerUseTask, query: string, signal?: AbortSignal, launch = true): Promise<AppSession> {
+    const task = this.getTask(context)
+    const client = await this.getClient(task)
+    this.assertAvailable(task)
+    const options = { signal: this.signal(task, signal) }
+    const apps = await client.listApps(options)
+    this.assertAvailable(task)
+    const matches = apps.filter((app) => app.id === query || app.name.toLocaleLowerCase() === query.toLocaleLowerCase())
+    if (matches.length > 1)
+      throw new ComputerUseError(
+        'TARGET_UNAVAILABLE',
+        'Application name is ambiguous; use an ID from computer.listApps().'
+      )
+    let app: AppInfo | undefined = matches[0]
+    let mayHaveLaunched = false
+    try {
+      if (!app) {
+        this.assertAvailable(task, query)
+        const blocked = this.owners.get(context.ownerId)?.blockedApps
+        if ([...(blocked?.values() ?? [])].some((app) => app.name.toLocaleLowerCase() === query.toLocaleLowerCase()))
+          throw new ComputerUseControlError('USER_STOPPED')
+        if (launch) {
+          const identity = await client.resolveAppIdentity({ query }, options)
+          this.assertAppAvailable(task, { id: identity.id, name: identity.name, identity: identity.id })
+          if ([...(blocked?.values() ?? [])].some((app) => !app.identity))
+            throw new ComputerUseControlError('USER_STOPPED')
+          options.signal.throwIfAborted()
+          const input = { query: identity.query, launch: true, expectedIdentity: identity.id }
+          app = await client.resolveApp(input, options)
+          mayHaveLaunched = true
+        } else {
+          app = await client.resolveApp({ query, launch: false }, options)
+        }
+      }
+      this.assertAppAvailable(task, app)
+      return await this.openApp(context, app.id, signal, app)
+    } catch (error) {
+      if (mayHaveLaunched && error instanceof ComputerUseControlError)
+        throw new ComputerUseControlError(error.code, 'possible')
+      if (mayHaveLaunched && error instanceof ComputerUseError)
+        throw new ComputerUseError(error.code, error.message, { effect: 'possible', cause: error })
+      throw error
+    }
+  }
+
+  private assertAppAvailable(task: ControlTask, app: AppInfo): void {
+    this.assertAvailable(task, app.id)
+    const matches = (other: AppInfo) =>
+      (app.identity !== undefined && app.identity === other.identity) ||
+      app.name.toLocaleLowerCase() === other.name.toLocaleLowerCase()
+    if ([...(this.owners.get(task.context.ownerId)?.blockedApps.values() ?? [])].some(matches))
+      throw new ComputerUseControlError('USER_STOPPED')
+    for (const other of this.tasks.values()) {
+      if (other !== task && [...other.apps.values()].some((control) => matches(control.app)))
+        throw new ComputerUseControlError('APP_BUSY')
+    }
+  }
+
+  async getAppState(
+    context: ComputerUseTask,
+    input: ObserveInput & { includeScreenshot?: boolean },
+    signal?: AbortSignal
+  ) {
     const task = this.getTask(context)
     const control = this.getApp(task, input.appSessionId)
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
-    return client.getAppState({ ...input, activation: 'never' }, { signal: this.signal(task, signal) })
+    const { includeScreenshot, ...observation } = input
+    return client.getAppState(
+      {
+        ...observation,
+        ...('perform' in client && includeScreenshot !== undefined ? { includeScreenshot } : {}),
+        activation: 'never'
+      },
+      { signal: this.signal(task, signal) }
+    )
   }
 
   async act(context: ComputerUseTask, action: Action, signal?: AbortSignal) {
@@ -157,6 +242,29 @@ export class ComputerUseService extends BaseService {
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
     return client.act({ ...action, allowGlobalInput: false }, { signal: this.signal(task, signal) })
+  }
+
+  async perform(context: ComputerUseTask, action: Action, signal?: AbortSignal) {
+    const task = this.getTask(context)
+    const control = this.getApp(task, action.appSessionId)
+    const client = await this.getClient(task)
+    this.assertAvailable(task, control.app.id)
+    const executor = client as ComputerUseClient & {
+      perform?: (
+        action: Action,
+        options: { signal: AbortSignal }
+      ) => Promise<{ status: 'completed'; appSessionId: string }>
+    }
+    const options = { signal: this.signal(task, signal) }
+    if (executor.perform) {
+      await executor.perform({ ...action, allowGlobalInput: false }, options)
+      return { targetRetained: true as const }
+    }
+    const result = await client.act({ ...action, allowGlobalInput: false }, options)
+    return {
+      targetRetained: false as const,
+      snapshot: result.observation.status === 'available' ? result.observation.snapshot : undefined
+    }
   }
 
   getControls(): ComputerUseControl[] {
@@ -274,6 +382,7 @@ export class ComputerUseService extends BaseService {
   }
 
   private getTask(context: ComputerUseTask): ControlTask {
+    this.assertCleanupConfirmed(context.ownerId)
     if (context.closed) throw new ComputerUseControlError('TASK_CLOSED')
     context.signal?.throwIfAborted()
     let task = this.tasks.get(context.id)
@@ -305,9 +414,15 @@ export class ComputerUseService extends BaseService {
     if (!application.get('PreferenceService').get('app.computer_use.agent_control.enabled'))
       throw new ComputerUseControlError('CONTROL_DISABLED')
     const owner = this.owners.get(task.context.ownerId)
+    this.assertCleanupConfirmed(task.context.ownerId)
     if (owner?.stopped || (appId && owner?.blockedApps.has(appId))) throw new ComputerUseControlError('USER_STOPPED')
     if (task.context.closed) throw new ComputerUseControlError('TASK_CLOSED')
     task.abort.signal.throwIfAborted()
+  }
+
+  private assertCleanupConfirmed(ownerId: string): void {
+    if ([...this.tasks.values()].some((task) => task.context.ownerId === ownerId && task.cleanupUnconfirmed))
+      throw new ComputerUseControlError('CLEANUP_UNCONFIRMED')
   }
 
   private signal(task: ControlTask, call?: AbortSignal): AbortSignal {

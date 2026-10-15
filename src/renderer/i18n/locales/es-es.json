@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "Escribiendo",
   "message.tools.agent_background": "Ejecutándose en segundo plano",
   "message.tools.autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
+  "message.tools.automation.execute": "Ejecutar script de automatización",
+  "message.tools.automation.reset": "Restablecer entorno de automatización",
   "message.tools.cancelled": "Cancelado",
   "message.tools.collapse": "Colapsar",
   "message.tools.completed": "Completado",

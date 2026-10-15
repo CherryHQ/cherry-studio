@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "Đang soạn thảo",
   "message.tools.agent_background": "Đang chạy trong nền",
   "message.tools.autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
+  "message.tools.automation.execute": "Chạy tập lệnh tự động hóa",
+  "message.tools.automation.reset": "Đặt lại môi trường tự động hóa",
   "message.tools.cancelled": "Đã hủy",
   "message.tools.collapse": "Thu gọn",
   "message.tools.completed": "Hoàn thành",

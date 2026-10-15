@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "Se scrie",
   "message.tools.agent_background": "Rulează în fundal",
   "message.tools.autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
+  "message.tools.automation.execute": "Execută scriptul de automatizare",
+  "message.tools.automation.reset": "Resetează mediul de automatizare",
   "message.tools.cancelled": "Anulat",
   "message.tools.collapse": "Colaps",
   "message.tools.completed": "Finalizat",

@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "Writing it out",
   "message.tools.agent_background": "Running in background",
   "message.tools.autoApproveEnabled": "Auto-approve enabled for this tool",
+  "message.tools.automation.execute": "Run automation script",
+  "message.tools.automation.reset": "Reset automation environment",
   "message.tools.cancelled": "Cancelled",
   "message.tools.collapse": "Collapse",
   "message.tools.completed": "All wrapped up",

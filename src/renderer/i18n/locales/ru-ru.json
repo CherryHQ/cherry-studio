@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "Выполняется запись",
   "message.tools.agent_background": "Работает в фоновом режиме",
   "message.tools.autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
+  "message.tools.automation.execute": "Выполнить сценарий автоматизации",
+  "message.tools.automation.reset": "Сбросить среду автоматизации",
   "message.tools.cancelled": "Отменено",
   "message.tools.collapse": "Свернуть",
   "message.tools.completed": "Завершено",

@@ -263,8 +263,8 @@ importers:
         specifier: 0.3.284
         version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@cherrystudio/computer-use':
-        specifier: 0.1.4
-        version: 0.1.4
+        specifier: 0.1.7
+        version: 0.1.7
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
@@ -370,6 +370,9 @@ importers:
       ppu-paddle-ocr:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096)
+      quickjs-wasi:
+        specifier: 3.6.2
+        version: 3.6.2
       range-parser:
         specifier: 1.2.1
         version: 1.2.1
@@ -917,6 +920,9 @@ importers:
       '@xyflow/react':
         specifier: ^12.4.4
         version: 12.10.0(@types/react@19.2.7)(immer@11.1.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      acorn:
+        specifier: 8.15.0
+        version: 8.15.0
       adm-zip:
         specifier: 0.4.16
         version: 0.4.16
@@ -1904,7 +1910,7 @@ importers:
     dependencies:
       zod:
         specifier: ^4.1.5
-        version: 4.3.4
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -2890,38 +2896,38 @@ packages:
       typescript:
         optional: true
 
-  '@cherrystudio/computer-use-darwin-arm64@0.1.4':
-    resolution: {integrity: sha512-JXGQEnizJq1PjwEH8wnBJ65LzCGTgCazJpb+0Q2qMw0TWO19bXfYBGYsIEXZUiSVxY1B+vPFkSfyML0GNDLdqQ==}
+  '@cherrystudio/computer-use-darwin-arm64@0.1.7':
+    resolution: {integrity: sha512-q/BfxVmRkOhuMVxB/y2manV6jqGdLcmbE9T/C6MbyBwDIMU1EDE5vACBQk2gUdp0vtj0kREy9ZHDLDrzR308yA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@cherrystudio/computer-use-darwin-x64@0.1.4':
-    resolution: {integrity: sha512-wk31U5/8qSckIqk1CYe8Ab571RIrZpn4D+x1aUt0NbhpqebvL5bZ1ma8/3qrhd43dSkt/zXOecVsUodLSaLTWg==}
+  '@cherrystudio/computer-use-darwin-x64@0.1.7':
+    resolution: {integrity: sha512-Eu+WP4HqkplEid5w9/TxPtUB465mJJK2PUwKx52b9kM5ftf7ownDHk9jfJsMXJCXn70ElYRmfn9oky6Gzag/6A==}
     cpu: [x64]
     os: [darwin]
 
-  '@cherrystudio/computer-use-linux-arm64@0.1.4':
-    resolution: {integrity: sha512-qd/ECKvn+2tkW9UOB2kPX/rrn4Dy7BLRdy5l7xd6wIzxCGWf7qY90zZImw/ChmKh5v4OKWt9drMY6Y+PLvsD+g==}
+  '@cherrystudio/computer-use-linux-arm64@0.1.7':
+    resolution: {integrity: sha512-LLY0LyAhpr0IAiXAoQKH9QVaQ7zRU0qw5EdFmYqVjSkjKGemURlXGHcGz8LaiMAgnNkl0uMsjJOIraAc4c7tpw==}
     cpu: [arm64]
     os: [linux]
 
-  '@cherrystudio/computer-use-linux-x64@0.1.4':
-    resolution: {integrity: sha512-MT9CPZF8t7AmkIdx/cvcFgjoE4NW2OMSW2DqwPRuMz077ZBLJgtOXxqrADpt/8yB+NMU+AfrX2N+HuNEEYIczg==}
+  '@cherrystudio/computer-use-linux-x64@0.1.7':
+    resolution: {integrity: sha512-wspvns1dMlSAHWPZb22ywMShLuliPU/eYd+bXmMEN7BQO2HprJIfnsW+8pk0OS6HEJFqwSUzhH4wv00NCgvGFg==}
     cpu: [x64]
     os: [linux]
 
-  '@cherrystudio/computer-use-win32-arm64@0.1.4':
-    resolution: {integrity: sha512-sNDy3LK9sWVgrV0oHU9vu7cKLL6OerAZhKLfjzQXrbburbofvMxCHmuQCGd3XZd79qpzuSJAqQrZTxtSlJBH/g==}
+  '@cherrystudio/computer-use-win32-arm64@0.1.7':
+    resolution: {integrity: sha512-uy/FZhX1NjxHsI8kpmuicpPYA4FHbuxLCBmXOiMl9zoUuEHlXuqBaKl69Th6HfzUV+J78kW5A786vvLUHKkWDg==}
     cpu: [arm64]
     os: [win32]
 
-  '@cherrystudio/computer-use-win32-x64@0.1.4':
-    resolution: {integrity: sha512-o3vB1IkJXOlXLU3DUwizGSDCZFFTksgQOBp6apIa3T4OPC75uyv+aZOKT1Zfjk09zV8yDrpms+GaAcTMPkt08A==}
+  '@cherrystudio/computer-use-win32-x64@0.1.7':
+    resolution: {integrity: sha512-Fmws+ugFG1Aick8VrMNKoURqvj2hiJmsEnxhQIXJom+DfoWGG4GtqOgpP7ECZVGB0MOFgbL7MfeqqxdYVKlvvQ==}
     cpu: [x64]
     os: [win32]
 
-  '@cherrystudio/computer-use@0.1.4':
-    resolution: {integrity: sha512-zpg4AQaU229thOgjZngK9ssBjBNLJK0r/2AIud6hReFkd1+UjMC1PPh+aOT6NojLuAv2Qc6yWrLuReZ0APYYgw==}
+  '@cherrystudio/computer-use@0.1.7':
+    resolution: {integrity: sha512-5QVQ9saKVtuY3oMfSGOTYtRo5GE4rcRlWg8EAFUoPoCQM3aj60lMLZmzUK/WDDOHwqI9m6W1IQNuxpeTk6QqjQ==}
     engines: {node: '>=24'}
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts':
@@ -16914,32 +16920,32 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  '@cherrystudio/computer-use-darwin-arm64@0.1.4':
+  '@cherrystudio/computer-use-darwin-arm64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-darwin-x64@0.1.4':
+  '@cherrystudio/computer-use-darwin-x64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-linux-arm64@0.1.4':
+  '@cherrystudio/computer-use-linux-arm64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-linux-x64@0.1.4':
+  '@cherrystudio/computer-use-linux-x64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-win32-arm64@0.1.4':
+  '@cherrystudio/computer-use-win32-arm64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-win32-x64@0.1.4':
+  '@cherrystudio/computer-use-win32-x64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use@0.1.4':
+  '@cherrystudio/computer-use@0.1.7':
     optionalDependencies:
-      '@cherrystudio/computer-use-darwin-arm64': 0.1.4
-      '@cherrystudio/computer-use-darwin-x64': 0.1.4
-      '@cherrystudio/computer-use-linux-arm64': 0.1.4
-      '@cherrystudio/computer-use-linux-x64': 0.1.4
-      '@cherrystudio/computer-use-win32-arm64': 0.1.4
-      '@cherrystudio/computer-use-win32-x64': 0.1.4
+      '@cherrystudio/computer-use-darwin-arm64': 0.1.7
+      '@cherrystudio/computer-use-darwin-x64': 0.1.7
+      '@cherrystudio/computer-use-linux-arm64': 0.1.7
+      '@cherrystudio/computer-use-linux-x64': 0.1.7
+      '@cherrystudio/computer-use-win32-arm64': 0.1.7
+      '@cherrystudio/computer-use-win32-x64': 0.1.7
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts': {}
 
@@ -22723,6 +22729,42 @@ snapshots:
     dependencies:
       '@rolldown/pluginutils': 1.0.1
       vite: 8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  '@vitest/browser@5.0.1(msw@2.12.7(@types/node@22.20.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@22.20.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))(vitest@5.0.1)':
+    dependencies:
+      '@blazediff/core': 1.10.0
+      '@vitest/mocker': 5.0.1(msw@2.12.7(@types/node@22.20.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@22.20.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      '@vitest/ui': 5.0.1(vitest@5.0.1)
+      '@vitest/utils': 5.0.1
+      magic-string: 1.2.3
+      pngjs: 7.0.0
+      sirv: 3.0.2
+      tinyrainbow: 3.1.1
+      vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.20.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.12.7(@types/node@22.20.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@22.20.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
+
+  '@vitest/browser@5.0.1(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))(vitest@5.0.1)':
+    dependencies:
+      '@blazediff/core': 1.10.0
+      '@vitest/mocker': 5.0.1(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      '@vitest/ui': 5.0.1(vitest@5.0.1)
+      '@vitest/utils': 5.0.1
+      magic-string: 1.2.3
+      pngjs: 7.0.0
+      sirv: 3.0.2
+      tinyrainbow: 3.1.1
+      vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
 
   '@vitest/browser@5.0.1(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))(vitest@5.0.1)':
     dependencies:

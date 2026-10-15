@@ -2386,6 +2386,8 @@
   "message.tools.activity.writing": "正在寫入",
   "message.tools.agent_background": "在背景執行",
   "message.tools.autoApproveEnabled": "此工具已啟用自動核准",
+  "message.tools.automation.execute": "執行自動化腳本",
+  "message.tools.automation.reset": "重設自動化環境",
   "message.tools.cancelled": "已取消",
   "message.tools.collapse": "收合",
   "message.tools.completed": "已完成",
