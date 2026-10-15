@@ -61,7 +61,7 @@ vi.mock('@application', async () => {
 // Mock electron modules that are commonly used in main process
 vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
-  const partitionSessions = new Map<string, Record<string, unknown>>()
+  const partitionSessions = new Map<string, object>()
   const mock = {
     app: {
       getPath: vi.fn((key: string) => {
@@ -128,10 +128,7 @@ vi.mock('electron', async () => {
       fromPartition: vi.fn((partition: string) => {
         const cached = partitionSessions.get(partition)
         if (cached) return cached
-        const events = new EventEmitter()
-        const created = {
-          on: events.on.bind(events),
-          removeListener: events.removeListener.bind(events),
+        const created = Object.assign(new EventEmitter(), {
           fetch: vi.fn(),
           clearCache: vi.fn(),
           clearStorageData: vi.fn(),
@@ -147,7 +144,7 @@ vi.mock('electron', async () => {
             onBeforeSendHeaders: vi.fn(),
             onHeadersReceived: vi.fn()
           }
-        }
+        })
         partitionSessions.set(partition, created)
         return created
       })
