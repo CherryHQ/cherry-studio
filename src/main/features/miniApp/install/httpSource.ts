@@ -22,6 +22,7 @@ import {
 
 // One cleanup policy for the whole feature: best-effort, logged, never masking.
 import { bestEffortCleanup } from './cleanup'
+import { formatManifestValidationError } from './manifestValidation'
 
 const logger = loggerService.withContext('miniApp:httpSource')
 
@@ -132,7 +133,9 @@ async function fetchManifestFrom(url: string): Promise<MiniAppDistributionManife
       }
       chunks.push(chunk)
     }
-    return MiniAppDistributionManifestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+    const parsed = MiniAppDistributionManifestSchema.safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+    if (!parsed.success) throw new Error(formatManifestValidationError(parsed.error, 'distribution'))
+    return parsed.data
   } finally {
     clear()
   }

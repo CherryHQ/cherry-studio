@@ -28,6 +28,7 @@ import {
 
 import { bestEffortCleanup } from './cleanup'
 import { assertSupportedIconBytes } from './icon'
+import { formatManifestValidationError } from './manifestValidation'
 
 const logger = loggerService.withContext('miniAppArchive')
 
@@ -169,13 +170,16 @@ async function scanArchive(zip: StreamZip.StreamZipAsync): Promise<{ prefix: str
     throw new Error(`Package manifest is over the ${MINI_APP_MAX_MANIFEST_BYTES} byte limit`)
   }
 
-  const manifest = MiniAppManifestSchema.parse(
+  const parsed = MiniAppManifestSchema.safeParse(
     JSON.parse(
       (await readEntryBounded(zip, `${prefix}${MANIFEST_NAME}`, MINI_APP_MAX_MANIFEST_BYTES, 'manifest')).toString(
         'utf8'
       )
     )
   )
+
+  if (!parsed.success) throw new Error(formatManifestValidationError(parsed.error, 'archive'))
+  const manifest = parsed.data
 
   const has = (rel: string) => names.includes(`${prefix}${rel}`)
   if (!has(manifest.entry)) {
