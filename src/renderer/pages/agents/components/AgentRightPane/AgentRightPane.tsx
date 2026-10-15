@@ -81,6 +81,7 @@ import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
+import { WorkspaceDirectorySelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -205,6 +206,7 @@ interface AgentRightPaneMeta {
   conversationState: AgentConversationState
   workspaceId?: string
   workspacePath?: string
+  additionalDirectories?: readonly string[]
   workspaceType?: AgentWorkspaceType
   /** Active model — supplies the context-usage denominator and guards against stale readings. */
   model?: Model
@@ -240,6 +242,7 @@ interface AgentRightPaneFileState {
   fileTreeExpandedIds: ReadonlySet<string>
   fileTreeSearchKeyword: string
   workspacePath?: string
+  directories: readonly string[]
 }
 
 type AgentFileEditorMode = 'preview' | 'edit'
@@ -258,6 +261,7 @@ interface AgentRightPaneActions {
   setSelectedFile: (file: string | null) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
+  selectDirectory: (directory: string) => void
 }
 
 interface AgentRightPanelScope {
@@ -342,6 +346,7 @@ interface AgentRightPaneActionsProviderProps {
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
   workspaceCurrent: boolean
+  selectDirectory: (directory: string) => void
 }
 
 function AgentRightPaneActionsProvider({
@@ -358,6 +363,7 @@ function AgentRightPaneActionsProvider({
   setFileEditMode,
   setFileTreeExpandedIds,
   setFileTreeSearchKeyword,
+  selectDirectory,
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
   const { t } = useTranslation()
@@ -471,7 +477,8 @@ function AgentRightPaneActionsProvider({
       setFileEditMode,
       setSelectedFile: selectFile,
       setFileTreeExpandedIds,
-      setFileTreeSearchKeyword
+      setFileTreeSearchKeyword,
+      selectDirectory
     }),
     [
       isAgentToolFlowActive,
@@ -486,7 +493,8 @@ function AgentRightPaneActionsProvider({
       selectFile,
       setFileEditMode,
       setFileTreeExpandedIds,
-      setFileTreeSearchKeyword
+      setFileTreeSearchKeyword,
+      selectDirectory
     ]
   )
 
@@ -497,6 +505,7 @@ function AgentRightPaneStateProvider({
   children,
   workspaceId,
   workspacePath,
+  additionalDirectories,
   workspaceType,
   messages,
   partsByMessageId,
@@ -546,6 +555,10 @@ function AgentRightPaneStateProvider({
   const artifactOpenRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
+  const directories = useMemo(
+    () => (workspacePath ? [workspacePath, ...(additionalDirectories ?? [])] : []),
+    [workspacePath, additionalDirectories]
+  )
   // External route/session changes can update props before this subtree gets a
   // chance to confirm. Keep the file tree and editor on one committed workspace
   // until the transition is accepted so a new tree can never write an old path.
@@ -762,8 +775,24 @@ function AgentRightPaneStateProvider({
     [fileWorkspace.path, requestFileSelection]
   )
 
+  const selectDirectory = useCallback(
+    (directory: string) => {
+      if (directory === fileWorkspace.path || !directories.includes(directory)) return
+      artifactOpenRequestRef.current += 1
+      requestFileTransition(() => {
+        setFileWorkspace({ key: workspaceKey, path: directory })
+        setEditMode('preview')
+        setSelectedFile(null)
+        setPreviewFileSelection(null)
+        setFileTreeExpandedIds(new Set())
+        setFileTreeSearchKeyword('')
+      })
+    },
+    [directories, fileWorkspace.path, requestFileTransition, workspaceKey]
+  )
+
   useLayoutEffect(() => {
-    if (fileWorkspace.key === workspaceKey) return
+    if (fileWorkspace.key === workspaceKey && (!fileWorkspace.path || directories.includes(fileWorkspace.path))) return
     const commitWorkspace = () => {
       setFileWorkspace({ key: workspaceKey, path: workspacePath })
       setEditMode('preview')
@@ -779,7 +808,15 @@ function AgentRightPaneStateProvider({
       return
     }
     requestFileTransition(commitWorkspace)
-  }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, workspaceKey, workspacePath])
+  }, [
+    directories,
+    fileSession.isDirty,
+    fileWorkspace.key,
+    fileWorkspace.path,
+    requestFileTransition,
+    workspaceKey,
+    workspacePath
+  ])
 
   const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
 
@@ -791,6 +828,7 @@ function AgentRightPaneStateProvider({
       selectedFile,
       fileTreeExpandedIds,
       fileTreeSearchKeyword,
+      directories,
       workspacePath: fileWorkspace.path
     }),
     [
@@ -798,6 +836,7 @@ function AgentRightPaneStateProvider({
       fileSession,
       fileTreeExpandedIds,
       fileTreeSearchKeyword,
+      directories,
       fileWorkspace.path,
       previewFileSelection,
       selectedFile
@@ -875,6 +914,7 @@ function AgentRightPaneStateProvider({
                 setFileEditMode={requestFileEditMode}
                 setFileTreeExpandedIds={setFileTreeExpandedIds}
                 setFileTreeSearchKeyword={setFileTreeSearchKeyword}
+                selectDirectory={selectDirectory}
                 workspaceCurrent={fileWorkspace.key === workspaceKey}>
                 {children}
               </AgentRightPaneActionsProvider>
@@ -953,6 +993,17 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       headerVariant="pane"
       paneTitle={scope.filesTitle}
       paneActions={<RightPanelHeaderControls canMaximize />}
+      directorySelector={
+        state.directories.length > 1 && state.workspacePath ? (
+          <div className="shrink-0 px-3 py-2">
+            <WorkspaceDirectorySelector
+              directories={state.directories}
+              value={state.workspacePath}
+              onValueChange={actions.selectDirectory}
+            />
+          </div>
+        ) : null
+      }
       workspacePath={state.workspacePath}
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
@@ -968,7 +1019,9 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onInsertSelectionReference={insertSelectionReference}
     />
   )
-  const workspacePath = AbsoluteFilePathSchema.safeParse(state.workspacePath)
+  const workspacePath = AbsoluteFilePathSchema.safeParse(
+    state.previewFileSelection?.workspacePath ?? state.workspacePath
+  )
 
   return actions.canOpenArtifactFile && workspacePath.success ? (
     <FilePreviewNavigationProvider openFile={actions.openArtifactFile} workspacePath={workspacePath.data}>

@@ -14,6 +14,25 @@ describe('ai.agent.workspace.register schema', () => {
     for (const path of ['relative/path', '', '   ', '/tmp/bad\0path'])
       expect(schema.safeParse({ path }).success).toBe(false)
     expect(schema.safeParse({ path: '/tmp/workspace', name: '  ' }).success).toBe(false)
+    expect(
+      schema.parse({ path: '/tmp/workspace', additionalDirectories: [' /tmp/shared '] }).additionalDirectories
+    ).toEqual(['/tmp/shared'])
+    expect(schema.safeParse({ path: '/tmp/workspace', additionalDirectories: ['relative/path'] }).success).toBe(false)
+  })
+})
+
+describe('ai.agent.workspace.update schema', () => {
+  const schema = aiRequestSchemas['ai.agent.workspace.update'].input
+  it('accepts main-directory changes and rejects empty or invalid path updates', () => {
+    expect(
+      schema.safeParse({
+        workspaceId: 'workspace',
+        changes: { path: '/tmp/shared', additionalDirectories: ['/tmp/main'] }
+      }).success
+    ).toBe(true)
+    for (const changes of [{}, { path: 'relative/path' }, { additionalDirectories: ['/tmp/bad\0path'] }]) {
+      expect(schema.safeParse({ workspaceId: 'workspace', changes }).success).toBe(false)
+    }
   })
 })
 

@@ -159,7 +159,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -254,6 +254,29 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     if (!warmRequest || !current.ok) throw new Error('expected warm request and current config')
     expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
+  it.each([
+    { change: 'adding', before: [], after: ['/workspace/extra'] },
+    { change: 'removing', before: ['/workspace/extra'], after: [] }
+  ])('invalidates a materialized connection after $change an additional directory', async ({ before, after }) => {
+    const session = mocks.getSessionById()
+    mocks.getSessionById.mockReturnValue({
+      ...session,
+      workspace: { ...session.workspace, additionalDirectories: before }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const unchanged = await deriveConnectionConfig('session-1')
+    if (!request || !unchanged.ok) throw new Error('expected connection config')
+    expect(unchanged.config.rebuildSignature).toBe(request.connectionConfig.rebuildSignature)
+
+    mocks.getSessionById.mockReturnValue({
+      ...session,
+      workspace: { ...session.workspace, additionalDirectories: after }
+    })
+    const changed = await deriveConnectionConfig('session-1')
+    if (!changed.ok) throw new Error('expected changed connection config')
+    expect(changed.config.rebuildSignature).not.toBe(request.connectionConfig.rebuildSignature)
   })
 
   it('passes native image support from the captured connection model into settings', async () => {
@@ -1291,7 +1314,7 @@ describe('deriveConnectionConfig', () => {
   const sessionWithWorkspace = {
     id: 'session-1',
     agentId: 'agent-1',
-    workspace: { type: 'user', path: '/workspace/project' }
+    workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
   }
 
   beforeEach(() => {
@@ -1711,7 +1734,10 @@ describe('deriveConnectionConfig', () => {
     expect(channelChanged.rebuildSignature).not.toBe(base.rebuildSignature)
     mocks.findChannelBySessionId.mockReturnValue(null)
 
-    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, workspace: { type: 'user', path: '/elsewhere' } })
+    mocks.getSessionById.mockReturnValue({
+      ...sessionWithWorkspace,
+      workspace: { additionalDirectories: [], type: 'user', path: '/elsewhere' }
+    })
     const workspaceChanged = await deriveSignature()
     expect(workspaceChanged.rebuildSignature).not.toBe(base.rebuildSignature)
     mocks.getSessionById.mockReturnValue(sessionWithWorkspace)

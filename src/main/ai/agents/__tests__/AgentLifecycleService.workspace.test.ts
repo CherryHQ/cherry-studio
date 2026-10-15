@@ -189,12 +189,41 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
       await expect(registerWorkspace(nested)).rejects.toThrow()
       await expect(registerWorkspace(`${parent}.restoring`)).rejects.toThrow()
       await expect(registerWorkspace(` ${nested} `)).rejects.toThrow()
+      await expect(
+        aiHandlers['ai.agent.workspace.register'](
+          aiRequestSchemas['ai.agent.workspace.register'].input.parse({
+            path: path.join(root, 'new-user'),
+            additionalDirectories: [nested]
+          }),
+          { senderId: 'test-window' }
+        )
+      ).rejects.toThrow()
+      await expect(
+        aiHandlers['ai.agent.workspace.update'](
+          {
+            workspaceId: 'user',
+            changes: { additionalDirectories: [nested] }
+          },
+          { senderId: 'test-window' }
+        )
+      ).rejects.toThrow()
+      expect(
+        dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, 'user')).get()?.additionalDirectories
+      ).toEqual([])
       expect((await registerWorkspace(path.join(root, 'unrelated'))).path).toBe(path.join(root, 'unrelated'))
     } finally {
       resume.resolve()
       await archiving
     }
     expect((await registerWorkspace(nested)).path).toBe(nested)
+    const updated = await aiHandlers['ai.agent.workspace.update'](
+      {
+        workspaceId: 'user',
+        changes: { additionalDirectories: [nested] }
+      },
+      { senderId: 'test-window' }
+    )
+    expect(updated.additionalDirectories).toEqual([nested])
   })
   it.each([
     ['session', '.restoring'],

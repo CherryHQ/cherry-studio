@@ -27,7 +27,7 @@ import type * as ComposerPreset from '../composerPreset'
 import DeferredComposerSurface from '../ComposerSurface'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
 import type * as PasteHandling from '../paste/pasteHandling'
-import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
+import { COMPOSER_SUPPRESS_SUGGESTION_META, type ComposerSuggestionItem } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
@@ -2860,6 +2860,87 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
     expect(sourceOnKeyDown).not.toHaveBeenCalled()
   })
+
+  it.each(['before', 'after'])(
+    'keeps directory refresh results when the pending query finishes %s them',
+    async (order) => {
+      const user = userEvent.setup()
+      let resolvePending!: (items: ComposerSuggestionItem[]) => void
+      let resolveRefresh!: (items: ComposerSuggestionItem[]) => void
+      const pending = new Promise<ComposerSuggestionItem[]>((resolve) => {
+        resolvePending = resolve
+      })
+      const refreshed = new Promise<ComposerSuggestionItem[]>((resolve) => {
+        resolveRefresh = resolve
+      })
+      const command = vi.fn(({ editor, range }: { editor: Editor; range: { from: number; to: number } }) => {
+        editor.commands.deleteRange(range)
+      })
+      const item = { id: 'extra:readme', label: 'readme.md', command }
+      const items = vi.fn().mockResolvedValueOnce([item]).mockReturnValueOnce(pending).mockReturnValueOnce(refreshed)
+      mocks.quickPanelIsVisible = true
+      mocks.quickPanelSymbol = '@'
+      mocks.quickPanelOpen.mockImplementation(() => {
+        mocks.quickPanelGeneration += 1
+      })
+      render(
+        <ComposerSurface
+          {...baseProps}
+          quickPanelEnabled
+          suggestionSources={[
+            {
+              pluginKey: 'resource-suggestion',
+              char: '@',
+              items,
+              renderHeader: (refresh) => (
+                <button type="button" onClick={refresh}>
+                  Other directory
+                </button>
+              )
+            }
+          ]}
+        />
+      )
+      const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+      const editor = new Editor({ extensions: createComposerEditorPreset(mocks.editorPresetOptions) })
+      try {
+        await act(async () => {
+          editor.commands.insertContent('@r')
+        })
+        await waitFor(() => expect(mocks.quickPanelOpen).toHaveBeenCalled())
+        render(mocks.quickPanelOpen.mock.lastCall![0].header)
+        await act(async () => {
+          editor.commands.insertContent('e')
+        })
+        await user.click(screen.getByRole('button', { name: 'Other directory' }))
+        if (order === 'before') {
+          await act(async () => {
+            resolvePending([])
+          })
+        }
+        await act(async () => {
+          resolveRefresh([item])
+        })
+        if (order === 'after') {
+          await act(async () => {
+            resolvePending([])
+          })
+        }
+
+        await waitFor(() =>
+          expect(mocks.quickPanelUpdateList).toHaveBeenLastCalledWith([expect.objectContaining({ id: item.id })])
+        )
+        expect(items).toHaveBeenLastCalledWith({ editor, query: 're' })
+        expect(mocks.quickPanelOpen.mock.lastCall![0].list).not.toEqual([])
+        const selected = mocks.quickPanelUpdateList.mock.lastCall![0][0]
+        selected.action({ action: 'enter', item: selected, context: mocks.quickPanelOpen.mock.lastCall![0] })
+        expect(editor.getText()).toBe('')
+        expect(command).toHaveBeenCalledWith(expect.objectContaining({ query: 're', range: { from: 1, to: 4 } }))
+      } finally {
+        editor.destroy()
+      }
+    }
+  )
 
   it('places leading items before tool launchers and keeps additional items at the end of the QuickPanel root list', async () => {
     const onRootPanelOpen = vi.fn()

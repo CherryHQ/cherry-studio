@@ -43,6 +43,7 @@ function localIso(year: number, month: number, day: number, hour = 12) {
 
 function makeWorkspace(path: string, overrides: Partial<AgentWorkspaceEntity> = {}): AgentWorkspaceEntity {
   return {
+    additionalDirectories: [],
     id: `ws-${path}`,
     name: path,
     path,

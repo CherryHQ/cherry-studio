@@ -15,6 +15,7 @@ function createSessions(count: number, renamedId?: string): AgentSessionEntity[]
       description: '',
       workspaceId: 'benchmark-workspace',
       workspace: {
+        additionalDirectories: [],
         id: 'benchmark-workspace',
         name: 'Benchmark Workspace',
         path: '/tmp/cherry-studio-session-list-benchmark',

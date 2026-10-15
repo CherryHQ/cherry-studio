@@ -87,7 +87,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
       getById: vi.fn((id: string) => persistedChannelSessions.sessions.get(id)),
       create,
       createTx: vi.fn((_tx: unknown, id: string, dto: Record<string, unknown>) => {
-        const template = create(dto) ?? { agentId: dto.agentId, workspace: { path: '/tmp/test-workspace' } }
+        const template = create(dto) ?? {
+          agentId: dto.agentId,
+          workspace: { additionalDirectories: [], path: '/tmp/test-workspace' }
+        }
         persistedChannelSessions.sessions.set(id, { ...template, id })
       }),
       notifyReadModelChange: vi.fn()
@@ -233,7 +236,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -264,7 +267,7 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(agentSessionService.create).mockReturnValueOnce({
       id: 'session-admission',
       agentId: 'agent-1',
-      workspace: { path: '/tmp/test-workspace' }
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' }
     } as any)
     mockStartAgentSessionRun.mockRejectedValueOnce(new Error('provider secret=private'))
     await handleIncomingAndFlush(adapter, {
@@ -284,7 +287,7 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(agentSessionService.create).mockReturnValueOnce({
       id: 'session-stream-error',
       agentId: 'agent-1',
-      workspace: { path: '/tmp/test-workspace' }
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' }
     } as any)
     mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners }: any) => {
       setTimeout(() => {
@@ -312,7 +315,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
     vi.mocked(agentSessionService.create).mockReturnValue(session as any)
@@ -353,7 +356,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
     vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
@@ -389,7 +392,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
     vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
@@ -415,6 +418,7 @@ describe('ChannelMessageHandler', () => {
       model: 'openai::gpt-4',
       workspaceId: 'workspace-1',
       workspace: {
+        additionalDirectories: [],
         id: 'workspace-1',
         name: 'Workspace',
         path: '/tmp/test-workspace',
@@ -451,7 +455,7 @@ describe('ChannelMessageHandler', () => {
       const adapter = createMockAdapter()
       vi.mocked(agentSessionService.create).mockReturnValueOnce({
         agentId: 'agent-1',
-        workspace: { path: workDir }
+        workspace: { additionalDirectories: [], path: workDir }
       } as any)
       simulateStream([{ type: 'text-delta', delta: 'ok' }])
 
@@ -516,7 +520,7 @@ describe('ChannelMessageHandler', () => {
       const adapter = createMockAdapter()
       vi.mocked(agentSessionService.create).mockReturnValueOnce({
         agentId: 'agent-1',
-        workspace: { path: workDir }
+        workspace: { additionalDirectories: [], path: workDir }
       } as any)
       simulateStream([{ type: 'text-delta', delta: 'should not run' }])
 
@@ -549,7 +553,7 @@ describe('ChannelMessageHandler', () => {
         agentId: 'agent-1',
         agentType: 'claude-code',
         model: 'openai::gpt-4',
-        workspace: { path: workDir },
+        workspace: { additionalDirectories: [], path: workDir },
         configuration: {}
       }
       vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
@@ -583,7 +587,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -609,7 +613,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -671,7 +675,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -848,7 +852,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -881,7 +885,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
+      workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
       configuration: {}
     }
 

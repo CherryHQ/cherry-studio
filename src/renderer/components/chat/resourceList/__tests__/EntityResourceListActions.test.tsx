@@ -371,6 +371,7 @@ function createAgentSession(overrides: Partial<AgentSessionEntity> = {}): AgentS
     isNameManuallyEdited: false,
     workspaceId: 'workspace-1',
     workspace: {
+      additionalDirectories: [],
       id: 'workspace-1',
       name: 'Workspace 1',
       path: '/tmp/workspace-1',

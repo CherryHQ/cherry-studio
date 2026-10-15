@@ -363,7 +363,7 @@ beforeEach(() => {
   mocks.getById.mockReturnValue({
     id: 'sess-1',
     agentId: 'agent-1',
-    workspace: { path: WORKSPACE, type: 'system' }
+    workspace: { additionalDirectories: [], path: WORKSPACE, type: 'system' }
   })
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
   mocks.getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
@@ -2145,7 +2145,7 @@ describe('PiRuntimeConnection', () => {
       id: 'sess-1',
       agentId: 'agent-1',
       workspaceId: 'ws-1',
-      workspace: { path: WORKSPACE, type: 'user' as const }
+      workspace: { additionalDirectories: [], path: WORKSPACE, type: 'user' as const }
     }
 
     it('refreshes identity through the extension mounted on a reused Pi connection', async () => {

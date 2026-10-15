@@ -2,7 +2,12 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { COMPOSER_SUPPRESS_SUGGESTION_META, createComposerSuggestionExtension } from '../quickPanel/suggestionExtension'
+import {
+  COMPOSER_SUPPRESS_SUGGESTION_META,
+  type ComposerSuggestionActiveChangeOptions,
+  type ComposerSuggestionItem,
+  createComposerSuggestionExtension
+} from '../quickPanel/suggestionExtension'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -116,6 +121,35 @@ describe('createComposerSuggestionExtension', () => {
     await waitForSuggestionUpdate()
 
     expect(onActiveChange.mock.calls.map(([options]) => options.query)).toEqual(['ab'])
+  })
+
+  it.each(['edit', 'exit', 'destroy'])('discards a pending external refresh after %s', async (action) => {
+    const pending = createDeferred<ComposerSuggestionItem[]>()
+    const item = { id: 'readme', label: 'readme.md', command: () => undefined }
+    const onActiveChange = vi.fn<(options: ComposerSuggestionActiveChangeOptions) => void>()
+    const items = vi.fn().mockResolvedValueOnce([item]).mockReturnValueOnce(pending.promise).mockResolvedValue([])
+    editor = new Editor({
+      extensions: [
+        StarterKit,
+        createComposerSuggestionExtension([
+          {
+            pluginKey: 'test-resource-suggestion',
+            char: '@',
+            items,
+            onActiveChange
+          }
+        ])
+      ],
+      content: '<p></p>'
+    })
+    editor.commands.insertContent('@r')
+    await vi.waitFor(() => expect(onActiveChange).toHaveBeenCalled())
+    const refresh = onActiveChange.mock.lastCall![0].refreshItems!()
+    if (action === 'edit') editor.commands.insertContent('e')
+    if (action === 'exit') editor.commands.clearContent()
+    if (action === 'destroy') editor.destroy()
+    pending.resolve([item])
+    await expect(refresh).resolves.toBeUndefined()
   })
 
   it('does not notify after pending suggestion items outlive the editor', async () => {

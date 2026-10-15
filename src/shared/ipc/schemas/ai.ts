@@ -29,7 +29,8 @@ import {
 import {
   AgentSessionWorkspaceSourceSchema,
   AgentWorkspaceEntitySchema,
-  AgentWorkspaceNameSchema
+  CreateAgentWorkspaceSchema,
+  UpdateAgentWorkspaceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
@@ -420,9 +421,22 @@ export const aiRequestSchemas = {
     output: z.custom<ReusableAgentSessionPlaceholdersResponse>()
   }),
   'ai.agent.workspace.register': defineRoute({
-    input: z.strictObject({
+    input: CreateAgentWorkspaceSchema.extend({
       path: z.string().trim().pipe(AbsoluteFilePathSchema),
-      name: AgentWorkspaceNameSchema.optional()
+      additionalDirectories: z.array(z.string().trim().pipe(AbsoluteFilePathSchema)).optional()
+    }),
+    output: AgentWorkspaceEntitySchema
+  }),
+  'ai.agent.workspace.update': defineRoute({
+    input: z.strictObject({
+      workspaceId: z.string().min(1),
+      changes: UpdateAgentWorkspaceSchema.refine(
+        (changes) =>
+          [changes.path, ...(changes.additionalDirectories ?? [])].every(
+            (directory) => directory === undefined || AbsoluteFilePathSchema.safeParse(directory.trim()).success
+          ),
+        'Workspace directories must be absolute paths'
+      )
     }),
     output: AgentWorkspaceEntitySchema
   }),

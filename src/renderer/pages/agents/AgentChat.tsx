@@ -728,6 +728,7 @@ function AgentChatLayout({
       isMessageHistoryLoading={isMessageHistoryLoading}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
+      additionalDirectories={sessionSnapshot?.workspace?.additionalDirectories}
       workspaceType={sessionSnapshot?.workspace?.type}
       messages={messages}
       partsByMessageId={partsByMessageId}

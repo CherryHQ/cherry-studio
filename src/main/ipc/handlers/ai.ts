@@ -234,8 +234,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
   },
-  'ai.agent.workspace.register': async ({ path, name }) =>
-    agentWorkspaceStorageService.registerWorkspace(path, { name }),
+  'ai.agent.workspace.register': async ({ path, name, additionalDirectories }) =>
+    agentWorkspaceStorageService.registerWorkspace(path, { name, additionalDirectories }),
+  'ai.agent.workspace.update': async ({ workspaceId, changes }) =>
+    agentWorkspaceStorageService.updateWorkspace(workspaceId, changes),
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 

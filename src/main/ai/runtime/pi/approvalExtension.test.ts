@@ -57,6 +57,7 @@ afterAll(() => rmSync(testRoot, { recursive: true, force: true }))
 function buildGate(
   overrides: Partial<{
     workspacePath: string
+    additionalDirectories: readonly string[]
     agentDataPath: string
     additionalReadOnlyRoots: readonly string[]
     getPermissionMode: () => AgentPermissionMode | undefined
@@ -119,6 +120,19 @@ beforeEach(() => {
 })
 
 describe('createPiApprovalExtension — policy + approval gate', () => {
+  it('allows edits in an additional workspace directory while still gating paths outside all roots', async () => {
+    const { handler } = buildGate({
+      additionalDirectories: [outside],
+      getPermissionMode: () => 'acceptEdits',
+      getInteractionState: () => ({ userResponse: 'unavailable' })
+    })
+    await expect(
+      handler(toolEvent('write', { path: join(outside, 'new.txt'), content: 'new' }), extCtx)
+    ).resolves.toBeUndefined()
+    await expect(
+      handler(toolEvent('write', { path: join(testRoot, 'unselected.txt'), content: 'new' }), extCtx)
+    ).resolves.toMatchObject({ block: true })
+  })
   it('auto-allows read-only tools in default mode with no approval request', async () => {
     const { handler, emitted } = buildGate()
     await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()

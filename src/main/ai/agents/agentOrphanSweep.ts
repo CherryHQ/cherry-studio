@@ -39,7 +39,7 @@ export interface AgentSweepReport {
  *    to the app-owned runtime roots (`.claude`, `.pi`, `system`), so
  *    only uuid-named children are ever candidates.
  *  - `{agents.system_workspaces}/{date}/{sessionId}` — app-owned session
- *    workspaces, claimed by `agent_workspace.path`. Workspace rows survive
+ *    workspaces, protected by registered main and additional directories, including descendants. Workspace rows survive
  *    Delete and are removed at session purge.
  *  - each runtime driver's own session persistence, claimed by the union of
  *    resume tokens on surviving `agent_session_message` rows and the live runtime snapshot.

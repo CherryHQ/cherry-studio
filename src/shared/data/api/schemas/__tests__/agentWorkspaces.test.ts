@@ -12,6 +12,7 @@ describe('AgentWorkspaceEntitySchema', () => {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'workspace',
     path: '/tmp/workspace',
+    additionalDirectories: [],
     type: 'user',
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -22,10 +23,13 @@ describe('AgentWorkspaceEntitySchema', () => {
     expect(AgentWorkspaceEntitySchema.parse(workspace)).toEqual(workspace)
   })
 
-  it('accepts workspace display-name updates only', () => {
+  it('accepts workspace name and directory updates', () => {
     expect(UpdateAgentWorkspaceSchema.parse({ name: 'Renamed workspace' })).toEqual({ name: 'Renamed workspace' })
     expect(UpdateAgentWorkspaceSchema.safeParse({ name: '   ' }).success).toBe(false)
-    expect(UpdateAgentWorkspaceSchema.safeParse({ path: '/tmp/renamed' }).success).toBe(false)
+    expect(
+      UpdateAgentWorkspaceSchema.safeParse({ path: '/tmp/renamed', additionalDirectories: ['/tmp/workspace'] }).success
+    ).toBe(true)
+    expect(UpdateAgentWorkspaceSchema.safeParse({ additionalDirectories: [''] }).success).toBe(false)
   })
 
   it('exposes workspace on sessions instead of accessiblePaths', () => {

@@ -15,11 +15,13 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import * as fileUtils from '@main/utils/file'
 
 import { AgentSessionForkOperations } from '../AgentSessionForkOperations'
+import { forkFileIdentity } from '../files'
 import { readForkResources, writeForkResources } from '../resources'
 
 // Catch publication without durable file ownership, partial DB commits and cleanup of a live fork.
@@ -101,6 +103,95 @@ describe('Agent fork publication', () => {
     if (previous) runtimeDriverRegistry.register(previous)
     vi.restoreAllMocks()
     await rm(directory, { recursive: true, force: true })
+  })
+
+  async function useSystemWorkspace() {
+    const source = path.join(directory, 'source')
+    await mkdir(source)
+    await writeFile(path.join(source, 'copied.txt'), 'copied workspace content')
+    dbh.db.update(agentWorkspaceTable).set({ path: source, type: 'system' }).run()
+    vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      const root = key === 'feature.agents.system_workspaces' ? path.join(directory, 'system') : forkRoot
+      return filename ? path.join(root, filename) : root
+    })
+    return agentWorkspaceService.findOrCreateByPath(path.join(directory, 'user'))
+  }
+
+  it.each(
+    (['rollback', 'cancel'] as const).flatMap((scenario) =>
+      ['.', 'project'].map((relative) => ({ scenario, relative }))
+    )
+  )('retains an additional root at $relative when a fork encounters $scenario', async ({ scenario, relative }) => {
+    const workspace = await useSystemWorkspace()
+    const owner = new AgentSessionForkOperations()
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    let adoptedDirectory = ''
+    beforeForkResult = async (input) => {
+      adoptedDirectory = path.join(input.targetCwd, relative)
+      await mkdir(adoptedDirectory, { recursive: true })
+      await writeFile(path.join(adoptedDirectory, 'user.txt'), 'adopted workspace content')
+      agentWorkspaceService.update(workspace.id, { additionalDirectories: [adoptedDirectory] })
+      entered.resolve()
+      await release.promise
+      if (scenario === 'rollback') throw new Error('fork failed')
+    }
+    const pending = owner.fork(sessionId, messageId)
+    const rejected = expect(pending).rejects.toThrow()
+    try {
+      await Promise.race([entered.promise, pending])
+      const cancellation = scenario === 'cancel' ? owner.cancel(sessionId) : undefined
+      release.resolve()
+      await rejected
+      await cancellation
+      await new AgentSessionForkOperations().recover()
+
+      expect(await readFile(path.join(adoptedDirectory, 'user.txt'), 'utf8')).toBe('adopted workspace content')
+      expect(agentWorkspaceService.getById(workspace.id).additionalDirectories).toEqual([adoptedDirectory])
+      expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
+      expect(await readForkResources()).toEqual([])
+      expect(await readdir(forkRoot)).toEqual([])
+    } finally {
+      release.resolve()
+      await Promise.allSettled([pending, rejected])
+    }
+  })
+
+  it.each(['.', 'project'])('retains an additional root at %s during unpublished fork recovery', async (relative) => {
+    const workspace = await useSystemWorkspace()
+    const operationId = randomUUID()
+    const targetSessionId = randomUUID()
+    const createdAt = Date.now()
+    const artifactDirectory = path.join(forkRoot, operationId)
+    const copiedDirectory = agentWorkspaceService.buildSystemWorkspacePath(
+      application.getPath('feature.agents.system_workspaces'),
+      targetSessionId,
+      createdAt
+    )
+    const adoptedDirectory = path.join(copiedDirectory, relative)
+    await mkdir(artifactDirectory, { recursive: true })
+    await mkdir(adoptedDirectory, { recursive: true })
+    await writeFile(path.join(adoptedDirectory, 'user.txt'), 'adopted workspace content')
+    agentWorkspaceService.update(workspace.id, { additionalDirectories: [adoptedDirectory] })
+    await writeForkResources({
+      version: 1,
+      operationId,
+      targetSessionId,
+      createdAt,
+      artifactDirectory,
+      artifactIdentity: await forkFileIdentity(artifactDirectory),
+      workspace: copiedDirectory,
+      workspaceIdentity: await forkFileIdentity(copiedDirectory),
+      published: []
+    })
+
+    await new AgentSessionForkOperations().recover()
+    expect(await readFile(path.join(adoptedDirectory, 'user.txt'), 'utf8')).toBe('adopted workspace content')
+    expect(await readForkResources()).toEqual([])
+    expect(await readdir(forkRoot)).toEqual([])
+    agentWorkspaceService.update(workspace.id, { additionalDirectories: [] })
+    await new AgentSessionForkOperations().recover()
+    expect(await readFile(path.join(adoptedDirectory, 'user.txt'), 'utf8')).toBe('adopted workspace content')
   })
 
   it('publishes an independent child without app_state and keeps its files after source deletion', async () => {
@@ -385,7 +476,6 @@ describe('Agent fork publication', () => {
     const operationId = randomUUID()
     const artifactDirectory = path.join(forkRoot, operationId)
     await mkdir(artifactDirectory, { recursive: true })
-    const { forkFileIdentity } = await import('../files')
     const resources = {
       version: 1 as const,
       operationId,

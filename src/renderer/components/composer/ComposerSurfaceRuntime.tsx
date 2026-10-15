@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type {
   QuickPanelInputAdapter,
@@ -90,6 +91,8 @@ import { FileComposerToken } from './tokenView'
 import type { ComposerToolLauncher } from './toolLauncher'
 import { useCompactComposerPresentation } from './useCompactComposerPresentation'
 import { useComposerEditorFrameSizing } from './useComposerEditorFrameSizing'
+
+const logger = loggerService.withContext('ComposerSurfaceRuntime')
 
 /** Matches NarrowLayout's `px-6` (and the message column's base) — the inline
  * override is invisible until the rail gutter adds onto it; only applied when
@@ -1361,8 +1364,21 @@ export default function ComposerSurfaceRuntime({
             return
           }
 
+          const refresh = async () => {
+            const generation = quickPanel.getPanelGeneration()
+            quickPanel.updateList([])
+            try {
+              const refreshed = await options.refreshItems?.()
+              const current = suggestionPanelStateRef.current.quickPanel
+              if (!refreshed || !current.isVisible || current.getPanelGeneration() !== generation) return
+              current.updateList(refreshed.items.map((item) => createComposerSuggestionQuickPanelItem(item, refreshed)))
+            } catch (error) {
+              logger.error('Failed to refresh composer suggestions', error as Error)
+            }
+          }
           quickPanel.open({
             title: typeof source.title === 'string' ? source.title : undefined,
+            header: source.renderHeader?.(() => void refresh()),
             list: options.items.map((item) =>
               createComposerSuggestionQuickPanelItem(item, {
                 editor: options.editor,

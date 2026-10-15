@@ -23,6 +23,7 @@ export interface CherryDocumentContext {
   agentDataPath: string
   sessionId: string
   workspacePath: string
+  additionalDirectories?: readonly string[]
 }
 
 const logger = loggerService.withContext('McpServer:CherryDocumentTools')
@@ -40,13 +41,14 @@ function loadAnydocModule(): Promise<AnydocModule> {
 }
 
 /**
- * Trusted roots for an out-of-workspace source: the agent data directory (documents the agent
- * produced or downloaded there — already an approval-free root for the SDK file tools) and the
- * exact managed files attached to this session, not the shared `Data/Files` directory holding them.
+ * Additional workspace and agent-data roots are trusted after canonicalization.
+ * Managed attachments authorize only their exact files, never the shared storage directory.
  */
 async function isAuthorizedOutsideWorkspace(context: CherryDocumentContext, requestedPath: string): Promise<boolean> {
-  const agentDataRoot = await realpath(AbsoluteFilePathSchema.parse(context.agentDataPath)).catch(() => null)
-  if (agentDataRoot && isSameOrInside(requestedPath, agentDataRoot)) return true
+  for (const directory of [context.agentDataPath, ...(context.additionalDirectories ?? [])]) {
+    const root = await realpath(AbsoluteFilePathSchema.parse(directory)).catch(() => null)
+    if (root && isSameOrInside(requestedPath, root)) return true
+  }
 
   const fileManager = application.get('FileManager')
   for (const attachment of listAgentSessionAttachments(context.sessionId)) {

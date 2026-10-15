@@ -9,7 +9,11 @@ import { newestMtimeMs } from '@main/ai/runtime/orphanSessionReclaim'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 import { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type CreateAgentWorkspaceDto,
+  type UpdateAgentWorkspaceDto
+} from '@shared/data/api/schemas/agentWorkspaces'
 
 import * as storage from './agentWorkspaceStorage'
 
@@ -43,11 +47,28 @@ function probeNameBehavior(directory: string): PathNameBehavior {
 class AgentWorkspaceStorageService {
   private readonly reservations = new Set<{ paths: readonly string[]; overlaps: (candidate: string) => boolean }>()
 
-  registerWorkspace(workspacePath: string, options: { name?: string } = {}) {
-    if ([...this.reservations].some((reservation) => reservation.overlaps(workspacePath.trim()))) {
+  private assertPathsAvailable(paths: string[]): void {
+    if (
+      [...this.reservations].some((reservation) => paths.some((directory) => reservation.overlaps(directory.trim())))
+    ) {
       throw new Error('Workspace storage is in use; retry after the operation completes')
     }
+  }
+
+  registerWorkspace(workspacePath: string, options: Omit<CreateAgentWorkspaceDto, 'path'> = {}) {
+    this.assertPathsAvailable([workspacePath, ...(options.additionalDirectories ?? [])])
     return agentWorkspaceService.findOrCreateByPathResult(workspacePath, options).workspace
+  }
+
+  updateWorkspace(workspaceId: string, changes: UpdateAgentWorkspaceDto) {
+    const workspace = agentWorkspaceService.getById(workspaceId)
+    this.assertPathsAvailable([
+      workspace.path,
+      ...workspace.additionalDirectories,
+      changes.path ?? workspace.path,
+      ...(changes.additionalDirectories ?? [])
+    ])
+    return agentWorkspaceService.update(workspaceId, changes)
   }
 
   reserveWorkspaceStorage(

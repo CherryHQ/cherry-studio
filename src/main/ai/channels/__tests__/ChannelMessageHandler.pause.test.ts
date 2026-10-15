@@ -58,7 +58,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
       getById: vi.fn((id: string) => persistedChannelSessions.sessions.get(id)),
       create,
       createTx: vi.fn((_tx: unknown, id: string, dto: Record<string, unknown>) => {
-        const template = create(dto) ?? { agentId: dto.agentId, workspace: { path: '/tmp/test-workspace' } }
+        const template = create(dto) ?? {
+          agentId: dto.agentId,
+          workspace: { additionalDirectories: [], path: '/tmp/test-workspace' }
+        }
         persistedChannelSessions.sessions.set(id, { ...template, id })
       }),
       notifyReadModelChange: vi.fn()
@@ -102,7 +105,7 @@ const SESSION = {
   agentId: 'agent-1',
   agentType: 'claude-code',
   model: 'openai::gpt-4',
-  workspace: { path: '/tmp/test-workspace' },
+  workspace: { additionalDirectories: [], path: '/tmp/test-workspace' },
   configuration: {}
 }
 

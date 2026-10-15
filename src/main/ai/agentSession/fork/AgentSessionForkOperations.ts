@@ -366,7 +366,9 @@ export class AgentSessionForkOperations {
         if (
           workspaceHasReferences(
             expected,
-            agentWorkspaceService.list({ includeSystem: true }).map((row) => row.path)
+            agentWorkspaceService
+              .list({ includeSystem: true })
+              .flatMap((row) => [row.path, ...row.additionalDirectories])
           )
         ) {
           // Terminal retention: releasing the other workspace later must never resurrect deletion.

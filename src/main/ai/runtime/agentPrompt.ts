@@ -34,6 +34,7 @@ export interface AgentRuntimePrompt {
 
 export interface BuildAgentRuntimePromptOptions {
   workspacePath: string
+  additionalDirectories?: readonly string[]
   agentDataPath: string
   agent: AgentEntity
   citationsGuidance?: string
@@ -49,6 +50,7 @@ const promptBuilder = new PromptBuilder()
 /** Materialize Cherry-owned prompt policy once; runtime adapters only map base/append into their SDK. */
 export async function buildAgentRuntimePrompt({
   workspacePath,
+  additionalDirectories = [],
   agentDataPath,
   agent,
   citationsGuidance,
@@ -84,6 +86,9 @@ export async function buildAgentRuntimePrompt({
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
+    additionalDirectories.length > 0
+      ? `## Workspace Directories\nMain directory: ${JSON.stringify(workspacePath)}\nAdditional directories: ${JSON.stringify(additionalDirectories)}\nUse the main directory as the default working directory.`
+      : undefined,
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,

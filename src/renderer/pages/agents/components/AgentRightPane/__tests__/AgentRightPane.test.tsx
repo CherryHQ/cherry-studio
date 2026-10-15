@@ -19,11 +19,14 @@ import {
   HoverCardTrigger as RealHoverCardTrigger
 } from '@cherrystudio/ui/components'
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
+import { getArtifactPaneSelectionPath } from '@renderer/components/chat/panes/artifactPanePath'
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import MarkdownFilePreview from '@renderer/components/FilePreview/plugins/markdown/MarkdownFilePreview'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type * as FilePath from '@renderer/utils/filePath'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
@@ -83,7 +86,7 @@ const {
   ipcRequestMock: vi.fn(),
   toastErrorMock: vi.fn(),
   webviewBrowserMock: vi.fn(),
-  uiMockState: { useRealHoverCard: false },
+  uiMockState: { useRealHoverCard: false, useRealMarkdownPreview: false },
   useAgentMessageListProviderValueMock: vi.fn()
 }))
 
@@ -244,12 +247,14 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastErrorMock }
 }))
 
-vi.mock('@renderer/utils/filePath', () => ({
+vi.mock('@renderer/utils/filePath', async (importOriginal) => ({
+  ...(await importOriginal<typeof FilePath>()),
   resolveInlineFilePath: (path: string) => path
 }))
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   ArtifactPaneView: ({
+    directorySelector,
     editMode,
     onEditModeChange,
     headerVariant,
@@ -260,6 +265,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     previewFileSelection,
     selectedFile
   }: {
+    directorySelector?: ReactNode
     editMode?: 'preview' | 'edit'
     onEditModeChange?: (mode: 'preview' | 'edit') => void
     headerVariant?: 'overlay' | 'pane'
@@ -274,6 +280,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
 
     return (
       <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
+        {directorySelector}
         {headerVariant === 'pane' ? (
           <div data-testid="artifact-pane-header">
             {previewFileSelection ? (
@@ -300,6 +307,15 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
         {previewFileSelection && (
           <div data-testid="artifact-file-preview-overlay">
             {previewFileSelection.filePath}
+            {uiMockState.useRealMarkdownPreview && (
+              <MarkdownFilePreview
+                filePath={getArtifactPaneSelectionPath(previewFileSelection)}
+                fileName={previewFileSelection.filePath}
+                metadata={{ size: 128, modifiedAt: 1 }}
+                refreshKey={0}
+                type="artifact"
+              />
+            )}
             <button type="button" onClick={() => navigation?.openFile('/workspace/DESIGN.md' as AbsoluteFilePath)}>
               open Markdown file link
             </button>
@@ -649,12 +665,17 @@ describe('AgentRightPane', () => {
   }
 
   beforeEach(() => {
+    HTMLElement.prototype.hasPointerCapture ??= () => false
+    HTMLElement.prototype.releasePointerCapture ??= () => undefined
+    HTMLElement.prototype.setPointerCapture ??= () => undefined
+    HTMLElement.prototype.scrollIntoView ??= () => undefined
     vi.clearAllMocks()
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
     window.api.file.openPath = openPathMock
     uiMockState.useRealHoverCard = false
+    uiMockState.useRealMarkdownPreview = false
     ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
       return {
@@ -3007,6 +3028,94 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'src/deep.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
+  })
+
+  it('switches directories with the main directory first and preserves dirty edits until confirmed', async () => {
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    const renderPane = (directories = ['/secondary']) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        additionalDirectories={directories}
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane())
+    const selector = screen.getByRole('combobox', { name: 'agent.session.workspace_selector.placeholder' })
+    await user.click(selector)
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      '/workspaceagent.session.workspace_edit.main_directory',
+      '/secondary'
+    ])
+    await user.click(screen.getByRole('option', { name: '/secondary' }))
+    expect(selector).toHaveTextContent('/secondary')
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(renderPane())
+    await user.click(selector)
+    await user.click(screen.getByRole('option', { name: /\/workspace/ }))
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(selector).toHaveTextContent('/secondary')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    await user.click(selector)
+    await user.click(screen.getByRole('option', { name: /\/workspace/ }))
+    await user.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+    expect(selector).toHaveTextContent('/workspace')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    fileSessionState.isDirty = false
+    await user.click(selector)
+    await user.click(screen.getByRole('option', { name: '/secondary' }))
+    rerender(renderPane(['/third']))
+    expect(selector).toHaveTextContent('/workspace')
+  })
+
+  it.each([
+    ['/secondary', '/workspace/README.md', '/workspace/DESIGN.md'],
+    ['/workspace', '/secondary/README.md', '/secondary/DESIGN.md'],
+    ['/secondary', '/external/docs/README.md', '/external/docs/DESIGN.md']
+  ])('opens preview links from the displayed file root with tree %s and file %s', async (tree, file, linkedFile) => {
+    const user = userEvent.setup()
+    uiMockState.useRealMarkdownPreview = true
+    const actual = await vi.importActual<typeof ArtifactPanePath>('@renderer/components/chat/panes/artifactPanePath')
+    resolveArtifactPaneFileSelectionMock.mockImplementation(actual.resolveArtifactPaneFileSelection)
+    Object.defineProperty(window.api, 'fs', {
+      configurable: true,
+      value: {
+        readText: vi.fn(async (filePath: string) =>
+          filePath === linkedFile ? 'Linked design document' : '[Design document](DESIGN.md)'
+        )
+      }
+    })
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        additionalDirectories={['/secondary']}
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path={file} />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    if (tree === '/secondary') {
+      await user.click(screen.getByRole('combobox', { name: 'agent.session.workspace_selector.placeholder' }))
+      await user.click(screen.getByRole('option', { name: '/secondary' }))
+    }
+
+    await user.click(screen.getByRole('button', { name: 'open artifact' }))
+    await user.click(await screen.findByRole('link', { name: 'Design document' }))
+
+    expect(await screen.findByText('Linked design document')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'agent.session.workspace_selector.placeholder' })).toHaveTextContent(
+      tree
+    )
   })
 
   it('keeps the dirty file bound to its original workspace until the workspace transition is confirmed', () => {

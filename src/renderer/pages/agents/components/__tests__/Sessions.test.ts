@@ -5,6 +5,7 @@ import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import { buildCreateSessionSeed, buildCreateSessionSeedIndex } from '../Sessions'
 
 const workspace = (path: string) => ({
+  additionalDirectories: [],
   id: `workspace-${path}`,
   name: path,
   path,

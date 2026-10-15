@@ -1,9 +1,10 @@
 import { Icon } from '@iconify/react'
 import type { Editor } from '@tiptap/core'
 import { Folder } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { WorkspaceDirectorySelector } from '@renderer/components/resourceCatalog/selectors'
 import { FILE_TYPE } from '@renderer/types/file'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -90,6 +91,28 @@ interface AgentResourceMentionOptions {
   getAdditionalItems?: (options: { query: string; editor: Editor }) => Promise<ComposerSuggestionItem[]>
 }
 
+function ResourceDirectorySelector({
+  directories,
+  value,
+  onChange
+}: {
+  directories: readonly string[]
+  value: string
+  onChange: (directory: string) => void
+}) {
+  const [selected, setSelected] = useState(value)
+  return (
+    <WorkspaceDirectorySelector
+      directories={directories}
+      value={selected}
+      onValueChange={(directory) => {
+        setSelected(directory)
+        onChange(directory)
+      }}
+    />
+  )
+}
+
 /**
  * Provides the agent composer's `@`-mention suggestion source, which lists workspace files and
  * folders. Files become managed file tokens; folders become path-only folder tokens. An empty
@@ -106,6 +129,7 @@ export function useAgentResourceMentionSource({
   const { t } = useTranslation()
   const pendingResourceSearchRef = useRef<PendingResourceSearch | undefined>(undefined)
   const resourceSearchGenerationRef = useRef(0)
+  const selectedDirectoryRef = useRef<{ pathsKey: string; path: AbsoluteFilePath } | null>(null)
   const accessiblePathsKey = createAccessiblePathsKey(accessiblePaths)
   const resourceMentionStateRef = useRef({
     accessiblePaths,
@@ -135,8 +159,11 @@ export function useAgentResourceMentionSource({
   }, [])
 
   const queryWorkspaceResources = useCallback(
-    (searchPaths: readonly string[], normalizedQuery: string): Promise<ResourceSearchResult> => {
-      const requestGeneration = invalidateResourceSearch()
+    (
+      searchPaths: readonly string[],
+      normalizedQuery: string,
+      requestGeneration: number
+    ): Promise<ResourceSearchResult> => {
       const options = normalizedQuery
         ? {
             recursive: true,
@@ -173,7 +200,7 @@ export function useAgentResourceMentionSource({
         pendingResourceSearchRef.current = pendingSearch
       })
     },
-    [invalidateResourceSearch]
+    []
   )
 
   useEffect(
@@ -188,14 +215,35 @@ export function useAgentResourceMentionSource({
       pluginKey: 'agent-resource-mention-suggestion',
       char: '@',
       title: t('chat.input.resource_panel.title'),
+      renderHeader: (refresh) => {
+        const { accessiblePaths: paths, accessiblePathsKey: pathsKey } = resourceMentionStateRef.current
+        if (paths.length < 2) return null
+        const selected = selectedDirectoryRef.current
+        return (
+          <ResourceDirectorySelector
+            key={pathsKey}
+            directories={paths}
+            value={selected?.pathsKey === pathsKey ? selected.path : paths[0]}
+            onChange={(directory) => {
+              selectedDirectoryRef.current = { pathsKey, path: AbsoluteFilePathSchema.parse(directory) }
+              invalidateResourceSearch()
+              refresh()
+            }}
+          />
+        )
+      },
       allowedPrefixes: [' ', '\n'],
       onExit: () => {
         invalidateResourceSearch()
       },
       items: async ({ query, editor }) => {
+        const requestGeneration = invalidateResourceSearch()
         const { accessiblePaths, accessiblePathsKey, files, setFiles, getAdditionalItems, t } =
           resourceMentionStateRef.current
         const normalizedQuery = query.trim()
+        const selected = selectedDirectoryRef.current
+        const directory = selected?.pathsKey === accessiblePathsKey ? selected.path : accessiblePaths[0]
+        const searchPaths = directory ? [directory] : []
         // Settled here, not at the await below: a rejection there would reject the whole source
         // and the suggestion wrapper would replace the loaded file results with a single error row.
         const additionalItemsPromise = getAdditionalItems?.({ query, editor }).catch((): ComposerSuggestionItem[] => [
@@ -212,7 +260,7 @@ export function useAgentResourceMentionSource({
         if (accessiblePaths.length > 0) {
           // `.` is main's bounded direct-root listing sentinel; a real query switches to
           // bounded recursive fuzzy search without building a renderer-side directory index.
-          const results = await queryWorkspaceResources(accessiblePaths, normalizedQuery)
+          const results = await queryWorkspaceResources(searchPaths, normalizedQuery, requestGeneration)
           if (results === null || accessiblePathsKey !== resourceMentionStateRef.current.accessiblePathsKey) return []
 
           const collectedResources = new Map<AbsoluteFilePath, DirectoryEntry>()
@@ -244,7 +292,7 @@ export function useAgentResourceMentionSource({
             )
 
             for (const [entryPath, entry] of collectedResources) {
-              const relativePath = getAccessiblePathRelativePath(entryPath, accessiblePaths)
+              const relativePath = getAccessiblePathRelativePath(entryPath, searchPaths)
               if (entry.isDirectory) {
                 const entryPathKey = getPathComparisonKey(entryPath)
                 resourceItems.push({
@@ -302,6 +350,11 @@ export function useAgentResourceMentionSource({
         }
 
         const additionalItems = additionalItemsPromise ? await additionalItemsPromise : []
+        if (
+          requestGeneration !== resourceSearchGenerationRef.current ||
+          accessiblePathsKey !== resourceMentionStateRef.current.accessiblePathsKey
+        )
+          return []
         if (resourceItems.length === 0 && additionalItems.length === 0 && accessiblePaths.length === 0) {
           return [
             {

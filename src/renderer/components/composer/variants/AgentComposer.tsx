@@ -440,7 +440,10 @@ const AgentComposerRoot = ({
   const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
-    const accessiblePaths = toAccessiblePaths(session.workspace?.type === 'user' ? session.workspace.path : undefined)
+    const accessiblePaths =
+      session.workspace?.type === 'user'
+        ? [session.workspace.path, ...(session.workspace.additionalDirectories ?? [])].flatMap(toAccessiblePaths)
+        : EMPTY_ACCESSIBLE_PATHS
     return {
       agentId,
       sessionId,

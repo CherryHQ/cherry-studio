@@ -233,7 +233,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    session.workspace.additionalDirectories
   )
 
   // 6. MCP servers (session + built-in)
@@ -321,7 +322,7 @@ export async function buildClaudeCodeSessionSettings(
 
   const settings: ClaudeCodeSettings = {
     cwd,
-    additionalDirectories: [agentDataPath],
+    additionalDirectories: [...new Set([agentDataPath, ...session.workspace.additionalDirectories])],
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
@@ -630,7 +631,8 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  additionalDirectories: readonly string[] = []
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -648,6 +650,7 @@ export async function buildSystemPrompt(
   ].join('\n')
   const prompt = await buildAgentRuntimePrompt({
     workspacePath: cwd,
+    additionalDirectories,
     agentDataPath,
     agent,
     citationsGuidance,

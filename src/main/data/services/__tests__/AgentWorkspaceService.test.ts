@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api/errors'
 
 const SYSTEM_WORKSPACE_CREATED_AT = Date.parse('2026-07-27T10:00:00Z')
@@ -42,8 +42,60 @@ describe('AgentWorkspaceService', () => {
     return dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, rawPath, options))
   }
 
-  it('should export a module-level singleton of AgentWorkspaceService', () => {
-    expect(agentWorkspaceService).toBeInstanceOf(AgentWorkspaceService)
+  it('persists normalized additional directories and keeps them when renamed', () => {
+    const main = workspacePath('main')
+    const extra = workspacePath('extra')
+    const created = agentWorkspaceService.findOrCreateByPath(main, {
+      additionalDirectories: [main, extra, `${extra}${path.sep}`]
+    })
+    agentWorkspaceService.update(created.id, { name: '  New name  ' })
+    expect(agentWorkspaceService.getById(created.id)).toMatchObject({
+      name: 'New name',
+      path: main,
+      additionalDirectories: [extra]
+    })
+  })
+
+  it('switches the main directory without losing the old main directory', () => {
+    const main = workspacePath('main')
+    const extra = workspacePath('extra')
+    const created = agentWorkspaceService.findOrCreateByPath(main, { additionalDirectories: [extra] })
+    agentWorkspaceService.update(created.id, { path: extra })
+    expect(agentWorkspaceService.getById(created.id)).toMatchObject({ path: extra, additionalDirectories: [main] })
+    agentWorkspaceService.update(created.id, { additionalDirectories: [] })
+    expect(agentWorkspaceService.getById(created.id)).toMatchObject({ path: extra, additionalDirectories: [] })
+  })
+
+  it('rejects an unknown main directory and rolls back invalid directory updates and name changes', () => {
+    const created = agentWorkspaceService.findOrCreateByPath(workspacePath('main'), { name: 'Original' })
+    expect(
+      captureError(() => agentWorkspaceService.update(created.id, { path: workspacePath('unknown') }))
+    ).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+    expect(
+      captureError(() =>
+        agentWorkspaceService.update(created.id, { name: 'Changed', additionalDirectories: ['relative'] })
+      )
+    ).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+    expect(agentWorkspaceService.getById(created.id)).toMatchObject({
+      name: 'Original',
+      path: created.path,
+      additionalDirectories: []
+    })
+  })
+
+  it('rolls back a main directory switch that conflicts with another workspace', () => {
+    const occupied = agentWorkspaceService.findOrCreateByPath(workspacePath('occupied'))
+    const created = agentWorkspaceService.findOrCreateByPath(workspacePath('main'), {
+      additionalDirectories: [occupied.path]
+    })
+    expect(
+      captureError(() => agentWorkspaceService.update(created.id, { name: 'Changed', path: occupied.path }))
+    ).toMatchObject({ code: ErrorCode.CONFLICT })
+    expect(agentWorkspaceService.getById(created.id)).toMatchObject({
+      name: created.name,
+      path: created.path,
+      additionalDirectories: [occupied.path]
+    })
   })
 
   it('owns the system workspace path policy', () => {

@@ -43,6 +43,9 @@ export async function prepareAgentSessionWorkspaceDirectory(session: AgentSessio
     }
   }
   await assertAgentSessionWorkspaceDirectory(session.id, workspace.path)
+  await Promise.all(
+    workspace.additionalDirectories.map((directory) => assertAgentSessionWorkspaceDirectory(session.id, directory))
+  )
 }
 
 async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {

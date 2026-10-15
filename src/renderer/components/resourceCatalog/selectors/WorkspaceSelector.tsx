@@ -1,4 +1,4 @@
-import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
+import { CircleSlash, Folder, FolderPlus, Pencil, Trash2 } from 'lucide-react'
 import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,6 +19,11 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('WorkspaceSelector')
+const WorkspaceEditDialog = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/workspace').then((module) => ({
+    default: module.WorkspaceEditDialog
+  }))
+)
 const DEFAULT_MIN_LIST_HEIGHT = 144
 const loadWorkspaceDeleteConfirmDialog = () =>
   import('@renderer/components/resourceCatalog/dialogs/workspace').then((module) => ({
@@ -49,7 +54,10 @@ function workspaceMatchesSearch(workspace: AgentWorkspaceEntity, searchValue: st
   const query = searchValue.trim().toLowerCase()
   if (!query) return true
 
-  return workspace.name.toLowerCase().includes(query) || workspace.path.toLowerCase().includes(query)
+  return (
+    workspace.name.toLowerCase().includes(query) ||
+    [workspace.path, ...workspace.additionalDirectories].some((directory) => directory.toLowerCase().includes(query))
+  )
 }
 
 export function WorkspaceSelector({
@@ -69,6 +77,7 @@ export function WorkspaceSelector({
   const [internalOpen, setInternalOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [deletingWorkspace, setDeletingWorkspace] = useState<AgentWorkspaceEntity | null>(null)
+  const [editingWorkspace, setEditingWorkspace] = useState<AgentWorkspaceEntity | null>(null)
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   const open = openProp ?? internalOpen
   const listboxId = useId()
@@ -182,15 +191,28 @@ export function WorkspaceSelector({
           showSelectedIndicator={selected}
           leading={<Folder className="size-4 text-muted-foreground" />}
           actions={
-            <ModelSelectorRowActionButton
-              disabled={disabled}
-              aria-label={t('agent.session.workdir.delete.trigger')}
-              className="focus-visible:opacity-100"
-              onMouseEnter={preloadWorkspaceDeleteConfirmDialog}
-              onFocus={preloadWorkspaceDeleteConfirmDialog}
-              onClick={() => handleRequestDeleteWorkspace(workspace)}>
-              <Trash2 className="size-3.5" />
-            </ModelSelectorRowActionButton>
+            <>
+              <ModelSelectorRowActionButton
+                disabled={disabled}
+                aria-label={t('agent.session.workspace_edit.title')}
+                title={t('agent.session.workspace_edit.title')}
+                className="focus-visible:opacity-100"
+                onClick={() => {
+                  handleOpenChange(false)
+                  setEditingWorkspace(workspace)
+                }}>
+                <Pencil className="size-3.5" />
+              </ModelSelectorRowActionButton>
+              <ModelSelectorRowActionButton
+                disabled={disabled}
+                aria-label={t('agent.session.workdir.delete.trigger')}
+                className="focus-visible:opacity-100"
+                onMouseEnter={preloadWorkspaceDeleteConfirmDialog}
+                onFocus={preloadWorkspaceDeleteConfirmDialog}
+                onClick={() => handleRequestDeleteWorkspace(workspace)}>
+                <Trash2 className="size-3.5" />
+              </ModelSelectorRowActionButton>
+            </>
           }
           onSelect={() => void handleSelectWorkspace(workspace.id)}
           rootProps={{ 'data-option-row': workspace.id, className: 'pr-1' }}
@@ -266,6 +288,11 @@ export function WorkspaceSelector({
         }}
       </SelectorShell>
 
+      {editingWorkspace ? (
+        <Suspense fallback={null}>
+          <WorkspaceEditDialog workspace={editingWorkspace} onClose={() => setEditingWorkspace(null)} />
+        </Suspense>
+      ) : null}
       {deletingWorkspace ? (
         <Suspense fallback={null}>
           <WorkspaceDeleteConfirmDialog

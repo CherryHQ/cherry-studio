@@ -24,10 +24,12 @@ import {
   type AgentWorkspaceReferenceList,
   type AgentWorkspaceReferences,
   AgentWorkspaceTypeSchema,
+  type CreateAgentWorkspaceDto,
   type UpdateAgentWorkspaceDto
 } from '@shared/data/api/schemas/agentWorkspaces'
 
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
+type AgentWorkspaceCreateOptions = Omit<CreateAgentWorkspaceDto, 'path'>
 export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }
 const AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT = 21
 
@@ -40,6 +42,7 @@ export function rowToAgentWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntit
     id: row.id,
     name: row.name,
     path: row.path,
+    additionalDirectories: row.additionalDirectories,
     type: AgentWorkspaceTypeSchema.parse(row.type),
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
@@ -64,9 +67,17 @@ export class AgentWorkspaceService {
     return application
       .get('DbService')
       .getDb()
-      .select({ path: agentWorkspaceTable.path, type: agentWorkspaceTable.type })
+      .select({
+        path: agentWorkspaceTable.path,
+        type: agentWorkspaceTable.type,
+        additionalDirectories: agentWorkspaceTable.additionalDirectories
+      })
       .from(agentWorkspaceTable)
       .all()
+      .flatMap((row) => [
+        { path: row.path, type: row.type },
+        ...row.additionalDirectories.map((path) => ({ path, type: AGENT_WORKSPACE_TYPE.USER }))
+      ])
   }
 
   buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
@@ -199,11 +210,14 @@ export class AgentWorkspaceService {
     }
   }
 
-  findOrCreateByPath(rawPath: string, options: { name?: string } = {}): AgentWorkspaceEntity {
+  findOrCreateByPath(rawPath: string, options: AgentWorkspaceCreateOptions = {}): AgentWorkspaceEntity {
     return this.findOrCreateByPathResult(rawPath, options).workspace
   }
 
-  findOrCreateByPathResult(rawPath: string, options: { name?: string } = {}): FindOrCreateAgentWorkspaceResult {
+  findOrCreateByPathResult(
+    rawPath: string,
+    options: AgentWorkspaceCreateOptions = {}
+  ): FindOrCreateAgentWorkspaceResult {
     const workspacePath = this.normalizeWorkspacePath(rawPath)
     const result = withSqliteErrors(
       () =>
@@ -220,7 +234,7 @@ export class AgentWorkspaceService {
     return { workspace: rowToAgentWorkspace(result.row), created: result.created }
   }
 
-  findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: { name?: string } = {}): AgentWorkspaceEntity {
+  findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: AgentWorkspaceCreateOptions = {}): AgentWorkspaceEntity {
     const workspacePath = this.normalizeWorkspacePath(rawPath)
     const result = withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
       ...defaultHandlersFor('Workspace', workspacePath),
@@ -232,7 +246,7 @@ export class AgentWorkspaceService {
   private findOrCreateRowByNormalizedPathTx(
     tx: DbOrTx,
     workspacePath: string,
-    options: { name?: string } = {}
+    options: AgentWorkspaceCreateOptions = {}
   ): { row: AgentWorkspaceRow; created: boolean } {
     const [existing] = tx
       .select()
@@ -254,7 +268,13 @@ export class AgentWorkspaceService {
     const row = insertWithOrderKey(
       tx,
       agentWorkspaceTable,
-      { id, name, path: workspacePath, type: AGENT_WORKSPACE_TYPE.USER },
+      {
+        id,
+        name,
+        path: workspacePath,
+        additionalDirectories: this.normalizeAdditionalDirectories(workspacePath, options.additionalDirectories ?? []),
+        type: AGENT_WORKSPACE_TYPE.USER
+      },
       { pkColumn: agentWorkspaceTable.id, position: 'first' }
     ) as AgentWorkspaceRow
     return { row, created: true }
@@ -294,10 +314,26 @@ export class AgentWorkspaceService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          this.getRowByIdTx(tx, id)
+          const existing = this.getRowByIdTx(tx, id)
+          const mainPath = dto.path === undefined ? existing.path : this.normalizeWorkspacePath(dto.path)
+          if (
+            mainPath !== existing.path &&
+            !existing.additionalDirectories.includes(mainPath) &&
+            dto.additionalDirectories === undefined
+          ) {
+            throw DataApiErrorFactory.validation({ path: ['Main directory must belong to the workspace'] })
+          }
+          const additionalDirectories = this.normalizeAdditionalDirectories(
+            mainPath,
+            dto.additionalDirectories ?? [existing.path, ...existing.additionalDirectories]
+          )
           const [updated] = tx
             .update(agentWorkspaceTable)
-            .set({ name: normalizeWorkspaceName(dto.name) })
+            .set({
+              ...(dto.name === undefined ? {} : { name: normalizeWorkspaceName(dto.name) }),
+              path: mainPath,
+              additionalDirectories
+            })
             .where(and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER)))
             .returning()
             .all()
@@ -306,7 +342,19 @@ export class AgentWorkspaceService {
       defaultHandlersFor('Workspace', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+    notifyDataApiDataChange([
+      { endpoint: '/agent-workspaces', kind: 'projection' },
+      { endpoint: '/agent-workspaces/:workspaceId', routeParams: { workspaceId: id } },
+      { endpoint: '/agent-sessions', kind: 'projection' },
+      { endpoint: '/agent-sessions/:sessionId' }
+    ])
     return rowToAgentWorkspace(row)
+  }
+
+  private normalizeAdditionalDirectories(mainPath: string, directories: string[]): string[] {
+    return [...new Set(directories.map((directory) => this.normalizeWorkspacePath(directory)))].filter(
+      (directory) => directory !== mainPath
+    )
   }
 
   deleteByIdTx(tx: DbOrTx, id: string): void {

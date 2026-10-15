@@ -709,7 +709,9 @@ describe('aiHandlers — agent sessions & tasks', () => {
   // Relative paths reported by a session's tools are resolved against that session's workspace,
   // and only main knows it — the renderer sends the path text verbatim.
   it('open_path resolves the raw path against the session workspace', async () => {
-    agentSessionService.getById.mockReturnValue({ workspace: { path: '/home/alice/project' } })
+    agentSessionService.getById.mockReturnValue({
+      workspace: { additionalDirectories: [], path: '/home/alice/project' }
+    })
 
     await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: 'assets/logo.png' }, ctx)
 
@@ -719,7 +721,7 @@ describe('aiHandlers — agent sessions & tasks', () => {
   // A workspace row that is not an absolute path must not steer resolution; the caller's own
   // absolute path still opens, and a relative one fails rather than resolving against the cwd.
   it('open_path drops a workspace path that is not absolute', async () => {
-    agentSessionService.getById.mockReturnValue({ workspace: { path: 'project' } })
+    agentSessionService.getById.mockReturnValue({ workspace: { additionalDirectories: [], path: 'project' } })
 
     await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: '/opt/out.png' }, ctx)
 
