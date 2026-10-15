@@ -465,6 +465,23 @@ describe('translateMcpToolRulesToRuntimeNames', () => {
     expect(translateMcpToolRulesToRuntimeNames([rule], new Map(), map)).toEqual([runtimeName])
   })
 
+  it('merges extended identities even when the stripped fragment exactly hits a shorter tool', () => {
+    // `github` exposes 53- and 37-character tools sharing a prefix: the long tool registers the
+    // truncated `mcp__github__<37 a>_<hash>`. Renaming the server to `docs` keeps the denial's
+    // stripped fragment exactly equal to the short tool's verbatim registration (`mcp__docs__`
+    // holds 37 chars while the long tool's new lossy base holds 39) — returning the exact hit
+    // alone skips the prefix scan and lets the explicitly disabled long tool execute.
+    const shortName = `mcp__docs__${'a'.repeat(37)}`
+    const longName = `mcp__docs__${'a'.repeat(39)}_c0ffee123456`
+    const map = new Map([
+      [shortName, [shortName]],
+      [`mcp__docs__${'a'.repeat(39)}`, [longName]],
+      [longName, [longName]]
+    ])
+    const rule = `mcp__docs__${'a'.repeat(37)}_4f7413c24ae4`
+    expect(translateMcpToolRulesToRuntimeNames([rule], new Map(), map)).toEqual([shortName, longName])
+  })
+
   it('does not prefix-scan rules without a disambiguator tail', () => {
     // A plain name-form miss is a rule for a server/tool that is not mounted: prefix-scanning
     // it would blanket-deny longer unrelated tools sharing the prefix.
@@ -736,6 +753,21 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     ).toEqual(['mcp__GitHub__run', 'mcp__github__run'])
   })
 
+  it('camelizes the tool segment of the alias Pi recognizes after a mixed-case rename', () => {
+    // Pi resolves denials through `buildFunctionCallToolName`, which camelizes BOTH segments:
+    // `GitHub` + `get_time` registers `mcp__github__getTime`. Copying the raw tool segment onto
+    // the camelized key emits `mcp__github__get_time`, which matches nothing — a UUID-keyed
+    // denial for a snake_case tool silently stops blocking after the rename.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__srv-1__get_time'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'skills' }],
+        renamedServerId: 'srv-1',
+        toName: 'GitHub',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__GitHub__get_time', 'mcp__github__getTime'])
+  })
+
   it('carries a truncated DSH identity onto the renamed key fragment', () => {
     // A 60-char lowercase server name truncates the lossy DSH runtime name before the `__`
     // delimiter, fusing key and tool into one unparseable prefix. The saved denial must still
@@ -751,6 +783,28 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         reservedKeys: RESERVED
       })
     ).toEqual([entry, 'mcp__docs_abc123def456', 'mcp__other__run'])
+  })
+
+  it('follows every plausible owner when a truncated prefix matches several rewrites', () => {
+    // A and B hold 60-char keys sharing the first 45 characters, and B's truncated DSH denial
+    // survives as exactly that prefix. Renaming A onto B's name displaces B onto its id, and
+    // BOTH old keys' camelized forms start with the retained fragment — a truncated prefix
+    // cannot establish a unique owner. Taking the first match (A) emits a replacement equal to
+    // the original, which the dedup filter drops, so migration returns undefined and B's
+    // UUID-keyed tool executes. Every matching rewrite must emit its candidate copies.
+    const prefix = 'a'.repeat(45)
+    const entry = `mcp__${prefix}_abc123def456`
+    expect(
+      migrateAgentDisabledToolsForServerRename([entry], {
+        mountedServers: [
+          { mcpId: 'srv-a', name: `${prefix}${'b'.repeat(15)}` },
+          { mcpId: 'srv-b', name: `${prefix}${'c'.repeat(15)}` }
+        ],
+        renamedServerId: 'srv-a',
+        toName: `${prefix}${'c'.repeat(15)}`,
+        reservedKeys: RESERVED
+      })
+    ).toEqual([entry, 'mcp__srvB_abc123def456', 'mcp__srv-b_abc123def456'])
   })
 })
 

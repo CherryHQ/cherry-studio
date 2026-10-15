@@ -250,8 +250,12 @@ export function translateMcpToolRulesToRuntimeNames(
     // string's registered denial — letting that tool execute under an exact-match policy.
     const stripped = candidate.replace(/_[0-9a-f]{12}$/, '')
     if (stripped !== candidate) {
+      // The stripped base can exactly hit a SHORTER sibling's registered name: a long tool
+      // truncates onto the retention base that a short tool of the same server fills verbatim,
+      // so an exact hit proves nothing about the saved denial's original identity. Merge the
+      // exact hit with every registered identity extending the fragment instead of returning
+      // early — the early return skips the scan below and re-enables the longer tool.
       const baseNames = runtimeNameByRule.get(stripped)
-      if (baseNames) return [...new Set([...baseNames, ...candidates])]
       // A copy rebuilt from a truncated fragment cannot always land on the new allocation's
       // base: a shortening rename leaves the stripped fragment a strict prefix of the base the
       // runtime indexes for the pair. Every registered identity extending the fragment
@@ -263,7 +267,9 @@ export function translateMcpToolRulesToRuntimeNames(
       for (const [registered, names] of runtimeNameByRule) {
         if (registered.length > stripped.length && registered.startsWith(stripped)) extended.push(...names)
       }
-      if (extended.length > 0) return [...new Set([...extended, ...candidates])]
+      if (baseNames || extended.length > 0) {
+        return [...new Set([...(baseNames ?? []), ...extended, ...candidates])]
+      }
     }
     return candidates.size > 0 ? [...candidates] : [candidate]
   })
@@ -538,8 +544,14 @@ function applyAgentKeyRewrites(
           replacements = rewriteHashed(toolPart, matched.toKey)
           keepOriginal = true
         } else if (matched) {
-          replacements = [`mcp__${matched.toKey}__${toolPart}`]
-          if (matched.camelToKey) replacements.push(`mcp__${matched.camelToKey}__${toolPart}`)
+          // Pi resolves denials through `buildFunctionCallToolName`, which camelizes BOTH
+          // segments (`GitHub` + `get_time` registers `mcp__github__getTime`): copying the raw
+          // tool segment onto the camelized key emits a string no runtime registered, and the
+          // explicitly disabled tool executes. Set-dedup folds the copy when the tool segment
+          // is already camelCase.
+          const targets = new Set<string>([`mcp__${matched.toKey}__${toolPart}`])
+          if (matched.camelToKey) targets.add(`mcp__${matched.camelToKey}__${toCamelCase(toolPart)}`)
+          replacements = [...targets]
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = rewriteHashed(toolPart, lossyMatched.toKey)
           keepOriginal = true
@@ -548,13 +560,21 @@ function applyAgentKeyRewrites(
         // Truncated before the server/tool delimiter: the fused prefix is all that survives of
         // the key. A prefix match on the old key's camelized form identifies the owner (a key
         // that fit entirely would have kept the `__`); the fragment maps onto the new key's
-        // equally truncated fragment, and the tail rides along for the prefix scan.
+        // equally truncated fragment, and the tail rides along for the prefix scan. A truncated
+        // prefix cannot establish a unique owner — several old keys can share the camelized
+        // prefix, and the first match's replacement may equal the original string (filtered out
+        // below), silently dropping the rewrite of the server the denial actually follows. Every
+        // prefix-matching rewrite emits its candidate copies (fail-closed); the final dedup
+        // folds the duplicates.
         const fragment = rest.slice(0, rest.length - 13)
         const tail = rest.slice(rest.length - 13)
-        const matched = rewrites.find(({ fromKey }) => toCamelCase(fromKey).startsWith(fragment))
-        if (matched) {
-          const targets = new Set<string>([toCamelCase(matched.toKey)])
-          if (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(matched.toKey)) targets.add(matched.toKey)
+        const targets = new Set<string>()
+        for (const { fromKey, toKey } of rewrites) {
+          if (!toCamelCase(fromKey).startsWith(fragment)) continue
+          targets.add(toCamelCase(toKey))
+          if (/^[A-Za-z_][A-Za-z0-9_-]*$/.test(toKey)) targets.add(toKey)
+        }
+        if (targets.size > 0) {
           replacements = [...targets].map((target) => `mcp__${target.slice(0, fragment.length)}${tail}`)
           keepOriginal = true
         }
