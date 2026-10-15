@@ -438,9 +438,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     if (!consumedWarmQuery) this.liveSpawnPreflightReserved = true
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
-    let createClaudeQuery: typeof import('@anthropic-ai/claude-agent-sdk').query
     try {
-      createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
+      const { query: createClaudeQuery } = await import('@anthropic-ai/claude-agent-sdk')
       this.query = consumedWarmQuery
         ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
         : createClaudeQuery({ prompt: this.sdkInputQueue, options })
