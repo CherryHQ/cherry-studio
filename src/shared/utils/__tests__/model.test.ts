@@ -17,7 +17,7 @@ import {
   isTextToSpeechModel,
   isVideoModel,
   isVisionModel,
-  supportsDynamicallyLoadedTools
+  requiresUpfrontToolsForModel
 } from '@shared/utils/model'
 
 const createModel = (capabilities: Model['capabilities'] = []): Model => ({
@@ -170,29 +170,28 @@ describe('shared model capability helpers', () => {
     })
   })
 
-  describe('supportsDynamicallyLoadedTools', () => {
+  describe('requiresUpfrontToolsForModel', () => {
     it.each([
-      ['claude-sonnet-4-5', true],
-      ['gpt-5.1', true],
-      ['deepseek-v4-flash', true],
-      ['qwen3.7-plus', true],
-      // Kimi K3 is the only model in the family that accepts dynamically-loaded tool declarations.
+      ['claude-sonnet-4-5', false],
+      ['gpt-5.1', false],
+      ['deepseek-v4-flash', false],
+      ['qwen3.7-plus', false],
+      // Kimi K3 lacks Claude Code's server-side search; other Kimi models also reject dynamic declarations.
       ['k3', true],
       ['kimi-k3', true],
       ['kimi-k3-0905-preview', true],
-      // Everything else in the Kimi family rejects them with `tokenization failed`.
-      ['kimi-for-coding', false],
-      ['kimi-k2.5', false],
-      ['kimi-k2-0711-preview', false],
-      ['kimi-latest', false],
-      ['moonshot-v1-128k', false],
+      ['kimi-for-coding', true],
+      ['kimi-k2.5', true],
+      ['kimi-k2-0711-preview', true],
+      ['kimi-latest', true],
+      ['moonshot-v1-128k', true],
       // Namespace prefixes and Claude Code's [1m] suffix must not break matching.
-      ['provider:kimi-for-coding', false],
+      ['provider:kimi-for-coding', true],
       ['provider:k3', true],
-      ['kimi-for-coding[1m]', false],
+      ['kimi-for-coding[1m]', true],
       ['k3[1m]', true]
     ])('classifies %s as %s', (modelId, expected) => {
-      expect(supportsDynamicallyLoadedTools(modelId)).toBe(expected)
+      expect(requiresUpfrontToolsForModel(modelId)).toBe(expected)
     })
   })
 })
