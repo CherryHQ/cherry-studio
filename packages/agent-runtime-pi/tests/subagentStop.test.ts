@@ -18,7 +18,7 @@ import {
   untilStopped,
   waitFor
 } from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort, textParts } from './support'
+import { createTestSession, finish, hostStore, plain, streamTextPort, textParts } from './support'
 import { textOf } from './toolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
@@ -237,9 +237,10 @@ describe('stopping subagents', () => {
     expect(textOf(toolResultOf(created.session, 'call_a'))).toMatch(/^REPORT-A/)
   })
 
-  // Breaks when a later stop replaces the user's while the run winds down: once it is over, the
-  // model could continue a subagent the user stopped.
-  it("keeps the user's stop when the model stops the same run before it ends, so it cannot be continued", async () => {
+  // Breaks when a later stop replaces the user's while the run winds down (the model could then
+  // continue a subagent the user stopped), or when the run is reported again after stop_subagent
+  // returned it, live or after a rebuild.
+  it("keeps the user's stop when the model stops the run as it winds down, and reports the run once", async () => {
     const started = gate()
     const windDown = gate()
     const slowWork = defineTool({
@@ -262,7 +263,7 @@ describe('stopping subagents', () => {
     }
     const host = storingSubagentPort()
     const parent = hostStore()
-    const { model } = routedModel((call) => {
+    const { model, calls } = routedModel((call) => {
       const { userText, lastText } = call
       if (userText.includes('TASK-A'))
         return lastText.includes('TASK-A') ? [toolCallPart('work_1', 'work'), finish('tool-calls')] : reply('LATE-A')
@@ -270,7 +271,7 @@ describe('stopping subagents', () => {
       const id = host.subagents[0]?.sessionId
       if (lastText === 'Stop A, then go on with it')
         return [toolCallPart('call_stop', 'stop_subagent', { id }), finish('tool-calls')]
-      if (toolResults(call).at(-1)?.toolCallId === 'call_stop')
+      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_stop')
         return [toolCallPart('call_msg', 'message_subagent', { id, message: 'GO-ON' }), finish('tool-calls')]
       return reply('OK.')
     })
@@ -285,10 +286,24 @@ describe('stopping subagents', () => {
     await started.reached
     expect(runtime.stopSubagent(host.subagents[0].sessionId)).toBe(true)
     await runtime.prompt('Stop A, then go on with it')
+    await runtime.prompt('Any news?')
 
+    // The model's stop found the run still winding down, and took its result.
+    const stopped = toolResultOf(runtime.session, 'call_stop')
+    expect(stopped.details).toMatchObject({ stopped: true, run: 1 })
+    expect(textOf(stopped)).toMatch(/^Stopped subagent /)
     const refused = toolResultOf(runtime.session, 'call_msg')
     expect(refused.isError).toBe(true)
     expect(textOf(refused)).toMatch(/was stopped by the user and cannot be continued/)
     expect(subagentStates(parent.entries).at(-1)).toMatchObject({ outcome: 'stopped', stoppedBy: 'user' })
+
+    const rebuilt = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [slowWork],
+      subagents: host.port,
+      transcript: plain(parent.entries)
+    })
+    await rebuilt.prompt('And now?')
+    expect(notified(calls)).toEqual([])
   })
 })
