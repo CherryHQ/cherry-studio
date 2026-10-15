@@ -267,7 +267,7 @@ export function useChatRuntimeState({
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[], options: ReservedMessageSeedOptions = {}) => {
       const { activeExecutions: openedExecutions, preserveActiveNode } = options
-      errorToastsRef.current?.track(openedExecutions)
+      errorToastsRef.current?.track(openedExecutions, reservedMessages)
       if (reservedMessages.length > 0) {
         const reservedExecutions = openedExecutions ?? []
         if (reservedExecutions.length > 0) {
@@ -340,7 +340,7 @@ export function useChatRuntimeState({
     ensureConversation,
     buildStreamRequest,
     refreshMetadata,
-    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions),
+    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
     onError: (error, input) =>
       errorToastsRef.current?.report(
         error,

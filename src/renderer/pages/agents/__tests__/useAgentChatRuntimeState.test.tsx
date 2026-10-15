@@ -476,71 +476,165 @@ describe('useAgentChatRuntimeState', () => {
     expect(sent).toBe(false)
   })
 
-  it.each([
+  it.each([false, true])(
+    'reports an accepted send without an overlay finish (error before ack: %s)',
+    async (beforeAck) => {
+      const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+        '@renderer/hooks/useConversationTurnController'
+      )
+      mocks.controllerOptions.mockImplementation(useConversationTurnController)
+      mocks.useChatWithHistory.mockReturnValue({ ...mocks.useChatWithHistory(), activeExecutions: [] })
+      let acknowledge!: (ack: AiStreamOpenResponse) => void
+      mocks.streamOpen.mockImplementationOnce(() => new Promise((resolve) => (acknowledge = resolve)))
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+      )
+      const execution: ActiveExecution = {
+        executionId: 'provider::model',
+        attemptId: 2,
+        anchorMessageId: 'assistant-1'
+      }
+      const message: CherryUIMessage = { ...assistantMessage, metadata: { parentId: 'user-1' } }
+      const error = { name: 'Error', message: 'invalid_api_key', statusCode: 401, stack: null }
+      const emitError = (attemptId = execution.attemptId) => {
+        mocks.streamListeners
+          .get('ai.stream.error')
+          ?.forEach((listener) => listener({ topicId: 'agent-session:session-1', ...execution, attemptId, error }))
+      }
+      await act(async () => emitError(1))
+      expect(toast.getToastQueue().toasts).toEqual([])
+      let send!: Promise<boolean>
+      await act(async () => {
+        send = result.current.sendMessage({ text: 'ordinary message' })
+      })
+      if (beforeAck) {
+        await act(async () => emitError())
+        expect(toast.getToastQueue().toasts).toEqual([])
+      }
+      const ack: AiStreamOpenResponse = { mode: 'started', activeExecutions: [execution], reservedMessages: [message] }
+      await act(async () => {
+        acknowledge(ack)
+        expect(await send).toBe(true)
+      })
+      if (!beforeAck) await act(async () => emitError())
+      await waitFor(() => expect(toast.getToastQueue().toasts).toHaveLength(1))
+      const notification = toast.getToastQueue().toasts[0]
+      expect(notification).toMatchObject({ key: 'error:agent-session:session-1:assistant-1', type: 'warning' })
+      expect(notification.details).toContain('invalid_api_key')
+      expect(notification.action).toBeDefined()
+      toast.closeToast(notification.key)
+      await act(async () => {
+        mocks.controllerOptions.mock.lastCall?.[0]?.onAccepted(ack)
+        emitError()
+        mocks.useExecutionOverlay.mock.lastCall?.[3]?.onFinish(execution.executionId, {
+          attemptId: execution.attemptId,
+          message: { ...message, parts: [{ type: 'data-error', data: error }] },
+          isError: true,
+          isAbort: false
+        })
+      })
+      expect(toast.getToastQueue().toasts).toEqual([])
+    }
+  )
+
+  it.each<{ dismissed: boolean; blocked: boolean; afterAck?: boolean }>([
     { dismissed: false, blocked: false },
     { dismissed: true, blocked: false },
     { dismissed: false, blocked: true },
-    { dismissed: true, blocked: true }
-  ])('keeps compact startup feedback in its recovery toast ($dismissed, $blocked)', async ({ dismissed, blocked }) => {
-    const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
-      '@renderer/hooks/useConversationTurnController'
-    )
-    mocks.controllerOptions.mockImplementation(useConversationTurnController)
-    mocks.streamOpen.mockRejectedValueOnce(new Error('context window exceeded'))
-    const { result } = renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        agentType: 'claude-code',
-        sessionMessagesEnabled: true,
-        reservedMessages: []
+    { dismissed: true, blocked: true },
+    { dismissed: false, blocked: false, afterAck: true },
+    { dismissed: true, blocked: false, afterAck: true }
+  ])(
+    'keeps compact startup feedback in its recovery toast ($dismissed, $blocked, $afterAck)',
+    async ({ dismissed, blocked, afterAck }) => {
+      const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+        '@renderer/hooks/useConversationTurnController'
+      )
+      mocks.controllerOptions.mockImplementation(useConversationTurnController)
+      mocks.streamOpen.mockRejectedValueOnce(new Error('context window exceeded'))
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({
+          sessionId: 'session-1',
+          agentType: 'claude-code',
+          sessionMessagesEnabled: true,
+          reservedMessages: []
+        })
+      )
+      await act(async () => {
+        expect(await result.current.sendMessage({ text: 'ordinary message' })).toBe(false)
       })
-    )
-    await act(async () => {
-      expect(await result.current.sendMessage({ text: 'ordinary message' })).toBe(false)
-    })
-    const original = toast.getToastQueue().toasts[0]
-    expect(original.action).toBeDefined()
-    let finishStartup!: () => void
-    mocks.streamOpen.mockImplementationOnce(
-      () =>
-        new Promise((resolve, reject) => {
-          finishStartup = () =>
-            blocked
-              ? resolve({ mode: 'blocked', reason: 'agent-session-workspace', message: 'compact startup failed' })
-              : reject(new Error('compact startup failed'))
+      const original = toast.getToastQueue().toasts[0]
+      expect(original.action).toBeDefined()
+      let finishStartup!: () => void
+      const execution: ActiveExecution = {
+        executionId: 'provider::model',
+        attemptId: 2,
+        anchorMessageId: 'assistant-1'
+      }
+      if (afterAck) {
+        mocks.streamOpen.mockResolvedValueOnce({
+          mode: 'started',
+          activeExecutions: [execution],
+          reservedMessages: [assistantMessage]
         })
-    )
-    let recovery!: Promise<void>
-    await act(async () => {
-      recovery = Promise.resolve(original.action!.onClick())
-    })
-    await waitFor(() => expect(mocks.streamOpen).toHaveBeenCalledTimes(2))
-    expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })
-    if (dismissed) toast.closeToast(original.key)
-    await act(async () => {
-      finishStartup()
-      await recovery
-    })
+        mocks.seedReservedMessages.mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              finishStartup = () => reject(new Error('compact startup failed'))
+            })
+        )
+      } else {
+        mocks.streamOpen.mockImplementationOnce(
+          () =>
+            new Promise((resolve, reject) => {
+              finishStartup = () =>
+                blocked
+                  ? resolve({ mode: 'blocked', reason: 'agent-session-workspace', message: 'compact startup failed' })
+                  : reject(new Error('compact startup failed'))
+            })
+        )
+      }
+      let recovery!: Promise<void>
+      await act(async () => {
+        recovery = Promise.resolve(original.action!.onClick())
+      })
+      await waitFor(() => expect(mocks.streamOpen).toHaveBeenCalledTimes(2))
+      expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })
+      if (dismissed) toast.closeToast(original.key)
+      await act(async () => {
+        finishStartup()
+        await recovery
+        if (afterAck) {
+          mocks.streamListeners.get('ai.stream.error')?.forEach((listener) =>
+            listener({
+              topicId: 'agent-session:session-1',
+              ...execution,
+              error: { name: 'Error', message: 'late compact failure', stack: null }
+            })
+          )
+        }
+      })
 
-    if (dismissed) expect(toast.getToastQueue().toasts).toEqual([])
-    else {
+      if (dismissed) expect(toast.getToastQueue().toasts).toEqual([])
+      else {
+        expect(toast.getToastQueue().toasts).toEqual([
+          expect.objectContaining({
+            key: original.key,
+            type: 'error',
+            title: expect.stringContaining('compact startup failed')
+          })
+        ])
+      }
+      expect(mocks.toastError).not.toHaveBeenCalled()
+      mocks.streamOpen.mockRejectedValueOnce(new Error('manual compact failed'))
+      await act(async () => {
+        expect(await result.current.sendMessage({ text: '/compact' })).toBe(false)
+      })
       expect(toast.getToastQueue().toasts).toEqual([
-        expect.objectContaining({
-          key: original.key,
-          type: 'error',
-          title: expect.stringContaining('compact startup failed')
-        })
+        expect.objectContaining({ type: 'error', title: expect.stringContaining('manual compact failed') })
       ])
     }
-    expect(mocks.toastError).not.toHaveBeenCalled()
-    mocks.streamOpen.mockRejectedValueOnce(new Error('manual compact failed'))
-    await act(async () => {
-      expect(await result.current.sendMessage({ text: '/compact' })).toBe(false)
-    })
-    expect(toast.getToastQueue().toasts).toEqual([
-      expect.objectContaining({ type: 'error', title: expect.stringContaining('manual compact failed') })
-    ])
-  })
+  )
 
   it.each<{
     beforeAck: boolean
@@ -566,7 +660,7 @@ describe('useAgentChatRuntimeState', () => {
       mocks.controllerOptions.mockImplementation(useConversationTurnController)
       mocks.useChatWithHistory.mockReturnValue({ ...mocks.useChatWithHistory(), activeExecutions: [] })
       mocks.streamOpen.mockRejectedValueOnce(new Error('context window exceeded'))
-      const { result, rerender } = renderHook(
+      const { result, rerender, unmount } = renderHook(
         ({ sessionId }) =>
           useAgentChatRuntimeState({
             sessionId,
@@ -607,8 +701,7 @@ describe('useAgentChatRuntimeState', () => {
         emit(outcome === 'error' ? 'ai.stream.error' : 'ai.stream.done', {
           topicId: 'agent-session:session-1',
           ...execution,
-          status: outcome,
-          error
+          ...(outcome === 'error' ? { error } : { status: outcome })
         })
       }
       await act(async () => {
@@ -633,14 +726,15 @@ describe('useAgentChatRuntimeState', () => {
         ])
         if (outcome === 'error') expect(toast.getToastQueue().toasts[0].title).toContain('compact execution failed')
       }
+      unmount()
       expect([...mocks.streamListeners.values()].every((listeners) => listeners.size === 0)).toBe(true)
     }
   )
 
   it('settles concurrent model retries independently through the shared recovery waiter', async () => {
     const executions: ActiveExecution[] = [
-      { executionId: 'provider::a', attemptId: 1 },
-      { executionId: 'provider::b', attemptId: 2 }
+      { executionId: 'provider::a', attemptId: 3 },
+      { executionId: 'provider::b', attemptId: 4 }
     ]
     const { result } = renderHook(() =>
       useConversationErrorToasts('topic-1', {
@@ -651,11 +745,20 @@ describe('useAgentChatRuntimeState', () => {
     )
     for (const execution of executions) {
       await act(async () => {
-        await result.current.report(new Error('fetch failed'), execution.executionId, {
+        const message: CherryUIMessage = {
           ...assistantMessage,
           id: execution.executionId,
           metadata: { parentId: 'user-1' }
-        })
+        }
+        const failedExecution = { ...execution, attemptId: execution.attemptId - 2, anchorMessageId: message.id }
+        mocks.streamListeners.get('ai.stream.error')?.forEach((listener) =>
+          listener({
+            topicId: 'topic-1',
+            ...failedExecution,
+            error: { name: 'Error', message: 'fetch failed', stack: null }
+          })
+        )
+        result.current.track([failedExecution], [message])
       })
     }
     const originals = [...toast.getToastQueue().toasts]

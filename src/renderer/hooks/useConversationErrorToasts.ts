@@ -7,7 +7,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import { toast, type ErrorToastContext } from '@renderer/services/toast'
 import { getProviderDisplayName } from '@renderer/utils/naming'
-import type { ActiveExecution } from '@shared/ai/transport'
+import type { ActiveExecution, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -19,8 +19,15 @@ interface RecoveryActions {
 interface Completion {
   modelId?: string
   key?: string
-  finish: (key: string, result: { success: boolean; error?: unknown }) => void
+  finish: (result: { success: boolean; error?: unknown }) => void
   cancel: () => void
+}
+
+interface Attempt {
+  accepted?: boolean
+  handled?: boolean
+  message?: CherryUIMessage
+  result?: { success: boolean; error?: unknown }
 }
 
 export function useConversationErrorToasts(scopeKey: string, actions: RecoveryActions = {}) {
@@ -32,7 +39,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       scopeKey,
       active: true,
       generation: 0,
-      attempts: new Set<string>(),
+      attempts: new Map<string, Attempt>(),
       keys: new Set<string>(),
       waiting: new Map<string, Completion>(),
       pending: undefined as Completion | undefined
@@ -55,63 +62,27 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
     }
   }, [state])
 
-  const track = useCallback(
-    (executions: readonly ActiveExecution[] = []) => {
-      if (!state.active) return
-      for (const execution of executions) {
-        const key = `${execution.executionId}:${execution.attemptId}`
-        if (state.waiting.has(key)) continue
-        const pending = state.pending
-        if (pending && (!pending.modelId || pending.modelId === execution.executionId)) {
-          pending.key = key
-          state.waiting.set(key, pending)
-          state.pending = undefined
-        } else {
-          state.attempts.add(key)
-        }
-      }
-    },
-    [state]
-  )
-
   const waitForFinish = useCallback(
     (run: () => Promise<void | boolean>, modelId?: string): Promise<boolean> => {
       if (!state.active || state.pending) return Promise.resolve(false)
-      const unsubscribers: Array<() => void> = []
       let completion: Completion
       return new Promise<boolean>((resolve, reject) => {
-        const results = new Map<string, { success: boolean; error?: unknown }>()
+        let result: Attempt['result']
         let accepted = false
         const settle = () => {
-          const result = accepted && completion.key ? results.get(completion.key) : undefined
-          if (!result) return
+          if (!accepted || !result) return
           if (result.error !== undefined) reject(result.error)
           else resolve(result.success)
         }
         completion = {
           modelId,
           cancel: () => resolve(false),
-          finish: (key, result) => {
-            if (!state.active || (state.pending !== completion && state.waiting.get(key) !== completion)) return
-            results.set(key, result)
+          finish: (outcome) => {
+            result = outcome
             settle()
           }
         }
         state.pending = completion
-        // Main can finish before its acknowledgement or before an overlay reader starts.
-        // Keep terminal outcomes until the acknowledgement identifies the accepted attempt.
-        unsubscribers.push(
-          ipcApi.on('ai.stream.done', (event) => {
-            if (event.topicId !== state.scopeKey || !event.executionId || event.attemptId === undefined) return
-            if (modelId && event.executionId !== modelId) return
-            completion.finish(`${event.executionId}:${event.attemptId}`, { success: event.status === 'success' })
-          }),
-          ipcApi.on('ai.stream.error', (event) => {
-            if (event.topicId !== state.scopeKey || !event.executionId || event.attemptId === undefined) return
-            if (modelId && event.executionId !== modelId) return
-            completion.finish(`${event.executionId}:${event.attemptId}`, { success: false, error: event.error })
-          })
-        )
         void Promise.resolve()
           .then(() => (state.active && state.pending === completion ? run() : false))
           .then((started) => {
@@ -121,9 +92,11 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
           })
           .catch(reject)
       }).finally(() => {
-        unsubscribers.forEach((unsubscribe) => unsubscribe())
         if (state.pending === completion) state.pending = undefined
-        if (completion.key && state.waiting.get(completion.key) === completion) state.waiting.delete(completion.key)
+        if (completion.key && state.waiting.get(completion.key) === completion) {
+          state.waiting.delete(completion.key)
+          state.attempts.set(completion.key, { accepted: true, handled: true })
+        }
       })
     },
     [state]
@@ -170,28 +143,84 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
     [state, waitForFinish]
   )
 
-  const onFinish = useCallback(
-    (executionId: string, event: ExecutionFinishEvent) => {
-      const key = `${executionId}:${event.attemptId}`
-      if (!state.active) return
-      const error = event.message.parts.findLast((part) => part.type === 'data-error')?.data
-      const completion = state.waiting.get(key) ?? state.pending
-      if (completion && (!completion.modelId || completion.modelId === executionId)) {
-        completion.finish(key, {
-          success: !event.isAbort,
-          error:
-            !event.isAbort && (event.isError || error)
-              ? (error ?? new Error(i18n.t('error.diagnosis.stream')))
-              : undefined
-        })
-        if (completion.key === key) return
-      }
-      if (!state.attempts.delete(key)) return
-      if (!event.isAbort && (event.isError || error))
-        void report(error ?? new Error(i18n.t('error.diagnosis.stream')), executionId, event.message)
+  const finishAttempt = useCallback(
+    (executionId: string, key: string, attempt: Attempt) => {
+      if (!attempt.accepted || !attempt.result || attempt.handled) return
+      state.attempts.set(key, { accepted: true, handled: true })
+      const completion = state.waiting.get(key)
+      if (completion) completion.finish(attempt.result)
+      else if (attempt.result.error !== undefined) void report(attempt.result.error, executionId, attempt.message)
     },
     [report, state]
   )
+
+  const track = useCallback(
+    (executions: readonly ActiveExecution[] = [], messages: readonly CherryUIMessage[] = []) => {
+      if (!state.active) return
+      for (const execution of executions) {
+        const key = `${execution.executionId}:${execution.attemptId}`
+        const attempt = state.attempts.get(key) ?? {}
+        if (attempt.accepted) continue
+        attempt.accepted = true
+        attempt.message = messages.find((message) => message.id === execution.anchorMessageId) ?? attempt.message
+        state.attempts.set(key, attempt)
+        const pending = state.pending
+        if (pending && (!pending.modelId || pending.modelId === execution.executionId)) {
+          pending.key = key
+          state.waiting.set(key, pending)
+          state.pending = undefined
+        }
+        finishAttempt(execution.executionId, key, attempt)
+      }
+    },
+    [finishAttempt, state]
+  )
+
+  const onFinish = useCallback(
+    (executionId: string, event: ExecutionFinishEvent) => {
+      if (!state.active) return
+      const key = `${executionId}:${event.attemptId}`
+      const attempt = state.attempts.get(key) ?? {}
+      if (attempt.handled) return
+      const error = event.message.parts.findLast((part) => part.type === 'data-error')?.data
+      attempt.result = {
+        success: !event.isAbort,
+        error:
+          !event.isAbort && (event.isError || error)
+            ? (error ?? new Error(i18n.t('error.diagnosis.stream')))
+            : undefined
+      }
+      attempt.message ??= { ...event.message, parts: [] }
+      state.attempts.set(key, attempt)
+      finishAttempt(executionId, key, attempt)
+    },
+    [finishAttempt, state]
+  )
+
+  useEffect(() => {
+    // Terminal events may precede acknowledgement or overlay startup. Only locally
+    // accepted attempts produce feedback; late overlay callbacks share the same deduplication.
+    const onTerminal = (event: StreamDonePayload | StreamErrorPayload) => {
+      if (event.topicId !== state.scopeKey || !event.executionId || event.attemptId === undefined) return
+      const error = 'error' in event ? event.error : undefined
+      onFinish(event.executionId, {
+        attemptId: event.attemptId,
+        message: {
+          id: event.anchorMessageId ?? '',
+          role: 'assistant',
+          parts: error ? [{ type: 'data-error', data: error }] : []
+        },
+        isError: error !== undefined,
+        isAbort: 'status' in event && event.status === 'paused'
+      })
+    }
+    const offDone = ipcApi.on('ai.stream.done', onTerminal)
+    const offError = ipcApi.on('ai.stream.error', onTerminal)
+    return () => {
+      offDone()
+      offError()
+    }
+  }, [onFinish, state])
 
   return { track, report, onFinish, waitForFinish }
 }

@@ -250,7 +250,7 @@ export function useAgentChatRuntimeState({
     historyAdapter,
     ensureConversation,
     buildStreamRequest,
-    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions),
+    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
     onError: (error, input) =>
       input.editTarget ? reportEditError(error) : errorToastsRef.current?.report(error, modelId),
     openStream: async (request, input) => {
