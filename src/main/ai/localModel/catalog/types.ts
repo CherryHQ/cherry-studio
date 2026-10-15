@@ -23,6 +23,7 @@ export function currentPlatformKey(): PlatformKey {
 export interface SharedArtifact {
   id: SharedArtifactId
   version: string
+  minimumMacOS?: string
   installDirKey: PathKey
   /** Platforms this artifact ships binaries for. A missing entry means *unsupported*:
    * every bundle requiring it reads as `unsupported` there rather than offering a
@@ -31,11 +32,12 @@ export interface SharedArtifact {
   provenance?: CatalogProvenance
 }
 
-export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx'
+export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx' | 'mlx-node'
 
 /** The files one platform needs, and where they sit inside the tarball. */
 export interface ArtifactPlatformFiles {
   packageName: string
+  tarballUrls?: readonly string[]
   /** sha256 of the whole npm tarball. */
   tarballSha256: string
   /** Tarball path prefix holding this platform's files, e.g. `package/bin/napi-v6/darwin/arm64/`.
@@ -93,8 +95,10 @@ interface BundleFileBase {
 
 export type BundleFile = BundleFileBase &
   (
-    | { repo: string; remoteFile: string; sources?: never }
+    | { repo: string; remoteFile: string; sources?: never; urls?: never }
+    | { urls: readonly string[]; sizeBytes: number; repo?: never; remoteFile?: never; sources?: never }
     | {
+        urls?: never
         sources: readonly [BundleFileSource, ...BundleFileSource[]]
         /** Exact byte length of the pinned object. Complements sha256 for provenance audits. */
         sizeBytes: number
@@ -127,7 +131,7 @@ export interface ModelBundle {
   requires: SharedArtifactId[]
   /** Metadata inference needs but acquisition does not. `dtype` is the transformers.js
    * quantization selector, which must match the weights file the bundle actually installs. */
-  runtime?: { dtype: string }
+  runtime?: { dtype?: string; architecture?: 'funasr-nano' | 'qwen3-tts' }
   provenance?: CatalogProvenance
 }
 

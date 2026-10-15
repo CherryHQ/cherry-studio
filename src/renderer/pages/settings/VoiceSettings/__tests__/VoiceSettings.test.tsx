@@ -11,9 +11,15 @@ import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { type SpeechPlaybackSnapshot, VoiceDomainError } from '@renderer/services/voice'
 import { SpeechPlaybackService } from '@renderer/services/voice/SpeechPlaybackService'
 import { VoiceService } from '@renderer/services/voice/VoiceService'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID, FUNASR_MODEL_ID, VoiceResourceOperation } from '@shared/ai/localVoice'
 import {
-  LOCAL_MODEL_BUNDLE_BY_CAPABILITY,
+  APPLE_ASR_MODEL_ID,
+  APPLE_TTS_MODEL_ID,
+  FUNASR_MODEL_ID,
+  QWEN3_TTS_MODEL_ID,
+  VoiceResourceOperation
+} from '@shared/ai/localVoice'
+import {
+  DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY,
   LOCAL_MODEL_STATUS_CACHE_KEY,
   type LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
@@ -132,7 +138,7 @@ function publishAsrInstallation(snapshot: LocalModelStatusSnapshot) {
   act(() => {
     cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, {
       ...cacheService.getShared(LOCAL_MODEL_STATUS_CACHE_KEY),
-      [LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr]: snapshot
+      [DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.asr]: snapshot
     })
   })
 }
@@ -399,7 +405,7 @@ describe('VoiceSettings', () => {
     act(() => {
       cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, {
         ...cacheService.getShared(LOCAL_MODEL_STATUS_CACHE_KEY),
-        [LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr]: { status: 'ready', percent: 100 }
+        [DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr]: { status: 'ready', percent: 100 }
       })
     })
     expect(voice.getModelStatus).not.toHaveBeenCalled()
@@ -951,7 +957,37 @@ describe('VoiceSettings', () => {
     expect(screen.getByRole('button', { name: 'Preview voice' })).toBeDisabled()
   })
 
-  it('returns to the language default voice when the user changes language', async () => {
+  it('keeps a multilingual voice selected when changing synthesis language', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.voice.speech.model_id': QWEN3_TTS_MODEL_ID,
+      'feature.voice.speech.voice_id': 'vivian',
+      'feature.voice.speech.language': 'en-US'
+    })
+    voice.listModels.mockResolvedValue({
+      models: [
+        ...models,
+        {
+          id: QWEN3_TTS_MODEL_ID,
+          name: 'Qwen3-TTS',
+          localeSelection: null,
+          resourceOperations: [VoiceResourceOperation.Download]
+        }
+      ]
+    })
+    voice.listVoices.mockResolvedValue([
+      { id: 'vivian', name: 'Vivian', language: 'zh-CN', languages: ['zh-CN', 'en-US', 'de-DE'] }
+    ])
+    render(<VoiceSettings />)
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Vivian'))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: 'Speech language' }))
+    await user.click(screen.getByRole('option', { name: 'German (Germany)' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.language')).toBe('de-DE')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('vivian')
+    expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Vivian')
+  })
+
+  it('keeps an incompatible explicit voice unavailable instead of silently substituting one', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.voice.speech.voice_id': 'voice.exact',
       'feature.voice.speech.language': 'en-US'
@@ -960,25 +996,24 @@ describe('VoiceSettings', () => {
       { id: 'voice.exact', name: 'Exact Voice', language: 'en-US' },
       { id: 'japanese', name: 'Japanese Voice', language: 'ja-JP' }
     ])
+    voice.resolveSpeech.mockImplementation(async (input) => ({
+      modelId: APPLE_TTS_MODEL_ID,
+      voice: input.voice ?? 'japanese',
+      language: input.language,
+      status:
+        input.voice === 'voice.exact' && input.language === 'ja-JP'
+          ? { status: 'not_installed', reason: 'voice_unavailable' }
+          : { status: 'ready' }
+    }))
     const { rerender } = render(<VoiceSettings />)
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Exact Voice'))
     const user = userEvent.setup()
     await user.click(screen.getByRole('combobox', { name: 'Speech language' }))
     await user.click(screen.getByRole('option', { name: 'Japanese (Japan)' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('')
-    voice.resolveSpeech.mockResolvedValue({
-      modelId: APPLE_TTS_MODEL_ID,
-      voice: 'japanese',
-      language: 'ja-JP',
-      status: { status: 'ready' }
-    })
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.speech.voice_id')).toBe('voice.exact')
     rerender(<VoiceSettings />)
-    await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent(
-        'Language default · Japanese Voice'
-      )
-    )
-    expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Preview voice' })).toBeDisabled())
+    expect(screen.getByRole('combobox', { name: 'Speech voice' })).toHaveTextContent('Exact Voice')
   })
 
   it('keeps Stop available while playback is active even if configuration becomes unavailable', async () => {

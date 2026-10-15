@@ -5793,6 +5793,7 @@
   "settings.voice.model.apple_asr": "Apple Sistem Konuşma Tanıma",
   "settings.voice.model.apple_tts": "Apple Sistem Sesi",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Windows Sistem Konuşma Tanıma",
   "settings.voice.model.windows_tts": "Windows Sistem Sesi",
   "settings.voice.playback.error.aborted": "Ses oynatma iptal edildi.",

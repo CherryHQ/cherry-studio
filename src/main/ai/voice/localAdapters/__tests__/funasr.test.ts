@@ -35,7 +35,7 @@ beforeEach(async () => {
   }) as never)
   mocks.refreshStatus.mockReturnValue({ status: 'ready' })
   mocks.decode.mockResolvedValue({ wav, durationSeconds: 2.5, sampleRate: 16000, channels: 1 })
-  mocks.transcribe.mockImplementation(async ({ filePath }) => {
+  mocks.transcribe.mockImplementation(async (_modelId, { filePath }) => {
     expect(await readFile(filePath)).toEqual(wav)
     expect((await stat(dirname(filePath))).mode & 0o777).toBe(0o700)
     expect((await stat(filePath)).mode & 0o777).toBe(0o600)
@@ -162,7 +162,7 @@ describe('FunASR local adapter', () => {
       .mockReturnValueOnce(decodeTimeout.signal)
       .mockReturnValueOnce(inferenceTimeout.signal)
     mocks.transcribe.mockImplementation(
-      (_source, signal) =>
+      (_modelId, _source, signal) =>
         new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
     )
 
@@ -202,7 +202,7 @@ describe('FunASR local adapter', () => {
   it('forwards caller cancellation and removes scratch', async () => {
     const controller = new AbortController()
     mocks.transcribe.mockImplementation(
-      (_source, signal) =>
+      (_modelId, _source, signal) =>
         new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
     )
     const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({

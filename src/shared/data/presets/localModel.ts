@@ -31,11 +31,10 @@ export const LOCAL_MODEL_DOWNLOAD_RESULTS = ['ready', 'cancelled'] as const
 export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[number]
 
 /**
- * What a local model *does*. Features ask for a capability ("this OCR processor
- * needs the ocr model"), never for a specific bundle. Each capability has exactly one
- * bundle; the catalog test enforces that contract.
+ * What a local model does. Capabilities classify models; execution and installation
+ * address a selected bundle. Multiple bundles may provide the same capability.
  */
-export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr', 'asr'] as const
+export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr', 'asr', 'tts'] as const
 export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
 
 /**
@@ -46,21 +45,27 @@ export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
  * Kept in sync with `src/main/ai/localModel/catalog/catalog.ts` by construction: the
  * catalog's own bundle-id type is this one, so an unlisted id fails to typecheck.
  */
-export const LOCAL_MODEL_BUNDLE_IDS = ['qwen3-embedding-0.6b', 'pp-ocrv6-medium', 'funasr-nano-int8'] as const
+export const LOCAL_MODEL_BUNDLE_IDS = [
+  'qwen3-embedding-0.6b',
+  'pp-ocrv6-medium',
+  'funasr-nano-int8',
+  'qwen3-tts-0.6b-customvoice-8bit'
+] as const
 export type LocalModelBundleId = (typeof LOCAL_MODEL_BUNDLE_IDS)[number]
 
 export type LocalModelStatusSnapshots = Partial<Record<LocalModelBundleId, LocalModelStatusSnapshot>>
 export const LOCAL_MODEL_STATUS_CACHE_KEY = 'local_model.statuses' as const
 
 /**
- * The bundle that serves each capability — how a feature that needs a capability
- * ("this OCR processor needs the ocr model") names the bundle it must install.
+ * Default recommendations for consumers that do not expose model selection.
+ * This mapping does not limit the catalog or override an explicit selection.
  *
  * Shared by main and renderer as the single mapping, and checked against the catalog so
  * the two cannot drift.
  */
-export const LOCAL_MODEL_BUNDLE_BY_CAPABILITY = {
+export const DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY = {
   embedding: 'qwen3-embedding-0.6b',
   ocr: 'pp-ocrv6-medium',
-  asr: 'funasr-nano-int8'
+  asr: 'funasr-nano-int8',
+  tts: 'qwen3-tts-0.6b-customvoice-8bit'
 } as const satisfies Record<LocalModelCapability, LocalModelBundleId>

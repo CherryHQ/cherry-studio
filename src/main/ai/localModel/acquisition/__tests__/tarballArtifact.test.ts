@@ -118,6 +118,19 @@ describe('shared artifact acquisition', () => {
     expect(isReady()).toBe(true)
   })
 
+  it('enforces the runtime minimum macOS version before offering installation', () => {
+    const artifact = { ...FIXTURE_ARTIFACT, minimumMacOS: '26.2' }
+    vi.stubGlobal('process', { ...process, getSystemVersion: () => '26.1' })
+    expect(isArtifactSupported(artifact)).toBe(false)
+    vi.stubGlobal('process', { ...process, getSystemVersion: () => '26.2' })
+    expect(isArtifactSupported(artifact)).toBe(true)
+    vi.stubGlobal('process', { ...process, getSystemVersion: () => '27.0' })
+    expect(isArtifactSupported(artifact)).toBe(true)
+    vi.stubGlobal('process', { ...process, getSystemVersion: undefined })
+    expect(isArtifactSupported(artifact)).toBe(false)
+    vi.unstubAllGlobals()
+  })
+
   it('resolves the entry file under the platform install dir', () => {
     expect(artifactEntryPath(FIXTURE_ARTIFACT)).toBe(
       path.join(toolchainDir, 'napi-v6', FAKE_PLATFORM, FAKE_ARCH, 'onnxruntime_binding.node')

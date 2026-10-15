@@ -5793,6 +5793,7 @@
   "settings.voice.model.apple_asr": "Apple 系统语音识别",
   "settings.voice.model.apple_tts": "Apple 系统语音",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice（8-bit）",
   "settings.voice.model.windows_asr": "Windows 系统语音识别",
   "settings.voice.model.windows_tts": "Windows 系统语音",
   "settings.voice.playback.error.aborted": "语音播放已取消。",
