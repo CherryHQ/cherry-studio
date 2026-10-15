@@ -18,7 +18,11 @@ root configuration, workflow changes, and the planner itself select all tasks.
 
 Source changes select their project and known consumers. Shared changes select all
 projects. Source changes retain full lint and i18n scans because imports and translation
-references cross file boundaries. This first implementation selects whole projects;
+references cross file boundaries. Test-only changes omit only scanners that exclude
+those paths: catalog coverage ignores `__tests__` but still reads adjacent main tests;
+hardcoded detection ignores `__tests__` and `.test.ts(x)`, but not adjacent `.spec.ts(x)`.
+Unused-key analysis stays selected because the renderer catalog reads test sources too.
+Unclassified/configuration inputs still select all checks. The planner selects whole projects;
 it does not claim that file-level affected tests cover runtime dependencies.
 
 ## Execution
@@ -67,11 +71,17 @@ needs no dependency installation. The observer becomes active after its workflow
 scripts reach the default branch. It has read-only permissions and is not a required
 check; collection failures do not fail the CI gate.
 
-The summary and 30-day JSON artifact distinguish initial queue time, execution wall
-time, total elapsed time, and the sum of job durations. The latter is runner time,
-not billed minutes; initial queue time does not include later dependency/runner waits.
-Queue and total elapsed are omitted for reruns because their creation time belongs to
-the original attempt. The JSON preserves individual step durations for installation/cache analysis.
+The summary and 30-day JSON artifact preserve initial queue time, execution window,
+total elapsed time, and the sum of job durations. The latter is runner time, not billed
+minutes; the execution window includes later waits. Per-job created/start/end timestamps,
+created-to-start scheduling waits, execution durations and P50/P90/max distributions expose
+later queues. Run-to-job-creation time includes dependencies and orchestration, not isolated
+dependency wait; scheduling intervals do not establish a runner-capacity cause. Without
+the measured dependency graph, no critical path is inferred. Missing/inconsistent times
+remain unavailable with sample counts; parallel intervals are not summed as wall time.
+Wait and total elapsed metrics are omitted for reruns because timestamps can span attempts.
+Existing JSON fields and baseline keys are retained. Individual step durations support
+installation/cache analysis.
 
 Baseline P50/P90 values use matching successful runs from the latest 20 successful
 runs of the same CI workflow/event, before the measured run. Comparisons require the
