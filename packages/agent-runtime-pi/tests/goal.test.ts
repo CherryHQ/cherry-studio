@@ -1,3 +1,4 @@
+import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
@@ -21,7 +22,7 @@ import {
   working
 } from './goalSupport'
 import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './subagentSupport'
-import { finish, tempDir, textParts } from './support'
+import { finish, plain, tempDir, textParts } from './support'
 import { textOf, toolResults } from './toolResults'
 
 /** One round per command or resume, so command tests see a settled goal. */
@@ -438,6 +439,42 @@ describe('goal continuation', () => {
       roundsStarted: 1,
       lastStop: { code: 'continuation_rejected' }
     })
+  })
+
+  // Breaks when a round Pi committed but never sent on stays in later requests: the next human turn
+  // would carry "take the next useful step" for a goal that has stopped, live and after a rebuild.
+  it.each<[string, ExtensionFactory]>([
+    [
+      'a later extension vetoes',
+      (pi) => {
+        pi.on('agent_before_settle', () => ({ continue: false }))
+      }
+    ],
+    [
+      'the run is aborted during the settle',
+      (pi) => {
+        let aborted = false
+        pi.on('agent_before_settle', (_event, ctx) => {
+          if (!aborted) ctx.abort()
+          aborted = true
+        })
+      }
+    ]
+  ])('leaves out a round prompt that never ran when %s, live and rebuilt', async (_name, stopper) => {
+    const roundsSent = (prompt: LanguageModelV3Prompt) => prompt.flatMap((message) => roundStart([message]) ?? [])
+    const cwd = tempDir('cwd')
+    const live = await goalSession([working], goalPort(), { cwd, laterExtensions: [stopper] })
+    await promptIdle(live.session, '/goal Keep working')
+    expect(rounds(live.host.entries).map((round) => round.round)).toEqual([1, 2])
+    expect(lastSnapshot(live.host.entries)).toMatchObject({ roundsStarted: 1 })
+    const transcript = plain(live.host.entries)
+
+    await promptIdle(live.session, 'what next?')
+    const rebuilt = await goalSession([working], goalPort(), { cwd, transcript })
+    await promptIdle(rebuilt.session, 'what next?')
+
+    expect(roundsSent(live.calls[1].prompt)).toEqual([1])
+    expect(plain(rebuilt.calls[0].prompt)).toEqual(plain(live.calls[1].prompt))
   })
 
   // Breaks when the continuation replaces the entries an earlier extension proposed at the same settle.

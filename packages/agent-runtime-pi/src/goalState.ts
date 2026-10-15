@@ -289,6 +289,36 @@ export function tailRound(entries: readonly SessionEntry[]): RoundDetails | unde
   return undefined
 }
 
+export const roundKey = (details: RoundDetails) => `${details.goalId}:${details.revision}:${details.round}`
+
+/**
+ * Keys of the round messages Pi committed but never sent on (a continuation another extension
+ * vetoed, a run aborted or cut off at the settle). A round ran once a snapshot of its goal counts
+ * it: the snapshot before it (a command's round) or the first one after it (a settle's round).
+ */
+export function unadmittedRounds(entries: readonly SessionEntry[]): Set<string> {
+  const started = new Map<string, number>()
+  const undecided = new Map<string, RoundDetails>()
+  const stale = new Set<string>()
+  for (const entry of entries) {
+    if (entry.type === 'custom_message' && isRoundMessage(entry)) {
+      const details = entry.details as RoundDetails
+      if ((started.get(details.goalId) ?? 0) < details.round) undecided.set(roundKey(details), details)
+    } else if (isGoalState(entry)) {
+      const data = entry.data as GoalSnapshot | GoalCleared
+      const roundsStarted = 'cleared' in data ? 0 : data.roundsStarted
+      for (const [key, details] of undecided) {
+        if (details.goalId !== data.id) continue
+        if (roundsStarted < details.round) stale.add(key)
+        undecided.delete(key)
+      }
+      started.set(data.id, roundsStarted)
+    }
+  }
+  for (const key of undecided.keys()) stale.add(key)
+  return stale
+}
+
 export function assistantText(message: AssistantMessage): string {
   return message.content
     .flatMap((block) => (block.type === 'text' ? [block.text] : []))
