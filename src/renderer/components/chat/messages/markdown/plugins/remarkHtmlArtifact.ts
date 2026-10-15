@@ -98,8 +98,11 @@ function findHtmlDocumentEnd(
 const RAW_TEXT_ELEMENT_NAMES = ['script', 'style', 'textarea', 'title', 'iframe', 'xmp', 'noembed', 'noframes']
 // A raw-text body opened in one html node can continue into the following nodes (a blank line
 // splits html blocks), so the end tag is located with the same per-element pattern the
-// same-node token match uses.
-const RAW_TEXT_CLOSE_REGEXES = new Map(RAW_TEXT_ELEMENT_NAMES.map((name) => [name, new RegExp(`</${name}\\s*>`, 'i')]))
+// same-node token match uses. The `g` flag is load-bearing: the cross-node scan positions the
+// search with `lastIndex`, and without `g` a regex ignores it — finding an EARLIER element's
+// close, moving the cursor backward, and looping forever on consecutive raw-text elements
+// whose second close has not arrived yet.
+const RAW_TEXT_CLOSE_REGEXES = new Map(RAW_TEXT_ELEMENT_NAMES.map((name) => [name, new RegExp(`</${name}\\s*>`, 'gi')]))
 // Lexical scan for `<details` / `</details` boundaries: comments, raw-text element bodies and
 // ordinary tags are consumed whole, so a literal `</details>` inside them — a comment, a quoted
 // attribute — can never close a disclosure. Disclosure tags consume their full attribute list
@@ -112,13 +115,17 @@ const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
 
 /**
  * Lexical position carried across the html nodes of one pairing search: the open `<details>`
- * depth, a raw-text element whose body has not seen its end tag yet, and an unterminated
- * `<!--` comment swallowing input until its `-->`.
+ * depth, a raw-text element whose body has not seen its end tag yet, an unterminated `<!--`
+ * comment swallowing input until its `-->`, and a tag whose quoted attribute list is still
+ * open (everything up to its `>` is tag interior, so a literal `</details>` inside the value
+ * is attribute text, never a boundary).
  */
 interface ContainerScanState {
   count: number
   rawText?: string
   inComment?: boolean
+  inTag?: boolean
+  pendingQuote?: string
 }
 
 interface ContainerScanResult {
@@ -127,6 +134,45 @@ interface ContainerScanResult {
   closeStart?: number
   /** Offset just past the closing boundary's `>` when `closed`. */
   closeEnd?: number
+}
+
+// Detects a tag OPENer (`<div`, `<details`, …) — close tags (`</div>`) are complete by
+// construction and skipped by the token scan, so only open tags can dangle unterminated.
+const TAG_OPENER_REGEX = /<[a-zA-Z]/g
+
+// A tag opener whose alternatives all failed is unterminated: locate the `>` that actually
+// completes it, honoring quoted attribute values (a `</details>` inside the quotes is value
+// text). Returns undefined when the tag does not complete in `value` — `state.pendingQuote`
+// then carries the quote the continuation node must close first. Quote positions use a -1
+// sentinel (never undefined), so "no quote found" cannot be confused with index arithmetic.
+function findUnfinishedTagEnd(value: string, from: number, state: ContainerScanState): number | undefined {
+  let cursor = from
+  while (cursor < value.length) {
+    if (state.pendingQuote !== undefined) {
+      const close = value.indexOf(state.pendingQuote, cursor)
+      if (close === -1) return undefined
+      cursor = close + 1
+      state.pendingQuote = undefined
+      continue
+    }
+    const gt = value.indexOf('>', cursor)
+    const doubleQuote = value.indexOf('"', cursor)
+    const singleQuote = value.indexOf("'", cursor)
+    const quote =
+      doubleQuote === -1 ? singleQuote : singleQuote === -1 ? doubleQuote : Math.min(doubleQuote, singleQuote)
+    if (gt === -1) {
+      if (quote !== -1) state.pendingQuote = value[quote]
+      return undefined
+    }
+    if (quote === -1 || quote > gt) return gt
+    const closeQuote = value.indexOf(value[quote], quote + 1)
+    if (closeQuote === -1) {
+      state.pendingQuote = value[quote]
+      return undefined
+    }
+    cursor = closeQuote + 1
+  }
+  return undefined
 }
 
 // Walks every `<details` / `</details` boundary in `value`, continuing the state carried over
@@ -161,12 +207,40 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
       continue
     }
 
+    // An unfinished tag opened in an earlier node keeps swallowing content until its real `>`
+    // (quoted values first); a literal `</details>` inside it is attribute value text.
+    if (state.inTag) {
+      const end = findUnfinishedTagEnd(value, 0, state)
+      if (end === undefined) return { closed: false }
+      position = end + 1
+      state.inTag = false
+      continue
+    }
+
     CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = position
     const match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
     // A comment opening before the next token cannot terminate in the remaining input (a
     // complete comment would have matched as the token itself): it swallows the rest of the
     // input — across later nodes — so no boundary inside it may be trusted.
     const commentStart = value.indexOf('<!--', position)
+    // Same detection for a tag opener that precedes the first complete token: the token
+    // alternatives match ANY complete tag at its own position, so an opener earlier than the
+    // first match never completes in this node — its attribute text may hide boundaries.
+    TAG_OPENER_REGEX.lastIndex = position
+    const opener = TAG_OPENER_REGEX.exec(value)
+    const tagStart = opener?.index
+    const tagFirst =
+      tagStart !== undefined &&
+      (match === null || tagStart < match.index) &&
+      (commentStart === -1 || tagStart < commentStart)
+    if (tagFirst) {
+      state.inTag = true
+      const end = findUnfinishedTagEnd(value, tagStart + 1, state)
+      if (end === undefined) return { closed: false }
+      position = end + 1
+      state.inTag = false
+      continue
+    }
     if (commentStart !== -1 && (match === null || commentStart < match.index)) {
       state.inComment = true
       return { closed: false }

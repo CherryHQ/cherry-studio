@@ -565,6 +565,74 @@ Plain tail
     })
   })
 
+  // A raw-text body whose end tag arrives in a LATER node must not make the close search
+  // wander backward: `<textarea>one</textarea><textarea>two` leaves the second body open,
+  // and a non-offset close search would find the FIRST `</textarea>` again — moving the
+  // cursor backward into an infinite synchronous loop on the rendering path.
+  it('terminates when consecutive raw-text elements leave the second body open across nodes', () => {
+    const source = `<details>
+<summary>Spec</summary>
+
+<div><textarea>one</textarea><textarea>two
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // The unclosed second textarea keeps the disclosure unpaired (the trailing `</details>`
+    // is textarea body text): every html fragment stays on the artifact path and the trailing
+    // prose renders as a paragraph, not as disclosure body.
+    expect(tree.children.map((child) => child.type)).toEqual(['code', 'code', 'code', 'paragraph'])
+    expect((tree.children[1] as { value: string }).value).toContain('<textarea>two')
+    expect(tree.children.some((child) => child.type === 'html')).toBe(false)
+  })
+
+  // A streamed tag with an unterminated quoted attribute (`<div title="`) is tag interior:
+  // the literal `</details>` inside the quote is attribute VALUE, never a boundary — the
+  // unmatched opening keeps its artifact path and the body stays visible.
+  it('never pairs on </details> inside an unfinished quoted attribute', () => {
+    const source = `<details><summary>Answer</summary>
+
+Body
+
+<div title="</details>`
+    const tree = parse(source)
+
+    // The opening did not become a native collapsed disclosure around `Body`: the unmatched
+    // opening and the unterminated tag both stay on the artifact path, `Body` stays visible.
+    expect(tree.children.map((child) => child.type)).toEqual(['code', 'paragraph', 'code'])
+    expect((tree.children[0] as { value: string }).value).toContain('<details>')
+    expect((tree.children[2] as { value: string }).value).toContain('<div title=')
+  })
+
+  // A complete tag whose quoted attribute spans blank-line-separated nodes carries the same
+  // literal across node borders: the quote state must survive until the attribute closes, or
+  // the embedded document is cut short and loses its artifact assembly.
+  it('keeps quote state across nodes for a multiline quoted attribute inside a paired disclosure', () => {
+    const source = `<details>
+<summary>Spec</summary>
+
+<div title="</details>
+
+<p>more</p>">
+
+<html><body>Doc</body></html>
+
+</details>`
+    const tree = parse(source)
+
+    // The real close is the LAST `</details>`: the embedded document still assembles one
+    // artifact and the final boundary stays raw.
+    expect(tree.children.at(-1)).toMatchObject({ type: 'html', value: '</details>' })
+    const docNode = tree.children.find(
+      (child) => child.type === 'code' && (child as { value: string }).value.includes('<html>')
+    )
+    expect(docNode).toBeDefined()
+    expect((docNode as { value: string }).value).toContain('</html>')
+    expect((docNode as { value: string }).value).not.toContain('</details>')
+  })
+
   describe('classifyHtmlArtifactSource', () => {
     it.each([
       ['<div>Fragment</div>', 'fragment'],
