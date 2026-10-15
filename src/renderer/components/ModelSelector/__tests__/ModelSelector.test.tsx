@@ -1,16 +1,21 @@
+import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ModelTags from '@renderer/components/tags/Model'
+import { CommandRuntimeContext, type CommandHandler } from '@renderer/hooks/command'
 import { toast } from '@renderer/services/toast'
+import type * as ModelUtils from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { SelectorShellBottomAction, SelectorShellProps } from '../../SelectorShell'
 import { ModelSelector } from '../ModelSelector'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
+import type * as ModelSelectorData from '../useModelSelectorData'
 
 const mocks = vi.hoisted(() => ({
   bottomActions: [] as SelectorShellBottomAction[],
@@ -52,11 +57,13 @@ vi.mock('@cherrystudio/ui/icons', () => ({
   useIcon: () => undefined
 }))
 
-vi.mock('@renderer/utils/model', () => ({
+vi.mock('@renderer/utils/model', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelUtils>()),
   getModelLogoRef: () => undefined
 }))
 
-vi.mock('@renderer/components/tags/Model', () => ({
+vi.mock('@renderer/components/tags/Model', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelTags>()),
   getModelDisplayTags: () => [],
   ModelTag: () => null
 }))
@@ -530,6 +537,52 @@ describe('ModelSelector', () => {
 
     expect(onMultiSelectModeChange).toHaveBeenCalledWith(false)
     expect(onSelect).toHaveBeenCalledWith([firstId])
+  })
+
+  it('preserves selected models from other providers after a recovery selection', async () => {
+    const user = userEvent.setup()
+    const firstModel = makeModel('openai::gpt-4')
+    const replacement = makeModel('openai::gpt-3.5')
+    const otherModel = { ...makeModel('anthropic::claude'), providerId: 'anthropic' }
+    const models = [firstModel, replacement, otherModel]
+    const providers = [provider, { ...provider, id: 'anthropic', name: 'Anthropic' }]
+    mockUseQuery.mockImplementation((path) => ({
+      data: path === '/models' ? models : path === '/providers' ? providers : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    const { useModelSelectorData } = await vi.importActual<typeof ModelSelectorData>('../useModelSelectorData')
+    mocks.useModelSelectorData.mockImplementation(useModelSelectorData)
+    let openRecovery!: CommandHandler
+    const onSelect = vi.fn()
+    render(
+      <CommandRuntimeContext
+        value={{
+          execute: vi.fn(),
+          hasHandler: () => true,
+          registerHandler: (_command, handler) => {
+            openRecovery = handler
+            return () => undefined
+          }
+        }}>
+        <ModelSelector
+          multiple
+          multiSelectMode
+          shortcut="chat.model.select"
+          value={[firstModel, otherModel]}
+          trigger={<button type="button">open</button>}
+          onSelect={onSelect}
+        />
+      </CommandRuntimeContext>
+    )
+
+    act(() => void openRecovery({ providerId: provider.id }))
+    expect(screen.queryByRole('option', { name: /claude$/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: /gpt-3\.5$/ }))
+    expect(onSelect).toHaveBeenLastCalledWith([firstModel, otherModel, replacement])
   })
 
   it('keeps lazy-mounted data active and refreshes it only on later openings', async () => {

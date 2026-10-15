@@ -337,6 +337,29 @@ describe('useModelSelectorData', () => {
     expect([...result.current.visibleSelectedModelIdSet]).toEqual(['openai::gpt-4'])
   })
 
+  it('limits recovery rows, pins and tags without losing unrelated valid selections', () => {
+    const first = makeModel('gpt-4', 'openai')
+    const other = makeModel('claude', 'anthropic', { capabilities: [MODEL_CAPABILITY.REASONING] })
+    const embedding = makeModel('embed', 'openai', { capabilities: [MODEL_CAPABILITY.EMBEDDING] })
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider('anthropic')],
+      models: [first, other, embedding],
+      pinnedIds: [other.id, first.id]
+    })
+    const { result } = renderHook(() =>
+      useModelSelectorData({
+        searchText: '',
+        selectedModelIds: [first.id, other.id, embedding.id, 'anthropic::missing'],
+        filter: (model) => !model.capabilities.includes(MODEL_CAPABILITY.EMBEDDING),
+        visibilityFilter: (model) => model.providerId === 'openai'
+      })
+    )
+
+    expect(result.current.modelItems.map((item) => item.modelId)).toEqual([first.id])
+    expect(result.current.availableTags).not.toContain(MODEL_CAPABILITY.REASONING)
+    expect(result.current.resolvedSelectedModelIds).toEqual([first.id, other.id])
+  })
+
   it('hides Agent-only providers generally and includes them when explicitly requested', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('claude-code', { authMethods: ['external-cli'] })],

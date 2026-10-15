@@ -1,5 +1,23 @@
 # @cherrystudio/provider-registry
 
+## 0.2.1
+
+### Patch Changes
+
+- [#21715](https://github.com/CherryHQ/cherry-studio/pull/21715) [`1b0c69f`](https://github.com/CherryHQ/cherry-studio/commit/1b0c69f9d9f086b3aaace631b187b427aac18aaf) Thanks [@1lck](https://github.com/1lck)! - Add widescreen, portrait, 16:10, and 4K size presets for GPT-Image-2 while preserving the existing sizes for GPT-Image-1 models.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#21675](https://github.com/CherryHQ/cherry-studio/pull/21675) [`a6e7c0f`](https://github.com/CherryHQ/cherry-studio/commit/a6e7c0fcdc0fe0f43e3c63702bf18cf56e72a5ae) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add optional billing URLs to provider website metadata and include billing destinations for OpenAI, Anthropic, CherryIN, and DeepSeek so applications can offer quota-recovery actions.
+
+## 0.1.4
+
+### Patch Changes
+
+- [#19786](https://github.com/CherryHQ/cherry-studio/pull/19786) [`9ef4b13`](https://github.com/CherryHQ/cherry-studio/commit/9ef4b130f343dc4288dbf36dc49d32c35c7ddf15) Thanks [@kennyzheng-builds](https://github.com/kennyzheng-builds)! - Expose the Hugging Face router's Chat Completions endpoint alongside Anthropic Messages and Responses while preserving the default inherited by existing configurations.
+
 ## 0.1.3
 
 ### Patch Changes

@@ -8,6 +8,8 @@ import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionD
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
+import { TtsInferenceService } from '@main/ai/localModel'
+import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
@@ -22,6 +24,7 @@ import {
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
+import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -44,6 +47,7 @@ import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudServic
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
+import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
@@ -102,6 +106,7 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  ComputerUseService,
   RemoteAccessService,
   MainNetworkDevtoolsService,
   WindowManager,
@@ -170,9 +175,12 @@ export const services = {
   AgentLifecycleService,
   ChannelManager,
   AiService,
+  VoiceSessionService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
   AiStreamManager,
+  AsrInferenceService,
+  TtsInferenceService,
   EmbeddingInferenceService,
   OcrInferenceService,
   LocalModelService,

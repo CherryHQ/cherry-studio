@@ -105,6 +105,8 @@ export interface UseModelSelectorDataOptions {
   maxSelectedCount?: number
   searchText: string
   filter?: ModelSelectorFilter
+  /** Limits visible rows and tags without changing selectable models. */
+  visibilityFilter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
   prioritizedProviderIds?: readonly string[]
@@ -114,6 +116,7 @@ export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
   isLoading: boolean
   modelsError?: Error
+  providersError?: Error
   isPinActionDisabled: boolean
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]

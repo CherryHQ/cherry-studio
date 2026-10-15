@@ -60,7 +60,12 @@ const REASONING_FAMILIES_GEN_PATH = path.join(__dirname, '../src/patterns/reason
 const SERVER_TOOL_MODELS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-models.gen.ts')
 const SERVER_TOOL_CONSTRAINTS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-constraints.gen.ts')
 const { values: args } = parseArgs({
-  options: { write: { type: 'boolean' }, report: { type: 'boolean' }, model: { type: 'string', multiple: true } }
+  options: {
+    write: { type: 'boolean' },
+    report: { type: 'boolean' },
+    model: { type: 'string', multiple: true },
+    'providers-only': { type: 'boolean' }
+  }
 })
 const WRITE = args.write
 const REPORT = args.report
@@ -657,6 +662,10 @@ function buildProviderModels(
 }
 
 void (async () => {
+  if (args['providers-only']) {
+    if (WRITE) fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers: buildProviders() }))
+    return
+  }
   const md = await load('MODELSDEV_CACHE', 'https://models.dev/api.json', ModelsDevApiSchema)
   const [orModels, orImageModels] = await Promise.all([
     load('OPENROUTER_CACHE', 'https://openrouter.ai/api/v1/models', OpenRouterApiSchema),

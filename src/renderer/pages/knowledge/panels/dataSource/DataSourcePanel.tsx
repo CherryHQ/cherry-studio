@@ -10,7 +10,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
+import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
@@ -414,7 +414,7 @@ const DataSourcePanelContent = ({
 }
 
 const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps) => {
-  const { status, percent } = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
+  const { status, percent } = useLocalModel(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
 
   return (
     <DataSourcePanelContent {...props} localEmbeddingState={status === 'ready' ? undefined : { status, percent }} />

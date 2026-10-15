@@ -1,4 +1,4 @@
-import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
+import { Boxes, Download, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelBundleId, LocalModelCapability, LocalModelStatus } from '@shared/data/presets/localModel'
 
@@ -22,19 +23,29 @@ const CARD_NOTICE_KEYS = {
 
 type CardNotice = keyof typeof CARD_NOTICE_KEYS
 
-/** How each capability presents itself. A bundle for a new capability adds one entry here. */
-const CAPABILITY_CARDS = {
-  embedding: {
+/** Display metadata belongs to the installed model, not its capability. */
+const MODEL_CARDS = {
+  'qwen3-tts-0.6b-customvoice-8bit': {
+    icon: <Volume2 className="size-5" />,
+    nameKey: 'settings.voice.model.qwen3_tts',
+    sources: ['Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice']
+  },
+  'funasr-nano-int8': {
+    icon: <Mic className="size-5" />,
+    nameKey: 'settings.voice.model.funasr',
+    sources: ['csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30']
+  },
+  'qwen3-embedding-0.6b': {
     icon: <Boxes className="size-5" />,
     nameKey: 'settings.dependencies.localModels.embedding.name',
-    subtitleKey: 'settings.dependencies.localModels.embedding.subtitle'
+    sources: ['onnx-community/Qwen3-Embedding-0.6B-ONNX']
   },
-  ocr: {
+  'pp-ocrv6-medium': {
     icon: <ScanText className="size-5" />,
     nameKey: 'settings.dependencies.localModels.ocr.name',
-    subtitleKey: 'settings.dependencies.localModels.ocr.subtitle'
+    sources: ['PaddlePaddle/PP-OCRv6_medium_det_onnx', 'PaddlePaddle/PP-OCRv6_medium_rec_onnx']
   }
-} as const satisfies Record<LocalModelCapability, { icon: ReactNode; nameKey: string; subtitleKey: string }>
+} as const satisfies Record<LocalModelBundleId, { icon: ReactNode; nameKey: string; sources: readonly string[] }>
 
 /**
  * Settings-specific notice state layered over the shared local-model lifecycle.
@@ -95,17 +106,19 @@ interface ModelCardProps {
 const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   const { t } = useTranslation()
   const { status, percent, notice, download, cancel, remove } = useLocalModelCard(id)
-  const { icon, nameKey, subtitleKey } = CAPABILITY_CARDS[capability]
+  const { icon, nameKey, sources } = MODEL_CARDS[id]
 
   useEffect(() => {
     onStatusChange(id, status)
   }, [id, status, onStatusChange])
+  if (status === 'unsupported') return null
   const ready = status === 'ready'
   const downloading = status === 'downloading'
   const retrying = status === 'error'
 
   return (
     <div
+      id={id === 'funasr-nano-int8' ? 'voice-resources' : id}
       role="listitem"
       className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
@@ -126,13 +139,37 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 truncate text-muted-foreground text-xs">{t(subtitleKey)}</p>
+          <div className="mt-0.5 flex flex-col text-xs leading-5">
+            {sources.map((source) => (
+              <a
+                key={source}
+                href={`https://huggingface.co/${source}`}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-link hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+                title={source}>
+                {source}
+              </a>
+            ))}
+          </div>
         </div>
         {ready && (
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => void remove()}
+            onClick={async () => {
+              if (
+                capability === 'asr' &&
+                !(await popup.confirm({
+                  title: t('settings.voice.resources.remove_title'),
+                  content: t('settings.voice.resources.remove_description'),
+                  okText: t('settings.dependencies.localModels.remove'),
+                  cancelText: t('common.cancel')
+                }))
+              )
+                return
+              await remove()
+            }}
             aria-label={t('settings.dependencies.localModels.remove')}>
             <Trash2 className="size-3.5" />
           </Button>
@@ -158,18 +195,20 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
       )}
 
       {!ready && (
-        <div className="mt-3 border-border border-t pt-3">
-          {downloading ? (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void cancel()}>
-              <X className="size-3.5" />
-              {t('settings.dependencies.localModels.cancel')}
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void download()}>
-              {retrying ? <RefreshCw className="size-3.5" /> : <Download className="size-3.5" />}
-              {t(retrying ? 'common.retry' : 'settings.dependencies.localModels.download')}
-            </Button>
-          )}
+        <div className="mt-auto pt-3">
+          <div className="border-border border-t pt-3">
+            {downloading ? (
+              <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void cancel()}>
+                <X className="size-3.5" />
+                {t('settings.dependencies.localModels.cancel')}
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void download()}>
+                {retrying ? <RefreshCw className="size-3.5" /> : <Download className="size-3.5" />}
+                {t(retrying ? 'common.retry' : 'settings.dependencies.localModels.download')}
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -214,7 +253,6 @@ const LocalModelsSection: FC = () => {
     }
   }, [])
 
-  // The current models share onnxruntime, so they are unsupported together on Intel Mac.
   const unsupported = models.length > 0 && models.every((model) => statuses[model.id] === 'unsupported')
 
   return (

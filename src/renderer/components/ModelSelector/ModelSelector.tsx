@@ -33,7 +33,13 @@ import type { ModelSelectorTag } from './filters'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
-import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
+import type {
+  FlatListItem,
+  ModelSelectorFilter,
+  ModelSelectorModelItem,
+  ModelSelectorProps,
+  ModelSelectorSelectionType
+} from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
@@ -450,7 +456,25 @@ export function ModelSelector(props: ModelSelectorProps) {
     [onOpenChange, openProp]
   )
 
-  const handleShortcut = useCallback(() => setOpen(true), [setOpen])
+  const [recoveryProviderId, setRecoveryProviderId] = useState<string>()
+  const handleShortcut = useCallback(
+    (args?: unknown) => {
+      setRecoveryProviderId(
+        typeof args === 'object' && args !== null && 'providerId' in args && typeof args.providerId === 'string'
+          ? args.providerId
+          : undefined
+      )
+      setOpen(true)
+    },
+    [setOpen]
+  )
+  useEffect(() => {
+    if (!open) setRecoveryProviderId(undefined)
+  }, [open])
+  const recoveryFilter = useCallback<ModelSelectorFilter>(
+    (model) => !recoveryProviderId || model.providerId === recoveryProviderId,
+    [recoveryProviderId]
+  )
 
   const setMultiSelectMode = useCallback(
     (nextEnabled: boolean) => {
@@ -496,6 +520,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
     filter,
+    visibilityFilter: recoveryFilter,
     prioritizedProviderIds,
     showPinnedModels,
     showTagFilter
@@ -1008,7 +1033,7 @@ function ShortcutBinding({
   onTrigger
 }: {
   shortcut: NonNullable<ModelSelectorProps['shortcut']>
-  onTrigger: () => void
+  onTrigger: (args?: unknown) => void
 }) {
   useCommandHandler(shortcut, onTrigger)
   return null
