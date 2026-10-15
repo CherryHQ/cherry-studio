@@ -595,17 +595,23 @@ export function useFollowupQueue({
 
   // TabRouter keeps composers mounted under <Activity>; hiding a tab runs this
   // cleanup without destroying hook state, so setup must restore mountedRef and
-  // reconcile from the persisted entry when the tab is shown again.
+  // reconcile from the persisted entry when the tab is shown again — not on the
+  // initial mount (boot state is already loaded) or a full remount.
+  const wasHiddenByActivityRef = useRef(false)
   useEffect(() => {
     mountedRef.current = true
-    syncFromEntry()
-    const entry = loadState(scopeKeyRef.current)
-    if (!entry.pendingDrainId || !liveSends.has(entry.pendingDrainId)) {
-      setDraining(null)
+    if (wasHiddenByActivityRef.current) {
+      wasHiddenByActivityRef.current = false
+      syncFromEntry()
+      const entry = loadState(scopeKeyRef.current)
+      if (!entry.pendingDrainId || !liveSends.has(entry.pendingDrainId)) {
+        setDraining(null)
+      }
     }
     return () => {
       mountedRef.current = false
       drainEpochRef.current += 1
+      wasHiddenByActivityRef.current = true
     }
   }, [syncFromEntry, setDraining])
 
