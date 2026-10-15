@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PopupHost from '@renderer/components/PopupHost/PopupHost'
 import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import { ProviderSchema } from '@shared/data/types/provider'
 
 import { useProviderDeepLinkImport } from '../hooks/useProviderDeepLinkImport'
@@ -35,6 +36,51 @@ describe('provider import names', () => {
 
   afterEach(() => {
     act(() => UrlSchemaInfoPopup.hide())
+  })
+
+  it.each(
+    [
+      { ...params, name: 123 },
+      { ...params, name: null },
+      { ...params, name: {} },
+      { ...params, id: 123, name: undefined },
+      { ...params, id: {}, name: '' },
+      { ...params, apiKey: 123 },
+      { ...params, baseUrl: 123 },
+      { ...params, type: 123 },
+      { ...params, type: 'unsupported' },
+      null,
+      []
+    ].map((payload) => ({ payload }))
+  )('rejects malformed import data before rendering a popup: $payload', async ({ payload }) => {
+    const onSelectProvider = vi.fn()
+    render(
+      <>
+        <p>Provider settings</p>
+        <PopupHost />
+      </>
+    )
+    renderHook(() => useProviderDeepLinkImport(JSON.stringify(payload), onSelectProvider))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(i18n.t('settings.models.provider_key_add_failed_by_invalid_data'))
+    )
+    expect(screen.getByText('Provider settings')).toBeVisible()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider' })
+    expect(onSelectProvider).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, ''])('uses the string ID when the imported name is %j', async (name) => {
+    const user = userEvent.setup()
+    const onSelectProvider = vi.fn()
+    render(<PopupHost />)
+    renderHook(() => useProviderDeepLinkImport(JSON.stringify({ ...params, name }), onSelectProvider))
+
+    expect(await screen.findByRole('textbox', { name: i18n.t('settings.models.provider_name') })).toHaveValue(params.id)
+    await user.click(screen.getByRole('button', { name: i18n.t('common.cancel') }))
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider' }))
+    expect(onSelectProvider).not.toHaveBeenCalled()
   })
 
   it('returns the edited, trimmed name when confirming a new provider', async () => {
