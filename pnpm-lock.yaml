@@ -262,6 +262,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.284
         version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
+      '@cherrystudio/computer-use':
+        specifier: 0.1.4
+        version: 0.1.4
       '@cherrystudio/remote-protocol':
         specifier: workspace:*
         version: link:packages/remote-protocol
@@ -2883,6 +2886,40 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  '@cherrystudio/computer-use-darwin-arm64@0.1.4':
+    resolution: {integrity: sha512-JXGQEnizJq1PjwEH8wnBJ65LzCGTgCazJpb+0Q2qMw0TWO19bXfYBGYsIEXZUiSVxY1B+vPFkSfyML0GNDLdqQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@cherrystudio/computer-use-darwin-x64@0.1.4':
+    resolution: {integrity: sha512-wk31U5/8qSckIqk1CYe8Ab571RIrZpn4D+x1aUt0NbhpqebvL5bZ1ma8/3qrhd43dSkt/zXOecVsUodLSaLTWg==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@cherrystudio/computer-use-linux-arm64@0.1.4':
+    resolution: {integrity: sha512-qd/ECKvn+2tkW9UOB2kPX/rrn4Dy7BLRdy5l7xd6wIzxCGWf7qY90zZImw/ChmKh5v4OKWt9drMY6Y+PLvsD+g==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@cherrystudio/computer-use-linux-x64@0.1.4':
+    resolution: {integrity: sha512-MT9CPZF8t7AmkIdx/cvcFgjoE4NW2OMSW2DqwPRuMz077ZBLJgtOXxqrADpt/8yB+NMU+AfrX2N+HuNEEYIczg==}
+    cpu: [x64]
+    os: [linux]
+
+  '@cherrystudio/computer-use-win32-arm64@0.1.4':
+    resolution: {integrity: sha512-sNDy3LK9sWVgrV0oHU9vu7cKLL6OerAZhKLfjzQXrbburbofvMxCHmuQCGd3XZd79qpzuSJAqQrZTxtSlJBH/g==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@cherrystudio/computer-use-win32-x64@0.1.4':
+    resolution: {integrity: sha512-o3vB1IkJXOlXLU3DUwizGSDCZFFTksgQOBp6apIa3T4OPC75uyv+aZOKT1Zfjk09zV8yDrpms+GaAcTMPkt08A==}
+    cpu: [x64]
+    os: [win32]
+
+  '@cherrystudio/computer-use@0.1.4':
+    resolution: {integrity: sha512-zpg4AQaU229thOgjZngK9ssBjBNLJK0r/2AIud6hReFkd1+UjMC1PPh+aOT6NojLuAv2Qc6yWrLuReZ0APYYgw==}
+    engines: {node: '>=24'}
 
   '@cherrystudio/openai@6.15.0':
     resolution: {integrity: sha512-w7JNWd73u9dr1DiA7+lmpGj+Cms4IEiwMp9ibCxMpGnGuiFaVvqrPky+MeOur2CWNMZLmnGAjZhX2mDBOMvPCg==}
@@ -16869,6 +16906,33 @@ snapshots:
   '@cherrystudio/analytics-client@1.4.0(typescript@5.9.3)':
     optionalDependencies:
       typescript: 5.9.3
+
+  '@cherrystudio/computer-use-darwin-arm64@0.1.4':
+    optional: true
+
+  '@cherrystudio/computer-use-darwin-x64@0.1.4':
+    optional: true
+
+  '@cherrystudio/computer-use-linux-arm64@0.1.4':
+    optional: true
+
+  '@cherrystudio/computer-use-linux-x64@0.1.4':
+    optional: true
+
+  '@cherrystudio/computer-use-win32-arm64@0.1.4':
+    optional: true
+
+  '@cherrystudio/computer-use-win32-x64@0.1.4':
+    optional: true
+
+  '@cherrystudio/computer-use@0.1.4':
+    optionalDependencies:
+      '@cherrystudio/computer-use-darwin-arm64': 0.1.4
+      '@cherrystudio/computer-use-darwin-x64': 0.1.4
+      '@cherrystudio/computer-use-linux-arm64': 0.1.4
+      '@cherrystudio/computer-use-linux-x64': 0.1.4
+      '@cherrystudio/computer-use-win32-arm64': 0.1.4
+      '@cherrystudio/computer-use-win32-x64': 0.1.4
 
   '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)':
     optionalDependencies:

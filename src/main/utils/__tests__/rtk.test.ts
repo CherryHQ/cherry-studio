@@ -79,7 +79,7 @@ describe('rtk utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     now += 60_001
-    vi.spyOn(Date, 'now').mockReturnValue(now)
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
     snapshotRef.value = { name: 'rtk', availability: { source: 'none' } }
     binaryManagerMock.getToolSnapshots.mockImplementation(async () => ({ rtk: snapshotRef.value }))
     executeCommandMock.mockReset()
@@ -111,11 +111,44 @@ describe('rtk utils', () => {
       binaryManagerMock.getToolSnapshots.mockReturnValue(new Promise(() => {}))
 
       const pending = rtkRewrite('ls -la')
-      await vi.advanceTimersByTimeAsync(3000)
+      await vi.advanceTimersByTimeAsync(10_000)
 
       await expect(pending).resolves.toBeNull()
       expect(executeCommandMock).not.toHaveBeenCalled()
       vi.useRealTimers()
+    })
+
+    it('retries a timed-out probe after the short failure TTL instead of caching it for a minute', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      binaryManagerMock.getToolSnapshots.mockReturnValue(new Promise(() => {}))
+
+      const first = rtkRewrite('ls -la')
+      await vi.advanceTimersByTimeAsync(10_000)
+      await expect(first).resolves.toBeNull()
+
+      // rtk recovers (or the wrapper finishes warming up): the transient
+      // failure must not pin the cache for the full success TTL (#21599).
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        rtk: { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+      })
+      executeCommandMock.mockResolvedValueOnce('rtk 0.44.2').mockResolvedValueOnce('rg --files')
+      now += 20_001
+
+      await expect(rtkRewrite('find . -type f')).resolves.toBe('rg --files')
+      vi.useRealTimers()
+    })
+
+    it('caches a definitive missing probe for the full TTL', async () => {
+      snapshotRef.value = { name: 'rtk', availability: { source: 'none' } }
+
+      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
+      const probesAfterFirst = binaryManagerMock.getToolSnapshots.mock.calls.length
+
+      // A confirmed absence is definitive — a short delay must not re-pay the
+      // probe on every tool call.
+      now += 20_000
+      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
+      expect(binaryManagerMock.getToolSnapshots.mock.calls.length).toBe(probesAfterFirst)
     })
 
     it('uses a system RTK path and preserves the raw user environment', async () => {

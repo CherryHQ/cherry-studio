@@ -18,6 +18,7 @@ import type { TranscriptionModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { withScratch } from './nativeSupport'
 import { voiceAudioProcess } from './voiceAudioProcess'
 
@@ -87,24 +88,36 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
     modelId: FUNASR_MODEL_ID,
     async doGenerate(input) {
       if (options.language) throw new VoiceRuntimeError('invalid_request')
-      if (!(input.audio instanceof Uint8Array) || !['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType))
-        throw new VoiceRuntimeError('invalid_audio')
+      if (!(input.audio instanceof Uint8Array)) throw new VoiceRuntimeError('invalid_audio')
+      const audio = input.audio
+      const isWebm = ['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType)
+      const wavMetadata = input.mediaType === 'audio/wav' ? inspectCanonicalWav(audio) : undefined
+      if (!isWebm && !wavMetadata) throw new VoiceRuntimeError('invalid_audio')
       await requireReady(input.abortSignal)
       return withScratch(
         async (directory) => {
-          const timeout = AbortSignal.timeout(AUDIO_DECODE_TIMEOUT_MS)
-          const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-          const decoded = await application
-            .get('UtilityProcessManager')
-            .client(voiceAudioProcess)
-            .request('decode', { audio: input.audio as Uint8Array, mimeType: 'audio/webm;codecs=opus' }, { signal })
-            .catch((error: unknown) => {
-              if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-              throw error
-            })
+          let wavBytes: Uint8Array
+          let durationSeconds: number
+          if (wavMetadata) {
+            wavBytes = audio
+            durationSeconds = wavMetadata.durationSeconds
+          } else {
+            const timeout = AbortSignal.timeout(AUDIO_DECODE_TIMEOUT_MS)
+            const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
+            const decoded = await application
+              .get('UtilityProcessManager')
+              .client(voiceAudioProcess)
+              .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
+              .catch((error: unknown) => {
+                if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
+                throw error
+              })
+            wavBytes = decoded.wav
+            durationSeconds = decoded.durationSeconds
+          }
           checkAbort(input.abortSignal)
           const inputPath = join(directory, 'input.wav')
-          await writeFile(inputPath, decoded.wav, { mode: 0o600 })
+          await writeFile(inputPath, wavBytes, { mode: 0o600 })
           const inferenceTimeout = AbortSignal.timeout(ASR_INFERENCE_TIMEOUT_MS)
           const inferenceSignal = input.abortSignal
             ? AbortSignal.any([input.abortSignal, inferenceTimeout])
@@ -120,7 +133,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
           logger.debug('Local transcription completed', {
             modelId: FUNASR_MODEL_ID,
             status: 'completed',
-            durationSeconds: decoded.durationSeconds,
+            durationSeconds,
             segmentCount: transcript.segments.length,
             transcriptNonEmpty: transcript.text.length > 0
           })
@@ -132,7 +145,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
               endSecond: segment.end
             })),
             language: undefined,
-            durationInSeconds: decoded.durationSeconds,
+            durationInSeconds: durationSeconds,
             warnings: [],
             response: { timestamp: new Date(), modelId: FUNASR_MODEL_ID }
           }

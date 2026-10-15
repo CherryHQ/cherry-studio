@@ -205,9 +205,10 @@ export async function resolveTranscriptionConfiguration(
       if (status.status === 'ready' || input.modelId) return selection
     } catch (error) {
       if (signal?.aborted) throw error
+      const reason = error instanceof VoiceRuntimeError ? error.reason : 'operation_failed'
       const status: LocalVoiceStatus = {
-        status: 'failed',
-        reason: error instanceof VoiceRuntimeError ? error.reason : 'operation_failed'
+        status: reason === 'unsupported' ? 'unsupported' : 'failed',
+        reason
       }
       fallback ??= { modelId, language: input.language, status }
       if (input.modelId) return fallback
