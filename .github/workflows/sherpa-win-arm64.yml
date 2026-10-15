@@ -2,11 +2,6 @@ name: Sherpa Windows ARM64 runtime
 
 on:
   workflow_dispatch:
-    inputs:
-      publish:
-        description: "Publish the verified runtime (main branch in CherryHQ/cherry-studio only)"
-        type: boolean
-        default: false
   push:
     branches: [main]
     paths:
@@ -169,30 +164,3 @@ jobs:
             runtime/
             sherpa-onnx-*-win-arm64.tgz*
           if-no-files-found: warn
-
-  publish:
-    needs: build-and-test
-    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' && github.repository == 'CherryHQ/cherry-studio'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: sherpa-win-arm64-runtime
-      - name: Publish a separately versioned runtime
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          BUILD_SHA: ${{ github.sha }}
-          RELEASE_TAG: ${{ needs.build-and-test.outputs.tag }}
-          RUNTIME_ARCHIVE: ${{ needs.build-and-test.outputs.archive }}
-          BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          sha256sum --check "$RUNTIME_ARCHIVE.sha256"
-          gh api --method POST "repos/$REPO/git/refs" -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$BUILD_SHA"
-          printf 'Windows ARM64 Sherpa runtime. Node and Electron utility-process ASR/TTS smoke tests passed.\n\nBuild: %s\n' "$BUILD_URL" > runtime-notes.md
-          gh release create "$RELEASE_TAG" "$RUNTIME_ARCHIVE" "$RUNTIME_ARCHIVE.sha256" \
-            --repo "$REPO" --verify-tag --prerelease --latest=false \
-            --title "$RELEASE_TAG" --notes-file runtime-notes.md
