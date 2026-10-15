@@ -476,9 +476,14 @@ describe('useAgentChatRuntimeState', () => {
     expect(sent).toBe(false)
   })
 
-  it.each([false, true])(
-    'reports an accepted send without an overlay finish (error before ack: %s)',
-    async (beforeAck) => {
+  it.each([
+    { beforeAck: false, queued: false },
+    { beforeAck: true, queued: false },
+    { beforeAck: false, queued: true },
+    { beforeAck: true, queued: true }
+  ])(
+    'reports an accepted send without an overlay finish (error before ack: $beforeAck, queued: $queued)',
+    async ({ beforeAck, queued }) => {
       const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
         '@renderer/hooks/useConversationTurnController'
       )
@@ -487,7 +492,12 @@ describe('useAgentChatRuntimeState', () => {
       let acknowledge!: (ack: AiStreamOpenResponse) => void
       mocks.streamOpen.mockImplementationOnce(() => new Promise((resolve) => (acknowledge = resolve)))
       const { result } = renderHook(() =>
-        useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+        useAgentChatRuntimeState({
+          sessionId: 'session-1',
+          agentType: 'claude-code',
+          sessionMessagesEnabled: true,
+          reservedMessages: []
+        })
       )
       const execution: ActiveExecution = {
         executionId: 'provider::model',
@@ -495,26 +505,47 @@ describe('useAgentChatRuntimeState', () => {
         anchorMessageId: 'assistant-1'
       }
       const message: CherryUIMessage = { ...assistantMessage, metadata: { parentId: 'user-1' } }
-      const error = { name: 'Error', message: 'invalid_api_key', statusCode: 401, stack: null }
-      const emitError = (attemptId = execution.attemptId) => {
+      const error = queued
+        ? { name: 'Error', message: 'context window exceeded', stack: null }
+        : { name: 'Error', message: 'invalid_api_key', statusCode: 401, stack: null }
+      const emitError = (attemptId = execution.attemptId, userMessageId = queued ? 'user-1' : undefined) => {
         mocks.streamListeners
           .get('ai.stream.error')
-          ?.forEach((listener) => listener({ topicId: 'agent-session:session-1', ...execution, attemptId, error }))
+          ?.forEach((listener) =>
+            listener({ topicId: 'agent-session:session-1', ...execution, attemptId, userMessageId, error })
+          )
       }
       const emitPassiveErrors = () => {
-        for (let attemptId = 100; attemptId < 356; attemptId++) emitError(attemptId)
+        for (let attemptId = 100; attemptId < 356; attemptId++) emitError(attemptId, 'other-window-user')
       }
       await act(async () => emitPassiveErrors())
       expect(toast.getToastQueue().toasts).toEqual([])
       let send!: Promise<boolean>
       await act(async () => {
-        send = result.current.sendMessage({ text: 'ordinary message' })
+        send = result.current.sendMessage(
+          { text: 'ordinary message' },
+          queued
+            ? {
+                body: {
+                  agentId: 'agent-1',
+                  sessionId: 'session-1',
+                  userMessageParts: [{ type: 'file', mediaType: 'text/plain', url: 'file:///fixture.txt' }]
+                }
+              }
+            : undefined
+        )
       })
       if (beforeAck) {
         await act(async () => emitError())
         expect(toast.getToastQueue().toasts).toEqual([])
       }
-      const ack: AiStreamOpenResponse = { mode: 'started', activeExecutions: [execution], reservedMessages: [message] }
+      const ack: AiStreamOpenResponse = queued
+        ? {
+            mode: 'injected',
+            activeExecutions: beforeAck ? [] : [{ ...execution, attemptId: 1, anchorMessageId: 'old-assistant' }],
+            reservedMessages: [{ id: 'user-1', role: 'user', parts: [] }]
+          }
+        : { mode: 'started', activeExecutions: [execution], reservedMessages: [message] }
       await act(async () => {
         acknowledge(ack)
         expect(await send).toBe(true)
@@ -527,8 +558,17 @@ describe('useAgentChatRuntimeState', () => {
       await waitFor(() => expect(toast.getToastQueue().toasts).toHaveLength(1))
       const notification = toast.getToastQueue().toasts[0]
       expect(notification).toMatchObject({ key: 'error:agent-session:session-1:assistant-1', type: 'warning' })
-      expect(notification.details).toContain('invalid_api_key')
+      expect(notification.details).toContain(error.message)
       expect(notification.action).toBeDefined()
+      if (queued) {
+        mocks.streamOpen.mockResolvedValueOnce({ mode: 'blocked', reason: 'paused' })
+        await act(async () => notification.action!.onClick())
+        expect(mocks.streamOpen).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            userMessageParts: [{ type: 'text', text: '/compact' }]
+          })
+        )
+      }
       toast.closeToast(notification.key)
       await act(async () => {
         mocks.controllerOptions.mock.lastCall?.[0]?.onAccepted(ack)
@@ -539,6 +579,46 @@ describe('useAgentChatRuntimeState', () => {
           isError: true,
           isAbort: false
         })
+        if (queued) emitError(3)
+      })
+      expect(toast.getToastQueue().toasts).toEqual([])
+    }
+  )
+
+  it.each(['success', 'paused', 'scope-change'] as const)(
+    'releases queued-message ownership after %s',
+    async (outcome) => {
+      const topicId = 'agent-session:session-1'
+      const { result, rerender } = renderHook(({ scope }) => useConversationErrorToasts(scope), {
+        initialProps: { scope: topicId }
+      })
+      const identity = {
+        topicId,
+        executionId: 'provider::model',
+        userMessageId: 'queued-user',
+        anchorMessageId: 'queued-assistant'
+      }
+      await act(async () => {
+        result.current.track([], [{ id: 'queued-user', role: 'user', parts: [] }])
+      })
+      if (outcome === 'scope-change') {
+        rerender({ scope: 'agent-session:session-2' })
+        rerender({ scope: topicId })
+      } else {
+        await act(async () => {
+          mocks.streamListeners
+            .get('ai.stream.done')
+            ?.forEach((listener) => listener({ ...identity, attemptId: 2, status: outcome }))
+        })
+      }
+      await act(async () => {
+        mocks.streamListeners.get('ai.stream.error')?.forEach((listener) =>
+          listener({
+            ...identity,
+            attemptId: 3,
+            error: { name: 'Error', message: 'context window exceeded', stack: null }
+          })
+        )
       })
       expect(toast.getToastQueue().toasts).toEqual([])
     }
@@ -648,6 +728,7 @@ describe('useAgentChatRuntimeState', () => {
     outcome: 'success' | 'error' | 'paused'
     cleanup?: 'dismiss' | 'switch'
     overlay?: boolean
+    queued?: boolean
   }>([
     { beforeAck: true, outcome: 'success' },
     { beforeAck: true, outcome: 'error' },
@@ -657,10 +738,13 @@ describe('useAgentChatRuntimeState', () => {
     { beforeAck: false, outcome: 'paused' },
     { beforeAck: true, outcome: 'error', overlay: true },
     { beforeAck: false, outcome: 'error', cleanup: 'dismiss' },
-    { beforeAck: true, outcome: 'error', cleanup: 'switch' }
+    { beforeAck: true, outcome: 'error', cleanup: 'switch' },
+    { beforeAck: true, outcome: 'error', queued: true },
+    { beforeAck: false, outcome: 'success', queued: true },
+    { beforeAck: false, outcome: 'error', cleanup: 'dismiss', queued: true }
   ])(
-    'settles compact recovery from its terminal event ($beforeAck, $outcome, $cleanup, $overlay)',
-    async ({ beforeAck, outcome, cleanup, overlay }) => {
+    'settles compact recovery from its terminal event ($beforeAck, $outcome, $cleanup, $overlay, queued: $queued)',
+    async ({ beforeAck, outcome, cleanup, overlay, queued }) => {
       const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
         '@renderer/hooks/useConversationTurnController'
       )
@@ -708,6 +792,7 @@ describe('useAgentChatRuntimeState', () => {
         emit(outcome === 'error' ? 'ai.stream.error' : 'ai.stream.done', {
           topicId: 'agent-session:session-1',
           ...execution,
+          ...(queued ? { userMessageId: 'compact-user' } : {}),
           ...(outcome === 'error' ? { error } : { status: outcome })
         })
       }
@@ -718,7 +803,15 @@ describe('useAgentChatRuntimeState', () => {
       })
       if (!cleanup) expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })
       await act(async () => {
-        acknowledge({ mode: 'started', activeExecutions: [execution] })
+        acknowledge(
+          queued
+            ? {
+                mode: 'injected',
+                activeExecutions: [],
+                reservedMessages: [{ id: 'compact-user', role: 'user', parts: [] }]
+              }
+            : { mode: 'started', activeExecutions: [execution] }
+        )
       })
       if (!beforeAck) {
         if (!cleanup) expect(toast.getToastQueue().toasts[0]).toMatchObject({ key: original.key, type: 'loading' })

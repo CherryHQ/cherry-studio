@@ -25,6 +25,8 @@ interface Completion {
 }
 
 interface Attempt {
+  executionId?: string
+  userMessageId?: string
   accepted?: boolean
   handled?: boolean
   message?: CherryUIMessage
@@ -41,6 +43,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       active: true,
       generation: 0,
       attempts: new Map<string, Attempt>(),
+      queuedMessages: new Map<string, { handled: boolean; completion?: Completion }>(),
       unmatched: new LRUCache<string, Attempt>({ max: 128 }),
       keys: new Set<string>(),
       waiting: new Map<string, Completion>(),
@@ -60,6 +63,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       state.waiting.forEach((completion) => completion.cancel())
       state.waiting.clear()
       state.attempts.clear()
+      state.queuedMessages.clear()
       state.unmatched.clear()
       state.keys.clear()
     }
@@ -148,9 +152,16 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
 
   const finishAttempt = useCallback(
     (executionId: string, key: string, attempt: Attempt) => {
+      const queued = attempt.userMessageId ? state.queuedMessages.get(attempt.userMessageId) : undefined
+      if (queued && !queued.handled) {
+        queued.handled = true
+        attempt.accepted = true
+        state.unmatched.delete(key)
+      }
       if (!attempt.accepted || !attempt.result || attempt.handled) return
       state.attempts.set(key, { accepted: true, handled: true })
-      const completion = state.waiting.get(key)
+      const completion = state.waiting.get(key) ?? queued?.completion
+      if (queued) queued.completion = undefined
       if (completion) completion.finish(attempt.result)
       else if (attempt.result.error !== undefined) void report(attempt.result.error, executionId, attempt.message)
     },
@@ -160,6 +171,20 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
   const track = useCallback(
     (executions: readonly ActiveExecution[] = [], messages: readonly CherryUIMessage[] = []) => {
       if (!state.active) return
+      // A queued submit reserves only its user row; Main allocates the assistant and attempt later.
+      if (!messages.some((message) => message.role === 'assistant')) {
+        for (const message of messages) {
+          if (message.role === 'user' && !state.queuedMessages.has(message.id)) {
+            const completion = state.pending
+            state.queuedMessages.set(message.id, { handled: false, completion })
+            if (completion) {
+              completion.key = `queued:${message.id}`
+              state.waiting.set(completion.key, completion)
+              state.pending = undefined
+            }
+          }
+        }
+      }
       for (const execution of executions) {
         const key = `${execution.executionId}:${execution.attemptId}`
         const attempt = state.attempts.get(key) ?? state.unmatched.get(key) ?? {}
@@ -176,16 +201,21 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
         }
         finishAttempt(execution.executionId, key, attempt)
       }
+      for (const [key, attempt] of [...state.unmatched]) {
+        if (attempt.executionId) finishAttempt(attempt.executionId, key, attempt)
+      }
     },
     [finishAttempt, state]
   )
 
   const onFinish = useCallback(
-    (executionId: string, event: ExecutionFinishEvent) => {
+    (executionId: string, event: ExecutionFinishEvent, userMessageId?: string) => {
       if (!state.active) return
       const key = `${executionId}:${event.attemptId}`
       const attempt = state.attempts.get(key) ?? state.unmatched.get(key) ?? {}
       if (attempt.handled) return
+      attempt.executionId = executionId
+      attempt.userMessageId ??= userMessageId
       const error = event.message.parts.findLast((part) => part.type === 'data-error')?.data
       attempt.result = {
         success: !event.isAbort,
@@ -208,16 +238,20 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
     const onTerminal = (event: StreamDonePayload | StreamErrorPayload) => {
       if (event.topicId !== state.scopeKey || !event.executionId || event.attemptId === undefined) return
       const error = 'error' in event ? event.error : undefined
-      onFinish(event.executionId, {
-        attemptId: event.attemptId,
-        message: {
-          id: event.anchorMessageId ?? '',
-          role: 'assistant',
-          parts: error ? [{ type: 'data-error', data: error }] : []
+      onFinish(
+        event.executionId,
+        {
+          attemptId: event.attemptId,
+          message: {
+            id: event.anchorMessageId ?? '',
+            role: 'assistant',
+            parts: error ? [{ type: 'data-error', data: error }] : []
+          },
+          isError: error !== undefined,
+          isAbort: 'status' in event && event.status === 'paused'
         },
-        isError: error !== undefined,
-        isAbort: 'status' in event && event.status === 'paused'
-      })
+        event.userMessageId
+      )
     }
     const offDone = ipcApi.on('ai.stream.done', onTerminal)
     const offError = ipcApi.on('ai.stream.error', onTerminal)
