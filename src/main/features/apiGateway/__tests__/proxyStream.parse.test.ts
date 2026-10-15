@@ -95,10 +95,9 @@ beforeEach(() => {
   mockSyncEntitledModelsIfStale.mockResolvedValue({
     entitledModelIds: [`${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`],
     freeModelIds: [],
-    availableModelIdsByFeature: {
+    availableModelIds: {
       agent: [`${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`],
-      chat: [],
-      translate: []
+      general: []
     },
     quotaExhaustedModelIds: []
   })
@@ -336,7 +335,7 @@ describe('processMessage model-id parsing', () => {
       refresh.resolve({
         entitledModelIds: [modelId],
         freeModelIds: [],
-        availableModelIdsByFeature: { agent: [modelId], chat: [], translate: [] },
+        availableModelIds: { agent: [modelId], general: [] },
         quotaExhaustedModelIds: []
       })
 
@@ -364,19 +363,15 @@ describe('processMessage model-id parsing', () => {
 
 describe('PDF translation admission', () => {
   it('routes the translate credential through translate admission without Agent attribution', async () => {
-    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'translate-only', 'translate-only', CHERRY_CLOUD_MODEL_GROUP)
+    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'translation-model', 'translation-model', CHERRY_CLOUD_MODEL_GROUP)
     mockGetInternalFeature.mockReturnValue('translate')
     mockSyncEntitledModelsIfStale.mockResolvedValue({
-      availableModelIdsByFeature: {
-        agent: [],
-        chat: [],
-        translate: [createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translate-only')]
-      },
+      availableModelIds: { agent: [], general: [createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translation-model')] },
       quotaExhaustedModelIds: []
     })
     const responsePromise = processMessage({
       params: {
-        model: `${CHERRY_CLOUD_PROVIDER_ID}:translate-only`,
+        model: `${CHERRY_CLOUD_PROVIDER_ID}:translation-model`,
         messages: [{ role: 'user', content: 'translate' }]
       },
       inputFormat: 'openai',
@@ -384,7 +379,7 @@ describe('PDF translation admission', () => {
       requestHeaders: new Headers()
     })
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
-    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translate-only'))
+    expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translation-model'))
     expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
     void captured.opts!.listener!.onDone({} as any)
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })

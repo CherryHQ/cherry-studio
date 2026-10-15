@@ -126,7 +126,8 @@ export async function resolveGatewayModelAddress(
     if (internalFeature) {
       try {
         const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
-        availableCloudModelIds = new Set(availability.availableModelIdsByFeature[internalFeature])
+        const { agent, general } = availability.availableModelIds
+        availableCloudModelIds = new Set(internalFeature === 'agent' ? agent : general)
       } catch (error) {
         throw gatewayModelError('Cherry Cloud model permissions are temporarily unavailable', 503, error)
       }

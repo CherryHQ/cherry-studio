@@ -12,14 +12,14 @@ const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
 const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
   entitledModelIds: [],
   freeModelIds: [],
-  availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
+  availableModelIds: { agent: [], general: [] },
   quotaExhaustedModelIds: []
 }
 
 /**
  * Cherry Cloud's server-declared model availability, expressed in model-selector terms so no other
  * module needs to know about Cloud features. Agent pickers (`includeAgentOnlyModels`) follow the
- * server's `agent` list, every other picker its `chat` list.
+ * server's `agent` list, every other picker its `general` list.
  */
 export function useCherryCloudModelAvailability(enabled = true) {
   const { t } = useTranslation()
@@ -42,14 +42,14 @@ export function useCherryCloudModelAvailability(enabled = true) {
   return useMemo(() => {
     const freeModelIds = new Set(cloudAvailability?.freeModelIds)
     const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
-    const agentModelIds = new Set(cloudAvailability?.availableModelIdsByFeature.agent)
-    const chatModelIds = new Set(cloudAvailability?.availableModelIdsByFeature.chat)
+    const agentModelIds = new Set(cloudAvailability?.availableModelIds.agent)
+    const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
 
     return {
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
       isModelHidden: (model: Model, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&
-        !(includeAgentOnlyModels ? agentModelIds : chatModelIds).has(model.id),
+        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
       isModelUnavailable: (model: Model) =>
         isManagedCherryCloudModel(model.providerId) && quotaExhaustedModelIds.has(model.id),
       getModelDescription: (model: Model): string | undefined => {
@@ -60,7 +60,9 @@ export function useCherryCloudModelAvailability(enabled = true) {
         }
         if (!isFree) return undefined
         return t(
-          chatModelIds.has(model.id) ? 'models.detail.limited_time_free' : 'models.detail.limited_time_free_agent_only'
+          generalModelIds.has(model.id)
+            ? 'models.detail.limited_time_free'
+            : 'models.detail.limited_time_free_agent_only'
         )
       }
     }

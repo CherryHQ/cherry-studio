@@ -177,7 +177,7 @@ describe('OnboardingPage', () => {
         return {
           entitledModelIds: [],
           freeModelIds: [],
-          availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
+          availableModelIds: { agent: [], general: [] },
           quotaExhaustedModelIds: []
         }
       }
@@ -704,10 +704,9 @@ describe('OnboardingPage', () => {
         return {
           entitledModelIds: [chatOnlyCloudModelId, firstCloudAgentModelId, secondCloudAgentModelId],
           freeModelIds: [firstCloudAgentModelId, secondCloudAgentModelId],
-          availableModelIdsByFeature: {
+          availableModelIds: {
             agent: [firstCloudAgentModelId, secondCloudAgentModelId],
-            chat: [chatOnlyCloudModelId],
-            translate: []
+            general: [chatOnlyCloudModelId]
           },
           quotaExhaustedModelIds: []
         }
