@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import type { ArtifactPlatformFiles, SharedArtifact } from '../catalog/types'
 import { currentPlatformKey } from '../catalog/types'
 import { streamToFileVerified, withMirrorFallback } from './downloadEngine'
-import type { DownloadSourcePreference } from './modelSource'
+import { type DownloadSourcePreference, orderDownloadUrls } from './modelSource'
 
 const logger = loggerService.withContext('sharedArtifactAcquisition')
 
@@ -84,7 +84,9 @@ function tarballUrls(
   platform: ArtifactPlatformFiles,
   registryOrder: readonly ArtifactRegistryId[]
 ): string[] {
-  if (platform.tarballUrls) return [...platform.tarballUrls]
+  if (platform.tarballUrls) {
+    return orderDownloadUrls(platform.tarballUrls, registryOrder[0] === 'npmmirror' ? 'china-first' : 'global-first')
+  }
   const { packageName } = platform
   const { version } = artifact
   return registryOrder.map((id) => `${NPM_REGISTRIES[id]}/${packageName}/-/${packageName}-${version}.tgz`)

@@ -158,5 +158,7 @@ it('fetches a pinned distribution URL without rewriting it as a model registry U
     sha256: 'a'.repeat(64)
   }
   await downloadBundleFiles({ ...BUNDLE, files: [file] }, [file], options())
-  expect(streamToFileVerified.mock.calls[0][0]).toBe(file.urls[0])
+  expect(streamToFileVerified.mock.calls[0][0]).toBe(
+    'https://github.com/CherryHQ/cherry-studio/releases/download/runtime/model.safetensors'
+  )
 })

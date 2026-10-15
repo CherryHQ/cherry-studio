@@ -70,6 +70,7 @@ Each `BundleFile` carries:
 | `relPath` | Where it lands under the bundle's install dir; may nest |
 | `repo` / `remoteFile` | Default repository path resolved against each mirror at download time |
 | `sources` / `sizeBytes` | Audited alternative: per-mirror repository, immutable revision and path, plus exact byte length |
+| `urls` / `sizeBytes` | Direct distribution URLs: a fixed-order list or `{ china, global }` pair ordered by egress region |
 | `sha256` | Digest of the **fetched** bytes, verified while streaming |
 | `minBytes` | Floor for the **installed** file, used by the disk scan |
 | `weight` | Share of the bundle's progress bar (≈ file MB) |
@@ -351,11 +352,14 @@ The utility process resolves it from the application root and sets
 `NAPI_RS_NATIVE_LIBRARY_PATH` before loading a model.
 
 Native files and model weights remain separate downloads managed by `LocalModelService`.
-The native artifact contains the `.node` entry, Metal libraries and license files. Acquisition
-extracts only these files; it never installs or executes the archive's legacy `runtime.cjs`.
-Until a replacement native archive is reviewed and published in the fork, the catalog retains
-the existing immutable Cherry Studio artifact URL and digest. This avoids making installation
-depend on an unpublished draft release. An existing native installation remains reusable.
+The native artifact contains only the `.node` entry, Metal libraries and license files. It is
+published in the `CherryHQ/mlx-node` GitHub fork and mirrored in the separate
+`CherryHQ/mlx-node` ModelScope repository. Model weights use the existing GitHub release
+assets and `CherryHQ/Qwen3-TTS-0.6B-CustomVoice-8bit` on ModelScope.
+Both downloads prefer ModelScope for China egress and GitHub elsewhere, falling back to the
+other source on network or checksum failure. Cancellation stops fallback. ModelScope URLs
+pin commit revisions; SHA-256 pins the same bytes at both sources. The native files are
+unchanged from the previous archive, so its installation directory remains reusable.
 
 It currently requires Apple Silicon and macOS 26.2+. Unsupported targets keep existing speech
 providers; Sherpa 1.13.6 does not implement Qwen3-TTS.

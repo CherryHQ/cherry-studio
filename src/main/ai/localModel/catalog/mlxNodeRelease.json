@@ -1,15 +1,25 @@
 {
-  "repository": "CherryHQ/cherry-studio",
-  "tag": "mlx-node-5db3d24bc87a-r1",
   "sourceRevision": "5db3d24bc87a9eb6fdb48c7ab3c9d8f126bf8d7d",
   "modelRevision": "85e237c12c027371202489a0ec509ded67b5e4b5",
   "runtime": {
+    "repository": "CherryHQ/mlx-node",
+    "tag": "mlx-node-5db3d24bc87a-r2",
+    "modelscope": {
+      "repo": "CherryHQ/mlx-node",
+      "revision": "3cb705b9d16cb89b478e2604ef0a1d751f975935"
+    },
     "asset": "mlx-node-darwin-arm64.tgz",
-    "sha256": "fd7dce237f3f34dcd407a9ef6d765ca46a5a9e03f394595ca418f61440b97d0d",
+    "sha256": "8958083299fbf9c8bc2d991cc793d1dd675f58ec31c3bad288c7648c9e5f9653",
     "entryFile": "mlx-core.darwin-arm64.node",
     "supportFiles": ["mlx.metallib", "paged_attn.metallib", "LICENSE", "MLX-LICENSE"]
   },
   "model": {
+    "repository": "CherryHQ/cherry-studio",
+    "tag": "mlx-node-5db3d24bc87a-r1",
+    "modelscope": {
+      "repo": "CherryHQ/Qwen3-TTS-0.6B-CustomVoice-8bit",
+      "revision": "c3826d31e92d4f7f37f0df427282cca05a89e304"
+    },
     "id": "qwen3-tts-0.6b-customvoice-8bit",
     "files": [
       {

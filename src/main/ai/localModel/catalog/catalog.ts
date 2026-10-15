@@ -23,7 +23,10 @@ import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
 const ONNXRUNTIME_NODE_TARBALL_SHA256 = '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9'
 
-const mlxReleaseUrl = `https://github.com/${mlxNodeRelease.repository}/releases/download/${mlxNodeRelease.tag}`
+const mlxRuntimeReleaseUrl = `https://github.com/${mlxNodeRelease.runtime.repository}/releases/download/${mlxNodeRelease.runtime.tag}`
+const mlxModelReleaseUrl = `https://github.com/${mlxNodeRelease.model.repository}/releases/download/${mlxNodeRelease.model.tag}`
+const mlxRuntimeMirrorUrl = `https://www.modelscope.cn/models/${mlxNodeRelease.runtime.modelscope.repo}/resolve/${mlxNodeRelease.runtime.modelscope.revision}`
+const mlxModelMirrorUrl = `https://www.modelscope.cn/models/${mlxNodeRelease.model.modelscope.repo}/resolve/${mlxNodeRelease.model.modelscope.revision}`
 
 export const SHARED_ARTIFACTS = {
   'mlx-node': {
@@ -41,10 +44,14 @@ export const SHARED_ARTIFACTS = {
     platforms: {
       'darwin-arm64': {
         packageName: 'cherry-mlx-node',
-        tarballUrls: [`${mlxReleaseUrl}/${mlxNodeRelease.runtime.asset}`],
+        tarballUrls: {
+          china: `${mlxRuntimeMirrorUrl}/${mlxNodeRelease.runtime.asset}`,
+          global: `${mlxRuntimeReleaseUrl}/${mlxNodeRelease.runtime.asset}`
+        },
         tarballSha256: mlxNodeRelease.runtime.sha256,
         tarballPrefix: 'runtime/',
-        installSubdir: `${mlxNodeRelease.tag}/darwin/arm64`,
+        // The native files are unchanged; retain the directory of existing installations.
+        installSubdir: 'mlx-node-5db3d24bc87a-r1/darwin/arm64',
         entryFile: mlxNodeRelease.runtime.entryFile,
         supportFiles: mlxNodeRelease.runtime.supportFiles
       }
@@ -190,7 +197,10 @@ export const LOCAL_MODEL_BUNDLES = {
     files: mlxNodeRelease.model.files.map((file) => ({
       key: file.relPath,
       relPath: file.relPath,
-      urls: [`${mlxReleaseUrl}/${file.asset}`],
+      urls: {
+        china: `${mlxModelMirrorUrl}/${file.relPath}`,
+        global: `${mlxModelReleaseUrl}/${file.asset}`
+      },
       sha256: file.sha256,
       sizeBytes: file.sizeBytes,
       minBytes: file.sizeBytes,

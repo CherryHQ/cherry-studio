@@ -57,7 +57,7 @@ vi.mock('../../catalog/catalog', async (importOriginal) => {
 })
 
 const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
-const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported, removeArtifact } =
+const { artifactEntryPath, artifactRegistryOrder, installArtifact, isArtifactSupported, removeArtifact } =
   await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
@@ -181,6 +181,30 @@ describe('shared artifact acquisition', () => {
     expect(artifactRegistryOrder('china-first')).toEqual(['npmmirror', 'npmjs'])
     expect(artifactRegistryOrder('global-first')).toEqual(['npmjs', 'npmmirror'])
   })
+
+  it.each(['china-first', 'global-first'] as const)(
+    'installs from the other region after a corrupt %s native archive',
+    async (preference) => {
+      const urls = { china: 'https://modelscope.cn/runtime.tgz', global: 'https://github.com/runtime.tgz' }
+      const artifact = {
+        ...FIXTURE_ARTIFACT,
+        platforms: {
+          'linux-x64': { ...FIXTURE_ARTIFACT.platforms['linux-x64'], tarballUrls: urls }
+        }
+      }
+      const requested: string[] = []
+      vi.mocked(net.fetch).mockImplementation((async (url) => {
+        requested.push(String(url))
+        return tarballResponse(requested.length === 1 ? Buffer.from('corrupt archive') : FAKE_TARBALL_CONTENT)
+      }) as typeof net.fetch)
+
+      await installArtifact(artifact, new AbortController().signal, undefined, artifactRegistryOrder(preference))
+
+      expect(isReady()).toBe(true)
+      expect(fs.readFileSync(artifactEntryPath(artifact), 'utf8')).toBe('binding')
+      expect(requested).toEqual(preference === 'china-first' ? [urls.china, urls.global] : [urls.global, urls.china])
+    }
+  )
 
   it('falls back to the second mirror when the first fails', async () => {
     vi.mocked(net.fetch)

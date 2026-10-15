@@ -34,10 +34,12 @@ export interface SharedArtifact {
 
 export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx' | 'mlx-node'
 
+export type DownloadUrls = readonly string[] | { china: string; global: string }
+
 /** The files one platform needs, and where they sit inside the tarball. */
 export interface ArtifactPlatformFiles {
   packageName: string
-  tarballUrls?: readonly string[]
+  tarballUrls?: DownloadUrls
   /** sha256 of the whole npm tarball. */
   tarballSha256: string
   /** Tarball path prefix holding this platform's files, e.g. `package/bin/napi-v6/darwin/arm64/`.
@@ -96,7 +98,7 @@ interface BundleFileBase {
 export type BundleFile = BundleFileBase &
   (
     | { repo: string; remoteFile: string; sources?: never; urls?: never }
-    | { urls: readonly string[]; sizeBytes: number; repo?: never; remoteFile?: never; sources?: never }
+    | { urls: DownloadUrls; sizeBytes: number; repo?: never; remoteFile?: never; sources?: never }
     | {
         urls?: never
         sources: readonly [BundleFileSource, ...BundleFileSource[]]
