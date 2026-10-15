@@ -7,6 +7,7 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
+import { NotificationCenterButton } from '@renderer/components/NotificationCenter'
 import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -125,6 +126,7 @@ export function ShellTabBarActions() {
             </CommandTooltip>
           </>
         ) : null}
+        <NotificationCenterButton />
         <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
           <Button
             type="button"

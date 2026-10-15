@@ -1,5 +1,8 @@
 import { vi } from 'vitest'
 
+import type { CreateNotificationRecordInput } from '@shared/data/types/notification'
+import type { NotificationSource } from '@shared/types/notification'
+
 import { mockAttachmentPresenceService } from './AttachmentPresenceService'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
@@ -82,6 +85,15 @@ export const mockJobManager = {
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
 }
 
+export const mockNotificationService = {
+  resetContextUsage: vi.fn(),
+  observeChatContextUsage: vi.fn(async () => undefined),
+  publish: vi.fn(
+    async (_input: CreateNotificationRecordInput, _options?: { source?: NotificationSource; completion?: boolean }) =>
+      true
+  )
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -94,6 +106,7 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
+  NotificationService: mockNotificationService,
   JobManager: mockJobManager
 } as const
 

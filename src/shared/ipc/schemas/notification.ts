@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { NotificationRecord } from '@shared/data/types/notification'
 import type { ConversationNotification, Notification } from '@shared/types/notification'
 
 import { defineRoute } from '../define'
@@ -22,10 +23,14 @@ import { defineRoute } from '../define'
  * main-owned.
  */
 export const notificationRequestSchemas = {
-  'notification.send': defineRoute({ input: z.custom<Notification>(), output: z.void() })
+  'notification.send': defineRoute({ input: z.custom<Notification>(), output: z.void() }),
+  'notification.activate': defineRoute({ input: z.object({ id: z.string().min(1) }), output: z.void() })
 }
 
 export type NotificationEventSchemas = {
   'notification.clicked': Notification
   'notification.conversation': ConversationNotification
+  'notification.present': NotificationRecord
+  'notification.completion_sound': { id: string }
+  'notification.open': { id: string }
 }

@@ -1471,13 +1471,15 @@ describe('AiStreamManager', () => {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
-        listeners: [renderer, persistence]
+        listeners: [renderer, persistence],
+        isPersistentConversation: true
       })
       const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
 
       await Promise.resolve()
       expect(persistence.doneResults).toHaveLength(1)
       expect(renderer.doneResults).toHaveLength(0)
+      expect(conversationCompletedEvents).toEqual([])
       expect(mgr.hasLiveStream('a')).toBe(false)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(true)
       expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
@@ -1569,7 +1571,60 @@ describe('AiStreamManager', () => {
       await settledPromise
       await firstTerminal
       expect(conversationCompletedEvents).toHaveLength(1)
+
+      startSingle(mgr, { topicId, modelId: last, request: req(topicId), listeners: [], isPersistentConversation: true })
+      await mgr.onExecutionDone(topicId, last)
+      expect(conversationCompletedEvents[1]).not.toHaveProperty('completedTaskCount')
     })
+
+    it('waits for every model persistence before reporting conversation success', async () => {
+      let release!: () => void
+      const persistence = new FakeListener('persistence:multi', 'persistence')
+      persistence.onDoneImpl = async (result) => {
+        if (result.modelId !== 'p::first') return
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        throw new TerminalPersistenceError('first model write failed')
+      }
+      mgr.send({
+        topicId: 'multi-persistence',
+        models: [
+          { modelId: 'p::first', request: req('multi-persistence') },
+          { modelId: 'p::last', request: req('multi-persistence') }
+        ],
+        listeners: [persistence],
+        isPersistentConversation: true
+      })
+      const first = mgr.onExecutionDone('multi-persistence', 'p::first')
+      await vi.advanceTimersByTimeAsync(0)
+      await mgr.onExecutionDone('multi-persistence', 'p::last')
+      expect(conversationCompletedEvents).toEqual([])
+      release()
+      await first
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it.each([true, false])(
+      'does not announce all-complete when one model is cancelled (cancel first: %s)',
+      async (cancelFirst) => {
+        const abortController = new AbortController()
+        mgr.send({
+          topicId: 'partly-cancelled',
+          models: [
+            { modelId: 'p::cancelled', request: req('partly-cancelled'), abortController },
+            { modelId: 'p::completed', request: req('partly-cancelled') }
+          ],
+          listeners: [],
+          isPersistentConversation: true
+        })
+        if (!cancelFirst) await mgr.onExecutionDone('partly-cancelled', 'p::completed')
+        abortController.abort('user-stop')
+        await vi.advanceTimersByTimeAsync(0)
+        if (cancelFirst) await mgr.onExecutionDone('partly-cancelled', 'p::completed')
+        expect(conversationCompletedEvents).toEqual([])
+      }
+    )
 
     it('keeps the previous turn terminal lifecycle when a follow-up is admitted after the dispatch settles', async () => {
       let releaseB!: () => void
@@ -3706,6 +3761,83 @@ describe('AiStreamManager', () => {
       // via `topic.stream.last_seen_completion.*`.
       vi.advanceTimersByTime(31_000)
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+    })
+
+    it('carries the completed task into an Agent continuation launched inside the terminal listener', async () => {
+      const topicId = 'agent-session:listener-batch'
+      const first = new FakeListener('agent-terminal')
+      first.onDoneImpl = () => {
+        first.onDoneImpl = undefined
+        queueMicrotask(() => {
+          mgr.startRuntimeTurn({
+            topicId,
+            modelId: 'p::m',
+            request: { ...req(topicId), messages: [{ id: 'second-user', role: 'user', parts: [] }] },
+            listeners: []
+          })
+        })
+      }
+      mockWillContinueTopic.mockReturnValue(true)
+      mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'p::m',
+        request: { ...req(topicId), messages: [{ id: 'first-user', role: 'user', parts: [] }] },
+        listeners: [first]
+      })
+      await mgr.onExecutionDone(topicId, 'p::m')
+      await vi.advanceTimersByTimeAsync(0)
+      mockWillContinueTopic.mockReturnValue(false)
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(1)
+      expect(conversationCompletedEvents[0]).toMatchObject({ completedTaskCount: 2 })
+    })
+
+    it('counts distinct user tasks across a continuous Agent queue and starts fresh after draining', async () => {
+      const topicId = 'agent-session:batch-session'
+      for (let index = 0; index < 7; index++) {
+        mockWillContinueTopic.mockReturnValue(index < 6)
+        mgr.startRuntimeTurn({
+          topicId,
+          modelId: 'p::m',
+          request: {
+            ...req(topicId),
+            messages: [{ id: `user-${index}`, role: 'user', parts: [{ type: 'text', text: 'Next task' }] }]
+          },
+          listeners: [new FakeListener(`batch:${index}`)]
+        })
+        await mgr.onExecutionDone(topicId, 'p::m')
+        await mgr.onExecutionDone(topicId, 'p::m')
+        expect(conversationCompletedEvents).toHaveLength(index === 6 ? 1 : 0)
+      }
+      expect(conversationCompletedEvents[0]).toMatchObject({ completedTaskCount: 7 })
+
+      mgr.startRuntimeTurn({ topicId, modelId: 'p::m', request: req(topicId), listeners: [] })
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(2)
+      expect(conversationCompletedEvents[1]).not.toHaveProperty('completedTaskCount')
+    })
+
+    it('counts all injected user tasks while excluding autonomous seed messages', async () => {
+      const topicId = 'agent-session:injected-batch'
+      const start = (taskIds: string[]) =>
+        mgr.startRuntimeTurn({
+          topicId,
+          modelId: 'p::m',
+          taskIds,
+          request: { ...req(topicId), messages: [{ id: 'synthetic-seed', role: 'user', parts: [] }] },
+          listeners: []
+        })
+      start([])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toEqual([])
+      mockWillContinueTopic.mockReturnValue(true)
+      start(['u1', 'u2', 'u3', 'u4', 'u5'])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      mockWillContinueTopic.mockReturnValue(false)
+      start(['u5', 'u6', 'u7'])
+      await mgr.onExecutionDone(topicId, 'p::m')
+      expect(conversationCompletedEvents).toHaveLength(1)
+      expect(conversationCompletedEvents[0]).toMatchObject({ completedTaskCount: 7 })
     })
 
     it('reports one persistent assistant completion after all models finish', async () => {

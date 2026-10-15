@@ -78,6 +78,10 @@ vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children: React.ReactNode }) => children
 }))
 
+vi.mock('@renderer/components/NotificationCenter', () => ({
+  NotificationCenterButton: () => null
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
