@@ -502,7 +502,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
-      if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
+      if (name === 'ClaudeCodeProcessManager') {
+        return { spawn: mocks.processManagerSpawn, releaseLiveSpawnPreflight: vi.fn() }
+      }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
