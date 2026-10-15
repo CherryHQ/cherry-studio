@@ -918,6 +918,15 @@ describe('VoiceSettings', () => {
     })
   })
 
+  it('explains voice contention when a microphone test is rejected', async () => {
+    voice.testMicrophone.mockRejectedValue(new VoiceDomainError('busy'))
+    render(<VoiceSettings />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Test microphone' }))
+    expect(await screen.findByText('Voice is busy with another local operation.')).toBeInTheDocument()
+    expect(screen.queryByText('The voice operation failed. Try again.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Test microphone' })).toBeEnabled()
+  })
+
   it('offers system settings recovery only after microphone permission is denied', async () => {
     voice.microphone.mockResolvedValue('not-determined')
     voice.testMicrophone.mockRejectedValue(new VoiceDomainError('microphone_permission'))
