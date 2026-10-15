@@ -48,7 +48,7 @@ export const browserRequestSchemas = {
       scope: z.enum(['agent', 'topic']).optional(),
       tabId: z.uuid(),
       requestId: z.uuid(),
-      focused: z.boolean()
+      status: z.enum(['focused', 'background', 'unavailable'])
     }),
     output: z.void()
   })

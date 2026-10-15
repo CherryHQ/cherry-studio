@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import type { InputFor } from '@shared/ipc/types'
 import { Sequencer } from '@shared/utils/async'
 
 const logger = loggerService.withContext('useAgentBrowserGuest')
@@ -29,11 +30,14 @@ export function useAgentBrowserGuest(
         request.expiresAt <= Date.now()
       )
         return
-      let focused = false
+      let status: InputFor<'browser.input.focused'>['status'] = 'unavailable'
       try {
         if (guest?.isConnected) {
-          guest.focus()
-          focused = guest.ownerDocument.activeElement === guest
+          if (guest.closest('[inert]')) status = 'background'
+          else {
+            guest.focus()
+            if (guest.ownerDocument.activeElement === guest) status = 'focused'
+          }
         }
       } catch (error) {
         logger.debug('Browser guest could not receive input focus', { error })
@@ -44,7 +48,7 @@ export function useAgentBrowserGuest(
           scope: request.scope,
           tabId: request.tabId,
           requestId: request.requestId,
-          focused
+          status
         })
         .catch((error) => logger.debug('Browser input focus request ended', { error }))
     })

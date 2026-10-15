@@ -6,7 +6,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import type { WindowId } from '@shared/ipc/types'
+import type { InputFor, WindowId } from '@shared/ipc/types'
 import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
@@ -29,7 +29,6 @@ export interface BrowserGuestTarget extends BrowserGuestContext {
   cursor: BrowserCursor
   popupBlocked?: boolean
   beginExecution: () => Disposable
-  focusInput: (options: CommandOptions) => Promise<void>
   dispose: () => void
 }
 
@@ -145,7 +144,6 @@ export class BrowserGuestRegistry implements Disposable {
       abort,
       cursor,
       beginExecution,
-      focusInput: (options) => this.focusInput({ sessionId, ownerId }, options),
       dispose
     })
     this.claims.set(guest, this.targets.get(sessionId)!)
@@ -161,9 +159,8 @@ export class BrowserGuestRegistry implements Disposable {
     return target.cursor
   }
 
-  private async focusInput(context: BrowserGuestContext, options: CommandOptions): Promise<void> {
-    const target = this.get(context)
-    if (!target) throw new BrowserSessionError('not_found')
+  async focusInput(context: BrowserGuestContext, target: BrowserGuestTarget, options: CommandOptions): Promise<void> {
+    if (this.get(context) !== target) throw new BrowserSessionError('not_found')
     const expiresAt = Math.min(Date.now() + 2000, options.deadline ?? Infinity)
     if (expiresAt <= Date.now()) throw new BrowserSessionError('timeout')
     const signal = AbortSignal.any([
@@ -200,11 +197,17 @@ export class BrowserGuestRegistry implements Disposable {
     if (this.get(context) !== target) throw new BrowserSessionError('not_found')
   }
 
-  inputFocused(sessionId: string, tabId: string, requestId: string, focused: boolean, senderId: WindowId | null): void {
+  inputFocused(
+    sessionId: string,
+    tabId: string,
+    requestId: string,
+    status: InputFor<'browser.input.focused'>['status'],
+    senderId: WindowId | null
+  ): void {
     const pending = this.pendingFocus.get(requestId)
     if (!pending || pending.target !== this.targets.get(sessionId) || pending.target.tabId !== tabId) return
     if (pending.target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
-    pending.finish(focused ? undefined : new BrowserSessionError('not_found'))
+    pending.finish(status === 'unavailable' ? new BrowserSessionError('not_found') : undefined)
   }
 
   handlePopup(guest: WebContents, details: Electron.HandlerDetails): boolean {

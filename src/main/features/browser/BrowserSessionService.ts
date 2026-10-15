@@ -169,6 +169,7 @@ export class BrowserSessionService extends BaseService {
         : new SessionBrowserController(this, {
             assertAvailable: () => this.assertTopicAvailable(owner.sessionId, owner.ownerId),
             get: () => this.topicBrowser.get(context),
+            focusInput: (target, options) => this.topicBrowser.focusInput(context, target, options),
             ensureGuest: (signal, url) => this.topicBrowser.ensureGuest(context, signal, url),
             reveal: (target) =>
               application
@@ -212,6 +213,7 @@ export class BrowserSessionService extends BaseService {
       const controller = new SessionBrowserController(this, {
         assertAvailable: () => this.assertTopicAvailable(topicId, assistantId),
         get: () => this.topicBrowser.get(context),
+        focusInput: (target, options) => this.topicBrowser.focusInput(context, target, options),
         ensureGuest: async (abort, url) => {
           const target = await this.topicBrowser.ensureGuest(context, abort, url)
           return target
