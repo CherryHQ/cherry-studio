@@ -15,6 +15,7 @@ import { type AssistantToolName } from '@main/ai/toolApproval/assistantToolNames
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { READ_FILE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { AGENT_TYPES, type AgentEntity, type AgentType } from '@shared/data/api/schemas/agents'
 
 /**
@@ -111,6 +112,21 @@ export function hostToolsEnabled(
   return resolveHostTools(agent, options) !== undefined
 }
 
+const ASSISTANT_FILE_READ_RUNTIME_NAME = `mcp__${CHERRY_MCP_SERVER.ASSISTANT_FILES}__${READ_FILE_TOOL_NAME}`
+
+/** Ordinary Claude mounts assistant-files only while its one read tool is still allowed. */
+function assistantFileReadDisabled(disabledTools: readonly string[] | null | undefined): boolean {
+  if (!disabledTools?.length) return false
+  const server = CHERRY_MCP_SERVER.ASSISTANT_FILES
+  return disabledTools.some(
+    (rule) =>
+      rule === ASSISTANT_FILE_READ_RUNTIME_NAME ||
+      rule === 'mcp__*' ||
+      rule === `mcp__${server}` ||
+      rule === `mcp__${server}__*`
+  )
+}
+
 /**
  * The Cherry-owned MCP servers this session mounts — the one place that decides, so the server set
  * and the tool-approval policy derived from it cannot disagree.
@@ -132,6 +148,12 @@ export function resolveMountedMcpServers(
     mounted.add(CHERRY_MCP_SERVER.ASSISTANT)
     if (hostTools?.files !== false) mounted.add(CHERRY_MCP_SERVER.ASSISTANT_FILES)
     if (hostTools?.doctor) mounted.add(CHERRY_MCP_SERVER.DOCTOR)
+  } else if (
+    agent.type === 'claude-code' &&
+    resolveAgentCapabilities(agent).hostTools === undefined &&
+    !assistantFileReadDisabled(agent.disabledTools)
+  ) {
+    mounted.add(CHERRY_MCP_SERVER.ASSISTANT_FILES)
   }
   return mounted
 }

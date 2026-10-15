@@ -62,15 +62,18 @@ export interface BuiltinToolPolicyEntry {
   readonly approval: BuiltinToolApproval
   /** Whether Full Access lifts a `required` approval. */
   readonly bypassApproval: BuiltinToolBypassApproval
+  /** Extra mounted servers required before this tool is discoverable. `serverName` is always required. */
+  readonly requiresServers?: readonly string[]
 }
 
 function tool(
   serverName: string,
   toolName: string,
   approval: BuiltinToolApproval,
-  bypassApproval: BuiltinToolBypassApproval = 'lift'
+  bypassApproval: BuiltinToolBypassApproval = 'lift',
+  requiresServers?: readonly string[]
 ): BuiltinToolPolicyEntry {
-  return { serverName, toolName, approval, bypassApproval }
+  return { serverName, toolName, approval, bypassApproval, ...(requiresServers ? { requiresServers } : {}) }
 }
 
 /**
@@ -116,8 +119,12 @@ const BUILTIN_TOOL_POLICIES = {
   assistantCreateAgent: tool(CHERRY_MCP_SERVER.ASSISTANT, 'create_agent', 'required'),
   assistantPrepareDiagnosticReport: tool(CHERRY_MCP_SERVER.ASSISTANT, 'prepare_diagnostic_report', 'auto'),
   assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),
-  assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required'),
-  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required'),
+  assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required', 'lift', [
+    CHERRY_MCP_SERVER.ASSISTANT
+  ]),
+  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required', 'lift', [
+    CHERRY_MCP_SERVER.ASSISTANT
+  ]),
 
   // The doctor turn is headless; writes are gated by DoctorAgentService proposals, not by approval.
   doctorSession: tool(CHERRY_MCP_SERVER.DOCTOR, 'session', 'auto'),

@@ -12,6 +12,7 @@ import type { Client } from '@modelcontextprotocol/client'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AssistantFileToolsServer from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -91,9 +92,13 @@ vi.mock('@main/ai/mcp/servers/assistant', () => ({
   createAssistantServer: vi.fn()
 }))
 
-vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
-  createAssistantFileToolsServer: vi.fn()
-}))
+vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof AssistantFileToolsServer
+  return {
+    ...actual,
+    createAssistantFileToolsServer: vi.fn(actual.createAssistantFileToolsServer)
+  }
+})
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: vi.fn(() => null), listChannels: vi.fn().mockResolvedValue([]) }
@@ -156,11 +161,19 @@ const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 
 describe('resolveMountedMcpServers', () => {
-  it('mounts skills but no host servers for an ordinary Agent', () => {
+  it('mounts read-only assistant-files but no host assistant server for an ordinary claude-code Agent', () => {
+    // Bug: ordinary open Claude Code agents did not mount assistant-files at all.
     const mounted = resolveMountedMcpServers({ type: 'claude-code', configuration: {} } as never, {
       channelLinked: false
     })
-    expect([...mounted].sort()).toEqual(['agent-memory', 'cherry-tools', 'mcp-manager', 'skills'])
+    expect([...mounted].sort()).toEqual(['agent-memory', 'assistant-files', 'cherry-tools', 'mcp-manager', 'skills'])
+    expect(mounted.has('assistant')).toBe(false)
+  })
+
+  it('does not mount assistant-files for an ordinary Pi agent', () => {
+    const mounted = resolveMountedMcpServers({ type: 'pi', configuration: {} } as never, { channelLinked: false })
+    expect(mounted.has('assistant-files')).toBe(false)
+    expect(mounted.has('assistant')).toBe(false)
   })
 
   it('drops the skills and mcp-manager servers for Cherry Support while keeping its host servers', () => {
@@ -228,6 +241,34 @@ describe('adjustAllowedToolsForMcp', () => {
     expect(allowed).toContain('mcp__assistant-files__read_file')
     expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
     expect(allowed).not.toContain('mcp__assistant-files__*')
+  })
+
+  it('auto-approves only read_file for a read-only assistant-files mount', () => {
+    // Bug: the allowlist must match the tools the read-only server actually exposes.
+    const mounted = new Set([...WITHOUT_HOST_TOOLS, 'assistant-files'])
+    const allowed = adjustAllowedToolsForMcp(mounted, [])
+
+    expect(allowed).toContain('mcp__assistant-files__read_file')
+    expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
+    expect(allowed).not.toContain('mcp__assistant-files__move_to_trash')
+  })
+
+  it.each(['mcp__assistant-files__read_file', 'mcp__assistant-files', 'mcp__assistant-files__*', 'mcp__*'])(
+    'removes a disabled read_file from the read-only allowlist for %s',
+    (rule) => {
+      // Bug: disabling read_file must take it out of allowedTools for every existing MCP rule form.
+      const mounted = new Set([...WITHOUT_HOST_TOOLS, 'assistant-files'])
+      const allowed = adjustAllowedToolsForMcp(mounted, [rule])
+
+      expect(allowed).not.toContain('mcp__assistant-files__read_file')
+    }
+  )
+
+  it('does not remove the MCP read_file when only the bare tool name is disabled', () => {
+    const mounted = new Set([...WITHOUT_HOST_TOOLS, 'assistant-files'])
+    const allowed = adjustAllowedToolsForMcp(mounted, ['read_file'])
+
+    expect(allowed).toContain('mcp__assistant-files__read_file')
   })
 
   it('removes an exact disabled tool without affecting sibling auto-approvals', () => {
@@ -409,13 +450,75 @@ describe('buildMcpServers', () => {
     expect(await cherryToolNames(servers)).not.toContain('kb_read')
   })
 
-  it('injects assistant file tools only for Cherry Assistant sessions', () => {
+  it('injects the full assistant file surface only with the host assistant server', async () => {
     const plain = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)
-    const assistant = buildMcpServers(session, agent, WITH_HOST_TOOLS)
+    const assistantAgent = {
+      ...agent,
+      type: 'claude-code',
+      configuration: { builtin_role: 'assistant' }
+    } as unknown as AgentEntity
+    const assistant = buildMcpServers(session, assistantAgent, WITH_HOST_TOOLS)
+    const { instance } = assistant!['assistant-files'] as McpSdkServerConfigWithInstance
+    const client = await connectMcpTestClient(instance)
 
     expect(plain?.['assistant-files']).toBeUndefined()
     expect(assistant?.assistant).toBeDefined()
-    expect(assistant?.['assistant-files']).toBeDefined()
+    expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
+      'move_to_trash',
+      'read_file',
+      'save_attachment'
+    ])
+    await client.close()
+  })
+
+  it('lists only read_file when an ordinary claude-code agent mounts assistant-files', async () => {
+    // Bug: mounting the server registered save_attachment and move_to_trash for every caller.
+    const ordinary = { ...agent, type: 'claude-code', configuration: {} } as AgentEntity
+    const mounted = new Set([...WITHOUT_HOST_TOOLS, 'assistant-files'])
+    const servers = buildMcpServers(session, ordinary, mounted)
+    const { instance } = servers!['assistant-files'] as McpSdkServerConfigWithInstance
+    const client = await connectMcpTestClient(instance)
+    const tools = (await client.listTools()).tools
+
+    expect(servers?.assistant).toBeUndefined()
+    expect(tools.map((tool) => tool.name)).toEqual(['read_file'])
+    expect(tools[0]?.description).toContain('opaque attachment handle')
+    expect(tools[0]?.description).toContain('timestamped')
+    await client.close()
+  })
+
+  it('does not register mutating file tools for Doctor even if assistant-files is mounted', async () => {
+    // Bug: files:false must not gain save_attachment or move_to_trash from a mounted file server.
+    const doctor = {
+      ...agent,
+      type: 'claude-code',
+      configuration: { builtin_role: 'doctor' }
+    } as AgentEntity
+    const mounted = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
+    const servers = buildMcpServers(session, doctor, mounted)
+    const { instance } = servers!['assistant-files'] as McpSdkServerConfigWithInstance
+    const client = await connectMcpTestClient(instance)
+
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['read_file'])
+    await client.close()
+  })
+
+  it('does not register mutating file tools for a channel-linked Assistant even if assistant-files is mounted', async () => {
+    const linkedAssistant = {
+      ...agent,
+      type: 'claude-code',
+      configuration: { builtin_role: 'assistant' }
+    } as AgentEntity
+    const mounted = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
+    const servers = buildMcpServers(session, linkedAssistant, mounted, undefined, {
+      id: 'channel-1',
+      type: 'telegram'
+    })
+    const { instance } = servers!['assistant-files'] as McpSdkServerConfigWithInstance
+    const client = await connectMcpTestClient(instance)
+
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['read_file'])
+    await client.close()
   })
 })
 

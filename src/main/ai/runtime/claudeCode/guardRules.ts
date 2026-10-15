@@ -17,6 +17,7 @@ import path from 'node:path'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import {
+  CHERRY_MCP_SERVER,
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -25,6 +26,8 @@ import {
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
+import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
@@ -130,6 +133,18 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
+const ASSISTANT_FILE_MUTATIONS = new Set([
+  toMcpRuntimeName({ serverName: CHERRY_MCP_SERVER.ASSISTANT_FILES, toolName: SAVE_ATTACHMENT_TOOL_NAME }),
+  toMcpRuntimeName({ serverName: CHERRY_MCP_SERVER.ASSISTANT_FILES, toolName: MOVE_TO_TRASH_TOOL_NAME })
+])
+
+const assistantFileMutationWithoutHost = (ctx: ToolGuardContext): GuardHit | null => {
+  if (!ASSISTANT_FILE_MUTATIONS.has(ctx.toolName)) return null
+  const hostFilesMounted =
+    ctx.mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT) && ctx.mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)
+  return hostFilesMounted ? null : {}
+}
+
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'browser-tool-disabled',
@@ -147,6 +162,13 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
+  },
+  {
+    id: 'assistant-files-mutation-without-host',
+    bypassBehavior: 'enforce',
+    match: { when: assistantFileMutationWithoutHost },
+    effect: 'deny',
+    reason: 'Saving attachments and moving workspace files to trash require the host assistant file tools.'
   },
   {
     id: 'user-data-sqlite-write',

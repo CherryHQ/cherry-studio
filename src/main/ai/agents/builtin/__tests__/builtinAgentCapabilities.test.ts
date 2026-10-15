@@ -76,6 +76,85 @@ describe('hostToolsEnabled', () => {
   })
 })
 
+describe('ordinary claude-code attachment reads', () => {
+  it('mounts read-only assistant-files for an ordinary open claude-code agent and withholds host tools', () => {
+    // Bug: ordinary open Claude Code agents never mounted assistant-files, so audio/video stayed a path.
+    const mounted = resolveMountedMcpServers(agentOf('claude-code'), { channelLinked: false })
+
+    expect(mounted.has('assistant-files')).toBe(true)
+    expect(mounted.has('assistant')).toBe(false)
+    expect(hostToolsEnabled(agentOf('claude-code'), { channelLinked: false })).toBe(false)
+  })
+
+  it('keeps the same read-only file server for a channel-linked ordinary claude-code agent', () => {
+    // Bug: channel linking must not add mutating file tools, and must not drop the read tool either.
+    const mounted = resolveMountedMcpServers(agentOf('claude-code'), { channelLinked: true })
+
+    expect(mounted.has('assistant-files')).toBe(true)
+    expect(mounted.has('assistant')).toBe(false)
+  })
+
+  it('does not mount assistant-files for ordinary Pi agents', () => {
+    expect(resolveMountedMcpServers(agentOf('pi'), { channelLinked: false }).has('assistant-files')).toBe(false)
+    expect(resolveMountedMcpServers(agentOf('pi'), { channelLinked: true }).has('assistant-files')).toBe(false)
+  })
+
+  it('mounts assistant-files for the built-in Assistant on Pi and withholds it when that session is channel-linked', () => {
+    const local = resolveMountedMcpServers(agentOf('pi', BUILTIN_AGENT_ROLE.ASSISTANT), { channelLinked: false })
+    const linked = resolveMountedMcpServers(agentOf('pi', BUILTIN_AGENT_ROLE.ASSISTANT), { channelLinked: true })
+
+    expect(local.has('assistant')).toBe(true)
+    expect(local.has('assistant-files')).toBe(true)
+    expect(linked.has('assistant')).toBe(false)
+    expect(linked.has('assistant-files')).toBe(false)
+  })
+
+  it('does not mount assistant-files for Doctor or a channel-linked Assistant', () => {
+    // Bug: files:false and channel-linked host privilege must not gain the file server.
+    const doctor = resolveMountedMcpServers(agentOf('claude-code', BUILTIN_AGENT_ROLE.DOCTOR), { channelLinked: false })
+    const linkedAssistant = resolveMountedMcpServers(agentOf('claude-code', BUILTIN_AGENT_ROLE.ASSISTANT), {
+      channelLinked: true
+    })
+
+    expect(doctor.has('assistant')).toBe(true)
+    expect(doctor.has('assistant-files')).toBe(false)
+    expect(linkedAssistant.has('assistant')).toBe(false)
+    expect(linkedAssistant.has('assistant-files')).toBe(false)
+  })
+
+  it('keeps Support on its existing host file server without granting a second surface', () => {
+    const support = resolveMountedMcpServers(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), {
+      channelLinked: false
+    })
+
+    expect(support.has('assistant')).toBe(true)
+    expect(support.has('assistant-files')).toBe(true)
+  })
+
+  it.each(['mcp__assistant-files__read_file', 'mcp__assistant-files', 'mcp__assistant-files__*', 'mcp__*'])(
+    'leaves assistant-files unmounted when an ordinary agent disables read_file via %s',
+    (rule) => {
+      // Bug: a disabled read_file must not stay mounted. Rules match the existing MCP allowlist.
+      const mounted = resolveMountedMcpServers(
+        { type: 'claude-code', configuration: {}, disabledTools: [rule] } as never,
+        { channelLinked: false }
+      )
+
+      expect(mounted.has('assistant-files')).toBe(false)
+      expect(mounted.has('assistant')).toBe(false)
+    }
+  )
+
+  it('keeps the read-only server mounted when only the bare read_file name is disabled', () => {
+    const mounted = resolveMountedMcpServers(
+      { type: 'claude-code', configuration: {}, disabledTools: ['read_file'] } as never,
+      { channelLinked: false }
+    )
+
+    expect(mounted.has('assistant-files')).toBe(true)
+  })
+})
+
 describe('Agent browser mounting', () => {
   it.each(AGENT_TYPES)('honors the built-in browser opt-out on %s', (type) => {
     expect(

@@ -35,6 +35,7 @@ const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as co
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
 const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
+const READ_ONLY_FILES: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant-files'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   approval: 'required',
   mountedServers: WITHOUT_HOST_TOOLS
@@ -79,6 +80,42 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
       ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
     ])
+  })
+
+  it('does not discover mutating assistant-files tools on the read-only mount', () => {
+    // Bug: approval-required names still included save_attachment and move_to_trash without host files.
+    const names = approvalRequiredRuntimeNames(READ_ONLY_FILES)
+
+    expect(names).not.toContain('mcp__assistant-files__save_attachment')
+    expect(names).not.toContain('mcp__assistant-files__move_to_trash')
+  })
+
+  it('denies assistant-files mutations at fire time when the host assistant server is absent', async () => {
+    // Bug: a read-only mount still let save_attachment through under bypassPermissions.
+    for (const toolName of ['mcp__assistant-files__save_attachment', 'mcp__assistant-files__move_to_trash']) {
+      const decision = await evaluate(
+        makeCtx({ toolName, mountedServers: READ_ONLY_FILES, permissionMode: 'bypassPermissions' })
+      )
+      expect(decision?.effect).toBe('deny')
+    }
+  })
+
+  it('denies a disabled assistant-files read_file at fire time', async () => {
+    // Bug: disabling read_file must stay a denial even when the permission mode would auto-allow it.
+    const decision = await evaluate(
+      makeCtx({
+        toolName: 'mcp__assistant-files__read_file',
+        mountedServers: READ_ONLY_FILES,
+        permissionMode: 'bypassPermissions',
+        isDisabled: (name) => name === 'mcp__assistant-files__read_file'
+      })
+    )
+
+    expect(decision).toEqual({
+      effect: 'deny',
+      reason: 'The mcp__assistant-files__read_file tool is disabled for this agent.',
+      ruleId: 'disabled-tool'
+    })
   })
 
   describe('disabled-tool', () => {

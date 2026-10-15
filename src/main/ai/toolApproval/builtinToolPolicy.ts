@@ -17,6 +17,12 @@ const BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME = new Map(
   BUILTIN_TOOL_POLICY_ENTRIES.map((entry) => [toMcpRuntimeName(entry), entry])
 )
 
+function policyMounted(entry: BuiltinToolPolicyEntry, mountedServers: ReadonlySet<string> | undefined): boolean {
+  if (mountedServers === undefined) return true
+  if (!mountedServers.has(entry.serverName)) return false
+  return (entry.requiresServers ?? []).every((server) => mountedServers.has(server))
+}
+
 export interface BuiltinToolPolicyQuery {
   readonly approval?: BuiltinToolApproval
   readonly bypassApproval?: BuiltinToolBypassApproval
@@ -34,7 +40,7 @@ export function listBuiltinToolPolicies(query: BuiltinToolPolicyQuery = {}): Bui
     (entry) =>
       (query.approval === undefined || entry.approval === query.approval) &&
       (query.bypassApproval === undefined || entry.bypassApproval === query.bypassApproval) &&
-      (query.mountedServers === undefined || query.mountedServers.has(entry.serverName))
+      policyMounted(entry, query.mountedServers)
   )
 }
 
@@ -44,7 +50,7 @@ export function findBuiltinToolPolicy(
   mountedServers: ReadonlySet<string>
 ): BuiltinToolPolicyEntry | undefined {
   const entry = BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME.get(runtimeName)
-  if (entry && mountedServers.has(entry.serverName)) return entry
+  if (entry && policyMounted(entry, mountedServers)) return entry
   for (const server of mountedServers) {
     const policy = MOUNTED_TOOL_POLICY_PROVIDERS.get(server)?.().find(
       (candidate) => toMcpRuntimeName(candidate) === runtimeName

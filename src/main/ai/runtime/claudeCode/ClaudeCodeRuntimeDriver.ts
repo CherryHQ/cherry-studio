@@ -43,7 +43,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { imageExts } from '@shared/utils/file'
+import { getFileTypeByExt, imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
@@ -337,6 +337,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
+  private hostAssistantServerMounted = false
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
@@ -382,6 +383,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     this.connectionConfig = request.connectionConfig
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
+    this.hostAssistantServerMounted = Boolean(request.settings.mcpServers?.assistant)
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
@@ -478,6 +480,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
+      readOnlyAttachmentMedia: this.assistantFileToolsEnabled && !this.hostAssistantServerMounted,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
     this.sdkInputQueue.push(sdkMessage)
@@ -1115,10 +1118,11 @@ async function toSdkUserMessage(
   systemReminder = false,
   {
     supportsAttachmentReads = false,
-    supportsImages = true
-  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
+    supportsImages = true,
+    readOnlyAttachmentMedia = false
+  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean; readOnlyAttachmentMedia?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads, readOnlyAttachmentMedia)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -1150,20 +1154,23 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 }
 
 /**
- * Build SDK user content from a message entity. Non-image attachments are sent as
- * current local paths so the Agent decides how to inspect them with its tools. Images
- * keep the capability-aware path: supported formats become native Anthropic image
- * blocks, while first-party images use shared OCR/native-fallback routing when vision
- * is unavailable, and unlisted-extension images survive routing as file parts for the
- * path fallback. Assistant attachment handles remain an additional compatibility
- * interface; external files and images that cannot be materialized fall back to paths.
+ * Build SDK user content from a message entity. Documents and other non-image
+ * attachments are sent as current local paths. On the ordinary read-only
+ * assistant-files surface, first-party audio and video are named by opaque handle
+ * for `mcp__assistant-files__read_file` instead of a path; when the host assistant
+ * server is also mounted, those media files stay on the path manifest. Images keep
+ * the capability-aware path: supported formats become native Anthropic image blocks,
+ * while first-party images use shared OCR/native-fallback routing when vision is
+ * unavailable, and unlisted-extension images survive routing as file parts for the
+ * path fallback. External files and images that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
   supportsImages: boolean,
-  supportsAttachmentReads: boolean
+  supportsAttachmentReads: boolean,
+  readOnlyAttachmentMedia: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
   const firstPartyFileParts = parts.filter(
@@ -1183,6 +1190,14 @@ async function materializeUserContent(
     firstPartyFileParts
       .map((part) => [readCherryMeta(part)?.fileEntryId, part] as const)
       .filter((entry): entry is [string, FileUIPart] => Boolean(entry[0]))
+  )
+  const readOnlyMediaEntryIds = new Set(
+    readOnlyAttachmentMedia
+      ? firstPartyFileParts.flatMap((part) => {
+          const fileEntryId = readCherryMeta(part)?.fileEntryId
+          return fileEntryId && isAudioOrVideoFilePart(part) ? [fileEntryId] : []
+        })
+      : []
   )
 
   let preparedParts = routedParts
@@ -1229,6 +1244,7 @@ async function materializeUserContent(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
     if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
+      if (fileEntryId && readOnlyMediaEntryIds.has(fileEntryId)) continue
       routeWithoutImage(originalPart)
       continue
     }
@@ -1266,7 +1282,16 @@ async function materializeUserContent(
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
   unavailableParts.push(...resolvedPaths.unavailable)
   let textContent = appendAgentAttachmentPaths(text, resolvedPaths.files)
-  if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
+  textContent = appendReadOnlyMediaPrompt(
+    textContent,
+    turnAttachments.filter((attachment) => readOnlyMediaEntryIds.has(attachment.fileEntryId))
+  )
+  if (supportsAttachmentReads) {
+    textContent = appendAttachmentManifest(
+      textContent,
+      turnAttachments.filter((attachment) => !readOnlyMediaEntryIds.has(attachment.fileEntryId))
+    )
+  }
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
@@ -1290,6 +1315,27 @@ function appendAttachmentManifest(
     .join('\n')
   const section = `Attachment manifest:\n${list}`
   return text.trim() ? `${text}\n\n${section}` : section
+}
+
+function appendReadOnlyMediaPrompt(
+  text: string,
+  attachments: ReadonlyArray<{ displayName: string; handle: string }>
+): string {
+  if (attachments.length === 0) return text
+  const list = attachments
+    .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
+    .join('\n')
+  const section = `Attached audio and video (call mcp__assistant-files__read_file with the opaque attachment handle; the tool returns timestamped analysis):\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
+}
+
+function isAudioOrVideoFilePart(part: FileUIPart): boolean {
+  const mediaType = part.mediaType?.toLowerCase() ?? ''
+  if (mediaType.startsWith('audio/') || mediaType.startsWith('video/')) return true
+  const filename = part.filename ?? ''
+  const extension = filename.includes('.') ? filename.slice(filename.lastIndexOf('.') + 1) : ''
+  const fileType = getFileTypeByExt(extension)
+  return fileType === 'audio' || fileType === 'video'
 }
 
 interface ResolvedAttachmentPath {

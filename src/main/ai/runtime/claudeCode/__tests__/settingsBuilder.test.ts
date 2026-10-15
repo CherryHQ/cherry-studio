@@ -2639,6 +2639,74 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  it('mounts read-only assistant-files for an ordinary open claude-code agent and auto-allows only read_file', async () => {
+    // Bug: ordinary agents received audio/video as paths and never mounted the attachment read tool.
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
+
+    expect(settings.mcpServers?.assistant).toBeUndefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeDefined()
+    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__save_attachment')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__move_to_trash')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant-files__read_file')
+    expect(snapshotOptions.autoAllowRuntimeNameExceptions ?? []).not.toContain('mcp__assistant-files__save_attachment')
+    expect(snapshotOptions.autoAllowRuntimeNameExceptions ?? []).not.toContain('mcp__assistant-files__move_to_trash')
+  })
+
+  it('keeps a disabled read_file off the ordinary allowlist and denied at fire time', async () => {
+    // Bug: disabling read_file must agree across disallowedTools, allowedTools, mounting, and the hook.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: ['mcp__assistant-files__read_file'],
+      configuration: {}
+    })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn((tool: string) => tool === 'mcp__assistant-files__read_file'),
+      getPermissionMode: vi.fn(() => 'bypassPermissions'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const decisions = await Promise.all(
+      hooks.map((hook) =>
+        hook(
+          { hook_event_name: 'PreToolUse', tool_name: 'mcp__assistant-files__read_file', tool_input: {} } as never,
+          'tool-use-1',
+          {} as never
+        )
+      )
+    )
+
+    expect(settings.mcpServers?.assistant).toBeUndefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeUndefined()
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__read_file')
+    expect(settings.disallowedTools).toContain('mcp__assistant-files__read_file')
+    expect(decisions).toContainEqual(
+      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+    )
+  })
+
   it('uses one captured channel snapshot for Assistant MCP, approval, and prompt policy', async () => {
     mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
     mocks.getAgent.mockReturnValue({
