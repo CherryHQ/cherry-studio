@@ -5,8 +5,9 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT } from '../../../types'
 
-const { cancelMock, listMock, knowledgeItemGetSubtreeItemsMock } = vi.hoisted(() => ({
+const { cancelMock, getJobMock, listMock, knowledgeItemGetSubtreeItemsMock } = vi.hoisted(() => ({
   cancelMock: vi.fn(),
+  getJobMock: vi.fn(),
   listMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn()
 }))
@@ -16,6 +17,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     JobManager: {
       cancel: cancelMock,
+      get: getJobMock,
       list: listMock
     }
   })
@@ -27,13 +29,15 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   }
 }))
 
-const { cancelActiveKnowledgeJobs } = await import('../cancel')
+const { cancelActiveKnowledgeJobs, cancelJobAndConfirmStopped } = await import('../cancel')
 
-type JobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<JobSnapshot>
+type JobSnapshotInput = Partial<JobSnapshot>
 
 function createJobSnapshot(overrides: JobSnapshotInput): JobSnapshot {
   return {
     id: 'job-1',
+    type: 'knowledge.sync-external-source',
+    input: { baseId: 'kb-1', sourceId: 'source-1', sourceRevision: 1, trigger: 'manual' },
     status: 'running',
     priority: 0,
     queue: 'base.kb-1',
@@ -74,6 +78,7 @@ function createItem(id: string): KnowledgeItem {
 describe('cancelActiveKnowledgeJobs', () => {
   beforeEach(() => {
     cancelMock.mockReset().mockResolvedValue({ outcome: 'cancelled' })
+    getJobMock.mockReset().mockResolvedValue(null)
     listMock.mockReset().mockResolvedValue([])
     knowledgeItemGetSubtreeItemsMock.mockReset()
   })
@@ -197,6 +202,52 @@ describe('cancelActiveKnowledgeJobs', () => {
         onCancelTimeout: 'throw'
       })
     ).rejects.toThrow('Job cancel timed out: index-job')
+  })
+
+  it('makes throw mode reject an active job that JobManager could not cancel', async () => {
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createItem('note-1')])
+    const runningJob = createJobSnapshot({
+      id: 'previous-process-job',
+      type: 'knowledge.index-documents',
+      input: { baseId: 'kb-1', itemId: 'note-1' }
+    })
+    listMock.mockResolvedValue([runningJob])
+    cancelMock.mockResolvedValue({ outcome: 'not-cancellable' })
+    getJobMock.mockResolvedValue(runningJob)
+
+    await expect(
+      cancelActiveKnowledgeJobs('kb-1', 'knowledge-delete-subtree', {
+        rootItemIds: ['note-1'],
+        onCancelTimeout: 'throw'
+      })
+    ).rejects.toThrow('Job is still active after cancellation: previous-process-job (running)')
+  })
+
+  it('rejects a non-cancellable previous-process job that is still active', async () => {
+    const runningJob = createJobSnapshot({
+      id: 'previous-process-job',
+      type: 'knowledge.sync-external-source',
+      input: { baseId: 'kb-1', sourceId: 'source-1', sourceRevision: 1, trigger: 'manual' }
+    })
+    cancelMock.mockResolvedValue({ outcome: 'not-cancellable' })
+    getJobMock.mockResolvedValue(runningJob)
+
+    await expect(cancelJobAndConfirmStopped(runningJob.id, 'disconnect-source')).rejects.toThrow(
+      'Job is still active after cancellation: previous-process-job (running)'
+    )
+    expect(getJobMock).toHaveBeenCalledWith(runningJob.id)
+  })
+
+  it.each([
+    ['missing', null],
+    ['completed', createJobSnapshot({ status: 'completed' })],
+    ['failed', createJobSnapshot({ status: 'failed' })],
+    ['cancelled', createJobSnapshot({ status: 'cancelled' })]
+  ])('accepts a non-cancellable job when its re-read is %s', async (_label, snapshot) => {
+    cancelMock.mockResolvedValue({ outcome: 'not-cancellable' })
+    getJobMock.mockResolvedValue(snapshot)
+
+    await expect(cancelJobAndConfirmStopped('job-1', 'disconnect-source')).resolves.toBeUndefined()
   })
 
   it('does not throw on a cancel timeout when proceeding base-wide', async () => {

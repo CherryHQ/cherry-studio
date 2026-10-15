@@ -52,7 +52,7 @@ All jobs run on the per-base queue `base.{baseId}`; idempotency keys prevent dou
 | `knowledge.check-file-processing-result` | Poll a FileProcessingService job (5s delay per round); on success enqueue indexing. | `ingestion` (files needing conversion) |
 | `knowledge.delete-subtree` | Cancel active non-cleanup jobs → delete vectors → strictly delete external snapshots and best-effort delete ordinary files → delete rows. | `ingestion` (delete), external replacement/reconciliation, recovery |
 | `knowledge.reindex-subtree` | Verify source → re-acquire it → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
-| `knowledge.sync-external-source` | Scan one persisted Source, incrementally publish supported documents, reconcile missing/denied documents, and settle the Source summary. | External Source creation and manual synchronization |
+| `knowledge.sync-external-source` | Dispatch a daily/startup schedule envelope or scan one persisted Source, incrementally publish supported documents, reconcile missing/denied documents, and settle the Source summary. | External Source creation, manual synchronization, daily schedule, startup catch-up |
 
 Indexing jobs and `knowledge.reindex-subtree` declare `recovery: 'abandon'` — an app restart never
 silently resumes them (that would auto-spend the paid embedding API); boot recovery parks
@@ -76,11 +76,20 @@ revision and active Job id fence every publication and final summary write.
 Creating a Source re-resolves the user-entered URL in main, then rechecks the base, connection,
 authorization state, resolved tenant, and provider-scope uniqueness in the same write transaction
 that persists the Source, enqueues its initial `knowledge.sync-external-source` Job, and binds
-`activeJobId`. Manual sync
-uses the same Job type, per-base queue, and per-Source idempotency key, so repeated requests
-coalesce onto the active Job without replacing its original trigger or start time. The Job
+`activeJobId`. Manual, scheduled, and startup synchronization use the same Job type, per-base
+queue, and per-Source idempotency key, so concurrent triggers coalesce onto the active
+provider-work Job without replacing its original trigger or start time. Daily schedules enqueue
+a lightweight dispatch envelope; the envelope validates current Source state/revision and admits
+the canonical keyed provider-work Job. The Job
 payload contains only Source/Base identity, revision, and trigger; credentials and provider
 payloads remain in the main-only runtime boundary.
+
+Sources default to manual-only and may own one daily JobManager schedule. Pause and terminal
+reauthorization disable the schedule in the same transaction that advances the Source revision;
+successful reauthorization commits the Connection and restores Source/schedule eligibility in one
+transaction without immediately synchronizing. Disconnect
+unregisters the schedule and settles active work before either preserving completed content as
+ownerless static external items or admitting it to durable subtree deletion.
 
 External synchronization creates an invisible `deleting` external item before writing its versioned
 snapshot, material, or vectors. Publication CAS-promotes that staging row, switches document ownership,
@@ -122,7 +131,10 @@ into one token rotation, while different credentials keep independent request an
 Feishu reads reserve the documented endpoint budget before each individual HTTP attempt; a retry of
 one page or body request does not replay completed traversal work. Preview is ephemeral and reads
 metadata only. The adapter holds no queue, token, limiter, or session state of its own.
-`KnowledgeService` opens its local admission gate only after the runtime starts. Shutdown closes that
+`KnowledgeService` opens its local admission gate only after the runtime starts, persisted
+reauthorization state converges, and every persisted `activeJobId` is reconciled with JobManager.
+Missing/terminal references are cleared; previous-process non-terminal work remains blocked until
+JobManager recovery settles it. Shutdown closes that
 gate first, lists and individually cancels pending, delayed, and running external-sync Jobs with a
 cancellation grace bounded to half the service-stop budget, and stops the runtime only after every
 listed Job is settled or no longer cancellable. A listing/cancellation error or timeout leaves the

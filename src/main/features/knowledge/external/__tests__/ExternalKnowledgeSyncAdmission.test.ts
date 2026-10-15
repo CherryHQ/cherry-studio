@@ -8,7 +8,7 @@ import { jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
-import { ErrorCode } from '@shared/data/api/errors'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 
 import { ExternalKnowledgeRuntimeError } from '../ExternalKnowledgeRuntime'
 
@@ -57,11 +57,17 @@ describe('ExternalKnowledgeSyncAdmission', () => {
   const dbh = setupTestDatabase()
   const resolveFeishuScope = vi.fn()
   let gateOpen = true
+  const deletingBaseIds = new Set<string>()
   const assertOpen = vi.fn(() => {
     if (!gateOpen) throw new ExternalKnowledgeRuntimeError('stopped')
   })
+  const assertBaseAvailable = vi.fn((baseId: string) => {
+    if (deletingBaseIds.has(baseId)) {
+      throw DataApiErrorFactory.invalidOperation('synchronize external knowledge source', 'base is being deleted')
+    }
+  })
   const createAdmission = (now = 123) =>
-    new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => now, assertOpen })
+    new ExternalKnowledgeSyncAdmission({ resolveFeishuScope }, { now: () => now, assertOpen, assertBaseAvailable })
 
   const seedBase = (id: string, status: 'completed' | 'failed' = 'completed') =>
     dbh.db
@@ -141,6 +147,7 @@ describe('ExternalKnowledgeSyncAdmission', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     gateOpen = true
+    deletingBaseIds.clear()
     resolveFeishuScope.mockResolvedValue(resolution)
     enqueueTxMock.mockImplementation(
       (tx: DbOrTx, type: string, input: unknown, options: { queue: string; idempotencyKey?: string }) => {
@@ -219,7 +226,8 @@ describe('ExternalKnowledgeSyncAdmission', () => {
         now: () => {
           throw new Error('clock failed after enqueue')
         },
-        assertOpen
+        assertOpen,
+        assertBaseAvailable
       }
     )
 
@@ -288,6 +296,26 @@ describe('ExternalKnowledgeSyncAdmission', () => {
     ])
   })
 
+  it.each(['scheduled', 'startup'] as const)(
+    'admits a %s provider-work job through the canonical handler and idempotency key',
+    async (trigger) => {
+      const seeded = seedSource()
+      const admission = createAdmission(999)
+
+      await admission.requestSyncForTrigger({ sourceId: seeded.id }, trigger)
+
+      expect(enqueueTxMock).toHaveBeenCalledWith(
+        expect.anything(),
+        'knowledge.sync-external-source',
+        { baseId: BASE_ID, sourceId: seeded.id, sourceRevision: 3, trigger },
+        {
+          queue: `base.${BASE_ID}`,
+          idempotencyKey: `knowledge:${BASE_ID}:external-source:${seeded.id}:sync`
+        }
+      )
+    }
+  )
+
   it('rejects paused sources and failed bases before enqueuing', async () => {
     const paused = seedSource('paused')
     const failedSource = dbh.db
@@ -314,6 +342,27 @@ describe('ExternalKnowledgeSyncAdmission', () => {
     await expect(admission.requestSync({ sourceId: failedSource.id })).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
+    expect(enqueueTxMock).not.toHaveBeenCalled()
+  })
+
+  it('blocks create and sync admission while the target base is being deleted', async () => {
+    const source = seedSource()
+    deletingBaseIds.add(BASE_ID)
+    const admission = createAdmission()
+
+    await expect(
+      admission.create({
+        baseId: BASE_ID,
+        connectionId: CONNECTION_ID,
+        url: 'https://acme.feishu.cn/wiki/root',
+        name: 'Engineering Wiki'
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    await expect(admission.requestSync({ sourceId: source.id })).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+
+    expect(resolveFeishuScope).not.toHaveBeenCalled()
     expect(enqueueTxMock).not.toHaveBeenCalled()
   })
 
