@@ -15,7 +15,6 @@ const {
   mockGetModels,
   mockEstimateAnthropicRequestTokens,
   mockGetInternalFeature,
-  mockIsInternalApiKey,
   mockPreferenceGet,
   mockProcessMessage,
   mockResolveGatewayModelAddress
@@ -23,9 +22,12 @@ const {
   mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
   mockEstimateAnthropicRequestTokens: vi.fn(async () => 42),
   mockGetInternalFeature: vi.fn((headers: Headers) =>
-    headers.get('x-api-key') === 'internal-agent-key' ? ('agent' as const) : undefined
+    [headers.get('x-api-key'), headers.get('authorization'), headers.get('x-goog-api-key')].some(
+      (value) => value === 'internal-agent-key' || value === 'Bearer internal-agent-key'
+    )
+      ? ('agent' as const)
+      : undefined
   ),
-  mockIsInternalApiKey: vi.fn((token: string) => token === 'internal-agent-key'),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
@@ -39,7 +41,7 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { getInternalFeature: mockGetInternalFeature, isInternalApiKey: mockIsInternalApiKey }
+    ApiGatewayService: { getInternalFeature: mockGetInternalFeature }
   }
   return mockApplicationFactory(overrides)
 })
@@ -683,5 +685,22 @@ describe('internal consumer authorization', () => {
 
     expect((await send('Bearer internal-agent-key')).status).toBe(200)
     expect((await send('Bearer unknown-key')).status).toBe(403)
+  })
+
+  it('rejects an internal key presented only as a query parameter', async () => {
+    const app = buildApp()
+    const post = (path: string, body: unknown) =>
+      app.handle(
+        new Request(`http://localhost${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+      )
+
+    const gemini = { contents: [{ role: 'user', parts: [{ text: 'hi' }] }] }
+    const chat = { model: 'openai:gpt-4o', messages: [{ role: 'user', content: 'hi' }] }
+    expect((await post('/v1beta/models/openai:gpt-4o:generateContent?key=internal-agent-key', gemini)).status).toBe(403)
+    expect((await post('/v1/chat/completions?access_token=internal-agent-key', chat)).status).toBe(403)
   })
 })

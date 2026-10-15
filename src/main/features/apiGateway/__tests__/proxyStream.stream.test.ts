@@ -592,6 +592,24 @@ describe('processMessage (streaming)', () => {
     await response
   })
 
+  it.each([true, false])(
+    'serves only the admitted model, without Cherry retries or fallbacks (stream=%s)',
+    async (stream) => {
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+      expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0 }))
+
+      if (stream) commit(captured.listener!)
+      await captured.listener!.onDone({} as any)
+      await response
+    }
+  )
+
   it('marks internal Agent usage when no active turn correlation is available', async () => {
     mockIsInternalAgentRequest.mockReturnValue(true)
     const response = processMessage({
