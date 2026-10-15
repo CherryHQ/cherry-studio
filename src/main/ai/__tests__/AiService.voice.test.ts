@@ -124,7 +124,8 @@ describe('AiService voice operations through real aiCore', () => {
     class McpCatalogService extends BaseService {}
     class AiStreamManager extends BaseService {}
     class JobManager extends BaseService {}
-    for (const Service of [McpRuntimeService, McpCatalogService, AiStreamManager, JobManager]) {
+    class AutomationReplService extends BaseService {}
+    for (const Service of [McpRuntimeService, McpCatalogService, AiStreamManager, JobManager, AutomationReplService]) {
       container.register(Service)
     }
     container.register(AiService)
