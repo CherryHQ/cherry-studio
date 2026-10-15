@@ -90,3 +90,33 @@ describe('AiSdkSpanAdapter.convertToSpanEntity — token usage (AI SDK v6 keys)'
     expect(usage({ 'ai.toolCall.name': 'x' })).toBeUndefined()
   })
 })
+
+describe('AiSdkSpanAdapter.convertToSpanEntity — response outputs', () => {
+  it.each([
+    ['ai.streamText', { maxOutputTokens: 128 }],
+    ['ai.streamText.doStream', { msToFirstChunk: 10, msToFinish: 20, avgCompletionTokensPerSecond: 30 }]
+  ])('decodes shared response fields and retains only the metrics for %s', (operationId, metrics) => {
+    const toolCalls = [{ toolCallId: 'tool-1', toolName: 'search', input: { query: 'example' } }]
+    const entity = AiSdkSpanAdapter.convertToSpanEntity({
+      span: fakeSpan({
+        _attributes: {
+          'ai.operationId': operationId,
+          'ai.response.text': 'Response text',
+          'ai.response.toolCalls': JSON.stringify(toolCalls),
+          'ai.response.finishReason': 'stop',
+          'ai.settings.maxOutputTokens': 128,
+          'ai.response.msToFirstChunk': 10,
+          'ai.response.msToFinish': 20,
+          'ai.response.avgCompletionTokensPerSecond': 30
+        }
+      })
+    })
+
+    expect(entity.attributes?.outputs).toEqual({
+      text: 'Response text',
+      toolCalls,
+      finishReason: 'stop',
+      ...metrics
+    })
+  })
+})
