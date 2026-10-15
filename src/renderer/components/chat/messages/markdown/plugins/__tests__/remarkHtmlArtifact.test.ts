@@ -227,6 +227,60 @@ After`
     ])
   })
 
+  it('keeps the document artifact when a raw-text body with a literal close spans html nodes', () => {
+    const source = `<details>
+<summary>Doc</summary>
+
+<html><body><textarea>
+
+</details>
+
+</textarea>
+<style>p { color: red; }</style><p>Doc</p></body></html>
+
+</details>`
+    const tree = parse(source)
+
+    // The blank lines split the document into several html nodes, so the textarea body is not
+    // consumed by a same-node match: the lexical raw-text state must carry across nodes so the
+    // literal `</details>` never closes the disclosure and the document still assembles ONE
+    // artifact instead of leaking through Markdown sanitization (which strips <style>).
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: expect.stringContaining('<html><body><textarea>')
+    })
+    const document = (tree.children[1] as { value: string }).value
+    expect(document).toContain('</details>')
+    expect(document).toContain('</textarea>')
+    expect(document).toContain('<style>p { color: red; }</style>')
+    expect(document).toContain('</html>')
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+  })
+
+  it('never pairs on a literal close inside a same-node noembed raw-text body', () => {
+    const source = `<details>
+<summary>Spec</summary>
+
+<html><body><noembed>literal </details> text</noembed></body></html>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // `noembed` is a raw-text element like xmp/iframe: its literal `</details>` must not end
+    // the disclosure search inside the document, and only the real boundary stays raw.
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: expect.stringContaining('<noembed>literal </details> text</noembed>')
+    })
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+  })
+
   it('never pairs on </details> inside quoted attribute values', () => {
     const source = `Before
 
@@ -369,6 +423,42 @@ Outer tail
     const values = tree.children.map((child) => (child.type === 'html' ? (child as { value: string }).value : ''))
     expect(values.filter((value) => value.startsWith('<details')).length).toBe(2)
     expect(values.filter((value) => value.startsWith('</details')).length).toBe(2)
+  })
+
+  // Adjacent opening lines without a blank line merge into ONE html node holding both
+  // openings: every retained opening must keep its close raw — otherwise the inner close
+  // collapses into a code node and the outer disclosure swallows the following prose.
+  it('closes every disclosure retained in a shared opening node before the following prose', () => {
+    const source = `<details><summary>Outer</summary>
+<details><summary>Inner</summary>
+
+Inner body
+
+</details>
+
+Outer tail
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'html',
+      'paragraph',
+      'html',
+      'paragraph',
+      'html',
+      'paragraph'
+    ])
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues.filter((value) => value.startsWith('<details')).length).toBe(1)
+    expect(htmlValues.filter((value) => value.startsWith('</details')).length).toBe(2)
+    // `After` renders after the outer close, outside both disclosures.
+    expect(tree.children.at(-1)).toMatchObject({
+      type: 'paragraph',
+      children: [{ value: 'After' }]
+    })
   })
 
   // Only the matched boundaries are exempt; the body keeps the normal processing, so an HTML

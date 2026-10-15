@@ -91,14 +91,33 @@ function findHtmlDocumentEnd(
   return undefined
 }
 
-// Lexical scan for `<details` / `</details` boundaries: comments, raw-text element bodies
-// (script/style/textarea/title/iframe/xmp) and ordinary tags are consumed whole, so a literal
-// `</details>` inside them — script source, a comment, a quoted attribute — can never close a
-// disclosure. Disclosure tags consume their full attribute list (`title="</details>"` is legal
-// HTML whose decoy must not reach the depth counter); a generic tag does the same so a quoted
-// `>` never ends the tag early.
-const CONTAINER_LEXICAL_TOKEN_REGEX =
-  /<!--[\s\S]*?-->|<(script|style|textarea|title|iframe|xmp)\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\s\S]*?<\/\1\s*>|<\/?details(?=[\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>/gi
+// HTML raw-text elements: everything up to the matching end tag is literal text (script/style
+// are raw text, textarea/title RCDATA, iframe/xmp/noembed/noframes use the raw-text algorithm),
+// so a literal `</details>` inside them — script source, textarea fallback, noembed fallback —
+// can never close a disclosure.
+const RAW_TEXT_ELEMENT_NAMES = ['script', 'style', 'textarea', 'title', 'iframe', 'xmp', 'noembed', 'noframes']
+// A raw-text body opened in one html node can continue into the following nodes (a blank line
+// splits html blocks), so the end tag is located with the same per-element pattern the
+// same-node token match uses.
+const RAW_TEXT_CLOSE_REGEXES = new Map(RAW_TEXT_ELEMENT_NAMES.map((name) => [name, new RegExp(`</${name}\\s*>`, 'i')]))
+// Lexical scan for `<details` / `</details` boundaries: comments, raw-text element bodies and
+// ordinary tags are consumed whole, so a literal `</details>` inside them — a comment, a quoted
+// attribute — can never close a disclosure. Disclosure tags consume their full attribute list
+// (`title="</details>"` is legal HTML whose decoy must not reach the depth counter); a generic
+// tag does the same so a quoted `>` never ends the tag early.
+const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
+  `<!--[\\s\\S]*?-->|<(${RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
+  'gi'
+)
+
+/**
+ * Lexical position carried across the html nodes of one pairing search: the open `<details>`
+ * depth plus a raw-text element whose body has not seen its end tag yet.
+ */
+interface ContainerScanState {
+  count: number
+  rawText?: string
+}
 
 interface ContainerScanResult {
   closed: boolean
@@ -108,29 +127,76 @@ interface ContainerScanResult {
   closeEnd?: number
 }
 
-// Walks every `<details` / `</details` boundary in `value`, keeping nesting depth; resolves to
-// closed when a closing boundary brings the depth back to zero.
-function scanContainerBoundaries(value: string, depth: { count: number }): ContainerScanResult {
-  CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = 0
-  let match: RegExpExecArray | null
-  while ((match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)) !== null) {
+// Walks every `<details` / `</details` boundary in `value`, continuing the state carried over
+// from the previous nodes; resolves to closed when a closing boundary brings the depth back to
+// zero.
+function scanContainerBoundaries(value: string, state: ContainerScanState): ContainerScanResult {
+  let position = 0
+  while (position < value.length) {
+    // A raw-text body opened earlier keeps swallowing content — across the blank lines that
+    // split html blocks — until its end tag shows up; nothing else matches inside it.
+    if (state.rawText !== undefined) {
+      const closeRegex = RAW_TEXT_CLOSE_REGEXES.get(state.rawText)
+      state.rawText = undefined
+      if (!closeRegex) continue
+      closeRegex.lastIndex = position
+      const close = closeRegex.exec(value)
+      if (!close) return { closed: false }
+      position = close.index + close[0].length
+      continue
+    }
+
+    CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = position
+    const match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
+    if (!match) return { closed: false }
+    position = match.index + match[0].length
+
+    // A same-node raw-text element consumed its whole body including the end tag.
+    if (match[1] !== undefined) continue
+
     const token = match[0].toLowerCase()
     // Comments, raw-text bodies and ordinary tags are consumed without touching the depth —
-    // only the details boundaries themselves open and close the disclosure.
-    if (!token.startsWith('<details') && !token.startsWith('</details')) continue
+    // only the details boundaries themselves open and close the disclosure. A generic match on
+    // a raw-text open means its end tag is not in this node: the body continues in later nodes.
+    if (!token.startsWith('<details') && !token.startsWith('</details')) {
+      const name = /^<([a-z][a-z0-9-]*)/.exec(token)?.[1]
+      if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name)) state.rawText = name
+      continue
+    }
     if (token[1] === '/') {
-      depth.count -= 1
-      if (depth.count === 0) {
+      state.count -= 1
+      if (state.count === 0) {
         // The token consumed the complete end tag, quotes included.
         return { closed: true, closeStart: match.index, closeEnd: match.index + match[0].length }
       }
     } else {
       // A self-closing `<details … />` opens and closes itself. The token carries the complete
       // tag, so this reads the real tag end instead of a `>` inside a quoted attribute.
-      if (!match[0].endsWith('/>')) depth.count += 1
+      if (!match[0].endsWith('/>')) state.count += 1
     }
   }
   return { closed: false }
+}
+
+// First `</details>` boundary not matched by an opening inside the same node — i.e. one that
+// closes a boundary retained in an enclosing shared opening node. Comments, raw-text bodies and
+// quoted attributes are skipped exactly like in the pairing scan.
+function findUnmatchedDetailsClose(value: string): { start: number; end: number } | undefined {
+  let depth = 0
+  CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)) !== null) {
+    if (match[1] !== undefined) continue // a same-node raw-text body holds no real boundary
+    const token = match[0].toLowerCase()
+    if (!token.startsWith('<details') && !token.startsWith('</details')) continue
+    if (token[1] === '/') {
+      if (depth === 0) return { start: match.index, end: match.index + match[0].length }
+      depth -= 1
+    } else if (!match[0].endsWith('/>')) {
+      depth += 1
+    }
+  }
+  return undefined
 }
 
 interface PairedContainerClose {
@@ -139,6 +205,8 @@ interface PairedContainerClose {
   closeNode: Html
   closeStart: number
   closeEnd: number
+  /** Open boundaries still awaiting a close once the opening node ends. */
+  retainedOpens: number
 }
 
 function findPairedContainerClose(
@@ -151,19 +219,23 @@ function findPairedContainerClose(
     return undefined
   }
 
-  const depth = { count: 0 }
+  const state: ContainerScanState = { count: 0 }
   // A disclosure completed inside its own node needs no pairing and keeps the artifact path.
-  if (scanContainerBoundaries(open.value, depth).closed) return undefined
+  if (scanContainerBoundaries(open.value, state).closed) return undefined
+  // Adjacent opening lines without a blank line merge into ONE html node: every open still
+  // awaiting a close after this node must receive its close from inside the paired body.
+  const retainedOpens = state.count
   for (let index = startIndex + 1; index < end; index += 1) {
     const child = children[index]
     if (child?.type !== 'html') continue
-    const scan = scanContainerBoundaries(child.value, depth)
+    const scan = scanContainerBoundaries(child.value, state)
     if (scan.closed) {
       return {
         index,
         closeNode: child,
         closeStart: scan.closeStart ?? 0,
-        closeEnd: scan.closeEnd ?? child.value.length
+        closeEnd: scan.closeEnd ?? child.value.length,
+        retainedOpens
       }
     }
   }
@@ -292,7 +364,10 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
   const source = String(file)
   const children: RootContent[] = []
 
-  const processRange = (items: RootContent[], from: number, to: number): void => {
+  // `retainedOpens` counts disclosures opened by a shared opening node outside this range —
+  // the range must keep their closes raw instead of letting them become code.
+  const processRange = (items: RootContent[], from: number, to: number, retainedOpens: number): void => {
+    let pendingCloses = retainedOpens
     for (let index = from; index < to; index += 1) {
       const documentEndIndex = findHtmlDocumentEnd(items, index, to)
       if (documentEndIndex !== undefined) {
@@ -319,7 +394,10 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // processing it as a separate single-node range would lose the document start.
         const body: RootContent[] = items.slice(index + 1, paired.index)
         if (paired.closeStart > 0) body.push(sliceHtmlNode(closeNode, 0, paired.closeStart))
-        processRange(body, 0, body.length)
+        // The paired close closes the outermost opening of the opening node; every opening
+        // retained next to it has no matching open inside the body, so its close arrives as an
+        // unpaired body node and must stay raw (see the fallback below).
+        processRange(body, 0, body.length, Math.max(paired.retainedOpens - 1, 0))
         children.push(sliceHtmlNode(closeNode, paired.closeStart, paired.closeEnd))
         if (paired.closeEnd < closeNode.value.length) {
           // The NEXT disclosure's opening after the boundary (`</details>` and `<details>`
@@ -338,6 +416,29 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
 
       const child = items[index]
       if (!child) continue
+      if (child.type === 'html' && pendingCloses > 0) {
+        const close = findUnmatchedDetailsClose(child.value)
+        if (close !== undefined) {
+          // This close belongs to an opening retained in a shared opening node: emit it raw so
+          // the retained disclosure actually closes instead of swallowing the following prose.
+          if (close.start > 0) {
+            // Content preceding the boundary keeps the normal path, like a shared close prefix.
+            processRange([sliceHtmlNode(child, 0, close.start)], 0, 1, pendingCloses)
+          }
+          children.push(sliceHtmlNode(child, close.start, close.end))
+          pendingCloses -= 1
+          if (close.end < child.value.length) {
+            // Adjacent content (`</details>` and a new `<details>` merge into one html block)
+            // re-enters pairing as a fresh open. Leading whitespace on the remainder is
+            // insignificant inside the html block.
+            const rest = child.value.slice(close.end)
+            const remainderStart = close.end + (rest.length - rest.trimStart().length)
+            items.splice(index, 1, sliceHtmlNode(child, remainderStart, child.value.length))
+            index -= 1 // the loop increment lands on the remainder
+          }
+          continue
+        }
+      }
       children.push(
         child.type === 'html' && isHtmlArtifact(child) && !isHtmlDocumentBoundary(child)
           ? createHtmlCodeNode(child)
@@ -346,7 +447,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
     }
   }
 
-  processRange(tree.children, 0, tree.children.length)
+  processRange(tree.children, 0, tree.children.length, 0)
 
   tree.children = children
 }
