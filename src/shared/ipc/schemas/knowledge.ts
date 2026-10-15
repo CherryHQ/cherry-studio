@@ -3,6 +3,10 @@ import * as z from 'zod'
 import { UpdateKnowledgeBaseSchema } from '@shared/data/api/schemas/knowledges'
 import { ExternalKnowledgeConnectionSchema } from '@shared/data/types/externalKnowledgeConnection'
 import {
+  ExternalKnowledgeScopePreviewSchema,
+  ExternalKnowledgeScopeResolutionSchema
+} from '@shared/data/types/externalKnowledgeRead'
+import {
   CreateKnowledgeBaseSchema,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
   KnowledgeAddConflictStrategySchema,
@@ -36,6 +40,10 @@ import { defineRoute } from '../define'
 const baseIdSchema = z.string().trim().min(1)
 const sessionIdSchema = z.uuid()
 const connectionIdSchema = z.uuidv7()
+const feishuScopeInputSchema = z.strictObject({
+  connectionId: connectionIdSchema,
+  url: z.url().max(4096)
+})
 const feishuApplicationCredentialsSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('personal-agent'), registrationSessionId: sessionIdSchema }),
   z.strictObject({
@@ -98,6 +106,14 @@ export const knowledgeRequestSchemas = {
   'knowledge.feishu.connection.remove': defineRoute({
     input: z.strictObject({ connectionId: connectionIdSchema }),
     output: z.void()
+  }),
+  'knowledge.feishu.scope.resolve': defineRoute({
+    input: feishuScopeInputSchema,
+    output: ExternalKnowledgeScopeResolutionSchema
+  }),
+  'knowledge.feishu.scope.preview': defineRoute({
+    input: feishuScopeInputSchema,
+    output: ExternalKnowledgeScopePreviewSchema
   }),
   'knowledge.create_base': defineRoute({
     input: z.strictObject({ base: CreateKnowledgeBaseSchema }),
