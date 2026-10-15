@@ -154,8 +154,17 @@ function officeBlocks(
   document: Document,
   images: Map<string, Buffer>,
   warnings: Set<string>,
-  depth = 0
+  depth = 0,
+  itemState?: { open: boolean }
 ): DocumentBlock[] {
+  const placement = (canOpen: boolean) => {
+    if (depth <= 0) return {}
+    if (canOpen && itemState?.open) {
+      itemState.open = false
+      return { bullet: depth, listDepth: depth }
+    }
+    return { listDepth: depth }
+  }
   const result: DocumentBlock[] = []
   for (const block of blocks) {
     if (block.kind === 'paragraph' || block.kind === 'heading') {
@@ -163,12 +172,14 @@ function officeBlocks(
       const flush = () => {
         const runs = officeRuns(pending)
         const text = runs.map((run) => run.text).join('')
-        if (text.trim())
+        if (text.trim()) {
+          const fields = placement(true)
           result.push(
             block.kind === 'heading'
-              ? { type: 'heading', level: block.level ?? 1, text, runs }
-              : { type: 'text', text, runs, ...(depth ? { bullet: depth } : {}) }
+              ? { type: 'heading', level: block.level ?? 1, text, runs, ...fields }
+              : { type: 'text', text, runs, ...fields }
           )
+        }
         pending = []
       }
       for (const inline of block.content ?? []) {
@@ -183,20 +194,20 @@ function officeBlocks(
           if (asset?.mediaType.startsWith('image/')) {
             const name = `embedded:${asset.id}`
             images.set(name, Buffer.from(asset.data))
-            result.push({ type: 'image', source: name, text: inline.alt ?? '' })
+            result.push({ type: 'image', source: name, text: inline.alt ?? '', ...placement(true) })
           } else warnings.add('unsupported_image')
         } else if (source?.kind === 'external' && source.url) {
-          result.push({ type: 'image', source: source.url, text: inline.alt ?? '' })
+          result.push({ type: 'image', source: source.url, text: inline.alt ?? '', ...placement(true) })
         } else warnings.add('unsupported_image')
       }
       flush()
     } else if (block.kind === 'list') {
       let number = block.list?.start ?? 1
       for (const item of block.list?.items ?? []) {
-        const children = officeBlocks(item.blocks, document, images, warnings, depth + 1)
+        const children = officeBlocks(item.blocks, document, images, warnings, depth + 1, { open: true })
         if (block.list?.marker !== 'bullet') {
-          const first = children.find((child) => child.type === 'text')
-          if (first?.type === 'text') first.orderedNumber = number++
+          const first = children.find((child) => child.type !== 'columns' && child.bullet === depth + 1)
+          if (first && first.type !== 'columns') first.orderedNumber = number++
           if (block.list?.marker !== 'decimal') warnings.add('complex_layout')
         }
         result.push(...children)
@@ -225,11 +236,12 @@ function officeBlocks(
               .join('')
               .trim()
           )
-        )
+        ),
+        ...placement(true)
       })
     } else if (block.kind === 'blockQuote')
-      result.push(...officeBlocks(block.blocks ?? [], document, images, warnings, depth))
-    else if (block.kind === 'codeBlock') result.push({ type: 'code', text: block.text ?? '' })
+      result.push(...officeBlocks(block.blocks ?? [], document, images, warnings, depth, itemState))
+    else if (block.kind === 'codeBlock') result.push({ type: 'code', text: block.text ?? '', ...placement(true) })
   }
   return result
 }

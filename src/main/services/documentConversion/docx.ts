@@ -31,6 +31,39 @@ export async function convertDocx(
       ? [new docx.ExternalHyperlink({ link: item.link, children })]
       : children
   }
+  const listMarker = (block: {
+    bullet?: number
+    orderedNumber?: number
+  }): Pick<Docx.IParagraphOptions, 'bullet' | 'numbering'> => {
+    const level = block.bullet ? Math.min(8, block.bullet - 1) : 0
+    if (block.orderedNumber === undefined) return block.bullet ? { bullet: { level } } : {}
+    const reference = `ordered-${numbering.length}`
+    numbering.push({
+      reference,
+      levels: [
+        {
+          level,
+          format: docx.LevelFormat.DECIMAL,
+          text: `%${level + 1}.`,
+          start: block.orderedNumber,
+          alignment: docx.AlignmentType.LEFT,
+          style: {
+            paragraph: {
+              indent: { left: 720 * (level + 1), hanging: 360 }
+            }
+          }
+        }
+      ]
+    })
+    return { numbering: { reference, level } }
+  }
+  // 720 twips per depth matches ordered levels and the built-in bullet indents.
+  const listIndent = (block: { bullet?: number; listDepth?: number; style?: { indent?: number } }) => {
+    const listed = !block.bullet && block.listDepth ? 720 * Math.min(9, block.listDepth) : 0
+    const styled = block.style?.indent ? Math.round(block.style.indent * 20) : 0
+    const left = listed + styled
+    return left ? { left } : undefined
+  }
   const render = async (items: DocumentBlock[], availableWidth = 650): Promise<(Docx.Paragraph | Docx.Table)[]> => {
     const result: (Docx.Paragraph | Docx.Table)[] = []
     for (const block of items) {
@@ -71,8 +104,11 @@ export async function convertDocx(
         const originalWidth = block.width || metadata.width || 400
         const originalHeight = block.height || metadata.height || 300
         const width = Math.min(availableWidth, originalWidth)
+        const indent = listIndent(block)
         result.push(
           new docx.Paragraph({
+            ...listMarker(block),
+            ...(indent ? { indent } : {}),
             children: [
               new docx.ImageRun({
                 type: 'png',
@@ -87,9 +123,11 @@ export async function convertDocx(
           })
         )
       } else if (block.type === 'table') {
+        const tableDepth = block.listDepth ?? block.bullet ?? 0
         result.push(
           new docx.Table({
             width: { size: 100, type: docx.WidthType.PERCENTAGE },
+            ...(tableDepth ? { indent: { size: 720 * Math.min(9, tableDepth), type: docx.WidthType.DXA } } : {}),
             columnWidths: block.widths?.map((width) => Math.round(width * 15)),
             rows: block.rows.map(
               (row, rowIndex) =>
@@ -124,27 +162,7 @@ export async function convertDocx(
         )
       } else {
         const style = block.style
-        const orderedNumber = block.type === 'text' ? block.orderedNumber : undefined
-        const level = block.type === 'text' && block.bullet ? Math.min(8, block.bullet - 1) : 0
-        const reference = `ordered-${numbering.length}`
-        if (orderedNumber !== undefined)
-          numbering.push({
-            reference,
-            levels: [
-              {
-                level,
-                format: docx.LevelFormat.DECIMAL,
-                text: `%${level + 1}.`,
-                start: orderedNumber,
-                alignment: docx.AlignmentType.LEFT,
-                style: {
-                  paragraph: {
-                    indent: { left: 720 * (level + 1), hanging: 360 }
-                  }
-                }
-              }
-            ]
-          })
+        const indent = listIndent(block)
         const heading =
           block.type === 'heading'
             ? (`Heading${Math.min(6, block.level)}` as Docx.IParagraphOptions['heading'])
@@ -154,13 +172,9 @@ export async function convertDocx(
             heading,
             alignment: style?.align === 'justify' ? docx.AlignmentType.JUSTIFIED : style?.align,
             spacing: { before: Math.round((style?.before ?? 0) * 20), after: Math.round((style?.after ?? 8) * 20) },
-            indent: style?.indent ? { left: Math.round(style.indent * 20) } : undefined,
+            ...(indent ? { indent } : {}),
             shading: style?.background ? { fill: style.background } : undefined,
-            bullet:
-              block.type === 'text' && block.bullet && orderedNumber === undefined
-                ? { level: Math.min(8, block.bullet - 1) }
-                : undefined,
-            numbering: orderedNumber !== undefined ? { reference, level } : undefined,
+            ...listMarker(block),
             children: (
               block.runs ?? [{ text: block.text, ...(block.type === 'code' ? { font: 'Consolas' } : {}) }]
             ).flatMap(run)

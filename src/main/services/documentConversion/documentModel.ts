@@ -30,18 +30,37 @@ export interface DocumentCell {
   align?: DocumentStyle['align']
 }
 
+/** Membership that cannot be recovered from a flat block list. Item starts still use bullet. */
+interface DocumentListContext {
+  /** 1-based depth of the list item that contains this block. Absent outside a list. */
+  listDepth?: number
+  /** Present only on the block that opens a list item. */
+  bullet?: number
+  orderedNumber?: number
+}
+
 export type DocumentBlock =
-  | { type: 'heading'; level: number; text: string; runs?: DocumentTextRun[]; style?: DocumentStyle }
-  | {
-      type: 'text' | 'code'
+  | ({
+      type: 'heading'
+      level: number
       text: string
-      bullet?: number
-      orderedNumber?: number
       runs?: DocumentTextRun[]
       style?: DocumentStyle
-    }
-  | { type: 'image'; source: string; text: string; width?: number; height?: number }
-  | { type: 'table'; title: string; rows: string[][]; cells?: DocumentCell[][]; widths?: number[] }
+    } & DocumentListContext)
+  | ({
+      type: 'text' | 'code'
+      text: string
+      runs?: DocumentTextRun[]
+      style?: DocumentStyle
+    } & DocumentListContext)
+  | ({ type: 'image'; source: string; text: string; width?: number; height?: number } & DocumentListContext)
+  | ({
+      type: 'table'
+      title: string
+      rows: string[][]
+      cells?: DocumentCell[][]
+      widths?: number[]
+    } & DocumentListContext)
   | { type: 'columns'; columns: DocumentBlock[][]; widths: number[] }
 
 export interface DocumentModel {

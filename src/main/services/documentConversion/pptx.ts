@@ -94,6 +94,22 @@ export async function convertPptx(
   }
   const ensureSpace = (height: number) => (!slide || y + height > 6.95 ? newSlide() : slide)
   const render = async (items: DocumentBlock[], x = 0.65, width = 12): Promise<void> => {
+    // 18pt bullet indent. Continuation and nested markers share that step.
+    const listStep = 0.25
+    const placed = (block: Exclude<DocumentBlock, { type: 'columns' }>, marker: boolean) => {
+      const depth = block.listDepth ?? block.bullet ?? 0
+      const offset = depth ? (depth - (marker ? 1 : 0)) * listStep : 0
+      return { x: x + offset, w: Math.max(1, width - offset) }
+    }
+    const bulletOptions = (block: Exclude<DocumentBlock, { type: 'columns' }>) =>
+      block.bullet
+        ? {
+            indent: 18,
+            ...(block.orderedNumber !== undefined
+              ? { type: 'number' as const, numberStartAt: block.orderedNumber }
+              : {})
+          }
+        : undefined
     for (const block of items) {
       signal?.throwIfAborted()
       await yieldToEventLoop(undefined, { signal })
@@ -134,7 +150,7 @@ export async function convertPptx(
           bottom = Math.max(bottom, y)
         }
         y = bottom
-      } else if (block.type === 'heading' && block.level <= 2 && width === 12) {
+      } else if (block.type === 'heading' && block.level <= 2 && width === 12 && !block.listDepth && !block.bullet) {
         heading = block.text
         headingStyle = block.style
         newSlide(block.runs)
@@ -143,13 +159,26 @@ export async function convertPptx(
         if (!image) throw new Error('Document image is unavailable')
         const { default: sharp } = await import('sharp')
         const info = await sharp(image).metadata()
+        const content = placed(block, false)
         const ratio = (block.width || info.width || 400) / (block.height || info.height || 300)
-        const height = Math.min(3.3, width / ratio)
+        const height = Math.min(3.3, content.w / ratio)
         const imageWidth = height * ratio
         const target = ensureSpace(height + 0.15)
+        if (block.bullet) {
+          const marker = placed(block, true)
+          target.addText('\u00a0', {
+            x: marker.x,
+            y,
+            w: Math.min(0.45, marker.w),
+            h: 0.35,
+            fontSize: 14,
+            margin: 0,
+            bullet: bulletOptions(block)
+          })
+        }
         target.addImage({
           data: `image/png;base64,${image.toString('base64')}`,
-          x,
+          x: content.x,
           y,
           w: imageWidth,
           h: height,
@@ -157,6 +186,7 @@ export async function convertPptx(
         })
         y += height + 0.15
       } else if (block.type === 'table') {
+        const frame = placed(block, false)
         const autoPage = block.rows.length > 8 || block.rows.some((row) => row.some((cell) => cell.length > 80))
         const height = Math.min(5.3, block.rows.length * 0.45)
         const target = autoPage && y > 1.25 ? newSlide() : ensureSpace(height)
@@ -180,13 +210,13 @@ export async function convertPptx(
         )
         const totalWidth = block.widths?.reduce((sum, value) => sum + value, 0)
         target.addTable(rows, {
-          x,
+          x: frame.x,
           y,
-          w: width,
+          w: frame.w,
           fontSize: 14,
           margin: 0.07,
           color: '202020',
-          colW: totalWidth ? block.widths!.map((value) => (value / totalWidth) * width) : undefined,
+          colW: totalWidth ? block.widths!.map((value) => (value / totalWidth) * frame.w) : undefined,
           autoPage,
           autoPageRepeatHeader: true,
           autoPageHeaderRows: 1,
@@ -195,12 +225,13 @@ export async function convertPptx(
         y = autoPage ? 7 : y + height + 0.15
       } else if ('text' in block) {
         const isHeading = block.type === 'heading'
-        for (const { chunk, baseSize, height } of textLayout(block, width)) {
+        const frame = placed(block, !!block.bullet)
+        for (const { chunk, baseSize, height } of textLayout(block, frame.w)) {
           const target = ensureSpace(height)
           target.addText(textRuns(chunk), {
-            x,
+            x: frame.x,
             y,
-            w: width,
+            w: frame.w,
             h: height,
             fontSize: baseSize,
             bold: isHeading,
@@ -212,13 +243,7 @@ export async function convertPptx(
             fill: block.style?.background ? { color: block.style.background } : undefined,
             paraSpaceBefore: block.style?.before,
             paraSpaceAfter: block.style?.after ?? 5,
-            bullet:
-              block.type === 'text' && block.bullet
-                ? {
-                    indent: 18,
-                    ...(block.orderedNumber !== undefined ? { type: 'number', numberStartAt: block.orderedNumber } : {})
-                  }
-                : undefined
+            bullet: bulletOptions(block)
           })
           y += height + 0.15
         }

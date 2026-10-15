@@ -13,7 +13,7 @@ export function extractHtmlDocument(): DocumentModel {
       .toUpperCase()
   }
   const px = (value: string) => Number.parseFloat(value) || 0
-  const runs = (root: Element): DocumentTextRun[] => {
+  const runs = (root: Node | Node[]): DocumentTextRun[] => {
     const result: DocumentTextRun[] = []
     let deferredBreak = false
     const visit = (node: Node) => {
@@ -31,7 +31,7 @@ export function extractHtmlDocument(): DocumentModel {
         }
         result.push({
           text,
-          bold: Number(style.fontWeight) >= 600,
+          bold: style.fontWeight === 'bold' || Number(style.fontWeight) >= 600,
           italic: style.fontStyle === 'italic',
           underline: style.textDecorationLine.includes('underline'),
           strike: style.textDecorationLine.includes('line-through'),
@@ -67,7 +67,9 @@ export function extractHtmlDocument(): DocumentModel {
         node.childNodes.forEach(visit)
       }
     }
-    root.childNodes.forEach(visit)
+    if (Array.isArray(root)) root.forEach(visit)
+    else if (root instanceof Element) root.childNodes.forEach(visit)
+    else visit(root)
     return result
   }
   const styleOf = (element: Element): DocumentStyle => {
@@ -99,7 +101,8 @@ export function extractHtmlDocument(): DocumentModel {
           source: image.src,
           text: image.alt,
           width: rect.width || image.naturalWidth,
-          height: rect.height || image.naturalHeight
+          height: rect.height || image.naturalHeight,
+          ...(listDepth ? { listDepth } : {})
         }
       ]
     }
@@ -133,7 +136,9 @@ export function extractHtmlDocument(): DocumentModel {
           column += colSpan
         }
       })
-      const width = Math.max(0, ...cells.map((row) => row.length))
+      // Spreading one argument per row throws once a table exceeds the engine limit.
+      let width = 0
+      for (const row of cells) if (row.length > width) width = row.length
       for (const row of cells) for (let c = 0; c < width; c++) row[c] ??= { runs: [] }
       const table: DocumentBlock = {
         type: 'table',
@@ -147,9 +152,10 @@ export function extractHtmlDocument(): DocumentModel {
               .join('')
               .trim()
           )
-        )
+        ),
+        ...(listDepth ? { listDepth } : {})
       }
-      return [table, ...Array.from(element.querySelectorAll('img')).flatMap((image) => walk(image))]
+      return [table, ...Array.from(element.querySelectorAll('img')).flatMap((image) => walk(image, listDepth))]
     }
     if (tag === 'UL' || tag === 'OL') {
       let number = Number(element.getAttribute('start') ?? 1)
@@ -162,10 +168,22 @@ export function extractHtmlDocument(): DocumentModel {
         const blocks = walk(child, listDepth + 1)
         if (tag === 'OL') {
           if (child.hasAttribute('value')) number = Number(child.getAttribute('value'))
-          const first = blocks.find((block) => block.type === 'text')
-          if (first?.type === 'text') first.orderedNumber = number++
+          const first = blocks.find((block) => block.type !== 'columns' && block.bullet === listDepth + 1)
+          if (first && first.type !== 'columns') first.orderedNumber = number++
         }
         return blocks
+      })
+    }
+    if (tag === 'LI') {
+      const inner = contained(element, listDepth)
+      if (!listDepth) return inner
+      let opened = false
+      return inner.map((block) => {
+        if (block.type === 'columns') return block
+        if ((block.listDepth ?? 0) > listDepth || (block.bullet ?? 0) > listDepth) return block
+        const itemStart = !opened
+        opened = true
+        return place(block, listDepth, itemStart)
       })
     }
     if (['absolute', 'fixed', 'sticky'].includes(css.position) || css.transform !== 'none' || css.filter !== 'none')
@@ -191,35 +209,100 @@ export function extractHtmlDocument(): DocumentModel {
         ]
       warnings.add('complex_layout')
     }
-    const hasBlockChildren = Array.from(element.children).some(
-      (child) =>
-        !['inline', 'inline-block', 'contents'].includes(getComputedStyle(child).display) && child.tagName !== 'IMG'
-    )
-    if (!hasBlockChildren) {
-      const content = runs(element)
-      const rawText = content.map((run) => run.text).join('')
-      const text = tag === 'PRE' ? rawText : rawText.trim()
+    return contained(element, listDepth)
+
+    function place(block: DocumentBlock, depth: number, itemStart: boolean): DocumentBlock {
+      if (block.type === 'columns') return block
+      const next = { ...block }
+      delete next.bullet
+      delete next.orderedNumber
+      delete next.listDepth
+      return itemStart ? { ...next, bullet: depth, listDepth: depth } : { ...next, listDepth: depth }
+    }
+
+    function displayOf(node: Element): string {
+      return getComputedStyle(node).display || 'inline'
+    }
+
+    function isStructural(node: Element): boolean {
+      if (node.tagName === 'BR' || node.tagName === 'IMG') return false
+      return !['inline', 'inline-block', 'contents'].includes(displayOf(node))
+    }
+
+    function contained(node: Element, depth: number): DocumentBlock[] {
+      const structural = Array.from(node.children).some((child) => isStructural(child))
+      const hasImage = !!node.querySelector('img')
+      const membership = depth ? { listDepth: depth } : {}
+      if (!structural && !hasImage) {
+        const content = runs(node)
+        const rawText = content.map((run) => run.text).join('')
+        const text = node.tagName === 'PRE' ? rawText : rawText.trim()
+        if (!text) return []
+        if (/^H[1-6]$/.test(node.tagName))
+          return [
+            {
+              type: 'heading',
+              level: Number(node.tagName[1]),
+              text,
+              runs: content,
+              style: styleOf(node),
+              ...membership
+            }
+          ]
+        return [
+          {
+            type: node.tagName === 'PRE' ? 'code' : 'text',
+            text,
+            runs: content,
+            style: styleOf(node),
+            ...membership
+          }
+        ]
+      }
       const blocks: DocumentBlock[] = []
-      if (text)
-        blocks.push(
-          /^H[1-6]$/.test(tag)
-            ? { type: 'heading', level: Number(tag[1]), text, runs: content, style: styleOf(element) }
-            : {
-                type: tag === 'PRE' ? 'code' : 'text',
-                text,
-                runs: content,
-                style: styleOf(element),
-                ...(listDepth ? { bullet: listDepth } : {})
-              }
-        )
-      blocks.push(...Array.from(element.querySelectorAll('img')).flatMap((image) => walk(image)))
+      let pending: Node[] = []
+      const flush = () => {
+        if (!pending.length) return
+        const content = runs(pending)
+        const text = content
+          .map((run) => run.text)
+          .join('')
+          .trim()
+        if (text)
+          blocks.push({
+            type: 'text',
+            text,
+            runs: content,
+            style: styleOf(node),
+            ...membership
+          })
+        pending = []
+      }
+      const visit = (child: Node) => {
+        if (!(child instanceof Element)) {
+          if (child.textContent) pending.push(child)
+          return
+        }
+        if (child.tagName === 'IMG') {
+          flush()
+          blocks.push(...walk(child, depth))
+          return
+        }
+        if (isStructural(child)) {
+          flush()
+          blocks.push(...walk(child, depth))
+          return
+        }
+        if (child.querySelector('img')) {
+          for (const nested of Array.from(child.childNodes)) visit(nested)
+          return
+        }
+        pending.push(child)
+      }
+      for (const child of Array.from(node.childNodes)) visit(child)
+      flush()
       return blocks
     }
-    return Array.from(element.childNodes).flatMap((node): DocumentBlock[] => {
-      if (node instanceof Element) return walk(node, listDepth)
-      const text = node.textContent?.trim()
-      return text ? [{ type: 'text', text, style: styleOf(element), ...(listDepth ? { bullet: listDepth } : {}) }] : []
-    })
   }
   return { blocks: walk(document.body), warnings: [...warnings] }
 }

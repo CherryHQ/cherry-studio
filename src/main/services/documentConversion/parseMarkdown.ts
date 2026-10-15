@@ -19,8 +19,17 @@ function safeHtmlTag(content: string): { name: string; close: boolean; href?: st
   return { name, close: match[1] === '/', href: href?.[1] ?? href?.[2] }
 }
 
+type InlinePiece =
+  | { kind: 'text'; text: string; runs: DocumentTextRun[] }
+  | { kind: 'image'; source: string; text: string }
+
 function inlineRuns(tokens: Token[], interpretSafeHtml = false): DocumentTextRun[] {
-  const runs: DocumentTextRun[] = []
+  return readInline(tokens, interpretSafeHtml).flatMap((piece) => (piece.kind === 'text' ? piece.runs : []))
+}
+
+function readInline(tokens: Token[], interpretSafeHtml = false): InlinePiece[] {
+  const pieces: InlinePiece[] = []
+  let current: DocumentTextRun[] = []
   let bold = false
   let italic = false
   let strike = false
@@ -30,10 +39,15 @@ function inlineRuns(tokens: Token[], interpretSafeHtml = false): DocumentTextRun
   let htmlStrike = 0
   let htmlUnderline = 0
   const htmlLinks: string[] = []
+  const flush = () => {
+    if (!current.length) return
+    pieces.push({ kind: 'text', text: current.map((run) => run.text).join(''), runs: current })
+    current = []
+  }
   const push = (text: string, font?: string) => {
     if (!text) return
     const activeLink = link ?? htmlLinks.at(-1)
-    runs.push({
+    current.push({
       text,
       bold: bold || htmlBold > 0,
       italic: italic || htmlItalic > 0,
@@ -44,7 +58,14 @@ function inlineRuns(tokens: Token[], interpretSafeHtml = false): DocumentTextRun
     })
   }
   for (const token of tokens) {
-    if (token.type === 'strong_open') bold = true
+    if (token.type === 'image') {
+      flush()
+      pieces.push({
+        kind: 'image',
+        source: token.attrGet('src') ?? '',
+        text: inlineText(token.children ?? [], interpretSafeHtml)
+      })
+    } else if (token.type === 'strong_open') bold = true
     else if (token.type === 'strong_close') bold = false
     else if (token.type === 'em_open') italic = true
     else if (token.type === 'em_close') italic = false
@@ -79,7 +100,8 @@ function inlineRuns(tokens: Token[], interpretSafeHtml = false): DocumentTextRun
       push(token.type.endsWith('break') ? '\n' : token.content, token.type === 'code_inline' ? 'Consolas' : undefined)
     }
   }
-  return runs
+  flush()
+  return pieces
 }
 
 export function inlineText(tokens: Token[], interpretSafeHtml = false): string {
@@ -132,6 +154,17 @@ export function parseMarkdown(
   let listDepth = 0
   const lists: { next?: number; current?: number; first: boolean }[] = []
   let quoteDepth = 0
+  const openItem = () => {
+    if (!listDepth) return {}
+    const list = lists.at(-1)
+    if (!list?.first) return { listDepth }
+    list.first = false
+    return {
+      bullet: listDepth,
+      listDepth,
+      ...(list.current !== undefined ? { orderedNumber: list.current } : {})
+    }
+  }
   const addImages = (token: Token) => {
     for (const child of token.children ?? []) {
       if (child.type === 'image') {
@@ -148,15 +181,19 @@ export function parseMarkdown(
     const token = tokens[index]
     if (token.type === 'heading_open') {
       const level = Number(token.tag.slice(1))
-      const text = inlineText(tokens[index + 1].children ?? [], interpretSafeHtml)
-      blocks.push({
-        type: 'heading',
-        level,
-        text,
-        runs: inlineRuns(tokens[index + 1].children ?? [], interpretSafeHtml)
-      })
-      addImages(tokens[index + 1])
-      if (level <= 2) title = text
+      let headingPlaced = false
+      for (const piece of readInline(tokens[index + 1].children ?? [], interpretSafeHtml)) {
+        if (piece.kind === 'image') {
+          blocks.push({ type: 'image', source: piece.source, text: piece.text, ...openItem() })
+          continue
+        }
+        if (!piece.text.trim()) continue
+        if (!headingPlaced) {
+          blocks.push({ type: 'heading', level, text: piece.text, runs: piece.runs, ...openItem() })
+          if (level <= 2) title = piece.text
+          headingPlaced = true
+        } else blocks.push({ type: 'text', text: piece.text, runs: piece.runs, ...openItem() })
+      }
       index += 2
     } else if (token.type === 'table_open') {
       const rows: string[][] = []
@@ -199,7 +236,7 @@ export function parseMarkdown(
           cells.push(cellRow)
         }
       }
-      blocks.push({ type: 'table', title, rows, cells })
+      blocks.push({ type: 'table', title, rows, cells, ...openItem() })
     } else if (token.type === 'bullet_list_open' || token.type === 'ordered_list_open') {
       listDepth++
       lists.push({
@@ -221,24 +258,16 @@ export function parseMarkdown(
     } else if (token.type === 'blockquote_close') {
       quoteDepth--
     } else if (token.type === 'inline') {
-      const children = token.children ?? []
-      const text = inlineText(
-        children.filter((child) => child.type !== 'image'),
-        interpretSafeHtml
-      )
-      if (text.trim()) {
-        const list = lists.at(-1)
-        blocks.push({
-          type: 'text',
-          text,
-          runs: inlineRuns(children, interpretSafeHtml),
-          ...(list?.first ? { bullet: listDepth, orderedNumber: list.current } : {})
-        })
-        if (list) list.first = false
+      for (const piece of readInline(token.children ?? [], interpretSafeHtml)) {
+        if (piece.kind === 'image') {
+          blocks.push({ type: 'image', source: piece.source, text: piece.text, ...openItem() })
+          continue
+        }
+        if (!piece.text.trim()) continue
+        blocks.push({ type: 'text', text: piece.text, runs: piece.runs, ...openItem() })
       }
-      addImages(token)
     } else if (token.type === 'fence' || token.type === 'code_block') {
-      blocks.push({ type: 'code', text: token.content })
+      blocks.push({ type: 'code', text: token.content, ...openItem() })
     }
   }
   return blocks

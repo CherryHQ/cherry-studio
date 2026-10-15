@@ -8,10 +8,37 @@ function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 }
 
-type ListTextBlock = DocumentBlock & { type: 'text'; bullet: number }
+function listDepthOf(block: DocumentBlock): number | undefined {
+  if (block.type === 'columns') return undefined
+  return block.listDepth || block.bullet || undefined
+}
 
-function isListTextBlock(block: DocumentBlock): block is ListTextBlock {
-  return block.type === 'text' && !!block.bullet
+function isItemStart(block: DocumentBlock): block is Exclude<DocumentBlock, { type: 'columns' }> & { bullet: number } {
+  return block.type !== 'columns' && !!block.bullet
+}
+
+function serializedMarkdownLink(link: string | undefined): string {
+  // documentToMarkdown drops every other target, so those links cannot keep runs apart.
+  return link && /^(https?:|mailto:|#)/.test(link) ? link : ''
+}
+
+function sameMarkdownStyle(left: DocumentTextRun, right: DocumentTextRun): boolean {
+  return (
+    !!left.bold === !!right.bold &&
+    !!left.italic === !!right.italic &&
+    !!left.strike === !!right.strike &&
+    serializedMarkdownLink(left.link) === serializedMarkdownLink(right.link)
+  )
+}
+
+function coalesceRuns(runs: DocumentTextRun[]): DocumentTextRun[] {
+  const merged: DocumentTextRun[] = []
+  for (const run of runs) {
+    const previous = merged.at(-1)
+    if (previous && sameMarkdownStyle(previous, run)) previous.text += run.text
+    else merged.push({ ...run })
+  }
+  return merged
 }
 
 function blockCss(style: DocumentStyle | undefined): string {
@@ -26,41 +53,28 @@ function blockCss(style: DocumentStyle | undefined): string {
     .join(';')
 }
 
-interface ListNode {
-  block: ListTextBlock
-  children: ListNode[]
+interface ItemNode {
+  depth: number
+  orderedNumber?: number
+  style?: DocumentStyle
+  parts: Array<{ html: string } | { items: ItemNode[] }>
 }
 
-function listTree(blocks: ListTextBlock[]): ListNode[] {
-  const roots: ListNode[] = []
-  const stack: ListNode[] = []
-  for (const block of blocks) {
-    const node: ListNode = { block, children: [] }
-    while (stack.length > 0 && stack[stack.length - 1].block.bullet >= block.bullet) stack.pop()
-    const parent = stack[stack.length - 1]
-    if (parent) parent.children.push(node)
-    else roots.push(node)
-    stack.push(node)
-  }
-  return roots
-}
-
-function htmlList(nodes: ListNode[]): string {
+function itemsHtml(nodes: ItemNode[]): string {
   let html = ''
   let index = 0
   while (index < nodes.length) {
-    const ordered = nodes[index].block.orderedNumber !== undefined
+    const ordered = nodes[index].orderedNumber !== undefined
     let end = index + 1
-    while (end < nodes.length && (nodes[end].block.orderedNumber !== undefined) === ordered) end++
+    while (end < nodes.length && (nodes[end].orderedNumber !== undefined) === ordered) end++
     const group = nodes.slice(index, end)
     const tag = ordered ? 'ol' : 'ul'
-    const start = ordered ? ` start="${group[0].block.orderedNumber}"` : ''
+    const start = ordered ? ` start="${group[0].orderedNumber}"` : ''
     const items = group
       .map((node) => {
-        const value = ordered ? ` value="${node.block.orderedNumber}"` : ''
-        const nested = node.children.length > 0 ? htmlList(node.children) : ''
-        const content = htmlRuns(node.block.runs ?? [{ text: node.block.text }])
-        return `<li${value} style="${blockCss(node.block.style)}">${content}${nested}</li>`
+        const value = ordered ? ` value="${node.orderedNumber}"` : ''
+        const inner = node.parts.map((part) => ('html' in part ? part.html : itemsHtml(part.items))).join('')
+        return `<li${value} style="${blockCss(node.style)}">${inner}</li>`
       })
       .join('')
     html += `<${tag}${start}>${items}</${tag}>`
@@ -96,6 +110,61 @@ export function documentToHtml(
   imageSource: (source: string) => string,
   title: string
 ): string {
+  const blockHtml = (block: DocumentBlock, unwrapText: boolean): string => {
+    if (block.type === 'columns') return ''
+    if (block.type === 'image')
+      return `<p><img src="${escapeHtml(imageSource(block.source))}" alt="${escapeHtml(block.text)}" style="max-width:100%;height:auto${block.width ? `;width:${block.width}px` : ''}"></p>`
+    if (block.type === 'table')
+      return `<table>${block.rows
+        .map(
+          (row, rowIndex) =>
+            `<tr>${row
+              .map((text, column) => {
+                const cell = block.cells?.[rowIndex]?.[column]
+                if (cell?.covered) return ''
+                return `<td colspan="${cell?.colSpan ?? 1}" rowspan="${cell?.rowSpan ?? 1}" style="${cell?.background ? `background:#${cell.background};` : ''}${cell?.align ? `text-align:${cell.align};` : ''}">${htmlRuns(cell?.runs ?? [{ text }])}</td>`
+              })
+              .join('')}</tr>`
+        )
+        .join('')}</table>`
+    const content = htmlRuns(block.runs ?? [{ text: block.text }])
+    if (unwrapText && block.type === 'text') return content
+    const tag = block.type === 'heading' ? `h${Math.min(6, block.level)}` : block.type === 'code' ? 'pre' : 'p'
+    return `<${tag} style="${blockCss(block.style)}">${content}</${tag}>`
+  }
+  const renderList = (listBlocks: DocumentBlock[]): string => {
+    const roots: ItemNode[] = []
+    const stack: ItemNode[] = []
+    let loose = ''
+    const addItem = (item: ItemNode) => {
+      while (stack.length > 0 && stack[stack.length - 1].depth >= item.depth) stack.pop()
+      const parent = stack[stack.length - 1]
+      if (!parent) roots.push(item)
+      else {
+        const last = parent.parts[parent.parts.length - 1]
+        if (last && 'items' in last) last.items.push(item)
+        else parent.parts.push({ items: [item] })
+      }
+      stack.push(item)
+    }
+    for (const block of listBlocks) {
+      if (isItemStart(block)) {
+        addItem({
+          depth: block.bullet,
+          orderedNumber: block.orderedNumber,
+          style: 'style' in block ? block.style : undefined,
+          parts: [{ html: blockHtml(block, true) }]
+        })
+        continue
+      }
+      const depth = listDepthOf(block) ?? 1
+      while (stack.length > 0 && stack[stack.length - 1].depth > depth) stack.pop()
+      const parent = stack[stack.length - 1]
+      if (parent && parent.depth === depth) parent.parts.push({ html: blockHtml(block, false) })
+      else loose += blockHtml(block, false)
+    }
+    return loose + itemsHtml(roots)
+  }
   const render = (items: DocumentBlock[]): string => {
     const parts: string[] = []
     let index = 0
@@ -108,45 +177,16 @@ export function documentToHtml(
         index++
         continue
       }
-      if (isListTextBlock(block)) {
-        const listBlocks: ListTextBlock[] = []
-        while (index < items.length) {
-          const candidate = items[index]
-          if (!isListTextBlock(candidate)) break
-          listBlocks.push(candidate)
+      if (listDepthOf(block)) {
+        const listBlocks: DocumentBlock[] = []
+        while (index < items.length && items[index].type !== 'columns' && listDepthOf(items[index])) {
+          listBlocks.push(items[index])
           index++
         }
-        parts.push(htmlList(listTree(listBlocks)))
+        parts.push(renderList(listBlocks))
         continue
       }
-      if (block.type === 'image') {
-        parts.push(
-          `<p><img src="${escapeHtml(imageSource(block.source))}" alt="${escapeHtml(block.text)}" style="max-width:100%;height:auto${block.width ? `;width:${block.width}px` : ''}"></p>`
-        )
-        index++
-        continue
-      }
-      if (block.type === 'table') {
-        parts.push(
-          `<table>${block.rows
-            .map(
-              (row, rowIndex) =>
-                `<tr>${row
-                  .map((text, column) => {
-                    const cell = block.cells?.[rowIndex]?.[column]
-                    if (cell?.covered) return ''
-                    return `<td colspan="${cell?.colSpan ?? 1}" rowspan="${cell?.rowSpan ?? 1}" style="${cell?.background ? `background:#${cell.background};` : ''}${cell?.align ? `text-align:${cell.align};` : ''}">${htmlRuns(cell?.runs ?? [{ text }])}</td>`
-                  })
-                  .join('')}</tr>`
-            )
-            .join('')}</table>`
-        )
-        index++
-        continue
-      }
-      const tag = block.type === 'heading' ? `h${Math.min(6, block.level)}` : block.type === 'code' ? 'pre' : 'p'
-      const content = htmlRuns(block.runs ?? [{ text: block.text }])
-      parts.push(`<${tag} style="${blockCss(block.style)}">${content}</${tag}>`)
+      parts.push(blockHtml(block, false))
       index++
     }
     return parts.join('\n')
@@ -160,7 +200,7 @@ function markdownDestination(value: string): string {
 
 export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source: string) => string): string {
   const text = (runs: DocumentTextRun[]) =>
-    runs
+    coalesceRuns(runs)
       .map((run) =>
         run.text.replace(/\S(?:[\s\S]*\S)?/, (content) => {
           // Boundary whitespace must remain outside Markdown emphasis delimiters.
@@ -173,43 +213,74 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
         })
       )
       .join('')
+  const indentLines = (value: string, spaces: number) => {
+    if (spaces <= 0) return value
+    const pad = ' '.repeat(spaces)
+    return value
+      .split('\n')
+      .map((line) => (line ? pad + line : line))
+      .join('\n')
+  }
+  const withMarker = (value: string, baseIndent: number, marker: string, markerWidth: number) =>
+    value
+      .split('\n')
+      .map((line, lineIndex) =>
+        lineIndex === 0
+          ? `${' '.repeat(baseIndent)}${marker} ${line}`
+          : line
+            ? `${' '.repeat(baseIndent + markerWidth)}${line}`
+            : line
+      )
+      .join('\n')
+  const bodyOf = (block: DocumentBlock) => {
+    if (block.type === 'columns') return ''
+    if (block.type === 'image')
+      return `![${block.text.replace(/[[\]]/g, '')}](${markdownDestination(imageSource(block.source))})`
+    if (block.type === 'table') {
+      const rows = block.rows.map(
+        (row, rowIndex) =>
+          `| ${row
+            .map((cell, column) => {
+              const runs = block.cells?.[rowIndex]?.[column]?.runs
+              return text(runs ?? [{ text: cell }])
+                .trim()
+                .replaceAll('\n', '<br>')
+            })
+            .join(' | ')} |`
+      )
+      if (rows.length) rows.splice(1, 0, `| ${block.rows[0].map(() => '---').join(' | ')} |`)
+      return rows.join('\n')
+    }
+    if (block.type === 'code') {
+      let fenceLength = 3
+      for (const match of block.text.matchAll(/`+/g)) fenceLength = Math.max(fenceLength, match[0].length + 1)
+      const fence = '`'.repeat(fenceLength)
+      return `${fence}\n${block.text}${block.text.endsWith('\n') ? '' : '\n'}${fence}`
+    }
+    const content = text(block.runs ?? [{ text: block.text }]).trim()
+    return block.type === 'heading' ? `${'#'.repeat(Math.min(6, block.level))} ${content}` : content
+  }
   const ancestors: { depth: number; width: number }[] = []
   return (
     flattenDocumentBlocks(blocks)
       .map((block) => {
-        if (!isListTextBlock(block)) ancestors.length = 0
-        if (block.type === 'columns') return ''
-        if (block.type === 'image')
-          return `![${block.text.replace(/[[\]]/g, '')}](${markdownDestination(imageSource(block.source))})`
-        if (block.type === 'table') {
-          const rows = block.rows.map(
-            (row, rowIndex) =>
-              `| ${row
-                .map((cell, column) => {
-                  const runs = block.cells?.[rowIndex]?.[column]?.runs
-                  return text(runs ?? [{ text: cell }])
-                    .trim()
-                    .replaceAll('\n', '<br>')
-                })
-                .join(' | ')} |`
-          )
-          if (rows.length) rows.splice(1, 0, `| ${block.rows[0].map(() => '---').join(' | ')} |`)
-          return rows.join('\n')
+        const body = bodyOf(block)
+        if (isItemStart(block)) {
+          while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth >= block.bullet) ancestors.pop()
+          const indent = ancestors.reduce((total, ancestor) => total + ancestor.width, 0)
+          const marker = block.orderedNumber !== undefined ? `${block.orderedNumber}.` : '-'
+          const width = marker.length + 1
+          ancestors.push({ depth: block.bullet, width })
+          return withMarker(body, indent, marker, width)
         }
-        if (block.type === 'code') {
-          let fenceLength = 3
-          for (const match of block.text.matchAll(/`+/g)) fenceLength = Math.max(fenceLength, match[0].length + 1)
-          const fence = '`'.repeat(fenceLength)
-          return `${fence}\n${block.text}${block.text.endsWith('\n') ? '' : '\n'}${fence}`
+        const depth = listDepthOf(block)
+        if (!depth) {
+          ancestors.length = 0
+          return body
         }
-        const content = text(block.runs ?? [{ text: block.text }]).trim()
-        if (block.type === 'heading') return `${'#'.repeat(Math.min(6, block.level))} ${content}`
-        if (!isListTextBlock(block)) return content
-        while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth >= block.bullet) ancestors.pop()
+        while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth > depth) ancestors.pop()
         const indent = ancestors.reduce((total, ancestor) => total + ancestor.width, 0)
-        const marker = block.orderedNumber !== undefined ? `${block.orderedNumber}.` : '-'
-        ancestors.push({ depth: block.bullet, width: marker.length + 1 })
-        return `${' '.repeat(indent)}${marker} ${content}`
+        return indentLines(body, indent)
       })
       .join('\n\n') + '\n'
   )
