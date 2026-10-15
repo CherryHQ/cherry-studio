@@ -44,6 +44,18 @@ export type CliConfigWriteFile =
  */
 export const CHERRY_PROVIDER_KEY_PREFIX = 'cherry-'
 
+/**
+ * The launch environment variable Command Code resolves a provider's API key
+ * from. providers.json never stores the secret — its `apiKey` field only holds
+ * a `$<NAME>` reference, and the launch environment exports the real key under
+ * exactly the name the on-disk config references. Main generation-binds that
+ * name to the config write (`…_<suffix>`), so a credential captured before a
+ * configuration replacement is unresolvable against the replaced config
+ * instead of being replayed to the new endpoint — see `CodeCliService`.
+ */
+export const COMMAND_CODE_API_KEY_ENV_VAR = 'CHERRY_COMMAND_CODE_API_KEY'
+export const COMMAND_CODE_API_KEY_ENV_REF = `$${COMMAND_CODE_API_KEY_ENV_VAR}`
+
 export const CLAUDE_SETTINGS_PATH = '~/.claude/settings.json'
 export const CODEX_AUTH_PATH = '~/.codex/auth.json'
 export const CODEX_CONFIG_PATH = '~/.codex/config.toml'

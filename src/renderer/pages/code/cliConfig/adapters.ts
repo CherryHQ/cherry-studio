@@ -1299,14 +1299,17 @@ const commandCodeAdapter: CliConfigAdapter = {
     if (!providerKey) return null
     const entry = asRecord(asRecord(providers.provider)[providerKey])
     // providers.json only ever holds the env reference, never the secret — an
-    // undefined apiKey keeps provider matching on "use the configured key".
+    // undefined apiKey keeps provider matching on "use the configured key",
+    // and the managed provider key rides along as the config's identity claim
+    // (two providers can share an endpoint and model; the key cannot).
     const model = stringValue(
       asRecord(parseJsonOrThrow(getDraftFile(files, 'commandcode-config')?.content ?? '')).model
     )
     return {
       baseUrl: stringValue(entry.baseURL),
       apiKey: undefined,
-      model: model?.startsWith(`${providerKey}/`) ? model.slice(providerKey.length + 1) : undefined
+      model: model?.startsWith(`${providerKey}/`) ? model.slice(providerKey.length + 1) : undefined,
+      providerKey
     }
   },
   extractConfig() {

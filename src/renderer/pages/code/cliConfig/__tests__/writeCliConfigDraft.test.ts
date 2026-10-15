@@ -532,11 +532,13 @@ describe('writeCliConfigDraft', () => {
           content: config.content
         } as const
       ] satisfies CliConfigFileDraft[]
-      // The key never lives in the files, so the extracted connection carries none.
+      // The key never lives in the files, so the extracted connection carries none —
+      // the managed provider key rides along as the config's identity claim.
       expect(extractConnectionFromCliConfigDraft(CodeCli.COMMAND_CODE, [...draft])).toEqual({
         baseUrl: 'https://api.deepseek.com/v1',
         apiKey: undefined,
-        model: 'deepseek-chat'
+        model: 'deepseek-chat',
+        providerKey: 'cherry-deepseek'
       })
 
       const updated = updateCliConfigDraftConfig(CodeCli.COMMAND_CODE, [...draft], {})

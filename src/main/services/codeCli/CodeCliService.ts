@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'child_process'
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'util'
@@ -44,7 +45,7 @@ import type { OperationResult } from '@shared/types/codeTools'
 import type { EndpointType } from '@shared/data/types/model'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
-import { CHERRY_PROVIDER_KEY_PREFIX } from '@shared/utils/cliConfig'
+import { CHERRY_PROVIDER_KEY_PREFIX, COMMAND_CODE_API_KEY_ENV_VAR } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
@@ -102,6 +103,73 @@ function cherryProviderKeyInCommandCodeConfig(content: string): string | null {
   if (!provider || typeof provider !== 'object') return null
   const keys = Object.keys(provider).filter((key) => key.startsWith(CHERRY_PROVIDER_KEY_PREFIX))
   return keys.length === 1 ? keys[0] : null
+}
+
+/** providers.json `apiKey` references Cherry's managed variable family: `$CHERRY_COMMAND_CODE_API_KEY` or a generation-bound `…_<suffix>`. */
+function isCommandCodeManagedKeyRef(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    new RegExp(`^\\$${COMMAND_CODE_API_KEY_ENV_VAR}(?:_[A-Za-z0-9]+)?$`).test(value)
+  )
+}
+
+/**
+ * The env variable NAME (no `$`) the on-disk providers.json resolves its
+ * managed key from. Launches export the credential under exactly this name:
+ * the name is generation-bound to the config write (see
+ * `bindCommandCodeCredentialRefs`), so a key captured before a configuration
+ * replacement cannot resolve against the replaced config — the CLI finds its
+ * `$…_<generation>` reference unset and fails auth cleanly instead of
+ * replaying the old provider's key to the new endpoint. Anything outside
+ * Cherry's managed family (a hand-set `$MY_KEY` reference) is left to the
+ * user's own environment: fall back to the base name.
+ */
+function commandCodeApiKeyNameInConfig(content: string | null): string {
+  if (content) {
+    const providerKey = cherryProviderKeyInCommandCodeConfig(content)
+    if (providerKey) {
+      try {
+        const ref = (JSON.parse(content) as { provider?: Record<string, { apiKey?: unknown }> }).provider?.[
+          providerKey
+        ]?.apiKey
+        if (isCommandCodeManagedKeyRef(ref)) return ref.slice(1)
+      } catch {
+        // Unparseable config: the sync path fails closed on it anyway.
+      }
+    }
+  }
+  return COMMAND_CODE_API_KEY_ENV_VAR
+}
+
+/**
+ * Generation-bind every managed key reference in a providers.json draft before
+ * it lands on disk: each save mints a fresh `…_<suffix>` variable name, and the
+ * managed credential is (re)exported under that name only. This is the reader
+ * half of the tombstone swap — the writer half makes (old credential, new
+ * config) unobservable on disk, this makes an ALREADY-CAPTURED credential
+ * unresolvable against a swapped-in config, closing the window between the
+ * shell's `$(cat credentials)` and the CLI reading its config. Returns the
+ * content unchanged when it is not a rewritable providers.json (the sync path
+ * fails closed on those anyway).
+ */
+function bindCommandCodeCredentialRefs(content: string): string {
+  let config: unknown
+  try {
+    config = JSON.parse(content)
+  } catch {
+    return content
+  }
+  const provider = (config as { provider?: unknown } | null)?.provider
+  if (!provider || typeof provider !== 'object') return content
+  let changed = false
+  for (const entry of Object.values(provider)) {
+    const apiKey = (entry as { apiKey?: unknown } | null)?.apiKey
+    if (isCommandCodeManagedKeyRef(apiKey)) {
+      ;(entry as { apiKey: string }).apiKey = `$${COMMAND_CODE_API_KEY_ENV_VAR}_${randomBytes(4).toString('hex')}`
+      changed = true
+    }
+  }
+  return changed ? `${JSON.stringify(config, null, 2)}\n` : content
 }
 
 @Injectable('CodeCliService')
@@ -501,20 +569,33 @@ export class CodeCliService extends BaseService {
     }
     if (cliTool === CodeCli.COMMAND_CODE) {
       // The config and the managed credential move as one pair. The bundled
-      // headless skill reads the credential file FIRST (shell `$(cat …)`) and
-      // the CLI config second, so the swap must never let (old credential,
-      // new config) be observable — tombstone the credential before the config
-      // lands, then write the new one. A reader racing the swap sees a missing
-      // file and fails auth cleanly (the skill then asks the user to
-      // reconfigure) instead of replaying provider A's key to provider B's
-      // endpoint. If the post-write sync fails, the config rolls back to its
-      // pre-write content and the sync re-runs against it, so the error the
-      // renderer sees pairs with a consistent on-disk state (or a tombstone —
-      // also fail-closed).
+      // headless skill and the terminal launch read the credential file FIRST
+      // (shell `$(cat …)` / env-file eval) and the CLI config second, so the
+      // swap must never let (old credential, new config) be observable:
+      // tombstone both credential files before the config lands, then write
+      // the new ones. A reader racing the swap sees missing files and fails
+      // auth cleanly (the skill then asks the user to reconfigure) instead of
+      // replaying provider A's key to provider B's endpoint. The draft's key
+      // reference is additionally generation-bound (`bindCommandCodeCredentialRefs`),
+      // so a credential ALREADY captured before the swap is unresolvable
+      // against the swapped-in config — the CLI finds its `$…_<generation>`
+      // reference unset and fails auth instead of silently pairing the stale
+      // key with the new endpoint. If the post-write sync fails, the config
+      // rolls back to its pre-write content and the sync re-runs against it,
+      // so the error the renderer sees pairs with a consistent on-disk state
+      // (or a tombstone — also fail-closed).
       const snapshots = await readCliConfigFiles(files.map((file) => file.target))
       try {
         await this.removeCommandCodeCredentialFile()
-        await writeCliConfigFiles(cliTool, files)
+        await this.removeCommandCodeEnvFile()
+        await writeCliConfigFiles(
+          cliTool,
+          files.map((file) =>
+            file.target === 'commandcode-providers' && typeof file.content === 'string'
+              ? { ...file, content: bindCommandCodeCredentialRefs(file.content) }
+              : file
+          )
+        )
         await this.syncCommandCodeCredentialFile()
       } catch (error) {
         await this.restoreCommandCodeConfigFiles(snapshots)
@@ -567,9 +648,15 @@ export class CodeCliService extends BaseService {
         providersFile.content === null ? null : cherryProviderKeyInCommandCodeConfig(providersFile.content)
       const apiKey = providerKey ? await this.resolveCommandCodeApiKeyForProviderKey(providerKey) : null
       if (apiKey) {
+        // The export script carries the generation-bound variable name the
+        // freshly-written config references — re-extracted from the config on
+        // disk, never from the draft that triggered the write.
+        const ref = commandCodeApiKeyNameInConfig(providersFile.content)
         await this.writeCommandCodeCredentialFile(apiKey)
+        await this.writeCommandCodeEnvFile(ref)
       } else {
         await this.removeCommandCodeCredentialFile()
+        await this.removeCommandCodeEnvFile()
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
@@ -609,6 +696,10 @@ export class CodeCliService extends BaseService {
 
   private get commandCodeCredentialFile(): string {
     return application.getPath('cherry.code_cli.command_code.credentials_file')
+  }
+
+  private get commandCodeEnvFile(): string {
+    return application.getPath('cherry.code_cli.command_code.env_file')
   }
 
   /**
@@ -659,29 +750,59 @@ export class CodeCliService extends BaseService {
   }
 
   /**
+   * The shell-side delivery script for the managed credential: one `export`
+   * line assigning `$(cat <credentials-file>)` to the generation-bound
+   * variable the on-disk config references. Carries no secret itself (only
+   * the credentials file's path); the headless Code Mate skill and the POSIX
+   * terminal launch eval it, so the variable name always matches the config
+   * generation the CLI is about to read.
+   */
+  private async writeCommandCodeEnvFile(ref: string): Promise<void> {
+    fs.mkdirSync(path.dirname(this.commandCodeEnvFile), { recursive: true })
+    const content = `export ${ref}="$(cat ${posixQuote(this.commandCodeCredentialFile)})"\n`
+    await atomicWriteFile(AbsoluteFilePathSchema.parse(this.commandCodeEnvFile), content, { mode: 0o600 })
+  }
+
+  private async removeCommandCodeEnvFile(): Promise<void> {
+    try {
+      fs.unlinkSync(this.commandCodeEnvFile)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+  }
+
+  /**
    * Command Code refuses raw secrets inside its own config files — the renderer
-   * writes a `$CHERRY_COMMAND_CODE_API_KEY` reference into providers.json, so
+   * writes a `$CHERRY_COMMAND_CODE_API_KEY…` reference into providers.json, so
    * the real key has to reach the launched CLI out of band. Resolved main-side
    * from the gateway preference for gateway-backed runs (the config's baseURL
    * points at the gateway regardless of which provider was selected), otherwise
    * from the selected Cherry provider. A keyless provider (local Ollama)
    * resolves to the same non-empty stand-in token the renderer injects when
    * drafting the config — the CLI SDKs reject an empty token — and the
-   * credential file carries it so the headless Code Mate skill works too. A
+   * credential files carry it so the headless Code Mate skill works too. A
    * stored-key-less provider that is NOT keyless exports an empty variable and
-   * removes any credential file left by an earlier launch: the headless skill
+   * removes any credential files left by an earlier launch: the headless skill
    * must not replay a previous provider's key against this one.
    *
-   * The resolved key is persisted via an atomic 0600 write (see
-   * `writeCommandCodeCredentialFile`) and, on POSIX, the launch exports it via
-   * `$(cat <file>)` at shell runtime: macOS Tabby pastes the whole command
-   * through the system clipboard, where an inlined secret would be captured by
-   * clipboard history. Windows builds its launch environment from `env` (a .bat
-   * cannot read the file), so the inline export is always required there — the
-   * 0600 temp .bat is never clipboard-bound. The file also gives the headless
-   * Code Mate skill path a credential source. Returns the file path.
+   * The exported variable name is the generation-bound one the on-disk config
+   * references (`commandCodeApiKeyNameInConfig`) — never a fixed name. A config
+   * replacement mints a fresh name, so a key captured before the swap (the
+   * shell expanded its env export already) is unresolvable against the
+   * swapped-in config: the CLI fails auth cleanly instead of disclosing the
+   * old provider's key to the new endpoint.
    *
-   * Throws when persistence fails on POSIX: the file is the only
+   * The resolved key is persisted via atomic 0600 writes (see
+   * `writeCommandCodeCredentialFile` / `writeCommandCodeEnvFile`) and, on
+   * POSIX, the launch evals the env file at shell runtime: macOS Tabby pastes
+   * the whole command through the system clipboard, where an inlined secret
+   * would be captured by clipboard history. Windows builds its launch
+   * environment from `env` (a .bat cannot eval a file), so the inline export
+   * is always required there — the 0600 temp .bat is never clipboard-bound.
+   * The env file also gives the headless Code Mate skill path its credential
+   * source. Returns the env file path.
+   *
+   * Throws when persistence fails on POSIX: the env file is the only
    * clipboard-safe delivery there, so the launch fails rather than fall back
    * to inlining the key into the command text (Windows falls back — its
    * inline export stays inside the .bat).
@@ -691,6 +812,18 @@ export class CodeCliService extends BaseService {
     providerId: string,
     gateway: boolean
   ): Promise<string | null> {
+    let providersContent: string | null = null
+    try {
+      const [providersFile] = await readCliConfigFiles(['commandcode-providers'])
+      providersContent = providersFile.content
+    } catch (error) {
+      // A missing/unreadable config must not block the credential pin: fall
+      // back to the base variable name (the CLI fails auth on it, fail-closed).
+      logger.warn('Failed to read the Command Code providers config for the credential reference name', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+    const ref = commandCodeApiKeyNameInConfig(providersContent)
     const apiKey =
       gateway || isApiGatewayProviderId(providerId)
         ? application.get('PreferenceService').get('feature.api_gateway.api_key')
@@ -704,37 +837,40 @@ export class CodeCliService extends BaseService {
       }
       if (standIn) {
         logger.info(`No stored key for ${providerId}; exporting the keyless stand-in token`)
-        env.CHERRY_COMMAND_CODE_API_KEY = standIn
+        env[ref] = standIn
         try {
           await this.writeCommandCodeCredentialFile(standIn)
+          await this.writeCommandCodeEnvFile(ref)
         } catch (error) {
           // A stand-in is not a secret — a failed write must not block a
           // keyless launch; the headless skill falls back to its reconfigure
-          // hint when the file is missing.
-          logger.warn('Failed to persist the keyless stand-in credential file', {
+          // hint when the env file is missing.
+          logger.warn('Failed to persist the keyless stand-in credential files', {
             error: error instanceof Error ? error.message : String(error)
           })
         }
-        return this.commandCodeCredentialFile
+        return this.commandCodeEnvFile
       }
-      logger.warn(`No enabled API key for ${providerId}; exporting an empty CHERRY_COMMAND_CODE_API_KEY`)
-      env.CHERRY_COMMAND_CODE_API_KEY = ''
+      logger.warn(`No enabled API key for ${providerId}; exporting an empty ${ref}`)
+      env[ref] = ''
       await this.removeCommandCodeCredentialFile()
+      await this.removeCommandCodeEnvFile()
       return null
     }
     try {
       await this.writeCommandCodeCredentialFile(apiKey)
+      await this.writeCommandCodeEnvFile(ref)
     } catch (error) {
       if (!isWin) throw error
-      logger.warn('Failed to persist the Command Code credential file; falling back to the inline .bat export', {
+      logger.warn('Failed to persist the Command Code credential files; falling back to the inline .bat export', {
         error: error instanceof Error ? error.message : String(error)
       })
     }
-    // Windows builds its launch command from `env` — the credential file is a
-    // POSIX-only delivery — so the inline export is required there whether the
-    // file write succeeded or not.
-    if (isWin) env.CHERRY_COMMAND_CODE_API_KEY = apiKey
-    return this.commandCodeCredentialFile
+    // Windows builds its launch command from `env` — the credential files are
+    // a POSIX-only delivery — so the inline export is required there whether
+    // the file writes succeeded or not.
+    if (isWin) env[ref] = apiKey
+    return this.commandCodeEnvFile
   }
 
   /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
@@ -860,7 +996,7 @@ export class CodeCliService extends BaseService {
       try {
         commandCodeCredentialFile = await this.applyCommandCodeCredential(env, normal.providerId, normal.gateway === true)
       } catch (error) {
-        // POSIX persistence failure: the 0600 file is the only clipboard-safe
+        // POSIX persistence failure: the 0600 env file is the only clipboard-safe
         // delivery, so refuse to launch rather than inline the key into the
         // command text (macOS Tabby copies that text through the system
         // clipboard, where clipboard history would capture the secret).
@@ -870,10 +1006,15 @@ export class CodeCliService extends BaseService {
         return { success: false, message }
       }
     }
-    // POSIX shells expand the credential at runtime, so the command text only
-    // ever carries the 0600 file's path — never the secret itself.
+    // POSIX shells expand the credential at runtime via the env file: it binds
+    // the export to the generation-bound variable name the on-disk config
+    // references, so a credential captured before a configuration replacement
+    // fails auth against the replaced config instead of being replayed to it.
+    // A missing env file evals to nothing and the CLI falls back to its own
+    // auth (same semantics as the old empty in-command export). The command
+    // text only ever carries the 0600 files' paths — never the secret itself.
     const commandCodeCredentialPrefix = commandCodeCredentialFile
-      ? `export CHERRY_COMMAND_CODE_API_KEY="$(cat ${posixQuote(commandCodeCredentialFile)})" && `
+      ? `eval "$(cat ${posixQuote(commandCodeCredentialFile)} 2>/dev/null)" && `
       : ''
     logger.debug(`Environment variables:`, Object.keys(env))
 

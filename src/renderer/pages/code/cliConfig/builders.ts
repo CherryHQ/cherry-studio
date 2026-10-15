@@ -1,3 +1,5 @@
+import { COMMAND_CODE_API_KEY_ENV_REF as COMMAND_CODE_API_KEY_ENV_REF_SHARED } from '@shared/utils/cliConfig'
+
 import { CHERRY_PROVIDER_PREFIX, OPENCODE_SCHEMA } from './constants'
 import {
   applyManagedJsonSettings,
@@ -386,9 +388,10 @@ export function buildPiSettingsConfig(
 /**
  * Command Code never stores a raw secret in providers.json — the field only
  * accepts references. The real key is injected into the launch environment by
- * CodeCliService under this fixed variable name.
+ * CodeCliService under the variable the on-disk config references; drafts carry
+ * the base name and main generation-binds it on save (see `@shared/utils/cliConfig`).
  */
-export const COMMAND_CODE_API_KEY_ENV_REF = '$CHERRY_COMMAND_CODE_API_KEY'
+export const COMMAND_CODE_API_KEY_ENV_REF = COMMAND_CODE_API_KEY_ENV_REF_SHARED
 
 export function buildCommandCodeProvidersConfig(
   existing: Record<string, any>,
