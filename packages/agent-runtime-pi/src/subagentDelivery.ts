@@ -36,7 +36,7 @@ export interface PendingDelivery {
   reason?: string
   partial?: string
   usage: Usage
-  /** False for a run the parent only needs to hear of: it rides with the next message, never starts one. */
+  /** False for a run the parent only needs to hear of: it rides with the next run's start, never starts one. */
   wake: boolean
 }
 
@@ -182,17 +182,15 @@ export function renderNotification(items: readonly PendingDelivery[], runningBac
  */
 export class SubagentDelivery {
   private queue: PendingDelivery[] = []
-  /** Host prompts and compactions in flight: Pi's `prompt()` reports idle while it prepares. */
+  /** Host prompts and compactions in flight: Pi reports idle until it starts their run (or compaction). */
   private holds = 0
-  /** After the user stops a turn, nothing starts until they speak again. */
+  /** After the user stops a turn, nothing starts on its own until a new run starts. */
   private suppressed = false
   /** The next aborted settle is the runtime's own, not a stop by the user. */
   private runtimeAbort = false
   /** The next aborted settle is the user's stop, whatever else aborted that run. */
   private userAbort = false
   private closed = false
-  /** The running run began with a prompt, whose start took everything queued before it. */
-  private promptRun = false
 
   constructor(private readonly host: DeliveryHost) {}
 
@@ -201,7 +199,7 @@ export class SubagentDelivery {
     this.deliverIfIdle()
   }
 
-  /** Session start: runs that ended without reaching the parent wait for the next message. */
+  /** Session start: runs that ended without reaching the parent wait for the next run's start. */
   restore(items: readonly PendingDelivery[]): void {
     this.queue.push(...items)
   }
@@ -218,13 +216,12 @@ export class SubagentDelivery {
     if (event.outcome !== 'completed') return undefined
     // Users first: their queued message is answered before the notification is merged.
     if (event.context.pendingMessages.some((message) => message.role === 'user')) return undefined
-    // Quiet items wait for the next message; a run no prompt started (a command's) may be the only one coming.
-    if (this.promptRun ? !this.queue.some((item) => item.wake) : this.queue.length === 0) return undefined
+    // Quiet items are no reason to go on; they ride with the next run's start or a waking item.
+    if (!this.queue.some((item) => item.wake)) return undefined
     return { entries: [...event.entries, { type: 'custom_message', ...this.take() }], continue: true }
   }
 
   settled(aborted: boolean): void {
-    this.promptRun = false
     const userStop = aborted && (this.userAbort || !this.runtimeAbort)
     this.runtimeAbort = false
     this.userAbort = false
@@ -242,10 +239,12 @@ export class SubagentDelivery {
     this.userAbort = true
   }
 
-  /** `before_agent_start`, a prompt about to run: everything still queued rides with it. */
+  /**
+   * `before_agent_start` of every run (a prompt, a command such as `/goal resume`, a notification):
+   * everything queued rides with it, and results may start runs again.
+   */
   beforeAgentStart(): { message: NotificationMessage } | undefined {
     this.suppressed = false
-    this.promptRun = true
     return this.queue.length === 0 ? undefined : { message: this.take() }
   }
 
