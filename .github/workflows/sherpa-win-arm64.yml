@@ -160,7 +160,7 @@ jobs:
           tar -czf $env:RUNTIME_ARCHIVE @taskFiles
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $taskHash = (Get-FileHash $env:RUNTIME_ARCHIVE -Algorithm SHA256).Hash.ToLower()
-          "$taskHash  $env:RUNTIME_ARCHIVE" | Set-Content "$env:RUNTIME_ARCHIVE.sha256"
+          "$taskHash  $env:RUNTIME_ARCHIVE`n" | Set-Content "$env:RUNTIME_ARCHIVE.sha256" -NoNewline
       - uses: actions/upload-artifact@v7
         if: always()
         with:
