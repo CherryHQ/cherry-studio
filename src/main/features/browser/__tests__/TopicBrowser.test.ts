@@ -47,7 +47,7 @@ describe('topic browser ownership and cancellation', () => {
     vi.restoreAllMocks()
   })
 
-  function attachTopicGuest() {
+  function attachTopicGuest(profile: WebviewSecurityProfile = WebviewSecurityProfile.AgentBrowser, guestId = 71) {
     const host = { getZoomFactor: () => 1 } as Electron.WebContents
     vi.mocked(application.get('WindowManager').getWindow).mockReturnValue({
       webContents: host,
@@ -57,17 +57,70 @@ describe('topic browser ownership and cancellation', () => {
       isFocused: () => true,
       isMinimized: () => false
     } as unknown as Electron.BrowserWindow)
-    const fixture = createGuest(71)
+    const fixture = createGuest(guestId)
     Object.assign(fixture.mock, {
       getType: () => 'webview',
       getZoomFactor: () => 1,
       hostWebContents: host,
-      session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+      session: session.fromPartition(getWebviewPartition(profile))
     })
     vi.mocked(webContents.fromId).mockReturnValue(fixture.guest)
-    const { tabId } = service.topicBrowser.attach(topicId, 71, windowId)
+    const { tabId } = service.topicBrowser.attach(topicId, guestId, windowId)
     return { fixture, tabId }
   }
+
+  it('completes artifact-to-web navigation while invalidating the old handle', async () => {
+    const old = attachTopicGuest(WebviewSecurityProfile.AgentHtmlArtifact)
+    const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })
+    let replacement: ReturnType<typeof attachTopicGuest> | undefined
+    let navigatedUrl = 'about:blank'
+    vi.mocked(application.get('IpcApiService').broadcast).mockImplementation((event) => {
+      if (event !== 'browser.guest.ensure_requested') return
+      replacement = attachTopicGuest(WebviewSecurityProfile.AgentBrowser, 72)
+      const next = replacement.fixture.mock
+      next.getURL.mockImplementation(() => navigatedUrl)
+      next.debugger.sendCommand.mockImplementation(async (method, params) => {
+        if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'document-1' } } }
+        if (method === 'Page.navigate') {
+          navigatedUrl = (params as { url: string }).url
+          next.debugger.emit('message', {}, 'Page.frameStartedLoading', { frameId: 'main' })
+          next.debugger.emit('message', {}, 'Page.loadEventFired', {})
+        }
+        return {}
+      })
+    })
+    const signal = new AbortController().signal
+    try {
+      const result = await control.execute('goto', { url: 'https://example.com' }, old.tabId, signal)
+      expect(navigatedUrl).toBe('https://example.com/')
+      expect(result.value).toMatchObject({ tabId: replacement?.tabId, handleInvalidated: true })
+      expect(signal.aborted).toBe(false)
+      await expect(control.execute('goto', { url: 'https://example.org' }, old.tabId, signal)).rejects.toMatchObject({
+        code: 'not_found'
+      })
+      expect(navigatedUrl).toBe('https://example.com/')
+    } finally {
+      await control.close()
+    }
+  })
+
+  it('preserves caller cancellation while waiting for a replacement guest', async () => {
+    const old = attachTopicGuest(WebviewSecurityProfile.AgentHtmlArtifact)
+    const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })
+    const abort = new AbortController()
+    const cancelled = new Error('cancelled by user')
+    vi.mocked(application.get('IpcApiService').broadcast).mockImplementation((event) => {
+      if (event === 'browser.guest.ensure_requested') abort.abort(cancelled)
+    })
+    try {
+      await expect(control.execute('goto', { url: 'https://example.com' }, old.tabId, abort.signal)).rejects.toBe(
+        cancelled
+      )
+      expect(service.topicBrowser.get({ sessionId: topicId, ownerId: assistantId })?.tabId).toBe(old.tabId)
+    } finally {
+      await control.close()
+    }
+  })
 
   it('confines targets to their topic and window while allowing the topic to move between assistants', async () => {
     const { fixture, tabId } = attachTopicGuest()

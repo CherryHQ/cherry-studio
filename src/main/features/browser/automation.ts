@@ -88,9 +88,20 @@ export async function executeBrowserOperation(
       }
     }
   if (name === 'goto') {
-    const result = await controller.open(schemas.goto.parse(args).url, 10_000, false, false, true, options.signal)
-    if (result.tabId !== target.tabId) throw new BrowserSessionError('stale_ref')
-    return { value: result }
+    const result = await controller.open(schemas.goto.parse(args).url, 10_000, false, false, true, signal)
+    return {
+      observation: result.tabId !== target.tabId,
+      value: {
+        ...result,
+        ...(result.tabId !== target.tabId
+          ? {
+              handleInvalidated: true,
+              message:
+                'Navigation completed in a replacement guest. Call browser.getTab() before continuing; the previous tab handle is no longer valid.'
+            }
+          : {})
+      }
+    }
   }
   if (name === 'getScreenshot') {
     const { images, ...metadata } = await controller.screenshot(

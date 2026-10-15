@@ -8,7 +8,7 @@ Use the browser pane belonging to this conversation. Bind once with `var tab = a
 interface Tab {
   getAXState(options?: { scope?: string; maxChars?: number }): Promise<{ id: string; tabId: string; url: string; title: string; text: string; complete: boolean }>
   getScreenshot(options?: { ref?: string; fullPage?: boolean; cursor?: string }): Promise<{ id: string; tabId: string; images: Array<{ region: object; scale: object; index: number }>; nextCursor?: string }>
-  goto(url: string): Promise<object>
+  goto(url: string): Promise<{ tabId: string; currentUrl: string; title: string; handleInvalidated?: true; message?: string }>
   goBack(): Promise<object>
   goForward(): Promise<object>
   evaluate(code: string): Promise<{ result: unknown }>
@@ -29,6 +29,8 @@ interface Tab {
 ```
 
 `getAXState` emits a bounded full accessibility tree with actionable refs. `getScreenshot` emits image metadata followed by its image. Neither requires console.log. Their returned objects contain metadata/text, not image bytes. Actions return execution metadata, never an implicit AX snapshot. `find` returns exact accessible role/name matches; print its result when choosing a target. Action metadata may report dialogs, blocked popups or downloads; inspect these when present.
+
+`goto` can replace the guest when switching between a local HTML artifact and a website. When its result reports `handleInvalidated: true`, navigation completed but the old handle is invalid; call `browser.getTab()` before continuing. User cancellation still cancels the navigation.
 
 `evaluate` runs JavaScript in the page, not in the host or REPL; prefer dedicated input methods. `waitFor` requires text or ref and emits the matching full observation. Website tools use IDs returned by `listWebTools`; navigation invalidates them. Full-page screenshots are tiled: use the returned `nextCursor` for continuation. Never combine `ref` and `fullPage`.
 

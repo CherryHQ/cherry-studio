@@ -107,3 +107,12 @@ the earlier calculation. The stale-handle error now recommends observing the ret
 handle rather than claiming rebinding is mandatory. This is recovery evidence, not
 proof that the model always observes first. Output includes a cell-local observation
 sequence and the preceding completed action when available.
+
+Application launch requires SDK installed-identity resolution. Cherry checks the
+resolved identity against user stops and active owners before requesting launch;
+the SDK verifies that identity before the native effect. An SDK without this API
+fails closed for launch. Existing running applications remain usable.
+
+Browser navigation keeps caller cancellation across guest replacement and binds
+subsequent navigation commands to the new guest. The completed result explicitly
+invalidates the old tab handle; the model must reacquire the conversation tab.

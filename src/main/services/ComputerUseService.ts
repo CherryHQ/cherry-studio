@@ -34,8 +34,10 @@ export interface ComputerUseControl {
   status: ControlStatus
 }
 
+type ResolvedApp = AppInfo & { identity?: string }
+
 interface AppControl {
-  app: AppInfo
+  app: ResolvedApp
   status: ControlStatus
   session: Promise<AppSession>
   sessionId?: string
@@ -55,12 +57,10 @@ interface ControlTask {
 interface ControlOwner {
   label: string
   stopped: boolean
-  blockedApps: Map<string, AppInfo>
+  blockedApps: Map<string, ResolvedApp>
 }
 
 export class ComputerUseControlError extends Error {
-  readonly effect = 'none'
-
   constructor(
     readonly code:
       | 'CONTROL_DISABLED'
@@ -68,7 +68,8 @@ export class ComputerUseControlError extends Error {
       | 'CLEANUP_UNCONFIRMED'
       | 'APP_BUSY'
       | 'TASK_CLOSED'
-      | 'UNKNOWN_APP_SESSION'
+      | 'UNKNOWN_APP_SESSION',
+    readonly effect: 'none' | 'possible' = 'none'
   ) {
     super(
       {
@@ -172,37 +173,58 @@ export class ComputerUseService extends BaseService {
         'TARGET_UNAVAILABLE',
         'Application name is ambiguous; use an ID from computer.listApps().'
       )
-    let app = matches[0]
-    if (!app) {
-      const resolver = client as ComputerUseClient & {
-        resolveApp?: (input: { query: string; launch: boolean }, options: { signal: AbortSignal }) => Promise<AppInfo>
+    let app: ResolvedApp | undefined = matches[0]
+    let mayHaveLaunched = false
+    try {
+      if (!app) {
+        this.assertAvailable(task, query)
+        const blocked = this.owners.get(context.ownerId)?.blockedApps
+        if ([...(blocked?.values() ?? [])].some((app) => app.name.toLocaleLowerCase() === query.toLocaleLowerCase()))
+          throw new ComputerUseControlError('USER_STOPPED')
+        const resolver = client as ComputerUseClient & {
+          resolveAppIdentity?: (
+            input: { query: string },
+            options: { signal: AbortSignal }
+          ) => Promise<{ id: string; name: string; query: string }>
+        }
+        if (launch) {
+          if (!resolver.resolveAppIdentity)
+            throw new ComputerUseError(
+              'UNSUPPORTED_CAPABILITY',
+              'Upgrade the SDK to authorize applications before launch.'
+            )
+          const identity = await resolver.resolveAppIdentity({ query }, options)
+          this.assertAppAvailable(task, { id: identity.id, name: identity.name, identity: identity.id })
+          if ([...(blocked?.values() ?? [])].some((app) => !app.identity))
+            throw new ComputerUseControlError('USER_STOPPED')
+          options.signal.throwIfAborted()
+          mayHaveLaunched = true
+          const input = { query: identity.query, launch: true, expectedIdentity: identity.id }
+          app = await client.resolveApp(input, options)
+        } else {
+          app = await client.resolveApp({ query, launch: false }, options)
+        }
       }
-      if (!resolver.resolveApp)
-        throw new ComputerUseError(
-          'UNSUPPORTED_CAPABILITY',
-          'This SDK cannot resolve or launch an application that is not listed. Upgrade the SDK and native runtime.'
-        )
-      const blocked = this.owners.get(context.ownerId)?.blockedApps
-      if ([...(blocked?.values() ?? [])].some((app) => app.name.toLocaleLowerCase() === query.toLocaleLowerCase()))
-        throw new ComputerUseControlError('USER_STOPPED')
-      app = await resolver.resolveApp({ query, launch }, options)
+      this.assertAppAvailable(task, app)
+      return await this.openApp(context, app.id, signal, app)
+    } catch (error) {
+      if (mayHaveLaunched && error instanceof ComputerUseControlError)
+        throw new ComputerUseControlError(error.code, 'possible')
+      throw error
     }
+  }
+
+  private assertAppAvailable(task: ControlTask, app: ResolvedApp): void {
     this.assertAvailable(task, app.id)
-    const identity = app.name.toLocaleLowerCase()
-    if (
-      [...(this.owners.get(context.ownerId)?.blockedApps.values() ?? [])].some(
-        (blocked) => blocked.name.toLocaleLowerCase() === identity
-      )
-    )
+    const matches = (other: ResolvedApp) =>
+      (app.identity !== undefined && app.identity === other.identity) ||
+      app.name.toLocaleLowerCase() === other.name.toLocaleLowerCase()
+    if ([...(this.owners.get(task.context.ownerId)?.blockedApps.values() ?? [])].some(matches))
       throw new ComputerUseControlError('USER_STOPPED')
     for (const other of this.tasks.values()) {
-      if (
-        other !== task &&
-        [...other.apps.values()].some((control) => control.app.name.toLocaleLowerCase() === identity)
-      )
+      if (other !== task && [...other.apps.values()].some((control) => matches(control.app)))
         throw new ComputerUseControlError('APP_BUSY')
     }
-    return this.openApp(context, app.id, signal, app)
   }
 
   async getAppState(
