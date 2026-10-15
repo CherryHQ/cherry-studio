@@ -16,6 +16,7 @@ import {
   subagentStates,
   toolCallPart,
   toolResultOf,
+  toolResults,
   waitFor
 } from './subagentSupport'
 import { createTestSession, finish, hostStore, plain, streamTextPort, tempDir } from './support'
@@ -264,6 +265,73 @@ describe('subagents after a rebuild', () => {
     expect(lastTwoTexts(calls.at(-1)!)).toEqual([
       'Where were we?',
       `${NOTE}\n\n- "Check A" (id: ${host.subagents[0].sessionId}) completed:\n  REPORT-A`
+    ])
+
+    const again = await createTestSession({
+      cwd,
+      port: streamTextPort(model).port,
+      tools: [stopTurn],
+      subagents: host.port,
+      transcript: plain([...first.entries, ...second.entries])
+    })
+    await again.prompt('And now?')
+    expect(lastTwoTexts(calls.at(-1)!)[1]).toBe('And now?')
+  })
+
+  // Breaks when a rebuild restores only a subagent's latest run: a run that finished while the parent
+  // was busy, and was continued before the parent heard of it, would never reach the parent.
+  it('delivers every run of a subagent that never reached the parent, not only the latest', async () => {
+    const cwd = tempDir('cwd')
+    const runOne = gate()
+    const runTwo = gate()
+    const parent: { session?: AgentSession } = {}
+    const stopTurn = stopTurnTool(parent)
+    const host = storingSubagentPort()
+    const first = hostStore()
+    const { model, calls } = routedModel(async (call) => {
+      const { userText, lastText, humanText } = call
+      if (userText.includes('TASK-A'))
+        return lastText === 'GO-ON' ? runTwo.wait(reply('REPORT-2')) : runOne.wait(reply('REPORT-1'))
+      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Continue A') {
+        // Run 1 ends while this turn is busy, so its result waits for the settle.
+        runOne.open()
+        await waitFor(() => subagentStates(first.entries).some((state) => state.status === 'finished'))
+        const id = host.subagents[0].sessionId
+        return [toolCallPart('call_msg', 'message_subagent', { id, message: 'GO-ON' }), finish('tool-calls')]
+      }
+      // The user stops the turn before its settle; the parent then closes.
+      if (toolResults(call).at(-1)?.toolCallId === 'call_msg')
+        return [toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
+      return reply('OK.')
+    })
+    const before = await createTestSession({
+      cwd,
+      port: streamTextPort(model).port,
+      tools: [stopTurn],
+      subagents: host.port,
+      onEvent: first.onEvent
+    })
+    parent.session = before.session
+    await before.prompt('Check A in the background')
+    await before.prompt('Continue A')
+    await runTwo.reached
+    await before.dispose()
+
+    const second = hostStore()
+    const rebuilt = await createTestSession({
+      cwd,
+      port: streamTextPort(model).port,
+      tools: [stopTurn],
+      subagents: host.port,
+      transcript: plain(first.entries),
+      onEvent: second.onEvent
+    })
+    await rebuilt.prompt('Where were we?')
+    const head = `- "Check A" (id: ${host.subagents[0].sessionId})`
+    expect(lastTwoTexts(calls.at(-1)!)).toEqual([
+      'Where were we?',
+      `${NOTE}\n\n${head} completed:\n  REPORT-1\n${head} was interrupted (the app closed while it was running). Continue it with message_subagent if the work is still needed.`
     ])
 
     const again = await createTestSession({
