@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { ipcApi } from '@renderer/ipc'
@@ -21,7 +22,7 @@ interface SelectionContextMenuProps {
  * Extract text content from a Selection, restoring KaTeX formulas to their TeX source and
  * filtering out line numbers in code viewers.
  */
-function extractSelectedText(selection: Selection): string {
+function extractSelectedText(selection: Selection, mathOptions?: { singleDollar: boolean }): string {
   if (selection.rangeCount === 0 || selection.isCollapsed) {
     return ''
   }
@@ -47,10 +48,20 @@ function extractSelectedText(selection: Selection): string {
 
   fragment.querySelectorAll('.line-number').forEach((el) => el.remove())
   fragment.querySelectorAll('.katex-mathml + .katex-html').forEach((el) => el.remove())
+  const inlineMathSources = new Map<Node, string>()
   katexMathMlElements.forEach((element) => {
     const texSource = element.querySelector('annotation')?.textContent
     if (texSource !== null && texSource !== undefined) {
-      element.replaceWith(document.createTextNode(texSource))
+      const textNode = document.createTextNode(texSource)
+      if (mathOptions) {
+        // MathML retains display mode even when the selection excludes the outer KaTeX wrapper.
+        if (element.querySelector('math[display="block"]')) {
+          textNode.textContent = `\n$$\n${texSource}\n$$\n`
+        } else {
+          inlineMathSources.set(textNode, texSource)
+        }
+      }
+      element.replaceWith(textNode)
     }
   })
 
@@ -61,7 +72,14 @@ function extractSelectedText(selection: Selection): string {
 
   while (node) {
     if (node.nodeType === Node.TEXT_NODE) {
-      result += node.textContent
+      const texSource = inlineMathSources.get(node)
+      if (texSource !== undefined) {
+        // Dollar fences cannot contain dollars or touch another formula's closing fence.
+        const useDollars = mathOptions?.singleDollar && !texSource.includes('$') && !result.endsWith('$')
+        result += useDollars ? `$${texSource}$` : `\\(${texSource}\\)`
+      } else {
+        result += node.textContent
+      }
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const element = node as Element
       if (element.tagName === 'BR') {
@@ -86,6 +104,7 @@ function extractSelectedText(selection: Selection): string {
  */
 const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
   const { t } = useTranslation()
+  const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const handleCopy = useCallback(
     (text: string) => {
       navigator.clipboard
@@ -104,7 +123,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   }, [])
 
   const getMenuItems = useCallback(
-    (text: string): CommandContextMenuExtraItem[] => {
+    (text: string, quoteText: string): CommandContextMenuExtraItem[] => {
       if (text.length === 0) return []
 
       return [
@@ -118,7 +137,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           type: 'item',
           id: 'selection.quote',
           label: t('chat.message.quote'),
-          onSelect: () => handleQuote(text)
+          onSelect: () => handleQuote(quoteText)
         }
       ]
     },
@@ -129,6 +148,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     (event: React.MouseEvent): CommandContextMenuExtraItem[] => {
       const selection = window.getSelection()
       const selectedText = selection ? extractSelectedText(selection) : ''
+      const quoteText = selection ? extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }) : ''
       const target = event.target instanceof Element ? event.target : null
       const anchor = target?.closest('a[href]')
       const href = anchor?.getAttribute('href')
@@ -164,12 +184,14 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             onSelect: () => handleCopy(href)
           }
         ]
-        return selectedLinkText ? [...getMenuItems(selectedLinkText), { type: 'separator' }, ...linkItems] : linkItems
+        return selectedLinkText
+          ? [...getMenuItems(selectedLinkText, quoteText), { type: 'separator' }, ...linkItems]
+          : linkItems
       }
 
-      return getMenuItems(selectedText)
+      return getMenuItems(selectedText, quoteText)
     },
-    [getMenuItems, handleCopy, openBrowserUrl, t]
+    [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
   )
 
   return (
