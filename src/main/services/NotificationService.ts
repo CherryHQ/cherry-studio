@@ -196,7 +196,7 @@ export class NotificationService extends BaseService {
 
   public async activateNotification(id: string): Promise<void> {
     const record = notificationRecordService.getById(id)
-    if (!record) return
+    if (!record) throw new Error(t('notification.center.target_unavailable'))
     notificationRecordService.markRead(id)
     const target = record.target
     if (!target) return
@@ -330,7 +330,11 @@ export class NotificationService extends BaseService {
         kind: 'daily-budget',
         createdAt: Date.now(),
         title: t('notification.center.budget_title'),
-        message: t('notification.center.budget_message', { percent: threshold, used: total, budget }),
+        message: t('notification.center.budget_message', {
+          percent: Math.round((total / budget) * 100),
+          used: total,
+          budget
+        }),
         target: { kind: 'settings', tab: 'usage' }
       })
         .then((recorded) => {

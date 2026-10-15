@@ -16,6 +16,7 @@ import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 
 const NOTIFICATION_PREF_KEYS = [
   'app.notification.assistant.enabled',
@@ -68,15 +69,17 @@ vi.mock('@logger', () => ({
   }
 }))
 vi.mock('@main/i18n', () => ({
-  t: (key: string) =>
-    ({
-      'agent.session.new': 'New task',
-      'chat.conversation.new': 'New Chat',
-      'notification.action_required.agent': 'Agent needs your input',
-      'notification.action_required.assistant': 'Assistant needs your input',
-      'notification.completion.agent': 'Agent task complete',
-      'notification.completion.assistant': 'Assistant response complete'
-    })[key] ?? key
+  t: vi.fn(
+    (key: string) =>
+      ({
+        'agent.session.new': 'New task',
+        'chat.conversation.new': 'New Chat',
+        'notification.action_required.agent': 'Agent needs your input',
+        'notification.action_required.assistant': 'Assistant needs your input',
+        'notification.completion.agent': 'Agent task complete',
+        'notification.completion.assistant': 'Assistant response complete'
+      })[key] ?? key
+  )
 }))
 vi.mock('electron', () => ({
   app: {
@@ -258,6 +261,19 @@ describe('NotificationService', () => {
     expect(notificationRecordService.unreadCount()).toBe(0)
     expect(mocks.focusOrOpen).not.toHaveBeenCalled()
   })
+
+  it.each(['dismissed', 'expired'])(
+    'reports %s notifications as unavailable when clicked from a stale window',
+    async (state) => {
+      emitCompletion()
+      const [record] = notificationRecordService.list({}).items
+      if (state === 'dismissed') notificationRecordService.dismiss(record.id)
+      else vi.spyOn(Date, 'now').mockReturnValue(record.createdAt + 31 * 24 * 60 * 60 * 1000)
+
+      await expect(service.activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
+      expect(mocks.focusOrOpen).not.toHaveBeenCalled()
+    }
+  )
 
   it('records a focused backup result without duplicating its existing foreground feedback', async () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
@@ -483,8 +499,13 @@ describe('NotificationService', () => {
     record('after-restart', 2_000)
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
     vi.setSystemTime(new Date(2026, 9, 16, 0, 1))
-    record('next-day', 80_000)
+    record('next-day', 95_000)
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
+    expect(t).toHaveBeenCalledWith('notification.center.budget_message', {
+      percent: 95,
+      used: 95_000,
+      budget: 100_000
+    })
 
     await service._doStop()
     BaseService.resetInstances()

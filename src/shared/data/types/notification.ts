@@ -3,6 +3,10 @@ import * as z from 'zod'
 export const NotificationCategorySchema = z.enum(['system', 'usage', 'official'])
 export type NotificationCategory = z.infer<typeof NotificationCategorySchema>
 
+export const AnnouncementUrlSchema = z
+  .string()
+  .regex(/^https:\/\/github\.com\/CherryHQ\/cherry-studio\/discussions\/[1-9]\d*\/?$/i)
+
 export const NotificationTargetSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('conversation'),
@@ -11,7 +15,8 @@ export const NotificationTargetSchema = z.discriminatedUnion('kind', [
   }),
   z.object({ kind: z.literal('settings'), tab: z.enum(['usage', 'data']) }),
   z.object({ kind: z.literal('knowledge'), baseId: z.string().min(1) }),
-  z.object({ kind: z.literal('release'), version: z.string().min(1), releaseNotes: z.string() })
+  z.object({ kind: z.literal('release'), version: z.string().min(1), releaseNotes: z.string() }),
+  z.object({ kind: z.literal('announcement'), url: AnnouncementUrlSchema, content: z.string().min(1) })
 ])
 export type NotificationTarget = z.infer<typeof NotificationTargetSchema>
 

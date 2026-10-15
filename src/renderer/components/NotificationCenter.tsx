@@ -23,6 +23,7 @@ import type { NotificationCategory, NotificationRecord } from '@shared/data/type
 
 const logger = loggerService.withContext('NotificationCenter')
 const ReleaseNotes = lazy(() => import('./ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })))
+const NotificationAnnouncement = lazy(() => import('./NotificationAnnouncement'))
 const categories = ['all', 'system', 'usage', 'official'] as const
 type Filter = 'all' | NotificationCategory
 
@@ -48,13 +49,15 @@ function NotificationItem({
     refresh: ['/notifications', '/notifications/unread-count']
   })
   const release = record.target?.kind === 'release' ? record.target : null
+  const announcement = record.target?.kind === 'announcement' ? record.target : null
+  const expandable = !!(release || announcement)
   const Icon = record.category === 'usage' ? Gauge : record.category === 'official' ? Megaphone : Bell
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
 
   const activate = async () => {
     setActivating(true)
     try {
-      if (release) {
+      if (expandable) {
         await markRead({ params: { id: record.id }, body: { read: true } })
         setExpanded(!expanded)
       } else {
@@ -94,7 +97,7 @@ function NotificationItem({
         <Button
           variant="ghost"
           aria-label={record.title}
-          aria-expanded={release ? expanded : undefined}
+          aria-expanded={expandable ? expanded : undefined}
           className="h-auto min-w-0 flex-1 items-start justify-start gap-3 whitespace-normal px-2 py-2 text-left"
           disabled={activating}
           onClick={() => void activate()}>
@@ -133,10 +136,14 @@ function NotificationItem({
           </Button>
         </Tooltip>
       </div>
-      {release && expanded && (
+      {expandable && expanded && (
         <div className="space-y-3 px-3 pb-4">
           <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
-            <ReleaseNotes content={release.releaseNotes} />
+            {release ? (
+              <ReleaseNotes content={release.releaseNotes} />
+            ) : announcement ? (
+              <NotificationAnnouncement id={record.id} announcement={announcement} />
+            ) : null}
           </Suspense>
           {canUpdate && appUpdateState.lastErrorKey && (
             <p role="alert" className="text-sm text-destructive">
