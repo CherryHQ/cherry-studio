@@ -218,8 +218,9 @@ handles.
   clear); each round is a `cherry.goal-round` message the host maps to the "round N" header. Rounds
   continue only at `agent_before_settle` and count once Pi sends them on; when
   `port.defaults.autonomy()` returns `confirm-each-round`, every round ends paused. Every stop is
-  the runtime's and sets `phase` and `lastStop`: round cap (the last allowed round is a wrap-up),
-  token or USD budget, no progress (two rounds hint, three stop; the same tool call three times in
+  the runtime's and sets `phase` and `lastStop`: round cap (the last allowed round is a wrap-up;
+  a cap lowered to the running round ends the goal with it), token or USD budget, no progress
+  (two rounds hint, three stop; the same tool call three times in
   a row within a round is blocked, five times ends the goal), a denied approval, an approval nobody
   can give or a dismissed question in a goal round, background subagents the host reports as
   running, a round another extension's settle handler overrides, and a failed request or an abort
