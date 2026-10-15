@@ -45,6 +45,7 @@ import {
   CHERRYAI_PROVIDER_ID,
   isManagedCherryAiDefaultModel
 } from '@shared/data/presets/cherryai'
+import { resolveGatewayChatRouteForModelId } from '@shared/data/presets/gatewayChatRouting'
 import type {
   EndpointType,
   Modality,
@@ -481,48 +482,37 @@ const MANUAL_REASONING_EFFORTS: readonly ReasoningEffort[] = [
 ]
 
 /**
- * The reasoning format each chat-reasoning endpoint speaks by default. Manual
- * fallback controls for an unknown model must match the endpoint REQUESTS will
- * use: a MODEL-level `endpointTypes` override diverges from the provider
- * default the resolved profile was built from, and emitting the default's
- * vocabulary over the override's wire produces values the wire rejects
- * (Ollama echoes the effort verbatim into `think`). (CherryHQ/cherry-studio#19761)
- */
-const CHAT_ENDPOINT_REASONING_FORMAT: Partial<Record<EndpointType, ReasoningFormatType>> = {
-  'anthropic-messages': 'anthropic',
-  'google-generate-content': 'gemini',
-  'ollama-chat': 'ollama',
-  'openai-chat-completions': 'openai-chat',
-  'openai-responses': 'openai-responses'
-}
-
-/**
- * The profile the manual fallback controls must be built from: the resolved
- * provider profile, unless the model row overrides the endpoint — then the
- * canonical profile for the overridden endpoint. (Catalog descriptors are
- * endpoint-projected by the registry itself and never pass through here.)
- *
- * A provider that explicitly disables reasoning keeps that contract across an
- * override: the request layer discards every selection for a disabled profile,
- * so resurrecting knobs with a generic wire would only offer choices that do
- * nothing. (CherryHQ/cherry-studio#19761)
+ * The profile the manual fallback controls must be built from: the SAME
+ * resolution the request layer performs — `resolveReasoningProfile` at the
+ * effective chat endpoint, where the row's `endpointTypes` override wins, then
+ * the gateway's per-model route (AiHubMix `gemini-*` ids route to the Gemini
+ * endpoint), then the provider default. Controls and requests reading one
+ * profile means no provider contract can be lost in between: a destination
+ * that disables reasoning (Poe's Chat Completions) yields no knobs instead of
+ * inert tiers, and a routed Gemini endpoint yields the toggle + low/medium/high
+ * vocabulary the wire accepts instead of tiers it would reject.
+ * (CherryHQ/cherry-studio#19761)
  */
 function manualReasoningProfileFor(
-  model: { endpointTypes?: EndpointType[] | null },
-  reasoningProfile: ResolvedReasoningProfile
+  providerContext: ReasoningProviderContext,
+  endpointTypes: EndpointType[] | null | undefined,
+  modelId: string
 ): ResolvedReasoningProfile {
-  const overrideFormat = model.endpointTypes
-    ?.map((endpoint) => CHAT_ENDPOINT_REASONING_FORMAT[endpoint])
-    .find((format) => format !== undefined)
-  if (!overrideFormat || overrideFormat === reasoningProfile.format) return reasoningProfile
-  if (reasoningProfile.format === 'none' || reasoningProfile.wire.disabled) return reasoningProfile
-  return { format: overrideFormat, wire: REASONING_FORMAT_PROFILES[overrideFormat].wire }
-}
-
-/** The openai-chat default the manual fallback projects through when nothing was resolved. */
-const OPENAI_CHAT_FALLBACK_PROFILE: ResolvedReasoningProfile = {
-  format: 'openai-chat',
-  wire: REASONING_FORMAT_PROFILES['openai-chat'].wire
+  // The request resolves the row override FIRST (resolveEffectiveEndpoint), so
+  // an explicit override suppresses the gateway route rather than competing
+  // with it.
+  const route = endpointTypes?.length
+    ? undefined
+    : resolveGatewayChatRouteForModelId(providerContext, modelId)?.endpointType
+  return providerRegistryService.resolveReasoningProfile(
+    providerContext,
+    {
+      id: createUniqueModelId(providerContext.id, modelId),
+      apiModelId: modelId,
+      endpointTypes: endpointTypes ?? undefined
+    },
+    endpointTypes?.[0] ?? route
+  )
 }
 
 /**
@@ -554,20 +544,25 @@ function manualDeclaredReasoning(
  * registry projects `reasoning.selectableEfforts` only for ids it knows, so
  * toggling the `reasoning` capability on an unknown id (brand-new or niche
  * models) left the composer without an effort selector — the capability toggle
- * did nothing visible. Projected through the resolved wire profile when one is
- * available (the model's endpointTypes override wins over the provider
- * default), so a profile that disables reasoning exposes no knobs; a
- * registry-projected profile always wins. (CherryHQ/cherry-studio#19761)
+ * did nothing visible. Projected through the profile resolved at the effective
+ * chat endpoint (the same resolution requests use), so a profile that disables
+ * reasoning exposes no knobs; a registry-projected profile always wins.
+ * (CherryHQ/cherry-studio#19761)
  */
-function withManualReasoningControls(model: Model, reasoningProfile?: ResolvedReasoningProfile): Model {
+function withManualReasoningControls(model: Model, providerContext: ReasoningProviderContext | undefined): Model {
   if (!model.capabilities?.includes('reasoning') || model.reasoning != null) return model
-  const manualProfile = manualReasoningProfileFor(model, reasoningProfile ?? OPENAI_CHAT_FALLBACK_PROFILE)
+  if (!providerContext) return model
+  const manualProfile = manualReasoningProfileFor(providerContext, model.endpointTypes, model.apiModelId ?? model.id)
   const reasoning = manualDeclaredReasoning(manualProfile.format, manualProfile.wire, true)
   if (!reasoning?.selectableEfforts?.length) return model
   return { ...model, reasoning }
 }
 
-function applyStoredModelState(model: Model, row: UserModelRow, reasoningProfile?: ResolvedReasoningProfile): Model {
+function applyStoredModelState(
+  model: Model,
+  row: UserModelRow,
+  providerContext: ReasoningProviderContext | undefined
+): Model {
   return withManualReasoningControls(
     {
       ...model,
@@ -580,17 +575,18 @@ function applyStoredModelState(model: Model, row: UserModelRow, reasoningProfile
       isDeprecated: row.isDeprecated,
       notes: row.notes ?? undefined
     },
-    reasoningProfile
+    providerContext
   )
 }
 
 function createPresetFallback(
   row: UserModelRow,
+  providerContext: ReasoningProviderContext | undefined,
   reasoningProfile?: ResolvedReasoningProfile,
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, reasoningProfile?.wire, serviceTierControl)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row, reasoningProfile)
+  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row, providerContext)
 }
 
 class ModelService {
@@ -609,7 +605,11 @@ class ModelService {
     )
   }
 
-  private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
+  private buildCreateValues(
+    dto: CreateModelDto,
+    registryData?: CreateModelRegistryData,
+    providerContext?: ReasoningProviderContext
+  ): NewUserModelInput {
     if (registryData?.providerModel) {
       return dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
     }
@@ -631,17 +631,22 @@ class ModelService {
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
-    // descriptor-driven like catalog rows (#16598). A dto-level endpointTypes
-    // override wins over the provider-default profile, same as on read.
+    // descriptor-driven like catalog rows (#16598). The controls follow the
+    // effective endpoint — the dto endpointTypes override, then the gateway
+    // route, then the provider default — same as requests and as on read.
     if (dtoValues.reasoning == null) {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
-      const manualProfile = manualReasoningProfileFor(
-        dtoValues,
-        registryData?.reasoningProfile ?? OPENAI_CHAT_FALLBACK_PROFILE
-      )
-      const inferred =
-        inferCustomModelReasoning(dto.modelId, manualProfile.wire, { declaredReasoning }) ??
-        manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
+      let inferred: RuntimeReasoning | undefined
+      if (providerContext) {
+        const manualProfile = manualReasoningProfileFor(
+          providerContext,
+          dtoValues.endpointTypes,
+          dtoValues.modelId
+        )
+        inferred =
+          inferCustomModelReasoning(dto.modelId, manualProfile.wire, { declaredReasoning }) ??
+          manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
+      }
       if (inferred) dtoValues.reasoning = inferred
     }
 
@@ -814,6 +819,11 @@ class ModelService {
     return models
   }
 
+  /** Single-provider convenience over `getReasoningContextsByProviderIdsTx` for create-path enrichment. */
+  private getProviderContext(db: Pick<DbType, 'select'>, providerId: string): ReasoningProviderContext | undefined {
+    return providerService.getReasoningContextsByProviderIdsTx(db, [providerId]).get(providerId)
+  }
+
   /**
    * Registry resolution shared by every row-serving path. Preset-backed rows
    * use the current registry as their baseline and apply every non-null sparse
@@ -835,12 +845,12 @@ class ModelService {
             providerRegistryService.resolveModel(providerContext, row.modelId)
           if (providerModel) {
             return {
-              ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row, reasoningProfile),
+              ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row, providerContext),
               presetModelId: null
             }
           }
           if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile, serviceTierControl)
+            return createPresetFallback(row, providerContext, reasoningProfile, serviceTierControl)
           }
 
           const baseline = mergePresetModel(
@@ -856,7 +866,7 @@ class ModelService {
           return applyStoredModelState(
             imageGeneration ? { ...resolved, imageGeneration } : resolved,
             row,
-            reasoningProfile
+            providerContext
           )
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
@@ -864,7 +874,7 @@ class ModelService {
             modelId: row.modelId,
             error
           })
-          return createPresetFallback(row)
+          return createPresetFallback(row, providerContext)
         }
       }
 
@@ -876,7 +886,7 @@ class ModelService {
           providerRegistryService.resolveModel(providerContext, modelId)
         if (providerModel) {
           return {
-            ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row, reasoningProfile),
+            ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row, providerContext),
             presetModelId: null
           }
         }
@@ -938,14 +948,16 @@ class ModelService {
           // creation-time vocabulary, so a provider endpoint switch
           // (anthropic-messages → ollama-chat) kept offering `max` — a tier
           // Ollama's wire echoes verbatim into `think`, which the SDK rejects.
-          // A model-level endpointTypes override wins over the provider default
-          // the resolved profile was built from (manualReasoningProfileFor).
-          // Reasoning is not hand-editable (absent from UPDATE_MODEL_FIELD_MAP), so
-          // nothing user-authored is lost by regenerating; catalog and registry
-          // descriptors took the branch above. The id heuristics still win over the
-          // manual fallback, and removing the capability in Edit Model disarms the
-          // manual fallback via declaredReasoning (#19761).
-          const manualProfile = manualReasoningProfileFor(model, reasoningProfile)
+          // The manual profile is the one the REQUEST layer resolves at the
+          // effective endpoint (row override → gateway route → provider
+          // default), so the vocabulary can never include tiers the wire
+          // discards. Reasoning is not hand-editable (absent from
+          // UPDATE_MODEL_FIELD_MAP), so nothing user-authored is lost by
+          // regenerating; catalog and registry descriptors took the branch
+          // above. The id heuristics still win over the manual fallback, and
+          // removing the capability in Edit Model disarms the manual fallback
+          // via declaredReasoning (#19761).
+          const manualProfile = manualReasoningProfileFor(providerContext, model.endpointTypes, modelId)
           reasoning =
             inferCustomModelReasoning(modelId, manualProfile.wire, { declaredReasoning }) ??
             manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
@@ -1075,7 +1087,9 @@ class ModelService {
     }
 
     const db = application.get('DbService').getDb()
-    const values = items.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const values = items.map(({ dto, registryData }) =>
+      this.buildCreateValues(dto, registryData, this.getProviderContext(db, dto.providerId))
+    )
 
     const rows = withSqliteErrors(
       () =>
@@ -1283,7 +1297,9 @@ class ModelService {
     payload: ProviderModelReconcilePayload
   ): ProviderModelReconcileResult {
     const dbService = application.get('DbService')
-    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const values = payload.toAdd.map(({ dto, registryData }) =>
+      this.buildCreateValues(dto, registryData, this.getProviderContext(dbService.getDb(), dto.providerId))
+    )
     const deletedIds: string[] = []
     const rows = withSqliteErrors(
       () =>

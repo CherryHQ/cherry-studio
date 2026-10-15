@@ -210,6 +210,31 @@ describe('automatic effort against a model that does not declare it', () => {
 
     expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'max' })
   })
+
+  // A gateway-routed Gemini model (AiHubMix gemini-* ids) only ever declares
+  // low/medium/high — thinkingConfig.thinkingLevel rejects anything else on the
+  // wire. A selection captured before the vocabulary narrowed (a saved `max`
+  // from a previous openai-chat profile) must project onto the nearest
+  // declared tier, never travel verbatim.
+  it('projects a stale openai tier onto the nearest declared Gemini tier', () => {
+    const geminiModel = makeModel({
+      reasoning: {
+        controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['none', 'low', 'medium', 'high']
+      }
+    })
+
+    for (const stale of ['xhigh', 'max'] as const) {
+      const invocation = resolveReasoningInvocation({
+        selection: stale,
+        model: geminiModel,
+        profile: REASONING_FORMAT_PROFILES.gemini.wire
+      })
+      expect(encodeReasoningInvocation(invocation)).toEqual({
+        thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' }
+      })
+    }
+  })
 })
 
 describe('OpenAI Responses reasoning summary', () => {
