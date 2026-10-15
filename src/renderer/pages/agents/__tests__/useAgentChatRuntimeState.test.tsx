@@ -11,6 +11,7 @@ import {
 } from '@renderer/components/composer/variants/askUserQuestionDraftCache'
 import type * as AgentSessionPartsModule from '@renderer/hooks/useAgentSessionParts'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -36,7 +37,9 @@ const mocks = vi.hoisted(() => ({
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
-  toastWarning: vi.fn()
+  toastWarning: vi.fn(),
+  autoReadConsume: vi.fn(async () => ({ status: 'started' })),
+  autoReadEnabled: true
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
@@ -64,6 +67,16 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: mocks.useExecutionOverlay
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.autoReadEnabled, vi.fn()]
+}))
+
+vi.mock('@renderer/services/voice', () => ({
+  autoReadService: {
+    consume: mocks.autoReadConsume
+  }
 }))
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
@@ -369,6 +382,8 @@ describe('useAgentChatRuntimeState', () => {
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadConsume.mockClear()
+    mocks.autoReadEnabled = true
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
       persistedPartsByMessageId: {},
@@ -434,6 +449,118 @@ describe('useAgentChatRuntimeState', () => {
 
     expect(sent).toBe(false)
   })
+
+  it('wires auto-read to overlay finish without taking over the terminal refresh handoff', () => {
+    renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+    expect(onFinish).toEqual(expect.any(Function))
+    const completed = {
+      ...assistantMessage,
+      parts: [{ type: 'text', text: 'final answer' }]
+    } as CherryUIMessage
+    act(() => {
+      onFinish?.('provider::model', {
+        attemptId: 4,
+        message: completed,
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    expect(mocks.autoReadConsume).toHaveBeenCalledWith({
+      enabled: true,
+      message: completed,
+      attemptId: 4,
+      isAbort: false,
+      isError: false,
+      eligible: true
+    })
+    expect(mocks.refresh).not.toHaveBeenCalled()
+    expect(mocks.disposeOverlay).not.toHaveBeenCalled()
+  })
+
+  it.each(['goal-round', 'background-work'] as const)('skips %s autonomous turns for auto-read', (kind) => {
+    const autonomous = {
+      ...assistantMessage,
+      parts: [{ type: 'text', text: 'background result' }],
+      metadata: {
+        ...assistantMessage.metadata,
+        turnOrigin: kind === 'goal-round' ? { kind, round: 2 } : { kind }
+      }
+    } as CherryUIMessage
+    mocks.useAgentSessionParts.mockReturnValue({
+      messages: [autonomous],
+      persistedPartsByMessageId: {},
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: mocks.refresh,
+      seedReservedMessages: mocks.seedReservedMessages,
+      deleteMessage: mocks.deleteSessionMessage
+    })
+    renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+
+    act(() => {
+      onFinish?.('provider::model', {
+        attemptId: 9,
+        message: { ...autonomous, metadata: undefined } as CherryUIMessage,
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    expect(mocks.autoReadConsume).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ id: autonomous.id }), eligible: false })
+    )
+  })
+
+  it.each(['goal-round', 'background-work', 'manual'] as const)(
+    'uses live turn origin for %s before history loads',
+    (kind) => {
+      mocks.useAgentSessionParts.mockReturnValue({
+        ...mocks.useAgentSessionParts.getMockImplementation()!(),
+        messages: [],
+        isLoading: true
+      })
+      renderHook(() =>
+        useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+      )
+      MockCacheUtils.setInitialState({
+        shared: [
+          [
+            AGENT_SESSION_TURN_ORIGIN_CACHE_KEY('session-1', assistantMessage.id),
+            kind === 'manual' ? null : kind === 'goal-round' ? { kind, round: 2 } : { kind }
+          ],
+          [AGENT_SESSION_TURN_ORIGIN_CACHE_KEY('another-session', assistantMessage.id), { kind: 'background-work' }]
+        ]
+      })
+      const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onFinish
+      act(() => {
+        onFinish?.('provider::model', {
+          attemptId: 9,
+          message: { ...assistantMessage, metadata: undefined },
+          isAbort: false,
+          isError: false
+        })
+      })
+
+      expect(mocks.autoReadConsume).toHaveBeenCalledWith(expect.objectContaining({ eligible: kind === 'manual' }))
+    }
+  )
 
   it('invalidates disclosure state after deleting a session message', async () => {
     const { result } = renderHook(() =>

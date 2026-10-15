@@ -11,6 +11,7 @@
 
 import { registry, type ToolRegistry } from '../registry'
 import { createBrowserToolEntries } from './BrowserTools'
+import { createComputerUseToolEntries } from './ComputerUseTools'
 import { createFsReadToolEntry } from './FsReadTool'
 import { createKbListToolEntry } from './KnowledgeListTool'
 import { createKbManageToolEntry } from './KnowledgeManageTool'
@@ -27,6 +28,7 @@ export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   // Gated per request (see createFsReadToolEntry), and always confined to the
   // request's persisted-output allow-list — an empty list denies every read.
   for (const entry of createBrowserToolEntries()) reg.register(entry)
+  for (const entry of createComputerUseToolEntries()) reg.register(entry)
   reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())

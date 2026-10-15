@@ -49,6 +49,7 @@ const mocks = vi.hoisted(() => ({
   cacheDeleteShared: vi.fn(),
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
+  closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
@@ -535,7 +536,11 @@ describe('AgentSessionRuntimeService', () => {
         }
       if (name === 'ClaudeCodeBinaryService') return { getStatus: () => ({ phase: 'ready' }) }
       if (name === 'ClaudeCodeWarmQueryManager')
-        return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
+        return {
+          closeAll: mocks.closeWarmQueries,
+          closeAgentSessionWarm: mocks.closeAgentSessionWarm,
+          close: mocks.closeWarmSession
+        }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
@@ -2828,6 +2833,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isSessionBusyForArchive('session-1')).toBe(true)
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeDefined()
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
@@ -2839,6 +2845,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isSessionBusyForArchive('session-1')).toBe(false)
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeUndefined()
@@ -3735,6 +3742,90 @@ describe('AgentSessionRuntimeService', () => {
     expect(onIdle).toHaveBeenCalledWith({ sessionId: 'session-1' })
   })
 
+  it('waits for pending warm preparation even when runtime maps are empty', async () => {
+    const service = new AgentSessionRuntimeService()
+    const prepared = createDeferred<void>()
+    mocks.closeWarmSession.mockReturnValueOnce(prepared.promise)
+    let closed = false
+    const closing = service.closeSessionForArchive('session-1').then(() => {
+      closed = true
+    })
+    await vi.waitFor(() => expect(mocks.closeWarmSession).toHaveBeenCalledWith('session-1'))
+    expect(closed).toBe(false)
+    prepared.resolve()
+    await closing
+    expect(closed).toBe(true)
+  })
+
+  it('blocks archiving after native close failure even after the runtime entry disappears', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connection = { close: vi.fn().mockRejectedValue(new Error('still running')), send: vi.fn(), events: [] }
+    getEntry(service).connection = connection
+
+    await service.closeSession('session-1')
+    expect(service.inspect('session-1')).toBeUndefined()
+    await expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+    await expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+
+    connection.close.mockResolvedValue(undefined)
+    await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+  })
+
+  it('keeps timed-out native shutdown unsafe until shutdown is positively confirmed', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const nativeClose = createDeferred<void>()
+      getEntry(service).connection = { close: () => nativeClose.promise, send: vi.fn(), events: [] }
+
+      const closing = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closing
+      expect(service.inspect('session-1')).toBeUndefined()
+      const archiveClose = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await archiveClose
+      const retry = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await retry
+
+      nativeClose.resolve()
+      await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('keeps every timed-out predecessor unsafe when a later connection finishes closing', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      const firstClose = createDeferred<void>()
+      const secondClose = createDeferred<void>()
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = { close: () => firstClose.promise, send: vi.fn(), events: [] }
+      const closingFirst = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closingFirst
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = { close: () => secondClose.promise, send: vi.fn(), events: [] }
+      const closingSecond = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closingSecond
+      secondClose.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+
+      const blocked = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await blocked
+      firstClose.resolve()
+      await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
     ServiceContainer.reset()
     const container = ServiceContainer.getInstance()
