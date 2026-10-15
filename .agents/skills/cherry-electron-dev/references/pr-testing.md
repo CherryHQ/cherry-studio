@@ -1,19 +1,14 @@
----
-name: cherry-pr-test
-description: Test Cherry Studio PRs by resolving and checking out a PR, statically inspecting its changes, running interactive UI tests against a safely tracked Electron instance through CDP, producing a structured report, cleaning up only the owned test instance, and restoring the original branch.
----
+# PR Testing
 
-# Cherry Studio PR Test
-
-Use this workflow for a bounded PR test. Use `cherry-electron-dev` for ongoing
-implementation or debugging in the current checkout.
+Use this workflow for a bounded PR test within `cherry-electron-dev`. For
+ongoing implementation or debugging, follow the skill's development loop.
 
 ## Prerequisites and safety
 
 - Require authenticated `gh`, `pnpm`, and installed project dependencies.
 - Use Playwright/CDP or optional `agent-browser` for UI control.
 - Before touching Electron, read
-  [Electron Instance Management](../cherry-electron-dev/references/electron-instance.md)
+  [Electron Instance Management](electron-instance.md)
   and select its `ephemeral` policy.
 - Treat that reference as the only authority for discovery, target selection,
   launch, replacement, shutdown, tracking, and troubleshooting.
@@ -39,24 +34,23 @@ Record the current branch for restoration, inspect the PR, then check it out:
 ```bash
 git status --short
 git branch --show-current
-gh pr view <NUMBER> --json title,body,author,headRefName,files
+gh pr view <NUMBER> --json title,body,author,headRefName,headRefOid,files
 gh pr checkout <NUMBER>
 ```
 
 Read the changed files and nearby instructions. Record the exact checked-out
-HEAD.
+HEAD and verify it matches the resolved PR head.
 
 ### 2. Analyze and start the app
 
 Run static analysis while the app starts when both can proceed independently.
 
-For static analysis:
+Inspect existing CI results with `gh pr checks <NUMBER>`. Follow current
+repository instructions for local validation: use explicit affected test file
+paths when needed, and do not default to full lint, test, or typecheck suites.
+Record which checks ran locally, which ran in CI, and any coverage gaps.
 
-```bash
-pnpm typecheck
-```
-
-Also check:
+Read the changed code and check:
 
 - blocked or deprecated v1/v2-refactor files
 - hardcoded user-visible strings instead of i18n
@@ -95,16 +89,19 @@ Build test cases from the PR description and changed files:
 Consider UI rendering, interactions, persistence, light/dark themes, relevant
 window sizes, i18n, empty states, and rapid interaction only when in scope.
 
-Store screenshots and the report under `/tmp/pr-<NUMBER>/`:
+Store screenshots and the report under `.context/cherry-electron-dev/pr-<NUMBER>/`:
 
 ```bash
-mkdir -p /tmp/pr-<NUMBER>
+mkdir -p .context/cherry-electron-dev/pr-<NUMBER>
 ```
 
 If an isolated profile shows the migration wizard or splash, follow the shared
 troubleshooting guidance and startup logs. Do not reset or force-close data.
 
 ### 4. Clean up and restore
+
+Perform cleanup and restoration even if testing fails or is blocked, and
+report any incomplete cleanup or restoration.
 
 Use the shared `ephemeral` finish procedure. Stop only an instance launched by
 this PR-test workflow whose verified record remains `ephemeral`, agent-owned,
@@ -120,8 +117,8 @@ git checkout <ORIGINAL_BRANCH>
 
 ### 5. Report
 
-Save `/tmp/pr-<NUMBER>/report.md` and show it to the user. Match the report
-language to the user's language; the template uses English labels:
+Save `.context/cherry-electron-dev/pr-<NUMBER>/report.md` and show it to the user.
+Match the report language to the user's language; the template uses English labels:
 
 ```markdown
 # PR #<NUMBER> Test Report
@@ -129,13 +126,15 @@ language to the user's language; the template uses English labels:
 **Title**: <title>
 **Author**: @<author>
 **Branch**: <branch>
+**Tested HEAD**: <commit SHA>
 **Changed files**: <count>
 
 ## Static Analysis
 
 | Check | Result | Notes |
 | --- | --- | --- |
-| TypeScript typecheck | ✅/❌ | ... |
+| CI checks | ✅/❌/pending | ... |
+| Local checks | ✅/❌/not run | <exact commands and scope> |
 | Blocked-file check | ✅/⚠️ | ... |
 | Logging, i18n, and types | ✅/❌ | ... |
 
@@ -150,6 +149,11 @@ language to the user's language; the template uses English labels:
 ## Findings
 
 <findings or none>
+
+## Runtime and Cleanup
+
+<verified PID, CDP port, tracking file, evidence paths, whether the instance
+was started or borrowed, final process state, and restored branch>
 
 ## Conclusion
 

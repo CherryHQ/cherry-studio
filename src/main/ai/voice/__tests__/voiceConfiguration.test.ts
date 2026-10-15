@@ -4,6 +4,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
+  QWEN3_TTS_MODEL_ID,
   TranscriptionLanguageSource,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
@@ -13,6 +14,7 @@ import {
 import { resolveSpeechConfiguration, resolveTranscriptionConfiguration } from '../localAdapters'
 import { appleSpeechDefinition, appleTranscriptionDefinition } from '../localAdapters/apple'
 import { funAsrTranscriptionDefinition } from '../localAdapters/funasr'
+import { qwen3SpeechDefinition } from '../localAdapters/qwen3Tts'
 import { windowsSpeechDefinition, windowsTranscriptionDefinition } from '../localAdapters/windows'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
 
@@ -185,6 +187,46 @@ describe('voice product defaults', () => {
     })
     await expect(resolveSpeechConfiguration({ language: 'zh-CN' }, controller.signal, mac)).rejects.toMatchObject({
       name: 'AbortError'
+    })
+  })
+})
+
+describe('multilingual speech voices', () => {
+  const mlxMac = { ...mac, minorVersion: 2 }
+
+  it('preserves the same voice and the explicitly selected synthesis language', async () => {
+    vi.spyOn(qwen3SpeechDefinition, 'status').mockResolvedValue({ status: 'ready' })
+    for (const language of ['zh-CN', 'en-US', 'de-DE']) {
+      expect(
+        await resolveSpeechConfiguration({ modelId: QWEN3_TTS_MODEL_ID, voice: 'vivian', language }, undefined, mlxMac)
+      ).toMatchObject({ modelId: QWEN3_TTS_MODEL_ID, voice: 'vivian', language, status: { status: 'ready' } })
+    }
+  })
+
+  it('reports an unsupported voice-language combination without replacing the choice', async () => {
+    expect(
+      await resolveSpeechConfiguration(
+        { modelId: QWEN3_TTS_MODEL_ID, voice: 'vivian', language: 'ar-SA' },
+        undefined,
+        mlxMac
+      )
+    ).toMatchObject({ voice: 'vivian', language: 'ar-SA', status: { reason: 'voice_unavailable' } })
+  })
+
+  it('does not infer selected model readiness from an installed system voice', async () => {
+    vi.spyOn(appleSpeechDefinition, 'status').mockResolvedValue({ status: 'ready' })
+    vi.spyOn(qwen3SpeechDefinition, 'status').mockResolvedValue({ status: 'not_installed', reason: 'model_required' })
+    expect(
+      await resolveSpeechConfiguration(
+        { modelId: QWEN3_TTS_MODEL_ID, voice: 'vivian', language: 'en-US' },
+        undefined,
+        mlxMac
+      )
+    ).toMatchObject({
+      modelId: QWEN3_TTS_MODEL_ID,
+      voice: 'vivian',
+      language: 'en-US',
+      status: { reason: 'model_required' }
     })
   })
 })

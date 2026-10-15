@@ -1,4 +1,5 @@
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 
 import { CPU_LOCAL_INFERENCE_PROFILE } from '../../runtime/inferenceAcceleration'
 import { type AsrInferenceContract, defineInferenceProcess } from '../../runtime/inferenceProcess'
@@ -7,7 +8,7 @@ import { resolveAsrModelPaths } from './modelPaths'
 import type { AsrSegment, AsrTranscribeSource } from './protocol'
 
 export const asrInferenceProcess = defineInferenceProcess<AsrInferenceContract>({
-  capability: 'asr',
+  artifacts: ['sherpa-onnx'],
   id: 'inference.asr',
   entry: 'inference-asr',
   resolveRuntimeProfile: () => CPU_LOCAL_INFERENCE_PROFILE
@@ -21,9 +22,10 @@ export class AsrInferenceService extends InferenceServiceBase<AsrInferenceContra
   }
 
   async transcribe(
+    modelId: LocalModelBundleId,
     source: AsrTranscribeSource,
     signal?: AbortSignal
   ): Promise<{ text: string; segments: AsrSegment[] }> {
-    return this.run('transcribe', { modelPaths: resolveAsrModelPaths(), source }, { signal })
+    return this.run(modelId, 'transcribe', () => ({ modelPaths: resolveAsrModelPaths(modelId), source }), { signal })
   }
 }

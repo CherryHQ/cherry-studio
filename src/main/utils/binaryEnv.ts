@@ -31,12 +31,31 @@ export function dedupePathSegments(segments: string[]): string[] {
   for (const segment of segments) {
     const trimmed = segment.trim()
     if (!trimmed) continue
-    const canonical = isWin ? path.normalize(trimmed).toLowerCase() : path.normalize(trimmed)
+    const canonical = canonicalPathSegment(trimmed)
     if (seen.has(canonical)) continue
     seen.add(canonical)
     unique.push(trimmed)
   }
   return unique
+}
+
+/**
+ * Canonical form used only for duplicate detection. `path.normalize` preserves a
+ * trailing separator, so `C:\Tools\` and `C:\Tools` compare unequal although
+ * they name one directory; dropping it collapses such spellings. A bare root
+ * keeps its separator — on Windows `C:` is drive-relative while `C:\` is the
+ * drive root, and on POSIX an empty result would mean `/`.
+ */
+function canonicalPathSegment(segment: string): string {
+  const normalized = isWin ? path.normalize(segment).toLowerCase() : path.normalize(segment)
+  // Strip only the platform's own trailing separator. On POSIX a backslash is an
+  // ordinary filename character, so `/usr/bin\` must stay distinct from `/usr/bin`
+  // rather than being collapsed into it by the trailing-separator rule.
+  const trailingSep = isWin ? /\\+$/ : /\/+$/
+  const stripped = normalized.replace(trailingSep, '')
+  if (stripped.length === 0) return normalized
+  if (isWin && /^[a-z]:$/i.test(stripped)) return normalized
+  return stripped
 }
 
 /** Root dir for all Cherry-managed binary state (mise data, shims, isolated home). */

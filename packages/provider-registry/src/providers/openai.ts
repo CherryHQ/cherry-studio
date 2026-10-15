@@ -25,6 +25,7 @@ export default defineProvider({
   ],
   metadata: {
     website: {
+      billing: 'https://platform.openai.com/settings/organization/billing/overview',
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs',
       models: 'https://platform.openai.com/docs/models',

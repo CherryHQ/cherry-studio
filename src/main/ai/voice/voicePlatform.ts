@@ -5,6 +5,8 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   FUNASR_SUPPORTED_PLATFORM_KEYS,
+  KOKORO_TTS_MODEL_ID,
+  SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS,
   WINDOWS_TTS_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
   type LocalSpeechModelId,
@@ -17,13 +19,15 @@ export interface VoiceEnvironment {
   platform: string
   arch?: string
   majorVersion?: number
+  minorVersion?: number
 }
 
 export function getVoiceEnvironment(): VoiceEnvironment {
   return {
     platform: process.platform,
     arch: process.arch,
-    majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion?.() ?? '', 10) : undefined
+    majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion?.() ?? '', 10) : undefined,
+    minorVersion: process.platform === 'darwin' ? Number(process.getSystemVersion?.().split('.')[1] ?? 0) : undefined
   }
 }
 
@@ -65,6 +69,7 @@ export function resolveDefaultSpeechModel(platform: {
   platform: string
   arch?: string
   majorVersion?: number
+  minorVersion?: number
 }): LocalSpeechModelId | undefined {
   if (platform.platform === 'win32' && platform.arch === 'x64') return WINDOWS_TTS_MODEL_ID
   if (
@@ -74,6 +79,8 @@ export function resolveDefaultSpeechModel(platform: {
     platform.majorVersion >= 13
   )
     return APPLE_TTS_MODEL_ID
+  if (SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS.some((key) => key === `${platform.platform}-${platform.arch}`))
+    return KOKORO_TTS_MODEL_ID
   return undefined
 }
 
