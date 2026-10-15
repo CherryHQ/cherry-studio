@@ -1,5 +1,4 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
-import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -65,29 +64,16 @@ const mocks = vi.hoisted(() => ({
   ensureAgentDataDirectory: vi.fn(),
   ensureAgentStorageDirectory: vi.fn(),
   buildPrompt: vi.fn(),
+  buildMemoriesSection: vi.fn(),
   getAppLanguage: vi.fn(),
-  resolveRequire: vi.fn(),
   loggerWarn: vi.fn(),
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
-  createAgentsMdLoader: vi.fn(),
-  loadAgentsMdInitialContext: vi.fn(),
-  agentsMdHook: vi.fn(async () => ({})),
   platform: { isLinux: false, isMac: false },
   isWin: false
 }))
-
-vi.mock('node:module', async (importOriginal) => {
-  const actual = await importOriginal<typeof NodeModule>()
-  return {
-    ...actual,
-    createRequire: vi.fn(() => ({
-      resolve: mocks.resolveRequire
-    }))
-  }
-})
 
 vi.mock('electron', () => ({
   app: { getVersion: vi.fn(() => '1.0.0-test') }
@@ -153,7 +139,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(function () {
     return {
       buildPromptParts: mocks.buildPrompt,
-      buildMemoriesSection: vi.fn(async () => undefined)
+      buildMemoriesSection: mocks.buildMemoriesSection
     }
   })
 }))
@@ -175,6 +161,7 @@ vi.mock('@application', () => ({
     // Session-keyed live state always resolves to the one real service instance (created below),
     // so the many per-test `applicationGet` overrides don't each have to register it.
     get: (name: string) => {
+      if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
       if (name === 'ClaudeCodeSessionStateService') return sessionStateService
       if (name === 'AgentSessionRuntimeService') {
         try {
@@ -205,10 +192,6 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
   CHERRY_NODE_PROXY_BYPASS_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
   CHERRY_NODE_PROXY_RULES_ENV: 'CHERRY_STUDIO_NODE_PROXY_RULES',
   getProxyEnvironment: mocks.getProxyEnvironment
-}))
-
-vi.mock('@main/utils/asar', () => ({
-  toAsarUnpackedPath: (input: string) => input
 }))
 
 vi.mock('@main/utils/file', async (importOriginal) => ({
@@ -254,12 +237,6 @@ vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
     register: mocks.approvalRegister
-  }
-}))
-
-vi.mock('../AgentsMdLoader', () => ({
-  AgentsMdLoader: {
-    create: mocks.createAgentsMdLoader
   }
 }))
 
@@ -313,10 +290,6 @@ describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
-    mocks.resolveRequire.mockImplementation((specifier: string) => {
-      if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
-      return `/native/${specifier}/claude`
-    })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -342,12 +315,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listMcpTools.mockReturnValue([])
     mocks.onToolsCacheUpdated.mockReturnValue({ dispose: mocks.mcpSubscriptionDispose })
     mocks.findByIdOrName.mockImplementation((idOrName: string) => ({ id: idOrName, name: idOrName }))
-    mocks.loadAgentsMdInitialContext.mockResolvedValue(undefined)
-    mocks.agentsMdHook.mockResolvedValue({})
-    mocks.createAgentsMdLoader.mockResolvedValue({
-      loadInitialContext: mocks.loadAgentsMdInitialContext,
-      createPreToolUseHook: () => mocks.agentsMdHook
-    })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -605,8 +572,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
-  it('appends root AGENTS.md context and wires lazy nested-instruction loading', async () => {
-    mocks.loadAgentsMdInitialContext.mockResolvedValue('ROOT AGENTS INSTRUCTIONS')
+  it.each([undefined, 'support'])('enables native AGENTS.md alongside CLAUDE.md (role: %s)', async (builtinRole) => {
+    mocks.getAgent.mockReturnValue({
+      ...mocks.getAgent(),
+      configuration: { builtin_role: builtinRole }
+    })
 
     const settings = await buildClaudeCodeSessionSettings(
       {
@@ -617,9 +587,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(mocks.createAgentsMdLoader).toHaveBeenCalledWith('/workspace/project')
-    expect(systemPromptText(settings.systemPrompt)).toContain('ROOT AGENTS INSTRUCTIONS')
-    expect(settings.hooks?.PreToolUse?.[0]?.hooks).toContain(mocks.agentsMdHook)
+    expect(settings.settings).toMatchObject({
+      pluginConfigs: {
+        'agents-md@builtin': { options: { instructionFiles: 'claude-md-and-agents-md' } }
+      }
+    })
+    expect(settings.settingSources).toEqual(builtinRole === 'support' ? [] : ['user', 'project', 'local'])
   })
 
   // The 400 this whole path exists to prevent: a turn is billed `input + max_tokens` against the
@@ -911,12 +884,10 @@ describe('buildClaudeCodeSessionSettings', () => {
         { mcpServerSnapshots: snapshot as never },
         agent
       )
-      expect(settings.mcpServers?.browser).toBeDefined()
+      expect(settings.mcpServers?.automation).toBeDefined()
       expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
       expect(settings.mcpServers?.['remote-browser']).toBeDefined()
-      expect(settings.allowedTools).toEqual(
-        expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
-      )
+      expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__automation__js', 'mcp__automation__reset']))
       expect(settings.allowedTools).not.toContain('mcp__browser__*')
     } finally {
       await service._doStop()
@@ -2815,7 +2786,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
-  it('does not inject a Cherry Assistant-only contract on every submitted prompt', async () => {
+  it('refreshes identity through the hooks mounted on a reused Claude connection', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -2832,7 +2803,20 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    expect(settings.hooks?.UserPromptSubmit).toBeUndefined()
+    const hook = settings.hooks!.UserPromptSubmit![0].hooks[0]
+    const submit = () =>
+      hook({ hook_event_name: 'UserPromptSubmit' } as never, undefined, {
+        signal: new AbortController().signal
+      })
+    mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
+    expect(await submit()).toMatchObject({
+      hookSpecificOutput: { additionalContext: '<agent_identity>Persona A</agent_identity>' }
+    })
+    mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona B</agent_identity>')
+    expect(await submit()).toMatchObject({
+      hookSpecificOutput: { additionalContext: '<agent_identity>Persona B</agent_identity>' }
+    })
+    expect(await submit()).toEqual({})
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
@@ -2849,10 +2833,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    // toolGuardHook (the declarative guard table) + skillDependencyAdvisoryHook + agentsMdHook +
-    // rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(5)
-
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>

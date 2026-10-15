@@ -158,10 +158,6 @@ jobs:
             # Setup installer
             find dist -name "*-win-x64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-win-x64-setup.exe \;
             find dist -name "*-win-arm64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-win-arm64-setup.exe \;
-
-            # Portable exe
-            find dist -name "*-win-x64-portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-win-x64-portable.exe \;
-            find dist -name "*-win-arm64-portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-win-arm64-portable.exe \;
           fi
 
           # macOS artifacts
@@ -176,39 +172,6 @@ jobs:
             find dist -name "*-linux-arm64.AppImage" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-linux-arm64.AppImage \;
           fi
 
-          # Copy update files
-          cp dist/latest*.yml renamed-artifacts/ || true
-
-      # Generate SHA256 checksums (Windows)
-      - name: Generate SHA256 checksums (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cd renamed-artifacts
-          echo "# SHA256 checksums for Windows - $(Get-Date -Format 'yyyy-MM-dd')" > SHA256SUMS.txt
-          Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
-            $file = $_.Name
-            $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
-            Add-Content -Path SHA256SUMS.txt -Value "$hash  $file"
-          }
-          cat SHA256SUMS.txt
-
-      # Generate SHA256 checksums (macOS/Linux)
-      - name: Generate SHA256 checksums (macOS/Linux)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          cd renamed-artifacts
-          echo "# SHA256 checksums for ${{ runner.os }} - $(date +'%Y-%m-%d')" > SHA256SUMS.txt
-          if command -v shasum &>/dev/null; then
-            # macOS
-            shasum -a 256 * 2>/dev/null | grep -v SHA256SUMS.txt >> SHA256SUMS.txt || echo "No files to hash" >> SHA256SUMS.txt
-          else
-            # Linux
-            sha256sum * 2>/dev/null | grep -v SHA256SUMS.txt >> SHA256SUMS.txt || echo "No files to hash" >> SHA256SUMS.txt
-          fi
-          cat SHA256SUMS.txt
-
       - name: List files to be uploaded
         shell: bash
         run: |
@@ -222,88 +185,76 @@ jobs:
           fi
           echo "总计: $(find renamed-artifacts -type f | wc -l) 个文件"
 
-      - name: Upload artifacts
+      - name: Upload nightly x64 installer
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-studio-nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
-          path: renamed-artifacts/*
-          retention-days: 3 # 保留3天
-          compression-level: 8
+          path: |
+            renamed-artifacts/*-x64-setup.exe
+            renamed-artifacts/*-x64.dmg
+            renamed-artifacts/*-x64.AppImage
+          archive: false
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload nightly arm64 installer
+        uses: actions/upload-artifact@v7
+        with:
+          path: |
+            renamed-artifacts/*-arm64-setup.exe
+            renamed-artifacts/*-arm64.dmg
+            renamed-artifacts/*-arm64.AppImage
+          archive: false
+          if-no-files-found: error
+          retention-days: 3
 
   Build-Summary:
+    name: Nightly downloads
     needs: nightly-build
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
     steps:
-      - name: Get date tag
-        id: date
-        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
+      - name: Summarize nightly artifacts
+        uses: actions/github-script@v8
         with:
-          path: all-artifacts
-          merge-multiple: false
-        continue-on-error: true
-
-      - name: Create summary report
-        run: |
-          echo "## ⚠️ 警告：这是每日构建版本" >> $GITHUB_STEP_SUMMARY
-          echo "此版本为自动构建的不稳定版本，仅供测试使用。不建议在生产环境中使用。" >> $GITHUB_STEP_SUMMARY
-          echo "安装此版本前请务必备份数据，并做好数据迁移准备。" >> $GITHUB_STEP_SUMMARY
-          echo "构建日期：$(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "## 📦 安装包校验和" >> $GITHUB_STEP_SUMMARY
-          echo "请在下载后验证文件完整性。提供 SHA256 校验和。" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Check each platform's artifacts and show checksums if available
-
-          # Windows
-          WIN_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-windows-2022"
-          if [ -d "$WIN_ARTIFACT_DIR" ] && [ -f "$WIN_ARTIFACT_DIR/SHA256SUMS.txt" ]; then
-            echo "### Windows 安装包" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat "$WIN_ARTIFACT_DIR/SHA256SUMS.txt" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### Windows 安装包" >> $GITHUB_STEP_SUMMARY
-            echo "❌ Windows 构建未成功完成或未生成校验和。" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # macOS
-          MAC_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-macos-latest"
-          if [ -d "$MAC_ARTIFACT_DIR" ] && [ -f "$MAC_ARTIFACT_DIR/SHA256SUMS.txt" ]; then
-            echo "### macOS 安装包" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat "$MAC_ARTIFACT_DIR/SHA256SUMS.txt" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### macOS 安装包" >> $GITHUB_STEP_SUMMARY
-            echo "❌ macOS 构建未成功完成或未生成校验和。" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Linux
-          LINUX_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-ubuntu-latest"
-          if [ -d "$LINUX_ARTIFACT_DIR" ] && [ -f "$LINUX_ARTIFACT_DIR/SHA256SUMS.txt" ]; then
-            echo "### Linux 安装包" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat "$LINUX_ARTIFACT_DIR/SHA256SUMS.txt" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### Linux 安装包" >> $GITHUB_STEP_SUMMARY
-            echo "❌ Linux 构建未成功完成或未生成校验和。" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "## ⚠️ Warning: This is a nightly build version" >> $GITHUB_STEP_SUMMARY
-          echo "This version is an unstable version built automatically and is only for testing. It is not recommended to use it in a production environment." >> $GITHUB_STEP_SUMMARY
-          echo "Please backup your data before installing this version and prepare for data migration." >> $GITHUB_STEP_SUMMARY
-          echo "Build date: $(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo,
+              run_id: context.runId,
+              per_page: 100
+            });
+            const platforms = { win: 'Windows', mac: 'macOS', linux: 'Linux' };
+            const rows = [];
+            for (const artifact of artifacts.sort((a, b) => a.name.localeCompare(b.name))) {
+              const match = /^cherry-studio-nightly-(\d{4})(\d{2})(\d{2})-(win|mac|linux)-(x64|arm64)(?:-setup\.exe|\.dmg|\.AppImage)$/.exec(artifact.name);
+              if (artifact.expired || !match) continue;
+              const [, year, month, day, platform, arch] = match;
+              const date = `${year}-${month}-${day}`;
+              const size = `${(artifact.size_in_bytes / 1024 / 1024).toFixed(1)} MiB`;
+              const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`;
+              rows.push(`| ${platforms[platform]} | ${arch} | ${date} | ${size} | [Download](${url}) |`);
+            }
+            const lines = [
+              '## ⚠️ 警告：这是每日构建版本',
+              '此版本为自动构建的不稳定版本，仅供测试使用。不建议在生产环境中使用。',
+              '安装此版本前请务必备份数据，并做好数据迁移准备。',
+              '',
+              '## ⚠️ Warning: This is a nightly build version',
+              'This version is an unstable version built automatically and is only for testing. It is not recommended to use it in a production environment.',
+              'Please backup your data before installing this version and prepare for data migration.',
+              '',
+              '## Nightly downloads',
+              '',
+              'Installers are available for 3 days. Sign in to GitHub to download the original file without an extra ZIP archive.',
+              '',
+              'Only available uploads are listed; check the build jobs for failures.',
+              ''
+            ];
+            if (rows.length) {
+              lines.push('| Platform | Architecture | Build date | Size | Download |',
+                '| --- | --- | --- | --- | --- |', ...rows);
+            } else {
+              lines.push('No nightly installers are available. Check the build jobs for details.');
+            }
+            await core.summary.addRaw(lines.join('\n') + '\n').write();

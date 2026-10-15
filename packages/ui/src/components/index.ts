@@ -1,4 +1,5 @@
 // Primitive Components
+export { BarVisualizer, type BarVisualizerProps, type BarVisualizerState } from './primitives/bar-visualizer'
 export { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from './primitives/avatar'
 export { default as CircularProgress, type CircularProgressProps } from './primitives/circular-progress'
 export { default as CopyButton } from './primitives/copy-button'
