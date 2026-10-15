@@ -146,6 +146,8 @@ export function buildPathRegistry() {
 
     // FunASR Nano and Silero VAD model files, downloaded on demand.
     'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
+    'feature.mlx.binary': path.join(appUserDataToolchain, 'mlx-node'),
+    'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),

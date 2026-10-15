@@ -17,13 +17,15 @@ export interface VoiceEnvironment {
   platform: string
   arch?: string
   majorVersion?: number
+  minorVersion?: number
 }
 
 export function getVoiceEnvironment(): VoiceEnvironment {
   return {
     platform: process.platform,
     arch: process.arch,
-    majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion?.() ?? '', 10) : undefined
+    majorVersion: process.platform === 'darwin' ? Number.parseInt(process.getSystemVersion?.() ?? '', 10) : undefined,
+    minorVersion: process.platform === 'darwin' ? Number(process.getSystemVersion?.().split('.')[1] ?? 0) : undefined
   }
 }
 
@@ -65,6 +67,7 @@ export function resolveDefaultSpeechModel(platform: {
   platform: string
   arch?: string
   majorVersion?: number
+  minorVersion?: number
 }): LocalSpeechModelId | undefined {
   if (platform.platform === 'win32' && platform.arch === 'x64') return WINDOWS_TTS_MODEL_ID
   if (

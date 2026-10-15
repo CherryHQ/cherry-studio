@@ -5815,6 +5815,7 @@
   "settings.voice.model.apple_asr": "Nhận dạng giọng nói hệ thống Apple",
   "settings.voice.model.apple_tts": "Giọng nói hệ thống Apple",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Nhận dạng giọng nói hệ thống Windows",
   "settings.voice.model.windows_tts": "Giọng nói hệ thống Windows",
   "settings.voice.playback.error.aborted": "Đã hủy phát giọng nói.",

@@ -1,5 +1,6 @@
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } from '@shared/data/presets/localModel'
+import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } from '@shared/data/presets/localModel'
 
+import mlxNodeRelease from './mlxNodeRelease.json'
 import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
 /**
@@ -22,7 +23,40 @@ import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
 const ONNXRUNTIME_NODE_TARBALL_SHA256 = '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9'
 
+const mlxRuntimeReleaseUrl = `https://github.com/${mlxNodeRelease.runtime.repository}/releases/download/${mlxNodeRelease.runtime.tag}`
+const mlxModelReleaseUrl = `https://github.com/${mlxNodeRelease.model.repository}/releases/download/${mlxNodeRelease.model.tag}`
+const mlxRuntimeMirrorUrl = `https://www.modelscope.cn/models/${mlxNodeRelease.runtime.modelscope.repo}/resolve/${mlxNodeRelease.runtime.modelscope.revision}`
+const mlxModelMirrorUrl = `https://www.modelscope.cn/models/${mlxNodeRelease.model.modelscope.repo}/resolve/${mlxNodeRelease.model.modelscope.revision}`
+
 export const SHARED_ARTIFACTS = {
+  'mlx-node': {
+    id: 'mlx-node',
+    version: mlxNodeRelease.sourceRevision,
+    minimumMacOS: '26.2',
+    installDirKey: 'feature.mlx.binary',
+    provenance: {
+      license: {
+        spdx: 'MIT',
+        url: `https://github.com/mlx-node/mlx-node/blob/${mlxNodeRelease.sourceRevision}/LICENSE`
+      },
+      upstream: { url: 'https://github.com/mlx-node/mlx-node', revision: mlxNodeRelease.sourceRevision }
+    },
+    platforms: {
+      'darwin-arm64': {
+        packageName: 'cherry-mlx-node',
+        tarballUrls: {
+          china: `${mlxRuntimeMirrorUrl}/${mlxNodeRelease.runtime.asset}`,
+          global: `${mlxRuntimeReleaseUrl}/${mlxNodeRelease.runtime.asset}`
+        },
+        tarballSha256: mlxNodeRelease.runtime.sha256,
+        tarballPrefix: 'runtime/',
+        // The native files are unchanged; retain the directory of existing installations.
+        installSubdir: 'mlx-node-5db3d24bc87a-r1/darwin/arm64',
+        entryFile: mlxNodeRelease.runtime.entryFile,
+        supportFiles: mlxNodeRelease.runtime.supportFiles
+      }
+    }
+  },
   /** Native onnxruntime binding, downloaded on demand rather than bundled: the npm
    * package carries every platform's binaries, so shipping it would add hundreds of
    * MB to an installer for users who never touch a local model. `dist/binding.js` is
@@ -142,6 +176,37 @@ export const SHARED_ARTIFACTS = {
 } as const satisfies Record<SharedArtifactId, SharedArtifact>
 
 export const LOCAL_MODEL_BUNDLES = {
+  'qwen3-tts-0.6b-customvoice-8bit': {
+    id: 'qwen3-tts-0.6b-customvoice-8bit',
+    capability: 'tts',
+    installDirKey: 'feature.tts.qwen3',
+    requires: ['mlx-node'],
+    runtime: { architecture: 'qwen3-tts' },
+    provenance: {
+      license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice' },
+      upstream: {
+        url: 'https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice',
+        revision: mlxNodeRelease.modelRevision
+      },
+      conversion: {
+        url: 'https://github.com/mlx-node/mlx-node',
+        revision: mlxNodeRelease.sourceRevision,
+        license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice' }
+      }
+    },
+    files: mlxNodeRelease.model.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      urls: {
+        china: `${mlxModelMirrorUrl}/${file.relPath}`,
+        global: `${mlxModelReleaseUrl}/${file.asset}`
+      },
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(1, Math.round(file.sizeBytes / 1_000_000))
+    }))
+  },
   /** Text embedding for the knowledge base. The four files are what transformers.js
    * needs to load the q8 weights offline; the repo's other quantizations are not fetched. */
   'qwen3-embedding-0.6b': {
@@ -244,6 +309,7 @@ export const LOCAL_MODEL_BUNDLES = {
     capability: 'asr',
     installDirKey: 'feature.asr.funasr',
     requires: ['sherpa-onnx'],
+    runtime: { architecture: 'funasr-nano' },
     provenance: {
       license: {
         spdx: 'Apache-2.0',
@@ -467,10 +533,9 @@ export function getSharedArtifact(id: SharedArtifactId): SharedArtifact {
   return SHARED_ARTIFACTS[id]
 }
 
-/** The one bundle serving a capability. Throws rather than returning undefined:
- * a capability with no bundle is a catalog bug, not a runtime condition. */
-export function bundleForCapability(capability: ModelBundle['capability']): ModelBundle {
-  return getModelBundle(LOCAL_MODEL_BUNDLE_BY_CAPABILITY[capability])
+/** Recommended bundle for consumers without explicit model selection. */
+export function defaultBundleForCapability(capability: ModelBundle['capability']): ModelBundle {
+  return getModelBundle(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY[capability])
 }
 
 /** The transformers.js quantization selector for a bundle's weights. Throws when the

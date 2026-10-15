@@ -4,6 +4,17 @@ export const APPLE_ASR_MODEL_ID = 'local-voice::apple-system-asr' as const
 export const APPLE_TTS_MODEL_ID = 'local-voice::apple-system-tts' as const
 export const WINDOWS_ASR_MODEL_ID = 'local-voice::windows-system-asr' as const
 export const WINDOWS_TTS_MODEL_ID = 'local-voice::windows-system-tts' as const
+export const QWEN3_TTS_MODEL_ID = 'local-voice::qwen3-tts-0.6b-customvoice' as const
+export const QWEN3_TTS_BUNDLE_ID = 'qwen3-tts-0.6b-customvoice-8bit' as const
+
+export interface LocalSpeechVoice {
+  id: string
+  name: string
+  locale: string
+  languages?: readonly string[]
+}
+
+export const FUNASR_BUNDLE_ID = 'funasr-nano-int8' as const
 export const FUNASR_MODEL_ID = 'local-voice::funasr-nano' as const
 export const FUNASR_SUPPORTED_PLATFORM_KEYS = [
   'darwin-arm64',
@@ -31,10 +42,11 @@ export const LOCAL_VOICE_MODEL_IDS = [
   APPLE_TTS_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
-  FUNASR_MODEL_ID
+  FUNASR_MODEL_ID,
+  QWEN3_TTS_MODEL_ID
 ] as const
 export type LocalVoiceModelId = (typeof LOCAL_VOICE_MODEL_IDS)[number]
-export type LocalSpeechModelId = typeof APPLE_TTS_MODEL_ID | typeof WINDOWS_TTS_MODEL_ID
+export type LocalSpeechModelId = typeof APPLE_TTS_MODEL_ID | typeof WINDOWS_TTS_MODEL_ID | typeof QWEN3_TTS_MODEL_ID
 export type LocalTranscriptionModelId = typeof APPLE_ASR_MODEL_ID | typeof WINDOWS_ASR_MODEL_ID | typeof FUNASR_MODEL_ID
 
 export interface LocalVoiceModelFacts {
@@ -48,6 +60,15 @@ export interface LocalVoiceModelFacts {
 }
 
 export const LOCAL_VOICE_MODELS: readonly LocalVoiceModelFacts[] = Object.freeze([
+  Object.freeze({
+    id: QWEN3_TTS_MODEL_ID,
+    providerId: 'local-voice',
+    name: 'Qwen3-TTS 0.6B CustomVoice',
+    capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_GENERATION]),
+    inputModalities: Object.freeze([MODALITY.TEXT]),
+    outputModalities: Object.freeze([MODALITY.AUDIO]),
+    supportsStreaming: false
+  }),
   Object.freeze({
     id: APPLE_ASR_MODEL_ID,
     providerId: 'local-voice',

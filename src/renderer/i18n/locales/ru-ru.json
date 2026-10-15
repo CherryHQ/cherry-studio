@@ -5815,6 +5815,7 @@
   "settings.voice.model.apple_asr": "Системное распознавание речи Apple",
   "settings.voice.model.apple_tts": "Системный голос Apple",
   "settings.voice.model.funasr": "FunASR Nano",
+  "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Системное распознавание речи Windows",
   "settings.voice.model.windows_tts": "Системный голос Windows",
   "settings.voice.playback.error.aborted": "Воспроизведение речи отменено.",
