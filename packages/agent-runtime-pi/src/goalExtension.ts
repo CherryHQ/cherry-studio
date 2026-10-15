@@ -592,7 +592,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
         stop('no_progress')
         return undefined
       }
-      if (goal.wrapUpDone) {
+      // A cap lowered to the running round leaves no room for a wrap-up either.
+      if (goal.wrapUpDone || goal.roundsStarted >= goal.maxGoalRounds) {
         stop(goal.roundsStarted >= goal.maxGoalRounds ? 'round_limit' : 'budget_exhausted')
         return undefined
       }

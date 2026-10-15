@@ -41,6 +41,27 @@ describe('goal caps and budgets', () => {
     })
   })
 
+  // Breaks when the cap is enforced only through the wrap-up flag: a cap lowered to the running
+  // round would still get one more (wrap-up) request.
+  it('a cap lowered to the round that is running ends the goal with that round', async () => {
+    const { session: s, host, calls } = await goalSession([working])
+    let lowered = false
+    s.subscribe((event) => {
+      if (event.type !== 'turn_end' || lowered) return
+      lowered = true
+      void s.prompt('/goal rounds 1')
+    })
+    await promptIdle(s, '/goal Keep working')
+
+    expect(calls).toHaveLength(1)
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 1,
+      maxGoalRounds: 1,
+      lastStop: { code: 'round_limit' }
+    })
+  })
+
   it('after round_limit, resume is refused until the cap is raised, then one more round runs', async () => {
     const { session: s, host } = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 1 } }))
     await promptIdle(s, '/goal Keep working')
