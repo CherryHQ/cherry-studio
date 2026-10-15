@@ -29,7 +29,7 @@ export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: Quick
           type="button"
           variant="ghost"
           size="icon-sm"
-          className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
+          className={`${COMPOSER_SEND_ACCESSORY_BUTTON_CLASS} [&>svg]:!size-4.5`}
           aria-label={typeof label === 'string' ? label : undefined}
           data-active={launcher?.active || undefined}
           disabled={!launcher || launcher.disabled}

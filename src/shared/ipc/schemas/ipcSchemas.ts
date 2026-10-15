@@ -45,7 +45,7 @@ import { type TranslateEventSchemas, translateRequestSchemas } from './translate
 import { trashRequestSchemas } from './trash'
 import { type VoiceEventSchemas, voiceRequestSchemas } from './voice'
 import { webSearchRequestSchemas } from './webSearch'
-import { webviewRequestSchemas } from './webview'
+import { type WebviewEventSchemas, webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
@@ -136,6 +136,7 @@ export type IpcEventSchemas = AiEventSchemas &
   TabEventSchemas &
   TranslateEventSchemas &
   VoiceEventSchemas &
+  WebviewEventSchemas &
   WindowEventSchemas
 /** Union of all declared event names. */
 export type IpcEventName = keyof IpcEventSchemas

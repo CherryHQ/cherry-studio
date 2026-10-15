@@ -714,6 +714,10 @@ resources (extensions, project skills/prompts/themes), it must add a Cherry-owne
 trust prompt and persisted decision first, then selectively pass that decision
 into pi resource loading rather than widening the `no*` flags wholesale.
 
+Before constructing the prompt or SDK session, Pi startup prepares the captured
+session workspace: it creates an app-owned system directory or validates that a
+user directory exists, preventing missing system directories from aborting startup.
+
 Connection startup uses an optimistic materialization snapshot. Cherry warms
 the MCP catalog, captures every reconcilable database/catalog fact, constructs
 the runtime from that captured provider, model, enabled-key set, skill paths,
