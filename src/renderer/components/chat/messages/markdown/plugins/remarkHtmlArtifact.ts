@@ -109,7 +109,7 @@ const RAW_TEXT_CLOSE_REGEXES = new Map(RAW_TEXT_ELEMENT_NAMES.map((name) => [nam
 // (`title="</details>"` is legal HTML whose decoy must not reach the depth counter); a generic
 // tag does the same so a quoted `>` never ends the tag early.
 const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
-  `<!--[\\s\\S]*?-->|<(${RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
+  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
   'gi'
 )
 
@@ -126,6 +126,8 @@ interface ContainerScanState {
   inComment?: boolean
   inTag?: boolean
   pendingQuote?: string
+  inCDATA?: boolean
+  pendingRawText?: string
 }
 
 interface ContainerScanResult {
@@ -208,12 +210,27 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
     }
 
     // An unfinished tag opened in an earlier node keeps swallowing content until its real `>`
-    // (quoted values first); a literal `</details>` inside it is attribute value text.
+    // (quoted values first); a literal `</details>` inside it is attribute value text. When
+    // the tag completes, remember whether it opens a raw-text body.
     if (state.inTag) {
       const end = findUnfinishedTagEnd(value, 0, state)
       if (end === undefined) return { closed: false }
       position = end + 1
       state.inTag = false
+      if (state.pendingRawText !== undefined) {
+        state.rawText = state.pendingRawText
+        state.pendingRawText = undefined
+      }
+      continue
+    }
+
+    // An unterminated CDATA section keeps swallowing content — across later nodes — until
+    // its `]]>`; foreign-content text inside it is never a disclosure boundary.
+    if (state.inCDATA) {
+      const end = value.indexOf(']]>', position)
+      if (end === -1) return { closed: false }
+      position = end + 3
+      state.inCDATA = false
       continue
     }
 
@@ -223,6 +240,7 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
     // complete comment would have matched as the token itself): it swallows the rest of the
     // input — across later nodes — so no boundary inside it may be trusted.
     const commentStart = value.indexOf('<!--', position)
+    const cdataStart = value.indexOf('<![CDATA[', position)
     // Same detection for a tag opener that precedes the first complete token: the token
     // alternatives match ANY complete tag at its own position, so an opener earlier than the
     // first match never completes in this node — its attribute text may hide boundaries.
@@ -232,14 +250,31 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
     const tagFirst =
       tagStart !== undefined &&
       (match === null || tagStart < match.index) &&
-      (commentStart === -1 || tagStart < commentStart)
+      (commentStart === -1 || tagStart < commentStart) &&
+      (cdataStart === -1 || tagStart < cdataStart)
     if (tagFirst) {
       state.inTag = true
+      // A raw-text element whose attribute list dangles into later nodes opens its raw-text
+      // body the moment the tag completes — remember the element name for that transition.
+      const tagName = /^<([a-z][a-z0-9-]*)/i.exec(value.slice(tagStart))?.[1]?.toLowerCase()
+      if (tagName !== undefined && RAW_TEXT_CLOSE_REGEXES.has(tagName)) state.pendingRawText = tagName
       const end = findUnfinishedTagEnd(value, tagStart + 1, state)
       if (end === undefined) return { closed: false }
       position = end + 1
       state.inTag = false
+      if (state.pendingRawText !== undefined) {
+        state.rawText = state.pendingRawText
+        state.pendingRawText = undefined
+      }
       continue
+    }
+    const cdataFirst =
+      cdataStart !== -1 &&
+      (match === null || cdataStart < match.index) &&
+      (commentStart === -1 || cdataStart < commentStart)
+    if (cdataFirst) {
+      state.inCDATA = true
+      return { closed: false }
     }
     if (commentStart !== -1 && (match === null || commentStart < match.index)) {
       state.inComment = true
@@ -472,6 +507,9 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
   // the range must keep their closes raw instead of letting them become code.
   const processRange = (items: RootContent[], from: number, to: number, retainedOpens: number): void => {
     let pendingCloses = retainedOpens
+    // Lexical state for resolving retained closes across the body's html nodes (depth 1 means
+    // "the next unmatched close is the retained one"; re-armed after each resolution).
+    const pendingScanState: ContainerScanState = { count: 1 }
     for (let index = from; index < to; index += 1) {
       const documentEndIndex = findHtmlDocumentEnd(items, index, to)
       if (documentEndIndex !== undefined) {
@@ -539,7 +577,16 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
       const child = items[index]
       if (!child) continue
       if (child.type === 'html' && pendingCloses > 0) {
-        const close = findUnmatchedDetailsClose(child.value)
+        // Resolve the retained close with the SAME cross-node lexical state the body built up
+        // (a textarea opened in an earlier body node holds its literal `</details>` until the
+        // real end tag). The scan seeds depth 1 — a close with no open before it is exactly
+        // the retained boundary — and re-arms after every resolution for the next one.
+        pendingScanState.count = 1
+        const scan = scanContainerBoundaries(child.value, pendingScanState)
+        const close =
+          scan.closed && scan.closeStart !== undefined && scan.closeEnd !== undefined
+            ? { start: scan.closeStart, end: scan.closeEnd }
+            : undefined
         if (close !== undefined) {
           // This close belongs to an opening retained in a shared opening node: emit it raw so
           // the retained disclosure actually closes instead of swallowing the following prose.

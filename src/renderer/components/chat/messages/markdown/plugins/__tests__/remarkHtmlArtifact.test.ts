@@ -633,6 +633,94 @@ Body
     expect((docNode as { value: string }).value).not.toContain('</details>')
   })
 
+  // A multiline raw-text OPENING tag (`<textarea title="…` spanning nodes) must remember the
+  // element name while its attribute list completes: once the tag finishes, the raw-text body
+  // starts — the literal `</details>` inside it is body text, not a boundary.
+  it('enters raw-text state when a multiline textarea opener completes across nodes', () => {
+    const source = `<details>
+<summary>Spec</summary>
+
+<html><body>
+<textarea title="example
+
+<div>continued">literal </details>
+
+</textarea>
+<style>p { color: red; }</style>
+</body></html>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // The document assembles through the multiline attribute nodes; the literal close inside
+    // the textarea body does not end the disclosure, and `After` stays outside.
+    expect(tree.children.at(-2)).toMatchObject({ type: 'html', value: '</details>' })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph' })
+    const docNode = tree.children.find(
+      (child) => child.type === 'code' && (child as { value: string }).value.includes('<html>')
+    )
+    expect(docNode).toBeDefined()
+    expect((docNode as { value: string }).value).toContain('</textarea>')
+    expect((docNode as { value: string }).value).toContain('</html>')
+  })
+
+  // Foreign-content CDATA sections are text: a `</details>` inside `<![CDATA[…]]>` is never a
+  // boundary, and the wrapped document keeps its exact artifact source.
+  it('never pairs on </details> inside SVG CDATA in an embedded document', () => {
+    const source = `<details>
+<summary>Spec</summary>
+
+<html><body><svg><text><![CDATA[literal </details>]]></text></svg><style>p { color: red; }</style></body></html>
+
+</details>`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html'])
+    const docNode = tree.children[1] as { value: string }
+    expect(docNode.value).toContain('<![CDATA[literal </details>]]>')
+    expect(docNode.value).toContain('<style>p { color: red; }</style>')
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+  })
+
+  // The retained-close fallback must carry lexical state across body nodes: a textarea
+  // spanning several nodes holds a literal `</details>` that is NOT the inner close.
+  it('resolves retained closes with cross-node lexical state', () => {
+    const source = `<details><summary>One</summary><details><summary>Two</summary>
+
+<div><textarea>
+
+</details>
+
+</textarea>
+</div>
+
+inner two
+
+</details>
+
+</details>`
+    const tree = parse(source)
+
+    // Shape: [shared open raw, div+textarea code, literal close CODE (textarea body — never
+    // a retained close), textarea/div tail code, `inner two` paragraph, two real closes raw].
+    const types = tree.children.map((child) => child.type)
+    expect(types).toEqual(['html', 'code', 'code', 'code', 'paragraph', 'html', 'html'])
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues[0]).toContain('<details>')
+    expect(htmlValues[1]).toBe('</details>')
+    expect(htmlValues[2]).toBe('</details>')
+    const literalIndex = types.findIndex(
+      (type, index) => type === 'code' && (tree.children[index] as { value: string }).value === '</details>'
+    )
+    expect(literalIndex).toBe(2)
+    const body = tree.children.find(
+      (child) => child.type === 'paragraph' && JSON.stringify(child).includes('inner two')
+    )
+    expect(body).toBeDefined()
+  })
+
   describe('classifyHtmlArtifactSource', () => {
     it.each([
       ['<div>Fragment</div>', 'fragment'],
