@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ImgHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,26 +21,36 @@ vi.mock('@renderer/components/ImageViewer', async () => {
   return {
     default: function MockImageViewer({
       contextMenuTransform,
-      preview: _preview,
+      onClick,
       onContextMenu,
+      preview,
       ...props
     }: ImgHTMLAttributes<HTMLImageElement> & {
       contextMenuTransform?: { rotation?: number }
       preview?: unknown
     }) {
       const [showContextActions, setShowContextActions] = React.useState(false)
-      void _preview
+      const [previewOpen, setPreviewOpen] = React.useState(false)
+      const previewEnabled = preview !== false
 
       return (
         <>
           <img
             {...props}
             data-context-menu-rotation={contextMenuTransform?.rotation}
+            data-preview-enabled={previewEnabled ? 'true' : 'false'}
+            onClick={(event) => {
+              onClick?.(event)
+              if (!event.defaultPrevented && previewEnabled) {
+                setPreviewOpen(true)
+              }
+            }}
             onContextMenu={(event) => {
               onContextMenu?.(event)
               setShowContextActions(true)
             }}
           />
+          {previewOpen && <div data-testid="image-preview-dialog" role="dialog" aria-label="preview.label" />}
           {showContextActions && (
             <>
               <button type="button">common.copy</button>
@@ -692,5 +702,72 @@ describe('Artboard', () => {
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(4) rotate(0deg)')
     expect(zoomInButton).toBeDisabled()
     expect(zoomOutButton).not.toBeDisabled()
+  })
+
+  describe('generated image inspection (#20739)', () => {
+    it('zooms with the mouse wheel over the artboard and clamps at the toolbar limits', async () => {
+      // Regression: generated images were only zoomable via toolbar clicks; wheel
+      // over the artboard must zoom in/out and stay within 0.25x–4x.
+      render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const transformTarget = screen.getByTestId('artboard-image-transform')
+      const viewer = await screen.findByTestId('artboard-viewer')
+
+      act(() => {
+        const zoomInEvent = new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true })
+        viewer.dispatchEvent(zoomInEvent)
+        expect(zoomInEvent.defaultPrevented).toBe(true)
+      })
+      expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1.25) rotate(0deg)')
+
+      act(() => {
+        viewer.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }))
+      })
+      expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+
+      act(() => {
+        for (let i = 0; i < 20; i++) {
+          viewer.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }))
+        }
+      })
+      expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(4) rotate(0deg)')
+
+      act(() => {
+        for (let i = 0; i < 30; i++) {
+          viewer.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }))
+        }
+      })
+      expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(0.25) rotate(0deg)')
+    })
+
+    it('opens the shared image preview on click without a drag', () => {
+      // Regression: preview={false} blocked the standard click-to-open viewer.
+      render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const image = document.querySelector('img') as HTMLImageElement
+      expect(image).toHaveAttribute('data-preview-enabled', 'true')
+
+      firePointer(image, 'pointerdown', { button: 0, clientX: 10, clientY: 10, pointerId: 1 })
+      firePointer(image, 'pointerup', { clientX: 10, clientY: 10, pointerId: 1 })
+      fireEvent.click(image)
+
+      expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
+    })
+
+    it('does not open the preview after a drag-pan', () => {
+      // Regression: enabling preview must not steal the existing drag-to-pan gesture.
+      render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const image = document.querySelector('img') as HTMLImageElement
+      const transformTarget = screen.getByTestId('artboard-image-transform')
+
+      firePointer(image, 'pointerdown', { button: 0, clientX: 10, clientY: 10, pointerId: 1 })
+      firePointer(image, 'pointermove', { clientX: 40, clientY: 50, pointerId: 1 })
+      firePointer(image, 'pointerup', { clientX: 40, clientY: 50, pointerId: 1 })
+      fireEvent.click(image)
+
+      expect(transformTarget.style.transform).toBe('translate(30px, 40px) scale(1) rotate(0deg)')
+      expect(screen.queryByTestId('image-preview-dialog')).not.toBeInTheDocument()
+    })
   })
 })

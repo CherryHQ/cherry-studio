@@ -82,7 +82,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     return {
       messageId: saved.id,
       messageRevision: String(Date.parse(saved.updatedAt)),
-      historyRevision: String(Date.parse(agentSessionService.getConversationById(this.opts.sessionId).updatedAt))
+      historyRevision: String(Date.parse(agentSessionService.getById(this.opts.sessionId).updatedAt))
     }
   }
 

@@ -22,22 +22,26 @@ export function currentPlatformKey(): PlatformKey {
  */
 export interface SharedArtifact {
   id: SharedArtifactId
-  packageName: string
   version: string
-  /** sha256 of the whole npm tarball. Regenerate with:
-   * `curl -sL <registry>/<pkg>/-/<pkg>-<version>.tgz | shasum -a 256` */
-  tarballSha256: string
+  minimumMacOS?: string
   installDirKey: PathKey
   /** Platforms this artifact ships binaries for. A missing entry means *unsupported*:
    * every bundle requiring it reads as `unsupported` there rather than offering a
    * download that could only fail (today darwin-x64, which onnxruntime-node skips). */
   platforms: Partial<Record<PlatformKey, ArtifactPlatformFiles>>
+  provenance?: CatalogProvenance
 }
 
-export type SharedArtifactId = 'onnxruntime-node'
+export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx' | 'mlx-node'
+
+export type DownloadUrls = readonly string[] | { china: string; global: string }
 
 /** The files one platform needs, and where they sit inside the tarball. */
 export interface ArtifactPlatformFiles {
+  packageName: string
+  tarballUrls?: DownloadUrls
+  /** sha256 of the whole npm tarball. */
+  tarballSha256: string
   /** Tarball path prefix holding this platform's files, e.g. `package/bin/napi-v6/darwin/arm64/`.
    * Entries are flattened onto the install dir, so its depth is also the strip count. */
   tarballPrefix: string
@@ -51,6 +55,21 @@ export interface ArtifactPlatformFiles {
   supportFiles: string[]
 }
 
+export type ModelSourceId = 'huggingface' | 'hf-mirror' | 'modelscope'
+
+export interface BundleFileSource {
+  source: ModelSourceId
+  repo: string
+  revision: string
+  remoteFile: string
+}
+
+export interface CatalogProvenance {
+  license: { spdx: string; url: string }
+  upstream: { url: string; revision: string }
+  conversion?: { url: string; revision: string; license: { spdx: string; url: string } }
+}
+
 /** A file's bytes are transformed before they land on disk. */
 export type BundleFileDerivation = 'paddle_dict_from_inference_yml'
 
@@ -59,15 +78,11 @@ export type BundleFileDerivation = 'paddle_dict_from_inference_yml'
  * {@link derivation} rewrites them, what lands at {@link relPath} is the derived
  * output, so {@link minBytes} — the disk-scan floor — describes that instead.
  */
-export interface BundleFile {
+interface BundleFileBase {
   /** Stable name for addressing one file of a bundle (`detection`, `dictionary`, …). */
   key: string
   /** Where it lands, relative to the bundle's install dir. May nest (`onnx/model.onnx`). */
   relPath: string
-  /** HuggingFace / ModelScope repo id, resolved against a mirror at download time. */
-  repo: string
-  /** Filename within the repo. */
-  remoteFile: string
   /** sha256 of the fetched bytes, verified while streaming. Mandatory: it is the only
    * thing standing between a truncated response / LFS pointer / captive-portal page and
    * the model dir, and it is what lets a bad mirror fall through to the next one. */
@@ -79,6 +94,20 @@ export interface BundleFile {
   weight: number
   derivation?: BundleFileDerivation
 }
+
+export type BundleFile = BundleFileBase &
+  (
+    | { repo: string; remoteFile: string; sources?: never; urls?: never }
+    | { urls: DownloadUrls; sizeBytes: number; repo?: never; remoteFile?: never; sources?: never }
+    | {
+        urls?: never
+        sources: readonly [BundleFileSource, ...BundleFileSource[]]
+        /** Exact byte length of the pinned object. Complements sha256 for provenance audits. */
+        sizeBytes: number
+        repo?: never
+        remoteFile?: never
+      }
+  )
 
 /**
  * The unit users install, and the catalog's first-class citizen: one capability's
@@ -104,7 +133,8 @@ export interface ModelBundle {
   requires: SharedArtifactId[]
   /** Metadata inference needs but acquisition does not. `dtype` is the transformers.js
    * quantization selector, which must match the weights file the bundle actually installs. */
-  runtime?: { dtype: string }
+  runtime?: { dtype?: string; architecture?: 'funasr-nano' | 'qwen3-tts' }
+  provenance?: CatalogProvenance
 }
 
 /**

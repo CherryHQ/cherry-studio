@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   applyAgentEvents,
@@ -159,6 +159,125 @@ describe('atomic event recovery', () => {
       ok: false,
       reason: 'gap'
     })
+  })
+
+  it('keeps encoded input proportional to streamed text across many appends', () => {
+    const first = applyAgentEvents(state(), batch(initial), {}, integrity)
+    if (!first.ok) throw new Error(first.reason)
+    let projection = first.projection
+    const delta = '🌍'.repeat(128)
+    const encoder = vi.spyOn(TextEncoder.prototype, 'encode')
+    try {
+      for (let index = 0; index < 128; index++) {
+        const result = applyAgentEvents(
+          projection,
+          batch([
+            {
+              seq: String(index + 3),
+              kind: 'part.append',
+              payload: {
+                messageId: 'm',
+                partId: 'p',
+                baseRevision: String(index),
+                revision: String(index + 1),
+                offsetUtf8: String(3 + index * 512),
+                text: delta
+              }
+            }
+          ]),
+          {},
+          integrity
+        )
+        if (!result.ok) throw new Error(result.reason)
+        projection = result.projection
+      }
+      const text = '你' + delta.repeat(128)
+      expect(projection.parts.p).toMatchObject({ content: { text }, revision: '128' })
+      const encodedUnits = encoder.mock.calls.reduce((sum, [input]) => sum + (input?.length ?? 0), 0)
+      expect(encodedUnits).toBeLessThan(text.length * 6)
+    } finally {
+      encoder.mockRestore()
+    }
+  })
+
+  it('preserves cached offsets after a failed batch and recovers them after serialization or replacement', () => {
+    const first = applyAgentEvents(state(), batch(initial), {}, integrity)
+    if (!first.ok) throw new Error(first.reason)
+    const append: AgentEventBatch['events'][number] = {
+      seq: '3',
+      kind: 'part.append',
+      payload: { messageId: 'm', partId: 'p', baseRevision: '0', revision: '1', offsetUtf8: '3', text: '🌍' }
+    }
+    expect(
+      applyAgentEvents(
+        first.projection,
+        batch([
+          append,
+          {
+            seq: '4',
+            kind: 'part.append',
+            payload: { ...append.payload, baseRevision: '1', revision: '2', offsetUtf8: '3' }
+          }
+        ]),
+        {},
+        integrity
+      )
+    ).toEqual({ ok: false, reason: 'content' })
+    const next = applyAgentEvents(first.projection, batch([append]), {}, integrity)
+    if (!next.ok) throw new Error(next.reason)
+    for (const projection of [next.projection, JSON.parse(JSON.stringify(next.projection)) as AgentProjection]) {
+      const result = applyAgentEvents(
+        projection,
+        batch([
+          {
+            seq: '4',
+            kind: 'part.append',
+            payload: { ...append.payload, baseRevision: '1', revision: '2', offsetUtf8: '7', text: '好' }
+          },
+          {
+            seq: '5',
+            kind: 'part.replaced',
+            payload: {
+              messageId: 'm',
+              baseRevision: '2',
+              part: { partId: 'p', revision: '3', kind: 'text', content: { text: '新' }, state: 'streaming' }
+            }
+          },
+          { seq: '6', kind: 'part.append', payload: { ...append.payload, baseRevision: '3', revision: '4' } },
+          {
+            seq: '7',
+            kind: 'part.completed',
+            payload: {
+              messageId: 'm',
+              partId: 'p',
+              baseRevision: '4',
+              revision: '5',
+              byteLength: '7',
+              sha256: integrity.sha256(new TextEncoder().encode('新🌍'))
+            }
+          }
+        ]),
+        {},
+        integrity
+      )
+      if (!result.ok) throw new Error(result.reason)
+      expect(result.projection.parts.p).toMatchObject({ content: { text: '新🌍' }, state: 'completed' })
+      expect(
+        applyAgentEvents(
+          result.projection,
+          batch([
+            {
+              seq: '8',
+              kind: 'part.append',
+              payload: { ...append.payload, baseRevision: '5', revision: '6', offsetUtf8: '7' }
+            }
+          ]),
+          {},
+          integrity
+        )
+      ).toEqual({ ok: false, reason: 'content' })
+    }
+    expect(first.projection.parts.p).toMatchObject({ content: { text: '你' } })
   })
 
   it('rejects false completion digests and events from another session or epoch', () => {
