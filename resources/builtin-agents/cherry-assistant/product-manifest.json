@@ -66,6 +66,7 @@
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
+      "/settings/computer-use",
       "/settings/data",
       "/settings/dependencies",
       "/settings/device-connections",
@@ -87,6 +88,7 @@
       "/settings/skills",
       "/settings/system",
       "/settings/usage",
+      "/settings/voice",
       "/settings/websearch",
       "/app/mini-app/$appId",
       "/app/paintings/$",
@@ -496,7 +498,7 @@
     }
   ],
   "providers": {
-    "version": "3416349586ffa541",
+    "version": "1b44511badb438e6",
     "count": 66,
     "entries": [
       {

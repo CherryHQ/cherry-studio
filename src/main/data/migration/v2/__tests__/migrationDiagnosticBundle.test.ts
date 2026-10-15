@@ -177,7 +177,7 @@ describe('saveMigrationDiagnosticBundle', () => {
     await expectClosed(handles)
   })
 
-  it('rejects a matching symlink or changed inode before archiving', async () => {
+  it('rejects a matching symlink before archiving', async () => {
     const other = path.join(logsDir, 'other.log')
     await writeFile(other, 'symlink target')
     await symlink(other, logPath())
@@ -187,11 +187,15 @@ describe('saveMigrationDiagnosticBundle', () => {
     const symlinkZip = await readZip(destination('symlink.zip'))
     expect(symlinkZip.entries).toEqual([`logs/app.${LOG_DATE}.log.1`, 'migration-diagnostics.json'])
     expect(symlinkZip.contents[`logs/app.${LOG_DATE}.log.1`].toString()).toBe('regular candidate')
+  })
 
-    await rm(logsDir, { recursive: true })
-    await mkdir(logsDir)
+  it('rejects a changed inode before archiving', async () => {
+    const other = path.join(logsDir, 'other.log')
     await Promise.all([writeFile(other, 'same size'), writeFile(logPath(), 'same size')])
-    const [sourceStat, openedStat] = await Promise.all([lstat(logPath()), lstat(other)])
+    const [sourceStat, openedStat] = await Promise.all([
+      lstat(logPath(), { bigint: true }),
+      lstat(other, { bigint: true })
+    ])
     expect(openedStat.size).toBe(sourceStat.size)
     expect([openedStat.dev, openedStat.ino]).not.toEqual([sourceStat.dev, sourceStat.ino])
     const handles: FileHandle[] = []

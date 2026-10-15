@@ -20,6 +20,7 @@ import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/age
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -68,6 +69,7 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import {
   materializePiProviderStream,
@@ -120,22 +122,6 @@ function resolvePiShellPath(): string | undefined {
   if (!shellPath) throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configured}`)
   return shellPath
 }
-
-const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
-  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
-)
-const PI_APPROVAL_REQUIRED_TOOLS = new Set([
-  ...listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
-])
-const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
-  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
-)
 
 function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   const definedEnv = Object.fromEntries(
@@ -253,6 +239,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
 
+    await prepareAgentSessionWorkspaceDirectory(session)
+
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
@@ -335,6 +323,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         citationsGuidance,
         effectiveLanguage: initialSnapshot.effectiveLanguage
       })
+      const mountedServers = resolveMountedMcpServers(agent, {
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
+        channelLinked: linkedChannel !== null
+      })
+      const mountedPolicies = listBuiltinToolPolicies({ mountedServers })
       const approvalContext = {
         sessionId: this.input.sessionId,
         workspacePath,
@@ -345,16 +339,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         getPermissionMode: () => this.permissionMode,
         isDisabled: (toolName: string) => this.isToolDisabled(toolName),
         additionalReadOnlyRoots: additionalSkillPaths,
-        // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
-        // disabledTools hard-blocks every class at fire-time.
-        autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
-        approvalRequiredTools: PI_APPROVAL_REQUIRED_TOOLS,
-        nonBypassableApprovalTools: PI_NON_BYPASSABLE_APPROVAL_TOOLS
+        // Approval follows the mounted server set; disabledTools still blocks at fire-time.
+        autoApprovedTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'auto')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        approvalRequiredTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'required')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        nonBypassableApprovalTools: new Set(
+          mountedPolicies
+            .filter(({ approval, bypassApproval }) => approval === 'required' && bypassApproval === 'enforce')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        )
       }
-      const mountedServers = resolveMountedMcpServers(agent, {
-        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
-        channelLinked: linkedChannel !== null
-      })
       const mcpServers = buildAgentMcpServers(
         session,
         agent,
@@ -386,6 +387,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
           createPiApprovalExtension(approvalContext),
+          createPiIdentityExtension(agentDataPath),
           pi.createCodemodeExtension({ models: false }),
           pi.createToolSearchExtension(),
           createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log')),

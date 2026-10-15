@@ -45,13 +45,17 @@ remain covered. Pushes compare the event's before/after range. A daily schedule 
 manual dispatch run the full plan. PR concurrency cancels superseded runs; pushes
 are not cancelled. Pull requests targeting a parent stack branch also run CI.
 
-Repository, lint, typecheck, and i18n groups run independently. Main/preload retain
+Repository and typecheck groups share one dependency installation in `validation-checks`,
+with separate plan conditions and step outcomes. Lint and i18n remain independent. Main/preload retain
 three Linux shards; renderer retains five. Selected package tests run once in their
-own job. macOS/Windows retain the platform-gated test inventory; platform selection is deliberately conservative whenever main is selected.
+own job. macOS/Windows retain the platform-gated test inventory (including
+system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and
-accepts a skipped dependency only when the plan explicitly excludes it. Schema drift,
+accepts a skipped dependency only when the plan explicitly excludes it. The basic
+gate also checks both group outcomes from the shared job, rejecting missing or
+unexpectedly skipped work even if that job reports success. Schema drift,
 provider generation, changeset policy, and catalog edit guards remain CI checks.
 
 ## Performance observations

@@ -1,3 +1,4 @@
+import type { ElementContent, Properties } from 'hast'
 import type { InlineMath, Link, Math, Paragraph, PhrasingContent, Root, RootContent, Text } from 'mdast'
 import type { CompileContext, Extension as FromMarkdownExtension } from 'mdast-util-from-markdown'
 import type { Construct, Extension as MicromarkExtension, State, Token, Tokenizer } from 'micromark-util-types'
@@ -20,6 +21,9 @@ declare module 'micromark-util-types' {
 declare module 'mdast' {
   interface Data {
     latexMathKind?: LatexMathKind
+    hName?: string | undefined
+    hChildren?: ElementContent[] | undefined
+    hProperties?: Properties | undefined
   }
 
   interface Math {

@@ -7,6 +7,7 @@ import { PassThrough } from 'node:stream'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getShellEnv } from '@main/utils/shellEnv'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -916,6 +917,74 @@ describe('PdfTranslationService', () => {
       const env = await spawnedEnv()
 
       expect(env.NO_PROXY).toBe('127.0.0.1,localhost')
+    })
+  })
+
+  describe('sidecar CA bundle environment', () => {
+    const spawnedEnv = async (): Promise<Record<string, string>> => {
+      const service = new PdfTranslationService()
+      await service.translate({
+        jobId: 'job-ca-bundle',
+        modelId: 'openai::gpt-4.1-internal',
+        sourcePath: SOURCE_PATH,
+        sourceLangCode: 'en-us',
+        targetLangCode: 'zh-cn'
+      })
+      return mocks.spawn.mock.calls[0][2].env
+    }
+
+    it('uses SSL_CERT_FILE for Requests asset downloads', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ SSL_CERT_FILE: '/etc/ssl/corp/ca-bundle.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.REQUESTS_CA_BUNDLE).toBe('/etc/ssl/corp/ca-bundle.pem')
+      expect(env.CURL_CA_BUNDLE).toBe('/etc/ssl/corp/ca-bundle.pem')
+    })
+
+    it('does not shadow an explicit curl bundle with the SSL_CERT_FILE bundle', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ SSL_CERT_FILE: '/a.pem', CURL_CA_BUNDLE: '/b.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.CURL_CA_BUNDLE).toBe('/b.pem')
+      expect(env).not.toHaveProperty('REQUESTS_CA_BUNDLE')
+    })
+
+    it('preserves an explicit Requests bundle without deriving a curl bundle', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ SSL_CERT_FILE: '/a.pem', REQUESTS_CA_BUNDLE: '/b.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.REQUESTS_CA_BUNDLE).toBe('/b.pem')
+      expect(env).not.toHaveProperty('CURL_CA_BUNDLE')
+    })
+
+    it('forwards an explicit Requests bundle without SSL_CERT_FILE', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ REQUESTS_CA_BUNDLE: '/b.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.REQUESTS_CA_BUNDLE).toBe('/b.pem')
+      expect(env).not.toHaveProperty('CURL_CA_BUNDLE')
+    })
+
+    it('leaves the CA bundle environment unset when the shell has no CA variables', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ PATH: '/usr/bin' })
+
+      const env = await spawnedEnv()
+
+      expect(env).not.toHaveProperty('REQUESTS_CA_BUNDLE')
+      expect(env).not.toHaveProperty('CURL_CA_BUNDLE')
+    })
+
+    it('recognizes SSL_CERT_FILE with Windows casing', async () => {
+      vi.mocked(getShellEnv).mockResolvedValueOnce({ ssl_cert_file: '/ca.pem' })
+
+      const env = await spawnedEnv()
+
+      expect(env.REQUESTS_CA_BUNDLE).toBe('/ca.pem')
+      expect(env.CURL_CA_BUNDLE).toBe('/ca.pem')
     })
   })
 })

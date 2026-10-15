@@ -10,6 +10,7 @@ import type { InstallState } from '../catalog/types'
 
 const EMBEDDING = 'qwen3-embedding-0.6b'
 const OCR = 'pp-ocrv6-medium'
+const ASR = 'funasr-nano-int8'
 
 const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDownloads } = vi.hoisted(() => ({
   scanBundleFiles: vi.fn(),
@@ -18,7 +19,8 @@ const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDown
   sweepStaleDownloads: vi.fn()
 }))
 
-const { terminateOcrRuntime } = vi.hoisted(() => ({
+const { terminateAsrRuntime, terminateOcrRuntime } = vi.hoisted(() => ({
+  terminateAsrRuntime: vi.fn(async (after: () => Promise<unknown>) => after()),
   terminateOcrRuntime: vi.fn(async (after: () => Promise<unknown>) => after())
 }))
 
@@ -27,7 +29,10 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'OcrInferenceService') return { terminateThen: terminateOcrRuntime }
+    if (name === 'AsrInferenceService')
+      return { removeModelThen: (_id: string, after: () => Promise<unknown>) => terminateAsrRuntime(after) }
+    if (name === 'OcrInferenceService')
+      return { removeModelThen: (_id: string, after: () => Promise<unknown>) => terminateOcrRuntime(after) }
     return originalGet(name)
   })
   return result
@@ -80,7 +85,7 @@ describe('lifecycle', () => {
     await expect(localModelService._doInit()).resolves.toBeUndefined()
 
     const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
-    expect(swept).toEqual([EMBEDDING, OCR].sort())
+    expect(swept).toEqual([EMBEDDING, OCR, ASR, 'qwen3-tts-0.6b-customvoice-8bit'].sort())
   })
 
   it('cancels an in-flight download on stop instead of leaving it to die with the process', async () => {
@@ -138,15 +143,15 @@ describe('LocalModelService readiness', () => {
   it('answers for the capability, not for a specific bundle', () => {
     onDisk({ [OCR]: INSTALLED })
 
-    expect(localModelService.isCapabilityReady('ocr')).toBe(true)
-    expect(localModelService.isCapabilityReady('embedding')).toBe(false)
+    expect(localModelService.isDefaultModelReady('ocr')).toBe(true)
+    expect(localModelService.isDefaultModelReady('embedding')).toBe(false)
   })
 
   it('is false while the shared runtime the model needs is missing', () => {
     onDisk({ [OCR]: INSTALLED })
     isArtifactReady.mockReturnValue(false)
 
-    expect(localModelService.isCapabilityReady('ocr')).toBe(false)
+    expect(localModelService.isDefaultModelReady('ocr')).toBe(false)
   })
 })
 
@@ -162,7 +167,7 @@ describe('shared artifact cleanup', () => {
 
     await localModelService.remove(OCR)
 
-    expect(removeArtifactIfUnused).not.toHaveBeenCalled()
+    expect(removeArtifactIfUnused).not.toHaveBeenCalledWith('onnxruntime-node')
   })
 
   it('does not let a locked runtime turn cleanup into a failure', async () => {
@@ -196,5 +201,14 @@ describe('removing the OCR model', () => {
 
     expect(terminateOcrRuntime).toHaveBeenCalledOnce()
     expect(vi.mocked(fs.promises.rm)).toHaveBeenCalledWith('/install', { recursive: true, force: true })
+  })
+})
+
+describe('removing the ASR model', () => {
+  it('releases the ASR process before deleting model files and its unused runtime', async () => {
+    await localModelService.remove(ASR)
+
+    expect(terminateAsrRuntime).toHaveBeenCalledOnce()
+    expect(removeArtifactIfUnused).toHaveBeenCalledWith('sherpa-onnx')
   })
 })

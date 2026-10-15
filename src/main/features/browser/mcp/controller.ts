@@ -481,6 +481,7 @@ export class CdpBrowserController extends BrowserPageController {
         nodeIntegration: false,
         devTools: true,
         backgroundThrottling: false,
+        autoplayPolicy: 'user-gesture-required',
         enableBlinkFeatures: 'WebMCP',
         partition
       }
@@ -677,6 +678,8 @@ export class CdpBrowserController extends BrowserPageController {
 
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
     const webContents = tab.view.webContents
+    const windowInfo = this.windows.get(this.getWindowKey(privateMode))
+    if (windowInfo) this.syncAudioState(windowInfo)
     await tab.session.run(async () => {
       const { settleAction } = await import('../actions/settle')
       await settleAction(

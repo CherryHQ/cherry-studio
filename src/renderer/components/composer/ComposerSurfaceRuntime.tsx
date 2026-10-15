@@ -24,7 +24,12 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
-import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
+import {
+  getComposerShortcutLabel,
+  matchesComposerShortcut,
+  resolveNewlineShortcut,
+  resolveSendShortcut
+} from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -35,17 +40,16 @@ import {
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
-import {
-  COMPOSER_INPUT_MAX_LENGTH,
-  createComposerDraftContent,
-  getComposerSerializedLeafText,
-  serializeComposerDocument
-} from './composerDraft'
+import { createComposerDraftContent, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
-import { createComposerInputAdapter, insertComposerTokenAtCursor, updateComposerToken } from './composerInputAdapter'
+import {
+  appendComposerText,
+  createComposerInputAdapter,
+  insertComposerTokenAtCursor,
+  updateComposerToken
+} from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
-  getComposerInputTextWithinLimit,
   getComposerPlainTextPasteOverride,
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
@@ -75,7 +79,6 @@ import {
   type ComposerUnifiedPanelSelectHandler,
   createComposerSuggestionQuickPanelItem,
   createUnifiedQuickPanelOpenOptions,
-  getComposerInputLeafText,
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
   hasComposerQuickPanelTriggerBoundary,
@@ -86,11 +89,7 @@ import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedTok
 import { FileComposerToken } from './tokenView'
 import type { ComposerToolLauncher } from './toolLauncher'
 import { useCompactComposerPresentation } from './useCompactComposerPresentation'
-import {
-  COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
-  COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS,
-  useComposerEditorFrameSizing
-} from './useComposerEditorFrameSizing'
+import { useComposerEditorFrameSizing } from './useComposerEditorFrameSizing'
 
 /** Matches NarrowLayout's `px-6` (and the message column's base) — the inline
  * override is invisible until the rail gutter adds onto it; only applied when
@@ -123,6 +122,7 @@ export interface ComposerSurfaceActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   replaceDraft: (draft: ComposerSerializedDraft) => void
+  appendText: (text: string) => boolean
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
   insertToken: (token: ComposerDraftToken, updateOnly?: boolean) => void
@@ -179,6 +179,11 @@ export interface ComposerSurfaceProps {
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
   onFocus?: () => void
+  voiceTarget?: { targetId: string; sourceEntityId: string }
+  /** @internal Keeps the outer deferred surface's voice binding stable while the editor swaps. */
+  onInputAdapterChange?: (inputAdapter: QuickPanelInputAdapter | undefined) => void
+  /** @internal Marks the outer deferred surface's voice target from rich-editor interactions. */
+  onVoiceTargetInteraction?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   isInputHistoryActive?: boolean
   onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
@@ -219,6 +224,8 @@ export interface ComposerSurfaceProps {
 
 /** One-shot interactions the deferred fallback captured before this runtime existed. */
 export interface ComposerDeferredIntent {
+  /** A fallback literal insertion must survive initial document creation without tokenization. */
+  preservePlainText?: boolean
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
   insertToken?: { token: ComposerDraftToken; updateOnly?: boolean; selection: { start: number; end: number } }
@@ -358,23 +365,6 @@ function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
   editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
 }
 
-function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
-  return currentText.length - replacedText.length + nextText.length > COMPOSER_INPUT_MAX_LENGTH
-}
-
-function getComposerReplacementText(view: EditorView | null, from: number, to: number) {
-  if (!view || from >= to) return ''
-  // Measured against the serialized draft, so a selected token counts by the prompt text
-  // serialization gives it — the plain leaf callback would count the atom as empty.
-  return view.state.doc.textBetween(from, to, '\n', getComposerSerializedLeafText)
-}
-
-function getComposerSelectedText(editor: Editor) {
-  const { from, to } = editor.state.selection
-  if (from >= to) return ''
-  return editor.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
-}
-
 function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
   return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
     ? (payload as Record<string, unknown>)
@@ -489,6 +479,10 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
   }
 }
 
+// Outlast ProseMirror's 20ms composition-end flush; keep this above its upstream delay.
+const COMPOSITION_END_SETTLE_MS = 40
+const COMPOSITION_END_NOTIFY_TIMER_KEY = 'composerCompositionEndNotify'
+
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
@@ -520,6 +514,8 @@ export default function ComposerSurfaceRuntime({
   narrowMode,
   railGutterPx,
   onFocus,
+  onInputAdapterChange,
+  onVoiceTargetInteraction,
   onActionsChange,
   isInputHistoryActive = false,
   onInputHistoryNavigate,
@@ -564,7 +560,7 @@ export default function ComposerSurfaceRuntime({
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
-  const { setTimeoutTimer } = useTimer()
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
@@ -675,16 +671,15 @@ export default function ComposerSurfaceRuntime({
 
   const applyComposerText = useCallback(
     (nextText: string) => {
-      const limitedText = nextText.slice(0, COMPOSER_INPUT_MAX_LENGTH)
       const editor = editorRef.current
       const currentText = editor && !editor.isDestroyed ? serializeComposerDocument(editor).text : textRef.current
       // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update must
       // skip the rebuild or quote/file/knowledge tokens degrade to their serialized text.
-      if (limitedText === currentText) return
-      textRef.current = limitedText
-      pendingLocalTextEchoRef.current = limitedText
-      onTextChange(limitedText)
-      const nextContent = createPromptVariableContent(limitedText)
+      if (nextText === currentText) return
+      textRef.current = nextText
+      pendingLocalTextEchoRef.current = nextText
+      onTextChange(nextText)
+      const nextContent = createPromptVariableContent(nextText)
       if (editor) setComposerEditorContent(editor, lastSerializedDraftRef, nextContent)
     },
     [onTextChange]
@@ -735,6 +730,7 @@ export default function ComposerSurfaceRuntime({
   const {
     compactEditorContentStyle,
     compactFrameStyle,
+    fitContentHeight,
     editorContentStyle,
     editorElementStyle,
     frameRef,
@@ -857,13 +853,6 @@ export default function ComposerSurfaceRuntime({
 
       try {
         const fileText = await window.api.fs.readText(file.path)
-        const currentText = serializeComposerDocument(editor).text
-        // Refuse instead of truncating: pasting a truncated copy and dropping the
-        // file token would silently lose everything beyond the input limit.
-        if (exceedsComposerInputMaxLength(currentText, fileText)) {
-          toast.error(t('chat.input.paste_text_too_long', { max: COMPOSER_INPUT_MAX_LENGTH }))
-          return
-        }
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
         const content = fileText
           ? createPromptVariableInlineContent(fileText, { startIndex: getNextPromptVariableIndex(editor) })
@@ -918,6 +907,11 @@ export default function ComposerSurfaceRuntime({
     return serializeComposerDocument(editor)
   }, [])
 
+  const appendText = useCallback((text: string) => {
+    const editor = editorRef.current
+    return Boolean(editor && appendComposerText(editor, text))
+  }, [])
+
   const replaceDraft = useCallback((draft: ComposerSerializedDraft) => {
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
@@ -933,6 +927,7 @@ export default function ComposerSurfaceRuntime({
       focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
       replaceDraft,
+      appendText,
       toggleExpanded: toggleEditorExpanded,
       removeToken,
       insertToken,
@@ -946,6 +941,7 @@ export default function ComposerSurfaceRuntime({
     onActionsChange,
     removeToken,
     replaceDraft,
+    appendText,
     toggleEditorExpanded
   ])
 
@@ -1469,6 +1465,25 @@ export default function ComposerSurfaceRuntime({
     [activeSuggestionSources, placeholder, renderComposerToken]
   )
 
+  // ProseMirror may finish composition without another document update, leaving the quick panel
+  // unaware that it can read the committed query.
+  const scheduleCompositionEndInputNotify = useCallback(() => {
+    setTimeoutTimer(
+      COMPOSITION_END_NOTIFY_TIMER_KEY,
+      () => {
+        const editor = editorRef.current
+        if (!editor || editor.isDestroyed) return
+        // Typing fast enough starts the next composition before this fires; announcing "not composing"
+        // then would run the close checks against a half-typed pinyin.
+        if (editor.view.composing) return
+        inputListenersRef.current.forEach((listener) =>
+          listener({ isComposing: false, cause: isSyncingTokensRef.current ? 'state-sync' : 'user-input' })
+        )
+      },
+      COMPOSITION_END_SETTLE_MS
+    )
+  }, [setTimeoutTimer])
+
   const memoizedEditorProps = useMemo(
     () => ({
       attributes: {
@@ -1477,7 +1492,6 @@ export default function ComposerSurfaceRuntime({
         tabindex: '0',
         class: cn(
           'composer-tiptap box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
-          hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           hasCustomHeight && 'h-full'
         ),
         style: `${editorElementStyle}; text-align: start`
@@ -1557,11 +1571,7 @@ export default function ComposerSurfaceRuntime({
           }
 
           if (isNewlinePressed) {
-            const selection = view?.state.selection
-            const replacedText = selection ? getComposerReplacementText(view, selection.from, selection.to) : ''
-            if (!exceedsComposerInputMaxLength(textRef.current, '\n', replacedText)) {
-              editorRef.current?.commands.setHardBreak()
-            }
+            editorRef.current?.commands.setHardBreak()
           }
           return true
         }
@@ -1590,20 +1600,11 @@ export default function ComposerSurfaceRuntime({
 
         return false
       },
-      handleTextInput: (view, from, to, insertedText) => {
+      handleTextInput: (_view, _from, _to, insertedText) => {
         const editor = editorRef.current
         if (!editor || editor.isDestroyed) return false
         const selectedPromptVariable = getSelectedPromptVariableToken(editor)
-        if (!selectedPromptVariable) {
-          const replacedText = getComposerReplacementText(view, from, to)
-          if (!exceedsComposerInputMaxLength(textRef.current, insertedText, replacedText)) return false
-
-          const limitedInsertedText = getComposerInputTextWithinLimit(textRef.current, insertedText, replacedText)
-          if (limitedInsertedText && view) {
-            view.dispatch(view.state.tr.insertText(limitedInsertedText, from, to))
-          }
-          return true
-        }
+        if (!selectedPromptVariable) return false
 
         const composingToken = promptVariableCompositionRef.current
         if (editor.view.composing || composingToken?.tokenId === selectedPromptVariable.token.id) {
@@ -1621,13 +1622,7 @@ export default function ComposerSurfaceRuntime({
         const shouldAppend = editState?.tokenId === selectedPromptVariable.token.id && editState.started
         const baseText = shouldAppend ? (selectedPromptVariable.token.promptText ?? '') : ''
         const nextPromptText = `${baseText}${insertedText}`
-        const limitedPromptText = getComposerInputTextWithinLimit(
-          textRef.current,
-          nextPromptText,
-          selectedPromptVariable.token.promptText ?? ''
-        )
-        if (!limitedPromptText) return true
-        updateSelectedPromptVariableToken(editor, limitedPromptText)
+        updateSelectedPromptVariableToken(editor, nextPromptText)
         promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
         return true
       },
@@ -1664,6 +1659,7 @@ export default function ComposerSurfaceRuntime({
           return true
         },
         compositionend: (_view, event) => {
+          scheduleCompositionEndInputNotify()
           const editor = editorRef.current
           const composingToken = promptVariableCompositionRef.current
           promptVariableCompositionRef.current = null
@@ -1675,39 +1671,28 @@ export default function ComposerSurfaceRuntime({
           const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
           const nextValue = data || composingToken.text
           if (!nextValue) return true
-          const limitedNextValue = getComposerInputTextWithinLimit(
-            textRef.current,
-            nextValue,
-            selectedPromptVariable.token.promptText ?? ''
-          )
-          if (!limitedNextValue) return true
 
-          updateSelectedPromptVariableToken(editor, limitedNextValue)
+          updateSelectedPromptVariableToken(editor, nextValue)
           promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
-          promptVariableSkipTextInputRef.current = { tokenId: selectedPromptVariable.token.id, text: limitedNextValue }
+          promptVariableSkipTextInputRef.current = { tokenId: selectedPromptVariable.token.id, text: nextValue }
           return true
         }
       }
     }),
-    [editorElementStyle, hasCustomHeight, submitDraft]
+    [editorElementStyle, hasCustomHeight, scheduleCompositionEndInputNotify, submitDraft]
   )
 
   const memoizedHandlePaste = useCallback(
     (view: EditorView, event: ClipboardEvent) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
+      fitContentHeight()
       const editor = (view.dom as TiptapEditorHTMLElement).editor
       const shouldDelegateToFileHandler = shouldHandleClipboardFiles(event.clipboardData, supportedExts)
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
       if (editor && selectedPromptVariable && pastedText && !shouldDelegateToFileHandler) {
         event.preventDefault()
-        const limitedPastedText = getComposerInputTextWithinLimit(
-          textRef.current,
-          pastedText,
-          selectedPromptVariable.token.promptText ?? ''
-        )
-        if (!limitedPastedText) return true
-        updateSelectedPromptVariableToken(editor, limitedPastedText)
+        updateSelectedPromptVariableToken(editor, pastedText)
         promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
         return true
       }
@@ -1724,17 +1709,7 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      let textToInsert = pastedText
-      if (editor && pastedText) {
-        const selectedText = getComposerSelectedText(editor)
-        textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
-        if (!textToInsert && !shouldDelegateToFileHandler) {
-          event.preventDefault()
-          return true
-        }
-      }
-
-      if (editor && textToInsert === pastedText) {
+      if (editor) {
         const pasteOptions = {
           promptVariableStartIndex: getNextPromptVariableIndex(editor),
           resolveSkillMarker,
@@ -1763,7 +1738,7 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
+      const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
         inlineLongText: !shouldDelegateLongTextPaste,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker,
@@ -1791,6 +1766,7 @@ export default function ComposerSurfaceRuntime({
       return false
     },
     [
+      fitContentHeight,
       handlePaste,
       pasteLongTextAsFile,
       pasteLongTextThreshold,
@@ -1802,7 +1778,10 @@ export default function ComposerSurfaceRuntime({
 
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
-    content: createComposerDraftContent({ text, tokens: draftTokens ?? [] }),
+    content: createComposerDraftContent(
+      { text, tokens: draftTokens ?? [] },
+      { tokenizeVariables: !deferredIntent?.preservePlainText }
+    ),
     editable,
     // Render the view synchronously: the fallback textarea unmounts in the same commit this
     // runtime mounts, so a view that attaches a frame later leaves nothing focused in between.
@@ -1810,9 +1789,9 @@ export default function ComposerSurfaceRuntime({
     enableSpellCheck,
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,
-    onUpdate: ({ editor: updatedEditor }) => {
+    onUpdate: ({ editor: updatedEditor, transaction }) => {
       requestCompactMeasurement()
-      if (tokenizePromptVariablesInEditor(updatedEditor)) return
+      if (tokenizePromptVariablesInEditor(updatedEditor, transaction)) return
 
       const draft = serializeComposerDocument(updatedEditor)
       lastSerializedDraftRef.current = draft
@@ -1821,6 +1800,9 @@ export default function ComposerSurfaceRuntime({
       pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
       const inputEventCause = isSyncingTokensRef.current ? 'state-sync' : 'user-input'
+      if (!updatedEditor.view.composing && inputEventCause === 'user-input') {
+        clearTimeoutTimer(COMPOSITION_END_NOTIFY_TIMER_KEY)
+      }
       inputListenersRef.current.forEach((listener) =>
         listener({ isComposing: updatedEditor.view.composing, cause: inputEventCause })
       )
@@ -1931,6 +1913,11 @@ export default function ComposerSurfaceRuntime({
       }
     }
   }, [editor])
+
+  useLayoutEffect(() => {
+    onInputAdapterChange?.(inputAdapter)
+    return () => onInputAdapterChange?.(undefined)
+  }, [inputAdapter, onInputAdapterChange])
 
   const isRootQuickPanelVisible =
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
@@ -2216,6 +2203,7 @@ export default function ComposerSurfaceRuntime({
       sendMessage={sendDraft}
       disabled={sendDisabled}
       onDisabledClick={showBlockedSendReason}
+      shortcutLabel={getComposerShortcutLabel(sendMessageShortcut)}
       label={editingState?.sendLabel}
     />
   )
@@ -2278,6 +2266,8 @@ export default function ComposerSurfaceRuntime({
       data-ui="chat.composer"
       data-composer-inputbar=""
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
+      onPointerDownCapture={onVoiceTargetInteraction}
+      onFocusCapture={onVoiceTargetInteraction}
       className={cn(
         'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
         isCompact || editingState ? 'pt-0' : 'pt-2',
@@ -2353,6 +2343,7 @@ export default function ComposerSurfaceRuntime({
             className="min-w-0 flex-1"
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
             onFocus={() => {
+              onVoiceTargetInteraction?.()
               onFocus?.()
               pasteHandling.setLastFocusedComponent('inputbar')
             }}
