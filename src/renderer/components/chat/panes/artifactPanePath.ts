@@ -1,5 +1,6 @@
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
+import { isWin } from '@renderer/utils/platform'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
@@ -33,8 +34,12 @@ interface ArtifactPaneInputFileSelection extends ArtifactPaneFileSelectionBase {
 export type ArtifactPaneFileSelection = ArtifactPaneArtifactSelection | ArtifactPaneInputFileSelection
 
 /** The normalized absolute path a selection edits — the `useFileEditSession` key. */
-export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
-  normalizeFilePreviewPath(`${selection.workspacePath}/${selection.filePath}`)
+export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath => {
+  const { workspacePath, filePath } = selection
+  // A POSIX root already ends in `/`. Another slash makes `//a\b.txt`, which file preview reads as UNC.
+  const joined = workspacePath.endsWith('/') ? `${workspacePath}${filePath}` : `${workspacePath}/${filePath}`
+  return normalizeFilePreviewPath(joined)
+}
 
 /**
  * Clipboard form of an absolute path: on Windows fold `/` to the native `\`
@@ -52,13 +57,13 @@ export const getArtifactPaneSelectionDisplayPath = (selection: ArtifactPaneFileS
 
 export const isUncPath = (path: string): boolean => /^(?:\\\\|\/\/)[^\\/]+[\\/]+[^\\/]+/.test(path.trim())
 
-// `\` separates Windows drive, UNC, and Windows-relative paths. A POSIX absolute
-// path keeps it, so `/tmp/a\b.txt` is not rewritten to the different file `/tmp/a/b.txt`.
+// `\` separates Windows drive, UNC, and relative paths on Windows (`isWin`;
+// the main window has no Node `process`). A POSIX path keeps `\` literal.
 const backslashIsSeparator = (path: string): boolean => {
   const trimmed = path.trim()
   if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return false
   if (/^[A-Za-z]:[/\\]/.test(trimmed) || isUncPath(trimmed)) return true
-  return process.platform === 'win32'
+  return isWin
 }
 
 const pathSegmentPattern = (path: string): RegExp => (backslashIsSeparator(path) ? /[/\\]+/ : /\/+/)
@@ -82,7 +87,8 @@ export const normalizeTreePath = (path: string): string => {
 
 export const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
 
-export const hasParentTraversal = (path: string): boolean => path.split(/[/\\]+/).some((segment) => segment === '..')
+export const hasParentTraversal = (path: string): boolean =>
+  path.split(pathSegmentPattern(path)).some((segment) => segment === '..')
 
 export const getPathDirname = (path: string): string => {
   const normalized = normalizeTreePath(path)

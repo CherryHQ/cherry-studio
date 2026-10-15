@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   getArtifactPaneSelectionPath,
@@ -10,7 +10,31 @@ import {
   resolveArtifactPaneFileSelection
 } from '../artifactPanePath'
 
+const platformState = vi.hoisted(() => ({ isWin: false }))
+
+vi.mock('@renderer/utils/platform', () => ({
+  get isWin() {
+    return platformState.isWin
+  }
+}))
+
+/** The main window has no Node `process`. Restore it even when the assertion throws. */
+function withRendererProcessAbsent<T>(run: () => T): T {
+  const realProcess = globalThis.process
+  vi.stubGlobal('process', undefined)
+  try {
+    if (typeof process !== 'undefined') throw new Error('process stub did not hide the Node global')
+    return run()
+  } finally {
+    vi.stubGlobal('process', realProcess)
+  }
+}
+
 describe('artifactPanePath', () => {
+  afterEach(() => {
+    platformState.isWin = false
+  })
+
   it('repairs a Windows drive-root artifact path missing its slash before previewing', () => {
     const selection = resolveArtifactPaneFileSelection(
       'D:/cherry/Data/Agents/system/session',
@@ -70,6 +94,74 @@ describe('artifactPanePath', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+
+  it('keeps a relative POSIX filename that contains a backslash when the renderer has no process', () => {
+    platformState.isWin = false
+    const selection = withRendererProcessAbsent(() => resolveArtifactPaneFileSelection('/tmp/workspace', 'a\\b.txt'))
+
+    expect(selection).toEqual({ workspacePath: '/tmp/workspace', filePath: 'a\\b.txt' })
+    expect(selection && getArtifactPaneSelectionPath(selection)).toBe('/tmp/workspace/a\\b.txt')
+  })
+
+  it('does not re-root a POSIX filename whose backslash is adjacent to parent dots', () => {
+    platformState.isWin = false
+    const selection = withRendererProcessAbsent(() =>
+      resolveArtifactPaneFileSelection('/tmp/workspace', 'subdir/a\\..\\b.txt')
+    )
+
+    expect(selection).toEqual({ workspacePath: '/tmp/workspace', filePath: 'subdir/a\\..\\b.txt' })
+    expect(selection && getArtifactPaneSelectionPath(selection)).toBe('/tmp/workspace/subdir/a\\..\\b.txt')
+  })
+
+  it('keeps a POSIX filename that is literally \\..\\b.txt, including its bytes on disk', () => {
+    platformState.isWin = false
+    if (process.platform === 'win32') return
+
+    const root = mkdtempSync(join(tmpdir(), 'artifact-backslash-dots-'))
+    const literalName = '\\..\\b.txt'
+    const strippedName = '..\\b.txt'
+    const literalFile = join(root, literalName)
+    const strippedFile = join(root, strippedName)
+    try {
+      writeFileSync(literalFile, 'LITERAL BACKSLASH')
+      writeFileSync(strippedFile, 'STRIPPED NAME')
+
+      const selection = withRendererProcessAbsent(() => resolveArtifactPaneFileSelection(root, literalFile))
+      const selectedPath = selection ? getArtifactPaneSelectionPath(selection) : null
+
+      expect(selection).toEqual({ workspacePath: root, filePath: literalName })
+      expect(selectedPath).toBe(literalFile)
+      expect(readFileSync(selectedPath!, 'utf8')).toBe('LITERAL BACKSLASH')
+      expect(readFileSync(strippedFile, 'utf8')).toBe('STRIPPED NAME')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a POSIX root file on one slash, including a backslash in the filename', () => {
+    const backslashName = resolveArtifactPaneFileSelection('/workspace', '/a\\b.txt')
+    expect(backslashName).toEqual({ workspacePath: '/', filePath: 'a\\b.txt' })
+    expect(backslashName && getArtifactPaneSelectionPath(backslashName)).toBe('/a\\b.txt')
+
+    const simple = resolveArtifactPaneFileSelection('/workspace', '/file.txt')
+    expect(simple).toEqual({ workspacePath: '/', filePath: 'file.txt' })
+    expect(simple && getArtifactPaneSelectionPath(simple)).toBe('/file.txt')
+  })
+
+  it('keeps a Windows drive-root file on that drive', () => {
+    const selection = resolveArtifactPaneFileSelection('C:/other', 'D:/report.md')
+
+    expect(selection).toEqual({ workspacePath: 'D:/', filePath: 'report.md' })
+    expect(selection && getArtifactPaneSelectionPath(selection)).toBe('D:\\report.md')
+  })
+
+  it('folds a relative Windows path when the renderer platform is Windows and process is absent', () => {
+    platformState.isWin = true
+    const selection = withRendererProcessAbsent(() => resolveArtifactPaneFileSelection('D:/work', 'notes\\report.md'))
+
+    expect(selection).toMatchObject({ workspacePath: 'D:/work', filePath: 'notes/report.md' })
+    expect(selection && getArtifactPaneSelectionPath(selection)).toBe('D:\\work\\notes\\report.md')
   })
 })
 
