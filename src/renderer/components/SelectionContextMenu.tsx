@@ -48,6 +48,8 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
 
   fragment.querySelectorAll('.line-number').forEach((el) => el.remove())
   fragment.querySelectorAll('.katex-mathml + .katex-html').forEach((el) => el.remove())
+  // Literal dollars anywhere in the selection can pair with generated math fences.
+  const allowDollarFences = mathOptions?.singleDollar && !fragment.textContent?.includes('$')
   const inlineMathSources = new Map<Node, string>()
   katexMathMlElements.forEach((element) => {
     const texSource = element.querySelector('annotation')?.textContent
@@ -74,8 +76,8 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
     if (node.nodeType === Node.TEXT_NODE) {
       const texSource = inlineMathSources.get(node)
       if (texSource !== undefined) {
-        // Dollar fences cannot contain dollars or touch another formula's closing fence.
-        const useDollars = mathOptions?.singleDollar && !texSource.includes('$') && !result.endsWith('$')
+        // Adjacent dollar fences would merge separate formulas.
+        const useDollars = allowDollarFences && !result.endsWith('$')
         result += useDollars ? `$${texSource}$` : `\\(${texSource}\\)`
       } else {
         result += node.textContent

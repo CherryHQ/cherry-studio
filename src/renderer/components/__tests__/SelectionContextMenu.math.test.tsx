@@ -102,6 +102,30 @@ describe('quoting selected math', () => {
     expect(result.container.querySelector('.katex-error')).toBeNull()
   })
 
+  it.each([
+    { before: 'It costs $5 for ', after: ' items.' },
+    { before: 'For ', after: ' items, it costs $5.' }
+  ])('preserves currency prose around a quoted formula: $before n $after', async ({ before, after }) => {
+    const user = userEvent.setup()
+    const view = renderSelection(`${before}<em>${katex.renderToString('n')}</em>${after}`)
+    const message = screen.getByTestId('message')
+    selectContents(message)
+
+    fireEvent.contextMenu(message)
+    await user.click(await screen.findByRole('menuitem', { name: 'chat.message.quote' }))
+
+    await waitFor(() => expect(window.api.quoteToMainWindow).toHaveBeenCalled())
+    const quotedText = vi.mocked(window.api.quoteToMainWindow).mock.calls[0][0]
+    view.unmount()
+    const result = render(<AppMarkdown>{formatQuoteTokenPromptText(quotedText)}</AppMarkdown>)
+
+    expect(
+      Array.from(result.container.querySelectorAll('annotation[encoding="application/x-tex"]'), (el) => el.textContent)
+    ).toEqual(['n'])
+    result.container.querySelectorAll('.katex').forEach((formula) => formula.remove())
+    expect(result.container).toHaveTextContent(`${before}${after}`.replace(/\s+/g, ' '))
+  })
+
   it('preserves prose and mixed math when quoting a selected link', async () => {
     const user = userEvent.setup()
     const view = renderSelection(
