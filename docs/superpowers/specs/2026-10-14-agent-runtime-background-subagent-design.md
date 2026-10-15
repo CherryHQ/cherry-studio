@@ -457,7 +457,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 ### 11.4 用量与预算
 
-- goal 轮里派出的后台子代理，其每次运行的用量随通知 `details.subagents[].usage` 在送达时计入该 goal（续接运行同样计入）。goal 记下自己的轮里派出的 `sessionId`。
+- goal 轮里派出的后台子代理，其每次运行的用量随通知 `details.subagents[].usage` 在送达时计入该 goal（续接运行同样计入）。goal 记下自己的轮里派出的 `sessionId`。送达时 goal 没在跑（未武装，例如重建后用户的下一条消息带着它；或已暂停、已停下）也照样计入：用量从 branch 算出（L5 spec §6.1），`/goal resume` 的余量判断和重建都看得到。
 - 预算用完、goal 进入收尾或停止时：拒绝新的后台派出（`subagent` 返回 `The goal's budget is used up; background subagents cannot be started.`），并停掉这些 goal 派出的、正在跑的后台子代理（`stoppedBy: 'budget'`）。
 - goal 与子代理表在同一个包里，goal 通过包内接口（不对外导出）查询运行中的后台子代理、停止它们。
 
@@ -586,3 +586,4 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 12. 9：用户停止的运行在收尾期间又被 `stop_subagent` 或预算停止时，停止来源仍记为用户，运行结束后不能续接。
 13. 4.3：重建时未送达的结果按 `(sessionId, run)` 逐次运行恢复，不再只看每个子代理的最后一条快照。
+14. 11.4：goal 没在跑时送达的子代理用量同样计入，`/goal resume` 的余量判断和重建都看得到（用量从 branch 算出，不另写快照）。

@@ -29,7 +29,7 @@ import {
   untilStopped,
   waitFor
 } from './subagentSupport'
-import { finish } from './support'
+import { finish, plain, tempDir } from './support'
 import { textOf } from './toolResults'
 
 /** A background launch; the description never holds the task marker the routes look for. */
@@ -308,6 +308,44 @@ describe('goal and background subagents', () => {
     })
     // Six parent requests of 12 tokens, and both runs of A (5002 each: the foreground one counts with its result).
     expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 10_076, lastStop: { code: 'round_limit' } })
+  })
+
+  // Breaks when the usage of a goal subagent's result that reaches a disarmed goal (rebuilt, in a
+  // person's turn) is never written: /goal resume would drop it and run past the budget.
+  it('keeps the usage of a result delivered while the goal is disarmed, so resume honors the budget', async () => {
+    const cwd = tempDir('cwd')
+    const held = gate()
+    const port = goalPort({ defaults: { budget: { tokens: 3_000 } } })
+    const subagents = recordingSubagentPort().port
+    const { model, calls } = routedModel(async (call) => {
+      if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A', 5_000, 0))
+      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      // A finishes while round 1 still runs; the transcript is taken here, as a crash leaves it.
+      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_a') {
+        held.open()
+        return gate().wait(reply('never'))
+      }
+      return reply('OK.')
+    })
+    const crashed = await openGoalSession(model, port, { cwd, subagents })
+    await crashed.session.prompt('/goal Check A')
+    await waitFor(() => subagentStates(crashed.host.entries).some((state) => state.status === 'finished'))
+
+    const { session: s, host } = await openGoalSession(model, port, {
+      cwd,
+      subagents,
+      transcript: plain(crashed.host.entries)
+    })
+    await promptIdle(s, 'Where were we?')
+    expect(trailingUserTexts(calls.at(-1)!)).toEqual(['Where were we?', expect.stringContaining('REPORT-A')])
+    // The parent's round-1 request (10 + 2 cached + 5) and A's one request (5000 + 2 cached).
+    await s.prompt('/goal')
+    expect(notices(host.entries).at(-1)).toContain('Phase: active · disarmed\nRounds: 1/100 · Tokens: 5019 ·')
+
+    const sent = calls.length
+    await promptIdle(s, '/goal resume')
+    expect(notices(host.entries).at(-1)).toBe('raise max_goal_rounds or the budget before resuming')
+    expect(calls).toHaveLength(sent)
   })
 
   /**
