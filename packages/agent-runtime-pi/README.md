@@ -226,7 +226,9 @@ handles.
   running, a round another extension's settle handler overrides, and a failed request or an abort
   (`session.abort()` or the host's own request signal) while the goal is armed. A stop's snapshot
   counts tokens, cost and progress up to the stop, the request whose tool call stopped the goal
-  included; requests after the stop (the summary after `complete`) are never counted.
+  included; requests after the stop (the summary after `complete`) are never counted. A round
+  prompt Pi committed but never sent on (another extension vetoed the continuation, or the run
+  was aborted at the settle) stays in the transcript and is left out of every later request.
   `update_goal(complete)` passes the host's `GoalVerifier` (it
   gets the full current context, after compaction, and the call's `signal`; the package sets no
   timeout) or, without one, needs evidence and a round that changed something. An accepted
@@ -291,9 +293,6 @@ approval extension, so each call the subagent makes is approved on its own.
   host reports running background subagents, which only L6 adds) and no fresh-context (Ralph)
   mode. The package does not know the permission mode; keeping goals from running rounds in plan
   mode is up to the host.
-- A goal continuation that another extension vetoes, or a run aborted during the settle, leaves
-  the committed round prompt at the branch tail, so the next request carries it ahead of the next
-  user message.
 
 ## Tests
 
