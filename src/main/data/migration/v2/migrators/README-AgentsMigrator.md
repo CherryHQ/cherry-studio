@@ -80,8 +80,8 @@ For each migrated Agent:
   transcript availability. External user workspaces continue using their
   original path without an ordinary workspace-file copy.
 - Imported resume tokens remain unchanged. If the latest Claude transcript
-  cannot be made available, the normal runtime resume attempt surfaces the
-  failure to the user.
+  cannot be made available, runtime warm-up logs the missing cache and the
+  Agent SDK starts a fresh session instead of blocking the migrated Agent.
 - A symlinked v1 Agent root is skipped without following or removing it.
 - Identity and ordinary workspace symlinks are skipped. Migration copies only
   regular files and directories so link permissions or unsupported link targets
