@@ -6,6 +6,11 @@ import JSZip from 'jszip'
 
 import { expect, test } from './fixtures/electron.fixture'
 
+// This spec installs a real app, so it must not share the application profile.
+const previousProfileRoot = process.env.CS_DEV_PROFILE_ROOT
+const profileRoot = path.join(os.tmpdir(), `miniapp-21756-profile-${process.pid}`)
+process.env.CS_DEV_PROFILE_ROOT = profileRoot
+
 const invalidCases = [
   {
     name: 'bad-description',
@@ -56,6 +61,12 @@ test.beforeAll(async () => {
 
 test.afterAll(() => {
   if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true })
+  fs.rmSync(profileRoot, { recursive: true, force: true })
+  if (previousProfileRoot === undefined) {
+    delete process.env.CS_DEV_PROFILE_ROOT
+  } else {
+    process.env.CS_DEV_PROFILE_ROOT = previousProfileRoot
+  }
 })
 
 test('mini app package errors are readable and valid boundary manifests install', async ({
