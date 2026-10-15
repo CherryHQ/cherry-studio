@@ -96,6 +96,7 @@ describe('Assistant remote contract', () => {
         seq: '3',
         kind: 'part.updated',
         messageId: 'one',
+        afterPartId: null,
         part: {
           partId: 'one:text',
           revision: '3',
@@ -109,6 +110,7 @@ describe('Assistant remote contract', () => {
         seq: '4',
         kind: 'part.updated',
         messageId: 'two',
+        afterPartId: null,
         part: {
           partId: 'two:text',
           revision: '4',
@@ -151,6 +153,26 @@ describe('Assistant remote contract', () => {
       )
     ).toEqual({ ok: false, reason: 'gap' })
     expect(result.projection.messages.one).toBeDefined()
+    for (const afterPartId of ['missing', 'two:text', 'one:text']) {
+      expect(
+        applyAssistantEvents(
+          result.projection,
+          batch([
+            {
+              seq: '6',
+              kind: 'part.updated',
+              messageId: 'one',
+              afterPartId,
+              part: { ...result.projection.parts['one:text'], revision: '6' }
+            }
+          ]),
+          {},
+          integrity
+        )
+      ).toEqual({ ok: false, reason: 'revision' })
+    }
+    expect(result.projection.messages.one.partIds).toEqual(['one:text'])
+    expect(result.projection.parts['one:text'].revision).toBe('5')
   })
 
   it('rejects altered or incomplete checkpoints before publishing a replacement projection', () => {

@@ -129,8 +129,10 @@ Message revisions use the view's history revision, so any visible mutation inval
 its content references. Messages preserve their producing Assistant and model snapshots.
 Historical attachments expose metadata only.
 Message headers carry `partCount`; historical headers leave `partIds` empty and clients
-page through `assistant.parts.list`. Live part events and checkpoint items rebuild the
-ordered part IDs, keeping large tool transcripts out of individual message headers.
+page through `assistant.parts.list`. Each `part.updated` names `afterPartId` (`null` for
+the first part), positioning both new and replaced parts within their message; an unknown
+predecessor requires recovery. Checkpoint parts follow the message's canonical order.
+These rebuild the ordered part IDs, keeping large tool transcripts out of individual message headers.
 
 Create/send/cancel/respond use stable command IDs and `assistant.commands.get` for uncertain
 outcomes. A receipt records admission independently of runtime and persistence results.

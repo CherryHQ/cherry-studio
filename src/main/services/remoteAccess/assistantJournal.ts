@@ -190,8 +190,9 @@ export class TopicJournal implements StreamListener {
         this.append({ kind: 'part.removed', messageId, partId: id })
       }
     }
-    for (const projectedPart of projected) {
+    for (const [index, projectedPart] of projected.entries()) {
       const partId = `${messageId}:live:${projectedPart.part.partId.slice(messageId.length + 1)}`
+      const afterPartId = message.partIds[index - 1] ?? null
       const prior = this.parts.get(partId)
       const text = projectedPart.text
       const original = projectedPart.part
@@ -240,10 +241,10 @@ export class TopicJournal implements StreamListener {
         }
         part = { ...part, revision: previousRevision, content: contentOf(partId, previousRevision, text) }
         if ('state' in prior.part && 'state' in part && prior.part.state !== part.state) {
-          this.append({ kind: 'part.updated', messageId, part })
+          this.append({ kind: 'part.updated', messageId, afterPartId, part })
           replaced = true
         }
-      } else this.append({ kind: 'part.updated', messageId, part })
+      } else this.append({ kind: 'part.updated', messageId, afterPartId, part })
       if (replaced && 'content' in part && 'ref' in part.content)
         this.pins.set(`${partId}:${part.revision}`, { bytes: utf8(text), seq: this.seq })
       this.parts.set(partId, { messageId, part, text })
@@ -352,11 +353,14 @@ export class TopicJournal implements StreamListener {
     this.flush()
     const items: AssistantCheckpointItem[] = [{ kind: 'topic', value: this.topic }]
     for (const value of this.executions.values()) items.push({ kind: 'execution', value })
-    for (const value of this.messages.values()) items.push({ kind: 'message', value: { ...value, partIds: [] } })
     const content = new Map<string, Uint8Array>()
-    for (const { messageId, part, text } of this.parts.values()) {
-      if ('content' in part && 'ref' in part.content) content.set(`${part.partId}:${part.revision}`, utf8(text))
-      items.push({ kind: 'part', messageId, value: part })
+    for (const message of this.messages.values()) {
+      items.push({ kind: 'message', value: { ...message, partIds: [] } })
+      for (const partId of message.partIds) {
+        const { part, text } = this.parts.get(partId)!
+        if ('content' in part && 'ref' in part.content) content.set(`${part.partId}:${part.revision}`, utf8(text))
+        items.push({ kind: 'part', messageId: message.messageId, value: part })
+      }
     }
     for (const value of persistedAssistantInteractions(this.topicId)) items.push({ kind: 'interaction', value })
     const checkpointId = randomUUID()

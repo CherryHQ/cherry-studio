@@ -175,20 +175,23 @@ export function applyAssistantEvents(
         delete projection.messages[event.messageId]
         break
       }
-      case 'part.updated':
-        if (!projection.messages[event.messageId]) return { ok: false, reason: 'revision' }
+      case 'part.updated': {
+        const message = projection.messages[event.messageId]
+        if (!message) return { ok: false, reason: 'revision' }
         if (
           Object.values(projection.messages).some(
             (message) => message.messageId !== event.messageId && message.partIds.includes(event.part.partId)
           )
         )
           return { ok: false, reason: 'revision' }
-        if (!projection.messages[event.messageId].partIds.includes(event.part.partId)) {
-          const message = projection.messages[event.messageId]
-          projection.messages[event.messageId] = { ...message, partIds: [...message.partIds, event.part.partId] }
-        }
+        const partIds = message.partIds.filter((id) => id !== event.part.partId)
+        const position = event.afterPartId === null ? 0 : partIds.indexOf(event.afterPartId) + 1
+        if (event.afterPartId !== null && position === 0) return { ok: false, reason: 'revision' }
+        partIds.splice(position, 0, event.part.partId)
+        projection.messages[event.messageId] = { ...message, partIds }
         projection.parts[event.part.partId] = event.part
         break
+      }
       case 'part.removed': {
         const message = projection.messages[event.messageId]
         if (!message || !message.partIds.includes(event.partId)) return { ok: false, reason: 'revision' }

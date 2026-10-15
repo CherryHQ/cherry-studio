@@ -208,6 +208,55 @@ describe('Assistant live recovery', () => {
     expect(projection.messages[two.id]).toBeDefined()
   })
 
+  it('keeps late tool outputs beside their inputs in live replay and reconnect checkpoints', () => {
+    const { one } = seed()
+    const inputs = ['A', 'B'].map((toolCallId) => ({
+      type: 'dynamic-tool' as const,
+      toolName: 'lookup',
+      toolCallId,
+      state: 'input-available' as const,
+      input: { query: toolCallId }
+    }))
+    fake.state.snapshot!.executions[0].finalMessage!.parts = inputs
+    journal!.poll()
+    const projection = baseline()
+    expect(projection.messages[one.id].partIds).toEqual([`${one.id}:live:0:in`, `${one.id}:live:1:in`])
+
+    fake.state.snapshot!.executions[0].finalMessage!.parts = [
+      { ...inputs[0], state: 'output-available', output: 'Result A' },
+      inputs[1]
+    ]
+    journal!.poll()
+    const events = journal!.eventsAfter(Number(projection.cursor.seq), Infinity)
+    const applied = applyAssistantEvents(
+      projection,
+      { subscriptionId: 'sub', topicId: journal!.topicId, streamEpoch: journal!.epoch, events },
+      {},
+      { sha256 }
+    )
+    expect(applied.ok).toBe(true)
+    if (!applied.ok) throw new Error(applied.reason)
+    const expectedOrder = [`${one.id}:live:0:in`, `${one.id}:live:0:out`, `${one.id}:live:1:in`]
+    expect(applied.projection.messages[one.id].partIds).toEqual(expectedOrder)
+    expect(applied.projection.parts[`${one.id}:live:0:out`]).toMatchObject({
+      kind: 'tool-output',
+      toolCallId: 'A',
+      content: { text: '"Result A"' }
+    })
+    expect(projection.messages[one.id].partIds).toEqual([`${one.id}:live:0:in`, `${one.id}:live:1:in`])
+    expect(baseline().messages[one.id].partIds).toEqual(expectedOrder)
+
+    const replayed = applyAssistantEvents(
+      applied.projection,
+      { subscriptionId: 'sub', topicId: journal!.topicId, streamEpoch: journal!.epoch, events },
+      {},
+      { sha256 }
+    )
+    expect(replayed.ok).toBe(true)
+    if (!replayed.ok) throw new Error(replayed.reason)
+    expect(replayed.projection.messages[one.id].partIds).toEqual(expectedOrder)
+  })
+
   it('materializes streamed checkpoint text before its lease can end and replays later appends without rereading it', () => {
     const { one } = seed()
     const text = '你' + 'Large answer '.repeat(500)

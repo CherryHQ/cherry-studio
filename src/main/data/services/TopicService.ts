@@ -696,7 +696,7 @@ export class TopicService {
    * one pagination contract (pinned-first, then manual order); recency ordering
    * for the time-grouped view is applied by the renderer over the loaded list.
    */
-  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
+  listByCursor(query: ListTopicsQuery & { assistantId?: string } = {}): CursorPaginationResponse<Topic> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')

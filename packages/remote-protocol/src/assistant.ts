@@ -49,7 +49,13 @@ export const assistantEventSchema = z.discriminatedUnion('kind', [
   z.strictObject({ ...event, kind: z.literal('topic.updated'), topic: assistantTopicSchema }),
   z.strictObject({ ...event, kind: z.literal('message.updated'), message: assistantMessageSchema }),
   z.strictObject({ ...event, kind: z.literal('message.removed'), messageId: opaqueId }),
-  z.strictObject({ ...event, kind: z.literal('part.updated'), messageId: opaqueId, part: partSchema }),
+  z.strictObject({
+    ...event,
+    kind: z.literal('part.updated'),
+    messageId: opaqueId,
+    afterPartId: opaqueId.nullable(),
+    part: partSchema
+  }),
   z.strictObject({ ...event, kind: z.literal('part.removed'), messageId: opaqueId, partId: opaqueId }),
   z.strictObject({
     ...event,
