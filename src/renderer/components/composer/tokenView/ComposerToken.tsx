@@ -846,7 +846,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const removeLabel = removeLabelProp ?? 'Remove'
   const shouldShowPopover = shouldShowFileTokenPopover(file) && (!readOnly || Boolean(readOnlyFilePreview?.url))
   const readOnlyFilePreviewPath = getReadOnlyFilePreviewPath(readOnlyFilePreview)
-  const pathTooltipPath = readOnly ? readOnlyFilePreviewPath : file?.path
+  const pathTooltipPath = readOnly ? (readOnlyFilePreview?.originalPath ?? readOnlyFilePreviewPath) : file?.path
   const filePreviewPath = readOnly ? readOnlyFilePreviewPath : getEditableFilePreviewPath(file)
   const canOpenFilePreview = !readOnlyFilePreviewActivation && Boolean(filePreviewPath && onFilePreviewActivate)
   const openFilePreview = useCallback(() => {

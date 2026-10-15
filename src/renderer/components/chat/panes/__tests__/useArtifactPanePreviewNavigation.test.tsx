@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
@@ -73,7 +74,7 @@ describe('useArtifactPanePreviewNavigation', () => {
     })
   })
 
-  it('automatically returns through nested input-file previews in reverse order', () => {
+  it('automatically returns through nested input-file previews in reverse order', async () => {
     const requestFileSelection = vi.fn()
     vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
     const first = fileSelection('/workspace', 'first.md')
@@ -90,6 +91,8 @@ describe('useArtifactPanePreviewNavigation', () => {
         previewPath: '/workspace/second.md' as AbsoluteFilePath
       })
     })
+    await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
+    acceptLastSelection(requestFileSelection)
     rerender({ previewFileSelection: second })
     act(() => {
       result.current.previewInputFile({
@@ -97,6 +100,8 @@ describe('useArtifactPanePreviewNavigation', () => {
         previewPath: '/workspace/third.md' as AbsoluteFilePath
       })
     })
+    await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(2))
+    acceptLastSelection(requestFileSelection)
 
     act(() => result.current.closeFilePreview())
     expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function))
@@ -218,11 +223,54 @@ describe('useArtifactPanePreviewNavigation', () => {
 
     await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
     expect(ipcApi.request).toHaveBeenCalledWith('file.get_metadata', { kind: 'path', path: uncPath })
+    expect(ipcApi.request).toHaveBeenCalledWith('file.read', {
+      handle: { kind: 'path', path: uncPath },
+      options: { mode: 'range', offset: 0, length: 1 }
+    })
     expect(getPhysicalPath).not.toHaveBeenCalled()
     expect(requestFileSelection).toHaveBeenCalledWith(
       expect.objectContaining({ workspacePath: '//server/share/docs', filePath: 'report.md' }),
       expect.any(Function)
     )
+  })
+
+  it('uses the managed file when the original path stats as a file but cannot be read', async () => {
+    const requestFileSelection = vi.fn()
+    const originalPath = '/Users/alice/report.md' as AbsoluteFilePath
+    vi.mocked(ipcApi.request).mockImplementation(async (route: string) => {
+      if (route === 'file.read') throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      return { kind: 'file' }
+    })
+    getPhysicalPath.mockResolvedValue('/managed/current/report.md')
+    const { result } = renderHook(() =>
+      useArtifactPanePreviewNavigation({
+        paneId: 'files',
+        previewFileSelection: null,
+        requestFileSelection,
+        workspacePath: '/workspace'
+      })
+    )
+
+    act(() => {
+      result.current.previewInputFile({
+        displayName: 'report.md',
+        previewPath: '/managed/old/report.md' as AbsoluteFilePath,
+        fileEntryId: 'entry-report',
+        originalPath
+      })
+    })
+
+    await waitFor(() => {
+      expect(requestFileSelection).toHaveBeenCalledWith(
+        expect.objectContaining({ workspacePath: '/managed/current', filePath: 'report.md' }),
+        expect.any(Function)
+      )
+    })
+    expect(ipcApi.request).toHaveBeenCalledWith('file.read', {
+      handle: { kind: 'path', path: originalPath },
+      options: { mode: 'range', offset: 0, length: 1 }
+    })
+    expect(getPhysicalPath).toHaveBeenCalledWith({ id: 'entry-report' })
   })
 
   it('falls back to the managed path when the UNC original is unreachable', async () => {
@@ -294,7 +342,63 @@ describe('useArtifactPanePreviewNavigation', () => {
     expect(requestFileSelection).not.toHaveBeenCalled()
   })
 
-  it('restores the original pane only after Back is accepted, including when that target has no file', () => {
+  it('keeps the visible file when a root path cannot be previewed, then Back restores the original file and files pane', async () => {
+    vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
+    const original = fileSelection('/workspace', 'original.md')
+    const { result } = renderHook(() => {
+      const [selection, setSelection] = useState<ArtifactPaneFileSelection | null>(original)
+      const navigation = useArtifactPanePreviewNavigation({
+        paneId: 'files',
+        previewFileSelection: selection,
+        requestFileSelection: (nextSelection, onAccepted) => {
+          setSelection(nextSelection)
+          onAccepted?.()
+        },
+        workspacePath: '/workspace'
+      })
+      return { selection, ...navigation }
+    })
+
+    act(() => {
+      result.current.previewInputFile({
+        displayName: 'current.md',
+        previewPath: '/workspace/current.md' as AbsoluteFilePath
+      })
+    })
+
+    await waitFor(() => {
+      expect(result.current.selection).toMatchObject({
+        displayName: 'current.md',
+        filePath: 'current.md',
+        previewType: 'file',
+        readOnly: true,
+        workspacePath: '/workspace'
+      })
+    })
+    const visibleFile = result.current.selection
+    expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true })
+    panelActions.requestOpen.mockClear()
+    panelActions.close.mockClear()
+
+    act(() => {
+      result.current.previewInputFile({
+        displayName: 'root',
+        previewPath: '/' as AbsoluteFilePath
+      })
+    })
+
+    expect(result.current.selection).toBe(visibleFile)
+    expect(panelActions.requestOpen).not.toHaveBeenCalled()
+    expect(panelActions.close).not.toHaveBeenCalled()
+
+    act(() => result.current.closeFilePreview())
+
+    expect(result.current.selection).toBe(original)
+    expect(panelActions.requestOpen).toHaveBeenCalledWith('files')
+    expect(panelActions.close).not.toHaveBeenCalled()
+  })
+
+  it('restores the original pane only after Back is accepted, including when that target has no file', async () => {
     const requestFileSelection = vi.fn()
     panelState.presentationOpen = false
     const { result } = renderHook(() =>
@@ -312,6 +416,8 @@ describe('useArtifactPanePreviewNavigation', () => {
         previewPath: '/workspace/notes.md' as AbsoluteFilePath
       })
     })
+    await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
+    acceptLastSelection(requestFileSelection)
     act(() => result.current.closeFilePreview())
     expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function))
     expect(panelActions.close).not.toHaveBeenCalled()
@@ -329,7 +435,7 @@ describe('useArtifactPanePreviewNavigation', () => {
     expect(panelActions.close).not.toHaveBeenCalled()
   })
 
-  it('keeps the previous panel until Back is accepted', () => {
+  it('keeps the previous panel until Back is accepted', async () => {
     const requestFileSelection = vi.fn()
     const artifact = fileSelection('/workspace', 'report.md')
     panelState.activePanelId = 'browser'
@@ -348,6 +454,12 @@ describe('useArtifactPanePreviewNavigation', () => {
         previewPath: '/workspace/notes.md' as AbsoluteFilePath
       })
     })
+    await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
+    expect(panelActions.requestOpen).not.toHaveBeenCalled()
+    acceptLastSelection(requestFileSelection)
+    expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true })
+    panelActions.requestOpen.mockClear()
+
     act(() => result.current.closeFilePreview())
     expect(requestFileSelection).toHaveBeenLastCalledWith(artifact, expect.any(Function))
     expect(panelActions.requestOpen).not.toHaveBeenCalled()

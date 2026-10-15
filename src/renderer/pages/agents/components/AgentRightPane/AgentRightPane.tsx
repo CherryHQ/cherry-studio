@@ -464,8 +464,9 @@ function AgentRightPaneActionsProvider({
       void openFileTarget(targetPath, {
         openArtifactFile: () => {
           if (artifactOpenRequestRef.current !== requestId) return
-          if (fromPreview) captureInputPreviewReturnTarget()
-          requestFileSelection(selection)
+          requestFileSelection(selection, () => {
+            if (fromPreview) captureInputPreviewReturnTarget()
+          })
         },
         openPath: async (path) => {
           if (artifactOpenRequestRef.current !== requestId) return

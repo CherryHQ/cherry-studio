@@ -12,6 +12,7 @@ import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffe
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { serializeComposerDocument } from '../composerDraft'
 import { createComposerEditorPreset } from '../composerPreset'
@@ -1044,6 +1045,61 @@ describe('ComposerToken', () => {
 
     expect(onActivate).toHaveBeenCalledTimes(2)
     expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('shows the original local path on a sent file and still activates the managed preview', () => {
+    const onActivate = vi.fn()
+    const onFilePreviewActivate = vi.fn()
+    const { container } = render(
+      <FileComposerToken
+        readOnly
+        onFilePreviewActivate={onFilePreviewActivate}
+        onReadOnlyFilePreviewActivate={onActivate}
+        readOnlyFilePreview={{
+          url: 'file:///tmp/message-files/managed-file.md',
+          mediaType: 'text/markdown',
+          originalPath: '/Users/alice/requirements.md' as AbsoluteFilePath
+        }}
+        token={{
+          id: 'file:sent-markdown',
+          kind: 'file',
+          label: 'requirements.md'
+        }}
+      />
+    )
+
+    expectTokenPathTooltip(container, '/Users/alice/requirements.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'requirements.md' }))
+
+    expect(onActivate).toHaveBeenCalledTimes(1)
+    expect(onActivate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'file:///tmp/message-files/managed-file.md',
+        originalPath: '/Users/alice/requirements.md'
+      }),
+      expect.objectContaining({ id: 'file:sent-markdown', label: 'requirements.md' })
+    )
+    expect(onFilePreviewActivate).not.toHaveBeenCalled()
+  })
+
+  it('shows the decoded managed file URL when a sent file has no original path', () => {
+    const { container } = render(
+      <FileComposerToken
+        readOnly
+        readOnlyFilePreview={{
+          url: 'file:///tmp/message-files/managed%20file.md',
+          mediaType: 'text/markdown'
+        }}
+        token={{
+          id: 'file:sent-markdown',
+          kind: 'file',
+          label: 'managed file.md'
+        }}
+      />
+    )
+
+    expectTokenPathTooltip(container, '/tmp/message-files/managed file.md')
   })
 
   it('activates sent generic file previews with click and keyboard without adding a hover card', () => {

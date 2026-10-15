@@ -75,8 +75,9 @@ export function useArtifactPanePreviewNavigation({
     return requestRef.current
   }, [requestRef])
 
-  const beginPreview = useCallback(() => {
-    const requestId = beginRequest()
+  const isCurrentRequest = useCallback((requestId: number) => requestRef.current === requestId, [requestRef])
+
+  const rememberPreviewReturnTarget = useCallback(() => {
     if (!returnRef.current || !panelState.presentationOpen || panelState.activePanelId !== paneId) {
       returnRef.current = {
         closePane: !panelState.presentationOpen,
@@ -84,13 +85,10 @@ export function useArtifactPanePreviewNavigation({
         selection: previewFileSelection
       }
     }
-    return requestId
-  }, [beginRequest, paneId, panelState.activePanelId, panelState.presentationOpen, previewFileSelection])
-
-  const isCurrentRequest = useCallback((requestId: number) => requestRef.current === requestId, [requestRef])
+  }, [paneId, panelState.activePanelId, panelState.presentationOpen, previewFileSelection])
 
   const validateSelection = useCallback(
-    async (selection: ArtifactPaneFileSelection, requestId: number) => {
+    async (selection: ArtifactPaneFileSelection, requestId: number, onCommit?: () => void) => {
       let nextSelection: ArtifactPaneFileSelection | null = selection
       try {
         const metadata = await ipcApi.request(
@@ -101,8 +99,9 @@ export function useArtifactPanePreviewNavigation({
       } catch {
         // Keep inaccessible files selected so the preview can report the error.
       }
-      if (!isCurrentRequest(requestId)) return
+      if (!isCurrentRequest(requestId) || !nextSelection) return
       requestFileSelection(nextSelection, () => {
+        onCommit?.()
         panelActions.requestOpen(paneId, { userInitiated: true })
       })
     },
@@ -122,14 +121,9 @@ export function useArtifactPanePreviewNavigation({
   const previewInputFile = useCallback(
     (input: InputFilePreview) => {
       if (!enabled) return
-      captureInputPreviewReturnTarget()
-      const requestId = beginPreview()
-      const initialSelection = createInputFileSelection(input, workspacePath, input.previewPath)
-      if (!initialSelection) {
-        requestFileSelection(null)
-        return
-      }
+      if (!createInputFileSelection(input, workspacePath, input.previewPath)) return
 
+      const requestId = beginRequest()
       void (async () => {
         let previewPath = input.previewPath
 
@@ -137,7 +131,14 @@ export function useArtifactPanePreviewNavigation({
           try {
             const originalMetadata = await ipcApi.request('file.get_metadata', createFilePathHandle(input.originalPath))
             if (!isCurrentRequest(requestId)) return
-            if (originalMetadata?.kind === 'file') previewPath = input.originalPath
+            if (originalMetadata?.kind === 'file') {
+              await ipcApi.request('file.read', {
+                handle: createFilePathHandle(input.originalPath),
+                options: { mode: 'range', offset: 0, length: 1 }
+              })
+              if (!isCurrentRequest(requestId)) return
+              previewPath = input.originalPath
+            }
           } catch {
             if (!isCurrentRequest(requestId)) return
           }
@@ -153,20 +154,23 @@ export function useArtifactPanePreviewNavigation({
           }
         }
 
-        const selection = createInputFileSelection(input, workspacePath, previewPath)
-        if (!selection) {
-          if (isCurrentRequest(requestId)) requestFileSelection(null)
-          return
-        }
-        await validateSelection(selection, requestId)
+        if (!isCurrentRequest(requestId)) return
+        const selection =
+          createInputFileSelection(input, workspacePath, previewPath) ??
+          (previewPath === input.previewPath ? null : createInputFileSelection(input, workspacePath, input.previewPath))
+        if (!selection) return
+        await validateSelection(selection, requestId, () => {
+          captureInputPreviewReturnTarget()
+          rememberPreviewReturnTarget()
+        })
       })()
     },
     [
-      beginPreview,
+      beginRequest,
       captureInputPreviewReturnTarget,
       enabled,
       isCurrentRequest,
-      requestFileSelection,
+      rememberPreviewReturnTarget,
       validateSelection,
       workspacePath
     ]
