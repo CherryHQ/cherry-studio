@@ -261,7 +261,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'firecrawl',
   'crawl4ai',
   'parallel',
-  'serply'
+  'serply',
+  'duckduckgo'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]

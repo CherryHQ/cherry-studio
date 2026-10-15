@@ -43,6 +43,8 @@ export type UtilityProcessDefinition<Contract extends UtilityProcessContract, In
 
 export interface UtilityProcessRequestOptions<Event> {
   signal?: AbortSignal
+  /** Request-scoped reverse RPC; absent means the child has no host capabilities. */
+  onHostCall?: (method: string, input: unknown, signal: AbortSignal) => Promise<unknown>
   /** Called synchronously and in order for each event; a throw cancels the request under the definition's policy. */
   onEvent?: (event: Event) => void
 }
@@ -64,4 +66,10 @@ export interface UtilityProcessClient<Contract extends UtilityProcessContract> {
 
   /** Maintenance gate: runs `operation` only after a confirmed exit; new requests fail fast with PROCESS_BLOCKED meanwhile. */
   withStopped<T>(operation: () => T | Promise<T>, options?: UtilityProcessResetOptions): Promise<T>
+}
+
+export interface UtilityProcessInstance<
+  Contract extends UtilityProcessContract
+> extends UtilityProcessClient<Contract> {
+  dispose(): Promise<void>
 }
