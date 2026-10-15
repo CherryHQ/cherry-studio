@@ -197,6 +197,38 @@ describe('tool output offload', () => {
     expect(marker.length).toBeLessThan(3_000)
   })
 
+  // Breaks when an offloaded result glues its text parts together, unlike the result the model would get.
+  it('keeps the separators between text parts in the saved output and its excerpts', async () => {
+    const records = Array.from({ length: 100 }, (_, i) => `record ${i}: ${'x'.repeat(40)}`)
+    const listRecords = defineTool({
+      name: 'list_records',
+      label: 'List records',
+      description: 'One text part per record',
+      parameters: Type.Object({}),
+      async execute() {
+        return { content: records.map((text) => ({ type: 'text' as const, text })), details: undefined }
+      }
+    })
+    const { model, calls } = windowedModel(100_000, (_prompt, call) =>
+      call === 1
+        ? [toolCall('call_list', 'list_records', {}), finish('tool-calls')]
+        : [...textParts('t', 'Done.'), finish('stop')]
+    )
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      model: { ...MODEL, contextWindow: 100_000 },
+      tools: [listRecords],
+      offload: { store: fileStore(tempDir('offload')), thresholdChars: 1_000 }
+    })
+    await session.prompt('List the records')
+
+    const sent = calls[1].prompt.find((message) => message.role === 'tool')!
+    const marker = (plain(sent.content[0]) as { output: { value: string } }).output.value
+    expect(readFileSync(/Full output saved to: (.+)/.exec(marker)![1], 'utf8')).toBe(records.join('\n'))
+    expect(marker).toContain(`${records[0]}\n${records[1]}\n`)
+    expect(marker).toContain(`\n${records[98]}\n${records[99]}`)
+  })
+
   it('sends an output whole when its marker would not be shorter', async () => {
     const output = 'x'.repeat(2_000)
     const echo = defineTool({
