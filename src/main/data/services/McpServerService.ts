@@ -208,12 +208,14 @@ export class McpServerService {
         for (const agent of agents) {
           if (!mountedAgentIds.has(agent.id)) continue
           // Pre-rename mount list with configured names: allocation order decides who owns a
-          // duplicated name, mirroring resolveMountedAgentMcpServers.
+          // duplicated name, mirroring resolveMountedAgentMcpServers. Ties break by mcpServerId
+          // — the same total order the runtime readers apply, since rows replaced in one
+          // statement can share a createdAt millisecond.
           const mountedServers = tx
             .select({ mcpServerId: agentMcpServerTable.mcpServerId })
             .from(agentMcpServerTable)
             .where(eq(agentMcpServerTable.agentId, agent.id))
-            .orderBy(asc(agentMcpServerTable.createdAt))
+            .orderBy(asc(agentMcpServerTable.createdAt), asc(agentMcpServerTable.mcpServerId))
             .all()
             .flatMap(({ mcpServerId }) => {
               const [mountedRow] = tx

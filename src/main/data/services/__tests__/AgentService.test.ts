@@ -937,6 +937,53 @@ describe('AgentService', () => {
       expect(reloaded?.disabledTools).toEqual(['mcp__id-a__run'])
     })
 
+    it('keeps the persisted mount order equal to the submitted order so migration matches runtime allocation', async () => {
+      // A and B are both named `docs`; B mounts second, so its denial lives under its id key.
+      // Reordering the mounts to [B, A] hands `docs` to B — but only if the junction rows carry
+      // the submitted order. Rows written with per-row Date.now() defaults tie inside the same
+      // millisecond, and a timestamp-only reader returns ties in an unspecified order, so the
+      // migration's array-order prediction diverges from the runtime allocation: B stays on its
+      // id while its denial moves to `docs`, and B's run tool executes.
+      await insertMcpServer('srv-a', 'docs')
+      await insertMcpServer('srv-b', 'docs')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Order',
+        model: TEST_MODEL_ID,
+        mcps: ['srv-a', 'srv-b'],
+        disabledTools: ['mcp__srv-b__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['srv-b', 'srv-a'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      // The persisted order is the allocation order both sides share: B claims `docs`, A falls
+      // back to its id.
+      expect(reloaded?.mcps).toEqual(['srv-b', 'srv-a'])
+      // B's denial followed B onto the key B actually holds after the reorder.
+      expect(reloaded?.disabledTools).toEqual(['mcp__docs__run'])
+    })
+
+    it('reads same-timestamp mount rows in mcpServerId order', async () => {
+      // Rows written by older versions (or createAgent) can share one timestamp: readers must
+      // break ties by mcpServerId so migration old-reads and runtime allocation agree on legacy
+      // rows too, not only on rows this write path orders explicitly.
+      await insertMcpServer('srv-a', 'docs')
+      await insertMcpServer('srv-b', 'docs')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Ties',
+        model: TEST_MODEL_ID
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: created.id, mcpServerId: 'srv-b', createdAt: 1000 },
+        { agentId: created.id, mcpServerId: 'srv-a', createdAt: 1000 }
+      ])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.mcps).toEqual(['srv-a', 'srv-b'])
+    })
+
     it('leaves an explicitly submitted disabledTools list untouched on a mount change', async () => {
       await insertMcpServer('id-a', 'id-b')
       await insertMcpServer('id-b', 'other')

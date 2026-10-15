@@ -205,6 +205,11 @@ function rowToAgent(
  * Fetch mcps for a set of agent IDs from the junction table.
  * Returns a Map<agentId, string[]>.
  * Accepts both a database instance and a transaction (DbOrTx).
+ *
+ * The returned order IS the runtime allocation order (duplicate configured names hand the name
+ * to the first entry), so it must be total: rows replaced in one statement can share a
+ * `createdAt` millisecond, and SQLite's return order for ties is unspecified — `mcpServerId`
+ * breaks them the same way on every reader (see `fetchKnowledgeBasesForAgents`).
  */
 function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[]> {
   if (agentIds.length === 0) return new Map()
@@ -212,7 +217,7 @@ function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[
     .select({ agentId: agentMcpServerTable.agentId, mcpServerId: agentMcpServerTable.mcpServerId })
     .from(agentMcpServerTable)
     .where(inArray(agentMcpServerTable.agentId, agentIds))
-    .orderBy(asc(agentMcpServerTable.agentId), asc(agentMcpServerTable.createdAt))
+    .orderBy(asc(agentMcpServerTable.agentId), asc(agentMcpServerTable.createdAt), asc(agentMcpServerTable.mcpServerId))
     .all()
   const map = new Map<string, string[]>()
   for (const row of rows) {
@@ -807,12 +812,15 @@ export class AgentService {
               .select({ mcpServerId: agentMcpServerTable.mcpServerId })
               .from(agentMcpServerTable)
               .where(eq(agentMcpServerTable.agentId, id))
-              .orderBy(asc(agentMcpServerTable.createdAt))
+              .orderBy(asc(agentMcpServerTable.createdAt), asc(agentMcpServerTable.mcpServerId))
               .all()
               .map(({ mcpServerId }) => mcpServerId)
             if (updates.disabledTools === undefined && oldMountedServers.length > 0) {
               const migrated = migrateAgentDisabledToolsForAllocationChange(current.disabledTools ?? [], {
                 oldMountedServers: mountSnapshot(oldMountedServers),
+                // The submitted array is the persisted order: the insert below writes each row
+                // with an explicit ascending `createdAt`, so both the migration here and the
+                // runtime readers resolve duplicate-name claims from the exact order below.
                 newMountedServers: mountSnapshot(newMcps),
                 reservedKeys: [...Object.values(CHERRY_MCP_SERVER)]
               })
@@ -820,8 +828,21 @@ export class AgentService {
             }
             tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.agentId, id)).run()
             if (newMcps.length > 0) {
+              // Persisted mount order = submitted order: `$defaultFn` timestamps are evaluated
+              // per row, so rows replaced in one statement can tie inside the same millisecond
+              // and a timestamp-only readback becomes order-ambiguous — the migration above
+              // would predict one duplicate-name owner while the runtime allocates the other,
+              // moving a denial onto the wrong server. Positional timestamps make the order
+              // total and readable by every reader through (createdAt, mcpServerId).
+              const mountBaseTimestamp = Date.now()
               tx.insert(agentMcpServerTable)
-                .values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+                .values(
+                  newMcps.map((mcpId, index) => ({
+                    agentId: id,
+                    mcpServerId: mcpId,
+                    createdAt: mountBaseTimestamp + index
+                  }))
+                )
                 .run()
             }
           }
