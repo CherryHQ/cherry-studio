@@ -36,24 +36,28 @@ export async function convertDocumentBundle(
     const blocks = flattenDocumentBlocks(model.blocks)
     if (!blocks.length) throw new DocumentConversionError(exportErrorCodes.EMPTY_DOCUMENT, 'Document is empty.', '')
     const title = input.title || blocks.find((block) => block.type === 'heading')?.text || 'Document'
+    const outputUsesPreparedHtml = Boolean(model.html) && (input.format === 'html' || input.format === 'pdf')
     const images = new Map<string, Buffer>()
-    let imageBytes = 0
-    for (const block of blocks) {
-      if (block.type !== 'image' || images.has(block.source)) continue
-      const embedded = model.images.get(block.source)
-      const image = embedded
-        ? await normalizeDocumentImage(embedded, signal)
-        : await readImageAsset(
-            block.source,
-            {
-              sourcePath: input.filePath ?? input.sourcePath,
-              assetRoot: input.assetRoot
-            },
-            signal
-          )
-      imageBytes += image.length
-      if (imageBytes > 40 * 1024 * 1024) throw new Error('Document images exceed 40 MiB')
-      images.set(block.source, image)
+    signal?.throwIfAborted()
+    if (!outputUsesPreparedHtml) {
+      let imageBytes = 0
+      for (const block of blocks) {
+        if (block.type !== 'image' || images.has(block.source)) continue
+        const embedded = model.images.get(block.source)
+        const image = embedded
+          ? await normalizeDocumentImage(embedded, signal)
+          : await readImageAsset(
+              block.source,
+              {
+                sourcePath: input.filePath ?? input.sourcePath,
+                assetRoot: input.assetRoot
+              },
+              signal
+            )
+        imageBytes += image.length
+        if (imageBytes > 40 * 1024 * 1024) throw new Error('Document images exceed 40 MiB')
+        images.set(block.source, image)
+      }
     }
     const assets = new Map<string, Buffer>()
     const result = (bytes: Buffer): ConvertedDocument => ({ bytes, assets, warnings: [...new Set(model.warnings)] })
