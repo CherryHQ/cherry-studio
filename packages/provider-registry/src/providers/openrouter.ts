@@ -51,8 +51,7 @@ export default defineProvider({
       }
     },
     'openai-image-generation': {
-      adapterFamily: 'openrouter',
-      baseUrl: 'https://openrouter.ai/api/v1/'
+      adapterFamily: 'openrouter'
     }
   },
   serverTools: [

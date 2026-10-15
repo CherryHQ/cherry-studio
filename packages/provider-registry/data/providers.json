@@ -691,8 +691,7 @@
           }
         },
         "openai-image-generation": {
-          "adapterFamily": "openrouter",
-          "baseUrl": "https://openrouter.ai/api/v1/"
+          "adapterFamily": "openrouter"
         }
       },
       "id": "openrouter",
@@ -787,12 +786,10 @@
           }
         },
         "openai-embeddings": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://tokendance.space/gateway"
+          "adapterFamily": "openai-compatible"
         },
         "openai-image-generation": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://tokendance.space/gateway"
+          "adapterFamily": "openai-compatible"
         },
         "openai-responses": {
           "adapterFamily": "openai",
@@ -2772,5 +2769,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "afa17e5976dcef2e"
+  "version": "46d9d6dcfae8310b"
 }

@@ -16,52 +16,18 @@ import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses, ProviderHelpText } from '../../primitives/ProviderSettingsPrimitives'
-import {
-  areModelClassificationsEqual,
-  buildModelCapabilities,
-  buildModelInputModalities,
-  getInitialModelClassification,
-  getModelApiId
-} from './helpers'
+import { getModelApiId } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
-import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
+import { ModelMetadataControls } from './ModelMetadataControls'
 import { ModelPricingFields } from './ModelPricingFields'
-import {
-  applyModelPurpose,
-  getInitialChatEndpointType,
-  getModelDrawerMode,
-  getProviderChatEndpointTypes,
-  inferModelPurpose,
-  type ModelPurposeFields
-} from './modelPurpose'
-import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
-import type {
-  ModelCapabilityToggle,
-  ModelClassificationState,
-  ModelDrawerMode,
-  ModelInputModality,
-  ModelPrimaryType
-} from './types'
+import type { ModelMetadata } from './types'
 
 interface EditModelDrawerProps {
   providerId: string
   open: boolean
   model: Model | null
   onClose: () => void
-}
-
-interface BuildPatchOverrides {
-  name?: string
-  group?: string
-  endpointTypes?: EndpointType[]
-  purposeFields?: ModelPurposeFields
-  classification?: ModelClassificationState
-  supportsStreaming?: boolean
-  pricing?: Model['pricing']
-  contextWindow?: number | null
-  maxInputTokens?: number | null
-  maxOutputTokens?: number | null
 }
 
 interface AutoSaveQueueItem {
@@ -84,9 +50,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
-  const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
   const [showMoreSettings, setShowMoreSettings] = useState(true)
-  const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
+  const [metadata, setMetadata] = useState<ModelMetadata>({ capabilities: [] })
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [contextWindow, setContextWindow] = useState<number | null>(null)
   const [maxInputTokens, setMaxInputTokens] = useState<number | null>(null)
@@ -96,14 +61,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
-  const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
-  const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
-  const defaultChatEndpoint = providerChatEndpointTypes[0]
-  const modelPurpose = inferModelPurpose(purposeFields)
-  const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
-  const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
-  const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
   useLayoutEffect(() => {
     if (!open || !model) {
@@ -113,14 +71,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
-    setPurposeFields({
-      endpointTypes: model.endpointTypes,
+    setMetadata({
       capabilities: model.capabilities,
       inputModalities: model.inputModalities,
       outputModalities: model.outputModalities
     })
     setShowMoreSettings(true)
-    setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
     setContextWindow(model.contextWindow ?? null)
     setMaxInputTokens(model.maxInputTokens ?? null)
@@ -134,101 +90,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       await updateModel(providerId, modelId, patch)
     },
     [updateModel]
-  )
-
-  const buildPatch = useCallback(
-    (overrides?: BuildPatchOverrides): UpdateModelDto => {
-      if (!model) {
-        return {}
-      }
-
-      const nextName = overrides?.name ?? name
-      const nextGroup = overrides?.group ?? group
-      const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
-      const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
-      const hasPricingOverride = overrides != null && Object.hasOwn(overrides, 'pricing')
-      const hasContextWindowOverride = overrides != null && Object.hasOwn(overrides, 'contextWindow')
-      const hasMaxInputTokensOverride = overrides != null && Object.hasOwn(overrides, 'maxInputTokens')
-      const hasMaxOutputTokensOverride = overrides != null && Object.hasOwn(overrides, 'maxOutputTokens')
-      const nextContextWindow = hasContextWindowOverride ? overrides?.contextWindow : contextWindow
-      const nextMaxInputTokens = hasMaxInputTokensOverride ? overrides?.maxInputTokens : maxInputTokens
-      const nextMaxOutputTokens = hasMaxOutputTokensOverride ? overrides?.maxOutputTokens : maxOutputTokens
-      const nextPurposeFields = overrides?.purposeFields ?? purposeFields
-      const nextClassification = overrides?.classification
-      const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
-      const effectiveClassification = nextClassification ?? classification
-      const classifiedCapabilities =
-        shouldApplyPurpose || nextClassification
-          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
-          : undefined
-      const classifiedInputModalities =
-        shouldApplyPurpose || nextClassification
-          ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
-          : undefined
-      const resolvedPurposeFields =
-        shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
-          ? applyModelPurpose(
-              {
-                ...nextPurposeFields,
-                capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
-              },
-              inferModelPurpose(nextPurposeFields),
-              {
-                previousPurpose: inferModelPurpose(nextPurposeFields),
-                chatEndpointType: getInitialChatEndpointType(nextPurposeFields, defaultChatEndpoint)
-              }
-            )
-          : null
-
-      return {
-        name: nextName || model.name,
-        group: nextGroup || model.group,
-        ...(hasPurposeFieldsOverride && resolvedPurposeFields
-          ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
-          : hasEndpointTypesOverride
-            ? {
-                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
-              }
-            : {}),
-        ...(resolvedPurposeFields
-          ? {
-              capabilities: resolvedPurposeFields.capabilities,
-              inputModalities: resolvedPurposeFields.inputModalities
-            }
-          : nextClassification && classifiedCapabilities && classifiedInputModalities
-            ? {
-                capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
-              }
-            : {}),
-        ...(hasPurposeFieldsOverride && resolvedPurposeFields
-          ? { outputModalities: resolvedPurposeFields.outputModalities }
-          : {}),
-        supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
-        ...(hasContextWindowOverride && nextContextWindow !== undefined ? { contextWindow: nextContextWindow } : {}),
-        ...(hasMaxInputTokensOverride && nextMaxInputTokens !== undefined
-          ? { maxInputTokens: nextMaxInputTokens }
-          : {}),
-        ...(hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined
-          ? { maxOutputTokens: nextMaxOutputTokens }
-          : {}),
-        ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
-      }
-    },
-    [
-      group,
-      contextWindow,
-      maxInputTokens,
-      maxOutputTokens,
-      mode,
-      model,
-      name,
-      purposeFields,
-      classification,
-      defaultChatEndpoint,
-      supportsStreaming
-    ]
   )
 
   const processAutoSaveQueue = useCallback(async () => {
@@ -254,7 +115,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   }, [handleUpdateModel, t])
 
   const autoSave = useCallback(
-    (overrides?: BuildPatchOverrides) => {
+    (patch: UpdateModelDto) => {
       if (!model) {
         return
       }
@@ -263,7 +124,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const item: AutoSaveQueueItem = {
         providerId: model.providerId ?? providerId,
         modelId,
-        patch: buildPatch(overrides)
+        patch
       }
       const queueKey = `${item.providerId}/${item.modelId}`
       const pendingItem = autoSavePendingItemsRef.current.get(queueKey)
@@ -273,7 +134,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       )
       void processAutoSaveQueue()
     },
-    [buildPatch, model, processAutoSaveQueue, providerId]
+    [model, processAutoSaveQueue, providerId]
   )
 
   const handlePricingCommit = useCallback(
@@ -283,57 +144,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     },
     [autoSave]
   )
-
-  const commitClassification = useCallback(
-    (next: ModelClassificationState) => {
-      setClassification(next)
-      autoSave({ classification: next })
-    },
-    [autoSave]
-  )
-
-  const handlePrimaryTypeChange = useCallback(
-    (primaryType: ModelPrimaryType) => {
-      commitClassification({ ...classification, primaryType })
-    },
-    [classification, commitClassification]
-  )
-
-  const handleToggleCapability = useCallback(
-    (capability: ModelCapabilityToggle) => {
-      const capabilities = new Set(classification.capabilities)
-      if (capabilities.has(capability)) {
-        capabilities.delete(capability)
-      } else {
-        capabilities.add(capability)
-      }
-      commitClassification({ ...classification, capabilities })
-    },
-    [classification, commitClassification]
-  )
-
-  const handleToggleInputModality = useCallback(
-    (modality: ModelInputModality) => {
-      const inputModalities = new Set(classification.inputModalities)
-      if (inputModalities.has(modality)) {
-        inputModalities.delete(modality)
-      } else {
-        inputModalities.add(modality)
-      }
-      commitClassification({ ...classification, inputModalities })
-    },
-    [classification, commitClassification]
-  )
-
-  const handleResetClassification = useCallback(() => {
-    const nextClassification = {
-      ...savedClassification,
-      capabilities: new Set(savedClassification.capabilities),
-      inputModalities: new Set(savedClassification.inputModalities)
-    }
-    setClassification(nextClassification)
-    autoSave({ classification: nextClassification })
-  }, [autoSave, savedClassification])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
@@ -362,7 +172,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 maxOutputTokens,
                 endpointTypes
               }}
-              showEndpointType={mode === 'endpoint-types'}
+              showEndpointType
               endpointTypeControl="chips"
               modelIdDisabled
               modelIdAction={
@@ -382,50 +192,19 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 setGroup(getDefaultGroupName(value))
               }}
               onNameChange={setName}
-              onNameBlur={() => autoSave({ name })}
+              onNameBlur={() => {
+                if (name !== model.name) autoSave({ name: name || model.name })
+              }}
               onGroupChange={setGroup}
-              onGroupBlur={() => autoSave({ group })}
+              onGroupBlur={() => {
+                if (group !== (model.group ?? '')) autoSave({ group })
+              }}
               onEndpointTypesChange={(next) => {
                 const nextEndpointTypes = [...next]
                 setEndpointTypes(nextEndpointTypes)
                 autoSave({ endpointTypes: nextEndpointTypes })
               }}
             />
-            {mode === 'purpose' && (
-              <ModelPurposeFieldsControl
-                purpose={modelPurpose}
-                chatEndpointType={chatEndpointType}
-                chatEndpointTypes={providerChatEndpointTypes}
-                onPurposeChange={(nextPurpose) => {
-                  const nextPurposeFields = applyModelPurpose(purposeFields, nextPurpose, {
-                    previousPurpose: modelPurpose,
-                    chatEndpointType
-                  })
-                  const nextClassification = {
-                    ...classification,
-                    primaryType:
-                      nextPurpose === 'chat'
-                        ? classification.primaryType === 'image'
-                          ? ('text' as const)
-                          : classification.primaryType
-                        : ('image' as const)
-                  }
-                  setPurposeFields(nextPurposeFields)
-                  setEndpointTypes(nextPurposeFields.endpointTypes)
-                  setClassification(nextClassification)
-                  autoSave({ purposeFields: nextPurposeFields, classification: nextClassification })
-                }}
-                onChatEndpointTypeChange={(nextEndpointType) => {
-                  const nextPurposeFields = applyModelPurpose(purposeFields, 'chat', {
-                    previousPurpose: modelPurpose,
-                    chatEndpointType: nextEndpointType
-                  })
-                  setPurposeFields(nextPurposeFields)
-                  setEndpointTypes(nextPurposeFields.endpointTypes)
-                  autoSave({ purposeFields: nextPurposeFields })
-                }}
-              />
-            )}
           </div>
         </ProviderSection>
 
@@ -444,13 +223,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
               <div className={drawerClasses.sectionCard}>
-                <ModelClassificationControls
-                  value={classification}
-                  hasChanges={hasClassificationChanges}
-                  onPrimaryTypeChange={handlePrimaryTypeChange}
-                  onCapabilityToggle={handleToggleCapability}
-                  onInputModalityToggle={handleToggleInputModality}
-                  onReset={handleResetClassification}
+                <ModelMetadataControls
+                  value={metadata}
+                  onChange={(patch) => {
+                    setMetadata((current) => ({ ...current, ...patch }))
+                    autoSave(patch)
+                  }}
                 />
                 <ProviderHelpText className="mt-2">
                   {t('settings.models.edit.classification_save_hint')}

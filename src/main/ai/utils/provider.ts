@@ -100,27 +100,4 @@ export function headersWithoutCredentials(provider: Provider): Record<string, st
   return mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider))
 }
 
-export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
-  const trimmedHost = (apiHost || '').trim()
-  if (!trimmedHost.endsWith('#')) {
-    return { baseURL: trimmedHost.replace(/\/+$/, ''), endpoint: '' }
-  }
-  const host = trimmedHost.slice(0, -1)
-  const SUPPORTED_ENDPOINTS = [
-    'chat/completions',
-    'responses',
-    'messages',
-    'generateContent',
-    'streamGenerateContent',
-    'images/generations',
-    'images/edits',
-    'predict'
-  ]
-  const endpointMatch = SUPPORTED_ENDPOINTS.find((ep) => host.endsWith(ep))
-  if (!endpointMatch) {
-    return { baseURL: host.replace(/\/+$/, ''), endpoint: '' }
-  }
-  const baseSegment = host.slice(0, host.length - endpointMatch.length)
-  const baseURL = baseSegment.replace(/\/+$/, '').replace(/:$/, '')
-  return { baseURL, endpoint: endpointMatch }
-}
+export { routeToEndpoint } from '@shared/ai/endpointConnection'
