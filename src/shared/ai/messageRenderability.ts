@@ -93,9 +93,20 @@ const KNOWN_RENDERABLE_TOOL_NAMES = new Set<string>([
 
 // Transports stamped by a known agent runtime (mirrors the renderer's check
 // in toolResponse.ts); unknown tags leave the wire name untouched there too.
-const CHERRY_AGENT_TRANSPORTS: ReadonlySet<string> = new Set(
-  Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport)
-)
+const CHERRY_AGENT_TRANSPORTS: ReadonlySet<string> = new Set([
+  ...Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport),
+  // DeepSeek Harness stamps `dsh-agent` before it is a first-class runtime entry.
+  'dsh-agent'
+])
+
+// Legacy static wire names DSH still emits without `cherry.tool` metadata; production
+// uses `dynamic-tool` + `tool.type: 'builtin'` (non-renderable — see below).
+const DSH_ORCHESTRATION_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'get_goal',
+  'create_goal',
+  'update_goal',
+  'list_agents'
+])
 
 const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set(
   Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) => caps.builtinTools().map((tool) => tool.id))
@@ -179,6 +190,14 @@ function hasCherryTransport(part: CherryMessagePart): boolean {
   return typeof transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(transport)
 }
 
+function isDshAgentTransport(part: CherryMessagePart): boolean {
+  const metadata = (part as unknown as { callProviderMetadata?: unknown }).callProviderMetadata
+  if (typeof metadata !== 'object' || metadata === null) return false
+  const cherry = (metadata as Record<string, unknown>).cherry
+  if (typeof cherry !== 'object' || cherry === null) return false
+  return (cherry as Record<string, unknown>).transport === 'dsh-agent'
+}
+
 function hasProviderMetadata(part: CherryMessagePart, provider: string): boolean {
   const metadata = (part as unknown as { callProviderMetadata?: unknown }).callProviderMetadata
   return typeof metadata === 'object' && metadata !== null && provider in (metadata as Record<string, unknown>)
@@ -239,6 +258,14 @@ function resolveToolVisibilityType(
 function isRenderableDynamicTool(part: CherryMessagePart, wireName: string): boolean {
   const canonical = getCanonicalWireToolName(part, wireName)
   const toolType = resolveToolVisibilityType(part, wireName, canonical)
+  if (toolType === 'builtin') {
+    if (PI_META_TOOL_WIRE_NAMES.has(wireName) && hasCherryTransport(part)) return true
+    if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(wireName) && hasCherryTransport(part)) return true
+    if (wireName === 'codemode' || wireName === 'vcc_recall') {
+      return hasCherryTransport(part)
+    }
+    return false
+  }
   if (toolType === 'mcp') {
     const serverId = readCherryToolMetadata(part).serverId
     if (serverId === 'cherry-tools' || serverId === 'agent-memory') {
@@ -291,6 +318,9 @@ function isRenderableToolName(part: CherryMessagePart, name: string): boolean {
     if (PI_RUNTIME_BUILTIN_TOOL_NAMES.has(trimmed)) return true
     if (trimmed === PI_TOOL_CALL_TOOL_NAME || trimmed === PI_TOOL_DESCRIBE_TOOL_NAME) return true
     if (isAgentToolCardName(canonical)) return true
+    if (part.type !== 'dynamic-tool' && isDshAgentTransport(part) && DSH_ORCHESTRATION_TOOL_NAMES.has(trimmed)) {
+      return true
+    }
     const toolType = resolveToolVisibilityType(part, trimmed, canonical)
     if (toolType === 'provider' && CHERRY_RUNTIME_BUILTIN_TOOL_NAMES.has(trimmed)) return true
   }
