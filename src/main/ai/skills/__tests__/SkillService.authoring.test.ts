@@ -367,7 +367,7 @@ describe('SkillService authoring and remote updates', () => {
     const mirrorSpy = vi
       .spyOn(service, 'linkMirror')
       .mockRejectedValueOnce(new Error('mirror failed'))
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(false)
 
     await expect(
       service.applyRemoteUpdate({ skillId: SKILL_ID, revision: check.revision, overwriteLocalChanges: false })
