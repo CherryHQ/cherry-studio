@@ -12451,6 +12451,66 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-open-816b-a42b",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "Muse Spark Open 816B A42B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "meta",
+      "reasoning": {
+        "controls": [
+          {
+            "default": "xhigh",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "defaultEffort": "xhigh",
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "muse",
+      "id": "muse-spark-open-816b-a42b-nvfp4",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "Muse Spark Open 816B A42B NVFP4",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "meta",
+      "reasoning": {
+        "controls": [
+          {
+            "default": "xhigh",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "defaultEffort": "xhigh",
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
+      }
+    },
+    {
       "capabilities": ["image-recognition", "image-generation"],
       "id": "mai-image-2-5",
       "inputModalities": ["text", "image"],
@@ -22908,5 +22968,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "85d8425638038265"
+  "version": "371e196f7e841bbc"
 }
