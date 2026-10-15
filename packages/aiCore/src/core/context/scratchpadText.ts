@@ -465,7 +465,15 @@ function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string
   const closePattern = new RegExp(`</${tagName}\\s*>`, 'i')
   const closeMatch = closePattern.exec(text.slice(afterOpen))
   if (!closeMatch || closeMatch.index === undefined) return -1
-  return afterOpen + closeMatch.index + closeMatch[0].length
+  let end = afterOpen + closeMatch.index + closeMatch[0].length
+  // Compaction/concatenation can append duplicate closing tags for the same scratchpad wrapper.
+  const duplicateClose = new RegExp(`^\\s*</${tagName}\\s*>`, 'i')
+  for (;;) {
+    const extra = duplicateClose.exec(text.slice(end))
+    if (!extra) break
+    end += extra[0].length
+  }
+  return end
 }
 
 /** Strips only known model scratchpad wrappers; leaves other markup intact. */

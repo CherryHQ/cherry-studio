@@ -37,6 +37,12 @@ describe('scratchpadText', () => {
     expect(stripModelScratchpadBlocks('<thinking>long internal reasoning</thinking>')).toBe('')
   })
 
+  it('removes duplicate scratchpad closing tags left by compaction concatenation', () => {
+    const leaked = '<thinking>Start time 01:44:15. Write content, get end time.  Write.</thinking></thinking>'
+    expect(stripKnownModelScratchpadBlocks(leaked)).toBe('')
+    expect(stripModelScratchpadBlocks(leaked)).toBe('')
+  })
+
   it('preserves non-scratchpad markup when stripping compaction output', () => {
     expect(stripModelScratchpadBlocks('<thinking>hidden</thinking><div>visible</div>')).toBe('<div>visible</div>')
   })

@@ -2484,6 +2484,35 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).not.toContain('<thinking>')
     })
 
+    it('suppresses a thinking-only text part with duplicate closing tags from compaction concatenation', () => {
+      const { adapter, parts } = createAdapter()
+      const leakedThinking = '<thinking>Start time 01:44:15. Write content, get end time.  Write.</thinking></thinking>'
+      const visibleReply = 'Start time / End time\n\nActual answer body'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: leakedThinking } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: visibleReply } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe(visibleReply)
+      expect(text).not.toContain('<thinking>')
+      expect(text).not.toContain('01:44:15')
+    })
+
     it('keeps visible reply text after a scratchpad wrapper in the same content block', () => {
       const { adapter, parts } = createAdapter()
       const mixed = '<thinking>internal reasoning about the session</thinking>visible follow-up in the same block'
