@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 
+const OPEN_LAYER_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
+
 interface FooterProps {
   route: string
   canUseBackspace?: boolean
@@ -17,7 +19,17 @@ interface FooterProps {
 const Footer: FC<FooterProps> = ({ route, canUseBackspace, loading, clearClipboard, onEsc, onCopy }) => {
   const { t } = useTranslation()
 
-  useHotkeys('esc', onEsc, { preventDefault: true }, [onEsc])
+  // Esc first closes an open popover, menu or confirm dialog (they dismiss themselves);
+  // only a bare Esc closes the window.
+  useHotkeys(
+    'esc',
+    () => {
+      if (document.querySelector(OPEN_LAYER_SELECTOR)) return
+      onEsc()
+    },
+    { preventDefault: true },
+    [onEsc]
+  )
 
   useHotkeys('c', () => handleCopy(), { preventDefault: true }, [loading, onCopy])
 

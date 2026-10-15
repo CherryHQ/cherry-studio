@@ -34,6 +34,9 @@ interface Branch {
   stream: ReadableStream<UIMessageChunk>
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
   closed: boolean
+  /** Live chunks reached this branch from the stream's own `start` chunk, so an
+   *  attach replay of Main's buffer would only repeat what the branch already has. */
+  hasStreamStart: boolean
 }
 
 function branchKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
@@ -49,7 +52,8 @@ function createBranch(executionId: UniqueModelId, anchorMessageId: string | unde
     anchorMessageId,
     stream: undefined as never,
     controller: null,
-    closed: false
+    closed: false,
+    hasStreamStart: false
   }
   branch.stream = new ReadableStream<UIMessageChunk>({
     start(controller) {
@@ -229,7 +233,7 @@ export class TopicStreamSubscription {
     }
   }
 
-  #routeChunk(payload: StreamChunkPayload): void {
+  #routeChunk(payload: StreamChunkPayload, fromReplay = false): void {
     if (payload.topicId !== this.#topicId) return
     const { executionId, attemptId } = payload
     if (!executionId || attemptId === undefined) {
@@ -242,7 +246,15 @@ export class TopicStreamSubscription {
     }
     if (this.#isBranchSettled(executionId, payload.anchorMessageId, attemptId)) return
     const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId, attemptId)
-    if (!branch.closed) branch.controller?.enqueue(payload.chunk)
+    if (branch.closed) return
+    if (fromReplay) {
+      // `listen()` can receive a stream live from its first chunk before the attach
+      // request lands; Main's replay then repeats those chunks (duplicate text parts).
+      if (branch.hasStreamStart) return
+    } else if (payload.chunk.type === 'start' && !branch.hasStreamStart) {
+      branch.hasStreamStart = true
+    }
+    branch.controller?.enqueue(payload.chunk)
   }
 
   /** Mirror PersistenceListener's stored error part into the live branch before it closes. */
@@ -459,7 +471,7 @@ export class TopicStreamSubscription {
         this.#attached = true
         switch (res.status) {
           case 'attached':
-            for (const payload of res.bufferedChunks) this.#routeChunk(payload)
+            for (const payload of res.bufferedChunks) this.#routeChunk(payload, true)
             break
           case 'not-found':
           case 'done':

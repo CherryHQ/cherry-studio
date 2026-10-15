@@ -3,6 +3,7 @@ import type { FC, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
@@ -16,13 +17,15 @@ interface HeaderNavbarProps {
   showSidebarControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
+  temporaryTopic?: { id: string; expiresAt?: string }
 }
 
 const HeaderNavbar: FC<HeaderNavbarProps> = ({
   conversationControls,
   showSidebarControls = true,
   sidebarOpen,
-  onSidebarToggle
+  onSidebarToggle,
+  temporaryTopic
 }) => {
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const { t } = useTranslation()
@@ -41,6 +44,25 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({
           )}
           <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>
         </div>
+        {temporaryTopic?.expiresAt && (
+          <div
+            data-ui="chat.temporary-status"
+            className="flex items-center gap-2 px-2 text-xs text-muted-foreground [-webkit-app-region:no-drag]">
+            <span title={new Date(temporaryTopic.expiresAt).toLocaleString()}>
+              {t('quickAssistant.chat.expires_in_24h')}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                void dataApiService
+                  .post(`/topics/${temporaryTopic.id}/persist`, {})
+                  .catch((error) => toast.error(error instanceof Error ? error.message : String(error)))
+              }}>
+              {t('common.save')}
+            </Button>
+          </div>
+        )}
         <CommandTooltip command="chat.temporary.open" label={t('quickAssistant.chat.new_temporary')} placement="bottom">
           <Button
             variant="ghost"

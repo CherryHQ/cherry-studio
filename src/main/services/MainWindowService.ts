@@ -161,6 +161,12 @@ export class MainWindowService extends BaseService {
     // (in createWindow's trailing updateDockVisibility), so the Dock is hidden
     // from the moment the app finishes launching.
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
+    // A launcher/shortcut cold start (`cherrystudio://chat/...` in argv on Windows/Linux)
+    // only needs the floating chat; Main stays in the background until the user opens it.
+    const isFloatingChatLaunch = process.argv.some((arg) => arg.toLowerCase().startsWith('cherrystudio://chat/'))
+    if (isFloatingChatLaunch && !isMac) {
+      this.suppressInitialLaunchShow = true
+    }
     if (isLaunchToTray) {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       // Suppress only the process-launch window; runtime rebuilds must show.

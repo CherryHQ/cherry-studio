@@ -3,6 +3,7 @@ description: Launcher protocol and saved or temporary floating chat lifecycle
 sources:
   - src/main/services/protocol/handlers/chat.ts
   - src/main/services/QuickAssistantService.ts
+  - src/main/services/TemporaryChatRetentionService.ts
   - src/renderer/windows/quickAssistant/home/HomeWindow.tsx
   - src/shared/ipc/schemas/quickAssistant.ts
   - src/shared/utils/command/definitions.ts
@@ -22,8 +23,8 @@ Existing conversations retain their mode when the default changes.
 and **New saved chat**. These override the default mode and work with Main in the background.
 Temporary defaults to `Ctrl/Cmd+Shift+N`; the saved shortcut starts unassigned. Configure either
 using the direct shortcut links in Quick Assistant settings. Choose a binding that your desktop
-does not reserve. Temporary chats stay
-out of normal history until **Save and open in Cherry Studio** or **Minimize** is selected.
+does not reserve. Temporary chats stay out of normal history while they live only in the
+floating window.
 The floating model picker starts with the configured Quick Assistant model (or its
 assistant's model), falling back to the default chat model when appropriate. A local
 selection applies to subsequent turns. The shared reasoning control offers only the
@@ -33,15 +34,17 @@ questions read right to left, with the question mark at the visual left; English
 No punctuation or directional control characters are inserted into stored messages.
 Replacing a temporary conversation with messages asks before discarding it.
 Floating chats stay visible when they lose focus. **Stop** cancels generation in
-Chat, Summary, and Explanation. **Esc** hides the window without clearing the conversation, including during generation.
-**C**, outside text fields, copies the latest answer; the footer also offers Copy.
+Chat, Summary, and Explanation. **Esc** closes an open popover or dialog first; otherwise
+it closes the window. **C**, outside text fields, copies the latest answer; the footer also offers Copy.
 
-Saved floating conversations offer **Open in Cherry Studio** and **Delete**.
-Delete uses Cherry's existing Recycle Bin archive command.
-**Minimize** saves the conversation, hides the floating window, and leaves it available
-in the main app's chat history without opening the main window. For temporary chats,
-Minimize waits until generation finishes before enabling storage conversion.
-**X** asks before deleting the conversation and hiding the window; Cancel keeps it open.
+**Minimize** closes the floating window and keeps the conversation in the main app without
+opening the main window. A saved chat stays a normal saved chat. A temporary chat is stored
+as a temporary chat: Main labels it "Temporary chat · auto-deletes 24 hours after creation"
+with a **Save** action, and Cherry deletes it with its messages 24 hours after it was created
+(checked at startup and while running). Minimizing a temporary chat waits until generation finishes.
+**Open in Cherry Studio** does the same and then shows the chat in Main.
+**X** asks before deleting the conversation; Cancel keeps it open. Delete moves saved chats
+to the Recycle Bin and permanently removes stored temporary chats.
 The launcher works while Cherry runs in the background with its main window closed,
 including after the main window has been destroyed. Saved follow-up turns continue
 the active conversation branch, including after a temporary chat is saved.
@@ -66,7 +69,7 @@ later does not automatically submit that retained draft; use Send explicitly.
 The handler does not change the Quick Assistant enabled preference.
 
 The floating window opens in the center of the cursor's display, within its work
-area. Wayland compositors may override requested window positioning.
+area. On Wayland the compositor places windows (see below).
 
 A Vicinae no-view extension can implement `!chat` by opening this URL with
 `submit=true` and omitting `temporary` to follow the user preference. Separate saved
@@ -76,11 +79,15 @@ fails, Cherry keeps the prompt and shows the error without sending it.
 
 ## Linux and Wayland
 
-The Linux floating window uses an opaque background and keeps its custom frame:
-Electron does not support resizing transparent windows. Drag the frame outside
-its buttons to move it; use its outer resize boundary to resize. Wayland
-compositors control placement and activation, so requested centering is not
-guaranteed. On GNOME, Super + left-drag moves a window; Super + middle-drag resizes it.
+On Linux Wayland the floating window is frameless and transparent around its rounded
+card; the compositor moves it (drag the header) and resizes it from its edges and corners.
+X11 keeps an opaque background because transparent X11 windows depend on the window manager.
+Wayland apps cannot position their own windows, and a hidden window that is shown again is
+placed as if it had no size. Cherry therefore closes the floating window when it is dismissed
+and creates a fresh one each time it opens, so the compositor places it normally. Saved and
+minimized conversations are unaffected; an unsaved temporary conversation closed with Esc is
+discarded. On GNOME, `gsettings set org.gnome.mutter center-new-windows true` opens new
+windows centered.
 
 Native global shortcuts require a desktop backend exposing the Global Shortcuts
 portal and, on GNOME, user consent. In a Flatpak, Cherry uses `FLATPAK_ID` as its
@@ -97,10 +104,12 @@ gdbus call --session --dest org.freedesktop.portal.Desktop --object-path /org/fr
 
 If the URL works but the shortcut does not, verify **Settings → Shortcuts → New
 temporary chat** is enabled and bound, accept any GNOME shortcut consent dialog,
-and check your desktop's reserved bindings. A missing portal interface requires
-a compatible desktop portal backend. A GNOME custom keyboard shortcut can also
-run the `flatpak run` URL command above without relying on Cherry's global-key
-registration.
+and check your desktop's reserved bindings. GNOME 46 and older do not provide the
+Global Shortcuts portal (`No such interface "org.freedesktop.portal.GlobalShortcuts"`).
+There, add a GNOME custom shortcut (**Settings → Keyboard → Custom Shortcuts**) whose command
+opens the URL, for example
+`flatpak run com.cherry_ai.CherryStudio 'cherrystudio://chat/new?temporary=true&submit=false'`.
+It works whether Cherry is running in the background or closed.
 
 For a diagnostic XWayland comparison, close Cherry completely first, then launch
 once with `flatpak run --user --branch=rtl --socket=x11 --nosocket=wayland

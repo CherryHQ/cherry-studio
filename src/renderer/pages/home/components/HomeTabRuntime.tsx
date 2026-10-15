@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
 
 import { cacheService } from '@data/CacheService'
-import { useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 import type { ActiveTopicSource } from '@renderer/hooks/useTopic'
+import { useIpcOn } from '@renderer/ipc'
 
 type Props = {
   title: string
@@ -14,6 +15,10 @@ type Props = {
 
 export function HomeTabRuntime({ title, emoji, preserveVisuals, activeTopicId, activeTopicSource }: Props) {
   const isActiveTab = useIsActiveTab()
+  const closeConversationTabs = useCloseConversationTabs()
+  useIpcOn('quick_assistant.chat.expired', ({ topicIds }) => {
+    closeConversationTabs('assistants', topicIds)
+  })
 
   useTabSelfVisuals({
     title,

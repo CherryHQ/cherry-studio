@@ -391,7 +391,7 @@ describe('HomeWindow', () => {
     await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('שלום פריז'))
     expect(state.sendMessage).not.toHaveBeenCalled()
     expect(state.persistTemporaryTopic).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'quickAssistant.chat.save_and_open' }))
+    await user.click(screen.getByRole('button', { name: 'quickAssistant.chat.open_in_app' }))
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('navigation.open_route_in_main', {
         path: '/app/chat?topicId=fresh-topic'
@@ -479,7 +479,7 @@ describe('HomeWindow', () => {
     expect(screen.getByTestId('quick-input')).toHaveValue('private question')
   })
 
-  it('minimizing promotes a temporary chat without opening the main window or clearing it', async () => {
+  it('minimizing retains a temporary chat without changing its mode or opening Main', async () => {
     state.launchRequest = {
       kind: 'chat',
       requestId: 'minimize-temp',
@@ -492,10 +492,10 @@ describe('HomeWindow', () => {
     const resets = state.resetTemporaryTopic.mock.calls.length
     await userEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
     await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('quick_assistant.hide'))
-    expect(state.persistTemporaryTopic).toHaveBeenCalledWith('keep this chat')
+    expect(state.persistTemporaryTopic).toHaveBeenCalledWith('keep this chat', true)
     expect(state.resetTemporaryTopic).toHaveBeenCalledTimes(resets)
     expect(ipcApi.request).not.toHaveBeenCalledWith('navigation.open_route_in_main', expect.anything())
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('quickAssistant.chat.saved'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('quickAssistant.chat.temporary'))
   })
 
   it('a failed minimize keeps the temporary conversation visible for retry', async () => {
@@ -572,7 +572,11 @@ describe('HomeWindow', () => {
       state.isPending = false
       view.rerender(<HomeWindow />)
       if (temporary) await user.click(screen.getByRole('button', { name: 'common.minimize' }))
-      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('quickAssistant.chat.saved'))
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent(
+          temporary ? 'quickAssistant.chat.temporary' : 'quickAssistant.chat.saved'
+        )
+      )
       vi.mocked(dataApiService.get).mockResolvedValue({ activeNodeId: 'persisted-answer' })
       await user.type(screen.getByTestId('quick-input'), 'follow-up')
       await user.click(screen.getByRole('button', { name: 'chat.input.send' }))

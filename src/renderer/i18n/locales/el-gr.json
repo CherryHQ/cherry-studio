@@ -3176,6 +3176,7 @@
   "provider.zhinao": "360AI",
   "provider.zhipu": "BigModel",
   "quickAssistant.chat.discard_confirm": "Απόρριψη της τρέχουσας προσωρινής συνομιλίας;",
+  "quickAssistant.chat.expires_in_24h": "Προσωρινή συνομιλία · διαγράφεται 24 ώρες μετά τη δημιουργία",
   "quickAssistant.chat.new_saved": "Νέα αποθηκευμένη συνομιλία",
   "quickAssistant.chat.new_temporary": "Νέα προσωρινή συνομιλία",
   "quickAssistant.chat.open_in_app": "Άνοιγμα στο Cherry Studio",

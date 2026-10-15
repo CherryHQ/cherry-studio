@@ -8,7 +8,7 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
-import { isLinux } from '@renderer/utils/platform'
+import { isLinux, isLinuxWayland } from '@renderer/utils/platform'
 
 import HomeWindow from './home/HomeWindow'
 
@@ -22,6 +22,16 @@ function QuickAssistantRuntime(): null {
   useLanguageSync()
   useCustomCss()
   useEffect(() => {
+    if (isLinuxWayland) {
+      // Wayland windows are transparent: clip everything, including modal overlays,
+      // to the card's rounded corners so nothing paints outside them.
+      const previousClip = document.body.style.clipPath
+      document.body.style.clipPath = 'inset(0 round var(--cs-radius-2xl))'
+      return () => {
+        document.body.style.clipPath = previousClip
+      }
+    }
+    // X11 windows are opaque, so paint the themed color behind the rounded card.
     if (!isLinux) return
     const previous = document.documentElement.style.backgroundColor
     document.documentElement.style.backgroundColor = 'var(--background)'

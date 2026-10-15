@@ -30,7 +30,7 @@ import { app, BrowserWindow, screen } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isMac, isWin } from '@main/core/platform'
+import { isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import type { QuickChatInput, QuickChatRequest } from '@shared/ipc/schemas/quickAssistant'
@@ -222,7 +222,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
       const onMainVisible = () => {
         const window = this.getQuickAssistant()
-        if (window && !this.isFloatingChat) window.hide()
+        if (window && !this.isFloatingChat) this.dismissWindow(window)
       }
       const onMainClosed = () => {
         if (this.mainWindowRef === mainWindow) {
@@ -371,6 +371,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
     // bail. The preference subscription in onInit keeps these in lockstep.
     if (!this.isActivated) return
 
+    // Wayland dismisses by destroying the window (see dismissWindow), so recreate it on demand.
+    if (isLinuxWayland) this.createQuickAssistant()
     const window = this.getQuickAssistant()
     if (!window) return
 
@@ -400,9 +402,17 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   /** Inner show pipeline. Assumes the quick window exists and its content is ready. */
-  private proceedShow(centerOnDisplay = false) {
+  private proceedShow(centerOnDisplay = false, loaded = false) {
     const window = this.getQuickAssistant()
     if (!window) return
+
+    // [Linux Wayland] A fresh window is mapped once its first page load finishes so the
+    // compositor places it at its real size instead of an empty surface (no blank flash).
+    // isLoading() can still report true inside did-finish-load, hence the `loaded` flag.
+    if (isLinuxWayland && !loaded && window.webContents.isLoading()) {
+      window.webContents.once('did-finish-load', () => this.proceedShow(centerOnDisplay, true))
+      return
+    }
 
     this.wasMainWindowFocused = this.mainWindowRef?.isFocused() ?? false
 
@@ -415,7 +425,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       window.show()
     }
 
-    if (centerOnDisplay) {
+    if (centerOnDisplay && !isLinuxWayland) {
       const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
       const bounds = window.getBounds()
       const width = Math.min(bounds.width, workArea.width)
@@ -426,7 +436,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
         width,
         height
       })
-    } else {
+    } else if (!isLinuxWayland) {
       this.repositionToCursorDisplay(window)
     }
 
@@ -484,7 +494,22 @@ export class QuickAssistantService extends BaseService implements Activatable {
       return
     }
 
-    window.hide()
+    this.dismissWindow(window)
+  }
+
+  /**
+   * Hide the quick window. On Linux Wayland the window is destroyed instead: apps cannot
+   * position windows there, and a re-mapped hidden window is placed by the compositor as
+   * if it had no size (it lands with its corner at the screen center or the top-left).
+   * A fresh window gets the compositor's normal placement every time it opens.
+   */
+  private dismissWindow(window: BrowserWindow) {
+    if (!isLinuxWayland || !this.windowId) {
+      window.hide()
+      return
+    }
+    application.get('WindowManager').close(this.windowId)
+    this.windowId = null
   }
 
   /**
@@ -497,7 +522,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * as a final fallback in WindowManager.onDestroy() at app quit.
    */
   public closeQuickAssistant() {
-    this.getQuickAssistant()?.hide()
+    const window = this.getQuickAssistant()
+    if (window) this.dismissWindow(window)
   }
 
   public toggleQuickAssistant() {

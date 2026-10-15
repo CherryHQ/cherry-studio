@@ -3176,6 +3176,7 @@
   "provider.zhinao": "360 智脑",
   "provider.zhipu": "智谱开放平台",
   "quickAssistant.chat.discard_confirm": "丢弃当前临时对话？",
+  "quickAssistant.chat.expires_in_24h": "临时聊天 · 创建 24 小时后自动删除",
   "quickAssistant.chat.new_saved": "新建保存的对话",
   "quickAssistant.chat.new_temporary": "新建临时聊天",
   "quickAssistant.chat.open_in_app": "在 Cherry Studio 中打开",

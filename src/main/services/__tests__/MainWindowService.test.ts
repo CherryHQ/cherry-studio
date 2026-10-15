@@ -358,6 +358,22 @@ describe('MainWindowService', () => {
     expect(showMainWindow).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['a launcher chat URL', ['cherrystudio://chat/new?prompt=Paris&submit=true'], true],
+    ['a plain launch', [], false]
+  ])('keeps Main hidden on a Windows/Linux cold start only for %s', async (_label, extraArgs, hidden) => {
+    vi.spyOn(svc as any, 'openMainWindow').mockImplementation(() => undefined)
+    const argv = process.argv
+    process.argv = ['/path/to/cherry', ...extraArgs]
+    try {
+      await (svc as any).onReady()
+    } finally {
+      process.argv = argv
+    }
+
+    expect((svc as any).suppressInitialLaunchShow).toBe(hidden)
+  })
+
   describe('Apple Silicon architecture warning', () => {
     beforeEach(() => {
       platformState.isMac = true

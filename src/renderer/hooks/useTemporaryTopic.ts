@@ -55,7 +55,7 @@ export interface UseTemporaryTopicResult {
   /** Drop the current topic and lease a fresh one. No-op when disabled. */
   reset: () => void
   /** Move the temporary topic (plus its messages) into SQLite. */
-  persist: (initialName?: string) => Promise<void>
+  persist: (initialName?: string, temporary?: boolean) => Promise<void>
 }
 
 export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTemporaryTopicResult {
@@ -113,10 +113,10 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     setEpoch((n) => n + 1)
   }, [])
 
-  const persist = useCallback(async (initialName?: string) => {
+  const persist = useCallback(async (initialName?: string, temporary = false) => {
     const id = activeIdRef.current
     if (!id) return
-    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
+    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: temporary ? { temporary: true } : {} })
     // Clear before unmount so cleanup skips the now-pointless DELETE.
     activeIdRef.current = null
     logger.debug('Persisted temporary topic', { topicId: id })

@@ -3176,6 +3176,7 @@
   "provider.zhinao": "360AI",
   "provider.zhipu": "BigModel",
   "quickAssistant.chat.discard_confirm": "現在の一時的な会話を破棄しますか？",
+  "quickAssistant.chat.expires_in_24h": "一時チャット · 作成から24時間後に自動削除",
   "quickAssistant.chat.new_saved": "保存される新しいチャット",
   "quickAssistant.chat.new_temporary": "新しい一時チャット",
   "quickAssistant.chat.open_in_app": "Cherry Studioで開く",

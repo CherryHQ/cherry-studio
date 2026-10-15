@@ -3176,6 +3176,7 @@
   "provider.zhinao": "360AI",
   "provider.zhipu": "BigModel",
   "quickAssistant.chat.discard_confirm": "Hủy cuộc trò chuyện tạm thời hiện tại?",
+  "quickAssistant.chat.expires_in_24h": "Trò chuyện tạm thời · tự xóa 24 giờ sau khi tạo",
   "quickAssistant.chat.new_saved": "Cuộc trò chuyện mới được lưu",
   "quickAssistant.chat.new_temporary": "Trò chuyện tạm thời mới",
   "quickAssistant.chat.open_in_app": "Mở trong Cherry Studio",

@@ -250,6 +250,14 @@ export type TopicSchemas = {
     }
   }
 
+  /** Keep a temporary topic before its 24-hour deadline by clearing `expiresAt`. */
+  '/topics/:id/persist': {
+    POST: {
+      params: { id: string }
+      response: Topic
+    }
+  }
+
   /** Atomically move a topic to another assistant and order position. */
   '/topics/:id/move': {
     POST: {

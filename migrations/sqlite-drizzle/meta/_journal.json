@@ -189,6 +189,13 @@
       "when": 1790242863366,
       "tag": "0026_clammy_the_renegades",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1791911645119,
+      "tag": "0027_cultured_blazing_skull",
+      "breakpoints": true
     }
   ],
   "version": "7"

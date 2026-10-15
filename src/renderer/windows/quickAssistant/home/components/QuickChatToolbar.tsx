@@ -23,10 +23,10 @@ export default function QuickChatToolbar({
   onMinimize
 }: QuickChatToolbarProps) {
   const { t } = useTranslation()
-  const openLabel = t(saved ? 'quickAssistant.chat.open_in_app' : 'quickAssistant.chat.save_and_open')
+  const openLabel = t('quickAssistant.chat.open_in_app')
 
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
+    <div className="flex items-center justify-between gap-2 border-b border-border pb-3 [-webkit-app-region:drag]">
       <span
         className="rounded-full border border-border bg-background-subtle px-2.5 py-1 text-xs text-muted-foreground"
         role="status">

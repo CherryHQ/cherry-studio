@@ -17,6 +17,19 @@ describe('useTemporaryTopic', () => {
     })
   })
 
+  it('retains an expiring temporary conversation without deleting it on unmount', async () => {
+    const { result, unmount } = renderHook(() => useTemporaryTopic({ enabled: true }))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    await act(async () => {
+      await result.current.persist('Retained question', true)
+    })
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics/temp-topic-1/persist', {
+      body: { temporary: true }
+    })
+    unmount()
+    expect(dataApiService.delete).not.toHaveBeenCalled()
+  })
+
   it('persists a seeded placeholder name as an automatic topic name', async () => {
     const { result } = renderHook(() => useTemporaryTopic({ enabled: true }))
 

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Separator } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
+import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -134,7 +135,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     persist: persistTemporaryTopic
   } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
 
-  const isSavedChat = savedTopicId !== null && savedTopicId === temporaryTopicId
+  const isStoredChat = savedTopicId !== null && savedTopicId === temporaryTopicId
+  const { data: storedTopic } = useQuery('/topics/:id', {
+    params: { id: savedTopicId ?? '' },
+    enabled: isStoredChat
+  })
+  const isSavedChat = isStoredChat && (saveOnSend || (storedTopic?.id === savedTopicId && !storedTopic.expiresAt))
 
   const requestText = useMemo(() => {
     const trimmedUserInput = userInputText.trim()
@@ -324,12 +330,14 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       try {
         setFlowError(null)
         setIsPreparing(true)
-        if (saveOnSend && !isSavedChat) {
+        if (saveOnSend && !isStoredChat) {
           await persistTemporaryTopic(text)
           setSavedTopicId(temporaryTopicId)
         }
         const parentAnchorId =
-          isSavedChat || saveOnSend ? (await dataApiService.get(`/topics/${temporaryTopicId}`)).activeNodeId : undefined
+          isStoredChat || saveOnSend
+            ? (await dataApiService.get(`/topics/${temporaryTopicId}`)).activeNodeId
+            : undefined
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
@@ -353,7 +361,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       effectiveReasoningEffort,
       selectedModel,
       isAssistantMode,
-      isSavedChat,
+      isStoredChat,
       isTopicReady,
       persistTemporaryTopic,
       requestText,
@@ -375,8 +383,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setSaveOnSend(!defaultTemporary)
   }, [clear, resetTemporaryTopic, defaultTemporary])
 
+  useIpcOn('quick_assistant.chat.expired', ({ topicIds }) => {
+    if (!temporaryTopicId || !topicIds.includes(temporaryTopicId)) return
+    resetConversation()
+    setRoute('home')
+    setUserInputText('')
+    void handleCloseWindow()
+  })
+
   const receiveLauncherChat = useEffectEvent(async (request: QuickChatRequest) => {
-    if (!isSavedChat && chatMessages.some((message) => message.role === 'user')) {
+    if (!isStoredChat && chatMessages.some((message) => message.role === 'user')) {
       const confirmed = await popup.confirm({
         title: t('quickAssistant.chat.temporary'),
         content: t('quickAssistant.chat.discard_confirm')
@@ -436,10 +452,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const saveConversation = async () => {
     if (!temporaryTopicId) return
-    if (!isSavedChat) {
+    if (!isStoredChat) {
       const firstUserMessage = chatMessages.find((message) => message.role === 'user')
       await persistTemporaryTopic(
-        firstUserMessage ? getTextFromParts(firstUserMessage.parts) : userInputText || undefined
+        firstUserMessage ? getTextFromParts(firstUserMessage.parts) : userInputText || undefined,
+        !saveOnSend
       )
       setSavedTopicId(temporaryTopicId)
     }
@@ -457,7 +474,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }
 
   const minimizeConversation = async () => {
-    if (!isSavedChat && isLoading) return
+    if (!isStoredChat && isLoading) return
     try {
       if (route !== 'home' && route !== 'translate') await saveConversation()
       await handleCloseWindow()
@@ -472,6 +489,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (!confirmed) return
     try {
       if (isSavedChat) await ipcApi.request('trash.topic.archive', { topicIds: [temporaryTopicId] })
+      else if (isStoredChat) await ipcApi.request('trash.topic.delete_permanently', { topicIds: [temporaryTopicId] })
       resetConversation()
       setRoute('home')
       setUserInputText('')
@@ -575,7 +593,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'summary':
     case 'explanation':
       return (
-        <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
+        <div data-ui="quick-assistant.view" className={containerClassName(false)} style={{ backgroundColor }}>
           <QuickChatToolbar
             saved={isSavedChat || saveOnSend}
             loading={isLoading || !isTopicReady || pendingLaunch !== null}
@@ -584,7 +602,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             }
             onOpenInMainWindow={() => void openInMainWindow()}
             onDelete={() => void deleteConversation()}
-            minimizeDisabled={(!isSavedChat && isLoading) || !isTopicReady || pendingLaunch !== null}
+            minimizeDisabled={(!isStoredChat && isLoading) || !isTopicReady || pendingLaunch !== null}
             onMinimize={() => void minimizeConversation()}
           />
           {route === 'chat' && (
@@ -723,7 +741,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
 const containerClassName = (draggable: boolean) =>
   cn(
-    'm-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border px-4 py-3 shadow-lg',
+    'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl px-4 py-3',
     draggable ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]'
   )
 
