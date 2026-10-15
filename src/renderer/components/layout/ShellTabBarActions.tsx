@@ -1,4 +1,4 @@
-import { CircleArrowUp, Search, Settings, Stethoscope } from 'lucide-react'
+import { CircleArrowUp, Moon, Search, Settings, Stethoscope, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -9,7 +9,9 @@ import { DoctorPopup } from '@renderer/components/doctor'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 import { WindowControls } from '../WindowControls'
 import { HelpMenu } from './HelpMenu'
@@ -120,10 +122,38 @@ export function SidebarShellActions({
   onOverlayOpenChange?: (open: boolean) => void
 }) {
   const { t } = useTranslation()
+  const { theme, setTheme } = useTheme()
+  const nextTheme = theme === ThemeMode.dark ? ThemeMode.light : ThemeMode.dark
+  const themeLabel = nextTheme === ThemeMode.dark ? t('settings.theme.dark') : t('settings.theme.light')
+  const ThemeIcon = nextTheme === ThemeMode.dark ? Moon : Sun
+  const themeAction = (
+    <Tooltip
+      content={themeLabel}
+      placement="right"
+      delay={800}
+      fullWidthTrigger={layout !== 'icon'}
+      isDisabled={layout !== 'icon'}>
+      <Button
+        type="button"
+        variant="ghost"
+        size={layout === 'icon' ? 'icon' : 'default'}
+        aria-label={themeLabel}
+        onClick={() => setTheme(nextTheme)}
+        className={
+          layout === 'icon'
+            ? 'flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground'
+            : 'flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60'
+        }>
+        <ThemeIcon size={layout === 'icon' ? 18 : 16} strokeWidth={1.6} />
+        {layout !== 'icon' && <span>{themeLabel}</span>}
+      </Button>
+    </Tooltip>
+  )
 
   if (layout === 'icon') {
     return (
       <>
+        {themeAction}
         <HelpMenu layout={layout} onFeedbackClick={onFeedbackClick} onOverlayOpenChange={onOverlayOpenChange} />
         <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
           <Button
@@ -142,6 +172,7 @@ export function SidebarShellActions({
 
   return (
     <>
+      {themeAction}
       <HelpMenu layout={layout} onFeedbackClick={onFeedbackClick} onOverlayOpenChange={onOverlayOpenChange} />
       <Button
         type="button"

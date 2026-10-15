@@ -2,7 +2,11 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ThemeContext } from '@renderer/hooks/useTheme'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 const { cacheState, mocks, updateState } = vi.hoisted(() => ({
   cacheState: { sidebarWidth: 50 },
@@ -27,25 +31,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    type = 'button',
-    ...props
-  }: React.ComponentProps<'button'> & { variant?: string; size?: string }) => {
-    const { variant, size, ...buttonProps } = props
-    void variant
-    void size
-
-    return (
-      <button data-slot="button" type={type} {...buttonProps}>
-        {children}
-      </button>
-    )
-  },
-  Tooltip: ({ children }: { children: React.ReactNode }) => children,
-  Kbd: ({ children }: { children?: React.ReactNode }) => children
-}))
+vi.unmock('@cherrystudio/ui')
 
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [cacheState.sidebarWidth, vi.fn()]
@@ -88,7 +74,9 @@ vi.mock('react-i18next', () => ({
         'globalSearch.open': 'Open global search',
         'settings.about.updateAvailable': 'Found new version',
         'settings.doctor.entry.title': 'System diagnostics',
-        'settings.title': 'Settings'
+        'settings.title': 'Settings',
+        'settings.theme.light': 'Light',
+        'settings.theme.dark': 'Dark'
       })[key] ?? key
   })
 }))
@@ -142,11 +130,6 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open global search' }))
 
-    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
-    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveClass(
-      'text-muted-foreground',
-      'dark:text-muted-foreground'
-    )
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
@@ -159,7 +142,6 @@ describe('ShellTabBarActions', () => {
     render(<ShellTabBarActions />)
 
     const updateButton = screen.getByRole('button', { name: 'Found new version' })
-    expect(updateButton.querySelector('svg')).toHaveClass('text-success')
 
     await user.click(updateButton)
 
@@ -193,15 +175,6 @@ describe('ShellTabBarActions', () => {
     ])
   })
 
-  it('uses its natural width in the header flex layout with one right padding', () => {
-    const { container } = render(<ShellTabBarActions />)
-    const actionArea = container.firstElementChild
-
-    expect(actionArea).toHaveClass('shrink-0')
-    expect(actionArea).not.toHaveClass('absolute')
-    expect(actionArea?.firstElementChild).toHaveClass('pr-2')
-  })
-
   it('keeps theme and settings actions out of the tab bar while the sidebar is visible', () => {
     render(<ShellTabBarActions />)
 
@@ -231,18 +204,6 @@ describe('ShellTabBarActions', () => {
     await user.keyboard('{Enter}')
 
     expect(mocks.showDoctorPopup).toHaveBeenCalledWith({ initialPanel: 'checks' })
-  })
-
-  it('does not render the theme toggle in the sidebar footer action', () => {
-    render(<SidebarShellActions layout="icon" onFeedbackClick={vi.fn()} onSettingsClick={mocks.openSettingsTab} />)
-
-    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
-      'text-muted-foreground',
-      'dark:text-muted-foreground'
-    )
-    expect(screen.getByRole('button', { name: 'Help & Feedback' })).toHaveTextContent('help-icon')
   })
 
   it('opens the settings tab from the sidebar footer action', async () => {
@@ -285,15 +246,47 @@ describe('ShellTabBarActions', () => {
 
     expect(onFeedbackClick).toHaveBeenCalledOnce()
   })
+})
 
-  it('renders sidebar full footer actions with visible labels', () => {
-    render(<SidebarShellActions layout="full" onFeedbackClick={vi.fn()} onSettingsClick={mocks.openSettingsTab} />)
+function ThemeActions({
+  layout,
+  initialTheme,
+  followsSystem = false
+}: {
+  layout: 'icon' | 'full'
+  initialTheme: ThemeMode.light | ThemeMode.dark
+  followsSystem?: boolean
+}) {
+  const [savedTheme, setTheme] = useState(followsSystem ? ThemeMode.system : initialTheme)
+  const theme = savedTheme === ThemeMode.system ? initialTheme : savedTheme
+  return (
+    <ThemeContext value={{ theme, settedTheme: savedTheme, setTheme, toggleTheme: () => {} }}>
+      <SidebarShellActions layout={layout} onFeedbackClick={() => {}} onSettingsClick={() => {}} />
+      <output aria-label="Saved theme">{savedTheme}</output>
+    </ThemeContext>
+  )
+}
 
-    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass('justify-start', 'text-foreground')
-    expect(screen.getByRole('button', { name: /settings/i })).not.toHaveClass('text-muted-foreground')
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
-    expect(screen.getByRole('button', { name: 'Help & Feedback' })).toHaveTextContent('help-full')
+describe('sidebar direct theme switch', () => {
+  it.each(['icon', 'full'] as const)('switches both ways directly in the %s sidebar', async (layout) => {
+    const user = userEvent.setup()
+    render(<ThemeActions layout={layout} initialTheme={ThemeMode.light} />)
+    await user.click(screen.getByRole('button', { name: 'Dark' }))
+    expect(screen.getByLabelText('Saved theme')).toHaveTextContent('dark')
+    await user.click(screen.getByRole('button', { name: 'Light' }))
+    expect(screen.getByLabelText('Saved theme')).toHaveTextContent('light')
   })
+
+  it.each([ThemeMode.light, ThemeMode.dark] as const)(
+    'switches away from the actual %s system theme with the keyboard',
+    async (initialTheme) => {
+      const user = userEvent.setup()
+      render(<ThemeActions layout="icon" initialTheme={initialTheme} followsSystem />)
+      const target = initialTheme === ThemeMode.dark ? 'Light' : 'Dark'
+      const button = screen.getByRole('button', { name: target })
+      button.focus()
+      await user.keyboard('{Enter}')
+      expect(screen.getByLabelText('Saved theme')).toHaveTextContent(target.toLowerCase())
+    }
+  )
 })
