@@ -529,7 +529,8 @@ export class SkillService {
     await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, folderName, isFolderTracked)
 
     const folderMatch = this.findCatalogSkillCaseInsensitive(folderName)
-    const existing = folderMatch ?? this.findReservedAlias(folderName, source, sourceUrl, metadata.name)
+    const reservedAlias = this.findReservedAlias(folderName, source, sourceUrl, metadata.name)
+    const existing = folderMatch ?? reservedAlias
     if (existing) {
       // Only the same source + exact origin may replace a folder. The narrow legacy skills.sh path
       // upgrades a prior repo-root URL after an explicit reinstall resolves the same folder.
@@ -555,9 +556,21 @@ export class SkillService {
               (skill) => skill.source === source && this.marketplaceSourceUrlsMatch(skill.sourceUrl ?? null, sourceUrl)
             ) ?? null)
         : null
+    const reservedStem = reservedFolderNameStem(folderName)
+    const reservedFolderMigration =
+      reservedAlias &&
+      !folderMatch &&
+      existing &&
+      existing.folderName !== folderName &&
+      reservedStem &&
+      existing.folderName !== reservedStem &&
+      normalizeFolderKey(existing.folderName) === normalizeFolderKey(reservedStem)
+        ? existing
+        : null
+    const folderMigration = renamed ?? reservedFolderMigration
 
-    if (renamed) {
-      await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, renamed.folderName, isFolderTracked)
+    if (folderMigration) {
+      await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, folderMigration.folderName, isFolderTracked)
     }
 
     const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
@@ -575,7 +588,7 @@ export class SkillService {
     }
 
     const contentHash = await this.installer.computeContentHash(skillDir)
-    const destFolderName = existing?.folderName ?? folderName
+    const destFolderName = folderMigration ? folderName : (existing?.folderName ?? folderName)
     const destPath = this.getSkillStoragePath(destFolderName)
 
     // A folder migration retires the old folder to a rollback marker BEFORE the replacement is
@@ -584,8 +597,8 @@ export class SkillService {
     // migration branch does the same.
     let migrationBackup: string | null = null
     let prevFolderName: string | null = null
-    if (renamed) {
-      prevFolderName = renamed.folderName
+    if (folderMigration) {
+      prevFolderName = folderMigration.folderName
       migrationBackup = await this.installer.backupReplacedFolderForMigration(
         this.getSkillStoragePath(prevFolderName),
         folderName
@@ -637,7 +650,7 @@ export class SkillService {
       ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
     }
 
-    if (existing) {
+    if (existing && !folderMigration) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
       application.get('DbService').withWriteTx((tx) => {
         agentGlobalSkillService.updateTx(tx, existing.id, metadataUpdate)
@@ -647,7 +660,7 @@ export class SkillService {
       return updated
     }
 
-    if (renamed) {
+    if (folderMigration) {
       // Move the catalog entry to the new folder, preserving the skill ID and its agent_skills rows.
       // The previous folder was already retired to a rollback marker naming the replacement before
       // the replacement was published, so startup recovery can tell a pre-commit crash (restore the
@@ -658,7 +671,7 @@ export class SkillService {
       const backupPath = migrationBackup
       try {
         application.get('DbService').withWriteTx((tx) => {
-          agentGlobalSkillService.updateTx(tx, renamed.id, { folderName, ...metadataUpdate })
+          agentGlobalSkillService.updateTx(tx, folderMigration.id, { folderName, ...metadataUpdate })
         })
       } catch (error) {
         // Drop the replacement before consuming the marker: a failed cleanup keeps
@@ -676,10 +689,13 @@ export class SkillService {
         }
         if (replacementRemoved && backupPath) {
           try {
-            await this.installer.restoreMigrationBackup(backupPath, this.getSkillStoragePath(renamed.folderName))
+            await this.installer.restoreMigrationBackup(
+              backupPath,
+              this.getSkillStoragePath(folderMigration.folderName)
+            )
           } catch (restoreError) {
             logger.error('Failed to restore previous skill folder after migration failure', {
-              prevFolderName: renamed.folderName,
+              prevFolderName: folderMigration.folderName,
               error: restoreError instanceof Error ? restoreError.message : String(restoreError)
             })
           }
@@ -692,14 +708,19 @@ export class SkillService {
         // The row and files already committed and recovery settles leftover markers, so a
         // retire failure warns instead of reporting a false install failure.
         logger.warn('Failed to retire skill migration marker after commit', {
-          prevFolderName: renamed.folderName,
+          prevFolderName: folderMigration.folderName,
           backupPath,
           error: commitError instanceof Error ? commitError.message : String(commitError)
         })
       }
-      await this.unlinkMirror(renamed.folderName)
-      const updated = agentGlobalSkillService.getById(renamed.id)!
-      logger.info('Skill folder migrated', { id: renamed.id, prevFolderName: renamed.folderName, folderName, source })
+      await this.unlinkMirror(folderMigration.folderName)
+      const updated = agentGlobalSkillService.getById(folderMigration.id)!
+      logger.info('Skill folder migrated', {
+        id: folderMigration.id,
+        prevFolderName: folderMigration.folderName,
+        folderName,
+        source
+      })
       return updated
     }
 
@@ -1520,7 +1541,7 @@ export class SkillService {
     const stem = reservedFolderNameStem(folderName)
     if (!stem) return null
     const candidate = this.findCatalogSkillCaseInsensitive(stem)
-    if (!candidate || candidate.folderName !== stem) return null
+    if (!candidate || normalizeFolderKey(candidate.folderName) !== normalizeFolderKey(stem)) return null
     if (candidate.source !== source || (candidate.sourceUrl ?? null) !== (sourceUrl ?? null)) {
       return null
     }
