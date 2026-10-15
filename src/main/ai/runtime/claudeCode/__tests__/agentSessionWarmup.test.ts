@@ -77,7 +77,7 @@ vi.mock('@application', () => ({
     get: vi.fn((name: string) => {
       if (name === 'ApiGatewayService') {
         return {
-          ensureAgentGateway: mocks.apiGatewayEnsureInternal,
+          ensureInternalGateway: mocks.apiGatewayEnsureInternal,
           getInternalGatewayOrigin: () => mocks.internalGateway.baseUrl,
           start: mocks.apiGatewayStart,
           getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders

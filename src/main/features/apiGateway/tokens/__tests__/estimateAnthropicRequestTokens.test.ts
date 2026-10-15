@@ -56,9 +56,9 @@ describe('estimateAnthropicRequestTokens', () => {
   it('resolves an internal Work token-count request through the agent route', async () => {
     resolveTo(textModel)
 
-    await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hello' }]), undefined, 'agent')
+    await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hello' }]), undefined, true)
 
-    expect(mocks.resolveGatewayModelAddress).toHaveBeenCalledWith('p:m', 'agent')
+    expect(mocks.resolveGatewayModelAddress).toHaveBeenCalledWith('p:m', true)
   })
 
   it('#17079: a base64 image nested in tool_result costs its image constant, not its base64 length', async () => {

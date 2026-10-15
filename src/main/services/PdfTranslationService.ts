@@ -240,7 +240,9 @@ export class PdfTranslationService extends BaseService {
       const gatewayModelId = formatGatewayModelId(providerId, model.apiModelId ?? modelId)
 
       // The internal listener is independent of the user-facing gateway toggle and port.
-      gateway = await application.get('ApiGatewayService').createTranslationCredential(gatewayModelId)
+      gateway = await application
+        .get('ApiGatewayService')
+        .createScopedCredential({ path: '/v1/chat/completions', model: gatewayModelId })
       this.throwIfCancelled(job)
 
       await fs.promises.rm(outputDir, { force: true, recursive: true })

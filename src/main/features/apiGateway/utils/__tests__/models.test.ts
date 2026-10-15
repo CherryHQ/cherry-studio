@@ -8,19 +8,9 @@ import {
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const mocks = vi.hoisted(() => ({
-  applicationGet: vi.fn(),
-  availableCloudModelIds: {
-    agent: new Set<string>(),
-    general: new Set<string>()
-  },
   getProvider: vi.fn(),
   listProviders: vi.fn(),
-  listModels: vi.fn(),
-  syncEntitledModelsIfStale: vi.fn()
-}))
-
-vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  listModels: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -47,23 +37,6 @@ import { getModels, resolveGatewayModelAddress } from '../models'
 describe('api gateway model listing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.availableCloudModelIds.agent.clear()
-    mocks.availableCloudModelIds.general.clear()
-    mocks.applicationGet.mockImplementation((service: string) => {
-      if (service !== 'CherryCloudService') throw new Error(`Unexpected service: ${service}`)
-      return {
-        syncEntitledModelsIfStale: mocks.syncEntitledModelsIfStale
-      }
-    })
-    mocks.syncEntitledModelsIfStale.mockImplementation(async () => ({
-      entitledModelIds: [...mocks.availableCloudModelIds.agent, ...mocks.availableCloudModelIds.general],
-      freeModelIds: [],
-      availableModelIds: {
-        agent: [...mocks.availableCloudModelIds.agent],
-        general: [...mocks.availableCloudModelIds.general]
-      },
-      quotaExhaustedModelIds: []
-    }))
     mocks.getProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
     mocks.listProviders.mockReturnValue([
       { id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' },
@@ -279,32 +252,12 @@ describe('api gateway model listing', () => {
       await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).rejects.toThrow(
         'not available through the API gateway'
       )
-      expect(mocks.syncEntitledModelsIfStale).not.toHaveBeenCalled()
     })
 
-    it('refreshes permissions before loading Cherry Cloud models for Work requests', async () => {
-      mocks.availableCloudModelIds.agent.add(cloudModel.id)
-      mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
-        providerId === CHERRY_CLOUD_PROVIDER_ID && mocks.syncEntitledModelsIfStale.mock.calls.length > 0
-          ? [cloudModel]
-          : []
-      )
-
+    it('serves Cherry Cloud models to internal requests', async () => {
       await expect(
-        resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, 'agent')
-      ).resolves.toMatchObject({
-        model: cloudModel
-      })
-      expect(mocks.syncEntitledModelsIfStale).toHaveBeenCalledOnce()
-    })
-
-    it('does not treat conversation availability as Work availability', async () => {
-      mocks.availableCloudModelIds.general.add(cloudModel.id)
-
-      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, 'agent')).rejects.toThrow(
-        'not available through the API gateway'
-      )
-      expect(mocks.syncEntitledModelsIfStale).toHaveBeenCalledOnce()
+        resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true)
+      ).resolves.toMatchObject({ model: cloudModel })
     })
   })
 })

@@ -9,7 +9,7 @@ import {
 } from '@shared/utils/apiGateway'
 
 import { googleEnvelope } from '../errors'
-import { authorizeApiRequest, authorizeTranslationScope, type GatewaySurface } from '../middleware/auth'
+import { authorizeApiRequest, authorizeCredentialScope, type GatewaySurface } from '../middleware/auth'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
 import { estimateGeminiRequestTokens } from '../tokens/estimateGeminiRequestTokens'
@@ -75,7 +75,7 @@ export const createGeminiRoutes = (surface: GatewaySurface) =>
         const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
         const failure =
           authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey, request.headers, surface) ??
-          authorizeTranslationScope(request, body, surface)
+          authorizeCredentialScope(request, body, surface)
         if (!failure) return undefined
         // Short-circuit responses bypass the root `onError`, so shape the Google
         // envelope here directly (401 → UNAUTHENTICATED, 403 → PERMISSION_DENIED)
@@ -102,9 +102,9 @@ export const createGeminiRoutes = (surface: GatewaySurface) =>
         }
 
         if (method === 'countTokens') {
-          const internalFeature = application.get('ApiGatewayService').getInternalFeature(request.headers)
+          const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
           return {
-            totalTokens: await estimateGeminiRequestTokens(body, model, request.signal, internalFeature)
+            totalTokens: await estimateGeminiRequestTokens(body, model, request.signal, isInternalRequest)
           }
         }
         if (!GENERATE_METHODS.has(method)) {

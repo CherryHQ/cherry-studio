@@ -28,7 +28,7 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     '/',
     // `model` is "providerId:apiModelId"; ProxyStreamService resolves it.
     ({ body, request, headers }) => {
-      const isInternalRequest = application.get('ApiGatewayService').getInternalFeature(request.headers) !== undefined
+      const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
       return processMessage({
         params: body,
         inputFormat: 'anthropic',
@@ -47,12 +47,12 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     '/count_tokens',
     async ({ body, status, request }) => {
       if (!body.model) return status(400, invalidRequest('model parameter is required'))
-      const internalFeature = application.get('ApiGatewayService').getInternalFeature(request.headers)
+      const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
       return {
         input_tokens: await estimateAnthropicRequestTokens(
           body as unknown as MessageCreateParams,
           request.signal,
-          internalFeature
+          isInternalRequest
         )
       }
     },
