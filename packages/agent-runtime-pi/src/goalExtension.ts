@@ -234,6 +234,10 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       commit(next)
       runtime.blocked = { round: 0, count: 0 }
     }
+    /** Usage that arrives once the goal stopped has no round snapshot to ride in, so it is written at once. */
+    const keepUsage = () => {
+      if (runtime.goal && !(runtime.goal.phase === 'active' && runtime.armed)) commit(runtime.goal)
+    }
     const stop = (code: GoalStopCode, message?: string) => {
       if (!runtime.goal) return
       runtime.armed = false
@@ -618,24 +622,31 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
 
     // A round the settle committed is on the branch when its run starts; Pi emits no message_end for it.
     pi.on('turn_start', (_event, ctx) => admit(tailRound(ctx.sessionManager.getBranch())))
+    // A call counts with the round it started in, also when the goal stops (a `/goal pause`) before it ends.
+    const roundCalls = new Map<string, string>()
+    pi.on('tool_execution_start', (event) => {
+      if (event.parentToolCallId === undefined && runtime.inGoalRound && runtime.goal?.phase === 'active')
+        roundCalls.set(event.toolCallId, runtime.goal.id)
+    })
     pi.on('message_end', (event) => {
       const { message } = event
       if (message.role === 'user') startHumanTurn()
       // A round a command sent: its message_end comes after turn_start, before Pi persists it.
       else if (message.role === 'custom' && message.customType === GOAL_ROUND_TYPE)
         admit(message.details as RoundDetails)
-      // Counted as each request and tool result ends, so a stop the next tool call makes includes
-      // them; nothing after the stop counts.
-      else if (runtime.inGoalRound && runtime.goal?.phase === 'active') {
-        if (message.role === 'assistant') {
-          const { usage } = message
-          runtime.pendingUsage.tokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite
-          runtime.pendingUsage.usd += usage.cost.total
-        } else if (message.role === 'toolResult' && message.usage) {
-          // A tool's own usage (a subagent's requests) counts too: the host billed it, the budget has not seen it.
-          runtime.pendingUsage.tokens += message.usage.totalTokens
-          runtime.pendingUsage.usd += message.usage.cost.total
-        }
+      // Counted as each request ends, so a stop its tool call makes includes it; requests after the stop do not count.
+      else if (message.role === 'assistant' && runtime.inGoalRound && runtime.goal?.phase === 'active') {
+        const { usage } = message
+        runtime.pendingUsage.tokens += usage.input + usage.output + usage.cacheRead + usage.cacheWrite
+        runtime.pendingUsage.usd += usage.cost.total
+      } else if (message.role === 'toolResult' && roundCalls.has(message.toolCallId)) {
+        const goalId = roundCalls.get(message.toolCallId)
+        roundCalls.delete(message.toolCallId)
+        // A tool's own usage (a subagent's requests) counts too: the host billed it, the budget has not seen it.
+        if (!message.usage || runtime.goal?.id !== goalId) return
+        runtime.pendingUsage.tokens += message.usage.totalTokens
+        runtime.pendingUsage.usd += message.usage.cost.total
+        keepUsage()
       }
     })
 
