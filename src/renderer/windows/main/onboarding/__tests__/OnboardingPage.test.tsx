@@ -31,7 +31,11 @@ const cloudMocks = vi.hoisted(() => ({
   appEdition: 'global' as 'cn' | 'global',
   ipcRequest: vi.fn(),
   statusListener: undefined as
-    | ((status: { phase: 'signed-out' | 'authorizing' | 'signed-in'; displayName: string | null }) => void)
+    | ((status: {
+        phase: 'signed-out' | 'authorizing' | 'signed-in'
+        accountId: string | null
+        displayName: string | null
+      }) => void)
     | undefined
 }))
 const dataApiMocks = vi.hoisted(() => ({
@@ -170,9 +174,9 @@ describe('OnboardingPage', () => {
     cloudMocks.appEdition = 'global'
     cloudMocks.statusListener = undefined
     cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
-      if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
-      if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', accountId: null, displayName: null }
+      if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', accountId: null, displayName: null }
+      if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', accountId: null, displayName: null }
       if (route === 'cherry_cloud.models.sync') {
         return {
           entitledModelIds: [],
@@ -699,7 +703,7 @@ describe('OnboardingPage', () => {
     const secondCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::second-agent-model`
     cloudMocks.appEdition = 'cn'
     cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', accountId: null, displayName: null }
       if (route === 'cherry_cloud.models.sync') {
         return {
           entitledModelIds: [chatOnlyCloudModelId, firstCloudAgentModelId, secondCloudAgentModelId],
@@ -728,7 +732,7 @@ describe('OnboardingPage', () => {
     render(<OnboardingPage enableCherryAccountLogin />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
-    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
+    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', accountId: 'account-1', displayName: 'Alice' }))
 
     await waitFor(() => {
       expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/assistant-agent', {
@@ -751,7 +755,7 @@ describe('OnboardingPage', () => {
     render(<OnboardingPage enableCherryAccountLogin />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
-    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
+    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', accountId: 'account-1', displayName: 'Alice' }))
 
     expect(await screen.findByText('onboarding.cloud.no_available_models')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'common.confirm' }))

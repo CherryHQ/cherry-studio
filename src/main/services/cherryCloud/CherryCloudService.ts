@@ -551,12 +551,13 @@ export class CherryCloudService extends BaseService {
 
   private currentStatus(): CherryCloudStatus {
     if (this.cloudState.session) {
-      return { phase: 'signed-in', displayName: this.cloudState.session.displayName }
+      const { accountId, displayName } = this.cloudState.session
+      return { phase: 'signed-in', accountId, displayName }
     }
     if (this.cloudState.pending) {
-      return { phase: 'authorizing', displayName: null }
+      return { phase: 'authorizing', accountId: null, displayName: null }
     }
-    return { phase: 'signed-out', displayName: null }
+    return { phase: 'signed-out', accountId: null, displayName: null }
   }
 
   private emitStatus(): void {
@@ -897,9 +898,15 @@ export class CherryCloudService extends BaseService {
     schema: ZodType<T>,
     init?: Pick<CherryCloudRequestInit, 'headers' | 'signal'>
   ): Promise<T> {
+    const generation = this.sessionGeneration
     const response = await this.authenticatedFetch(path, { method: 'GET', ...init })
     if (!response.ok) throw new Error(`Cherry Cloud request failed (${response.status})`)
-    return schema.parse(await response.json())
+    const body = await response.json()
+    // A response that outlived its session belongs to another account; never hand it to the caller.
+    if (generation !== this.sessionGeneration) {
+      throw new DOMException('Cherry Cloud request was superseded by a session change', 'AbortError')
+    }
+    return schema.parse(body)
   }
 
   private async activeSession(forceRefresh = false, expectedSession?: ProductSession): Promise<ProductSession> {

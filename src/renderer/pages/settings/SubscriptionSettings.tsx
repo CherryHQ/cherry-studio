@@ -1,7 +1,8 @@
 import type { TFunction } from 'i18next'
 import { ExternalLink, RefreshCw } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 import { Button } from '@cherrystudio/ui'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
@@ -29,27 +30,17 @@ function quotaWindowLabel(
 export function SubscriptionSettings() {
   const { t, i18n } = useTranslation()
   const { status, login } = useCherryAccountSession(getAppEdition() === 'global')
-  const [plans, setPlans] = useState<CherryCloudAccountPlans | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
-
-  const load = useCallback(async () => {
-    if (status?.phase !== 'signed-in') return
-    setLoading(true)
-    setFailed(false)
-    try {
-      setPlans(await ipcApi.request('cherry_cloud.account_plans.get'))
-    } catch {
-      setFailed(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [status?.phase])
-
-  useEffect(() => {
-    setPlans(null)
-    if (status?.phase === 'signed-in') void load()
-  }, [load, status?.phase])
+  const accountId = status?.phase === 'signed-in' ? status.accountId : null
+  // Keyed by account: a response for a previous account only ever lands in that account's cache entry.
+  const {
+    data: plans,
+    error,
+    isLoading: loading,
+    mutate
+  } = useSWR(accountId ? ['cherry-cloud/account-plans', accountId] : null, () =>
+    ipcApi.request('cherry_cloud.account_plans.get')
+  )
+  const failed = Boolean(error)
 
   const activePaid = useMemo(
     () => plans?.entitlements.find((item) => item.state === 'active' && !item.plan.is_free),
@@ -102,7 +93,7 @@ export function SubscriptionSettings() {
           ) : failed ? (
             <div className="py-4 text-center">
               <p className="text-sm text-destructive">{t('settings.subscription.load_failed')}</p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={() => void load()}>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => void mutate()}>
                 <RefreshCw />
                 {t('common.retry')}
               </Button>

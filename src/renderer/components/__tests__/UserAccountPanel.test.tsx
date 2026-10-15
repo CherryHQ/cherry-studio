@@ -24,14 +24,14 @@ beforeEach(async () => {
   vi.stubEnv('DEV', true)
   await i18n.changeLanguage('zh-CN')
 
-  session = { phase: 'signed-in', displayName: 'c***@cherry-ai.com' }
+  session = { phase: 'signed-in', accountId: 'account-1', displayName: 'c***@cherry-ai.com' }
   plans = { measured_at: '2026-09-23T00:00:00Z', entitlements: [], available_plans: [] }
   request.mockImplementation(async (route) => {
     if (route === 'cherry_cloud.status.get') return { ok: true, data: session }
     if (route === 'cherry_cloud.api_origin.get') return { ok: true, data: 'https://cloud-dev.cherryai.com' }
     if (route === 'cherry_cloud.account_plans.get') return { ok: true, data: plans }
     if (route === 'cherry_cloud.login.start') {
-      return { ok: true, data: { phase: 'authorizing', displayName: null } }
+      return { ok: true, data: { phase: 'authorizing', accountId: null, displayName: null } }
     }
     return { ok: true, data: undefined }
   })
@@ -83,7 +83,7 @@ describe('UserAccountPanel', () => {
   })
 
   it('offers subscription sign-in without querying plans when signed out', async () => {
-    session = { phase: 'signed-out', displayName: null }
+    session = { phase: 'signed-out', accountId: null, displayName: null }
     const user = userEvent.setup()
 
     render(<UserAccountPanel />)

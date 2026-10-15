@@ -6,6 +6,8 @@ import { defineRoute } from '../define'
 
 export const cherryCloudStatusSchema = z.strictObject({
   phase: z.enum(['signed-out', 'authorizing', 'signed-in']),
+  /** The signed-in account; consumers key account-scoped data by it. */
+  accountId: z.string().nullable(),
   displayName: z.string().nullable()
 })
 
