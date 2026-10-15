@@ -94,6 +94,7 @@ interface SubagentRecord {
   status: 'running' | 'awaiting_approval' | 'finished'
   outcome?: SubagentOutcome       // finished 时有
   stoppedBy?: 'model' | 'user' | 'budget'
+  modelStopped?: boolean          // 模型用 stop_subagent 停过本次运行、已拿到结果：不再通知，重建时也不当未送达（与 stoppedBy 分开，用户先停时 stoppedBy 仍是 user）
   delivered: boolean              // 本次运行的结果是否已送到父代理
 }
 
@@ -244,7 +245,7 @@ interface AgentRuntimeSession {
 
 ### 5.3 `stop_subagent({ id })`
 
-- 正在跑：中止，`outcome: 'stopped'`、`stoppedBy: 'model'`，返回 `Stopped subagent <id>.` 加部分输出（最后一段非空回复）。这次运行**不再发通知**（模型已经知道结果，再通知只会重复唤醒）。以后仍可用 `message_subagent` 续接。
+- 正在跑：中止，`outcome: 'stopped'`、`stoppedBy: 'model'`，返回 `Stopped subagent <id>.` 加部分输出（最后一段非空回复）。这次运行**不再发通知**（模型已经知道结果，再通知只会重复唤醒）。以后仍可用 `message_subagent` 续接。用户已经停下、还在收尾的运行，模型再停时照样拿到结果、不再发通知（快照记 `modelStopped`），但 `stoppedBy` 仍是 `user`，不能续接；模型停下之后用户再停，`stoppedBy` 同样变为 `user`，也不能续接。总之用户停过的运行（不论在模型之前还是之后）都不能续接。
 - 不在运行：返回 `Subagent <id> is not running (<status/outcome>).`，不算错误。
 
 ### 5.4 共同规则
@@ -584,6 +585,6 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 2026-10-15，按 PR #21693 的评审修订：
 
-12. 9：用户停止的运行在收尾期间又被 `stop_subagent` 或预算停止时，停止来源仍记为用户，运行结束后不能续接。
+12. 9：用户停止的运行在收尾期间又被 `stop_subagent` 或预算停止时，停止来源仍记为用户，运行结束后不能续接。2026-10-16 补："模型已用 `stop_subagent` 拿到结果"另记为 `modelStopped`（4.2、5.3），不论谁先停，这次运行都不再通知、重建时也不再送达，goal 只计一次用量。
 13. 4.3：重建时未送达的结果按 `(sessionId, run)` 逐次运行恢复，不再只看每个子代理的最后一条快照。
 14. 11.4：goal 没在跑时送达的子代理用量同样计入，`/goal resume` 的余量判断和重建都看得到（用量从 branch 算出，不另写快照）。
