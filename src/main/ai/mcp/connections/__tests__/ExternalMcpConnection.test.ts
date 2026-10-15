@@ -57,6 +57,37 @@ beforeEach(() => {
   fetchMock.mockReset()
 })
 
+describe('ExternalMcpConnection header authentication', () => {
+  it.each(['Authorization', 'authorization', 'AUTHORIZATION'])(
+    'connects with a PAT in %s without attempting OAuth discovery',
+    async (header) => {
+      const handler = createLegacyHandler()
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        expect(request.url).toBe(server.baseUrl)
+        expect(request.headers.get('authorization')).toBe('Bearer fixture-pat')
+        return fetchMcpHandler(handler, input, init)
+      })
+      try {
+        const connection = await createExternalMcpConnection({
+          server: { ...server, headers: { [header]: 'Bearer fixture-pat' } },
+          appVersion: '0.0.0-test',
+          events,
+          log: createLog(),
+          connectTimeoutMs: 5_000
+        })
+        try {
+          expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+        } finally {
+          await connection.close()
+        }
+      } finally {
+        await handler.close()
+      }
+    }
+  )
+})
+
 describe('ExternalMcpConnection transport fallback policy', () => {
   it('coalesces authorization before credentials can be overwritten and releases failed attempts', async () => {
     const coordinator = new McpOAuthCoordinator()
