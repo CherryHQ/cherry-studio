@@ -45,29 +45,32 @@ export function useAgentModelFilter(agentType: AgentType | undefined): ModelPred
   }, [agentType])
 }
 
-/** Returns the Agent selector rule for models that stay visible but cannot be selected. */
-export function useAgentModelDisabled(enabled = true): ModelPredicate {
-  const { data: cloudAvailability, mutate } = useSWR(
-    enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null,
-    () => ipcApi.request('cherry_cloud.models.sync'),
-    {
-      dedupingInterval: 5_000,
-      refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false
-    }
-  )
+/** Returns the Agent selector rule for models that stay visible but cannot be selected, plus
+ * whether the cloud-availability context is still hydrating (callers gate preset resolution on it). */
+export function useAgentModelDisabled(enabled = true) {
+  const {
+    data: cloudAvailability,
+    isLoading,
+    mutate
+  } = useSWR(enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null, () => ipcApi.request('cherry_cloud.models.sync'), {
+    dedupingInterval: 5_000,
+    refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
+    revalidateOnReconnect: false,
+    shouldRetryOnError: false
+  })
 
   useIpcOn('cherry_cloud.status_changed', () => {
     if (!enabled) return
     void mutate(EMPTY_CHERRY_CLOUD_AVAILABILITY, { revalidate: true }).catch(() => undefined)
   })
 
-  return useMemo(() => {
+  const isModelDisabled = useMemo<ModelPredicate>(() => {
     const entitledModelIds = new Set(cloudAvailability?.entitledModelIds)
     const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
-    return (model: Model) =>
+    return (model) =>
       isManagedCherryCloudModel(model.providerId) &&
       (!cloudAvailability || !entitledModelIds.has(model.id) || quotaExhaustedModelIds.has(model.id))
   }, [cloudAvailability])
+
+  return { isModelDisabled, isLoading }
 }

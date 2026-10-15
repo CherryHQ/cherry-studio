@@ -27,7 +27,9 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
@@ -35,12 +37,15 @@ import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isUniqueModelIdSelectable } from '@renderer/utils/resourceCatalog'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -49,10 +54,15 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { InstalledSkill } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
-import { AgentCreateDialog } from './components/AgentCreateDialog'
+import {
+  AgentConversationPickerDialog,
+  type AgentConversationSelection,
+  resolveAgentIdFromConversationSelection
+} from './components/AgentConversationPickerDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
 import Sessions from './components/Sessions'
@@ -133,6 +143,43 @@ const AgentPage = () => {
   const sessionListPosition: TopicTabPosition =
     !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
   const { agents, isLoading: isAgentsLoading } = useAgents()
+  const [agentCreateOpen, setAgentCreateOpen] = useState(false)
+  const presetModelContextEnabled = agentCreateOpen
+  const { createAgent } = useAgentMutations()
+  const { models: availableModels, isLoading: isModelsLoading } = useModels(
+    { enabled: true },
+    { fetchEnabled: presetModelContextEnabled }
+  )
+  const { defaultModel, isDefaultModelLoading } = useDefaultModel({ enabled: presetModelContextEnabled })
+  const { providers, isLoading: isProvidersLoading } = useProviders(undefined, {
+    enabled: presetModelContextEnabled
+  })
+  const agentModelFilter = useAgentModelFilter('claude-code')
+  // Poll cloud availability only while the picker needs it; AgentChat keeps the shared key warm otherwise.
+  const { isModelDisabled, isLoading: isCloudAvailabilityLoading } = useAgentModelDisabled(presetModelContextEnabled)
+  const isPresetModelContextReady =
+    !presetModelContextEnabled ||
+    (!isModelsLoading && !isProvidersLoading && !isDefaultModelLoading && !isCloudAvailabilityLoading)
+  const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
+  const selectableDefaultModelId = useMemo(() => {
+    if (!defaultModel?.isEnabled) return null
+    return isUniqueModelIdSelectable(defaultModel.id, {
+      models: availableModels,
+      getProvider: (providerId) => providerById.get(providerId),
+      isModelSelectable: (model, provider) => agentModelFilter(model, provider) && !isModelDisabled(model, provider)
+    })
+      ? defaultModel.id
+      : null
+  }, [agentModelFilter, availableModels, defaultModel, isModelDisabled, providerById])
+  const isAgentPresetModelIdSelectable = useCallback(
+    (modelId: UniqueModelId) =>
+      isUniqueModelIdSelectable(modelId, {
+        models: availableModels,
+        getProvider: (providerId) => providerById.get(providerId),
+        isModelSelectable: (model, provider) => agentModelFilter(model, provider) && !isModelDisabled(model, provider)
+      }),
+    [agentModelFilter, availableModels, isModelDisabled, providerById]
+  )
   const routeAgentExists = !!routeAgentId && agents.some((agent) => agent.id === routeAgentId)
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
   const requestComposerFocus = useComposerFocusRequest(
@@ -209,7 +256,6 @@ const AgentPage = () => {
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
   const [pendingSessionDefaults, setPendingSessionDefaults] = useState<CreateAgentSessionDefaults | null>(null)
-  const [agentCreateOpen, setAgentCreateOpen] = useState(false)
   const invalidateCache = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()
@@ -587,27 +633,56 @@ const AgentPage = () => {
     [createAndActivateEmptySession, pendingSessionDefaults]
   )
 
+  const resolveAgentIdForSelection = useCallback(
+    async (selection: AgentConversationSelection) => {
+      return resolveAgentIdFromConversationSelection(selection, agents, {
+        defaultModelId: selectableDefaultModelId,
+        createAgent,
+        isModelIdSelectable: isAgentPresetModelIdSelectable,
+        isPresetModelContextReady,
+        onPresetModelContextLoading: () => {
+          toast.error(t('common.loading'))
+        },
+        onMissingModel: () => {
+          toast.error(t('selector.agent.preset_missing_model'))
+        }
+      })
+    },
+    [agents, createAgent, isAgentPresetModelIdSelectable, isPresetModelContextReady, selectableDefaultModelId, t]
+  )
+
   const handleAgentConversationSelect = useCallback(
-    async (agentId: string) => {
+    async (selection: AgentConversationSelection) => {
       if (isCreatingEmptySessionRef.current) return
+      if (selection.type === 'catalog' && !isPresetModelContextReady) {
+        toast.error(t('common.loading'))
+        return
+      }
       isCreatingEmptySessionRef.current = true
-      // Close the dialog first so the session/state churn below doesn't refresh it while it's
-      // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentCreateOpen(false)
       try {
+        const agentId = await resolveAgentIdForSelection(selection)
+        if (!agentId) return
         const session = await resolveEmptySession(
           agentId,
           pendingSessionDefaults ? { ...pendingSessionDefaults, agentId } : { agentId, workspaceMode: 'system' }
         )
         activateSession(session, agentId)
       } catch (err) {
-        logger.error('Failed to create agent session after agent creation', err as Error, { agentId })
+        logger.error('Failed to create agent session after agent picker selection', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         isCreatingEmptySessionRef.current = false
       }
     },
-    [activateSession, pendingSessionDefaults, resolveEmptySession, t]
+    [
+      activateSession,
+      isPresetModelContextReady,
+      pendingSessionDefaults,
+      resolveAgentIdForSelection,
+      resolveEmptySession,
+      t
+    ]
   )
 
   const requestSessionNavigation = useCallback(
@@ -1101,10 +1176,13 @@ const AgentPage = () => {
             composerLaunchOptions={composerLaunchOptions}
           />
         </div>
-        <AgentCreateDialog
+        <AgentConversationPickerDialog
           open={agentCreateOpen}
           onOpenChange={setAgentCreateOpen}
-          onCreated={handleAgentConversationSelect}
+          agents={agents}
+          agentsLoading={isAgentsLoading}
+          catalogContextLoading={agentCreateOpen && !isPresetModelContextReady}
+          onSelect={handleAgentConversationSelect}
         />
       </Container>
     </>

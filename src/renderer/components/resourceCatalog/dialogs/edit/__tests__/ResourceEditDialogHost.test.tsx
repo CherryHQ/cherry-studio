@@ -36,7 +36,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => vi.fn(() => true),
-  useAgentModelDisabled: () => vi.fn(() => false)
+  useAgentModelDisabled: () => ({ isModelDisabled: vi.fn(() => false), isLoading: false })
 }))
 
 vi.mock('../AssistantEditDialog', () => ({
