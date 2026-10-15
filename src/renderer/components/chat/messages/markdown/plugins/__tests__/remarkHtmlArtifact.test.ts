@@ -684,6 +684,49 @@ After`
     expect((tree.children[2] as { value: string }).value).toBe('</details>')
   })
 
+  // `<plaintext>` swallows everything to end-of-input — it has no end tag, so apparent
+  // closers after it are body text. The unmatched opening keeps its artifact path and the
+  // body stays visible (never collapsed into a native disclosure on the literal).
+  it('never pairs on </details> after a plaintext element (runs to EOF)', () => {
+    const source = `<details>
+<summary>Answer</summary>
+
+Body
+
+<div><plaintext>literal </details>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // Unpaired: every fragment keeps the artifact path, `Body` and `After` stay visible.
+    expect(tree.children.map((child) => child.type)).toEqual(['code', 'paragraph', 'code', 'code', 'paragraph'])
+    expect((tree.children[1] as { children?: unknown[] }).children).toBeDefined()
+    expect((tree.children[4] as { children?: unknown[] }).children).toBeDefined()
+    expect(tree.children.some((child) => child.type === 'html')).toBe(false)
+  })
+
+  // The EOF semantics hold across blank-line-split nodes too: once `<plaintext>` opens,
+  // nothing in any later node closes the pairing.
+  it('keeps plaintext body across nodes until end-of-input', () => {
+    const source = `<details>
+<summary>Answer</summary>
+
+<div><plaintext>
+
+Body
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // Fragments: [open, `<div><plaintext>`, `</details>`] all on the artifact path.
+    expect(tree.children.map((child) => child.type)).toEqual(['code', 'code', 'paragraph', 'code', 'paragraph'])
+    expect(tree.children.some((child) => child.type === 'html')).toBe(false)
+  })
+
   // The retained-close fallback must carry lexical state across body nodes: a textarea
   // spanning several nodes holds a literal `</details>` that is NOT the inner close.
   it('resolves retained closes with cross-node lexical state', () => {

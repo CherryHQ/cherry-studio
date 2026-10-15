@@ -94,8 +94,19 @@ function findHtmlDocumentEnd(
 // HTML raw-text elements: everything up to the matching end tag is literal text (script/style
 // are raw text, textarea/title RCDATA, iframe/xmp/noembed/noframes use the raw-text algorithm),
 // so a literal `</details>` inside them — script source, textarea fallback, noembed fallback —
-// can never close a disclosure.
-const RAW_TEXT_ELEMENT_NAMES = ['script', 'style', 'textarea', 'title', 'iframe', 'xmp', 'noembed', 'noframes']
+// can never close a disclosure. `plaintext` is special: it has NO end tag at all, its body runs
+// to end-of-input, so nothing after it is ever a boundary.
+const RAW_TEXT_ELEMENT_NAMES = [
+  'script',
+  'style',
+  'textarea',
+  'title',
+  'iframe',
+  'xmp',
+  'noembed',
+  'noframes',
+  'plaintext'
+]
 // A raw-text body opened in one html node can continue into the following nodes (a blank line
 // splits html blocks), so the end tag is located with the same per-element pattern the
 // same-node token match uses. The `g` flag is load-bearing: the cross-node scan positions the
@@ -195,7 +206,10 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
     // A raw-text body opened earlier keeps swallowing content — across the blank lines that
     // split html blocks — until its end tag shows up; nothing else matches inside it. The
     // state survives every continuation node: only the matching end tag ends the body.
+    // `<plaintext>` has no end tag: its body runs to end-of-input, so every later boundary
+    // candidate is body text.
     if (state.rawText !== undefined) {
+      if (state.rawText === 'plaintext') return { closed: false }
       const closeRegex = RAW_TEXT_CLOSE_REGEXES.get(state.rawText)
       if (!closeRegex) {
         state.rawText = undefined
