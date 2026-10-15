@@ -253,14 +253,15 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     runtimeProviderId
   })
 
-  let automationRun: AutomationRun | undefined
+  let automationRun: Promise<AutomationRun> | undefined
+  const automationAbort = new AbortController()
   let automationFinished = false
   const getAutomationRun =
     assistant && request.conversation.topicId && (toolSignals?.browserEnabled || toolSignals?.computerUseEnabled)
       ? () => {
           if (automationFinished) throw new Error('Automation request has finished')
           const topicId = request.conversation.topicId!
-          automationRun ??= application.get('AutomationReplService').beginRun(
+          automationRun ??= application.get('AutomationReplService').acquireRun(
             {
               kind: 'topic',
               sessionId: topicId,
@@ -282,7 +283,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
                   application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
               }
             },
-            signal
+            signal ? AbortSignal.any([signal, automationAbort.signal]) : automationAbort.signal
           )
           return automationRun
         }
@@ -364,7 +365,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   if (getAutomationRun) {
     const finish = async () => {
       automationFinished = true
-      await automationRun?.finish()
+      automationAbort.abort(new Error('Automation request has finished'))
+      const run = await automationRun?.catch(() => undefined)
+      await run?.finish()
     }
     hookParts.push({
       onFinish: finish,

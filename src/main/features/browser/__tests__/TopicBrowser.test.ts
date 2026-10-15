@@ -69,6 +69,56 @@ describe('topic browser ownership and cancellation', () => {
     return { fixture, tabId }
   }
 
+  it('returns a usable tab handle when the first observation opens a dialog', async () => {
+    vi.useRealTimers()
+    const { fixture, tabId } = attachTopicGuest()
+    const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })
+    let opened = false
+    let accepted: boolean | undefined
+    fixture.mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'document-1' } } }
+      if (method === 'Accessibility.getFullAXTree') {
+        if (!opened) {
+          opened = true
+          fixture.mock.debugger.emit('message', {}, 'Page.javascriptDialogOpening', {
+            type: 'confirm',
+            message: 'Continue?'
+          })
+        }
+        return { nodes: [] }
+      }
+      if (method === 'DOMSnapshot.captureSnapshot')
+        return {
+          strings: ['main'],
+          documents: [
+            {
+              frameId: 0,
+              nodes: { backendNodeId: [], nodeName: [], attributes: [] },
+              layout: { nodeIndex: [], bounds: [], styles: [] }
+            }
+          ]
+        }
+      if (method === 'Runtime.evaluate') return { result: { value: { x: 0, y: 0, w: 800, h: 600 } } }
+      if (method === 'Page.handleJavaScriptDialog') accepted = (params as { accept: boolean }).accept
+      return {}
+    })
+    const signal = new AbortController().signal
+    try {
+      const initial = await control.execute('getTab', {}, undefined, signal)
+      expect(initial).toMatchObject({
+        observation: true,
+        value: { tabId, complete: false, dialog: { type: 'confirm', message: 'Continue?' } }
+      })
+      await control.execute('handleDialog', { accept: false }, initial.value.tabId as string, signal)
+      expect(accepted).toBe(false)
+      const recovered = await control.execute('getAXState', {}, initial.value.tabId as string, signal)
+      expect(recovered.value).toMatchObject({ tabId, complete: true })
+      expect(recovered.value).not.toHaveProperty('dialog')
+    } finally {
+      await control.close()
+    }
+  })
+
   it('completes artifact-to-web navigation while invalidating the old handle', async () => {
     const old = attachTopicGuest(WebviewSecurityProfile.AgentHtmlArtifact)
     const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })

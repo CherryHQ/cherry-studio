@@ -23,7 +23,7 @@ export function createAutomationReplToolEntries(): ToolEntry[] {
       inputSchema: reset ? automationReplResetInput : automationReplInput,
       execute: async (args, options) => {
         const { request } = getToolCallContext(options)
-        const run = request.automationRun?.()
+        const run = await request.automationRun?.()
         if (!run) throw new Error('Automation requires a conversation-owned run')
         if (reset) return run.reset()
         return run.execute(automationReplInput.parse(args).code, options.abortSignal)

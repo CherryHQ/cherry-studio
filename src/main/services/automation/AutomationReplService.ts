@@ -6,7 +6,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase, Signal } from '@main/core/lifecycle'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessInstance } from '@main/core/utilityProcess/types'
 import type { BrowserControlSession } from '@main/features/browser'
@@ -65,6 +65,8 @@ interface ReplSession {
   kernel: UtilityProcessInstance<AutomationKernelContract>
   queue: Mutex
   run?: AutomationRun
+  released: Signal<void>
+  closing?: boolean
   lastUsed: number
   documents: Set<string>
   bootstrap?: string
@@ -126,6 +128,42 @@ export class AutomationReplService extends BaseService {
     }, 60_000)
   }
 
+  async acquireRun(
+    owner: AutomationOwner,
+    runId: string,
+    access: () => AutomationAccess,
+    signal?: AbortSignal
+  ): Promise<AutomationRun> {
+    const ceiling = access()
+    const key = JSON.stringify([owner.kind, owner.sessionId, owner.ownerId])
+    while (true) {
+      signal?.throwIfAborted()
+      if (!this.accepting) throw new Error('Automation REPL is stopped')
+      const session = this.sessions.get(key)
+      if (session?.closing) throw new Error('Automation session is closing')
+      if (!session?.run) break
+      const ready = Promise.withResolvers<void>()
+      const subscription = session.released.onResolved(() => ready.resolve())
+      const abort = () => ready.reject(signal?.reason)
+      signal?.addEventListener('abort', abort, { once: true })
+      try {
+        await ready.promise
+      } finally {
+        signal?.removeEventListener('abort', abort)
+        subscription.dispose()
+      }
+    }
+    return this.beginRun(
+      owner,
+      runId,
+      () => {
+        const live = access()
+        return { browser: ceiling.browser && live.browser, computer: ceiling.computer && live.computer }
+      },
+      signal
+    )
+  }
+
   beginRun(
     owner: AutomationOwner,
     runId: string,
@@ -136,6 +174,8 @@ export class AutomationReplService extends BaseService {
     const ceiling = access()
     const key = JSON.stringify([owner.kind, owner.sessionId, owner.ownerId])
     let session = this.sessions.get(key)
+    const released = new Signal<void>()
+    if (session?.closing) throw new Error('Automation session is closing')
     if (session?.run) throw new Error('This conversation already has an active automation run')
     if (!session) {
       if (this.sessions.size >= MAX_SESSIONS)
@@ -144,12 +184,14 @@ export class AutomationReplService extends BaseService {
         owner,
         kernel: application.get('UtilityProcessManager').createInstance(definition),
         queue: new Mutex(),
+        released,
         documents: new Set(),
         lastUsed: Date.now()
       }
       this.sessions.set(key, session)
     }
     const state = session
+    state.released = released
     const abort = new AbortController()
     const signal = parentSignal ? AbortSignal.any([parentSignal, abort.signal]) : abort.signal
     let browser: BrowserControlSession | undefined
@@ -420,6 +462,7 @@ export class AutomationReplService extends BaseService {
           } finally {
             if (state.run === run) state.run = undefined
             state.lastUsed = Date.now()
+            released.resolve()
           }
         })
         return closing
@@ -433,6 +476,7 @@ export class AutomationReplService extends BaseService {
     const key = JSON.stringify([owner.kind, owner.sessionId, owner.ownerId])
     const session = this.sessions.get(key)
     if (!session) return
+    session.closing = true
     try {
       await session.run?.finish()
     } finally {

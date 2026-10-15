@@ -1,6 +1,6 @@
 # Browser automation
 
-Use the browser pane belonging to this conversation. Bind once with `var tab = await browser.getTab()`; this emits this document and the initial AX state. Reuse the handle in later cells. If the page is replaced, reacquire it explicitly with `browser.getTab()`.
+Use the browser pane belonging to this conversation. Bind once with `var tab = await browser.getTab()`; this emits this document and the initial AX state. If a dialog blocks the initial AX state, acquisition still returns the handle and emits dialog metadata; use `tab.handleDialog()` and then `tab.getAXState()`. Reuse the handle in later cells. If the page is replaced, reacquire it explicitly with `browser.getTab()`.
 
 ## API
 

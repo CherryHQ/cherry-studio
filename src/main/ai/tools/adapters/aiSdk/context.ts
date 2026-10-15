@@ -29,7 +29,7 @@ export interface RequestContext {
 
   readonly abortSignal?: AbortSignal
   readonly computerUseTask?: ComputerUseTask
-  readonly automationRun?: () => AutomationRun
+  readonly automationRun?: () => Promise<AutomationRun>
 
   /** Attachments the `read_file` tool may read this request (filename → entry allow-list). */
   readonly fileAttachments?: ReadonlyArray<FileAttachmentRef>

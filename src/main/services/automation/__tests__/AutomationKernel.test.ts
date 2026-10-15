@@ -137,6 +137,24 @@ describe('persistent automation kernel', () => {
     expect(effects).toBe(0)
   })
 
+  it.each([
+    '({ get value() { throw new Error("format failed") } })',
+    '({ toJSON() { Promise.resolve().then(() => call({})).catch(() => {}); throw new Error("format failed") } })'
+  ])('retains bindings after a result formatter throws: %s', async (code) => {
+    const kernel = createKernel()
+    let effects = 0
+    const host = context(async () => ++effects)
+    const initial = await kernel.execute({ bootstrap, code: 'var retained = 42' }, host)
+    const failed = await kernel.execute({ bootstrap, code }, host)
+    expect(failed).toMatchObject({
+      isError: true,
+      text: expect.stringContaining('format failed'),
+      context: { generation: initial.context.generation, state: 'retained', execution: 'started' }
+    })
+    expect(await kernel.execute({ bootstrap, code: 'retained' }, host)).toMatchObject({ text: '42\n' })
+    expect(effects).toBe(0)
+  })
+
   it('reports failed host effects without retrying them', async () => {
     const kernel = createKernel()
     let effects = 0

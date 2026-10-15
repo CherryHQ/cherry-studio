@@ -131,10 +131,25 @@ export async function executeBrowserOperation(
       ...controller.takeHostEvents?.(target.tabId)
     })
     if (name === 'getTab' || name === 'getAXState') {
-      const state = await session.snapshot({ ...schemas.getAXState.parse(args), full: true }, options)
-      return {
-        observation: true,
-        value: { ...metadata(), id: randomUUID(), text: state.text, complete: !state.snapshot.truncated }
+      try {
+        const state = await session.snapshot({ ...schemas.getAXState.parse(args), full: true }, options)
+        return {
+          observation: true,
+          value: { ...metadata(), id: randomUUID(), text: state.text, complete: !state.snapshot.truncated }
+        }
+      } catch (error) {
+        if (name !== 'getTab' || !(error instanceof BrowserSessionError) || error.code !== 'dialog_open') throw error
+        options.signal.throwIfAborted()
+        return {
+          observation: true,
+          value: {
+            ...metadata(),
+            id: randomUUID(),
+            dialog: error.dialog,
+            complete: false,
+            text: 'Initial observation blocked by a dialog. Use tab.handleDialog(), then tab.getAXState().'
+          }
+        }
       }
     }
     if (name === 'find') return { value: { ...metadata(), ...(await session.find(schemas.find.parse(args), options)) } }

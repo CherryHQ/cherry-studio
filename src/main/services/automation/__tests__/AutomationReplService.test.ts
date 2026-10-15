@@ -157,6 +157,72 @@ describe('automation run authority', () => {
     expect(effects).toBe(1)
   })
 
+  it('queues sibling chat runs until the previous response releases exclusive control', async () => {
+    const access = () => ({ browser: true, computer: false })
+    const first = await service.acquireRun(owner, 'model-1', access)
+    await first.execute(code)
+    let admitted = false
+    const pending = service.acquireRun(owner, 'model-2', access).then((run) => {
+      admitted = true
+      expect(leases).toBe(0)
+      return run
+    })
+    await Promise.resolve()
+    expect(admitted).toBe(false)
+    expect(leases).toBe(1)
+    expect((await first.execute(code)).isError).not.toBe(true)
+    await first.finish()
+    const second = await pending
+    expect((await second.execute(code)).isError).not.toBe(true)
+    expect(effects).toBe(3)
+    expect(leases).toBe(1)
+    await second.finish()
+    expect(leases).toBe(0)
+  })
+
+  it('cancels queued admission without interrupting the active sibling or blocking a later one', async () => {
+    const access = () => ({ browser: true, computer: false })
+    const first = await service.acquireRun(owner, 'model-1', access)
+    await first.execute(code)
+    const abort = new AbortController()
+    const pending = service.acquireRun(owner, 'cancelled-model', access, abort.signal)
+    abort.abort(new Error('Response cancelled'))
+    await expect(pending).rejects.toThrow('Response cancelled')
+    expect((await first.execute(code)).isError).not.toBe(true)
+    expect(leases).toBe(1)
+    const next = service.acquireRun(owner, 'model-3', access)
+    await first.finish()
+    const third = await next
+    await third.execute(code)
+    expect(effects).toBe(3)
+    await third.finish()
+    expect(leases).toBe(0)
+  })
+
+  it('does not widen capabilities while a sibling waits for admission', async () => {
+    const first = service.beginRun(owner, 'model-1', () => ({ browser: true, computer: false }))
+    let enabled = false
+    const pending = service.acquireRun(owner, 'model-2', () => ({ browser: enabled, computer: false }))
+    enabled = true
+    await first.finish()
+    const second = await pending
+    expect((await second.execute(code)).isError).toBe(true)
+    expect(effects).toBe(0)
+    expect(leases).toBe(0)
+  })
+
+  it('rejects waiting siblings when their conversation closes', async () => {
+    const access = () => ({ browser: true, computer: false })
+    const first = service.beginRun(owner, 'model-1', access)
+    await first.execute(code)
+    const pending = service.acquireRun(owner, 'model-2', access)
+    const rejected = expect(pending).rejects.toThrow('Automation session is closing')
+    await service.close(owner)
+    await rejected
+    expect(leases).toBe(0)
+    expect(effects).toBe(1)
+  })
+
   it('prevents overlapping runs and releases the previous lease before a later turn', async () => {
     const access = () => ({ browser: true, computer: false })
     const first = service.beginRun(owner, 'first', access)

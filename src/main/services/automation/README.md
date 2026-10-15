@@ -8,7 +8,7 @@ A persistent standard-JavaScript interface for conversation-owned Browser and Co
 - Each `(kind, conversation, owner)` has one independent utility process and QuickJS WASM context. The service serializes cells, permits one active run, caps sessions at 16, and disposes inactive sessions after 30 minutes.
 - `beginRun(owner, runId, access, signal)` binds trusted identity and a live access callback. Its `AutomationRun` exposes `execute`, `reset`, and idempotent `finish`. The model cannot supply identity or permissions.
 - Browser controllers and Computer Use tasks belong to a run. A logical Agent continuation (`row-roll`) keeps that run. Terminal/idle events finish it, abort admission, drain child calls and release leases; JS bindings remain for the next turn.
-- Agent connection disposal closes the REPL. Ordinary chat acquires its run lazily and releases it through completion/abort/error hooks. App shutdown stops runtimes before the REPL and stops the REPL before its dependencies.
+- Agent connection disposal closes the REPL. Ordinary chat uses cancellable `acquireRun()` admission: sibling model responses wait until the active response releases its run, preserving exclusive control and the original capability ceiling. Completion/abort/error hooks cancel pending admission and release acquired runs. App shutdown stops runtimes before the REPL and stops the REPL before its dependencies.
 
 ## Guest API
 
@@ -117,3 +117,7 @@ for launch. Existing running applications remain usable.
 Browser navigation keeps caller cancellation across guest replacement and binds
 subsequent navigation commands to the new guest. The completed result explicitly
 invalidates the old tab handle; the model must reacquire the conversation tab.
+
+Initial tab observations blocked by a dialog still return the tab handle and dialog
+metadata, allowing `handleDialog()` recovery. Result-formatting errors from guest
+getters or `toJSON()` retain bindings; cancellation and runtime failure still clear them.

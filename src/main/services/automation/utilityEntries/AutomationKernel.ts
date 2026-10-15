@@ -179,8 +179,19 @@ export class AutomationKernel {
           }) ?? String(value);
         }`
       )
-      using rendered = this.vm.callFunction(stringify, this.vm.undefined, value)
-      this.append(rendered.toString())
+      try {
+        using rendered = this.vm.callFunction(stringify, this.vm.undefined, value)
+        this.append(rendered.toString())
+      } catch (error) {
+        if (!(error instanceof JSException) || context.signal.aborted || Date.now() >= this.deadline) throw error
+        try {
+          this.append(`Result formatting failed: ${error.message}`)
+        } finally {
+          error.dispose()
+        }
+        this.vm.executePendingJobs()
+        return this.result(true)
+      }
       this.vm.executePendingJobs()
       this.execution = 'completed'
       return this.result()
