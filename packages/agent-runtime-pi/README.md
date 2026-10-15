@@ -226,9 +226,10 @@ handles.
   running, a round another extension's settle handler overrides, and a failed request or an abort
   (`session.abort()` or the host's own request signal) while the goal is armed. A stop's snapshot
   counts tokens, cost and progress up to the stop, the request whose tool call stopped the goal
-  included; requests after the stop (the summary after `complete`) are never counted. A round
-  prompt Pi committed but never sent on (another extension vetoed the continuation, or the run
-  was aborted at the settle) stays in the transcript and is left out of every later request.
+  included; a tool call already running then (a foreground subagent under `/goal pause`) adds its
+  usage when it ends, and requests after the stop (the summary after `complete`) are never counted.
+  A round prompt Pi committed but never sent on (another extension vetoed the continuation, or the
+  run was aborted at the settle) stays in the transcript and is left out of every later request.
   `update_goal(complete)` passes the host's `GoalVerifier` (it
   gets the full current context, after compaction, and the call's `signal`; the package sets no
   timeout) or, without one, needs evidence and a round that changed something. An accepted
