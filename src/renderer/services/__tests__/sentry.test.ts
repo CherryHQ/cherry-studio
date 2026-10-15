@@ -10,6 +10,8 @@ vi.mock('@sentry/electron/renderer', async (importOriginal) => ({
 }))
 vi.unmock('@logger')
 
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
 import { loggerService } from '../LoggerService'
 import { initSentry } from '../sentry'
 
@@ -24,6 +26,22 @@ afterEach(() => {
 })
 
 describe('renderer Sentry initialization', () => {
+  it('keeps remote-owned failures local even when caught by a global exception handler', () => {
+    initSentry()
+    const error = IpcError.fromJSON({ code: 'INTERNAL', message: 'Main failure', reportingHandled: true })
+    loggerService.withContext('Caller').error('IPC failed', error)
+    expect(captureExceptionMock).not.toHaveBeenCalled()
+    expect(initMock.mock.calls[0][0].beforeSend({}, { originalException: error })).toBeNull()
+    expect(
+      initMock.mock.calls[0][0].beforeSend(
+        {},
+        {
+          originalException: Object.assign(new Error('cancelled'), { code: 'ERR_CANCELED' })
+        }
+      )
+    ).toBeNull()
+  })
+
   it('opts into error capture and IPC bridging without enabling ambient data collection', () => {
     initSentry()
 

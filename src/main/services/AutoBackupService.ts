@@ -3,6 +3,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
 import { WindowType } from '@main/core/window/types'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
@@ -17,7 +18,12 @@ import {
 } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
-import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
+import {
+  BackupActiveWritersError,
+  BackupOperationBusyError,
+  classifyBackupFailure,
+  legacyBackupManager
+} from './LegacyBackupManager'
 import { decryptToken } from './nutstore/NutstoreService'
 
 const logger = loggerService.withContext('AutoBackupService')
@@ -286,7 +292,13 @@ export class AutoBackupService extends BaseService {
       state.retryCount = 0
       state.running = false
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Automatic backup failed after all attempts', error as Error)
+      logFailure(
+        logger,
+        'Automatic backup failed after all attempts',
+        error,
+        'backup.automatic',
+        classifyBackupFailure(error)
+      )
       this.emit({ type, status: 'failed', timestamp, errorMessage })
       this.scheduleNext(type, 'fromNow', generation)
     }

@@ -145,7 +145,9 @@ export class PersistenceListener implements StreamListener {
         status: 'failed',
         failure: toExecutionFailure(serializeError(err), this.opts.modelId, 'host')
       }
-      logger.error('Failed to persist assistant message', {
+      logger.error('Failed to persist assistant message', err instanceof Error ? err : undefined, {
+        operation: 'message.persist',
+        failure: { source: 'application', kind: 'reliability', reason: 'persistence_failed', outcome: 'failed' },
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
         status,

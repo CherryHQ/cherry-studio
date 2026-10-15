@@ -32,11 +32,15 @@ import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import { WindowType } from '@main/core/window/types'
 import { readAppliedChain } from '@main/data/db/restore/appliedChain'
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
+import { classifyDatabaseFailure } from '@main/data/failureFacts'
+import { classifyFileFailure } from '@main/services/file'
+import { classifyStorageFailure } from '@main/services/remoteStorage/failureFacts'
 import { type AtomicWriteStream, createAtomicWriteStream, ensureDir } from '@main/utils/file'
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
@@ -53,7 +57,9 @@ import {
   type S3Config,
   type WebDavConfig
 } from '@shared/types/backup'
+import type { FailureFacts } from '@shared/types/errorReporting'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { hasReportingOwner, markReportingHandled } from '@shared/utils/errorReporting'
 
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
@@ -143,6 +149,24 @@ export class BackupActiveWritersError extends Error {
     )
     this.name = 'BackupActiveWritersError'
   }
+}
+
+class BackupInputError extends Error {}
+
+export function classifyBackupFailure(error: unknown): FailureFacts {
+  if (
+    error instanceof BackupOperationBusyError ||
+    error instanceof BackupActiveWritersError ||
+    error instanceof BackupInputError
+  ) {
+    return { source: 'application', kind: 'expected', reason: 'backup_precondition', outcome: 'failed' }
+  }
+  const storage = classifyStorageFailure(error)
+  if (storage.kind === 'expected') return storage
+  const database = classifyDatabaseFailure(error)
+  if (database.reason !== 'database_failed') return database
+  const file = classifyFileFailure(error)
+  return file.kind === 'unknown' ? { ...file, kind: 'reliability', reason: 'backup_failed' } : file
 }
 
 class BackupManager {
@@ -258,8 +282,13 @@ class BackupManager {
     return this.runBackupWorkflow(() => this.backupDirect(fileName, destinationPath, slimBackup))
   }
 
-  private runBackupWorkflow<T>(operation: () => Promise<T>): Promise<T> {
-    return tryAcquire(this.operationMutex, new BackupOperationBusyError()).runExclusive(operation)
+  private async runBackupWorkflow<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await tryAcquire(this.operationMutex, new BackupOperationBusyError()).runExclusive(operation)
+    } catch (error) {
+      logFailure(logger, 'Backup workflow failed', error, 'backup.workflow', classifyBackupFailure(error))
+      throw error
+    }
   }
 
   private createBackupFileName(): string {
@@ -509,7 +538,7 @@ class BackupManager {
       logger.info('[backupDirect] Backup completed successfully')
       return backupedFilePath
     } catch (error) {
-      logger.error('[backupDirect] Backup failed:', error as Error)
+      logFailure(logger, '[backupDirect] Backup failed:', error, 'backup.create', classifyBackupFailure(error))
       if (output && !output.destroyed) {
         await output.abort()
       }
@@ -742,14 +771,14 @@ class BackupManager {
       onProgress({ stage: 'extracted', progress: 20, total: 100 })
 
       if (!(await fs.pathExists(path.join(extractionDir, 'metadata.json')))) {
-        throw new Error(
+        throw new BackupInputError(
           `Unsupported v1 backup. Cherry Studio v2 can only restore backup version ${DIRECT_BACKUP_VERSION}.`
         )
       }
 
       await this.restoreDirect(extractionDir)
     } catch (error) {
-      logger.error('Restore failed:', error as Error)
+      logFailure(logger, 'Restore failed:', error, 'backup.restore', classifyBackupFailure(error))
       const reportedError = await this.withAvailableDiskSpace(error, extractionDir)
       throw reportedError
     } finally {
@@ -975,7 +1004,13 @@ class BackupManager {
         }
       }
     } catch (error) {
-      logger.error('[restoreDirect] Restore staging failed:', error as Error)
+      logFailure(
+        logger,
+        '[restoreDirect] Restore staging failed:',
+        error,
+        'backup.stage_restore',
+        classifyBackupFailure(error)
+      )
       throw error
     } finally {
       if (!journalCommitted) {
@@ -988,15 +1023,15 @@ class BackupManager {
     const raw = (await fs.readJson(path.join(extractionDir, 'metadata.json'))) as Record<string, unknown>
 
     if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
-      throw new Error('This backup file is not from Cherry Studio and cannot be restored')
+      throw new BackupInputError('This backup file is not from Cherry Studio and cannot be restored')
     }
     if (typeof raw.version === 'number' && raw.version > DIRECT_BACKUP_VERSION) {
-      throw new Error(
+      throw new BackupInputError(
         `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (backup version ${String(raw.version)}) and cannot be restored on this version (supports ${DIRECT_BACKUP_VERSION}). Please update Cherry Studio and try again.`
       )
     }
     if (raw.version !== DIRECT_BACKUP_VERSION) {
-      throw new Error(
+      throw new BackupInputError(
         `Unsupported backup version ${String(raw.version)}. Cherry Studio v2 can only restore backup version ${DIRECT_BACKUP_VERSION}.`
       )
     }
@@ -1278,7 +1313,13 @@ class BackupManager {
 
       return await this.restore(_, backupPath)
     } catch (error) {
-      logger.error('[BackupManager] Local restore failed:', error as Error)
+      logFailure(
+        logger,
+        '[BackupManager] Local restore failed:',
+        error,
+        'backup.restore_local',
+        classifyBackupFailure(error)
+      )
       throw error
     }
   }
@@ -1300,7 +1341,13 @@ class BackupManager {
         await pipeline(webdavClient.createReadStream(filename), fs.createWriteStream(backupedFilePath))
         await this.restoreUnlocked(backupedFilePath)
       } catch (error: any) {
-        logger.error('Failed to restore from WebDAV:', error)
+        logFailure(
+          logger,
+          'Failed to restore from WebDAV:',
+          error,
+          'backup.restore_webdav',
+          classifyBackupFailure(error)
+        )
         const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
         throw reportedError
       } finally {
@@ -1332,7 +1379,13 @@ class BackupManager {
         logger.info(`S3 restore file downloaded successfully: ${filename}`)
         await this.restoreUnlocked(backupedFilePath)
       } catch (error: any) {
-        logger.error('[BackupManager] Failed to restore from S3:', error)
+        logFailure(
+          logger,
+          '[BackupManager] Failed to restore from S3:',
+          error,
+          'backup.restore_s3',
+          classifyBackupFailure(error)
+        )
         const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
         throw reportedError
       } finally {
@@ -1391,7 +1444,9 @@ class BackupManager {
 
     try {
       const stats = await fs.promises.statfs(probePath)
-      return new Error(`${BACKUP_DISK_FULL_ERROR_CODE}:${stats.bsize * stats.bavail}`)
+      const reported = new Error(`${BACKUP_DISK_FULL_ERROR_CODE}:${stats.bsize * stats.bavail}`)
+      if (hasReportingOwner(error)) markReportingHandled(reported)
+      return reported
     } catch (statError) {
       logger.warn('Failed to read available disk space after ENOSPC', { probePath, statError })
       return error
@@ -1644,9 +1699,9 @@ class BackupManager {
         }))
         .sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
     } catch (error: any) {
-      logger.error('Failed to list WebDAV files:', error)
+      logFailure(logger, 'Failed to list WebDAV files:', error, 'backup.list_webdav', classifyBackupFailure(error))
       if (signal?.aborted) throw signal.reason
-      throw new Error(error.message || 'Failed to list backup files')
+      throw Object.assign(new Error(error.message || 'Failed to list backup files'), { reportingHandled: true })
     }
   }
 
@@ -1853,9 +1908,9 @@ class BackupManager {
       const webdavClient = this.getWebDavInstance(webdavConfig)
       return await webdavClient.deleteFile(fileName, signal)
     } catch (error: any) {
-      logger.error('Failed to delete WebDAV file:', error)
+      logFailure(logger, 'Failed to delete WebDAV file:', error, 'backup.delete_webdav', classifyBackupFailure(error))
       if (signal?.aborted) throw signal.reason
-      throw new Error(error.message || 'Failed to delete backup file')
+      throw Object.assign(new Error(error.message || 'Failed to delete backup file'), { reportingHandled: true })
     }
   }
 
@@ -2010,9 +2065,9 @@ class BackupManager {
 
       return files.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
     } catch (error: any) {
-      logger.error('Failed to list S3 files:', error)
+      logFailure(logger, 'Failed to list S3 files:', error, 'backup.list_s3', classifyBackupFailure(error))
       if (signal?.aborted) throw signal.reason
-      throw new Error(error.message || 'Failed to list backup files')
+      throw Object.assign(new Error(error.message || 'Failed to list backup files'), { reportingHandled: true })
     }
   }
 
@@ -2028,9 +2083,9 @@ class BackupManager {
       const s3Client = this.getS3Storage(s3Config)
       return await s3Client.deleteFile(fileName, signal)
     } catch (error: any) {
-      logger.error('Failed to delete S3 file:', error)
+      logFailure(logger, 'Failed to delete S3 file:', error, 'backup.delete_s3', classifyBackupFailure(error))
       if (signal?.aborted) throw signal.reason
-      throw new Error(error.message || 'Failed to delete backup file')
+      throw Object.assign(new Error(error.message || 'Failed to delete backup file'), { reportingHandled: true })
     }
   }
 }

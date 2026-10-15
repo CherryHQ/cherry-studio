@@ -330,7 +330,13 @@ vi.mock('node-stream-zip', () => ({
 import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
 
-import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
+import { shouldReportFailure } from '@shared/utils/errorReporting'
+
+import BackupManager, {
+  BackupOperationBusyError,
+  BackupActiveWritersError,
+  classifyBackupFailure
+} from '../LegacyBackupManager'
 import WebDav from '../WebDav'
 
 const createDirent = (name: string, type: 'directory' | 'file' = 'file') => ({
@@ -1949,5 +1955,31 @@ describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
 
     expect(explicitFalse).toBe(first)
     expect(WebDav).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('backup failure reporting', () => {
+  it.each(['list', 'delete'] as const)('preserves ownership when wrapping a remote %s failure', async (operation) => {
+    const manager = new BackupManager()
+    const denied = Object.assign(new Error('authentication required'), { status: 401 })
+    vi.spyOn(manager as any, 'getWebDavInstance').mockReturnValue({
+      getDirectoryContents: vi.fn().mockRejectedValue(denied),
+      deleteFile: vi.fn().mockRejectedValue(denied)
+    })
+    const config = { webdavHost: 'https://example.com/dav' }
+    const result =
+      operation === 'list'
+        ? manager.listWebdavFiles(null, config)
+        : manager.deleteWebdavFile(null, 'backup.zip', config)
+    await expect(result).rejects.toMatchObject({ message: 'authentication required', reportingHandled: true })
+  })
+
+  it('keeps busy preconditions local without suppressing snapshot consistency failures', () => {
+    expect(shouldReportFailure(classifyBackupFailure(new BackupOperationBusyError()))).toBe(false)
+    expect(shouldReportFailure(classifyBackupFailure(new BackupActiveWritersError()))).toBe(false)
+    expect(classifyBackupFailure(new Error('snapshot integrity failed')).kind).toBe('reliability')
+    expect(shouldReportFailure(classifyBackupFailure(Object.assign(new Error('disk full'), { code: 'ENOSPC' })))).toBe(
+      true
+    )
   })
 })

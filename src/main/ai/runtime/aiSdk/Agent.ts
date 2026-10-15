@@ -14,13 +14,14 @@ import {
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
+import { logAiFailure } from '@main/ai/errorReporting'
 import { isAbortError } from '@main/utils/error'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { serializeError } from '../../utils/serializeError'
+import { classifyAiSdkFailure } from './failureFacts'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
@@ -199,12 +200,18 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         throw err
       }
 
-      logger.error('agent generate error', chatErrorContext(err))
+      logAiFailure(logger, 'agent generate error', err, 'agent.ai_sdk.generate', classifyAiSdkFailure(err))
       if (hooks.onError) {
         try {
           await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
         } catch (hookErr) {
-          logger.error('hooks.onError threw; rethrowing original', hookErr as Error)
+          logAiFailure(logger, 'hooks.onError threw; rethrowing original', hookErr, 'agent.ai_sdk.hook', {
+            source: 'application',
+            kind: 'defect',
+            reason: 'hook_failed',
+            outcome: 'failed',
+            runtime: 'ai-sdk'
+          })
         }
       }
       throw err
@@ -261,7 +268,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           error: err instanceof Error ? err : new Error(serializeError(err).message ?? 'Unknown AI error')
         })
       } catch (hookErr) {
-        logger.error('hooks.onError threw; aborting run', hookErr as Error)
+        logAiFailure(logger, 'hooks.onError threw; aborting run', hookErr, 'agent.ai_sdk.hook', {
+          source: 'application',
+          kind: 'defect',
+          reason: 'hook_failed',
+          outcome: 'failed',
+          runtime: 'ai-sdk'
+        })
         return 'abort'
       }
     }
@@ -420,13 +433,21 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           params.errorContext?.modelId ?? params.modelId
         )
         const action = await invokeOnError(streamError)
-        const logError = chatErrorContext(streamError)
+        const failure = classifyAiSdkFailure(err)
         if (action === 'retry') {
           // TODO: retry logic
           // retry is reserved for a future implementation — today the loop logs and aborts.
-          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', logError)
+          logAiFailure(
+            logger,
+            'agentLoop onError returned retry; retry not implemented — aborting',
+            streamError,
+            'agent.ai_sdk.stream',
+            failure,
+            {},
+            'warn'
+          )
         } else {
-          logger.error('agentLoop error', logError)
+          logAiFailure(logger, 'agentLoop error', streamError, 'agent.ai_sdk.stream', failure)
         }
         await settleWriter({ error: streamError })
       })

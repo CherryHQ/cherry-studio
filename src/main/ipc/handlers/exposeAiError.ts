@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { hasReportingOwner } from '@shared/utils/errorReporting'
 
 const logger = loggerService.withContext('ipc/ai')
 
@@ -13,6 +14,8 @@ export async function exposeAiError<T>(route: string, operation: () => Promise<T
     if (!(error instanceof Error && error.name === 'AbortError')) {
       logger.error(`${route} failed`, serializedError)
     }
-    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, serializedError.message ?? '', serializedError)
+    const exposed = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, serializedError.message ?? '', serializedError)
+    if (hasReportingOwner(error)) exposed.reportingHandled = true
+    throw exposed
   }
 }

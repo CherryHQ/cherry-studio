@@ -11,6 +11,7 @@ import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcEr
 import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, IpcContext, WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { hasReportingOwner } from '@shared/utils/errorReporting'
 
 import { ipcHandlers } from './handlers/ipcHandlers'
 import { IpcRouter } from './IpcRouter'
@@ -73,8 +74,18 @@ export class IpcApiService extends BaseService {
       const data = await this.router.dispatch(route, input, this.makeContext(event))
       return { ok: true, data }
     } catch (e) {
+      const error = IpcError.from(e)
+      if (!hasReportingOwner(e) && (!(e instanceof IpcError) || e.code === IpcErrorCode.INTERNAL)) {
+        logger.error('IPC handler failed', e instanceof Error ? e : undefined, {
+          operation: route,
+          failure: { source: 'application', kind: 'unknown', reason: 'ipc_handler_failed', outcome: 'failed' }
+        })
+        error.reportingHandled = true
+      } else if (hasReportingOwner(e)) {
+        error.reportingHandled = true
+      }
       // Never throw to ipcMain.handle: Electron's reject drops code/data, so serialize into the result.
-      return { ok: false, error: IpcError.from(e).toJSON() }
+      return { ok: false, error: error.toJSON() }
     } finally {
       if (DIAGNOSTICS_ENABLED) {
         const dt = performance.now() - t0

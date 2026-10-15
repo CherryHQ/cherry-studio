@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
+import { logFailure } from '@main/core/logger/logFailure'
 import { isDev } from '@main/core/platform'
+import { classifyDataApiFailure } from '@main/data/failureFacts'
 import type { RequestContext as ErrorRequestContext } from '@shared/data/api/errors'
 import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type { ApiImplementation } from '@shared/data/api/types'
@@ -117,10 +119,16 @@ export class ApiServer {
 
       return requestContext.response
     } catch (error) {
-      logger.error(`Request handling failed: ${method} ${path}`, error as Error)
-
       // Convert to DataApiError and serialize for IPC
       const apiError = error instanceof DataApiError ? error : toDataApiError(error, `${method} ${path}`)
+      logFailure(
+        logger,
+        `Request handling failed: ${method} ${path}`,
+        error,
+        'data.request',
+        classifyDataApiFailure(error, apiError)
+      )
+      apiError.reportingHandled = true
 
       const duration = DATA_API_TIMING_ENABLED ? performance.now() - perfStart : undefined
       return {

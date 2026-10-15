@@ -11,6 +11,7 @@ import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { ErrorObservation } from '@shared/types/errorReporting'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
 import { redactSecretText } from '@shared/utils/redaction'
@@ -62,6 +63,7 @@ function toSafeError(error: Error): Record<string, unknown> {
   }
   if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
   const source = error as unknown as Record<string, unknown>
+  if (source.reportingHandled === true) safe.reportingHandled = true
   if (typeof source.code === 'string' && source.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
     safe.code = redactSecretText(source.code)
   }
@@ -102,6 +104,16 @@ const DEFAULT_LEVEL = DEV_LOGGING ? LEVEL.SILLY : LEVEL.INFO
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
 export class LoggerService {
+  private readonly reporting: { observer?: (observation: ErrorObservation) => void; active: boolean } = {
+    active: false
+  }
+
+  setErrorReporter(observer: (observation: ErrorObservation) => void): () => void {
+    this.reporting.observer = observer
+    return () => {
+      if (this.reporting.observer === observer) this.reporting.observer = undefined
+    }
+  }
   private logger: winston.Logger
 
   // env variables, only used in dev / diagnostics (CS_DIAGNOSTICS) mode
@@ -346,6 +358,23 @@ export class LoggerService {
     }
 
     this.logger.log(level, fileMessage, entry)
+    if (
+      source.process === 'main' &&
+      (level === LEVEL.ERROR ||
+        entry.failure ||
+        rest.some((item) => item !== null && typeof item === 'object' && 'failure' in item))
+    ) {
+      if (!this.reporting.active) {
+        this.reporting.active = true
+        try {
+          this.reporting.observer?.({ error: first instanceof Error ? first : undefined, entry: { ...entry, level } })
+        } catch {
+          // Error observation must never interrupt local logging or the caller.
+        } finally {
+          this.reporting.active = false
+        }
+      }
+    }
   }
 
   /**

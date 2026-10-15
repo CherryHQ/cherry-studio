@@ -223,6 +223,20 @@ describe('IpcChatTransport', () => {
     await expect(reader.read()).rejects.toThrow('Something went wrong')
   })
 
+  it.each(['live', 'reconnect'] as const)('preserves main-process reporting ownership on %s failures', async (mode) => {
+    const error: SerializedError = { name: 'Error', message: 'Provider rejected', stack: null, reportingHandled: true }
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'error', error })
+    const stream =
+      mode === 'live'
+        ? await transport.sendMessages(baseOptions)
+        : await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    if (mode === 'live') {
+      for (const callback of [...mock.listeners.error]) callback({ topicId, error })
+    }
+    await expect(reader.read()).rejects.toMatchObject({ message: 'Provider rejected', reportingHandled: true })
+  })
+
   it('closes the stream when dispatch is blocked', async () => {
     mock.mockApi.streamOpen.mockResolvedValue({
       mode: 'blocked',

@@ -3636,7 +3636,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       expect.objectContaining({
         sessionId: 'session-1',
         modelId: 'sonnet-sdk',
-        err: expect.objectContaining({ errorMessage: expect.any(String) })
+        errorMessage: expect.any(String),
+        failure: expect.objectContaining({ runtime: 'claude-code' })
       })
     )
     void connection.close()

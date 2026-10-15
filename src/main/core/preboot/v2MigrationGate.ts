@@ -32,7 +32,9 @@ import {
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import { isDev } from '@main/core/platform'
+import { classifyDatabaseFailure } from '@main/data/failureFacts'
 import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('V2MigrationGate')
@@ -84,7 +86,13 @@ async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: 
       if (isDev || !isMigrationStorageError(error)) throw error
 
       const reason = describeErrorChain(error)
-      logger.error(`Migration database unavailable: ${reason}`, error as Error)
+      logFailure(
+        logger,
+        `Migration database unavailable: ${reason}`,
+        error,
+        'migration.open',
+        classifyDatabaseFailure(error)
+      )
       migrationEngine.close()
       await app.whenReady()
       const language = resolveSystemLanguage(app.getLocale())
@@ -196,7 +204,13 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     // The driver reason lives in `.cause`, which neither `error.message` nor the
     // winston serializer carries — flatten it or the failure is undiagnosable.
     const reason = describeErrorChain(error)
-    logger.error(`Migration status check failed: ${reason}`, error as Error)
+    logFailure(
+      logger,
+      `Migration status check failed: ${reason}`,
+      error,
+      'migration.check',
+      classifyDatabaseFailure(error)
+    )
     await app.whenReady()
 
     // Dev-only: when the disposable migration SQL is regenerated/deleted but
