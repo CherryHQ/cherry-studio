@@ -477,6 +477,43 @@ describe('goal continuation', () => {
     expect(plain(rebuilt.calls[0].prompt)).toEqual(plain(live.calls[1].prompt))
   })
 
+  // Breaks when the verifier is given a round prompt that never ran, as if the model had been asked
+  // for that round.
+  it('gives the verifier the conversation without a round prompt that never ran', async () => {
+    const seen: string[] = []
+    const port = goalPort({
+      verify: {
+        verify: async ({ messages }) => {
+          seen.push(JSON.stringify(messages))
+          return { verdict: 'not_met', reason: 'not yet' }
+        }
+      }
+    })
+    const veto: ExtensionFactory = (pi) => {
+      pi.on('agent_before_settle', () => ({ continue: false }))
+    }
+    const { session: s } = await goalSession(
+      [
+        working,
+        () => [toolCallPart('g', 'get_goal', {}), finish('tool-calls')],
+        (prompt) => {
+          const { goal } = readGoal(prompt)
+          const args = { goal_id: goal!.id, revision: goal!.revision, action: 'complete', evidence: 'done' }
+          return [toolCallPart('u', 'update_goal', args), finish('tool-calls')]
+        },
+        () => say('Not yet.')
+      ],
+      port,
+      { laterExtensions: [veto] }
+    )
+    await promptIdle(s, '/goal Keep working')
+    await promptIdle(s, 'Is it done?')
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toContain('Round: 1/')
+    expect(seen[0]).not.toContain('Round: 2/')
+  })
+
   // Breaks when the continuation replaces the entries an earlier extension proposed at the same settle.
   it('keeps what an earlier extension adds at the settle the goal continues', async () => {
     let added = false

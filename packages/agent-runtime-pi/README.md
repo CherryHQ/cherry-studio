@@ -229,7 +229,8 @@ handles.
   included; a tool call already running then (a foreground subagent under `/goal pause`) adds its
   usage when it ends, and requests after the stop (the summary after `complete`) are never counted.
   A round prompt Pi committed but never sent on (another extension vetoed the continuation, or the
-  run was aborted at the settle) stays in the transcript and is left out of every later request.
+  run was aborted at the settle) stays in the transcript and is left out of later model requests
+  and of the verifier's conversation; the compaction summarizer still reads it.
   `update_goal(complete)` passes the host's `GoalVerifier` (it
   gets the full current context, after compaction, and the call's `signal`; the package sets no
   timeout) or, without one, needs evidence and a round that changed something. An accepted
@@ -294,6 +295,9 @@ approval extension, so each call the subagent makes is approved on its own.
   host reports running background subagents, which only L6 adds) and no fresh-context (Ralph)
   mode. The package does not know the permission mode; keeping goals from running rounds in plan
   mode is up to the host.
+- After a crash between the settle that committed a goal round and that round's start,
+  `/goal resume` on the still-active goal reserves the same round under the same revision, so the
+  stale prompt can no longer be told apart and goes out next to the new one.
 
 ## Tests
 
