@@ -94,10 +94,10 @@ export interface AgentRuntimeSession {
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
   dispose(): Promise<void>
   /**
-   * `session.prompt`, for every user turn the host starts: while it prepares, Pi reports the session
-   * idle, and a background result must not start a run then. Called while a run settles (from
-   * `onEvent`'s `turn-complete`), it runs once that settle and any run Pi started meanwhile are over,
-   * and resolves or rejects as that prompt does.
+   * `session.prompt`, for every user turn the host starts: until Pi starts the run (while commands and
+   * `input` handlers run), it reports the session idle, and a background result must not start a run
+   * then. Called while a run settles (from `onEvent`'s `turn-complete`), it runs once that settle and
+   * any run Pi started meanwhile are over, and resolves or rejects as that prompt does.
    */
   prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
   /** `session.compact`, for every manual compaction the host starts, for the same reason. */
