@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
-import { defineTool } from '@earendil-works/pi-coding-agent'
+import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { extractReasoningMiddleware, streamText, type TextStreamPart, type ToolSet, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -22,6 +22,20 @@ function weatherTool(calls: unknown[]) {
     async execute(_id, params) {
       calls.push(params)
       return { content: [{ type: 'text', text: `Sunny, 25C in ${params.city}` }], details: undefined }
+    }
+  })
+}
+
+/** A tool whose parameters are all optional, so `{}` passes its schema. */
+function listFilesTool(calls: unknown[]) {
+  return defineTool({
+    name: 'list_files',
+    label: 'List files',
+    description: 'List a directory, the workspace root by default',
+    parameters: Type.Object({ path: Type.Optional(Type.String()) }),
+    async execute(_id, params) {
+      calls.push(params)
+      return { content: [{ type: 'text', text: 'a.txt' }], details: undefined }
     }
   })
 }
@@ -400,21 +414,11 @@ describe('Pi agent loop over the AI SDK port', () => {
     { kind: 'non-object', input: '"/tmp"', error: 'must be a JSON object' }
   ])('never runs a tool on $kind input, even when its schema accepts an empty object', async ({ input, error }) => {
     const listCalls: unknown[] = []
-    const listFiles = defineTool({
-      name: 'list_files',
-      label: 'List files',
-      description: 'List a directory, the workspace root by default',
-      parameters: Type.Object({ path: Type.Optional(Type.String()) }),
-      async execute(_id, params) {
-        listCalls.push(params)
-        return { content: [{ type: 'text', text: 'a.txt' }], details: undefined }
-      }
-    })
     const { model, calls } = scriptedModel([
       [{ type: 'tool-call', toolCallId: 'call_1', toolName: 'list_files', input }, finish('tool-calls')],
       [...textParts('t', 'Let me retry.'), finish('stop')]
     ])
-    const { session } = await createTestSession({ port: streamTextPort(model).port, tools: [listFiles] })
+    const { session } = await createTestSession({ port: streamTextPort(model).port, tools: [listFilesTool(listCalls)] })
     await session.prompt('List my files')
 
     expect(listCalls).toEqual([])
@@ -423,6 +427,33 @@ describe('Pi agent loop over the AI SDK port', () => {
       toolCallId: 'call_1',
       output: { type: 'error-text', value: expect.stringContaining(error) }
     })
+  })
+
+  // Breaks when a host `tool_call` handler (an approval prompt) runs before the guard and is asked
+  // about a call Pi will not run.
+  it('keeps a call with unusable input away from host tool_call handlers', async () => {
+    const listCalls: unknown[] = []
+    const asked: string[] = []
+    const approvalPrompt: ExtensionFactory = (pi) => {
+      pi.on('tool_call', (event) => void asked.push(event.toolCallId))
+    }
+    const { model } = scriptedModel([
+      [
+        { type: 'tool-call', toolCallId: 'call_bad', toolName: 'list_files', input: '{"path":"/tm' },
+        { type: 'tool-call', toolCallId: 'call_ok', toolName: 'list_files', input: '{"path":"/tmp"}' },
+        finish('tool-calls')
+      ],
+      [...textParts('t', 'Done.'), finish('stop')]
+    ])
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [listFilesTool(listCalls)],
+      extensionFactories: [approvalPrompt]
+    })
+    await session.prompt('List my files')
+
+    expect(asked).toEqual(['call_ok'])
+    expect(listCalls).toEqual([{ path: '/tmp' }])
   })
 
   it('runs the tool a repaired call names, not the name the stream started with', async () => {
