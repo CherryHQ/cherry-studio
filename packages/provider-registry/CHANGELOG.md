@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.1
+
+### Patch Changes
+
+- [#21715](https://github.com/CherryHQ/cherry-studio/pull/21715) [`1b0c69f`](https://github.com/CherryHQ/cherry-studio/commit/1b0c69f9d9f086b3aaace631b187b427aac18aaf) Thanks [@1lck](https://github.com/1lck)! - Add widescreen, portrait, 16:10, and 4K size presets for GPT-Image-2 while preserving the existing sizes for GPT-Image-1 models.
+
 ## 0.2.0
 
 ### Minor Changes
