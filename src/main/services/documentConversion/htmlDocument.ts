@@ -1,10 +1,4 @@
-import type {
-  DocumentBlock,
-  DocumentCell,
-  DocumentModel,
-  DocumentStyle,
-  DocumentTextRun
-} from '@shared/types/documentModel'
+import type { DocumentBlock, DocumentCell, DocumentModel, DocumentStyle, DocumentTextRun } from './documentModel'
 
 /** Runs in the isolated Chromium document; keep every helper inside the function. */
 export function extractHtmlDocument(): DocumentModel {
@@ -21,6 +15,7 @@ export function extractHtmlDocument(): DocumentModel {
   const px = (value: string) => Number.parseFloat(value) || 0
   const runs = (root: Element): DocumentTextRun[] => {
     const result: DocumentTextRun[] = []
+    let deferredBreak = false
     const visit = (node: Node) => {
       if (node.nodeType === Node.TEXT_NODE && node.parentElement) {
         const style = getComputedStyle(node.parentElement)
@@ -29,6 +24,11 @@ export function extractHtmlDocument(): DocumentModel {
           ? (node.textContent ?? '')
           : (node.textContent ?? '').replace(/\s+/g, ' ')
         if (!text) return
+        if (deferredBreak && text.trim()) {
+          deferredBreak = false
+          const previous = result[result.length - 1]
+          if (previous && !previous.text.endsWith('\n')) result.push({ text: '\n' })
+        }
         result.push({
           text,
           bold: Number(style.fontWeight) >= 600,
@@ -52,8 +52,19 @@ export function extractHtmlDocument(): DocumentModel {
           ['SCRIPT', 'STYLE', 'IMG'].includes(node.tagName)
         )
           return
-        if (node.tagName === 'BR') result.push({ text: '\n' })
-        else node.childNodes.forEach(visit)
+        if (node.tagName === 'BR') {
+          result.push({ text: '\n' })
+          deferredBreak = false
+          return
+        }
+        if (['block', 'flex', 'grid', 'flow-root', 'list-item', 'table'].includes(style.display)) {
+          if (result.some((run) => run.text.trim())) deferredBreak = true
+          const start = result.length
+          node.childNodes.forEach(visit)
+          if (result.slice(start).some((run) => run.text.trim())) deferredBreak = true
+          return
+        }
+        node.childNodes.forEach(visit)
       }
     }
     root.childNodes.forEach(visit)

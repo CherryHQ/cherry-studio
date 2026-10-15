@@ -2,10 +2,9 @@ import JSZip from 'jszip'
 import sharp from 'sharp'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { DocumentBlock } from '@shared/types/documentModel'
-
 import { printService } from '../../PrintService'
 import { convertDocumentBundle } from '../convertDocument'
+import type { DocumentBlock } from '../documentModel'
 import { convertDocx } from '../docx'
 import { normalizeDocumentImage } from '../imageAssets'
 import { parseMarkdown } from '../parseMarkdown'

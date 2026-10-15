@@ -1,4 +1,4 @@
-import type { DocumentBlock, DocumentTextRun } from '@shared/types/documentModel'
+import type { DocumentBlock, DocumentTextRun } from './documentModel'
 
 export function flattenDocumentBlocks(blocks: DocumentBlock[]): DocumentBlock[] {
   return blocks.flatMap((block) => (block.type === 'columns' ? block.columns.flatMap(flattenDocumentBlocks) : [block]))

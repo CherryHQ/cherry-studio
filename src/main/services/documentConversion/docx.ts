@@ -1,6 +1,6 @@
 import type * as Docx from 'docx'
 
-import type { DocumentBlock, DocumentTextRun } from '@shared/types/documentModel'
+import type { DocumentBlock, DocumentTextRun } from './documentModel'
 
 export async function convertDocx(
   blocks: DocumentBlock[],
@@ -125,17 +125,23 @@ export async function convertDocx(
       } else {
         const style = block.style
         const orderedNumber = block.type === 'text' ? block.orderedNumber : undefined
+        const level = block.type === 'text' && block.bullet ? Math.min(8, block.bullet - 1) : 0
         const reference = `ordered-${numbering.length}`
         if (orderedNumber !== undefined)
           numbering.push({
             reference,
             levels: [
               {
-                level: 0,
+                level,
                 format: docx.LevelFormat.DECIMAL,
-                text: '%1.',
+                text: `%${level + 1}.`,
                 start: orderedNumber,
-                alignment: docx.AlignmentType.LEFT
+                alignment: docx.AlignmentType.LEFT,
+                style: {
+                  paragraph: {
+                    indent: { left: 720 * (level + 1), hanging: 360 }
+                  }
+                }
               }
             ]
           })
@@ -154,7 +160,7 @@ export async function convertDocx(
               block.type === 'text' && block.bullet && orderedNumber === undefined
                 ? { level: Math.min(8, block.bullet - 1) }
                 : undefined,
-            numbering: orderedNumber !== undefined ? { reference, level: 0 } : undefined,
+            numbering: orderedNumber !== undefined ? { reference, level } : undefined,
             children: (
               block.runs ?? [{ text: block.text, ...(block.type === 'code' ? { font: 'Consolas' } : {}) }]
             ).flatMap(run)

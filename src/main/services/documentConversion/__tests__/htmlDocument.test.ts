@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
 
+import JSZip from 'jszip'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { readWorkbook } from '@cherrystudio/spreadsheet'
+
+import { convertDocx } from '../docx'
 import { extractHtmlDocument } from '../htmlDocument'
 import { parseMarkdown } from '../parseMarkdown'
 import { documentToMarkdown, flattenDocumentBlocks } from '../serializeDocument'
+import { convertXlsx } from '../xlsx'
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -44,4 +49,51 @@ describe('HTML layout text extraction', () => {
       { type: 'columns', columns: [[{ text: 'Left' }], [{ text: 'Right' }]] }
     ])
   })
+
+  it('keeps paragraph boundaries and inline styles inside a table cell through XLSX and DOCX', async () => {
+    document.body.innerHTML =
+      '<table><tr><td><p>Hello <span style="font-weight:700">bold</span> tail</p><p>Second</p></td><td><span>A</span><span>B</span></td></tr></table>'
+    const { blocks } = extractHtmlDocument()
+    const table = blocks[0]
+    expect(table).toMatchObject({ type: 'table', rows: [['Hello bold tail\nSecond', 'AB']] })
+    if (table?.type !== 'table') throw new Error('expected a table')
+    const [styled, inline] = table.cells?.[0] ?? []
+    expect(styled?.runs.map((run) => run.text).join('')).toBe('Hello bold tail\nSecond')
+    expect(styled?.runs.find((run) => run.text === 'bold')).toMatchObject({ bold: true })
+    expect(styled?.runs.some((run) => run.text.includes('\n') && run.bold)).toBe(false)
+    expect(inline?.runs.map((run) => run.text).join('')).toBe('AB')
+
+    const workbook = await readWorkbook(Uint8Array.from(await convertXlsx(blocks)).buffer)
+    expect(workbook.worksheets[0].getCell('A1').value).toBe('Hello bold tail\nSecond')
+    expect(workbook.worksheets[0].getCell('B1').value).toBe('AB')
+
+    const word = await JSZip.loadAsync(await convertDocx(blocks, new Map(), 'Cells'))
+    const documentXml = await word.file('word/document.xml')!.async('string')
+    const cellXml = documentXml.match(/<w:tc>[\s\S]*?<\/w:tc>/g) ?? []
+    expect(cellXml).toHaveLength(2)
+    const [styledCell = '', inlineCell = ''] = cellXml
+    expect(textsOf(styledCell)).toEqual(expect.arrayContaining(['Hello ', 'bold', ' tail', 'Second']))
+    expect(styledCell).toContain('<w:br')
+    expect(styledCell.indexOf('<w:br')).toBeGreaterThan(styledCell.indexOf('bold'))
+    expect(styledCell.indexOf('<w:br')).toBeLessThan(styledCell.lastIndexOf('Second'))
+    const boldRun = styledCell.match(/<w:r>[\s\S]*?bold[\s\S]*?<\/w:r>/)?.[0] ?? ''
+    expect(boldRun).toContain('<w:b')
+    expect(textsOf(inlineCell).join('')).toBe('AB')
+    expect(inlineCell).not.toContain('<w:br')
+  })
+
+  it('separates a table-cell block from the inline text that follows it', () => {
+    document.body.innerHTML = '<table><tr><td><p>First</p><span style="font-weight:700">tail</span></td></tr></table>'
+    const table = extractHtmlDocument().blocks[0]
+    expect(table).toMatchObject({ type: 'table', rows: [['First\ntail']] })
+    if (table?.type !== 'table') throw new Error('expected a table')
+    const runs = table.cells?.[0]?.[0]?.runs ?? []
+    expect(runs.map((run) => run.text).join('')).toBe('First\ntail')
+    expect(runs.find((run) => run.text === 'tail')).toMatchObject({ bold: true })
+    expect(runs.some((run) => run.text.includes('\n') && run.bold)).toBe(false)
+  })
 })
+
+function textsOf(xml: string): string[] {
+  return [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match) => match[1])
+}

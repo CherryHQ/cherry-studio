@@ -2,10 +2,11 @@ import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
 
 import { exportErrorCodes } from '@shared/ipc/errors/export'
-import type { DocumentBlock, DocumentCell, DocumentTextRun } from '@shared/types/documentModel'
 
 import { DocumentConversionError } from './DocumentConversionError'
-export type { DocumentBlock } from '@shared/types/documentModel'
+import type { DocumentBlock, DocumentCell, DocumentTextRun } from './documentModel'
+
+export type { DocumentBlock } from './documentModel'
 
 const SAFE_HTML_TAGS = new Set(['a', 'b', 'br', 'del', 'em', 'i', 's', 'strike', 'strong', 'u'])
 

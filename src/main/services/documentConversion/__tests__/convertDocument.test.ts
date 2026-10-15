@@ -220,6 +220,33 @@ describe('document conversion', () => {
     expect(await sharp(await exportedImage.async('nodebuffer')).metadata()).toMatchObject({ width: 3, height: 2 })
   })
 
+  it('preserves nested ordered-list depth and each item number in DOCX', async () => {
+    const markdown = '1. Parent\n   1. Child\n2. Next'
+    expect(parseMarkdown(markdown)).toMatchObject([
+      { text: 'Parent', bullet: 1, orderedNumber: 1 },
+      { text: 'Child', bullet: 2, orderedNumber: 1 },
+      { text: 'Next', bullet: 1, orderedNumber: 2 }
+    ])
+    const word = await JSZip.loadAsync((await convertDocumentBundle({ markdown, format: 'docx' })).bytes)
+    const documentXml = await word.file('word/document.xml')!.async('string')
+    const numberingXml = await word.file('word/numbering.xml')!.async('string')
+    const items = [...documentXml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].flatMap((match) => {
+      const paragraph = match[0]
+      const text = [...paragraph.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((part) => part[1]).join('')
+      if (!['Parent', 'Child', 'Next'].includes(text)) return []
+      const ilvl = paragraph.match(/<w:ilvl w:val="(\d+)"/)?.[1]
+      const numId = paragraph.match(/<w:numId w:val="(\d+)"/)?.[1]
+      const numbering = numberingLevel(numberingXml, numId, ilvl)
+      return [{ text, ilvl, start: numbering?.start, indent: numbering?.indent }]
+    })
+    expect(items).toEqual([
+      { text: 'Parent', ilvl: '0', start: '1', indent: '720' },
+      { text: 'Child', ilvl: '1', start: '1', indent: '1440' },
+      { text: 'Next', ilvl: '0', start: '2', indent: '720' }
+    ])
+    expect(Number(items[1]?.indent)).toBeGreaterThan(Number(items[0]?.indent))
+  })
+
   it('preserves ordered list start numbers through editable Office and HTML output', async () => {
     const markdown = '3. Step three\n4. Step four'
     const docx = (await convertDocumentBundle({ markdown, format: 'docx' })).bytes
@@ -352,3 +379,24 @@ describe('document conversion', () => {
     })
   })
 })
+
+function numberingLevel(
+  numberingXml: string,
+  numId: string | undefined,
+  ilvl: string | undefined
+): { start?: string; indent?: string } | undefined {
+  if (!numId || ilvl === undefined) return undefined
+  const concrete = numberingXml.match(new RegExp(`<w:num [^>]*w:numId="${numId}"[\\s\\S]*?</w:num>`))?.[0] ?? ''
+  const abstractId = concrete.match(/<w:abstractNumId w:val="(\d+)"/)?.[1]
+  const abstract = abstractId
+    ? (numberingXml.match(
+        new RegExp(`<w:abstractNum [^>]*w:abstractNumId="${abstractId}"[\\s\\S]*?</w:abstractNum>`)
+      )?.[0] ?? '')
+    : ''
+  const level = abstract.match(new RegExp(`<w:lvl [^>]*w:ilvl="${ilvl}"[\\s\\S]*?</w:lvl>`))?.[0] ?? ''
+  const override = concrete.match(new RegExp(`<w:lvlOverride [^>]*w:ilvl="${ilvl}"[\\s\\S]*?</w:lvlOverride>`))?.[0]
+  return {
+    start: override?.match(/<w:startOverride w:val="(\d+)"/)?.[1] ?? level.match(/<w:start w:val="(\d+)"/)?.[1],
+    indent: level.match(/w:left="(\d+)"/)?.[1]
+  }
+}

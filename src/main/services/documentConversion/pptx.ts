@@ -2,7 +2,7 @@ import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 
 import type PptxGenJS from 'pptxgenjs'
 
-import type { DocumentBlock, DocumentStyle, DocumentTextRun } from '@shared/types/documentModel'
+import type { DocumentBlock, DocumentStyle, DocumentTextRun } from './documentModel'
 
 function textRuns(runs: DocumentTextRun[]): PptxGenJS.TextProps[] {
   return runs.map((run) => ({
