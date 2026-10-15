@@ -381,7 +381,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
             ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
-            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+            // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
+            maxRetries: 0
           })
         } catch (error) {
           fail(error)
@@ -465,7 +467,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         contextOwner: 'caller',
         ...(usageContext ? { usageContext } : {}),
         ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
-        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+        maxRetries: 0
       })
     }
 
