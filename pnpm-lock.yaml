@@ -263,8 +263,8 @@ importers:
         specifier: 0.3.284
         version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@cherrystudio/computer-use':
-        specifier: 0.1.6
-        version: 0.1.6
+        specifier: 0.1.7
+        version: 0.1.7
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
@@ -2896,38 +2896,38 @@ packages:
       typescript:
         optional: true
 
-  '@cherrystudio/computer-use-darwin-arm64@0.1.6':
-    resolution: {integrity: sha512-qt5B5MjLLN1q/rxh8JWe5Dc4AHsa3MOwl109NmgpV3aDrCYYkE3fSlhcoi+pEA4Q7X+EDnOVQE+q51S3UY9bgQ==}
+  '@cherrystudio/computer-use-darwin-arm64@0.1.7':
+    resolution: {integrity: sha512-q/BfxVmRkOhuMVxB/y2manV6jqGdLcmbE9T/C6MbyBwDIMU1EDE5vACBQk2gUdp0vtj0kREy9ZHDLDrzR308yA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@cherrystudio/computer-use-darwin-x64@0.1.6':
-    resolution: {integrity: sha512-T0CREJmqKwgca657/cG4DFSayfkddwAzzhGUrurdDk4VgHoH58+xiUXXVwcZja4Bj+BrgR8Bd4t7H/ZKCzpBGQ==}
+  '@cherrystudio/computer-use-darwin-x64@0.1.7':
+    resolution: {integrity: sha512-Eu+WP4HqkplEid5w9/TxPtUB465mJJK2PUwKx52b9kM5ftf7ownDHk9jfJsMXJCXn70ElYRmfn9oky6Gzag/6A==}
     cpu: [x64]
     os: [darwin]
 
-  '@cherrystudio/computer-use-linux-arm64@0.1.6':
-    resolution: {integrity: sha512-sNzbejVwGSLJ4kMFDhVGI6k9vSLXSuG2wnVgkBR+f0wbQxkBBPK1LGOQcZtBwEsE7PbUvBvfYVQ14Z1ENQNPJg==}
+  '@cherrystudio/computer-use-linux-arm64@0.1.7':
+    resolution: {integrity: sha512-LLY0LyAhpr0IAiXAoQKH9QVaQ7zRU0qw5EdFmYqVjSkjKGemURlXGHcGz8LaiMAgnNkl0uMsjJOIraAc4c7tpw==}
     cpu: [arm64]
     os: [linux]
 
-  '@cherrystudio/computer-use-linux-x64@0.1.6':
-    resolution: {integrity: sha512-Pe77ehszGDsc+8Es826GIJZd3sh8STnfkNjlZ2LCmtuasHasGTtH2LrJTDorpjLpgF9MOO9er1YV8oJclZc1vg==}
+  '@cherrystudio/computer-use-linux-x64@0.1.7':
+    resolution: {integrity: sha512-wspvns1dMlSAHWPZb22ywMShLuliPU/eYd+bXmMEN7BQO2HprJIfnsW+8pk0OS6HEJFqwSUzhH4wv00NCgvGFg==}
     cpu: [x64]
     os: [linux]
 
-  '@cherrystudio/computer-use-win32-arm64@0.1.6':
-    resolution: {integrity: sha512-+gT/2wC9Hah6Vnd4WC1EQB79Dj3TPHRB1qiAK1QLStb7B6rMehD+vck/FWG7WUJS3dP5pveUbbsHlzoBTtFzIw==}
+  '@cherrystudio/computer-use-win32-arm64@0.1.7':
+    resolution: {integrity: sha512-uy/FZhX1NjxHsI8kpmuicpPYA4FHbuxLCBmXOiMl9zoUuEHlXuqBaKl69Th6HfzUV+J78kW5A786vvLUHKkWDg==}
     cpu: [arm64]
     os: [win32]
 
-  '@cherrystudio/computer-use-win32-x64@0.1.6':
-    resolution: {integrity: sha512-1LQkNnHU8TaGcS46ZxDp5Fpot5T+1hlYPU0oGUbZn5Sr/n5mBD0ZhacR33jdT2EMCUdDSnI/G2IbkT+89MQqug==}
+  '@cherrystudio/computer-use-win32-x64@0.1.7':
+    resolution: {integrity: sha512-Fmws+ugFG1Aick8VrMNKoURqvj2hiJmsEnxhQIXJom+DfoWGG4GtqOgpP7ECZVGB0MOFgbL7MfeqqxdYVKlvvQ==}
     cpu: [x64]
     os: [win32]
 
-  '@cherrystudio/computer-use@0.1.6':
-    resolution: {integrity: sha512-xnuQLSJ7scRrqutzw59TpTm9YgpkeMW/TZHh41nW/wzZac46qQ7emooyUcBkng279i0UqqLRzeiu4UkRkkSS+Q==}
+  '@cherrystudio/computer-use@0.1.7':
+    resolution: {integrity: sha512-5QVQ9saKVtuY3oMfSGOTYtRo5GE4rcRlWg8EAFUoPoCQM3aj60lMLZmzUK/WDDOHwqI9m6W1IQNuxpeTk6QqjQ==}
     engines: {node: '>=24'}
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts':
@@ -16920,32 +16920,32 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  '@cherrystudio/computer-use-darwin-arm64@0.1.6':
+  '@cherrystudio/computer-use-darwin-arm64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-darwin-x64@0.1.6':
+  '@cherrystudio/computer-use-darwin-x64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-linux-arm64@0.1.6':
+  '@cherrystudio/computer-use-linux-arm64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-linux-x64@0.1.6':
+  '@cherrystudio/computer-use-linux-x64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-win32-arm64@0.1.6':
+  '@cherrystudio/computer-use-win32-arm64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use-win32-x64@0.1.6':
+  '@cherrystudio/computer-use-win32-x64@0.1.7':
     optional: true
 
-  '@cherrystudio/computer-use@0.1.6':
+  '@cherrystudio/computer-use@0.1.7':
     optionalDependencies:
-      '@cherrystudio/computer-use-darwin-arm64': 0.1.6
-      '@cherrystudio/computer-use-darwin-x64': 0.1.6
-      '@cherrystudio/computer-use-linux-arm64': 0.1.6
-      '@cherrystudio/computer-use-linux-x64': 0.1.6
-      '@cherrystudio/computer-use-win32-arm64': 0.1.6
-      '@cherrystudio/computer-use-win32-x64': 0.1.6
+      '@cherrystudio/computer-use-darwin-arm64': 0.1.7
+      '@cherrystudio/computer-use-darwin-x64': 0.1.7
+      '@cherrystudio/computer-use-linux-arm64': 0.1.7
+      '@cherrystudio/computer-use-linux-x64': 0.1.7
+      '@cherrystudio/computer-use-win32-arm64': 0.1.7
+      '@cherrystudio/computer-use-win32-x64': 0.1.7
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts': {}
 
