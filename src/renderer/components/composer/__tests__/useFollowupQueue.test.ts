@@ -1735,16 +1735,19 @@ describe('useFollowupQueue', () => {
       return createElement('div')
     }
 
-    const view = render(createElement(Activity, { mode: 'visible' }, createElement(QueueHost, { isFulfilled: false })))
+    const activity = (mode: 'visible' | 'hidden', isFulfilled: boolean) =>
+      createElement(Activity, { mode, children: createElement(QueueHost, { isFulfilled }) })
+
+    const view = render(activity('visible', false))
 
     await act(async () => {
-      view.rerender(createElement(Activity, { mode: 'visible' }, createElement(QueueHost, { isFulfilled: true })))
+      view.rerender(activity('visible', true))
     })
     expect(onDrain).toHaveBeenCalledTimes(1)
-    expect(api?.drainingId).toBe('h1')
+    expect(api!.drainingId).toBe('h1')
 
     act(() => {
-      view.rerender(createElement(Activity, { mode: 'hidden' }, createElement(QueueHost, { isFulfilled: true })))
+      view.rerender(activity('hidden', true))
     })
 
     await act(async () => {
@@ -1752,11 +1755,11 @@ describe('useFollowupQueue', () => {
     })
 
     act(() => {
-      view.rerender(createElement(Activity, { mode: 'visible' }, createElement(QueueHost, { isFulfilled: true })))
+      view.rerender(activity('visible', true))
     })
 
-    expect(api?.items).toEqual([])
-    expect(api?.drainingId).toBeNull()
+    expect(api!.items).toEqual([])
+    expect(api!.drainingId).toBeNull()
     expect(persistedTexts('s1')).toEqual([])
   })
 

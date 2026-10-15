@@ -434,7 +434,7 @@ export function useFollowupQueue({
   // Read by removeId/releaseSend below.
   const manualClaimsRef = useRef(new Map<string, string>())
 
-  const removeIdRef = useRef<(id: string) => void>(() => {})
+  const removeIdRef = useRef<(id: string, options?: RemoveIdOptions) => void>(() => {})
   const drainHeadRef = useRef<(head: FollowupQueueItem | undefined) => void>(() => {})
 
   // Resolution for a send whose queue moved on before it settled (scope switch /
