@@ -865,7 +865,7 @@ describe('edit dialogs', () => {
   )
 
   it.each(['agent', 'assistant'] as const)(
-    'keeps the %s editor visible when the save before global prompt navigation fails',
+    'preserves failed %s edits across repeated management clicks until a corrected edit saves',
     async (type) => {
       const user = userEvent.setup()
       const save = createDeferred<AgentDetail | Assistant>()
@@ -891,6 +891,26 @@ describe('edit dialogs', () => {
         frames.flushAllFrames()
         expect(screen.getByRole('dialog')).toBeVisible()
         expect(openSettingsTabMock).not.toHaveBeenCalled()
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+          frames.flushAllFrames()
+          expect(screen.getByRole('dialog')).toBeVisible()
+          expect(screen.getByText('Save failed')).toBeVisible()
+          expect(openSettingsTabMock).not.toHaveBeenCalled()
+        }
+
+        await user.click(screen.getByRole('tab', { name: 'Basic' }))
+        const nameInput = screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name')
+        expect(nameInput).toHaveValue(`${type === 'agent' ? AGENT.name : ASSISTANT.name} edited`)
+        await user.clear(nameInput)
+        await user.type(nameInput, 'Corrected edit')
+        await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        frames.flushAllFrames()
+        expect(update).toHaveBeenLastCalledWith({ body: expect.objectContaining({ name: 'Corrected edit' }) })
+        expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
       } finally {
         frames.restore()
       }
