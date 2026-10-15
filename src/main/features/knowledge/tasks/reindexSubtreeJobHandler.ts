@@ -13,6 +13,7 @@ import {
 } from '@shared/data/types/knowledge'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
+import { assertNoActiveExternalOwner } from '../ingestion/subtreePurge'
 import { canKnowledgeItemReacquireSource, isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
 import {
@@ -29,6 +30,17 @@ import { resolveLiveKnowledgeSubtree } from './utils/liveItem'
 
 const logger = loggerService.withContext('Knowledge:ReindexSubtreeJobHandler')
 const REINDEX_RECOVERY_ACTIVE_STATUSES = new Set<KnowledgeItemStatus>(['preparing', 'processing'])
+
+interface KnowledgeReacquireFailure {
+  itemId: string
+  reason: unknown
+  recordStatus: boolean
+}
+
+interface KnowledgeReacquireResult {
+  writes: Map<string, KnowledgeReacquireWrite>
+  failures: KnowledgeReacquireFailure[]
+}
 
 export function createReindexSubtreeJobHandler(
   knowledgeLockManager: KeyedMutex,
@@ -66,7 +78,32 @@ export function createReindexSubtreeJobHandler(
       // re-fetches, a note rewrites its snapshot from data.content) before the reset touches
       // anything. The slow half runs here, off the base lock; the writes it hands back overwrite the
       // items' pinned raw/ paths inside the lock below.
-      const reacquireWrites = await produceReacquireWrites(ctx, baseId, liveRoots)
+      const reacquireResult = await produceReacquireWrites(ctx, baseId, liveRoots)
+      if (reacquireResult.failures.length > 0) {
+        const failuresToRecord = reacquireResult.failures.filter((failure) => failure.recordStatus)
+        if (failuresToRecord.length > 0) {
+          await knowledgeLockManager.runExclusive(baseId, async () => {
+            const subtreeResult = resolveLiveKnowledgeSubtree(baseId, rootItemIds)
+            if ('skip' in subtreeResult) return
+
+            const selectedRootIds = new Set(rootItemIds)
+            // Failure status writes must still yield to ownership acquired by a purgeable descendant.
+            assertNoActiveExternalOwner(
+              subtreeResult.items.filter((item) => !selectedRootIds.has(item.id)).map((item) => item.id),
+              'reindex knowledge subtree'
+            )
+            const liveItemIds = new Set(subtreeResult.items.map((item) => item.id))
+            for (const failure of failuresToRecord) {
+              if (!liveItemIds.has(failure.itemId)) continue
+              knowledgeItemService.setSubtreeStatus(baseId, [failure.itemId], 'failed', {
+                error: failure.reason instanceof Error ? failure.reason.message : String(failure.reason)
+              })
+            }
+          })
+        }
+        throw reacquireResult.failures[0].reason
+      }
+      const reacquireWrites = reacquireResult.writes
 
       // Reset vectors, expanded children, and root statuses as one base-level mutation.
       const resetResult = await knowledgeLockManager.runExclusive(baseId, async () => {
@@ -109,6 +146,16 @@ export function createReindexSubtreeJobHandler(
           return { roots: [], skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
         }
 
+        const containerRootIds = rebuildableRoots
+          .filter((item) => isContainerKnowledgeItem(item))
+          .map((item) => item.id)
+        const containerDescendantItems = knowledgeItemService.getSubtreeItems(baseId, containerRootIds)
+        // A selected external leaf survives; ownership only blocks rows this container reset would delete.
+        assertNoActiveExternalOwner(
+          containerDescendantItems.map((item) => item.id),
+          'reindex knowledge subtree'
+        )
+
         // Activate every root before anything destructive runs. `completed` is the one status no
         // recovery path revisits — not `onSettled`, not the boot sweep — so a root left there while
         // its bytes are replaced or its vectors deleted would keep claiming an index it no longer has.
@@ -132,17 +179,13 @@ export function createReindexSubtreeJobHandler(
 
         await deleteKnowledgeItemVectors(base, leafItemIds)
 
-        const containerRootIds = rebuildableRoots
-          .filter((item) => isContainerKnowledgeItem(item))
-          .map((item) => item.id)
         if (containerRootIds.length > 0) {
           // Container roots are rescanned from source, so their previous expansion must be removed.
-          const descendantItems = knowledgeItemService.getSubtreeItems(baseId, containerRootIds)
           // Best-effort: a file-removal failure must not abort the row deletion below.
-          await deleteKnowledgeItemFilesBestEffort(baseId, descendantItems, { baseId, jobId: ctx.jobId })
+          await deleteKnowledgeItemFilesBestEffort(baseId, containerDescendantItems, { baseId, jobId: ctx.jobId })
           knowledgeItemService.deleteItemsByIds(
             baseId,
-            descendantItems.map((item) => item.id)
+            containerDescendantItems.map((item) => item.id)
           )
         }
 
@@ -222,46 +265,38 @@ function resolveReindexableRoots(baseId: string, rootItemIds: string[], jobId: s
  * concurrently: serialized, a bulk refresh costs the sum of every page's fetch latency against a
  * retryable job timeout, and `fetchKnowledgeWebPage`'s own queue bounds the request rate either way.
  *
- * A genuine failure fails the job loudly — but first flips that root to `failed`, because it is
- * still `completed`/`failed` here and `markReindexSubtreeFailedOnSettled` only picks up roots the
- * reset already activated; without this a refresh click would appear to do nothing. Each root is
- * recorded as its own producer settles, so a dead page keeps its diagnosis instead of inheriting
- * whatever a sibling did, and an abort — which touches nothing — leaves every root `completed` on
- * its intact index rather than dropping it out of search (`query/visibility.ts`).
+ * Failures are returned with the abort state captured when each producer settles. The caller
+ * records genuine failures under the base lock after rechecking ownership, while abort failures
+ * leave their roots `completed` on the intact index (`query/visibility.ts`).
  */
 async function produceReacquireWrites(
   ctx: JobContext<KnowledgeReindexSubtreePayload>,
   baseId: string,
   roots: KnowledgeItem[]
-): Promise<Map<string, KnowledgeReacquireWrite>> {
+): Promise<KnowledgeReacquireResult> {
   const producers = roots
     .filter(isIndexableKnowledgeItem)
     .map((item) => ({ itemId: item.id, produce: resolveKnowledgeReacquireProducer(item) }))
     .filter((entry): entry is { itemId: string; produce: KnowledgeReacquireProducer } => entry.produce !== null)
 
   ctx.signal.throwIfAborted()
-  const settled = await Promise.allSettled(
+  const settled = await Promise.all(
     producers.map(async ({ itemId, produce }) => {
       try {
-        return { itemId, write: await produce(ctx.signal) }
-      } catch (error) {
-        if (!ctx.signal.aborted) {
-          knowledgeItemService.setSubtreeStatus(baseId, [itemId], 'failed', {
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-        throw error
+        return { status: 'fulfilled' as const, itemId, write: await produce(ctx.signal) }
+      } catch (reason) {
+        return { status: 'rejected' as const, itemId, reason, recordStatus: !ctx.signal.aborted }
       }
     })
   )
 
   const writes = new Map<string, KnowledgeReacquireWrite>()
-  const failures: unknown[] = []
+  const failures: KnowledgeReacquireFailure[] = []
   for (const result of settled) {
     if (result.status === 'fulfilled') {
-      writes.set(result.value.itemId, result.value.write)
+      writes.set(result.itemId, result.write)
     } else {
-      failures.push(result.reason)
+      failures.push(result)
     }
   }
   if (failures.length > 0) {
@@ -269,16 +304,15 @@ async function produceReacquireWrites(
     // expired provider key are indistinguishable from that one message alone.
     logger.error(
       `Knowledge re-acquisition failed for ${failures.length}/${producers.length} roots`,
-      failures[0] instanceof Error ? failures[0] : new Error(String(failures[0])),
+      failures[0].reason instanceof Error ? failures[0].reason : new Error(String(failures[0].reason)),
       {
         baseId,
         jobId: ctx.jobId,
-        reasons: failures.map((reason) => (reason instanceof Error ? reason.message : String(reason)))
+        reasons: failures.map(({ reason }) => (reason instanceof Error ? reason.message : String(reason)))
       }
     )
-    throw failures[0]
   }
-  return writes
+  return { writes, failures }
 }
 
 async function markReindexSubtreeFailedOnSettled(

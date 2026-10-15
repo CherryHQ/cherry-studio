@@ -55,7 +55,7 @@ export const KnowledgeRelativePathSchema = PosixRelativeFilePathSchema.refine((v
   return segments !== null && segments.length > 0
 }, 'must stay inside the knowledge base material root and point below it')
 
-export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'directory'] as const
+export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'directory', 'external'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
@@ -350,6 +350,13 @@ export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
+/** Provider-neutral local Markdown snapshot created by an external source. */
+export const ExternalItemDataSchema = KnowledgeItemSharedSchema.extend({
+  title: z.string().trim().min(1),
+  relativePath: KnowledgeRelativePathSchema
+})
+export type ExternalItemData = z.infer<typeof ExternalItemDataSchema>
+
 /**
  * JSON payload stored in `knowledge_item.data`.
  */
@@ -357,7 +364,8 @@ export const KnowledgeItemDataSchema = z.union([
   FileItemDataSchema,
   UrlItemDataSchema,
   NoteItemDataSchema,
-  DirectoryItemDataSchema
+  DirectoryItemDataSchema,
+  ExternalItemDataSchema
 ])
 export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
 
@@ -512,6 +520,10 @@ const DirectoryKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createContainerKnowledgeItemEntitySchemas('directory', DirectoryItemDataSchema)
 )
+const ExternalKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createLeafKnowledgeItemEntitySchemas('external', ExternalItemDataSchema)
+)
 
 /**
  * Knowledge item record stored in SQLite.
@@ -520,7 +532,8 @@ export const KnowledgeItemSchema = z.union([
   FileKnowledgeItemSchema,
   UrlKnowledgeItemSchema,
   NoteKnowledgeItemSchema,
-  DirectoryKnowledgeItemSchema
+  DirectoryKnowledgeItemSchema,
+  ExternalKnowledgeItemSchema
 ])
 export type KnowledgeItem = z.infer<typeof KnowledgeItemSchema>
 export type KnowledgeItemOf<T extends KnowledgeItemType> = Extract<KnowledgeItem, { type: T }>
@@ -664,6 +677,10 @@ const DirectoryItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
   type: z.literal('directory'),
   data: DirectoryItemDataSchema
 })
+const ExternalItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('external'),
+  data: ExternalItemDataSchema
+})
 
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   CreateKnowledgeItemBaseSchema.extend({
@@ -672,7 +689,8 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   }),
   UrlItemMemberSchema,
   NoteItemMemberSchema,
-  DirectoryItemMemberSchema
+  DirectoryItemMemberSchema,
+  ExternalItemMemberSchema
 ])
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
@@ -757,7 +775,7 @@ export const DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY: KnowledgeAddConflictStrate
  * `getKnowledgeItemConflictKey` vs `getKnowledgeItemDisplayTitle`).
  */
 export const KnowledgeAddItemConflictSchema = z.object({
-  type: KnowledgeItemTypeSchema,
+  type: KnowledgeItemTypeSchema.exclude(['external']),
   title: z.string()
 })
 export type KnowledgeAddItemConflict = z.infer<typeof KnowledgeAddItemConflictSchema>
@@ -788,6 +806,7 @@ export interface KnowledgeItemTitleSource {
     source?: string
     content?: string
     url?: string
+    title?: string
     relativePath?: string
   }
 }
@@ -874,6 +893,8 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
       const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
       return snapshotName || data.url || data.source || ''
     }
+    case 'external':
+      return data.title || data.source || ''
   }
 }
 
@@ -906,5 +927,7 @@ export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): str
     }
     case 'url':
       return (data.url || '').trim()
+    case 'external':
+      return ''
   }
 }

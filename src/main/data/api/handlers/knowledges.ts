@@ -11,6 +11,7 @@
  * artifacts are coordinated by `KnowledgeService` instead.
  */
 
+import { externalKnowledgeDocumentService } from '@data/services/ExternalKnowledgeDocumentService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
@@ -42,7 +43,15 @@ export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
   '/knowledge-bases/:id/items': {
     GET: async ({ params, query }) => {
       const parsed = ListKnowledgeItemsQuerySchema.parse(query ?? {})
-      return knowledgeItemService.list(params.id, parsed)
+      const result = knowledgeItemService.list(params.id, parsed)
+      const blockedItemIds = externalKnowledgeDocumentService.getKnowledgeItemIdsWithActiveOwnedSubtree(
+        params.id,
+        result.items.map((item) => item.id)
+      )
+      return {
+        ...result,
+        items: result.items.map((item) => ({ ...item, canDelete: !blockedItemIds.has(item.id) }))
+      }
     }
   },
 

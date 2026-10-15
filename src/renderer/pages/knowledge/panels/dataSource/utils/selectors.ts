@@ -13,6 +13,8 @@ export const canReindexKnowledgeItem = (item: KnowledgeItem): boolean =>
 
 export const getItemStatus = (item: KnowledgeItem) => {
   switch (item.type) {
+    case 'external':
+      return dataSourceTypeDisplayConfig.external.getStatus(item.status)
     case 'file':
       return dataSourceTypeDisplayConfig.file.getStatus(item.status)
     case 'note':
@@ -26,6 +28,8 @@ export const getItemStatus = (item: KnowledgeItem) => {
 
 export const getItemTitle = (item: KnowledgeItem): string => {
   switch (item.type) {
+    case 'external':
+      return dataSourceTypeDisplayConfig.external.getTitle(item, { language: '' })
     case 'file':
       return dataSourceTypeDisplayConfig.file.getTitle(item, { language: '' })
     case 'note':
@@ -39,6 +43,17 @@ export const getItemTitle = (item: KnowledgeItem): string => {
 
 export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: string): KnowledgeItemRowViewModel => {
   switch (item.type) {
+    case 'external': {
+      const config = dataSourceTypeDisplayConfig.external
+
+      return {
+        title: config.getTitle(item, { language }),
+        suffix: config.getSuffix(item, { language }),
+        metaParts: config.getMetaParts(item, { language }),
+        icon: config.icon,
+        status: config.getStatus(item.status)
+      }
+    }
     case 'file': {
       const config = dataSourceTypeDisplayConfig.file
       const context = { language }

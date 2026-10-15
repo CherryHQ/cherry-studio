@@ -95,7 +95,7 @@ export const knowledgeItemTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'directory')`),
+    check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'directory', 'external')`),
     check(
       'knowledge_item_status_check',
       sql`${t.status} IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting')`
@@ -103,7 +103,7 @@ export const knowledgeItemTable = sqliteTable(
     check(
       'knowledge_item_type_status_check',
       sql`
-        (${t.type} IN ('file', 'url', 'note') AND ${t.status} IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))
+        (${t.type} IN ('file', 'url', 'note', 'external') AND ${t.status} IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))
         OR (${t.type} = 'directory' AND ${t.status} IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))
       `
     ),

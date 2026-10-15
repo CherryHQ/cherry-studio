@@ -32,6 +32,7 @@ const DIR_ROOT_ID = itemId('7d31')
 const FILE_CHILD_ID = itemId('7d40')
 const NOTE_GRANDCHILD_ID = itemId('7d41')
 const NOTE_ROOT_ID = itemId('7d42')
+const EXTERNAL_CHILD_ID = itemId('7d43')
 const DIR_OWNER_ID = itemId('7d45')
 const CHILD_A_ID = itemId('7d46')
 const CHILD_B_ID = itemId('7d47')
@@ -733,6 +734,16 @@ describe('KnowledgeItemService', () => {
         data: { source: 'grandchild', content: 'grandchild' }
       })
       await seedItem({ id: NOTE_ROOT_ID, type: 'note', data: { source: 'root note', content: 'root note' } })
+      await seedItem({
+        id: EXTERNAL_CHILD_ID,
+        groupId: DIR_CHILD_ID,
+        type: 'external',
+        data: {
+          source: 'feishu://document/doc-1',
+          title: 'External document',
+          relativePath: 'External document.md' as PosixRelativeFilePath
+        }
+      })
 
       const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, NOTE_ROOT_ID, 'missing'], {
         includeRoots: true,
@@ -740,7 +751,12 @@ describe('KnowledgeItemService', () => {
       })
       const itemsById = new Map(result.map((item) => [item.id, item]))
 
-      expect(result.map((item) => item.id).sort()).toEqual([FILE_CHILD_ID, NOTE_GRANDCHILD_ID, NOTE_ROOT_ID])
+      expect(result.map((item) => item.id).sort()).toEqual([
+        FILE_CHILD_ID,
+        NOTE_GRANDCHILD_ID,
+        NOTE_ROOT_ID,
+        EXTERNAL_CHILD_ID
+      ])
       expect(itemsById.get(FILE_CHILD_ID)).toMatchObject({
         id: FILE_CHILD_ID,
         baseId: KNOWLEDGE_BASE_ID,

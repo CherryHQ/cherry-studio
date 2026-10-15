@@ -176,6 +176,24 @@ function createUrlItem(): KnowledgeItemOf<'url'> {
   }
 }
 
+function createExternalItem(): KnowledgeItemOf<'external'> {
+  return {
+    id: 'external-1',
+    baseId: 'base-1',
+    groupId: null,
+    type: 'external',
+    status: 'processing',
+    error: null,
+    createdAt: '2026-04-03T00:00:00.000Z',
+    updatedAt: '2026-04-03T00:00:00.000Z',
+    data: {
+      source: 'feishu://document/doc-1',
+      title: 'External doc',
+      relativePath: 'external.md' as PosixRelativeFilePath
+    }
+  }
+}
+
 function createDirectoryItem(): KnowledgeItemOf<'directory'> {
   return {
     id: 'directory-1',
@@ -342,6 +360,30 @@ describe('loadKnowledgeItemDocuments', () => {
     const item = { ...createUrlItem(), data: { source: 'https://example.com', url: 'https://example.com' } }
 
     await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('has no captured snapshot to read')
+  })
+
+  it('reads an external item only from its pinned local snapshot', async () => {
+    readFileMock.mockResolvedValueOnce('# External doc\n\nbody')
+
+    const docs = await loadKnowledgeItemDocuments(createExternalItem())
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/external.md')
+    expect(docs).toEqual([
+      expect.objectContaining({
+        text: '# External doc\n\nbody',
+        metadata: { source: 'feishu://document/doc-1' }
+      })
+    ])
+  })
+
+  it('preserves provider frontmatter in an external snapshot', async () => {
+    const content = '---\ntitle: Provider document\n---\n# Body'
+    readFileMock.mockResolvedValueOnce(content)
+
+    const [document] = await loadKnowledgeItemDocuments(createExternalItem())
+
+    expect(document?.text).toBe(content)
   })
 
   it('throws for unsupported directory items', async () => {

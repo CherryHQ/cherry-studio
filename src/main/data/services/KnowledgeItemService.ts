@@ -12,7 +12,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -68,6 +68,12 @@ export type DeletingKnowledgeItemRootGroup = {
   rootItemIds: string[]
 }
 
+type KnowledgeItemListPage = {
+  items: KnowledgeItem[]
+  total: number
+  nextCursor?: string
+}
+
 function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
   const data = typeof row.data === 'string' ? (JSON.parse(row.data) as KnowledgeItemData) : row.data
 
@@ -113,7 +119,7 @@ export class KnowledgeItemService {
     return dbService.getDb()
   }
 
-  list(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemListResponse {
+  list(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemListPage {
     knowledgeBaseService.getById(baseId)
     const { limit, type, groupId } = query
 
@@ -513,7 +519,7 @@ export class KnowledgeItemService {
       return []
     }
 
-    const leafFilter = options.leafOnly ? sql`AND item.type IN ('file', 'url', 'note')` : sql``
+    const leafFilter = options.leafOnly ? sql`AND item.type IN ('file', 'url', 'note', 'external')` : sql``
     const rootFilter =
       options.includeRoots === true
         ? sql``
