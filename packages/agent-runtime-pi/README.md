@@ -225,8 +225,9 @@ handles.
   can give or a dismissed question in a goal round, background subagents the host reports as
   running, a round another extension's settle handler overrides, and a failed request or an abort
   (`session.abort()` or the host's own request signal) while the goal is armed. A stop's snapshot
-  counts tokens, cost and progress up to the stop; requests later in the same round (the summary
-  after `complete`) are not in it. `update_goal(complete)` passes the host's `GoalVerifier` (it
+  counts tokens, cost and progress up to the stop, the request whose tool call stopped the goal
+  included; requests after the stop (the summary after `complete`) are never counted.
+  `update_goal(complete)` passes the host's `GoalVerifier` (it
   gets the full current context, after compaction, and the call's `signal`; the package sets no
   timeout) or, without one, needs evidence and a round that changed something. An accepted
   completion also tells the model to end its turn with a summary, and a complete goal is final:
