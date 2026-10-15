@@ -77,7 +77,7 @@ vi.mock('@application', () => ({
     get: vi.fn((name: string) => {
       if (name === 'ApiGatewayService') {
         return {
-          ensureInternalGateway: mocks.apiGatewayEnsureInternal,
+          ensureAgentGateway: mocks.apiGatewayEnsureInternal,
           getInternalGatewayOrigin: () => mocks.internalGateway.baseUrl,
           start: mocks.apiGatewayStart,
           getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders
@@ -666,7 +666,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalledWith('agent')
+    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalled()
     expect(request?.sdkModelId).toBe('opencode:deepseek-v4-pro')
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
@@ -729,7 +729,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const current = await deriveConnectionConfig('session-1')
 
     if (!current.ok) throw new Error('expected ok derive')
-    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalledWith('agent')
+    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalled()
     expect(request?.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
@@ -756,7 +756,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalledWith('agent')
+    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalled()
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
       ANTHROPIC_MODEL: 'custom:relay-model'
@@ -951,7 +951,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalledWith('agent')
+    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalled()
     expect(request?.sdkModelId).toBe('openai:gpt-main-api')
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:24444',
@@ -1170,7 +1170,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalledWith('agent')
+    expect(mocks.apiGatewayEnsureInternal).toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
     expect(request?.sdkModelId).toBe('gemini:gemini-2.5-pro')
     expect(request?.settings.env).toMatchObject({

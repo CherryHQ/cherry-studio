@@ -9,7 +9,7 @@ import {
 } from '@shared/utils/apiGateway'
 
 import { googleEnvelope } from '../errors'
-import { authorizeApiRequest, type GatewaySurface } from '../middleware/auth'
+import { authorizeApiRequest, authorizeTranslationScope, type GatewaySurface } from '../middleware/auth'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
 import { estimateGeminiRequestTokens } from '../tokens/estimateGeminiRequestTokens'
@@ -71,9 +71,11 @@ export const createGeminiRoutes = (surface: GatewaySurface) =>
     .use(bearer())
     .guard({
       as: 'local',
-      beforeHandle: ({ bearer, headers, query, set, request }) => {
+      beforeHandle: ({ bearer, headers, query, set, request, body }) => {
         const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
-        const failure = authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey, request.headers, surface)
+        const failure =
+          authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey, request.headers, surface) ??
+          authorizeTranslationScope(request, body, surface)
         if (!failure) return undefined
         // Short-circuit responses bypass the root `onError`, so shape the Google
         // envelope here directly (401 → UNAUTHENTICATED, 403 → PERMISSION_DENIED)

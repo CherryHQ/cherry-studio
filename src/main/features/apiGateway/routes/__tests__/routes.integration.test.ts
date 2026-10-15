@@ -15,19 +15,30 @@ const {
   mockGetModels,
   mockEstimateAnthropicRequestTokens,
   mockGetInternalFeature,
+  mockGetTranslationModel,
+  translationCredentials,
   mockPreferenceGet,
   mockProcessMessage,
   mockResolveGatewayModelAddress
 } = vi.hoisted(() => ({
   mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
   mockEstimateAnthropicRequestTokens: vi.fn(async () => 42),
-  mockGetInternalFeature: vi.fn((headers: Headers) =>
-    [headers.get('x-api-key'), headers.get('authorization'), headers.get('x-goog-api-key')].some(
-      (value) => value === 'internal-agent-key' || value === 'Bearer internal-agent-key'
-    )
-      ? ('agent' as const)
+  mockGetInternalFeature: vi.fn((headers: Headers) => {
+    const tokens = [headers.get('x-api-key'), headers.get('authorization'), headers.get('x-goog-api-key')]
+    if (tokens.some((value) => value === 'internal-agent-key' || value === 'Bearer internal-agent-key')) return 'agent'
+    return tokens.some((value) => translationCredentials.has(value?.replace(/^Bearer /, '') ?? ''))
+      ? 'translate'
       : undefined
+  }),
+  mockGetTranslationModel: vi.fn((headers: Headers) =>
+    translationCredentials.get(
+      headers.get('x-api-key') ??
+        headers.get('authorization')?.replace(/^Bearer /, '') ??
+        headers.get('x-goog-api-key') ??
+        ''
+    )
   ),
+  translationCredentials: new Map<string, string>(),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
@@ -41,7 +52,7 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { getInternalFeature: mockGetInternalFeature }
+    ApiGatewayService: { getInternalFeature: mockGetInternalFeature, getTranslationModel: mockGetTranslationModel }
   }
   return mockApplicationFactory(overrides)
 })
@@ -710,6 +721,38 @@ describe('internal consumer authorization', () => {
 
     expect((await send('Bearer internal-agent-key')).status).toBe(200)
     expect((await send('Bearer unknown-key')).status).toBe(403)
+  })
+
+  it('limits a translation credential to chat completions for its job model until revoked', async () => {
+    const app = buildApp({ surface: 'internal' })
+    const headers = { authorization: 'Bearer job-key', 'content-type': 'application/json' }
+    const chat = (model: string) =>
+      app.handle(
+        new Request('http://localhost/v1/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'translate' }] })
+        })
+      )
+    translationCredentials.set('job-key', 'openai:gpt-4o')
+
+    expect((await chat('openai:gpt-4o')).status).toBe(200)
+    expect((await chat('openai:gpt-4.1')).status).toBe(403)
+    expect((await app.handle(new Request('http://localhost/v1/models', { headers }))).status).toBe(403)
+    const messages = { model: 'openai:gpt-4o', max_tokens: 8, messages: [{ role: 'user', content: 'hi' }] }
+    const post = (path: string, body: unknown) =>
+      app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
+    expect((await post('/v1/messages', messages)).status).toBe(403)
+    expect(
+      (
+        await post('/v1beta/models/openai:gpt-4o:generateContent', {
+          contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+        })
+      ).status
+    ).toBe(403)
+
+    translationCredentials.delete('job-key')
+    expect((await chat('openai:gpt-4o')).status).toBe(403)
   })
 
   it('rejects an internal key presented only as a query parameter', async () => {
