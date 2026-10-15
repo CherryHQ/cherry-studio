@@ -354,6 +354,55 @@ describe('usePaintingComposerInputFiles', () => {
     expect(result.current.files).toEqual([])
   })
 
+  it('clears seeded chips when an unresolved source model switches provider to a resolved reject', async () => {
+    // A historical painting whose original model left the catalog: capability stays
+    // 'unknown' (never 'accept'), so the accept→reject transition cannot fire. The
+    // destination's resolved reject verdict must still clear the seeded draft.
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'unknown',
+      providerId: 'openai',
+      modelId: 'ghost-model'
+    })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'reject', providerId: 'gemini', modelId: 'ghost-model' })
+    expect(result.current.files).toEqual([])
+  })
+
+  it('clears seeded chips when the destination resolves to reject through unknown renders', async () => {
+    // Same trigger with DELAYED resolution: the switch happens while the destination
+    // catalog is still loading; the first resolved verdict decides.
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'unknown',
+      providerId: 'openai',
+      modelId: 'ghost-model'
+    })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'unknown', providerId: 'gemini', modelId: 'ghost-model' })
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'reject', providerId: 'gemini', modelId: 'ghost-model' })
+    expect(result.current.files).toEqual([])
+  })
+
+  it('keeps seeded chips when the pending provider-only switch resolves to accept', async () => {
+    // The intended companion behavior: unknown-to-accept keeps the draft.
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'unknown',
+      providerId: 'openai',
+      modelId: 'ghost-model'
+    })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'unknown', providerId: 'gemini', modelId: 'ghost-model' })
+    rerender({ inputCapability: 'accept', providerId: 'gemini', modelId: 'ghost-model' })
+    expect(result.current.files).toHaveLength(1)
+  })
+
   it('does not clear on a load blip (accept → unknown → accept)', async () => {
     const { result, rerender } = renderSwitchHarness({ inputCapability: 'accept', providerId: 'openai' })
     await attachChip(result)

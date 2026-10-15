@@ -123,6 +123,9 @@ export function usePaintingComposerInputFiles({
   const lastCapabilityRef = useRef<'accept' | 'reject' | null>(null)
   const lastProviderIdRef = useRef<string | undefined>(providerId)
   const lastModelIdRef = useRef<string | undefined>(modelId)
+  // A provider-only switch made while the model is still unresolved: the next
+  // resolved capability is the destination's verdict on the seeded draft.
+  const providerSwitchPendingRef = useRef(false)
 
   // SEED — once per painting.
   useEffect(() => {
@@ -191,7 +194,26 @@ export function usePaintingComposerInputFiles({
     // only a provider change onto a DIFFERENT model resets the context.
     const switchedModelAcrossProviders = providerChanged && modelChanged
 
-    if (!switchedModelAcrossProviders && !droppedImageSupport) return
+    // A provider-only switch whose model is still unresolved ('unknown' — e.g. a
+    // historical painting whose original model left the catalog) cannot know the
+    // destination's verdict yet. Arm the pending switch: the first resolved
+    // capability decides, however many unknown renders later it arrives — reject
+    // clears (the archive was dropped, the chips must not outlive it), accept keeps.
+    const providerOnlySwitch = providerChanged && !modelChanged
+    if (providerOnlySwitch) providerSwitchPendingRef.current = inputCapability === 'unknown'
+    const pendingVerdict =
+      !providerOnlySwitch && providerSwitchPendingRef.current && inputCapability !== 'unknown'
+        ? inputCapability
+        : undefined
+    if (pendingVerdict !== undefined) providerSwitchPendingRef.current = false
+
+    const clearsDraft =
+      switchedModelAcrossProviders ||
+      droppedImageSupport ||
+      (providerOnlySwitch && inputCapability === 'reject') ||
+      pendingVerdict === 'reject'
+
+    if (!clearsDraft) return
 
     // Bump first: a SEED still awaiting `getPhysicalPath` must lose the right to
     // write back, or it would undo this clear the moment it resolves.
