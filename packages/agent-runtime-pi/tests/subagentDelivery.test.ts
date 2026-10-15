@@ -21,6 +21,7 @@ import {
   subagentCall,
   subagentStates,
   toolCallPart,
+  untilStopped,
   waitFor
 } from './subagentSupport'
 import { createTestSession, finish, hostStore, streamTextPort } from './support'
@@ -234,8 +235,8 @@ describe('background subagent delivery', () => {
     expect(order).toEqual(['compaction-end', 'notification'])
   })
 
-  // Breaks when a result arriving while the host's prompt prepares starts a run of its own: Pi then
-  // rejects the prompt ("Agent is already processing") and the user's message is lost.
+  // Breaks when a result arriving while the host's prompt runs its before_agent_start handlers starts a
+  // run of its own (Pi would reject the prompt and the user's message would be lost) or is never sent.
   it("delivers a result that arrives while the host's prompt prepares after that prompt's turn", async () => {
     const held = gate()
     const parent = hostStore()
@@ -270,6 +271,44 @@ describe('background subagent delivery', () => {
         .slice(-2)
         .map((call) => (call.lastText.startsWith(NOTE) ? 'notification' : call.lastText))
     ).toEqual(['Second question', 'notification'])
+  })
+
+  // Breaks when a result arriving while the host's prompt runs its `input` handlers (Pi still reports the
+  // session idle) starts a run of its own: Pi then rejects the prompt and the user's message is lost.
+  it("sends a result that arrives while the host's prompt runs its input handlers with that prompt", async () => {
+    const held = gate()
+    const parent = hostStore()
+    let holdNextPrompt = false
+    const slowInput: ExtensionFactory = (pi) => {
+      pi.on('input', async () => {
+        if (holdNextPrompt) {
+          holdNextPrompt = false
+          held.open()
+          await waitFor(() => finishedCount(parent.entries) === 1)
+        }
+        return { action: 'continue' }
+      })
+    }
+    const { model, calls } = routedModel(({ userText, lastText }) => {
+      if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
+      if (lastText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      return reply(lastText.startsWith(NOTE) ? 'Read the report.' : 'Answered.')
+    })
+    const runtime = await createTestSession({
+      port: streamTextPort(model).port,
+      subagents: recordingSubagentPort().port,
+      extensionFactories: [slowInput],
+      onEvent: parent.onEvent
+    })
+    await runtime.prompt('Check A in the background')
+
+    holdNextPrompt = true
+    await runtime.prompt('Second question')
+
+    const last = parentCalls(calls).at(-1)!
+    expect(last.humanText).toBe('Second question')
+    expect(last.lastText).toMatch(/^Background subagent update[\s\S]*"Check A"[\s\S]*REPORT-A/)
+    expect(notifications(parent.entries)).toHaveLength(1)
   })
 
   // Breaks when a prompt the host sends from `turn-complete` returns before it runs: Pi defers it past
@@ -421,9 +460,9 @@ describe('background subagent delivery', () => {
     await waitFor(() => calls.some((call) => call.lastText.startsWith(NOTE) && call.lastText.includes('REPORT-B')))
   })
 
-  // Review focus 4. Breaks when a waiting result only rides with a prompt (or Pi's nextTurn queue): a
-  // command that starts its own turn (`/goal resume`) never carries it, so that turn's settle must.
-  it('delivers a waiting result in a turn a command starts', async () => {
+  // Review focus 4. Breaks when a waiting result does not ride with a run a command starts (`/goal
+  // resume`) as it does with a prompt: that run's first request must carry it, once.
+  it('delivers a waiting result with the start of a run a command starts', async () => {
     const held = gate()
     const parent: { session?: AgentSession } = {}
     const { model, calls } = routedModel(({ userText, lastText }) => {
@@ -445,15 +484,101 @@ describe('background subagent delivery', () => {
     await runtime.prompt('Do something long')
     held.open()
     await waitFor(() => finishedCount(store.entries) === 1)
+    const sent = parentCalls(calls).length
 
     await runtime.prompt('/round')
-    await waitFor(() => calls.some((call) => call.lastText.startsWith(NOTE)))
+    await runtime.session.waitForIdle()
 
-    expect(
-      parentCalls(calls)
-        .slice(-2)
-        .map((call) => (call.lastText.startsWith(NOTE) ? 'notification' : call.lastText))
-    ).toEqual(['ROUND', 'notification'])
+    const first = parentCalls(calls)[sent]
+    expect(first.humanText).toBe('ROUND')
+    expect(first.lastText).toMatch(/^Background subagent update[\s\S]*"Check A"[\s\S]*REPORT-A/)
+    expect(notifications(store.entries)).toHaveLength(1)
+  })
+
+  // Breaks when a result starts a run after the user stopped a turn, or when a run a command starts
+  // (`/goal resume`) does not let later results start runs again, as the user's next prompt does.
+  it('starts nothing after the user stops a turn until a command starts a run, then results start runs again', async () => {
+    const heldA = gate()
+    const heldB = gate()
+    const parent: { session?: AgentSession } = {}
+    const { model, calls } = routedModel(({ userText, lastText }) => {
+      if (userText.includes('TASK-A')) return heldA.wait(reply('REPORT-A'))
+      if (userText.includes('TASK-B')) return heldB.wait(reply('REPORT-B'))
+      if (lastText === 'Check A and B')
+        return [subagentCall('call_a', BG_A), subagentCall('call_b', BG_B), finish('tool-calls')]
+      if (lastText === 'Do something long') return [toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
+      return reply('OK.')
+    })
+    const store = hostStore()
+    const runtime = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [stopTurnTool(parent)],
+      subagents: recordingSubagentPort().port,
+      extensionFactories: [roundCommand],
+      onEvent: store.onEvent
+    })
+    parent.session = runtime.session
+    await runtime.prompt('Check A and B')
+    await runtime.prompt('Do something long')
+
+    heldA.open()
+    await waitFor(() => finishedCount(store.entries) === 1)
+    // A run the result would start begins as the result is recorded, so it would show by now.
+    expect(runtime.session.isIdle).toBe(true)
+    expect(notifications(store.entries)).toEqual([])
+
+    await runtime.prompt('/round')
+    await runtime.session.waitForIdle()
+    heldB.open()
+    await waitFor(() =>
+      parentCalls(calls).some(
+        (call) => call.humanText === '' && call.lastText.startsWith(NOTE) && call.lastText.includes('REPORT-B')
+      )
+    )
+  })
+
+  // Breaks when a result that starts no run (the user's stop) makes a notification run go on at its
+  // settle, or is lost or sent twice: it reaches the model once, with the start of the next run.
+  it("sends the user's stop of a subagent with the next run's start, not at a notification run's settle", async () => {
+    const work = untilStopped()
+    const heldA = gate()
+    const heldNote = gate()
+    const host = recordingSubagentPort()
+    const { model, calls } = routedModel(({ userText, lastText }) => {
+      if (userText.includes('TASK-A')) return heldA.wait(reply('REPORT-A'))
+      if (userText.includes('TASK-B'))
+        return lastText.includes('TASK-B') ? [toolCallPart('work_b', 'work'), finish('tool-calls')] : reply('LATE-B')
+      if (lastText === 'Check A and B')
+        return [subagentCall('call_a', BG_A), subagentCall('call_b', BG_B), finish('tool-calls')]
+      if (lastText.startsWith(NOTE) && lastText.includes('REPORT-A')) return heldNote.wait(reply('Read the report.'))
+      return reply('OK.')
+    })
+    const store = hostStore()
+    const runtime = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [work.tool],
+      subagents: host.port,
+      onEvent: store.onEvent
+    })
+    await runtime.prompt('Check A and B')
+    await work.reached
+    heldA.open()
+    await heldNote.reached
+    const b = host.subagents.find((subagent) => subagent.description === 'Check B')!
+    expect(runtime.stopSubagent(b.sessionId)).toBe(true)
+    await waitFor(() => finishedCount(store.entries) === 2)
+    const sent = parentCalls(calls).length
+
+    heldNote.open()
+    await runtime.session.waitForIdle()
+    expect(parentCalls(calls)).toHaveLength(sent)
+
+    await runtime.prompt('What now?')
+    const last = parentCalls(calls).at(-1)!
+    expect(last.humanText).toBe('What now?')
+    expect(last.lastText).toMatch(/^Background subagent update[\s\S]*"Check B"[\s\S]*stopped by the user/)
+    const stops = notifications(store.entries).filter((entry) => JSON.stringify(entry).includes('stopped by the user'))
+    expect(stops).toHaveLength(1)
   })
 
   // Breaks when an oversized report is put into the context whole although the host offloads.

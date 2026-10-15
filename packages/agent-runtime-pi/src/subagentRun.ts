@@ -368,7 +368,7 @@ export async function runSubagent(
   const replies: AssistantMessage[] = []
   const unsubscribe = session.subscribe((event) => {
     if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
-    // An abort before the run starts is a no-op in Pi, and the run clears it; repeat it once the run is live.
+    // Pi drops an abort made before it starts preparing the run (while `input` handlers run); repeat it once live.
     if (event.type === 'agent_start' && stopped) void session.abort()
   })
   const onAbort = () => stop('aborted')

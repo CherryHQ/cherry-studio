@@ -132,9 +132,9 @@ describe('subagents after a rebuild', () => {
     ])
   })
 
-  // Spec §7.5. Breaks when what a rebuild restores rides only with a prompt: the turns a command starts
-  // (`/goal resume` after a restart) would never tell the model that its subagent was cut off.
-  it('reports an interrupted run at the settle of a turn a command starts after a rebuild, once', async () => {
+  // Spec §7.5. Breaks when what a rebuild restores rides only with a prompt (the runs a command starts,
+  // `/goal resume` after a restart, would never tell the model its subagent was cut off) or rides twice.
+  it('reports an interrupted run with the start of a run a command starts after a rebuild, once', async () => {
     const cwd = tempDir('cwd')
     const held = gate()
     const host = storingSubagentPort()
@@ -167,10 +167,12 @@ describe('subagents after a rebuild', () => {
       await rebuilt.session.waitForIdle()
     }
 
-    expect(calls.slice(sent).map((call) => call.lastText)).toEqual([
-      'ROUND',
-      `${NOTE}\n\n- "Check A" (id: ${host.subagents[0].sessionId}) was interrupted (the app closed while it was running). Continue it with message_subagent if the work is still needed.`,
-      'ROUND'
+    expect(calls.slice(sent).map((call) => [call.humanText, call.lastText])).toEqual([
+      [
+        'ROUND',
+        `${NOTE}\n\n- "Check A" (id: ${host.subagents[0].sessionId}) was interrupted (the app closed while it was running). Continue it with message_subagent if the work is still needed.`
+      ],
+      ['ROUND', 'ROUND']
     ])
   })
 
