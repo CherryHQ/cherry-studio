@@ -191,6 +191,14 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe('Attached file "a.docx":\nword body')
   })
 
+  it('inlines XML text with an unrecognized extension', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'lrmx' })
+    const text = '<XingMing>张三</XingMing>'
+    extractMock.mockResolvedValueOnce(text)
+    const [out] = await run([fileWithEntry('e1', 'a.lrmx', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)).toEqual([`Attached file "a.lrmx":\n${text}`])
+  })
+
   it('inlines extracted text for an extensionless text file', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     extractMock.mockResolvedValueOnce('license body')
@@ -233,11 +241,12 @@ describe('prepareChatMessages — routing', () => {
 
   it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
+    extractMock.mockResolvedValueOnce(null)
     const [out] = await run([fileWithEntry('e1', 'a.zip', 'application/zip')], NONE)
     expect(textOf(out.parts)[0]).toBe(
       'Attached file "a.zip":\nCannot read the attached file "a.zip" as text (unsupported file type).'
     )
-    expect(extractMock).not.toHaveBeenCalled()
+    expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
   })
 
   // An AVIF/HEIC image is accepted wildcard-style on the agent surface, yet no ext list
