@@ -23,6 +23,8 @@ vi.mock('@application', async () => {
  * extraction of `bearer` from `Authorization: Bearer …` / `?access_token` is the
  * `@elysia/bearer` plugin's job and is covered by the routes integration test.
  */
+const FORBIDDEN = { status: 403, error: 'Forbidden' }
+
 describe('authorizeApiRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -58,22 +60,18 @@ describe('authorizeApiRequest', () => {
   })
 
   describe('Internal consumer key', () => {
-    it('authenticates an internal key from the headers even when no user API key is configured', () => {
-      mockPreferenceGet.mockReturnValue(undefined)
+    it('accepts only a header internal key on the internal surface, never the user key', () => {
+      mockPreferenceGet.mockReturnValue('user-key')
       const headers = new Headers({ authorization: 'Bearer internal-key' })
-      expect(authorizeApiRequest(undefined, 'internal-key', undefined, headers)).toBeUndefined()
-      expect(authorizeApiRequest(undefined, 'other-key', undefined, new Headers())).toEqual({
-        status: 403,
-        error: 'Forbidden'
-      })
+      expect(authorizeApiRequest(undefined, 'internal-key', undefined, headers, 'internal')).toBeUndefined()
+      expect(authorizeApiRequest(undefined, 'user-key', undefined, new Headers(), 'internal')).toEqual(FORBIDDEN)
+      expect(authorizeApiRequest(undefined, undefined, 'internal-key', new Headers(), 'internal')).toEqual(FORBIDDEN)
     })
 
-    it('does not honour an internal key presented only in the query string', () => {
+    it('rejects an internal key on the public surface', () => {
       mockPreferenceGet.mockReturnValue('user-key')
-      expect(authorizeApiRequest(undefined, undefined, 'internal-key', new Headers())).toEqual({
-        status: 403,
-        error: 'Forbidden'
-      })
+      const headers = new Headers({ authorization: 'Bearer internal-key' })
+      expect(authorizeApiRequest(undefined, 'internal-key', undefined, headers)).toEqual(FORBIDDEN)
     })
   })
 
