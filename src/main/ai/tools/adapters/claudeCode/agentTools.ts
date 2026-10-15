@@ -162,8 +162,11 @@ export interface ClaudeAgentToolPolicySnapshot {
       /**
        * Denial names the ACTIVE connection still serves: a rename migrates the saved rules
        * while the replacement connection is deferred, so the live gate must keep blocking the
-       * old identities until that replacement lands. A post-rebuild update carries none and
-       * releases them.
+       * old identities until that replacement lands. Successive deferred-rebuild updates
+       * ACCUMULATE — the driver can only pass its latest baseline, so replacing the retained
+       * set would drop a name preserved by an earlier reconciliation while the old connection
+       * still exposes it. An update without this option is the replacement connection's
+       * refresh and releases the retained names.
        */
       preserveDenied?: readonly string[]
     }
@@ -186,6 +189,11 @@ export async function createClaudeAgentToolPolicySnapshot(
   let descriptors: ClaudeToolDescriptor[] = []
   let policy: ClaudeToolPolicy = {}
   let disallowed = new Set<string>()
+  // Denial identities the active connection still serves across a deferred rebuild. Kept in
+  // snapshot state and accumulated on every preserved update: the driver only ever passes its
+  // LATEST baseline, so a rename followed by another policy change would otherwise drop the
+  // first reconciliation's preservation while the old connection still serves that tool.
+  let retainedDenied = new Set<string>()
   let rebuildSequence = 0
   // The id → server-key mapping is mutable state: a server renamed mid-session must be
   // translated under its CURRENT key, or a later-added id-keyed denial blocks the
@@ -221,8 +229,16 @@ export async function createClaudeAgentToolPolicySnapshot(
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
     // user opt-out + dependency cascade). Legacy id-keyed rules are rewritten first so a denial
     // saved under the pre-#21322 namespace still blocks its name-keyed tool.
+    // A preserved update merges into the retained set (see `retainedDenied`); an update without
+    // preservation is the replacement connection's connect refresh, whose surface no longer
+    // includes the old identities — release them.
+    if (preserveDenied) {
+      retainedDenied = new Set([...retainedDenied, ...preserveDenied])
+    } else {
+      retainedDenied = new Set()
+    }
     disallowed = new Set([
-      ...(preserveDenied ?? []),
+      ...retainedDenied,
       ...resolveDisallowedTools(
         { disabledTools: translateLegacyMcpToolRules(nextAgent.disabledTools, serverNameById) },
         options.conditionContext

@@ -134,6 +134,36 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
   })
 
+  it('accumulates preserved denials across successive deferred-rebuild updates', async () => {
+    // A rename reconcile preserves `mcp__docs__run` once, but the driver's baseline then moves
+    // to the migrated rules — a second policy update before the rebuild can only pass that
+    // newer baseline. The snapshot must accumulate the preservation internally, or the old
+    // connection (still exposing `docs/run`) drops the denial and the tool executes under
+    // bypassPermissions. The replacement connection's update carries no preservation and
+    // releases everything.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['mcp__docs__run']))
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    // Rename reconciliation: the driver passes the pre-rename baseline.
+    await snapshot.update(makeAgent(['mcp__github__run']), { preserveDenied: ['mcp__docs__run'] })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    // A second tool is disabled before the deferred rebuild lands: the driver can only pass
+    // the migrated baseline, which no longer names `docs/run`.
+    await snapshot.update(makeAgent(['mcp__github__run', 'mcp__github__other']), {
+      preserveDenied: ['mcp__github__run', 'mcp__github__other']
+    })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__other')).toBe(true)
+
+    // Connect of the replacement connection refreshes without preservation — release.
+    await snapshot.update(makeAgent(['mcp__github__run', 'mcp__github__other']), { serverNameById: new Map() })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(false)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__other')).toBe(true)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
