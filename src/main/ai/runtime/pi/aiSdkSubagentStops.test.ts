@@ -148,6 +148,31 @@ describe('subagent stops', () => {
     expect(toolResultOf(runtime.session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
   })
 
+  // Breaks when an abort made before Pi starts preparing the subagent's run (while its `input` handlers
+  // run, which Pi ignores) is dropped: the subagent would still send its requests.
+  it('does not let a subagent run when the turn aborts while its input handlers run', async () => {
+    const parent: { session?: AgentSession } = {}
+    const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
+    const host = recordingSubagentPort(() => ({
+      extensionFactories: [
+        (pi) => {
+          pi.on('input', async () => {
+            void parent.session!.abort()
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            return { action: 'continue' }
+          })
+        }
+      ]
+    }))
+    const runtime = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    parent.session = runtime.session
+
+    await runtime.session.prompt('Delegate the check')
+
+    expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(0)
+    expect(toolResultOf(runtime.session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
+  })
+
   it('does not start a subagent when the turn aborts before the host finishes configuring it', async () => {
     const parent: { session?: AgentSession } = {}
     const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
