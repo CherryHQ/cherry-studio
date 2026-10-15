@@ -49,3 +49,18 @@ export const authorizeApiRequest = (
   const apiKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
   return apiKey && isValidToken(token, apiKey) ? undefined : { status: 403, error: 'Forbidden' }
 }
+
+/** A PDF translation credential may only call chat completions for the model its job selected. */
+export const authorizeTranslationScope = (
+  request: Request,
+  body: unknown,
+  surface: GatewaySurface
+): AuthFailure | undefined => {
+  if (surface !== 'internal') return undefined
+  const boundModel = application.get('ApiGatewayService').getTranslationModel(request.headers)
+  if (boundModel === undefined) return undefined
+  const model = body && typeof body === 'object' && 'model' in body ? body.model : undefined
+  const allowed =
+    request.method === 'POST' && new URL(request.url).pathname === '/v1/chat/completions' && model === boundModel
+  return allowed ? undefined : { status: 403, error: 'Forbidden' }
+}

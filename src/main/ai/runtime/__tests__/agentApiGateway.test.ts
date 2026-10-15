@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  ensureInternalGateway: vi.fn(),
+  ensureAgentGateway: vi.fn(),
   getInternalGatewayOrigin: vi.fn<() => string | undefined>(),
   getCurrentConfig: vi.fn()
 }))
@@ -11,7 +11,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'ApiGatewayService') {
         return {
-          ensureInternalGateway: mocks.ensureInternalGateway,
+          ensureAgentGateway: mocks.ensureAgentGateway,
           getInternalGatewayOrigin: mocks.getInternalGatewayOrigin,
           getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
           getCurrentConfig: mocks.getCurrentConfig
@@ -44,14 +44,14 @@ describe('gatewayCredentialsFingerprint', () => {
 
 describe('resolveApiGatewayRuntime', () => {
   it('routes the Agent session through the internal listener with the Agent key', async () => {
-    mocks.ensureInternalGateway.mockResolvedValue({ baseUrl: 'http://127.0.0.1:40001', apiKey: 'agent-key' })
+    mocks.ensureAgentGateway.mockResolvedValue({ baseUrl: 'http://127.0.0.1:40001', apiKey: 'agent-key' })
 
     await expect(resolveApiGatewayRuntime('session-1')).resolves.toEqual({
       baseUrl: 'http://127.0.0.1:40001',
       apiKey: 'agent-key',
       usageHeaders: { 'x-cherry-agent-session-id': 'session-1' }
     })
-    expect(mocks.ensureInternalGateway).toHaveBeenCalledWith('agent')
+    expect(mocks.ensureAgentGateway).toHaveBeenCalledOnce()
     expect(mocks.getCurrentConfig).not.toHaveBeenCalled()
   })
 })
