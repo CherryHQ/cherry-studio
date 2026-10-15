@@ -165,18 +165,6 @@ export function parseMarkdown(
       ...(list.current !== undefined ? { orderedNumber: list.current } : {})
     }
   }
-  const addImages = (token: Token) => {
-    for (const child of token.children ?? []) {
-      if (child.type === 'image') {
-        blocks.push({
-          type: 'image',
-          source: child.attrGet('src') ?? '',
-          text: inlineText(child.children ?? [], interpretSafeHtml)
-        })
-      } else addImages(child)
-    }
-  }
-
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index]
     if (token.type === 'heading_open') {
@@ -198,8 +186,21 @@ export function parseMarkdown(
     } else if (token.type === 'table_open') {
       const rows: string[][] = []
       const cells: DocumentCell[][] = []
+      const tableImages: DocumentBlock[] = []
       let row: string[] = []
       let cellRow: DocumentCell[] = []
+      const addImages = (imageToken: Token) => {
+        for (const child of imageToken.children ?? []) {
+          if (child.type === 'image') {
+            tableImages.push({
+              type: 'image',
+              source: child.attrGet('src') ?? '',
+              text: inlineText(child.children ?? [], interpretSafeHtml),
+              ...(listDepth ? { listDepth } : {})
+            })
+          } else addImages(child)
+        }
+      }
       if (token.map && validateTables) {
         const sourceRows = lines
           .slice(token.map[0], token.map[1])
@@ -237,6 +238,7 @@ export function parseMarkdown(
         }
       }
       blocks.push({ type: 'table', title, rows, cells, ...openItem() })
+      blocks.push(...tableImages)
     } else if (token.type === 'bullet_list_open' || token.type === 'ordered_list_open') {
       listDepth++
       lists.push({

@@ -454,6 +454,93 @@ describe('inline image order', () => {
   })
 })
 
+describe('table images inside a list item', () => {
+  function listTree(blocks: DocumentBlock[]) {
+    const body = new DOMParser().parseFromString(
+      documentToHtml(blocks, (source) => source, 'Tables'),
+      'text/html'
+    ).body
+    const items = [...(body.querySelector('ol')?.children ?? [])]
+    return {
+      start: body.querySelector('ol')?.getAttribute('start'),
+      items: items.map((item) => item.tagName),
+      images: [...(items[0]?.querySelectorAll('img') ?? [])].map((image) => image.getAttribute('alt')),
+      tableBeforeImage: (() => {
+        const table = items[0]?.querySelector('table')
+        const image = items[0]?.querySelector('img')
+        return !!table && !!image && table.compareDocumentPosition(image) === Node.DOCUMENT_POSITION_FOLLOWING
+      })(),
+      more: items[0]?.textContent?.includes('More') ?? false,
+      child: items[0]?.querySelector('ol')?.textContent?.includes('Child') ?? false,
+      next: items[1]?.textContent?.includes('Next') ?? false,
+      nextClosed: items[1]?.querySelector('table, img, ol') === null
+    }
+  }
+
+  it('puts the ordered marker on a first-item table and continues cell images in that item', () => {
+    const blocks = parseMarkdown(
+      '10. | A ![lead](lead.png) | B |\n    | --- | --- |\n    | C ![trail](trail.png) | D |\n\n    More\n\n    1. Child\n\n11. Next\n'
+    )
+    expect(blocks.map(listShape)).toEqual([
+      {
+        type: 'table',
+        rows: [
+          ['A lead', 'B'],
+          ['C trail', 'D']
+        ],
+        bullet: 1,
+        orderedNumber: 10,
+        listDepth: 1
+      },
+      { type: 'image', text: 'lead', source: 'lead.png', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'image', text: 'trail', source: 'trail.png', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'More', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Child', bullet: 2, orderedNumber: 1, listDepth: 2 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: 11, listDepth: 1 }
+    ])
+    expect(listTree(blocks)).toEqual({
+      start: '10',
+      items: ['LI', 'LI'],
+      images: ['lead', 'trail'],
+      tableBeforeImage: true,
+      more: true,
+      child: true,
+      next: true,
+      nextClosed: true
+    })
+  })
+
+  it('keeps a continuation table and its images inside the open item', () => {
+    const blocks = parseMarkdown(
+      '10. Parent\n\n    | A ![chart](chart.png) |\n    | --- |\n\n    More\n\n    1. Child\n\n11. Next\n'
+    )
+    expect(blocks.map(listShape)).toEqual([
+      { type: 'text', text: 'Parent', bullet: 1, orderedNumber: 10, listDepth: 1 },
+      {
+        type: 'table',
+        rows: [['A chart']],
+        bullet: undefined,
+        orderedNumber: undefined,
+        listDepth: 1
+      },
+      { type: 'image', text: 'chart', source: 'chart.png', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'More', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Child', bullet: 2, orderedNumber: 1, listDepth: 2 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: 11, listDepth: 1 }
+    ])
+    expect(listTree(blocks)).toEqual({
+      start: '10',
+      items: ['LI', 'LI'],
+      images: ['chart'],
+      tableBeforeImage: true,
+      more: true,
+      child: true,
+      next: true,
+      nextClosed: true
+    })
+  })
+})
+
 describe('HTML table width reduction', () => {
   it('pads every row to the longest row', () => {
     document.body.innerHTML = '<table><tr><td>A</td></tr><tr><td>B</td><td>C</td><td>D</td></tr></table>'

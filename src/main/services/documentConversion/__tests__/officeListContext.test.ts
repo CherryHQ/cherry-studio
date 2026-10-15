@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 
-import { AlignmentType, Document, ImageRun, LevelFormat, Packer, Paragraph, TextRun } from 'docx'
+import type * as Anydoc from '@firecrawl/anydoc'
+import {
+  AlignmentType,
+  Document,
+  ImageRun,
+  LevelFormat,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun
+} from 'docx'
 import JSZip from 'jszip'
 import sharp from 'sharp'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { DocumentBlock } from '../documentModel'
 import { convertDocx } from '../docx'
@@ -12,6 +24,22 @@ import { parseMarkdown } from '../parseMarkdown'
 import { convertPptx } from '../pptx'
 import { readDocument } from '../readDocument'
 import { documentToHtml, documentToMarkdown } from '../serializeDocument'
+
+const { officeDocuments } = vi.hoisted(() => {
+  const officeDocuments: Anydoc.Document[] = []
+  return { officeDocuments }
+})
+
+vi.mock('@firecrawl/anydoc', async (importOriginal) => {
+  const actual = await importOriginal<typeof Anydoc>()
+  return {
+    ...actual,
+    toDocument: (bytes: Uint8Array, format?: Parameters<typeof actual.toDocument>[1]) => {
+      const queued = officeDocuments.shift()
+      return queued ? Promise.resolve(queued) : actual.toDocument(bytes, format)
+    }
+  }
+})
 
 const STEP = 228600
 
@@ -303,5 +331,181 @@ describe('Office list membership', () => {
     expect(items[0]?.querySelector('ol')?.textContent).toContain('Child')
     expect(items[1]?.textContent).toContain('Next')
     expect(items[1]?.querySelector('ol, ul, img')).toBeNull()
+  })
+
+  it('keeps table-cell images inside the list item that owns the table', async () => {
+    const lead = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    const trail = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'blue' } })
+      .png()
+      .toBuffer()
+    const bytes = await Packer.toBuffer(
+      new Document({
+        numbering: {
+          config: [
+            {
+              reference: 'items',
+              levels: [
+                {
+                  level: 0,
+                  format: LevelFormat.DECIMAL,
+                  text: '%1.',
+                  start: 10,
+                  alignment: AlignmentType.LEFT,
+                  style: { paragraph: { indent: { left: 720, hanging: 360 } } }
+                }
+              ]
+            }
+          ]
+        },
+        sections: [
+          {
+            children: [
+              new Paragraph({ numbering: { reference: 'items', level: 0 }, children: [new TextRun('Parent')] }),
+              new Table({
+                rows: [
+                  new TableRow({
+                    children: [
+                      new TableCell({
+                        children: [
+                          new Paragraph({
+                            children: [
+                              new TextRun('A'),
+                              new ImageRun({
+                                type: 'png',
+                                data: lead,
+                                transformation: { width: 2, height: 2 },
+                                altText: { title: 'lead', description: 'lead', name: 'lead' }
+                              }),
+                              new ImageRun({
+                                type: 'png',
+                                data: trail,
+                                transformation: { width: 2, height: 2 },
+                                altText: { title: 'trail', description: 'trail', name: 'trail' }
+                              })
+                            ]
+                          })
+                        ]
+                      })
+                    ]
+                  })
+                ]
+              }),
+              new Paragraph({ children: [new TextRun('More')] }),
+              new Paragraph({ numbering: { reference: 'items', level: 0 }, children: [new TextRun('Next')] })
+            ]
+          }
+        ]
+      })
+    )
+    // Real bytes leave the table outside the list. Nest the parsed table to model that upstream container.
+    const actual = await vi.importActual<typeof Anydoc>('@firecrawl/anydoc')
+    const parsed = await actual.toDocument(bytes)
+    const paragraphText = (block: Anydoc.Block) => block.content?.map((inline) => inline.text ?? '').join('')
+    const paragraphBlocks = parsed.blocks.flatMap((block) => [
+      block,
+      ...(block.list?.items.flatMap((item) => item.blocks) ?? [])
+    ])
+    const listBlock = parsed.blocks.find((block) => block.list?.start === 10)
+    const tableBlock = parsed.blocks.find((block) => block.table)
+    const parent = paragraphBlocks.find((block) => paragraphText(block) === 'Parent')
+    const more = paragraphBlocks.find((block) => paragraphText(block) === 'More')
+    const parentInline = parent?.content?.[0]
+    const tableInlines = (tableBlock?.table?.grid ?? []).flatMap((row) =>
+      row.flatMap((slot) => (slot.cell?.blocks ?? []).flatMap((block) => block.content ?? []))
+    )
+    const leadInline = tableInlines.find((inline) => inline.alt === 'lead')
+    const trailInline = tableInlines.find((inline) => inline.alt === 'trail')
+    const leadId = leadInline?.source?.assetId
+    const trailId = trailInline?.source?.assetId
+    const firstItem = listBlock?.list?.items[0]
+    const nextItem = parsed.blocks
+      .find((block) => block.list?.items.some((item) => item.blocks.some((child) => paragraphText(child) === 'Next')))
+      ?.list?.items.find((item) => item.blocks.some((child) => paragraphText(child) === 'Next'))
+    if (
+      !listBlock?.list ||
+      !firstItem ||
+      !tableBlock?.table ||
+      !parent ||
+      !parentInline ||
+      !more ||
+      !nextItem ||
+      leadId === undefined ||
+      trailId === undefined
+    ) {
+      throw new Error('parsed document is missing the numbered list, table images, or paragraphs')
+    }
+    expect(listBlock.list.start).toBe(10)
+    expect(tableBlock.table.grid).toHaveLength(1)
+    expect(parentInline.text).toBe('Parent')
+    expect(paragraphText(more)).toBe('More')
+    expect(nextItem.blocks.map((block) => paragraphText(block))).toEqual(['Next'])
+    expect(leadInline?.alt).toBe('lead')
+    expect(trailInline?.alt).toBe('trail')
+    const child: Anydoc.Block = { ...parent, content: [{ ...parentInline, text: 'Child' }] }
+    const childList: Anydoc.Block = {
+      ...listBlock,
+      list: { ...listBlock.list, start: 1, items: [{ ...firstItem, blocks: [child] }] }
+    }
+    const officeDocument: Anydoc.Document = {
+      ...parsed,
+      blocks: [
+        {
+          ...listBlock,
+          list: {
+            ...listBlock.list,
+            items: [{ ...firstItem, blocks: [tableBlock, more, childList] }, nextItem]
+          }
+        }
+      ]
+    }
+    officeDocuments.push(officeDocument)
+    try {
+      const model = await readDocument({ filePath: 'nested-table.docx', sourceBytes: new Uint8Array() })
+      const expected = [
+        {
+          type: 'table',
+          text: undefined,
+          rows: [['A']],
+          bullet: 1,
+          orderedNumber: 10,
+          listDepth: 1
+        },
+        { type: 'image', text: 'lead', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+        { type: 'image', text: 'trail', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+        { type: 'text', text: 'More', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+        { type: 'text', text: 'Child', bullet: 2, orderedNumber: 1, listDepth: 2 },
+        { type: 'text', text: 'Next', bullet: 1, orderedNumber: 11, listDepth: 1 }
+      ]
+      expect(model.blocks.map(listShape)).toEqual(expected)
+      expect(model.blocks.flatMap((block) => (block.type === 'image' ? [block.source] : []))).toEqual([
+        `embedded:${leadId}`,
+        `embedded:${trailId}`
+      ])
+      expect(model.images.get(`embedded:${leadId}`)?.subarray(0, 8)).toEqual(lead.subarray(0, 8))
+      expect(model.images.get(`embedded:${trailId}`)?.subarray(0, 8)).toEqual(trail.subarray(0, 8))
+
+      const html = documentToHtml(model.blocks, (source) => source, 'Table')
+      const body = new DOMParser().parseFromString(html, 'text/html').body
+      const items = [...(body.querySelector('ol')?.children ?? [])]
+      expect(body.querySelector('ol')?.getAttribute('start')).toBe('10')
+      expect(items.map((item) => item.tagName)).toEqual(['LI', 'LI'])
+      const [item, next] = items
+      const images = [...(item?.querySelectorAll('img') ?? [])]
+      const [firstImage] = images
+      expect(images.map((image) => image.getAttribute('alt'))).toEqual(['lead', 'trail'])
+      expect(firstImage).toBeDefined()
+      expect(item?.querySelector('table')?.compareDocumentPosition(firstImage ?? item)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+      expect(item?.textContent).toContain('More')
+      expect(item?.querySelector('ol')?.textContent).toContain('Child')
+      expect(next?.textContent).toContain('Next')
+      expect(next?.querySelector('table, img, ol')).toBeNull()
+      expect(parseMarkdown(documentToMarkdown(model.blocks, (source) => source)).map(listShape)).toEqual(expected)
+    } finally {
+      officeDocuments.length = 0
+    }
   })
 })

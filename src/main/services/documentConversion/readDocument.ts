@@ -213,6 +213,7 @@ function officeBlocks(
         result.push(...children)
       }
     } else if (block.kind === 'table' && block.table) {
+      const cellImages: Extract<DocumentBlock, { type: 'image' }>[] = []
       const cells = block.table.grid.map((row) =>
         row.map((slot): DocumentCell => {
           if (slot.kind === 'covered') return { runs: [], covered: true }
@@ -220,7 +221,7 @@ function officeBlocks(
           const runs = content.flatMap((child): DocumentTextRun[] =>
             'text' in child && child.type !== 'image' ? [...(child.runs ?? [{ text: child.text }]), { text: '\n' }] : []
           )
-          for (const child of content) if (child.type === 'image') result.push(child)
+          for (const child of content) if (child.type === 'image') cellImages.push(child)
           return { runs, rowSpan: slot.cell?.rowSpan, colSpan: slot.cell?.colSpan }
         })
       )
@@ -239,6 +240,17 @@ function officeBlocks(
         ),
         ...placement(true)
       })
+      // Cell walks have no enclosing depth. Keep the table's marker, then continue the same item.
+      for (const image of cellImages) {
+        if (depth <= 0) {
+          result.push(image)
+          continue
+        }
+        const continuation = { ...image, listDepth: depth }
+        delete continuation.bullet
+        delete continuation.orderedNumber
+        result.push(continuation)
+      }
     } else if (block.kind === 'blockQuote')
       result.push(...officeBlocks(block.blocks ?? [], document, images, warnings, depth, itemState))
     else if (block.kind === 'codeBlock') result.push({ type: 'code', text: block.text ?? '', ...placement(true) })

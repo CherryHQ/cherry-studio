@@ -261,21 +261,21 @@ export function extractHtmlDocument(): DocumentModel {
       }
       const blocks: DocumentBlock[] = []
       let pending: Node[] = []
+      let headingPlaced = false
       const flush = () => {
         if (!pending.length) return
         const content = runs(pending)
-        const text = content
-          .map((run) => run.text)
-          .join('')
-          .trim()
-        if (text)
-          blocks.push({
-            type: 'text',
-            text,
-            runs: content,
-            style: styleOf(node),
-            ...membership
-          })
+        const rawText = content.map((run) => run.text).join('')
+        const preserve = node.tagName === 'PRE'
+        const text = preserve ? rawText : rawText.trim()
+        if (text) {
+          const fields = { text, runs: content, style: styleOf(node), ...membership }
+          if (preserve) blocks.push({ type: 'code', ...fields })
+          else if (/^H[1-6]$/.test(node.tagName) && !headingPlaced) {
+            headingPlaced = true
+            blocks.push({ type: 'heading', level: Number(node.tagName[1]), ...fields })
+          } else blocks.push({ type: 'text', ...fields })
+        }
         pending = []
       }
       const visit = (child: Node) => {

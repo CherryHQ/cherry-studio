@@ -82,6 +82,44 @@ describe('HTML layout text extraction', () => {
     expect(inlineCell).not.toContain('<w:br')
   })
 
+  it('keeps the first heading text and its level when an image splits the heading', () => {
+    document.body.innerHTML =
+      '<ol start="10"><li><h1 style="text-align:center">Before <span style="display:inline;font-weight:700">styled</span> <img alt="chart" src="chart.png"> after</h1></li></ol>'
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks.map(blockShape)).toEqual([
+      { type: 'heading', level: 1, text: 'Before styled', bullet: 1, orderedNumber: 10, listDepth: 1 },
+      { type: 'image', text: 'chart', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'after', bullet: undefined, orderedNumber: undefined, listDepth: 1 }
+    ])
+    expect(blocks[0]).toMatchObject({
+      style: { align: 'center' },
+      runs: expect.arrayContaining([expect.objectContaining({ text: 'styled', bold: true })])
+    })
+    expect(blocks[2]).toMatchObject({ style: { align: 'center' } })
+    expect(blocks.filter((block) => block.type !== 'columns' && block.bullet)).toHaveLength(1)
+  })
+
+  it('keeps an image-leading heading at the parser level after the image', () => {
+    document.body.innerHTML = '<ol start="4"><li><h2><img alt="chart" src="chart.png"> Title</h2></li></ol>'
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks.map(blockShape)).toEqual([
+      { type: 'image', text: 'chart', bullet: 1, orderedNumber: 4, listDepth: 1 },
+      { type: 'heading', level: 2, text: 'Title', bullet: undefined, orderedNumber: undefined, listDepth: 1 }
+    ])
+  })
+
+  it('preserves pre whitespace around an image on the mixed flush', () => {
+    const before = '  keep\t'
+    const after = '  tail\n'
+    document.body.innerHTML = `<ul><li><pre style="white-space:pre">${before}<img alt="chart" src="chart.png">${after}</pre></li></ul>`
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks.map(blockShape)).toEqual([
+      { type: 'code', text: before, bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'image', text: 'chart', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'code', text: after, bullet: undefined, orderedNumber: undefined, listDepth: 1 }
+    ])
+  })
+
   it('separates a table-cell block from the inline text that follows it', () => {
     document.body.innerHTML = '<table><tr><td><p>First</p><span style="font-weight:700">tail</span></td></tr></table>'
     const table = extractHtmlDocument().blocks[0]
@@ -93,6 +131,18 @@ describe('HTML layout text extraction', () => {
     expect(runs.some((run) => run.text.includes('\n') && run.bold)).toBe(false)
   })
 })
+
+function blockShape(block: ReturnType<typeof extractHtmlDocument>['blocks'][number]) {
+  if (block.type === 'columns') return { type: block.type }
+  return {
+    type: block.type,
+    ...('text' in block ? { text: block.text } : {}),
+    ...(block.type === 'heading' ? { level: block.level } : {}),
+    bullet: block.bullet,
+    orderedNumber: block.orderedNumber,
+    listDepth: block.listDepth
+  }
+}
 
 function textsOf(xml: string): string[] {
   return [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((match) => match[1])
