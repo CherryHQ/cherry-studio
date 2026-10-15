@@ -11,7 +11,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Skeleton
 } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -40,9 +41,9 @@ import {
   GROUP_BY_LABEL_KEYS,
   METRIC_KEYS,
   METRIC_LABEL_KEYS,
+  ROLLUP_KEYS,
   ROLLUP_LABEL_KEYS,
   TOP_COUNT_KEYS,
-  TREND_ROLLUP_KEYS,
   type UsageChartType,
   type UsageTopCount,
   WINDOW_KEYS,
@@ -129,13 +130,12 @@ function UsageSettings() {
   const [groupBy, setGroupBy] = usePersistCache('settings.usage.group_by')
   const [chartMetric, setChartMetric] = usePersistCache('settings.usage.chart_metric')
   const [selectedChartType, setSelectedChartType] = usePersistCache('settings.usage.chart_type')
-  const [persistedRollup, setRollup] = usePersistCache('settings.usage.rollup')
+  const [rollup, setRollup] = usePersistCache('settings.usage.rollup')
   const [topCount, setTopCount] = usePersistCache('settings.usage.top_count')
   const [persistedCurrency, setSelectedCurrency] = usePersistCache('settings.usage.currency')
   const selectedCurrency = persistedCurrency ?? undefined
   const chartType: UsageChartType =
-    selectedChartType === 'line' || selectedChartType === 'pie' ? selectedChartType : 'bar'
-  const rollup = persistedRollup === 'total' ? 'daily' : persistedRollup
+    selectedChartType === 'pie' ? 'pie' : selectedChartType === 'line' && rollup !== 'total' ? 'line' : 'bar'
 
   const windowRange = useMemo(() => getWindowRange(windowKey), [windowKey])
   const previousWindowRange = useMemo(() => getPreviousWindowRange(windowKey), [windowKey])
@@ -149,6 +149,10 @@ function UsageSettings() {
     timelineBuckets,
     overviewBuckets,
     exploreTimelineRows,
+    exploreBuckets,
+    exploreOther,
+    exploreStatsLoading,
+    exploreStatsError,
     overviewTotals,
     previousOverviewTotals,
     exploreTotals,
@@ -299,7 +303,7 @@ function UsageSettings() {
   )
   const rollupOptions = useMemo(
     () =>
-      TREND_ROLLUP_KEYS.map((value) => ({
+      ROLLUP_KEYS.map((value) => ({
         value,
         label: t(ROLLUP_LABEL_KEYS[value])
       })),
@@ -377,7 +381,7 @@ function UsageSettings() {
   }
 
   const formatChartValue = (value: number) =>
-    chartMetric === 'cost' ? formatCost(value, costCurrency) : formatCompactNumber(value)
+    chartMetric === 'cost' ? formatCost(value, exploreTotals.costCurrency) : formatCompactNumber(value)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -528,7 +532,13 @@ function UsageSettings() {
               <UsageSectionTitle>{t('settings.usage.explore.analysis')}</UsageSectionTitle>
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-foreground-tertiary text-xs">
                 <span>{t(WINDOW_LABEL_KEYS[windowKey])}</span>
-                <span className="ml-1 text-muted-foreground">· {formatChartValue(totalExploreMetric)}</span>
+                {exploreStatsError ? (
+                  <span className="ml-1 text-muted-foreground">· {t('common.error')}</span>
+                ) : exploreStatsLoading ? (
+                  <Skeleton className="ml-1 h-3 w-12" />
+                ) : (
+                  <span className="ml-1 text-muted-foreground">· {formatChartValue(totalExploreMetric)}</span>
+                )}
               </div>
             </div>
           </UsageSectionHeader>
@@ -593,6 +603,7 @@ function UsageSettings() {
                           variant={isActive ? 'secondary' : 'ghost'}
                           size="sm"
                           aria-pressed={isActive}
+                          disabled={rollup === 'total' && option.value === 'line'}
                           onClick={() => setSelectedChartType(option.value)}>
                           <Icon className="size-3.5" />
                           {option.label}
@@ -609,6 +620,11 @@ function UsageSettings() {
                 range={windowRange}
                 timelineBuckets={timelineBuckets}
                 exploreTimelineRows={exploreTimelineRows}
+                exploreBuckets={exploreBuckets}
+                exploreOther={exploreOther}
+                exploreTotals={exploreTotals}
+                exploreStatsLoading={exploreStatsLoading}
+                exploreStatsError={exploreStatsError}
                 rollup={rollup}
                 chartMetric={chartMetric}
                 chartType={chartType}
