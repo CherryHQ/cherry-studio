@@ -1582,6 +1582,9 @@ export class SkillService {
         )
       }
 
+      const skillsRoot = application.getPath('feature.agents.skills')
+      const isFolderTracked = (name: string) => this.findCatalogSkillCaseInsensitive(name) !== null
+      await this.installer.settleMigrationMarkersBeforeRename(skillsRoot, folderName, isFolderTracked)
       const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
       const destFolderName = existing?.folderName ?? storageEntry ?? folderName
       const destPath = this.getSkillStoragePath(destFolderName)

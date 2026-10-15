@@ -202,6 +202,15 @@ export class SkillInstaller {
       return
     }
 
+    if (oldTracked && newTracked) {
+      logger.warn('Leaving skill migration backup in place; both folders remain catalogued', {
+        marker,
+        oldName,
+        newName
+      })
+      return
+    }
+
     // Drop the uncommitted replacement before consuming the marker: a failed cleanup keeps the
     // marker for the next boot instead of orphaning a duplicate for reconcile to adopt.
     const newPath = path.join(storageRoot, newName)
@@ -268,7 +277,9 @@ export class SkillInstaller {
         const oldName = migration[1]
         const newName = migration[2]
         if (oldName.toLowerCase() === key) {
-          if (isFolderTracked?.(newName)) {
+          const oldTracked = isFolderTracked?.(oldName) ?? false
+          const newTracked = isFolderTracked?.(newName) ?? false
+          if (newTracked && !oldTracked) {
             await this.removeDirectoryStrict(markerPath, 'committed skill migration backup')
           } else {
             await this.recoverInterruptedMigration(storageRoot, oldName, newName, isFolderTracked, () => false)

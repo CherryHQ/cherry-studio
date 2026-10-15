@@ -3408,6 +3408,74 @@ describe('SkillService', () => {
       restoreGetPath()
     })
 
+    it('settles a pending inbound migration marker before publishing a builtin skill', async () => {
+      const skillService = new SkillService()
+      const storageRoot = path.dirname(destPath)
+      const marker = path.join(storageRoot, `.content.migrating-to.${FOLDER_NAME}.bak`)
+      await fs.promises.mkdir(marker, { recursive: true })
+      await fs.promises.writeFile(path.join(marker, 'SKILL.md'), '# preserved')
+      await fs.promises.mkdir(destPath, { recursive: true })
+      await fs.promises.writeFile(path.join(destPath, 'SKILL.md'), '# stray replacement')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Repo',
+        folderName: 'content',
+        source: 'marketplace',
+        sourceUrl: 'https://github.com/owner/repo',
+        contentHash: 'hash',
+        isEnabled: false
+      })
+
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION)
+
+      await expect(fs.promises.readFile(path.join(storageRoot, 'content', 'SKILL.md'), 'utf8')).resolves.toBe(
+        '# preserved'
+      )
+      await expect(fs.promises.access(marker)).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(fs.promises.readFile(path.join(destPath, 'SKILL.md'), 'utf8')).resolves.toBe('# Builtin')
+      expect(await dbh.db.select().from(agentGlobalSkillTable)).toMatchObject([
+        { id: SKILL_ID_1, folderName: 'content' },
+        expect.objectContaining({ folderName: FOLDER_NAME, source: 'builtin' })
+      ])
+    })
+
+    it('preserves a migration backup when the destination is already a different catalogued skill', async () => {
+      const skillService = new SkillService()
+      const storageRoot = path.dirname(destPath)
+      const marker = path.join(storageRoot, `.content.migrating-to.${FOLDER_NAME}.bak`)
+      await fs.promises.mkdir(marker, { recursive: true })
+      await fs.promises.writeFile(path.join(marker, 'SKILL.md'), '# preserved')
+      await fs.promises.mkdir(destPath, { recursive: true })
+      await fs.promises.writeFile(path.join(destPath, 'SKILL.md'), '# Builtin')
+      await fs.promises.writeFile(path.join(destPath, '.version'), APP_VERSION)
+      const contentHash = await skillService['computeBuiltinDirectoryHash'](destPath)
+      await dbh.db.insert(agentGlobalSkillTable).values([
+        {
+          id: SKILL_ID_1,
+          name: 'Repo',
+          folderName: 'content',
+          source: 'marketplace',
+          sourceUrl: 'https://github.com/owner/repo',
+          contentHash: 'hash',
+          isEnabled: false
+        },
+        {
+          id: SKILL_ID_BUILTIN,
+          name: 'My Builtin',
+          folderName: FOLDER_NAME,
+          source: 'builtin',
+          contentHash,
+          isEnabled: false
+        }
+      ])
+
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION)
+
+      await expect(fs.promises.readFile(path.join(marker, 'SKILL.md'), 'utf8')).resolves.toBe('# preserved')
+      await expect(fs.promises.readFile(path.join(destPath, 'SKILL.md'), 'utf8')).resolves.toBe('# Builtin')
+      expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(2)
+    })
+
     it('does not re-copy or re-parse metadata when the builtin version and full content hash match', async () => {
       const skillService = new SkillService()
       await fs.promises.mkdir(destPath, { recursive: true })
