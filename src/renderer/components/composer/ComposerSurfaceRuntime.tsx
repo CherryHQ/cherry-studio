@@ -24,7 +24,12 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
-import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
+import {
+  getComposerShortcutLabel,
+  matchesComposerShortcut,
+  resolveNewlineShortcut,
+  resolveSendShortcut
+} from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -2171,6 +2176,7 @@ export default function ComposerSurfaceRuntime({
       sendMessage={sendDraft}
       disabled={sendDisabled}
       onDisabledClick={showBlockedSendReason}
+      shortcutLabel={getComposerShortcutLabel(sendMessageShortcut)}
       label={editingState?.sendLabel}
     />
   )

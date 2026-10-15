@@ -1,9 +1,11 @@
 # Private local Voice adapters
 
 `voiceAudioProcess` declares the `voice.audio` utility process. VoiceSessionService
-registers it; Apple, Windows and FunASR ASR request `decode` with Main-read FileEntry bytes and a combined
-owner/caller/timeout AbortSignal. The process uses terminate cancellation, so the
-caller cannot release its operation lease before the old generation exits.
+registers it. Apple and FunASR pass canonical WAV bytes through `inspectCanonicalWav`
+and request `decode` only for WebM. Windows ASR requests `decode` for its accepted
+input. Every decode uses a combined owner/caller/timeout AbortSignal. The process
+uses terminate cancellation, so the caller cannot release its operation lease before
+the old generation exits.
 
 `decodeWebm` uses Mediabunny for WebM packet demux and WAV mux, ts-ebml for metadata
 that Mediabunny does not expose, and opus-decoder's libopus WASM for 16 kHz decode.
