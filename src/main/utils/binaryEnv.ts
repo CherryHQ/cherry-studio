@@ -48,7 +48,11 @@ export function dedupePathSegments(segments: string[]): string[] {
  */
 function canonicalPathSegment(segment: string): string {
   const normalized = isWin ? path.normalize(segment).toLowerCase() : path.normalize(segment)
-  const stripped = normalized.replace(/[\\/]+$/, '')
+  // Strip only the platform's own trailing separator. On POSIX a backslash is an
+  // ordinary filename character, so `/usr/bin\` must stay distinct from `/usr/bin`
+  // rather than being collapsed into it by the trailing-separator rule.
+  const trailingSep = isWin ? /\\+$/ : /\/+$/
+  const stripped = normalized.replace(trailingSep, '')
   if (stripped.length === 0) return normalized
   if (isWin && /^[a-z]:$/i.test(stripped)) return normalized
   return stripped

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinarySearchDirs,
   getBinaryShimsDir,
@@ -89,5 +90,15 @@ describe('getBinaryIsolatedHomeEnv', () => {
     expect(env['HOME']).toBe('/mock/feature.binary.data/home')
     expect(env['LOCALAPPDATA']).toBeUndefined()
     expect(env['APPDATA']).toBeUndefined()
+  })
+})
+
+describe('dedupePathSegments', () => {
+  it('keeps a POSIX path ending in a literal backslash distinct from its slash-stripped sibling', () => {
+    // A backslash is an ordinary filename character on POSIX, so `/usr/bin\`
+    // names a real, distinct directory and must not be collapsed into `/usr/bin`
+    // by the trailing-separator rule (only `/` is a POSIX separator).
+    const result = dedupePathSegments(['/usr/bin', '/usr/bin\\', '/usr/bin/'])
+    expect(result).toEqual(['/usr/bin', '/usr/bin\\'])
   })
 })
