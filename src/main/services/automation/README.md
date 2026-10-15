@@ -25,7 +25,7 @@ await tab.getAXState()
 
 Browser actions do not automatically capture AX state. Explicit observations return bounded full trees, so internal snapshots cannot consume a model-facing diff baseline. Computer refs include an observation generation. Screenshot-only observations do not grant element refs. Browser and Computer usage instructions are versioned in [Browser API](../../../../resources/skills/cherry-browser/references/api.md) and [Computer API](../../../../resources/skills/cherry-computer/references/api.md), emitted once per surface and available again through `documentation()`.
 
-The pinned SDK 0.1.5 provides `perform()`, separating execution from observation. AX reads request `includeScreenshot: false`, skipping native capture rather than discarding an image after capture. SDK and native packages must use matching versions; no local checkout dependency is committed. Name resolution works for running apps; background launch is supported on macOS and waits for an accessible window. Unsupported launch on other platforms is explicit.
+The pinned SDK 0.1.6 provides `perform()`, separating execution from observation. AX reads request `includeScreenshot: false`, skipping native capture rather than discarding an image after capture. SDK and native packages must use matching versions; no local checkout dependency is committed. Name resolution works for running apps; background launch is supported on macOS and waits for an accessible window. Unsupported launch on other platforms is explicit.
 
 Observation text and images share an ID. Output retains newer complete image groups within four images / 16 MB of base64, explicitly marking omitted older images. Oversized text is reported as incomplete instead of silently sliced; each explicit Browser observation is independent of prior output. Ordinary JS errors retain bindings, while cancellation/crash/reset clears them. Errors preserve code/effect and do not replay actions.
 
@@ -85,8 +85,8 @@ remain disabled at the user's request.
 
 Remaining acceptance: user stop, revoked access, target
 closure and interrupted native cleanup; output-budget recovery; multi-turn and
-per-runtime skill discovery. Matching SDK/native publication and release-package
-verification remain pending. Windows/Linux GUI behavior is not inferred from macOS.
+per-runtime skill discovery. SDK/native 0.1.6 is published with matching package
+versions. Windows/Linux GUI behavior is not inferred from macOS.
 
 Tab management beyond the current conversation pane is not implemented: no tab
 inventory, explicit selection, creation, closing or cross-browser control. It requires
@@ -110,8 +110,9 @@ sequence and the preceding completed action when available.
 
 Application launch requires SDK installed-identity resolution. Cherry checks the
 resolved identity against user stops and active owners before requesting launch;
-the SDK verifies that identity before the native effect. An SDK without this API
-fails closed for launch. Existing running applications remain usable.
+the SDK verifies that identity before the native effect. The published SDK/native
+dependency is pinned to 0.1.6; an older explicitly configured runtime fails closed
+for launch. Existing running applications remain usable.
 
 Browser navigation keeps caller cancellation across guest replacement and binds
 subsequent navigation commands to the new guest. The completed result explicitly

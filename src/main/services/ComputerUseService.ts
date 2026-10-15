@@ -34,10 +34,8 @@ export interface ComputerUseControl {
   status: ControlStatus
 }
 
-type ResolvedApp = AppInfo & { identity?: string }
-
 interface AppControl {
-  app: ResolvedApp
+  app: AppInfo
   status: ControlStatus
   session: Promise<AppSession>
   sessionId?: string
@@ -57,7 +55,7 @@ interface ControlTask {
 interface ControlOwner {
   label: string
   stopped: boolean
-  blockedApps: Map<string, ResolvedApp>
+  blockedApps: Map<string, AppInfo>
 }
 
 export class ComputerUseControlError extends Error {
@@ -173,7 +171,7 @@ export class ComputerUseService extends BaseService {
         'TARGET_UNAVAILABLE',
         'Application name is ambiguous; use an ID from computer.listApps().'
       )
-    let app: ResolvedApp | undefined = matches[0]
+    let app: AppInfo | undefined = matches[0]
     let mayHaveLaunched = false
     try {
       if (!app) {
@@ -181,19 +179,8 @@ export class ComputerUseService extends BaseService {
         const blocked = this.owners.get(context.ownerId)?.blockedApps
         if ([...(blocked?.values() ?? [])].some((app) => app.name.toLocaleLowerCase() === query.toLocaleLowerCase()))
           throw new ComputerUseControlError('USER_STOPPED')
-        const resolver = client as ComputerUseClient & {
-          resolveAppIdentity?: (
-            input: { query: string },
-            options: { signal: AbortSignal }
-          ) => Promise<{ id: string; name: string; query: string }>
-        }
         if (launch) {
-          if (!resolver.resolveAppIdentity)
-            throw new ComputerUseError(
-              'UNSUPPORTED_CAPABILITY',
-              'Upgrade the SDK to authorize applications before launch.'
-            )
-          const identity = await resolver.resolveAppIdentity({ query }, options)
+          const identity = await client.resolveAppIdentity({ query }, options)
           this.assertAppAvailable(task, { id: identity.id, name: identity.name, identity: identity.id })
           if ([...(blocked?.values() ?? [])].some((app) => !app.identity))
             throw new ComputerUseControlError('USER_STOPPED')
@@ -216,9 +203,9 @@ export class ComputerUseService extends BaseService {
     }
   }
 
-  private assertAppAvailable(task: ControlTask, app: ResolvedApp): void {
+  private assertAppAvailable(task: ControlTask, app: AppInfo): void {
     this.assertAvailable(task, app.id)
-    const matches = (other: ResolvedApp) =>
+    const matches = (other: AppInfo) =>
       (app.identity !== undefined && app.identity === other.identity) ||
       app.name.toLocaleLowerCase() === other.name.toLocaleLowerCase()
     if ([...(this.owners.get(task.context.ownerId)?.blockedApps.values() ?? [])].some(matches))
