@@ -128,8 +128,8 @@ const fromState = (state: SubagentState): SubagentRecord => ({
 
 /**
  * The parent's subagents as its branch records them (spec §4.3), least recently active first, and
- * the run ends that never reached the parent. A run whose last snapshot is `running` was cut off
- * with the session that held it: it is `interrupted`.
+ * the run ends that never reached the parent, every run of a subagent, in the order they ended. A
+ * run whose last snapshot is `running` was cut off with the session that held it: it is `interrupted`.
  */
 export function restoreSubagents(
   entries: readonly SessionEntry[],
@@ -138,6 +138,8 @@ export function restoreSubagents(
   const calls = new Map<string, string>()
   const records = new Map<string, SubagentRecord>()
   const last = new Map<string, SubagentState>()
+  // By run: one continued before the parent heard of it still has a result to deliver.
+  const runs = new Map<string, SubagentState>()
   const delivered = new Set<string>()
   const touch = <T>(map: Map<string, T>, key: string, value: T) => {
     map.delete(key)
@@ -171,25 +173,27 @@ export function restoreSubagents(
     if (entry.type === 'custom' && entry.customType === SUBAGENT_STATE_TYPE) {
       const state = entry.data as SubagentState
       touch(last, state.sessionId, state)
+      touch(runs, `${state.sessionId}:${state.run}`, state)
       touch(records, state.sessionId, fromState(state))
     }
     if (entry.type === 'custom_message' && entry.customType === SUBAGENT_NOTIFICATION_TYPE)
       for (const item of (entry.details as SubagentNotificationDetails).subagents)
         delivered.add(`${item.sessionId}:${item.run}`)
   }
-  const undelivered: PendingDelivery[] = []
   for (const state of last.values()) {
+    if (state.status !== 'running') continue
     const record = records.get(state.sessionId)!
-    if (state.status === 'running') {
-      record.status = 'finished'
-      record.outcome = 'interrupted'
-    }
-    if (delivered.has(`${state.sessionId}:${state.run}`) || state.stoppedBy === 'model') continue
+    record.status = 'finished'
+    record.outcome = 'interrupted'
+  }
+  const undelivered: PendingDelivery[] = []
+  for (const [run, state] of runs) {
+    if (delivered.has(run) || state.stoppedBy === 'model') continue
     undelivered.push({
       sessionId: state.sessionId,
       run: state.run,
       description: state.description,
-      outcome: record.outcome!,
+      outcome: state.status === 'running' ? 'interrupted' : state.outcome!,
       ...(state.stoppedBy === undefined ? {} : { stoppedBy: state.stoppedBy }),
       ...(state.report === undefined ? {} : { report: state.report }),
       ...(state.reason === undefined ? {} : { reason: state.reason }),
