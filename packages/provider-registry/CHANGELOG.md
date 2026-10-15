@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.1.4
+
+### Patch Changes
+
+- [#19786](https://github.com/CherryHQ/cherry-studio/pull/19786) [`9ef4b13`](https://github.com/CherryHQ/cherry-studio/commit/9ef4b130f343dc4288dbf36dc49d32c35c7ddf15) Thanks [@kennyzheng-builds](https://github.com/kennyzheng-builds)! - Expose the Hugging Face router's Chat Completions endpoint alongside Anthropic Messages and Responses while preserving the default inherited by existing configurations.
+
 ## 0.1.3
 
 ### Patch Changes

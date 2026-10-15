@@ -222,7 +222,16 @@ export class RemoteAccessService extends BaseService {
       }
       const upload =
         input !== null && typeof input === 'object' && 'method' in input && input.method === 'agent.content.read'
-      if (upload ? ++uploadCount > 512 : ++count > 64) throw new Error('Remote request rate exceeded')
+      if (upload ? ++uploadCount > 512 : ++count > 256) {
+        // Awaiting keeps a flood of refusals from queueing ahead of the socket; excess must not end the session.
+        const refusal = remote.rpc.refuse(input, {
+          reason: 'RATE_LIMITED',
+          message: 'Request rate exceeded',
+          retryAfterMs: Math.max(1, windowStart + 1000 - Date.now())
+        })
+        if (refusal) await remote.send(refusal).catch(() => socket.close(1011, 'Remote request failed'))
+        continue
+      }
       void remote.rpc
         .receive(input, undefined)
         .then(async (response) => {

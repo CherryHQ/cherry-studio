@@ -112,6 +112,14 @@ export function buildPathRegistry() {
     // Plaintext fallback (0600) used only when no OS key store is available
     'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
 
+    'feature.computer_use.runtime': app.isPackaged
+      ? path.join(
+          appExtraResources,
+          'computer-use',
+          isMac ? 'Cherry Computer Use.app' : isWin ? 'open-computer-use.exe' : 'open-computer-use'
+        )
+      : path.join(app.getAppPath(), '.context', isWin ? 'computer-use-runtime.exe' : 'computer-use-runtime'),
+
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
       ? path.join(appExtraResources, 'provider-registry')
@@ -415,6 +423,7 @@ const NO_ENSURE = [
   'feature.backup.restore.session',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.computer_use.runtime',
   'feature.pdfjs.cmaps',
   'feature.pdfjs.standard_fonts',
   'feature.webview.preload_file',

@@ -2510,6 +2510,10 @@
           "adapterFamily": "anthropic",
           "baseUrl": "https://router.huggingface.co/v1/"
         },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.huggingface.co/v1"
+        },
         "openai-responses": {
           "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
@@ -2715,5 +2719,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a86479d0a0385f23"
+  "version": "bc86e95ea89db9c5"
 }

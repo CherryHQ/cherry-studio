@@ -66,6 +66,7 @@
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
+      "/settings/computer-use",
       "/settings/data",
       "/settings/dependencies",
       "/settings/device-connections",
@@ -497,7 +498,7 @@
     }
   ],
   "providers": {
-    "version": "932c0006165e4fcb",
+    "version": "defc6a5ac2bc457b",
     "count": 66,
     "entries": [
       {
