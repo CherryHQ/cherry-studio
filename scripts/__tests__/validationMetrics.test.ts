@@ -69,18 +69,27 @@ describe('CI performance reporting', () => {
     expect(result.jobTimings.scheduling).toEqual({ samples: 0, p50: null, p90: null, max: null })
     expect(renderReport(result, compareRuns(result, []))).toContain('0/4')
   })
-  it('does not turn unallocated cancelled jobs or missing end times into zero runner cost', () => {
-    const result = summarizeRun({ ...run, conclusion: 'cancelled' }, [
-      { ...job('never allocated', 10, 10), created_at: at(10), runner_id: null, steps: [] },
-      { ...job('missing completion', 10, 20), created_at: at(1), completed_at: undefined }
-    ])
-    expect(result.runnerSeconds).toBeNull()
-    expect(result.jobTimings.execution.samples).toBe(0)
-    expect(result.jobs.find((item: { name: string }) => item.name === 'never allocated')).toMatchObject({
-      seconds: null,
-      schedulingSeconds: null
-    })
-  })
+  it.each([null, undefined, 0])(
+    'does not treat unallocated runners (%s) or missing end times as zero cost',
+    (runner) => {
+      const result = summarizeRun({ ...run, conclusion: 'cancelled' }, [
+        {
+          ...job('never allocated', 10, 10),
+          conclusion: 'cancelled',
+          created_at: at(10),
+          runner_id: runner,
+          steps: []
+        },
+        { ...job('missing completion', 10, 20), created_at: at(1), completed_at: undefined }
+      ])
+      expect(result.runnerSeconds).toBeNull()
+      expect(result.jobTimings.execution.samples).toBe(0)
+      expect(result.jobs.find((item: { name: string }) => item.name === 'never allocated')).toMatchObject({
+        seconds: null,
+        schedulingSeconds: null
+      })
+    }
+  )
   it('reports a known job scheduling interval when the workflow creation time is missing', () => {
     const result = summarizeRun({ ...run, created_at: undefined }, [{ ...job('lint', 30, 50), created_at: at(10) }])
     expect(result.queueSeconds).toBeNull()

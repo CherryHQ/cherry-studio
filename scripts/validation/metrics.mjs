@@ -21,7 +21,7 @@ export function summarizeRun(run, jobs) {
   const scope = jobs.flatMap((job) => job.steps ?? []).find((step) => step.name.startsWith('Validation scope: '))?.name
   const measured = active
     .map((job) => {
-      const allocated = job.runner_id !== null && job.runner_id !== 0
+      const allocated = job.runner_id > 0 || (job.steps ?? []).some((step) => timestamp(step.started_at))
       const ordered =
         (!timestamp(run.created_at) || seconds(run.created_at, job.created_at) !== null) &&
         seconds(job.created_at, job.started_at) !== null
