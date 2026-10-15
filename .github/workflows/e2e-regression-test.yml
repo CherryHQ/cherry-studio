@@ -170,6 +170,11 @@ jobs:
           codex --version
           openclaw --version
 
+      - name: Prepare Everything MCP package
+        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp'
+        shell: bash
+        run: npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
+
       - name: Initialize isolated test directory
         shell: bash
         env:
