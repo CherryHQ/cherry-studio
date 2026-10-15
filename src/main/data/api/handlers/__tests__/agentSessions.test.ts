@@ -132,6 +132,24 @@ describe('agentSessionHandlers', () => {
       expect(result).toBe(response)
     })
 
+    it('forwards session model overrides to AgentSessionService', async () => {
+      const response = { id: 'session-1', modelId: 'openai::gpt-4o' }
+      updateMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions/:sessionId'].PATCH({
+        params: { sessionId: 'session-1' },
+        body: {
+          modelId: 'openai::gpt-4o'
+        }
+      })
+
+      expect(getConversationByIdMock).toHaveBeenCalledWith('session-1')
+      expect(updateMock).toHaveBeenCalledWith('session-1', {
+        modelId: 'openai::gpt-4o'
+      })
+      expect(result).toBe(response)
+    })
+
     it('rejects a mutation for a session outside the conversation scope before touching it', async () => {
       getConversationByIdMock.mockImplementationOnce(() => {
         throw new Error('not found')

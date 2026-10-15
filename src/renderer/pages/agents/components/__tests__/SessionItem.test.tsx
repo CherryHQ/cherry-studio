@@ -46,6 +46,7 @@ vi.mock('react-i18next', () => ({
 const session: AgentSessionEntity = {
   id: 'session-a',
   agentId: 'agent-a',
+  modelId: null,
   name: 'Session A',
   isNameManuallyEdited: true,
   workspaceId: 'workspace-a',

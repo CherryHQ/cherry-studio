@@ -40,14 +40,15 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`pi agent session ${session.id} has no agent`)
     }
     const agent = agentService.getAgent(session.agentId)
-    if (!agent?.model) {
+    const effectiveModel = session.modelId ?? agent?.model
+    if (!effectiveModel) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
     await prepareAgentSessionWorkspaceDirectory(session)
     // Side-effect free: dispatch validation must not consume API-key rotation;
     // the concrete key is selected only when the runtime connection starts.
     try {
-      await assertPiProviderUsable(agent.model)
+      await assertPiProviderUsable(effectiveModel)
     } catch (error) {
       if (error instanceof ApiGatewayNotRunningError) {
         application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: session.id })

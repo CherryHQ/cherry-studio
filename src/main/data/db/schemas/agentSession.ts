@@ -4,6 +4,7 @@ import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrima
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
 import { jobScheduleTable } from './job'
+import { userModelTable } from './userModel'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
@@ -13,6 +14,9 @@ export const agentSessionTable = sqliteTable(
       .notNull()
       .default('conversation'),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
+    // Per-session model override. NULL inherits the parent agent's model,
+    // so sibling sessions keep independent selections.
+    modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
     // Whether the name was manually edited by user.
     isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
@@ -35,6 +39,7 @@ export const agentSessionTable = sqliteTable(
   (t) => [
     orderKeyIndex('agent_session')(t),
     index('agent_session_last_activity_at_idx').on(t.lastActivityAt),
+    index('agent_session_model_id_idx').on(t.modelId),
     index('agent_session_updated_at_idx').on(t.updatedAt)
   ]
 )

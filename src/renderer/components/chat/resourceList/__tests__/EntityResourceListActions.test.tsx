@@ -367,6 +367,7 @@ function createAgentSession(overrides: Partial<AgentSessionEntity> = {}): AgentS
   return {
     id: 'session-1',
     agentId: 'agent-1',
+    modelId: null,
     name: 'Session 1',
     isNameManuallyEdited: false,
     workspaceId: 'workspace-1',
