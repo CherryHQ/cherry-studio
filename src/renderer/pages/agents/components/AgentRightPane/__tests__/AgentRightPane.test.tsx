@@ -589,6 +589,11 @@ function UserOpenSeqProbe() {
   return <output data-testid="user-open-seq">{userOpenSeq}</output>
 }
 
+function ActivePanelProbe() {
+  const { activePanelId } = useRightPanelState()
+  return <output data-testid="active-panel">{activePanelId ?? ''}</output>
+}
+
 type StatusTaskFixture = {
   id: string
   status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
@@ -3164,5 +3169,237 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('keeps a newer artifact when a pending attachment metadata response arrives later', async () => {
+    const attachmentMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const artifactMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const fileMetadata = {
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    } as PhysicalFileMetadata
+    ipcRequestMock.mockImplementation((route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') return fileMetadata
+      if (handle?.path === '/workspace/notes.md') return attachmentMetadata.promise
+      if (handle?.path === '/workspace/report.md') return artifactMetadata.promise
+      return fileMetadata
+    })
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'report.md' })
+
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <OpenArtifactButton path="report.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    await act(async () => artifactMetadata.resolve(fileMetadata))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md')
+
+    await act(async () => attachmentMetadata.resolve(fileMetadata))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+  })
+
+  it('keeps a newer attachment when a pending artifact metadata response arrives later', async () => {
+    const attachmentMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const artifactMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const fileMetadata = {
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    } as PhysicalFileMetadata
+    ipcRequestMock.mockImplementation((route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') return fileMetadata
+      if (handle?.path === '/workspace/notes.md') return attachmentMetadata.promise
+      if (handle?.path === '/workspace/report.md') return artifactMetadata.promise
+      return fileMetadata
+    })
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'report.md' })
+
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <OpenArtifactButton path="report.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    await act(async () => attachmentMetadata.resolve(fileMetadata))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    await act(async () => artifactMetadata.resolve(fileMetadata))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('notes.md')
+  })
+
+  it('returns to the attachment after cancelling discard on a dirty file opened from that preview', async () => {
+    const user = userEvent.setup()
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
+      workspacePath: '/workspace',
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <ActivePanelProbe />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane())
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('files')
+
+    await user.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('DESIGN.md'))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('files')
+
+    await user.click(screen.getByRole('button', { name: 'edit' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'edit')
+    fileSessionState.isDirty = true
+    rerender(pane())
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('files')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('DESIGN.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('DESIGN.md')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+    await user.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+
+    expect(fileSessionDiscardMock).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('files')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('closes a fileless return target only after Back is accepted', async () => {
+    const user = userEvent.setup()
+    const pane = () => (
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane())
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+
+    fileSessionState.isDirty = true
+    rerender(pane())
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    fileSessionState.isDirty = false
+    rerender(pane())
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('does not apply a stale discard confirmation after a newer artifact starts waiting', async () => {
+    const attachmentMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const artifactMetadata = createDeferredPromise<PhysicalFileMetadata>()
+    const fileMetadata = {
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    } as PhysicalFileMetadata
+    ipcRequestMock.mockImplementation((route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') return fileMetadata
+      if (handle?.path === '/workspace/notes.md') return attachmentMetadata.promise
+      if (handle?.path === '/workspace/report.md') return artifactMetadata.promise
+      return fileMetadata
+    })
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'report.md' })
+
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <OpenArtifactButton path="report.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'edit' }))
+    fileSessionState.isDirty = true
+    rerender(pane())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    await act(async () => attachmentMetadata.resolve(fileMetadata))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('agent.preview_pane.edit.leave.title')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('src/deep.ts')
+
+    await act(async () => artifactMetadata.resolve(fileMetadata))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.discard_and_continue' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('report.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
   })
 })

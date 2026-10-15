@@ -429,6 +429,7 @@ function AgentRightPaneActionsProvider({
     paneId: FILES_PANE_ID,
     previewFileSelection,
     requestFileSelection,
+    selectionGenerationRef: artifactOpenRequestRef,
     scopeKey: sessionId,
     workspacePath
   })
@@ -782,8 +783,11 @@ function AgentRightPaneStateProvider({
         onAccepted?.()
         return
       }
-      artifactOpenRequestRef.current += 1
+      const requestId = artifactOpenRequestRef.current + 1
+      artifactOpenRequestRef.current = requestId
       requestFileTransition(() => {
+        // The shared generation moves when a newer navigation starts, including while this confirm is open.
+        if (artifactOpenRequestRef.current !== requestId) return
         setEditMode('preview')
         setPreviewFileSelection(selection)
         setSelectedFile(selection && selection.workspacePath === fileWorkspace.path ? selection.filePath : null)

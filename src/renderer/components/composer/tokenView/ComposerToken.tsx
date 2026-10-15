@@ -818,11 +818,23 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     : tokenFile
   const label = file?.origin_name || file?.name || token.label
   const imagePreviewUrl = readOnlyFilePreview?.mediaType?.startsWith('image/') ? readOnlyFilePreview.url : undefined
-  const presentation = getFileTokenPresentation(file, label, imagePreviewUrl)
+  const [blobPreview, setBlobPreview] = useState<{ blob: Blob; url: string }>()
+  const blob = file?.blob
+  useEffect(() => {
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
+    setBlobPreview({ blob, url })
+    return () => URL.revokeObjectURL(url)
+  }, [blob])
+  const presentation = getFileTokenPresentation(
+    file,
+    label,
+    imagePreviewUrl ?? (blobPreview?.blob === blob ? blobPreview?.url : undefined)
+  )
   const openImagePreview = useCallback(() => {
     if (!presentation.previewUrl) return
-    void ImagePreviewService.show(presentation.previewUrl)
-  }, [presentation.previewUrl])
+    void ImagePreviewService.show(blob ?? presentation.previewUrl)
+  }, [blob, presentation.previewUrl])
   const activateReadOnlyFilePreview = useCallback(() => {
     if (!readOnlyFilePreview || !onReadOnlyFilePreviewActivate) return
     return onReadOnlyFilePreviewActivate(readOnlyFilePreview, token)

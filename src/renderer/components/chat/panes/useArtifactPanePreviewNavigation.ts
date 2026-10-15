@@ -6,7 +6,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import type { ArtifactPaneFileSelection } from './artifactPanePath'
-import { getArtifactPaneSelectionPath, isUncPath, resolveArtifactPaneFileSelection } from './artifactPanePath'
+import { getArtifactPaneSelectionPath, resolveArtifactPaneFileSelection } from './artifactPanePath'
 import { useRightPanelActions, useRightPanelState } from './Shell'
 
 interface PreviewReturnTarget {
@@ -16,11 +16,17 @@ interface PreviewReturnTarget {
   selection: ArtifactPaneFileSelection | null
 }
 
+interface SelectionGeneration {
+  current: number
+}
+
 interface UseArtifactPanePreviewNavigationOptions {
   enabled?: boolean
   paneId: string
   previewFileSelection: ArtifactPaneFileSelection | null
   requestFileSelection: (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => void
+  /** Shared with other file navigations so a newer artifact or attachment wins. */
+  selectionGenerationRef?: SelectionGeneration
   scopeKey?: string
   workspacePath?: string
 }
@@ -47,12 +53,14 @@ export function useArtifactPanePreviewNavigation({
   paneId,
   previewFileSelection,
   requestFileSelection,
+  selectionGenerationRef,
   scopeKey,
   workspacePath
 }: UseArtifactPanePreviewNavigationOptions) {
   const panelActions = useRightPanelActions()
   const panelState = useRightPanelState()
-  const requestRef = useRef(0)
+  const localRequestRef = useRef(0)
+  const requestRef = selectionGenerationRef ?? localRequestRef
   const returnRef = useRef<PreviewReturnTarget | null>(null)
 
   useEffect(() => {
@@ -60,11 +68,15 @@ export function useArtifactPanePreviewNavigation({
       requestRef.current += 1
       returnRef.current = null
     }
-  }, [scopeKey, workspacePath])
+  }, [requestRef, scopeKey, workspacePath])
+
+  const beginRequest = useCallback(() => {
+    requestRef.current += 1
+    return requestRef.current
+  }, [requestRef])
 
   const beginPreview = useCallback(() => {
-    const requestId = requestRef.current + 1
-    requestRef.current = requestId
+    const requestId = beginRequest()
     if (!returnRef.current || !panelState.presentationOpen || panelState.activePanelId !== paneId) {
       returnRef.current = {
         closePane: !panelState.presentationOpen,
@@ -73,9 +85,9 @@ export function useArtifactPanePreviewNavigation({
       }
     }
     return requestId
-  }, [paneId, panelState.activePanelId, panelState.presentationOpen, previewFileSelection])
+  }, [beginRequest, paneId, panelState.activePanelId, panelState.presentationOpen, previewFileSelection])
 
-  const isCurrentRequest = useCallback((requestId: number) => requestRef.current === requestId, [])
+  const isCurrentRequest = useCallback((requestId: number) => requestRef.current === requestId, [requestRef])
 
   const validateSelection = useCallback(
     async (selection: ArtifactPaneFileSelection, requestId: number) => {
@@ -91,7 +103,7 @@ export function useArtifactPanePreviewNavigation({
       }
       if (!isCurrentRequest(requestId)) return
       requestFileSelection(nextSelection, () => {
-        if (isCurrentRequest(requestId)) panelActions.requestOpen(paneId, { userInitiated: true })
+        panelActions.requestOpen(paneId, { userInitiated: true })
       })
     },
     [isCurrentRequest, paneId, panelActions, requestFileSelection]
@@ -121,7 +133,7 @@ export function useArtifactPanePreviewNavigation({
       void (async () => {
         let previewPath = input.previewPath
 
-        if (input.originalPath && input.originalPath !== input.previewPath && !isUncPath(input.originalPath)) {
+        if (input.originalPath && input.originalPath !== input.previewPath) {
           try {
             const originalMetadata = await ipcApi.request('file.get_metadata', createFilePathHandle(input.originalPath))
             if (!isCurrentRequest(requestId)) return
@@ -161,23 +173,24 @@ export function useArtifactPanePreviewNavigation({
   )
 
   const closeFilePreview = useCallback(() => {
-    requestRef.current += 1
+    beginRequest()
     const returnTarget = returnRef.current
-    returnRef.current = returnTarget?.previous ?? null
-    requestFileSelection(returnTarget?.selection ?? null)
-
-    if (!returnTarget) return
-    if (returnTarget.closePane) {
-      panelActions.close()
-      return
-    }
-    if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
-  }, [panelActions, requestFileSelection])
+    requestFileSelection(returnTarget?.selection ?? null, () => {
+      if (returnRef.current !== returnTarget) return
+      returnRef.current = returnTarget?.previous ?? null
+      if (!returnTarget) return
+      if (returnTarget.closePane) {
+        panelActions.close()
+        return
+      }
+      if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
+    })
+  }, [beginRequest, panelActions, requestFileSelection])
 
   const clearReturnTarget = useCallback(() => {
     requestRef.current += 1
     returnRef.current = null
-  }, [])
+  }, [requestRef])
 
   return { captureInputPreviewReturnTarget, clearReturnTarget, closeFilePreview, previewInputFile }
 }

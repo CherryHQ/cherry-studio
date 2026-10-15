@@ -32,7 +32,7 @@ export default defineConfig({
         plugins: mainConfig.plugins,
         define: { __CLAUDE_CODE_BINARY_MANIFEST__: mainConfig.define.__CLAUDE_CODE_BINARY_MANIFEST__ },
         resolve: {
-          alias: mainConfig.resolve.alias
+          alias: [...mainConfig.resolve.alias, { find: '@renderer', replacement: resolve('src/renderer') }]
         },
         test: {
           name: 'main',
@@ -179,6 +179,14 @@ export default defineConfig({
           ]
         }
       },
+      {
+        extends: true,
+        test: {
+          name: 'system-speech',
+          environment: 'node',
+          include: ['packages/system-speech/tests/**/*.test.ts']
+        }
+      },
       // packages/ui 单元测试配置
       {
         extends: true,
@@ -199,7 +207,6 @@ export default defineConfig({
       },
       ...[
         ['ai-sdk-provider', 'src'],
-        ['dsh-bridge', '__tests__'],
         ['remote-protocol', 'tests'],
         ['remote-transport', 'tests']
       ].map(([name, directory]) => ({

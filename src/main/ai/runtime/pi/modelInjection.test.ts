@@ -13,6 +13,7 @@ const serviceMocks = vi.hoisted(() => ({
   resolveApiKey: vi.fn(),
   getByKey: vi.fn(),
   hasToken: vi.fn(),
+  getCurrentConfig: vi.fn(() => ({ enabled: true })),
   resolveApiGatewayRuntime: vi.fn()
 }))
 
@@ -27,7 +28,8 @@ vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: servic
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    OAuthRuntimeService: { hasToken: serviceMocks.hasToken }
+    OAuthRuntimeService: { hasToken: serviceMocks.hasToken },
+    ApiGatewayService: { getCurrentConfig: serviceMocks.getCurrentConfig }
   } as never)
 })
 vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
@@ -687,8 +689,65 @@ describe('Cherry Cloud Pi injection', () => {
       modelId: 'cherryai-subscription:deepseek-free',
       apiKey: GATEWAY_KEY
     })
-    expect(serviceMocks.resolveApiGatewayRuntime).toHaveBeenCalledWith('session-1')
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+  })
+})
+
+describe('Pi gateway fallback', () => {
+  const provider = makeProvider({
+    id: 'azure',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'azure', baseUrl: 'https://azure.example' } }
+  })
+  const model = makeModel({ id: 'azure::deployment', providerId: 'azure', apiModelId: 'deployment' })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    serviceMocks.getByProviderId.mockReturnValue(provider)
+    serviceMocks.getByKey.mockReturnValue(model)
+    serviceMocks.getCurrentConfig.mockReturnValue({ enabled: true })
+    serviceMocks.resolveApiGatewayRuntime.mockResolvedValue(GATEWAY)
+  })
+
+  it.each([false, true])('rejects external-CLI models when Gateway enabled is %s', async (enabled) => {
+    const cliProvider = makeProvider({
+      id: 'claude-code',
+      authMethods: ['external-cli'],
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+    const cliModel = makeModel({ id: 'claude-code::claude', providerId: 'claude-code', apiModelId: 'claude' })
+    serviceMocks.getByProviderId.mockReturnValue(cliProvider)
+    serviceMocks.getByKey.mockReturnValue(cliModel)
+    serviceMocks.getCurrentConfig.mockReturnValue({ enabled })
+    await expect(assertPiProviderUsable('claude-code::claude')).rejects.toBeInstanceOf(PiUnsupportedProviderError)
+    expect(() => buildPiGatewayInjection(cliProvider, cliModel, GATEWAY)).toThrow(PiUnsupportedProviderError)
+    await expect(resolvePiProviderInjectionForSession('session-1', cliProvider, cliModel)).rejects.toBeInstanceOf(
+      PiUnsupportedProviderError
+    )
+  })
+
+  it('preserves a gateway-only model and attributes usage only to provider calls', async () => {
+    await assertPiProviderUsable('azure::deployment')
+    const injection = await resolvePiProviderInjectionForSession('session-1', provider, model)
+    expect(injection).toMatchObject({
+      api: 'openai-completions',
+      modelId: 'azure:deployment',
+      providerConfig: { baseUrl: 'http://127.0.0.1:23333/v1', headers: GATEWAY_USAGE_HEADERS },
+      apiKey: GATEWAY_KEY,
+      usageCapture: { owner: 'provider-calls' }
+    })
+    expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
+    serviceMocks.resolveApiGatewayRuntime.mockResolvedValue({ ...GATEWAY, apiKey: 'rotated-local-key' })
+    expect((await resolvePiProviderInjectionForSession('session-1', provider, model)).apiKey).toBe('rotated-local-key')
+  })
+
+  it('surfaces the gateway enablement error before a gateway-only model starts', async () => {
+    serviceMocks.getCurrentConfig.mockReturnValue({ enabled: false })
+    await expect(assertPiProviderUsable('azure::deployment')).rejects.toMatchObject({
+      name: 'ApiGatewayNotRunningError'
+    })
+    serviceMocks.getCurrentConfig.mockReturnValue({ enabled: true })
   })
 })
 
@@ -732,7 +791,6 @@ describe('modelInjection service resolution', () => {
 
   it('validates compatibility without consuming rotated API keys', async () => {
     await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
-    expect(serviceMocks.getApiKeys).toHaveBeenCalledWith('p', { enabled: true })
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
@@ -793,6 +851,7 @@ describe('modelInjection service resolution', () => {
       defaultChatEndpoint: 'ollama-chat',
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' } }
     })
+    serviceMocks.getByKey.mockReturnValueOnce(makeModel({ capabilities: ['embedding'] }))
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
   })
 
