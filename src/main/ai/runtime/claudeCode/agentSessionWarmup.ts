@@ -12,7 +12,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
@@ -36,7 +36,7 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
@@ -106,7 +106,6 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
   customHeaders?: string | Readonly<Record<string, string>>
   usageCapture: AgentSessionUsageCapture
-  internalRequestToken?: string
 }
 
 /** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
@@ -718,13 +717,9 @@ function deriveRouteFacts(
   )
 
   if (shouldUseGateway) {
-    const apiGatewayService = application.get('ApiGatewayService')
-    const config = apiGatewayService.getCurrentConfig()
-    const host = config.host || '127.0.0.1'
-    const port = config.port || 23333
     return {
       branch: 'gateway',
-      baseUrl: gatewayClientOrigin(host, port),
+      baseUrl: application.get('ApiGatewayService').getInternalGatewayOrigin(),
       credentialsFingerprint: gatewayCredentialsFingerprint(),
       toolSearchCompatible,
       modelIds: {
@@ -808,7 +803,6 @@ async function resolveClaudeCodeRuntimeRoute(
         apiKey: gateway.apiKey,
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
-        internalRequestToken: gateway.internalRequestToken,
         credentialsFingerprint: gatewayCredentialsFingerprint()
       }
     }
@@ -923,8 +917,8 @@ function mergeRuntimeSettings(
   fastModeTransport?: NonNullable<Provider['fastMode']>['transport']
 ): ClaudeCodeSettings {
   const fastModeHeaders =
-    route.branch === 'gateway' && fastModeTransport === 'openai-priority' && route.internalRequestToken
-      ? `${CHERRY_FAST_MODE_HEADER}: true\n${CHERRY_INTERNAL_REQUEST_TOKEN_HEADER}: ${route.internalRequestToken}`
+    route.branch === 'gateway' && fastModeTransport === 'openai-priority'
+      ? `${CHERRY_FAST_MODE_HEADER}: true`
       : undefined
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,

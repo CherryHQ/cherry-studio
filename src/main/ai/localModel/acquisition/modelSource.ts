@@ -6,10 +6,15 @@
  * Download-time only. Inference never consults it: models load by absolute path, which is
  * what keeps them off the network entirely.
  */
-import type { ModelSourceId } from '../catalog/types'
+import type { DownloadUrls, ModelSourceId } from '../catalog/types'
 
 export type { ModelSourceId } from '../catalog/types'
 export type DownloadSourcePreference = 'china-first' | 'global-first'
+
+export function orderDownloadUrls(urls: DownloadUrls, preference: DownloadSourcePreference): string[] {
+  if (!('china' in urls)) return [...urls]
+  return preference === 'china-first' ? [urls.china, urls.global] : [urls.global, urls.china]
+}
 
 interface ModelSource {
   /** e.g. `https://huggingface.co`. */

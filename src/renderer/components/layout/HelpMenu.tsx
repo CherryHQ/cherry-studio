@@ -75,7 +75,7 @@ export function HelpMenu({
         variant="ghost"
         size="icon"
         aria-label={t('help.title')}
-        className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground">
+        className="flex size-7 items-center justify-center rounded-none bg-transparent text-muted-foreground opacity-55 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100 focus-visible:bg-transparent focus-visible:text-foreground focus-visible:opacity-100 active:bg-transparent data-[state=open]:bg-transparent data-[state=open]:text-foreground data-[state=open]:opacity-100 dark:text-muted-foreground dark:hover:text-foreground [&_svg]:text-current">
         <CircleQuestionMark size={18} strokeWidth={1.6} />
       </Button>
     ) : (

@@ -11,8 +11,21 @@ export const cherryCloudStatusSchema = z.strictObject({
 
 export type CherryCloudStatus = z.infer<typeof cherryCloudStatusSchema>
 
+export const cherryCloudModelFeatureSchema = z.enum(['agent', 'chat', 'translate'])
+
+export type CherryCloudModelFeature = z.infer<typeof cherryCloudModelFeatureSchema>
+
 const cherryCloudModelSyncResultSchema = z.strictObject({
   entitledModelIds: z.array(UniqueModelIdSchema),
+  freeModelIds: z.array(UniqueModelIdSchema),
+  /**
+   * `agent` lists models for Work; `general` lists models for every other module. The server always
+   * grants chat and translate together, so the client has no chat-only or translate-only state.
+   */
+  availableModelIds: z.strictObject({
+    agent: z.array(UniqueModelIdSchema),
+    general: z.array(UniqueModelIdSchema)
+  }),
   quotaExhaustedModelIds: z.array(UniqueModelIdSchema)
 })
 

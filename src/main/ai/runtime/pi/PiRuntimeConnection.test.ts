@@ -168,6 +168,9 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   buildAgentMcpServers: mocks.buildAgentMcpServers,
   warmAgentMcpToolCatalogs: mocks.warmMcpToolCatalogs
 }))
+vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
+  prepareAgentSessionWorkspaceDirectory: vi.fn().mockResolvedValue(undefined)
+}))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
 vi.mock('@main/ai/agents/prompt', () => ({
@@ -211,7 +214,6 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
-const { ApiGatewayNotRunningError } = await import('../agentApiGateway')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
@@ -543,13 +545,6 @@ describe('PiRuntimeConnection', () => {
     } finally {
       await connection.close()
     }
-  })
-
-  it('prompts the current Agent session when its gateway route is disabled', async () => {
-    mocks.resolveInjection.mockRejectedValueOnce(new ApiGatewayNotRunningError())
-
-    await expect(new PiRuntimeConnection(input).start()).rejects.toBeInstanceOf(ApiGatewayNotRunningError)
-    expect(mocks.broadcast).toHaveBeenCalledWith('api_gateway.required', { sessionId: SESSION_ID })
   })
 
   it('establishes the Cloud baseline after starting the gateway', async () => {

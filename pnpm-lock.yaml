@@ -265,6 +265,9 @@ importers:
       '@cherrystudio/computer-use':
         specifier: 0.1.4
         version: 0.1.4
+      '@cherrystudio/mlx-tts':
+        specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
+        version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
       '@cherrystudio/remote-protocol':
         specifier: workspace:*
         version: link:packages/remote-protocol
@@ -2920,6 +2923,10 @@ packages:
   '@cherrystudio/computer-use@0.1.4':
     resolution: {integrity: sha512-zpg4AQaU229thOgjZngK9ssBjBNLJK0r/2AIud6hReFkd1+UjMC1PPh+aOT6NojLuAv2Qc6yWrLuReZ0APYYgw==}
     engines: {node: '>=24'}
+
+  '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts':
+    resolution: {commit: f4c21043f557965345b527bc04179ad26d08378f, path: distribution/tts, repo: https://github.com/CherryHQ/mlx-node.git, type: git}
+    version: 0.0.16-cherry.1
 
   '@cherrystudio/openai@6.15.0':
     resolution: {integrity: sha512-w7JNWd73u9dr1DiA7+lmpGj+Cms4IEiwMp9ibCxMpGnGuiFaVvqrPky+MeOur2CWNMZLmnGAjZhX2mDBOMvPCg==}
@@ -16933,6 +16940,8 @@ snapshots:
       '@cherrystudio/computer-use-linux-x64': 0.1.4
       '@cherrystudio/computer-use-win32-arm64': 0.1.4
       '@cherrystudio/computer-use-win32-x64': 0.1.4
+
+  '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts': {}
 
   '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)':
     optionalDependencies:
