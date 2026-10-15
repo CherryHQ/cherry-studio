@@ -262,6 +262,7 @@ export function extractHtmlDocument(): DocumentModel {
       const blocks: DocumentBlock[] = []
       let pending: Node[] = []
       let headingPlaced = false
+      const headingLevel = /^H[1-6]$/.test(node.tagName) ? Number(node.tagName[1]) : 0
       const flush = () => {
         if (!pending.length) return
         const content = runs(pending)
@@ -270,13 +271,21 @@ export function extractHtmlDocument(): DocumentModel {
         const text = preserve ? rawText : rawText.trim()
         if (text) {
           const fields = { text, runs: content, style: styleOf(node), ...membership }
-          if (preserve) blocks.push({ type: 'code', ...fields })
-          else if (/^H[1-6]$/.test(node.tagName) && !headingPlaced) {
-            headingPlaced = true
-            blocks.push({ type: 'heading', level: Number(node.tagName[1]), ...fields })
-          } else blocks.push({ type: 'text', ...fields })
+          emit([preserve ? { type: 'code', ...fields } : { type: 'text', ...fields }])
         }
         pending = []
+      }
+      function claimHeading(block: DocumentBlock): DocumentBlock {
+        if (!headingLevel || headingPlaced) return block
+        if (block.type === 'columns') {
+          return { ...block, columns: block.columns.map((column) => column.map(claimHeading)) }
+        }
+        if (block.type !== 'text') return block
+        headingPlaced = true
+        return { ...block, type: 'heading', level: headingLevel }
+      }
+      function emit(incoming: DocumentBlock[]) {
+        for (const block of incoming) blocks.push(claimHeading(block))
       }
       const visit = (child: Node) => {
         if (!(child instanceof Element)) {
@@ -285,12 +294,12 @@ export function extractHtmlDocument(): DocumentModel {
         }
         if (child.tagName === 'IMG') {
           flush()
-          blocks.push(...walk(child, depth))
+          emit(walk(child, depth))
           return
         }
         if (isStructural(child)) {
           flush()
-          blocks.push(...walk(child, depth))
+          emit(walk(child, depth))
           return
         }
         if (child.querySelector('img')) {

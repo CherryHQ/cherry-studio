@@ -108,6 +108,71 @@ describe('HTML layout text extraction', () => {
     ])
   })
 
+  it('keeps enclosing heading semantics on a leading block span', () => {
+    document.body.innerHTML = '<h2><span style="display:block">Quarterly</span> Report</h2>'
+    expect(extractHtmlDocument().blocks.map(blockShape)).toEqual([
+      {
+        type: 'heading',
+        level: 2,
+        text: 'Quarterly',
+        bullet: undefined,
+        orderedNumber: undefined,
+        listDepth: undefined
+      },
+      { type: 'text', text: 'Report', bullet: undefined, orderedNumber: undefined, listDepth: undefined }
+    ])
+  })
+
+  it('keeps enclosing heading semantics on a block title after an image', () => {
+    document.body.innerHTML =
+      '<h2><img src="logo.png" alt="logo"><span style="display:block">Quarterly Report</span></h2>'
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks.map(blockShape)).toEqual([
+      { type: 'image', text: 'logo', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      {
+        type: 'heading',
+        level: 2,
+        text: 'Quarterly Report',
+        bullet: undefined,
+        orderedNumber: undefined,
+        listDepth: undefined
+      }
+    ])
+  })
+
+  it('keeps enclosing heading semantics on a nested styled block wrapper', () => {
+    document.body.innerHTML =
+      '<h2><span style="display:block"><span style="font-weight:700">Quarterly</span></span> Report</h2>'
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks.map(blockShape)).toEqual([
+      {
+        type: 'heading',
+        level: 2,
+        text: 'Quarterly',
+        bullet: undefined,
+        orderedNumber: undefined,
+        listDepth: undefined
+      },
+      { type: 'text', text: 'Report', bullet: undefined, orderedNumber: undefined, listDepth: undefined }
+    ])
+    expect(blocks[0]).toMatchObject({
+      runs: [expect.objectContaining({ text: 'Quarterly', bold: true })]
+    })
+  })
+
+  it('applies the heading level to the first column text and leaves later text untitled', () => {
+    document.body.innerHTML = '<h2><div style="display:flex"><div>Left</div><div>Right</div></div> leftover</h2>'
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks.map(blockShape)).toEqual([
+      { type: 'columns' },
+      { type: 'text', text: 'leftover', bullet: undefined, orderedNumber: undefined, listDepth: undefined }
+    ])
+    expect(blocks[0]).toMatchObject({
+      type: 'columns',
+      columns: [[{ type: 'heading', level: 2, text: 'Left' }], [{ type: 'text', text: 'Right' }]]
+    })
+  })
+
   it('preserves pre whitespace around an image on the mixed flush', () => {
     const before = '  keep\t'
     const after = '  tail\n'
