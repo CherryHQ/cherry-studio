@@ -22,7 +22,7 @@ function mockManagers(
       const getActiveProcessCount = () => counts.active + preflightReservations.value
       return {
         getActiveProcessCount,
-        getCapSlotProcessCount: () => counts.capSlots,
+        getCapSlotProcessCount: () => counts.capSlots + preflightReservations.value,
         tryReserveLiveSpawnPreflight: () => {
           if (getActiveProcessCount() >= 6) return false
           preflightReservations.value++
@@ -86,6 +86,19 @@ describe('claudeCodeSpawnCapacity', () => {
 
     expect(prepareClaudeCodeSpawnCapacity('warm')).toBe(true)
     expect(evictOldestWarmQuery).not.toHaveBeenCalled()
+  })
+
+  it('evicts a parked warm query when a live preflight occupies the last cap slot', () => {
+    const counts: ManagerCounts = { active: 6, capSlots: 5 }
+    const preflightReservations = { value: 1 }
+    const evictOldestWarmQuery = vi.fn(() => {
+      counts.capSlots -= 1
+      return true
+    })
+    mockManagers(counts, evictOldestWarmQuery, preflightReservations)
+
+    expect(prepareClaudeCodeSpawnCapacity('live')).toBe(false)
+    expect(evictOldestWarmQuery).toHaveBeenCalledOnce()
   })
 
   it('reserves a live preflight slot when ensure admits a cold start', async () => {

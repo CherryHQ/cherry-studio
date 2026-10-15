@@ -224,7 +224,7 @@ export class ClaudeCodeProcessManager extends BaseService {
    * children freed their slot when they were signaled, even though they stay active until exit.
    */
   getCapSlotProcessCount(): number {
-    return this.processes.size
+    return this.processes.size + this.preflightLiveReservations
   }
 
   waitForActiveProcessBelowCap(max: number, timeoutMs: number): Promise<void> {
