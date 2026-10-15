@@ -22,7 +22,7 @@ import {
   snapshots,
   working
 } from './goalSupport'
-import { toolCallPart } from './subagentSupport'
+import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './subagentSupport'
 import { finish, lastAssistant, MODEL, plain, scriptedModel, tempDir, textParts } from './support'
 import { textOf, toolResults } from './toolResults'
 
@@ -447,6 +447,45 @@ describe('goal stops for people, errors and aborts', () => {
     expect(held.aborted(1)).toBe(true)
     expect(snapshots(host.entries)).toEqual([])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
+  })
+
+  // Breaks when a foreground subagent's usage is dropped because /goal pause stopped the goal while
+  // its call ran: resume would then go past the budget that subagent used up.
+  it('/goal pause during a foreground subagent keeps its usage, and resume honors the budget', async () => {
+    let reached!: () => void
+    const atWork = new Promise<void>((resolve) => (reached = resolve))
+    const work = defineTool({
+      name: 'work',
+      label: 'Work',
+      description: 'Works until stopped',
+      parameters: Type.Object({}),
+      async execute(_id, _params, signal) {
+        reached()
+        await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), { once: true }))
+        return { content: [{ type: 'text', text: 'stopped working' }], details: undefined }
+      }
+    })
+    const { model, calls } = routedModel((call) => {
+      if (call.userText.includes('TASK-A'))
+        return call.lastRole === 'user' ? [toolCallPart('work_1', 'work'), finish('tool-calls', 5_000, 0)] : say('late')
+      if (roundStart(call.options.prompt) === 1)
+        return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }), finish('tool-calls')]
+      return say(`reply ${calls.length}`)
+    })
+    const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { budget: { tokens: 3_000 } } }), {
+      tools: [work],
+      subagents: recordingSubagentPort().port
+    })
+    await s.prompt('/goal Check A')
+    await atWork
+    await promptIdle(s, '/goal pause')
+    // The parent's request (10 + 2 cached + 5) and the subagent's (5000 + 2 cached), both made before the pause.
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'paused', tokensUsed: 5_019 })
+
+    const sent = calls.length
+    await promptIdle(s, '/goal resume')
+    expect(notices(host.entries).at(-1)).toBe('raise max_goal_rounds or the budget before resuming')
+    expect(calls).toHaveLength(sent)
   })
 
   // Breaks when the abort is handled only at agent_before_settle, which Pi skips after session.abort():
