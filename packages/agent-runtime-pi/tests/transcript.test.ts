@@ -291,6 +291,19 @@ describe('session transcript', () => {
     expect(calls).toHaveLength(0)
   })
 
+  // Breaks when stored JSON that is not a list fails with a TypeError the host cannot classify.
+  it('refuses a transcript that is not a list as an invalid entry', async () => {
+    const { model, calls } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
+    const creating = createTestSession({
+      port: streamTextPort(model).port,
+      transcript: {} as unknown as TranscriptEntry[]
+    })
+
+    await expect(creating).rejects.toBeInstanceOf(TranscriptError)
+    await expect(creating).rejects.toMatchObject({ code: 'invalid_entry', entryId: undefined })
+    expect(calls).toHaveLength(0)
+  })
+
   const message = (content: unknown, role = 'user') => ({
     kind: 'message',
     id: 'b',
@@ -302,6 +315,8 @@ describe('session transcript', () => {
     { label: 'an out-of-range timestamp', entry: { ...message('hi'), timestamp: 1e20 } },
     { label: 'a non-string error message', entry: { ...reply, errorMessage: { text: 'x' } } },
     { label: 'a non-string response id', entry: { ...reply, responseId: 42 } },
+    // Breaks when malformed usage is read as zero counts instead of being refused.
+    { label: 'non-object usage', entry: { ...reply, usage: 'corrupt' } },
     { label: 'null user content', entry: message(null) },
     { label: 'non-string text', entry: message([{ type: 'text', text: 42 }]) },
     { label: 'null assistant content', entry: message(null, 'assistant') },
