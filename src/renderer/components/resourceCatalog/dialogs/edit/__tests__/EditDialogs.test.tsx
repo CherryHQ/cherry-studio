@@ -917,6 +917,53 @@ describe('edit dialogs', () => {
     }
   )
 
+  it.each(['agent', 'assistant'] as const)(
+    'preserves failed %s edits when the required name is cleared before management navigation',
+    async (type) => {
+      const user = userEvent.setup()
+      const update = type === 'agent' ? updateAgentMock : updateAssistantMock
+      update.mockRejectedValueOnce(new Error('Network down'))
+      function Host() {
+        const [open, setOpen] = useState(true)
+        return type === 'agent' ? (
+          <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} />
+        ) : (
+          <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} />
+        )
+      }
+      render(<Host />)
+      const descriptionInput = screen.getByLabelText('Description')
+      await user.clear(descriptionInput)
+      await user.type(descriptionInput, 'Unsaved description')
+      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+      expect(await screen.findByText('Save failed')).toBeVisible()
+
+      await user.click(screen.getByRole('tab', { name: 'Basic' }))
+      await user.clear(screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name'))
+      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      const frames = mockDeferredAnimationFrames()
+      try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+          frames.flushAllFrames()
+          expect(screen.getByRole('dialog')).toBeVisible()
+          expect(screen.getByText('Save failed')).toBeVisible()
+          expect(openSettingsTabMock).not.toHaveBeenCalled()
+        }
+
+        await user.click(screen.getByRole('tab', { name: 'Basic' }))
+        expect(screen.getByLabelText('Description')).toHaveValue('Unsaved description')
+        expect(screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name')).toHaveValue('')
+        await user.click(screen.getByRole('button', { name: 'Close' }))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        expect(openSettingsTabMock).not.toHaveBeenCalled()
+      } finally {
+        frames.restore()
+      }
+    }
+  )
+
   it('keeps global prompt management available beside existing linked prompts', () => {
     promptCatalogState.current.bound = [...promptCatalogState.current.all]
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="prompts" />)

@@ -513,10 +513,11 @@ function AgentEditDialogContent({
 
   // Keep failed saves visible and gate settings navigation on successful closure.
   const handleOpenChange = async (next: boolean, allowDiscard = true): Promise<boolean> => {
-    if (next || !canPersist) {
+    if (next || !saveIntent || (!canPersist && allowDiscard)) {
       onOpenChange(next)
       return true
     }
+    if (!canPersist) return false
     if (failedSaveKeyRef.current === autoSaveChangeKey) {
       toast.error(saveFailedMessage)
       if (!allowDiscard) return false
