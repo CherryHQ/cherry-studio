@@ -61,6 +61,31 @@ describe('computeModelFieldReset', () => {
     expect(prefetchMock).not.toHaveBeenCalled()
   })
 
+  it('reconciles against the destination provider for a same model id cross-provider switch', async () => {
+    // Equal model ids do not imply equal constraints: AiHubMix allows numImages up
+    // to 10, DashScope only up to 4. A carried 10 must reset to the destination
+    // default, while values the destination accepts stay untouched.
+    prefetchMock.mockImplementation(async (_path: string, options?: unknown) => {
+      const params = (options as PrefetchCallOptions | undefined)?.params
+      if (params?.providerId === 'aihubmix' && params.modelId === 'qwen-image') {
+        return generateSupport({ numImages: { type: 'range', min: 1, max: 10, default: 2 } })
+      }
+      if (params?.providerId === 'dashscope' && params.modelId === 'qwen-image') {
+        return generateSupport({ numImages: { type: 'range', min: 1, max: 4, default: 1 } })
+      }
+      return null
+    })
+    const patch = await computeModelFieldReset({
+      providerId: 'aihubmix',
+      newProviderId: 'dashscope',
+      oldModelId: 'qwen-image',
+      newModelId: 'qwen-image',
+      mode: 'generate',
+      currentValues: { numImages: 10 }
+    })
+    expect(patch).toEqual({ numImages: 1 })
+  })
+
   it('populates new model defaults even when the OLD model is unknown (custom-id painting)', async () => {
     mockSupportPerModel({
       'gpt-image-1': generateSupport({

@@ -76,13 +76,26 @@ export function usePaintingModelSwitch({
         // Same model id served by a different provider: the user changed where
         // the model is served from, not the model. Preserve the form context
         // exactly like the same-provider branch instead of resetting params,
-        // mode and attachments to defaults.
+        // mode and attachments to defaults. Equal model ids still carry no
+        // constraint guarantee (provider registries differ, e.g. AiHubMix
+        // numImages 1-10 vs DashScope 1-4), so carried params are reconciled
+        // against the destination's own support: compatible values survive,
+        // incompatible ones reset to the destination default and the displayed
+        // form keeps matching what submission will request.
+        const resetPatch = await computeModelFieldReset({
+          providerId: currentProviderId,
+          newProviderId: providerId,
+          oldModelId: painting.model,
+          newModelId: modelId,
+          mode: tabToImageGenerationMode(painting.mode),
+          currentValues: painting.params ?? {}
+        })
         const nextModel = providerCatalog.find((option) => option.value === modelId)?.raw as Model | undefined
         const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
         onPaintingChange({
           providerId,
           model: modelId,
-          ...(painting.params ? { params: painting.params } : {}),
+          params: { ...painting.params, ...resetPatch },
           ...(keepInputFiles ? {} : { inputFiles: [] })
         })
         return

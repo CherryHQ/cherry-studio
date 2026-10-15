@@ -8,7 +8,8 @@ import type { PaintingData } from '../../model/types/paintingData'
 import type { ModelOption } from '../../model/types/paintingModel'
 
 const mocks = vi.hoisted(() => ({
-  models: [] as Model[]
+  models: [] as Model[],
+  prefetch: vi.fn<(path: string, options?: unknown) => Promise<unknown>>(async () => null)
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -16,7 +17,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
-  prefetch: vi.fn(async () => null)
+  prefetch: mocks.prefetch
 }))
 
 vi.mock('../../errors/paintingGenerateError', () => ({
@@ -70,6 +71,8 @@ const setup = (painting: PaintingData, catalog: ModelOption[] = [makeOption(make
 describe('usePaintingModelSwitch', () => {
   beforeEach(() => {
     mocks.models = [makeModel('provider-a')]
+    mocks.prefetch.mockReset()
+    mocks.prefetch.mockImplementation(async () => null)
   })
 
   it('same-provider switch keeps the existing reset behaviour', async () => {
@@ -128,6 +131,42 @@ describe('usePaintingModelSwitch', () => {
         inputFiles: []
       })
     )
+  })
+
+  it('same model id under a different provider reconciles params with the destination registry', async () => {
+    // Equal model ids do not imply equal constraints (AiHubMix numImages 1–10 vs
+    // DashScope 1–4): the carried value must land on the destination's default so the
+    // displayed form matches what submission will actually request.
+    mocks.prefetch.mockImplementation(async (_path: string, options?: unknown) => {
+      const params = (options as { params?: { providerId?: string; modelId?: string } } | undefined)?.params
+      if (params?.providerId === 'provider-a' && params.modelId === 'qwen-image') {
+        return {
+          modes: { generate: { supports: { numImages: { type: 'range', min: 1, max: 10, default: 2 } } } }
+        }
+      }
+      if (params?.providerId === 'provider-b' && params.modelId === 'qwen-image') {
+        return {
+          modes: { generate: { supports: { numImages: { type: 'range', min: 1, max: 4, default: 1 } } } }
+        }
+      }
+      return null
+    })
+    const painting = editPainting({ model: 'qwen-image', params: { numImages: 10, size: '1024x1024' } })
+    const catalog = [makeOption(makeModel('provider-b', { apiModelId: 'qwen-image', id: 'provider-b::qwen-image' }))]
+    const { result, onPaintingChange } = setup(painting, catalog)
+
+    await act(async () => {
+      await result.current({ providerId: 'provider-b', modelId: 'qwen-image' })
+    })
+
+    const patch = onPaintingChange.mock.calls[0]?.[0] as Partial<PaintingData> | undefined
+    expect(patch).toMatchObject({
+      providerId: 'provider-b',
+      model: 'qwen-image',
+      params: { numImages: 1, size: '1024x1024' }
+    })
+    expect(patch?.mode).toBeUndefined()
+    expect(patch?.inputFiles ?? painting.inputFiles).toEqual(painting.inputFiles)
   })
 
   it('a genuinely different model under a different provider still resets the form', async () => {
