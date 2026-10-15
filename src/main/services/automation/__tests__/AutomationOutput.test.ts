@@ -22,7 +22,33 @@ describe('automation observations', () => {
     expect(text).toContain('Images for observation state-2 were OMITTED')
     expect(text).not.toContain('Images for observation state-6 were OMITTED')
     const finalLabel = content.findIndex((part) => part.type === 'text' && part.text.startsWith('OBSERVATION state-6'))
-    expect(content[finalLabel + 1]).toEqual({ type: 'image', data: 'image-6', mimeType: 'image/png' })
+    expect(content[finalLabel + 1]).toEqual({
+      type: 'image',
+      data: 'image-6',
+      mimeType: 'image/png',
+      annotations: { audience: ['assistant'] }
+    })
+    expect(content.filter((part) => !part.annotations?.audience.includes('assistant'))).toEqual([])
+  })
+
+  it('keeps screenshot observations model-only without hiding ordinary output or capture errors', () => {
+    const output = new AutomationOutput()
+    output.add({ id: 'screenshot', operation: 'getScreenshot', images: [{ index: 0 }] }, [
+      { data: 'image', mimeType: 'image/png' }
+    ])
+    output.add({ id: 'state', text: 'Calculator displays 649' })
+    output.add({ error: { code: 'PERMISSION_REQUIRED', message: 'Screen Recording permission required' } })
+
+    const visibleText = output
+      .content()
+      .filter((part) => !part.annotations?.audience.includes('assistant'))
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
+
+    expect(visibleText).not.toContain('screenshot')
+    expect(visibleText).toContain('Calculator displays 649')
+    expect(visibleText).toContain('Screen Recording permission required')
   })
 
   it('does not silently turn a large incomplete observation into apparent success', () => {

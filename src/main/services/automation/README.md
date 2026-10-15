@@ -33,7 +33,7 @@ Ordinary chat exposes `automation_repl` and `automation_repl_reset`. Agent runti
 
 ## Context feedback
 
-Each execute/reset result includes `structuredContent.replContext` and an assistant-only `REPL_CONTEXT` text block for transports that forward only content. The renderer omits that block from ordinary output. REPL screenshots remain in model-facing tool results but are not previewed or promoted to standalone message blocks, so intermediate observations do not split tool groups or alter collapse behavior. Execute accepts an optional `title` for the tool card; existing records fall back to the translated default label.
+Each execute/reset result includes `structuredContent.replContext` and an assistant-only `REPL_CONTEXT` text block for transports that forward only content. The renderer omits that block from ordinary output. Screenshot observations, their metadata and image-budget notices are assistant-only; they remain in model-facing tool results without a user-facing count, preview or standalone message block. Ordinary text and capture errors remain visible. Intermediate screenshots therefore do not split tool groups or alter collapse behavior. Execute accepts an optional `title` for the tool card; existing records fall back to the translated default label.
 
 The kernel owns the generation ID and binding inventory; the host adds a cell ID and reports cleared state after process cancellation/failure. Feedback distinguishes cells that never started, started but failed, completed, or were interrupted. `hostCallsStarted` counts attempted bridge calls, not successful actions or rollback guarantees.
 

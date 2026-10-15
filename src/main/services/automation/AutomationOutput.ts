@@ -1,4 +1,6 @@
-type OutputPart = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+type OutputPart = ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }) & {
+  annotations?: { audience: ['assistant'] }
+}
 
 interface Observation {
   id: string
@@ -60,7 +62,11 @@ export class AutomationOutput {
       } else {
         parts.push({ type: 'text', text: `Observation ${observation.id} was OMITTED due to the output budget.` })
       }
-      groups.push(parts)
+      groups.push(
+        observation.images.length > 0 || observation.imagesOmitted
+          ? parts.map((part) => ({ ...part, annotations: { audience: ['assistant'] } }))
+          : parts
+      )
     }
     return [
       ...(this.omitted
