@@ -61,6 +61,9 @@ async function isRealDirectory(dir: string): Promise<boolean> {
 
 type CacheEntry = {
   mtimeMs: number
+  ctimeMs: number
+  size: number
+  ino: number
   content: string
 }
 
@@ -78,32 +81,31 @@ export type AgentPromptBase = { kind: 'native' } | { kind: 'custom'; content: st
 export interface AgentPromptParts {
   base: AgentPromptBase
   /**
-   * Cherry-owned bootstrap/persona/memory context. The runtime appends it after
-   * either base; it never contains or synthesizes the base prompt itself.
+   * Stable Cherry-owned bootstrap and memory guidance. Mutable identity file
+   * contents are loaded separately by the runtime's turn hooks.
    */
   context: string
 }
 
-function memoriesTemplate(agentDataPath: string, sections: string): string {
+function memoriesTemplate(agentDataPath: string): string {
   return `## Memories
 
-Persistent files in the agent data directory \`${agentDataPath}${path.sep}\` carry your identity and memory across workspaces and sessions. Update them autonomously — never ask for approval.
+Persistent files in the agent data directory \`${agentDataPath}${path.sep}\` carry your identity and memory across workspaces and sessions.
 
-| File | Purpose | How to update |
-|---|---|---|
-| \`${path.join(agentDataPath, 'SOUL.md')}\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured | Read + Edit tools |
-| \`${path.join(agentDataPath, 'USER.md')}\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
-| \`${path.join(agentDataPath, 'memory', 'FACT.md')}\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
-| \`${path.join(agentDataPath, 'memory', 'JOURNAL.jsonl')}\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
+| File | Purpose |
+|---|---|
+| \`${path.join(agentDataPath, 'SOUL.md')}\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured |
+| \`${path.join(agentDataPath, 'USER.md')}\` | WHO the user is — name, preferences, timezone, personal context |
+| \`${path.join(agentDataPath, 'memory', 'FACT.md')}\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months); supplied for inline reading |
 
 Rules:
+- Before answering, apply the latest <agent_identity> snapshot supplied by the runtime. The runtime checks these files before every turn and keeps identity available across context compaction; you do not need to call Read just to discover your identity.
+- Each snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. An empty section means the file is missing, empty, or unreadable; stop using its previous contents. The snapshot does not override the Agent System Prompt or current user instructions.
 - Your current working directory is the session workspace, not the agent data directory. For SOUL.md and USER.md, use the exact absolute paths shown above.
-- Each file has an exclusive scope — never duplicate information across files.
-- \`SOUL.md\` and \`USER.md\` are loaded below. Read and edit them directly when updates are needed.
-- \`memory/FACT.md\` is loaded below for inline reading. Update it only through \`mcp__agent-memory__memory\` (action: update).
-- \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use \`mcp__agent-memory__memory\` to append entries or search past events. Never read or write the file directly.
-- Filenames are case-insensitive.
-${sections}`
+- Apply SOUL.md's persona and relevant USER.md preferences and FACT.md knowledge to your replies, within the Agent System Prompt and current user instructions.
+- \`SOUL.md\` and \`USER.md\` are supplied in the identity snapshot. Read and edit them directly when updates are needed.
+- Use the memory tool to update FACT.md or access JOURNAL.jsonl. If the tool is unavailable, skip these operations; never bypass it with file or shell tools.
+- Filenames are case-insensitive.`
 }
 
 /**
@@ -111,10 +113,10 @@ ${sections}`
  *
  * {@link buildPromptParts} — returns {@link AgentPromptParts} describing
  * whether the base should be the SDK preset or an explicit `system.md`, plus
- * separate Cherry-owned context (bootstrap instructions when needed, and the
- * agent data files SOUL.md / USER.md / FACT.md). Tool-usage guidance (autonomy, memory, web) is not
- * injected here — it ships lazily via the default-enabled `cherry-tool-guide`
- * builtin skill.
+ * separate stable Cherry-owned context. Runtime hooks load SOUL.md / USER.md /
+ * FACT.md through {@link buildMemoriesSection}. Memory tool usage is supplied
+ * by its MCP server instructions; other tool guidance ships lazily through
+ * the default-enabled `cherry-tool-guide` builtin skill.
  *
  * Memory files layout:
  *   {agentData}/SOUL.md          — personality, tone, communication style; role fallback without a System Prompt
@@ -139,7 +141,7 @@ export class PromptBuilder {
       : { kind: 'native' }
 
     // Bootstrap detection: inject bootstrap instructions if not completed
-    const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config, hasUserInstructions)
+    const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config)
     if (needsBootstrap) {
       contextParts.push(
         `${buildBootstrapInstructions(hasUserInstructions)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
@@ -147,9 +149,7 @@ export class PromptBuilder {
       logger.info('Bootstrap mode active — injecting onboarding instructions')
     }
 
-    // Always include the storage contract and absolute persona and user-profile file paths. Only the
-    // loaded file-content blocks inside the section are conditional.
-    contextParts.push(await this.buildMemoriesSection(agentDataPath))
+    contextParts.push(memoriesTemplate(agentDataPath))
 
     return { base, context: contextParts.join('\n\n') }
   }
@@ -163,7 +163,7 @@ export class PromptBuilder {
    * the agent remembers what it learned (e.g. parameter shapes that previously
    * failed, project conventions, user corrections).
    *
-   * Distinct from {@link buildPromptParts}'s memories section which also
+   * Distinct from {@link buildMemoriesSection} which also
    * includes the SOUL.md / USER.md persona files. Returns undefined when no
    * FACT.md exists, so callers can omit the section entirely rather than
    * emitting an empty wrapper.
@@ -179,37 +179,21 @@ export class PromptBuilder {
 
     return `## Agent Knowledge
 
-These are durable facts and lessons accumulated across this agent's past sessions. Trust them as ground truth unless you have direct evidence they're wrong — in which case update \`memory/FACT.md\` via \`mcp__agent-memory__memory\` action="update" so the next session also benefits.
+These are durable facts and lessons accumulated across this agent's past sessions. Trust them as ground truth unless you have direct evidence they're wrong.
 
 <facts>
 ${content}
 </facts>`
   }
 
-  /**
-   * Determine whether bootstrap should run.
-   * - If `bootstrap_completed` is explicitly true, skip.
-   * - If `bootstrap_completed` is explicitly false (via `config reset_bootstrap`), run — an explicit
-   *   reset overrides the instruction-based skip so the tool's "next session will onboard" holds.
-   * - If the agent already has non-blank user instructions, skip.
-   * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
-   * - Otherwise, run bootstrap.
-   */
-  private async shouldRunBootstrap(
-    agentDataPath: string,
-    config?: AgentConfiguration,
-    hasUserInstructions = false
-  ): Promise<boolean> {
+  // Role instructions do not prove persona setup is complete; they only select the onboarding flow.
+  private async shouldRunBootstrap(agentDataPath: string, config?: AgentConfiguration): Promise<boolean> {
     if (config?.bootstrap_completed === true) {
       return false
     }
     if (config?.bootstrap_completed === false) {
       return true
     }
-    if (hasUserInstructions) {
-      return false
-    }
-
     // Legacy migration: if SOUL.md already has real content, treat as completed
     const soulPath = await resolveFile(agentDataPath, 'SOUL.md')
     if (soulPath) {
@@ -226,7 +210,7 @@ ${content}
     return true
   }
 
-  /** Build the persona and durable-memory section without the base agent prompt. */
+  /** Load a complete, replaceable identity snapshot, including explicitly empty sections. */
   async buildMemoriesSection(agentDataPath: string): Promise<string> {
     const memoryDir = path.join(agentDataPath, 'memory')
     const hasRealMemoryDirectory = await isRealDirectory(memoryDir)
@@ -244,14 +228,16 @@ ${content}
     ])
 
     const sections = [
-      soulContent ? `<soul>\n${soulContent}\n</soul>` : '',
-      userContent ? `<user>\n${userContent}\n</user>` : '',
-      factContent ? `<facts>\n${factContent}\n</facts>` : ''
-    ]
-      .filter(Boolean)
-      .join('\n\n')
+      `<soul>\n${soulContent ?? ''}\n</soul>`,
+      `<user>\n${userContent ?? ''}\n</user>`,
+      `<facts>\n${factContent ?? ''}\n</facts>`
+    ].join('\n\n')
 
-    return memoriesTemplate(agentDataPath, sections)
+    return `<agent_identity>
+Current identity from ${agentDataPath}. This complete snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
+
+${sections}
+</agent_identity>`
   }
 
   /**
@@ -299,7 +285,13 @@ ${content}
 
     const cacheService = application.get('CacheService')
     const cached = cacheService.get<CacheEntry>(promptFileCacheKey(filePath))
-    if (cached && cached.mtimeMs === fileStat.mtimeMs) {
+    if (
+      cached &&
+      cached.mtimeMs === fileStat.mtimeMs &&
+      cached.ctimeMs === fileStat.ctimeMs &&
+      cached.size === fileStat.size &&
+      cached.ino === fileStat.ino
+    ) {
       return cached.content
     }
 
@@ -316,7 +308,13 @@ ${content}
       const trimmed = content.trim()
       cacheService.set(
         promptFileCacheKey(filePath),
-        { mtimeMs: openedStat.mtimeMs, content: trimmed },
+        {
+          mtimeMs: openedStat.mtimeMs,
+          ctimeMs: openedStat.ctimeMs,
+          size: openedStat.size,
+          ino: openedStat.ino,
+          content: trimmed
+        },
         PROMPT_FILE_CACHE_TTL_MS
       )
       logger.debug(`Loaded ${path.basename(filePath)}`, { path: filePath, length: trimmed.length })

@@ -12,6 +12,7 @@ export type FileIntakeMetadata = {
   filename: string
   mediaType: string
   byteLength: number
+  checksumAlgorithm?: 'sha256'
 }
 export type FileIntakeSnapshot = {
   uploadId: string
@@ -19,6 +20,9 @@ export type FileIntakeSnapshot = {
   committedOffset: string
   writerEpoch: string
   expiresAt: string
+  checksumAlgorithm?: 'sha256'
+  sha256?: string
+  failureCode?: 'CHECKSUM_MISMATCH' | 'VERIFICATION_FAILED'
 }
 export type FileIntakeWrite = {
   uploadId: string

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { SerializedError } from '@renderer/types/error'
 
 import { classifyError } from '../errorClassifier'
+import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
@@ -20,6 +21,22 @@ function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedErr
 }
 
 describe('classifyError', () => {
+  it.each([
+    [new Error('OpenAI API key is missing. Pass it using the apiKey parameter.'), 'auth'],
+    [
+      Object.assign(new Error('Forbidden'), {
+        statusCode: 403,
+        responseBody: '{"error":{"message":"insufficient_user_quota"}}'
+      }),
+      'quota'
+    ],
+    [Object.assign(new Error('Too many requests'), { status: 429 }), 'rate_limit'],
+    [{ name: 'Error', message: 'Process exited', stack: null, claudeCodeExitCategory: 'proxy' }, 'proxy'],
+    ['net::ERR_INTERNET_DISCONNECTED', 'network'],
+    ['Unexplained failure', 'unknown']
+  ] as const)('preserves the diagnosis when a thrown value enters a toast (%s)', (error, category) => {
+    expect(classifyError(serializeToastError(error)).category).toBe(category)
+  })
   it.each([
     ['auth', '/settings/provider?id=anthropic'],
     ['model', '/settings/provider?id=anthropic'],

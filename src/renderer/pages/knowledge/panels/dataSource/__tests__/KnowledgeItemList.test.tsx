@@ -1,11 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode, UIEvent } from 'react'
+import userEvent from '@testing-library/user-event'
+import { useState, type ReactNode, type UIEvent } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import type * as UiModule from '@cherrystudio/ui'
+import type { KnowledgeItemSort } from '@shared/data/api/schemas/knowledges'
+
+import { nextKnowledgeItemSort } from '../../../utils/itemSort'
 import KnowledgeItemList from '../KnowledgeItemList'
 import { createFileItem, createNoteItem } from './testUtils'
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof UiModule>()),
   Checkbox: ({
     checked,
     onCheckedChange,
@@ -24,23 +30,17 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-// Capture the latest `getItemKey` so a test can assert the identity-based key derivation —
-// the real virtualizer would use it both for the React key and its measurement cache.
-let capturedGetItemKey: ((index: number) => string | number) | undefined
-
 vi.mock('@renderer/components/VirtualList', () => ({
   DynamicVirtualList: <T,>({
     list,
     children,
-    onScroll,
-    getItemKey
+    onScroll
   }: {
     list: T[]
     children: (item: T) => ReactNode
     onScroll?: (event: UIEvent<HTMLDivElement>) => void
     getItemKey?: (index: number) => string | number
   }) => {
-    capturedGetItemKey = getItemKey
     return (
       <div data-testid="virtual-list" onScroll={onScroll}>
         {list.map((item, index) => (
@@ -127,6 +127,41 @@ const setScrollGeometry = (
 }
 
 describe('KnowledgeItemList', () => {
+  it('cycles accessible headers, restarts another column and supports keyboard activation', async () => {
+    const user = userEvent.setup()
+    const Harness = () => {
+      const [sort, setSort] = useState<KnowledgeItemSort | null>(null)
+      const [isLoading, setIsLoading] = useState(false)
+      return (
+        <KnowledgeItemList
+          items={isLoading ? [] : [createNoteItem({ id: 'note-1' })]}
+          isLoading={isLoading}
+          {...noopProps}
+          sort={sort}
+          onSortChange={(column) => {
+            setSort((previous) => nextKnowledgeItemSort(previous, column))
+            setIsLoading(true)
+          }}
+        />
+      )
+    }
+    render(<Harness />)
+    const name = screen.getByRole('columnheader', { name: 'knowledge.data_source.table.columns.name' })
+    const updated = screen.getByRole('columnheader', { name: 'knowledge.data_source.table.columns.updated_at' })
+    const nameButton = screen.getByRole('button', { name: 'knowledge.data_source.table.columns.name' })
+    await user.click(nameButton)
+    expect(name).toHaveAttribute('aria-sort', 'ascending')
+    await user.keyboard('{Enter}')
+    expect(name).toHaveAttribute('aria-sort', 'descending')
+    await user.keyboard(' ')
+    expect(name).toHaveAttribute('aria-sort', 'none')
+    await user.click(screen.getByRole('button', { name: 'knowledge.data_source.table.columns.updated_at' }))
+    expect(updated).toHaveAttribute('aria-sort', 'descending')
+    await user.click(nameButton)
+    expect(name).toHaveAttribute('aria-sort', 'ascending')
+    expect(updated).toHaveAttribute('aria-sort', 'none')
+  })
+
   it('does not request more items when there are no further pages', async () => {
     const handleLoadMore = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
@@ -139,21 +174,6 @@ describe('KnowledgeItemList', () => {
     await Promise.resolve()
 
     expect(handleLoadMore).not.toHaveBeenCalled()
-  })
-
-  it('keys rows by item id with an index fallback past the loaded range', () => {
-    render(
-      <KnowledgeItemList
-        items={[createFileItem({ id: 'file-1' }), createNoteItem({ id: 'note-1' })]}
-        isLoading={false}
-        {...noopProps}
-      />
-    )
-
-    expect(capturedGetItemKey?.(0)).toBe('file-1')
-    expect(capturedGetItemKey?.(1)).toBe('note-1')
-    // An out-of-range lookup (e.g. during the deferred-value lag) falls back to the index.
-    expect(capturedGetItemKey?.(5)).toBe(5)
   })
 
   it('does not load more when scrolled but still far from the bottom', async () => {

@@ -2,20 +2,23 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type ReactNode, useEffect } from 'react'
+import { type ComponentType, type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
+import { voiceTargetManager } from '@renderer/services/voice'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import type * as ComposerSurfaceModule from '../../ComposerSurface'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolFooterAction } from '../../toolLauncher'
@@ -57,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   topicPending: false,
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  realSurface: undefined as ComponentType<ComposerSurfaceProps> | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
@@ -148,7 +152,17 @@ const modelBWithFunctionCall = {
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock },
+  useIpcOn: (event: string, callback: (payload: unknown) => void) => {
+    useEffect(() => {
+      mocks.eventListeners.set(event, callback)
+      return () => {
+        mocks.eventListeners.delete(event)
+      }
+    }, [event, callback])
+  }
+}))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
@@ -163,6 +177,12 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         replaceDraft: mocks.replaceDraft,
+        appendText: (message) => {
+          const next = message ? (props.text ? `${props.text}\n${message}` : message) : props.text
+          if (next.length > 40000) return false
+          props.onTextChange(next)
+          return true
+        },
         // Bind the draft getter to this surface instance; during topic switches the old surface can unmount after the new renders.
         // Avoid reading shared `surfaceProps`, which would point at the new topic.
         getDraft: () => mocks.getDraft(props)
@@ -201,7 +221,10 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
   }
 
   return {
-    default: MockComposerSurface
+    default: (props: ComposerSurfaceProps) => {
+      const Surface = mocks.realSurface ?? MockComposerSurface
+      return <Surface {...props} />
+    }
   }
 })
 
@@ -251,7 +274,9 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  ComposerToolFooterActionsSync: () => null,
   ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
+  useComposerPinnedTools: () => mocks.pinnedToolIds,
   useComposerTokenReconcile: () => mocks.reconcileTokens,
   useComposerToolState: () => ({
     files: mocks.files ?? [],
@@ -648,8 +673,14 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
   )
 }
 
+const originalFetch = globalThis.fetch
+
 describe('ChatComposer', () => {
   beforeEach(() => {
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob([new Uint8Array(42)], { type: 'image/png' })
+    })) as unknown as typeof fetch
     mocks.registeredFooterActions.clear()
     MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
@@ -769,6 +800,7 @@ describe('ChatComposer', () => {
     mocks.topicPending = false
     mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
+    mocks.realSurface = undefined
     mocks.derivedToolState = undefined
     mocks.toolLaunchers = []
     mocks.toolLaunchersVersion = 0
@@ -814,7 +846,185 @@ describe('ChatComposer', () => {
   })
 
   afterEach(() => {
+    globalThis.fetch = originalFetch
     globalThis.ResizeObserver = originalResizeObserver
+  })
+
+  it('appends a screenshot and its message to the draft without sending', async () => {
+    const onSend = vi.fn()
+    const metadata = {
+      imageUrl: 'cherry-media://image/capture',
+      name: 'capture.png',
+      origin_name: 'capture.png',
+      ext: '.png',
+      size: 42,
+      type: 'image'
+    }
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    act(() => mocks.surfaceProps?.onTextChange('Existing draft'))
+    await act(async () => {
+      mocks.eventListeners.get('chat.screenshot.attachment')?.({
+        ...metadata,
+        text: 'Explain this',
+        scopeKey: ipcRequestMock.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1].scopeKey,
+        deliveryId: 'capture-1'
+      })
+    })
+    expect(mocks.surfaceProps?.text).toBe('Existing draft\nExplain this')
+    expect(mocks.files).toEqual([expect.objectContaining({ blob: expect.any(Blob), type: 'image' })])
+    expect(onSend).not.toHaveBeenCalled()
+    await act(async () => {
+      mocks.eventListeners.get('chat.screenshot.attachment')?.({
+        ...metadata,
+        text: 'Explain this',
+        scopeKey: ipcRequestMock.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1].scopeKey,
+        deliveryId: 'capture-1'
+      })
+    })
+    expect(mocks.files).toHaveLength(1)
+    expect(mocks.surfaceProps?.text).toBe('Existing draft\nExplain this')
+    await act(async () => {
+      mocks.eventListeners.get('chat.screenshot.attachment')?.({
+        imageUrl: metadata.imageUrl,
+        text: 'Wrong chat',
+        scopeKey: 'another-topic'
+      })
+    })
+    expect(mocks.surfaceProps?.text).toBe('Existing draft\nExplain this')
+    expect(mocks.files).toHaveLength(1)
+  })
+  it('rejects a screenshot when its receiver changes while media is loading', async () => {
+    const loading = createDeferred<Response>()
+    vi.mocked(fetch).mockReturnValueOnce(loading.promise)
+    const message = { id: 'edit-target', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={[{ type: 'text', text: 'Old message' }]} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    const scopeKey = ipcRequestMock.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1].scopeKey
+    act(() =>
+      mocks.eventListeners.get('chat.screenshot.attachment')?.({
+        deliveryId: 'loading-capture',
+        scopeKey,
+        imageUrl: 'cherry-media://image/capture',
+        name: 'capture.png',
+        size: 42,
+        text: 'Wrong draft'
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('edit-target'))
+    await act(async () =>
+      loading.resolve({
+        ok: true,
+        blob: async () => new Blob([new Uint8Array(42)], { type: 'image/png' })
+      } as Response)
+    )
+    expect(mocks.files).toHaveLength(0)
+    expect(mocks.surfaceProps?.text).toBe('Old message')
+    expect(ipcRequestMock).toHaveBeenCalledWith('chat.screenshot.received', {
+      deliveryId: 'loading-capture',
+      accepted: false
+    })
+  })
+
+  it('rejects a screenshot message that would overflow without adding its image', async () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    act(() => mocks.surfaceProps?.onTextChange('a'.repeat(39995)))
+    const scopeKey = ipcRequestMock.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1].scopeKey
+    await act(async () => {
+      mocks.eventListeners.get('chat.screenshot.attachment')?.({
+        deliveryId: 'overflow',
+        imageUrl: 'cherry-media://image/capture',
+        name: 'capture.png',
+        size: 42,
+        text: 'Explain this',
+        scopeKey
+      })
+    })
+    expect(mocks.surfaceProps?.text).toBe('a'.repeat(39995))
+    expect(mocks.files).toHaveLength(0)
+    expect(ipcRequestMock).toHaveBeenCalledWith('chat.screenshot.received', { deliveryId: 'overflow', accepted: false })
+  })
+
+  it.each(['', 'Explain this'])(
+    'rejects capture during direct send and accepts a retry afterward (%j)',
+    async (text) => {
+      const pendingSend = createDeferred<boolean>()
+      const onSend = vi.fn(() => pendingSend.promise)
+      render(<ChatComposer topic={topic} onSend={onSend} />)
+      act(() => mocks.surfaceProps?.onTextChange('Original draft'))
+      let sending: Promise<unknown> | undefined
+      act(() => {
+        sending = Promise.resolve(mocks.surfaceProps?.onSendDraft({ text: 'Original draft', tokens: [] }))
+      })
+      await waitFor(() => expect(onSend).toHaveBeenCalledOnce())
+      const capture = {
+        deliveryId: `pending-send-${text}`,
+        imageUrl: 'cherry-media://image/capture',
+        name: 'capture.png',
+        size: 42,
+        text,
+        scopeKey: ipcRequestMock.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1].scopeKey
+      }
+      await act(async () => mocks.eventListeners.get('chat.screenshot.attachment')?.(capture))
+      expect(mocks.files).toHaveLength(0)
+      expect(mocks.surfaceProps?.text).toBe('Original draft')
+      expect(ipcRequestMock).toHaveBeenCalledWith('chat.screenshot.received', {
+        deliveryId: capture.deliveryId,
+        accepted: false
+      })
+      await act(async () => {
+        pendingSend.resolve(true)
+        await sending
+      })
+      expect(mocks.surfaceProps?.text).toBe('')
+      await act(async () =>
+        mocks.eventListeners.get('chat.screenshot.attachment')?.({
+          ...capture,
+          deliveryId: capture.deliveryId + '-retry'
+        })
+      )
+      expect(mocks.files).toEqual([expect.objectContaining({ blob: expect.any(Blob) })])
+      expect(mocks.surfaceProps?.text).toBe(text)
+      expect(ipcRequestMock).toHaveBeenCalledWith('chat.screenshot.received', {
+        deliveryId: capture.deliveryId + '-retry',
+        accepted: true
+      })
+      expect(onSend).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('rejects a capture started before entering message editing in the same chat', async () => {
+    const message = { id: 'edit-target', role: 'user', topicId: topic.id, createdAt: '2026-01-01', status: 'success' }
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={[{ type: 'text', text: 'Old message' }]} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    const scopeKey = ipcRequestMock.mock.calls.findLast(([route]) => route === 'chat.screenshot.target')?.[1].scopeKey
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('edit-target'))
+    const before = mocks.surfaceProps?.text
+    await act(async () => {
+      mocks.eventListeners.get('chat.screenshot.attachment')?.({
+        deliveryId: 'stale-edit',
+        imageUrl: 'cherry-media://image/capture',
+        name: 'capture.png',
+        size: 42,
+        text: 'Explain this',
+        scopeKey
+      })
+    })
+    expect(mocks.files).toHaveLength(0)
+    expect(mocks.surfaceProps?.text).toBe(before)
+    expect(ipcRequestMock).toHaveBeenCalledWith('chat.screenshot.received', {
+      deliveryId: 'stale-edit',
+      accepted: false
+    })
   })
 
   it('puts the tool menu at the far right of the left toolbar in the modern layout', () => {
@@ -2174,7 +2384,7 @@ describe('ChatComposer', () => {
     })
 
     expect(onSend).not.toHaveBeenCalled()
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('does not submit a text draft before a newly attached file token is reflected in the editor', async () => {
@@ -2189,7 +2399,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toHaveLength(1)
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('does not submit a text draft while only some attached file tokens are reflected in the editor', async () => {
@@ -2218,7 +2428,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toEqual([syncedFile, unsyncedFile])
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
@@ -2241,7 +2451,7 @@ describe('ChatComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
-    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }))
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
@@ -2438,7 +2648,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.draftTokens).toEqual([fileToken, quoteToken])
     expect(mocks.surfaceProps?.editable).toBe(true)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {
@@ -4478,6 +4688,53 @@ describe('ChatComposer', () => {
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('rejects late dictation during an edit save and accepts explicit recovery after saving', async ({
+    onTestFinished
+  }) => {
+    const user = userEvent.setup()
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    const save = createDeferred<void>()
+    const editMessage = vi.fn(() => save.promise)
+    mocks.chatWrite = { pause: vi.fn(), editMessage }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    }
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingOnMount message={message} parts={[{ type: 'text', text: 'saved text' }]} />
+          <ChatComposer topic={topic} onSend={vi.fn()} />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    await user.click(editor)
+    const target = voiceTargetManager.captureCurrent()
+    expect(target).not.toBeNull()
+    await user.click(await screen.findByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(editMessage).toHaveBeenCalled())
+
+    expect(voiceTargetManager.insert(target!, 'late transcript')).toBe('unavailable')
+    await act(async () => save.resolve())
+    expect(editMessage).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'saved text' }])
+    act(() => {
+      expect(voiceTargetManager.insertIntoCurrent('late transcript', 'user_recovery')).toBe('inserted')
+    })
+    expect(await screen.findByText('late transcript')).toBeVisible()
   })
 
   it('prevents concurrent saves of the same edited message', async () => {
