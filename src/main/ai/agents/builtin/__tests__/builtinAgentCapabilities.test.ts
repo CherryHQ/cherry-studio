@@ -85,22 +85,22 @@ describe('Agent browser mounting', () => {
           channelLinked: false,
           browserEnabled: true
         }
-      ).has('browser')
+      ).has('automation')
     ).toBe(false)
   })
   it.each(AGENT_TYPES)('requires enabled control and an interactive open environment on %s', (type) => {
-    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false, browserEnabled: true }).has('browser')).toBe(
-      true
-    )
-    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false }).has('browser')).toBe(false)
-    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: true, browserEnabled: true }).has('browser')).toBe(
-      false
-    )
+    expect(
+      resolveMountedMcpServers(agentOf(type), { channelLinked: false, browserEnabled: true }).has('automation')
+    ).toBe(true)
+    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false }).has('automation')).toBe(false)
+    expect(
+      resolveMountedMcpServers(agentOf(type), { channelLinked: true, browserEnabled: true }).has('automation')
+    ).toBe(false)
     expect(
       resolveMountedMcpServers(agentOf(type, BUILTIN_AGENT_ROLE.SUPPORT), {
         channelLinked: false,
         browserEnabled: true
-      }).has('browser')
+      }).has('automation')
     ).toBe(false)
   })
 })

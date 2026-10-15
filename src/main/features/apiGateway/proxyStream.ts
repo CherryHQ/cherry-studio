@@ -141,15 +141,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
-  const isInternalAgentRequest =
-    config.requestHeaders !== undefined &&
-    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
-  let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
-  try {
-    resolvedAddress = resolveGatewayModelAddress(modelString, isInternalAgentRequest)
-  } catch (error) {
-    throw asClientError(error)
-  }
+  const isInternalRequest = config.requestHeaders
+    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
+    : false
+  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
@@ -169,7 +164,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const provider: Provider = config.provider ?? resolvedProvider
-  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalAgentRequest
+  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -384,8 +379,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
-            ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
-            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+            ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+            // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
+            maxRetries: 0
           })
         } catch (error) {
           fail(error)
@@ -459,17 +456,20 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
 
   try {
-    aiStreamManager.streamPrompt({
-      streamId,
-      uniqueModelId,
-      messages,
-      listener,
-      callOverrides,
-      contextOwner: 'caller',
-      ...(usageContext ? { usageContext } : {}),
-      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
-      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
-    })
+    if (!aborted) {
+      aiStreamManager.streamPrompt({
+        streamId,
+        uniqueModelId,
+        messages,
+        listener,
+        callOverrides,
+        contextOwner: 'caller',
+        ...(usageContext ? { usageContext } : {}),
+        ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+        maxRetries: 0
+      })
+    }
 
     await done
 

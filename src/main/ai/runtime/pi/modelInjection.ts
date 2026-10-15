@@ -39,7 +39,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
-import { ApiGatewayNotRunningError, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
@@ -374,7 +374,6 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
 
   if (usesPiGateway(provider, model)) {
     if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(providerId)
-    if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return
   }
 

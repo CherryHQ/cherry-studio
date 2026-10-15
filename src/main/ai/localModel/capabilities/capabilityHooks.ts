@@ -3,28 +3,31 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import type { UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import type { LocalModelCapability } from '@shared/data/presets/localModel'
+import type { LocalModelBundleId, LocalModelCapability } from '@shared/data/presets/localModel'
 
 import type { CapabilityHooks } from '../installation/BundleInstaller'
 
 const logger = loggerService.withContext('localModelCapabilityHooks')
 
-const CAPABILITY_HOOKS: Record<LocalModelCapability, CapabilityHooks> = {
-  embedding: {
+const CAPABILITY_HOOKS: Record<LocalModelCapability, (modelId: LocalModelBundleId) => CapabilityHooks> = {
+  embedding: (modelId) => ({
     acquireRemovalGuard: () => knowledgeBaseService.acquireEmbeddingModelRemovalGuard(LOCAL_EMBEDDING_UNIQUE_MODEL_ID),
-    terminateRuntimeThen: (after) => application.get('EmbeddingInferenceService').terminateThen(after)
-  },
-  ocr: {
-    terminateRuntimeThen: (after) => application.get('OcrInferenceService').terminateThen(after),
+    terminateRuntimeThen: (after) => application.get('EmbeddingInferenceService').removeModelThen(modelId, after)
+  }),
+  ocr: (modelId) => ({
+    terminateRuntimeThen: (after) => application.get('OcrInferenceService').removeModelThen(modelId, after),
     afterRemove: demoteOcrDefaults
-  },
-  asr: {
-    terminateRuntimeThen: (after) => application.get('AsrInferenceService').terminateThen(after)
-  }
+  }),
+  tts: (modelId) => ({
+    terminateRuntimeThen: (after) => application.get('TtsInferenceService').removeModelThen(modelId, after)
+  }),
+  asr: (modelId) => ({
+    terminateRuntimeThen: (after) => application.get('AsrInferenceService').removeModelThen(modelId, after)
+  })
 }
 
-export function capabilityHooksFor(capability: LocalModelCapability): CapabilityHooks {
-  return CAPABILITY_HOOKS[capability]
+export function capabilityHooksFor(capability: LocalModelCapability, modelId: LocalModelBundleId): CapabilityHooks {
+  return CAPABILITY_HOOKS[capability](modelId)
 }
 
 async function demoteOcrDefaults(): Promise<void> {

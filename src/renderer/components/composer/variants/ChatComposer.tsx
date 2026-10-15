@@ -1520,7 +1520,7 @@ const ChatComposerInner = ({
         return true
       } catch (error) {
         logger.warn('send failed', { error })
-        toast.error(t('chat.input.send_failed'))
+        toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
         return false
       } finally {
         setIsSending(false)
