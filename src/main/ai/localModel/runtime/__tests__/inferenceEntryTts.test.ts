@@ -39,6 +39,7 @@ describe('application-owned TTS JavaScript package', () => {
         },
         {
           signal: new AbortController().signal,
+          callHost: async () => null,
           emit: () => {},
           logger: { debug() {}, info() {}, warn() {}, error() {} }
         }
@@ -67,6 +68,7 @@ describe('application-owned TTS JavaScript package', () => {
         },
         {
           signal: new AbortController().signal,
+          callHost: async () => null,
           emit: () => {},
           logger: { debug() {}, info() {}, warn() {}, error() {} }
         }
