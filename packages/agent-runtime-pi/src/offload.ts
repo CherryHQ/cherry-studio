@@ -68,7 +68,8 @@ export function toolOutputOffloadExtension({ store, thresholdChars }: ToolOutput
       // Errors stay readable; nested calls reach the model only through their caller; `read`
       // results are exempt so reading an offloaded output back cannot offload it again.
       if (event.isError || event.parentToolCallId !== undefined || event.toolName === READ_TOOL) return undefined
-      const text = event.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+      // Joined as the bridge sends text parts, so the saved output reads like the result it replaces.
+      const text = event.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
       if (text.length <= Math.max(thresholdChars, MIN_OFFLOAD_CHARS)) return undefined
       const name = `tool-output-${createHash('sha256').update(text).digest('hex').slice(0, 16)}.txt`
       const note = await saveNote(store, {
