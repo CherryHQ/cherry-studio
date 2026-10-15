@@ -9,11 +9,15 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  Input
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import {
+  getFancyProviderName,
+  isCanonicalPresetProvider
+} from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import type { ProviderType } from '@renderer/types/provider'
 import { maskApiKey } from '@renderer/utils/api'
@@ -38,6 +42,7 @@ interface ImportedProviderData {
 interface PopupResult {
   updatedProvider?: ImportedProviderData
   isNew: boolean
+  nameOnly: boolean
   displayName: string
 }
 
@@ -47,6 +52,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
   const { t } = useTranslation()
   const { providers: rawProviders } = useProviders()
   const [showFullKey, setShowFullKey] = useState(false)
+  const [editedName, setEditedName] = useState<string>()
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
 
   const foundProvider = providers.find((p) => p.id === id)
@@ -71,12 +77,18 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
         apiHost: baseUrl || ''
       }
 
-  const displayName = foundProvider ? getFancyProviderName(foundProvider) : baseProvider.name
+  const canEditName = !foundProvider || !isCanonicalPresetProvider(foundProvider)
+  const finalName = (editedName ?? baseProvider.name).trim()
+  const nameChanged = canEditName && finalName !== baseProvider.name
+  const displayName = nameChanged ? finalName : foundProvider ? getFancyProviderName(foundProvider) : baseProvider.name
   const existingKeys = apiKeysData?.keys?.map((k) => k.key.trim()).filter(Boolean) ?? []
   const trimmedNewKey = newApiKey.trim()
   const keyAlreadyExists = existingKeys.includes(trimmedNewKey)
   const baseUrlChanged = Boolean(baseUrl) && baseUrl !== baseProvider.apiHost
-  const okDisabled = (foundProvider !== undefined && apiKeysLoading) || (keyAlreadyExists && !baseUrlChanged)
+  const okDisabled =
+    !finalName ||
+    (foundProvider !== undefined && apiKeysLoading) ||
+    (keyAlreadyExists && !baseUrlChanged && !nameChanged)
 
   const confirmMessage = keyAlreadyExists
     ? t('settings.models.provider_key_already_exists', { provider: displayName })
@@ -88,25 +100,30 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
     const finalApiKey = keyAlreadyExists ? '' : trimmedNewKey
     const finalApiHost = baseUrlChanged ? baseUrl : baseProvider.apiHost
 
-    if (finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
-      resolve({ updatedProvider: undefined, isNew: !foundProvider, displayName })
+    if (!nameChanged && finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
+      resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
       return
     }
 
     const updatedProvider: ImportedProviderData = {
       ...baseProvider,
+      name: canEditName ? finalName : baseProvider.name,
       apiKey: finalApiKey,
       apiHost: finalApiHost
     }
-    resolve({ updatedProvider, isNew: !foundProvider, displayName })
+    resolve({
+      updatedProvider,
+      isNew: !foundProvider,
+      nameOnly: Boolean(foundProvider) && keyAlreadyExists && !baseUrlChanged,
+      displayName
+    })
   }
 
   const handleCancel = () => {
-    resolve({ updatedProvider: undefined, isNew: !foundProvider, displayName })
+    resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
   }
 
   const rows = [
-    { label: t('settings.models.provider_name'), value: displayName },
     { label: t('settings.models.provider_id'), value: baseProvider.id },
     ...(baseUrl ? [{ label: t('settings.models.base_url'), value: baseUrl }] : [])
   ]
@@ -128,6 +145,17 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
         </DialogHeader>
         <div className="space-y-4">
           <div className="overflow-hidden rounded-xl border border-border-subtle bg-transparent">
+            <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-3 border-b border-border-subtle px-3 py-2.5">
+              <label htmlFor="provider-import-name" className="text-xs text-muted-foreground">
+                {t('settings.models.provider_name')}
+              </label>
+              <Input
+                id="provider-import-name"
+                value={canEditName ? (editedName ?? baseProvider.name) : displayName}
+                onChange={(event) => setEditedName(event.target.value)}
+                readOnly={!canEditName}
+              />
+            </div>
             {rows.map((row) => (
               <div
                 key={row.label}
@@ -163,7 +191,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
 }
 
 const UrlSchemaInfoPopup = createPopup<ShowParams, PopupResult>(PopupContainer, {
-  dismissResult: { updatedProvider: undefined, isNew: false, displayName: '' }
+  dismissResult: { updatedProvider: undefined, isNew: false, nameOnly: false, displayName: '' }
 })
 
 export default UrlSchemaInfoPopup

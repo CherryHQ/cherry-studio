@@ -1015,6 +1015,10 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
     expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
+    expect(mocks.surfaceProps?.voiceTarget).toEqual({
+      targetId: 'composer:session:session-1',
+      sourceEntityId: 'session-1'
+    })
   })
 
   it('limits Session knowledge choices to the Agent static binding', () => {
@@ -1305,6 +1309,10 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+    expect(mocks.runtimeHostProps).toMatchObject({
+      model: undefined,
+      session: expect.objectContaining({ agentId: 'agent-1', sessionId: 'session-1' })
+    })
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 
@@ -1373,7 +1381,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(getQueueDock()).toBeFalsy()
-    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }))
     expect(mocks.surfaceProps?.text).toBe('hello')
     expect(vi.mocked(cacheService.set)).toHaveBeenLastCalledWith(
       'agent.composer_draft.session_session-1',
@@ -4583,7 +4591,11 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('send'))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed'))
+    await waitFor(() =>
+      expect(toast.errorFromException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Agent workspace reference is not a file: /workspace/docs/notes.md' })
+      )
+    )
     expect(mocks.sendMessage).not.toHaveBeenCalled()
   })
 
@@ -5063,7 +5075,7 @@ describe('AgentComposer', () => {
       86400000
     )
     expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {

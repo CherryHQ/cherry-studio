@@ -25,11 +25,14 @@ export default {
       lib: {
         // Keys become `<entry>.js`, which is what a definition's `entry` resolves to.
         entry: {
+          'inference-tts': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceTts.ts'),
+          'inference-asr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceAsr.ts'),
           'inference-embedding': resolve(
             __dirname,
             'src/main/ai/localModel/runtime/utilityEntries/inferenceEmbedding.ts'
           ),
-          'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts')
+          'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts'),
+          'voice-audio': resolve(__dirname, 'src/main/ai/voice/localAdapters/utilityEntries/voiceAudio.ts')
         }
       },
       rolldownOptions: {

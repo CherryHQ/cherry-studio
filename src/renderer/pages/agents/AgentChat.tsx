@@ -251,6 +251,8 @@ const AgentChat = ({
   const sessionMessagesEnabled = Boolean(sessionSnapshot)
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
+    modelId: activeModel?.id,
+    agentType: activeAgent?.type,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
