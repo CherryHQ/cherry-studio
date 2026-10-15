@@ -64,7 +64,7 @@ export function useProviderDeepLinkImport(
     const importProvider = async (providerData: ImportedProviderSearchData) => {
       try {
         const popupResult = await UrlSchemaInfoPopup.show(providerData)
-        const { updatedProvider, isNew, displayName } = popupResult
+        const { updatedProvider, isNew, nameOnly, displayName } = popupResult
 
         if (!updatedProvider) {
           void navigate({ to: '/settings/provider' })
@@ -95,11 +95,12 @@ export function useProviderDeepLinkImport(
             endpointConfigs
           })
         } else {
-          await updateProviderById(providerId, {
-            name: updatedProvider.name,
-            defaultChatEndpoint,
-            endpointConfigs
-          })
+          await updateProviderById(
+            providerId,
+            nameOnly
+              ? { name: updatedProvider.name }
+              : { name: updatedProvider.name, defaultChatEndpoint, endpointConfigs }
+          )
         }
 
         if (updatedProvider.apiKey.trim()) {

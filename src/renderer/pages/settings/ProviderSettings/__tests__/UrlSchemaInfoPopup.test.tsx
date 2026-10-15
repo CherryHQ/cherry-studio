@@ -1,5 +1,5 @@
-import { mockUseQuery, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, render, screen } from '@testing-library/react'
+import { mockUseMutation, mockUseQuery, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,10 +7,13 @@ import PopupHost from '@renderer/components/PopupHost/PopupHost'
 import i18n from '@renderer/i18n/resolver'
 import { ProviderSchema } from '@shared/data/types/provider'
 
+import { useProviderDeepLinkImport } from '../hooks/useProviderDeepLinkImport'
 import UrlSchemaInfoPopup from '../UrlSchemaInfoPopup'
 
 vi.unmock('@cherrystudio/ui')
 vi.unmock('@renderer/services/popup')
+const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }))
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 
 const params = { id: 'my-relay', name: 'Relay', apiKey: 'test-key', baseUrl: 'https://example.com/v1' }
 
@@ -60,8 +63,19 @@ describe('provider import names', () => {
     await expect(result).resolves.toMatchObject({ updatedProvider: undefined })
   })
 
-  it('allows a name-only update without adding a duplicate API key', async () => {
+  it('imports only the edited name while preserving multiple endpoints and connection overrides', async () => {
     const user = userEvent.setup()
+    const updateProvider = vi.fn().mockResolvedValue(undefined)
+    const addApiKey = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/providers/:providerId', updateProvider)
+    const previousMutation = mockUseMutation.getMockImplementation()!
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/providers/:providerId/api-keys', addApiKey)
+    const apiKeyMutation = mockUseMutation.getMockImplementation()!
+    mockUseMutation.mockImplementation((method, path, options) =>
+      method === 'POST' && path === '/providers/:providerId/api-keys'
+        ? apiKeyMutation(method, path, options)
+        : previousMutation(method, path, options)
+    )
     MockUseDataApiUtils.mockQueryResult('/providers', {
       data: [
         ProviderSchema.parse({
@@ -72,7 +86,14 @@ describe('provider import names', () => {
           apiKeys: [],
           authType: 'api-key',
           settings: {},
-          endpointConfigs: { 'openai-chat-completions': { baseUrl: params.baseUrl } },
+          authConfig: { type: 'api-key', headerName: 'x-relay-key', prefix: 'Token' },
+          endpointConfigs: {
+            'openai-chat-completions': {
+              baseUrl: params.baseUrl,
+              dialect: { streamOptions: false, developerRole: true }
+            },
+            'anthropic-messages': { baseUrl: 'https://anthropic.example.com', dialect: { streamOptions: false } }
+          },
           defaultChatEndpoint: 'openai-chat-completions'
         })
       ]
@@ -84,17 +105,22 @@ describe('provider import names', () => {
         ? { ...result, data: { keys: [{ key: params.apiKey }] } }
         : result
     })
-    const { result } = await showImport()
+    const onSelectProvider = vi.fn()
+    render(<PopupHost />)
+    renderHook(() => useProviderDeepLinkImport(JSON.stringify(params), onSelectProvider))
+    await screen.findByRole('dialog')
     expect(screen.getByRole('button', { name: i18n.t('common.confirm') })).toBeDisabled()
     const input = screen.getByRole('textbox', { name: i18n.t('settings.models.provider_name') })
     expect(input).toHaveValue('Saved Relay')
     await user.clear(input)
     await user.type(input, 'Renamed Relay')
     await user.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))
-    await expect(result).resolves.toMatchObject({
-      isNew: false,
-      updatedProvider: { name: 'Renamed Relay', apiKey: '' }
+    await waitFor(() => expect(onSelectProvider).toHaveBeenCalledWith(params.id))
+    expect(updateProvider).toHaveBeenCalledWith({
+      params: { providerId: params.id },
+      body: { name: 'Renamed Relay' }
     })
+    expect(addApiKey).not.toHaveBeenCalled()
   })
 
   it('keeps the localized name of canonical presets read-only', async () => {

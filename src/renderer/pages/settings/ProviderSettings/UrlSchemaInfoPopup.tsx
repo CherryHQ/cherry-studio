@@ -42,6 +42,7 @@ interface ImportedProviderData {
 interface PopupResult {
   updatedProvider?: ImportedProviderData
   isNew: boolean
+  nameOnly: boolean
   displayName: string
 }
 
@@ -100,7 +101,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
     const finalApiHost = baseUrlChanged ? baseUrl : baseProvider.apiHost
 
     if (!nameChanged && finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
-      resolve({ updatedProvider: undefined, isNew: !foundProvider, displayName })
+      resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
       return
     }
 
@@ -110,11 +111,16 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
       apiKey: finalApiKey,
       apiHost: finalApiHost
     }
-    resolve({ updatedProvider, isNew: !foundProvider, displayName })
+    resolve({
+      updatedProvider,
+      isNew: !foundProvider,
+      nameOnly: Boolean(foundProvider) && keyAlreadyExists && !baseUrlChanged,
+      displayName
+    })
   }
 
   const handleCancel = () => {
-    resolve({ updatedProvider: undefined, isNew: !foundProvider, displayName })
+    resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
   }
 
   const rows = [
@@ -185,7 +191,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
 }
 
 const UrlSchemaInfoPopup = createPopup<ShowParams, PopupResult>(PopupContainer, {
-  dismissResult: { updatedProvider: undefined, isNew: false, displayName: '' }
+  dismissResult: { updatedProvider: undefined, isNew: false, nameOnly: false, displayName: '' }
 })
 
 export default UrlSchemaInfoPopup
