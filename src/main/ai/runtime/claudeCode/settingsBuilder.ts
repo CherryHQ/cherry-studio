@@ -176,6 +176,7 @@ export async function buildClaudeCodeSessionSettings(
   const capabilities = resolveAgentCapabilities(agent)
   const mountedServers = resolveMountedMcpServers(agent, {
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     channelLinked: linkedChannelSnapshot !== null
   })
 

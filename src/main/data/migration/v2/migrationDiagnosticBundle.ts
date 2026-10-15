@@ -46,8 +46,8 @@ interface LogSnapshot {
 }
 
 interface PresentFileIdentity {
-  readonly dev: number
-  readonly ino: number
+  readonly dev: bigint
+  readonly ino: bigint
 }
 
 type FileIdentity =
@@ -99,7 +99,7 @@ async function selectLogFiles(
 
 async function probeFileIdentity(filePath: AbsoluteFilePath): Promise<FileIdentity> {
   try {
-    const fileStat = await stat(filePath)
+    const fileStat = await stat(filePath, { bigint: true })
     return { status: 'present', dev: fileStat.dev, ino: fileStat.ino }
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'ENOENT' ? { status: 'missing' } : { status: 'unverifiable' }
@@ -114,16 +114,16 @@ async function createSnapshots(
 ): Promise<LogSnapshot[]> {
   const snapshots: LogSnapshot[] = []
   for (const { fileName, filePath } of candidates) {
-    const pathStat = await lstat(filePath)
+    const pathStat = await lstat(filePath, { bigint: true })
     if (!pathStat.isFile()) throw new Error('Selected log path is not a regular file')
     const handle = await openLogFile(filePath)
     handles.push(handle)
-    const handleStat = await handle.stat()
+    const handleStat = await handle.stat({ bigint: true })
     sourceIdentities.push({ dev: handleStat.dev, ino: handleStat.ino })
     if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
       throw new Error('Selected log changed before it could be opened')
     }
-    snapshots.push({ fileName, handle, snapshotBytes: handleStat.size })
+    snapshots.push({ fileName, handle, snapshotBytes: Number(handleStat.size) })
   }
   return snapshots
 }

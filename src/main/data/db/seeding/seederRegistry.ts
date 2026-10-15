@@ -2,6 +2,7 @@ import type { ISeeder } from '../types'
 import { BrowserCapabilityUpgradeSeeder } from './seeders/browserCapabilityUpgradeSeeder'
 import { BuiltinMcpServerSeeder } from './seeders/builtinMcpServerSeeder'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
+import { CherryAssistantInstructionsUpgradeSeeder } from './seeders/CherryAssistantInstructionsUpgradeSeeder'
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
@@ -29,8 +30,10 @@ export const seeders: ISeeder[] = [
   new RetiredAgentRuntimeSeeder(),
   new BrowserCapabilityUpgradeSeeder(),
   new LegacyFileCleanupPolicySeeder(),
+  new PresetProviderSeeder(),
   new CherryAiDefaultModelSeeder(),
   new CherryAssistantSeeder(),
+  new CherryAssistantInstructionsUpgradeSeeder(),
   new CherrySupportSeeder(),
   new DefaultAssistantSeeder(),
   new LongTextPastePreferenceUpgradeSeeder(),
@@ -38,7 +41,6 @@ export const seeders: ISeeder[] = [
   new SidebarShortcutMigrationSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
-  new PresetProviderSeeder(),
   new LocalModelSeeder(),
   new MiniAppSeeder(),
   new BuiltinMcpServerSeeder()

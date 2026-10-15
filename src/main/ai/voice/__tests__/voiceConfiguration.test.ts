@@ -7,7 +7,8 @@ import {
   QWEN3_TTS_MODEL_ID,
   TranscriptionLanguageSource,
   WINDOWS_ASR_MODEL_ID,
-  WINDOWS_TTS_MODEL_ID
+  WINDOWS_TTS_MODEL_ID,
+  VoiceModelSupport
 } from '@shared/ai/localVoice'
 
 import { resolveSpeechConfiguration, resolveTranscriptionConfiguration } from '../localAdapters'
@@ -15,6 +16,7 @@ import { appleSpeechDefinition, appleTranscriptionDefinition } from '../localAda
 import { funAsrTranscriptionDefinition } from '../localAdapters/funasr'
 import { qwen3SpeechDefinition } from '../localAdapters/qwen3Tts'
 import { windowsSpeechDefinition, windowsTranscriptionDefinition } from '../localAdapters/windows'
+import { VoiceRuntimeError } from '../VoiceRuntimeError'
 
 const mac = { platform: 'darwin', arch: 'arm64', majorVersion: 26 }
 const language = { source: TranscriptionLanguageSource.Interface, locale: 'zh-CN' } as const
@@ -27,6 +29,7 @@ describe('voice product defaults', () => {
       status: 'not_installed',
       reason: 'asset_required'
     })
+    vi.spyOn(funAsrTranscriptionDefinition, 'support').mockReturnValue(VoiceModelSupport.Supported)
     vi.spyOn(funAsrTranscriptionDefinition, 'status').mockResolvedValue({ status: 'ready' })
     expect(await resolveTranscriptionConfiguration({ language }, undefined, mac)).toEqual({
       modelId: FUNASR_MODEL_ID,
@@ -40,6 +43,7 @@ describe('voice product defaults', () => {
       status: 'not_installed',
       reason: 'asset_required'
     })
+    vi.spyOn(funAsrTranscriptionDefinition, 'support').mockReturnValue(VoiceModelSupport.Supported)
     vi.spyOn(funAsrTranscriptionDefinition, 'status').mockResolvedValue({ status: 'ready' })
     expect(
       await resolveTranscriptionConfiguration({ modelId: APPLE_ASR_MODEL_ID, language }, undefined, mac)
@@ -57,6 +61,32 @@ describe('voice product defaults', () => {
       modelId: WINDOWS_ASR_MODEL_ID,
       language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' },
       status: { status: 'ready' }
+    })
+  })
+
+  it('keeps an explicit Apple recognizer and its language when Windows cannot run that model', async () => {
+    const savedLanguage = { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' } as const
+    expect(
+      await resolveTranscriptionConfiguration({ modelId: APPLE_ASR_MODEL_ID, language: savedLanguage }, undefined, {
+        platform: 'win32',
+        arch: 'x64'
+      })
+    ).toEqual({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: savedLanguage,
+      status: { status: 'unsupported', reason: 'unsupported' }
+    })
+  })
+
+  it('keeps an explicit recognizer failed when inspection throws a recoverable error', async () => {
+    vi.spyOn(appleTranscriptionDefinition, 'status').mockRejectedValue(new VoiceRuntimeError('operation_failed'))
+    const savedLanguage = { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' } as const
+    expect(
+      await resolveTranscriptionConfiguration({ modelId: APPLE_ASR_MODEL_ID, language: savedLanguage }, undefined, mac)
+    ).toEqual({
+      modelId: APPLE_ASR_MODEL_ID,
+      language: savedLanguage,
+      status: { status: 'failed', reason: 'operation_failed' }
     })
   })
 
