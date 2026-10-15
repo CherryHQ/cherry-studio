@@ -70,8 +70,9 @@ const managedPath = (id: string) => path.join(TEST_ROOT, 'files', `${id}.pdf`)
 
 const binaryManager = { getToolSnapshots: vi.fn() }
 const apiGateway = {
-  ensureInternalGateway: vi.fn()
+  createScopedCredential: vi.fn()
 }
+const disposeCredential = vi.fn()
 const fileManager = {
   createInternalEntry: vi.fn(),
   ensureExternalEntry: vi.fn(),
@@ -142,7 +143,11 @@ describe('PdfTranslationService', () => {
         application: { status: 'applied', version: '0.6.4.post4' }
       }
     })
-    apiGateway.ensureInternalGateway.mockResolvedValue({ baseUrl: 'http://127.0.0.1:23333', apiKey: 'cs-sk-test' })
+    apiGateway.createScopedCredential.mockResolvedValue({
+      baseUrl: 'http://127.0.0.1:23333',
+      apiKey: 'cs-sk-test',
+      dispose: disposeCredential
+    })
 
     mocks.spawn.mockImplementation((_command: string, args: string[]) => {
       const child = new EventEmitter() as EventEmitter & {
@@ -184,7 +189,10 @@ describe('PdfTranslationService', () => {
     })
 
     expect(binaryManager.getToolSnapshots).toHaveBeenCalledTimes(1)
-    expect(apiGateway.ensureInternalGateway).toHaveBeenCalledWith('translate')
+    expect(apiGateway.createScopedCredential).toHaveBeenCalledWith({
+      path: '/v1/chat/completions',
+      model: 'openai:gpt-4.1'
+    })
     expect(mocks.spawn).toHaveBeenCalledWith(
       MANAGED_BINARY,
       expect.arrayContaining([
@@ -224,6 +232,7 @@ describe('PdfTranslationService', () => {
     expect(configPath).toContain('job-1')
     expect(args).not.toContain('cs-sk-test')
     expect(fs.existsSync(configPath)).toBe(false)
+    expect(disposeCredential).toHaveBeenCalledOnce()
     expect(result).toEqual({
       fileName: 'research paper.zh-CN.pdf',
       outputPath: managedPath(TRANSLATED_ENTRY_ID)
@@ -636,6 +645,7 @@ describe('PdfTranslationService', () => {
 
     await expect(pending).rejects.toThrow('PDF translation cancelled')
     expect(child!.kill).toHaveBeenCalledTimes(1)
+    expect(disposeCredential).toHaveBeenCalledOnce()
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-cancel'))).toBe(false)
     // Cancellation is expected — it must not be logged as a failure.
     expect(mockMainLoggerService.error).not.toHaveBeenCalledWith(
@@ -888,7 +898,11 @@ describe('PdfTranslationService', () => {
     })
 
     it('strips the brackets an IPv6 gateway host carries', async () => {
-      apiGateway.ensureInternalGateway.mockResolvedValue({ baseUrl: 'http://[::1]:23333', apiKey: 'cs-sk-test' })
+      apiGateway.createScopedCredential.mockResolvedValue({
+        baseUrl: 'http://[::1]:23333',
+        apiKey: 'cs-sk-test',
+        dispose: disposeCredential
+      })
 
       const env = await spawnedEnv()
 

@@ -4,7 +4,6 @@ import type { StreamListener } from '@main/ai/streamManager/types'
 import { BaseService } from '@main/core/lifecycle'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
-import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
 
 /**
  * Pins the gateway model-id contract: `model` is `providerId:apiModelId`, split on
@@ -15,8 +14,8 @@ const {
   mockStreamPrompt,
   mockGetProvider,
   mockListModels,
-  mockGetInternalFeature,
-  mockSyncEntitledModelsIfStale,
+  mockIsInternalRequest,
+  mockGetAgentSessionId,
   mockExtractStreamOptions,
   mockExtractProviderOptions,
   captured
@@ -24,8 +23,8 @@ const {
   mockStreamPrompt: vi.fn(),
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
-  mockGetInternalFeature: vi.fn<(headers: Headers) => 'agent' | 'translate' | undefined>(),
-  mockSyncEntitledModelsIfStale: vi.fn(),
+  mockIsInternalRequest: vi.fn<(headers: Headers) => boolean>(),
+  mockGetAgentSessionId: vi.fn<(headers: Headers) => string | undefined>(),
   mockExtractStreamOptions: vi.fn(),
   mockExtractProviderOptions: vi.fn(),
   captured: {
@@ -41,13 +40,10 @@ vi.mock('@application', () => ({
       if (name === 'AiStreamManager') return { streamPrompt: mockStreamPrompt, abort: vi.fn() }
       if (name === 'ApiGatewayService') {
         return {
-          getAgentSessionId: vi.fn(),
+          getAgentSessionId: mockGetAgentSessionId,
           resolveAgentSessionUsage: vi.fn(),
-          getInternalFeature: mockGetInternalFeature
+          isInternalRequest: mockIsInternalRequest
         }
-      }
-      if (name === 'CherryCloudService') {
-        return { syncEntitledModelsIfStale: mockSyncEntitledModelsIfStale }
       }
       return undefined
     })
@@ -91,16 +87,8 @@ beforeEach(() => {
     throw new Error('Provider not found')
   })
   mockListModels.mockReturnValue([])
-  mockGetInternalFeature.mockReturnValue(undefined)
-  mockSyncEntitledModelsIfStale.mockResolvedValue({
-    entitledModelIds: [`${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`],
-    freeModelIds: [],
-    availableModelIds: {
-      agent: [`${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`],
-      general: []
-    },
-    quotaExhaustedModelIds: []
-  })
+  mockIsInternalRequest.mockReturnValue(false)
+  mockGetAgentSessionId.mockReturnValue(undefined)
   mockExtractStreamOptions.mockReturnValue({})
   mockExtractProviderOptions.mockReturnValue(undefined)
   mockStreamPrompt.mockImplementation((opts) => {
@@ -254,7 +242,7 @@ describe('processMessage model-id parsing', () => {
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
   })
 
-  it('rejects a Cherry Cloud model from external requests regardless of downloaded features', async () => {
+  it('rejects a Cherry Cloud model from external requests', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
 
     await expect(
@@ -267,9 +255,10 @@ describe('processMessage model-id parsing', () => {
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
-  it('routes Cherry Cloud messages for an internal Agent request with Agent admission', async () => {
+  it('routes Cherry Cloud messages for an internal request and attributes Agent session usage', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-    mockGetInternalFeature.mockReturnValue('agent')
+    mockIsInternalRequest.mockReturnValue(true)
+    mockGetAgentSessionId.mockReturnValue('session-1')
     const responsePromise = processMessage({
       params: {
         model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
@@ -284,65 +273,10 @@ describe('processMessage model-id parsing', () => {
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
     expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
     expect(captured.opts).toMatchObject({ tokenUsageSource: 'agent' })
-    expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
-    expect(mockSyncEntitledModelsIfStale).toHaveBeenCalledOnce()
     void captured.opts!.listener!.onDone({} as any)
 
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
-
-  it('preserves Cherry Cloud permission refresh failures as retryable server errors', async () => {
-    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-    mockGetInternalFeature.mockReturnValue('agent')
-    mockSyncEntitledModelsIfStale.mockRejectedValueOnce(new Error('control service unavailable'))
-
-    await expect(
-      processMessage({
-        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
-        inputFormat: 'anthropic',
-        outputFormat: 'anthropic',
-        requestHeaders: new Headers()
-      })
-    ).rejects.toMatchObject({
-      status: 503,
-      message: 'Cherry Cloud model permissions are temporarily unavailable'
-    })
-    expect(mockStreamPrompt).not.toHaveBeenCalled()
-  })
-
-  it.each([false, true])(
-    'does not start inference after cancellation during permission refresh (stream=%s)',
-    async (stream) => {
-      mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-      mockGetInternalFeature.mockReturnValue('agent')
-      const refreshStarted = Promise.withResolvers<void>()
-      const refresh = Promise.withResolvers<CherryCloudModelSyncResult>()
-      mockSyncEntitledModelsIfStale.mockImplementationOnce(() => {
-        refreshStarted.resolve()
-        return refresh.promise
-      })
-      const controller = new AbortController()
-      const response = processMessage({
-        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, stream, messages: [] },
-        inputFormat: 'openai',
-        outputFormat: 'openai',
-        requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' }),
-        signal: controller.signal
-      })
-      await refreshStarted.promise
-      controller.abort()
-      const modelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free')
-      refresh.resolve({
-        entitledModelIds: [modelId],
-        freeModelIds: [],
-        availableModelIds: { agent: [modelId], general: [] },
-        quotaExhaustedModelIds: []
-      })
-
-      await expect(response).resolves.toBeInstanceOf(Response)
-      expect(mockStreamPrompt).not.toHaveBeenCalled()
-    }
-  )
 
   it('rejects an address that does not match an enabled gateway model', async () => {
     mockStreamPrompt.mockImplementationOnce((opts) => {
@@ -361,14 +295,10 @@ describe('processMessage model-id parsing', () => {
   })
 })
 
-describe('PDF translation admission', () => {
-  it('routes the translate credential through translate admission without Agent attribution', async () => {
+describe('internal requests without an Agent session', () => {
+  it('serves a Cherry Cloud model without Agent usage attribution', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'translation-model', 'translation-model', CHERRY_CLOUD_MODEL_GROUP)
-    mockGetInternalFeature.mockReturnValue('translate')
-    mockSyncEntitledModelsIfStale.mockResolvedValue({
-      availableModelIds: { agent: [], general: [createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'translation-model')] },
-      quotaExhaustedModelIds: []
-    })
+    mockIsInternalRequest.mockReturnValue(true)
     const responsePromise = processMessage({
       params: {
         model: `${CHERRY_CLOUD_PROVIDER_ID}:translation-model`,
@@ -383,19 +313,5 @@ describe('PDF translation admission', () => {
     expect(captured.opts).not.toHaveProperty('tokenUsageSource', 'agent')
     void captured.opts!.listener!.onDone({} as any)
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
-  })
-
-  it('rejects an Agent-only cloud model for the translate credential', async () => {
-    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-    mockGetInternalFeature.mockReturnValue('translate')
-    await expect(
-      processMessage({
-        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
-        inputFormat: 'openai',
-        outputFormat: 'openai',
-        requestHeaders: new Headers()
-      })
-    ).rejects.toMatchObject({ status: 400 })
-    expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 })

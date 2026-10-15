@@ -14,20 +14,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockGetModels,
   mockEstimateAnthropicRequestTokens,
-  mockGetInternalFeature,
+  mockIsInternalRequest,
+  mockGetCredentialScope,
+  scopedCredentials,
   mockPreferenceGet,
   mockProcessMessage,
   mockResolveGatewayModelAddress
 } = vi.hoisted(() => ({
   mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
   mockEstimateAnthropicRequestTokens: vi.fn(async () => 42),
-  mockGetInternalFeature: vi.fn((headers: Headers) =>
-    [headers.get('x-api-key'), headers.get('authorization'), headers.get('x-goog-api-key')].some(
-      (value) => value === 'internal-agent-key' || value === 'Bearer internal-agent-key'
+  mockIsInternalRequest: vi.fn((headers: Headers) => {
+    const tokens = [headers.get('x-api-key'), headers.get('authorization'), headers.get('x-goog-api-key')]
+    if (tokens.some((value) => value === 'internal-agent-key' || value === 'Bearer internal-agent-key')) return true
+    return tokens.some((value) => scopedCredentials.has(value?.replace(/^Bearer /, '') ?? ''))
+  }),
+  mockGetCredentialScope: vi.fn((headers: Headers) =>
+    scopedCredentials.get(
+      headers.get('x-api-key') ??
+        headers.get('authorization')?.replace(/^Bearer /, '') ??
+        headers.get('x-goog-api-key') ??
+        ''
     )
-      ? ('agent' as const)
-      : undefined
   ),
+  scopedCredentials: new Map<string, { path: string; model: string }>(),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
@@ -41,7 +50,7 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { getInternalFeature: mockGetInternalFeature }
+    ApiGatewayService: { isInternalRequest: mockIsInternalRequest, getCredentialScope: mockGetCredentialScope }
   }
   return mockApplicationFactory(overrides)
 })
@@ -257,7 +266,7 @@ describe('API gateway routes (integration)', () => {
   })
 
   describe('Anthropic token counting', () => {
-    it('preserves the internal Work identity for Cherry Cloud model resolution', async () => {
+    it('resolves Cherry Cloud models as an internal request', async () => {
       const response = await post(
         internalApp,
         '/v1/messages/count_tokens',
@@ -270,7 +279,7 @@ describe('API gateway routes (integration)', () => {
       expect(mockEstimateAnthropicRequestTokens).toHaveBeenCalledWith(
         expect.objectContaining({ model: 'cherryai-subscription:claude' }),
         expect.any(AbortSignal),
-        'agent'
+        true
       )
     })
   })
@@ -533,7 +542,7 @@ describe('API gateway routes (integration)', () => {
       expect(mockProcessMessage).not.toHaveBeenCalled()
     })
 
-    it('countTokens: preserves the internal Work identity for Cherry Cloud model resolution', async () => {
+    it('countTokens: resolves Cherry Cloud models as an internal request', async () => {
       const response = await post(
         internalApp,
         '/v1beta/models/cherryai-subscription:gemini-2.5:countTokens',
@@ -545,7 +554,7 @@ describe('API gateway routes (integration)', () => {
       )
 
       expect(response.status).toBe(200)
-      expect(mockResolveGatewayModelAddress).toHaveBeenCalledWith('cherryai-subscription:gemini-2.5', 'agent')
+      expect(mockResolveGatewayModelAddress).toHaveBeenCalledWith('cherryai-subscription:gemini-2.5', true)
     })
 
     // Media is now counted (converted → shared walker, or the provider's remote count) rather
@@ -710,6 +719,38 @@ describe('internal consumer authorization', () => {
 
     expect((await send('Bearer internal-agent-key')).status).toBe(200)
     expect((await send('Bearer unknown-key')).status).toBe(403)
+  })
+
+  it('limits a scoped credential to its path and model until revoked', async () => {
+    const app = buildApp({ surface: 'internal' })
+    const headers = { authorization: 'Bearer job-key', 'content-type': 'application/json' }
+    const chat = (model: string) =>
+      app.handle(
+        new Request('http://localhost/v1/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'translate' }] })
+        })
+      )
+    scopedCredentials.set('job-key', { path: '/v1/chat/completions', model: 'openai:gpt-4o' })
+
+    expect((await chat('openai:gpt-4o')).status).toBe(200)
+    expect((await chat('openai:gpt-4.1')).status).toBe(403)
+    expect((await app.handle(new Request('http://localhost/v1/models', { headers }))).status).toBe(403)
+    const messages = { model: 'openai:gpt-4o', max_tokens: 8, messages: [{ role: 'user', content: 'hi' }] }
+    const post = (path: string, body: unknown) =>
+      app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
+    expect((await post('/v1/messages', messages)).status).toBe(403)
+    expect(
+      (
+        await post('/v1beta/models/openai:gpt-4o:generateContent', {
+          contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+        })
+      ).status
+    ).toBe(403)
+
+    scopedCredentials.delete('job-key')
+    expect((await chat('openai:gpt-4o')).status).toBe(403)
   })
 
   it('rejects an internal key presented only as a query parameter', async () => {

@@ -12,8 +12,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     PreferenceService: { get: mockPreferenceGet },
     ApiGatewayService: {
-      getInternalFeature: (headers: Headers) =>
-        headers.get('authorization') === 'Bearer internal-key' ? ('agent' as const) : undefined
+      isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-key'
     }
   } as never)
 })

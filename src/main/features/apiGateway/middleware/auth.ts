@@ -42,10 +42,24 @@ export const authorizeApiRequest = (
   }
 
   if (surface === 'internal') {
-    return application.get('ApiGatewayService').getInternalFeature(requestHeaders)
+    return application.get('ApiGatewayService').isInternalRequest(requestHeaders)
       ? undefined
       : { status: 403, error: 'Forbidden' }
   }
   const apiKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
   return apiKey && isValidToken(token, apiKey) ? undefined : { status: 403, error: 'Forbidden' }
+}
+
+/** A scoped internal credential may only call its own path with its own model. */
+export const authorizeCredentialScope = (
+  request: Request,
+  body: unknown,
+  surface: GatewaySurface
+): AuthFailure | undefined => {
+  if (surface !== 'internal') return undefined
+  const scope = application.get('ApiGatewayService').getCredentialScope(request.headers)
+  if (!scope) return undefined
+  const model = body && typeof body === 'object' && 'model' in body ? body.model : undefined
+  const allowed = request.method === 'POST' && new URL(request.url).pathname === scope.path && model === scope.model
+  return allowed ? undefined : { status: 403, error: 'Forbidden' }
 }

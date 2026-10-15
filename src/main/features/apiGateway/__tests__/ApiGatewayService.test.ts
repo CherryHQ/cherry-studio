@@ -152,25 +152,27 @@ beforeEach(() => {
   mockStop.mockResolvedValue(undefined)
 })
 
-async function startInternalGateway(service: ApiGatewayService, feature: 'agent' | 'translate' = 'agent') {
-  const pending = service.ensureInternalGateway(feature)
+async function startInternalGateway(service: ApiGatewayService) {
+  const pending = service.ensureInternalGateway()
   await vi.waitFor(() => expect(startResolvers.length).toBeGreaterThan(0))
   startResolvers.at(-1)!()
   return pending
 }
+
+const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
 
 describe('ApiGatewayService internal gateway', () => {
   it('serves internal consumers from one loopback listener without enabling the user-facing gateway', async () => {
     const service = new ApiGatewayService()
     await service._doInit()
 
-    const agent = await startInternalGateway(service, 'agent')
-    const translate = await service.ensureInternalGateway('translate')
+    const internal = await startInternalGateway(service)
+    const scoped = await service.createScopedCredential(CHAT_SCOPE)
 
     expect(vi.mocked(ApiGateway)).toHaveBeenCalledOnce()
     expect(vi.mocked(ApiGateway)).toHaveBeenCalledWith({ host: '127.0.0.1', port: 0 }, 'internal')
-    expect(translate.baseUrl).toBe(agent.baseUrl)
-    expect(service.getInternalGatewayOrigin()).toBe(agent.baseUrl)
+    expect(scoped.baseUrl).toBe(internal.baseUrl)
+    expect(service.getInternalGatewayOrigin()).toBe(internal.baseUrl)
     expect(service.isActivated).toBe(false)
     expect(captured.enabledPreference).toBe(false)
   })
@@ -178,38 +180,55 @@ describe('ApiGatewayService internal gateway', () => {
   it('retries the internal listener after a failed start', async () => {
     const service = new ApiGatewayService()
     rejectStart = true
-    await expect(service.ensureInternalGateway('agent')).rejects.toThrow('port in use')
+    await expect(service.ensureInternalGateway()).rejects.toThrow('port in use')
 
     rejectStart = false
     await expect(startInternalGateway(service)).resolves.toMatchObject({ baseUrl: expect.any(String) })
     expect(vi.mocked(ApiGateway)).toHaveBeenCalledTimes(2)
   })
 
-  it('identifies the internal feature from its key in every credential dialect', async () => {
+  it('recognizes internal credentials in every header dialect and never the user key', async () => {
     const service = new ApiGatewayService()
-    const agent = await startInternalGateway(service, 'agent')
-    const translate = await service.ensureInternalGateway('translate')
+    const internal = await startInternalGateway(service)
+    const scoped = await service.createScopedCredential(CHAT_SCOPE)
 
-    expect(agent.apiKey).not.toBe(translate.apiKey)
-    expect(service.getInternalFeature(new Headers({ 'x-api-key': agent.apiKey }))).toBe('agent')
-    expect(service.getInternalFeature(new Headers({ authorization: `Bearer ${translate.apiKey}` }))).toBe('translate')
-    expect(service.getInternalFeature(new Headers({ 'x-goog-api-key': agent.apiKey }))).toBe('agent')
-    expect(service.getInternalFeature(new Headers({ 'x-api-key': 'existing-key' }))).toBeUndefined()
-    expect(service.getInternalFeature(new Headers())).toBeUndefined()
+    expect(service.isInternalRequest(new Headers({ 'x-api-key': internal.apiKey }))).toBe(true)
+    expect(service.isInternalRequest(new Headers({ authorization: `Bearer ${scoped.apiKey}` }))).toBe(true)
+    expect(service.isInternalRequest(new Headers({ 'x-goog-api-key': internal.apiKey }))).toBe(true)
+    expect(service.isInternalRequest(new Headers({ 'x-api-key': 'existing-key' }))).toBe(false)
+    expect(service.isInternalRequest(new Headers())).toBe(false)
   })
 
-  it('attributes usage to an Agent session only for internal Agent requests', async () => {
+  it('binds each scoped credential to its own scope and revokes it on dispose', async () => {
     const service = new ApiGatewayService()
-    const agent = await startInternalGateway(service, 'agent')
-    const translate = await service.ensureInternalGateway('translate')
+    const internal = await startInternalGateway(service)
+    const first = await service.createScopedCredential(CHAT_SCOPE)
+    const second = await service.createScopedCredential({ ...CHAT_SCOPE, model: 'cherryai-subscription:qwen3.8-flash' })
+    const headers = (apiKey: string) => new Headers({ authorization: `Bearer ${apiKey}` })
+
+    expect(first.apiKey).not.toBe(second.apiKey)
+    expect(service.getCredentialScope(headers(first.apiKey))).toEqual(CHAT_SCOPE)
+    expect(service.getCredentialScope(headers(second.apiKey))?.model).toBe('cherryai-subscription:qwen3.8-flash')
+    expect(service.getCredentialScope(headers(internal.apiKey))).toBeUndefined()
+
+    first.dispose()
+    expect(service.isInternalRequest(headers(first.apiKey))).toBe(false)
+    expect(service.getCredentialScope(headers(first.apiKey))).toBeUndefined()
+    expect(service.isInternalRequest(headers(second.apiKey))).toBe(true)
+  })
+
+  it('attributes usage to an Agent session only for the unrestricted internal key', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service)
+    const scoped = await service.createScopedCredential(CHAT_SCOPE)
     const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
 
-    expect(service.resolveAgentSessionUsage(new Headers({ ...sessionHeaders, 'x-api-key': agent.apiKey }))).toEqual({
+    expect(service.resolveAgentSessionUsage(new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }))).toEqual({
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     })
     expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1')
-    expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': translate.apiKey }))).toBeUndefined()
+    expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': scoped.apiKey }))).toBeUndefined()
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
   })
 })

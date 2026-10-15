@@ -1,15 +1,12 @@
-import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { isManagedCherryAiDefaultModel, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel, isPublicGatewayRoutableModel } from '@shared/utils/model'
 import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
-
-import type { InternalGatewayFeature } from '../ApiGatewayService'
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
@@ -43,10 +40,9 @@ export interface ResolvedGatewayModelAddress {
   model: Model
 }
 
-function gatewayModelError(message: string, status: number, cause?: unknown): Error & { status: number } {
-  const error = new Error(message) as Error & { status: number; cause?: unknown }
+function gatewayModelError(message: string, status: number): Error & { status: number } {
+  const error = new Error(message) as Error & { status: number }
   error.status = status
-  if (cause !== undefined) error.cause = cause
   return error
 }
 
@@ -95,10 +91,10 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   }
 }
 
-/** Resolve a `providerId:apiModelId`; Cherry Cloud models require an authenticated internal request. */
+/** Resolve a `providerId:apiModelId`; Cherry Cloud models are served only to internal requests. */
 export async function resolveGatewayModelAddress(
   modelAddress: string,
-  internalFeature?: InternalGatewayFeature
+  internal = false
 ): Promise<ResolvedGatewayModelAddress> {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
@@ -121,26 +117,13 @@ export async function resolveGatewayModelAddress(
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 
-  let availableCloudModelIds: Set<UniqueModelId> | undefined
-  if (isManagedCherryCloudModel(providerId)) {
-    if (internalFeature) {
-      try {
-        const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
-        const { agent, general } = availability.availableModelIds
-        availableCloudModelIds = new Set(internalFeature === 'agent' ? agent : general)
-      } catch (error) {
-        throw gatewayModelError('Cherry Cloud model permissions are temporarily unavailable', 503, error)
-      }
-    }
-  }
-
-  const isRoutableModel = internalFeature ? isGatewayRoutableModel : isPublicGatewayRoutableModel
+  const isRoutableModel = internal ? isGatewayRoutableModel : isPublicGatewayRoutableModel
   const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
     if (!isRoutableModel(candidate)) return false
     const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
     return candidateApiModelId === apiModelId
   })
-  if (!model || (availableCloudModelIds && !availableCloudModelIds.has(model.id))) {
+  if (!model) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 

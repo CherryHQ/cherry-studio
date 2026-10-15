@@ -141,11 +141,10 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
-  const internalFeature = config.requestHeaders
-    ? application.get('ApiGatewayService').getInternalFeature(config.requestHeaders)
-    : undefined
-  const isInternalAgentRequest = internalFeature === 'agent'
-  const resolvedAddress = await resolveGatewayModelAddress(modelString, internalFeature)
+  const isInternalRequest = config.requestHeaders
+    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
+    : false
+  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
@@ -165,7 +164,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const provider: Provider = config.provider ?? resolvedProvider
-  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalAgentRequest
+  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -380,7 +379,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
-            ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
+            ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
             // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
             maxRetries: 0
@@ -466,7 +465,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         callOverrides,
         contextOwner: 'caller',
         ...(usageContext ? { usageContext } : {}),
-        ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
+        ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
         idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
         maxRetries: 0
       })

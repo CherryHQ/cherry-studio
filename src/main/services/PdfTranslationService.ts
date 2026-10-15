@@ -219,6 +219,7 @@ export class PdfTranslationService extends BaseService {
       stageProgress: null
     }
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
+    let gateway: { baseUrl: string; apiKey: string; dispose: () => void } | undefined
 
     try {
       // Register the job as the first in-try statement so the `finally` cleanup (delete + temp
@@ -239,7 +240,9 @@ export class PdfTranslationService extends BaseService {
       const gatewayModelId = formatGatewayModelId(providerId, model.apiModelId ?? modelId)
 
       // The internal listener is independent of the user-facing gateway toggle and port.
-      const gateway = await application.get('ApiGatewayService').ensureInternalGateway('translate')
+      gateway = await application
+        .get('ApiGatewayService')
+        .createScopedCredential({ path: '/v1/chat/completions', model: gatewayModelId })
       this.throwIfCancelled(job)
 
       await fs.promises.rm(outputDir, { force: true, recursive: true })
@@ -279,6 +282,7 @@ export class PdfTranslationService extends BaseService {
       }
       throw error
     } finally {
+      gateway?.dispose()
       this.activeJobs.delete(request.jobId)
       // Unconditional: on success the artifact already lives in FileManager, on failure
       // there is nothing worth keeping. Nobody outside this method reads the temp dir.

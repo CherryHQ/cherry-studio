@@ -11,7 +11,7 @@ import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { gatewayErrorHandler } from './errors'
 import { screenLanRequest } from './lanGuard'
 import { McpSessionStore } from './McpSessionStore'
-import { authorizeApiRequest, type GatewaySurface } from './middleware/auth'
+import { authorizeApiRequest, authorizeCredentialScope, type GatewaySurface } from './middleware/auth'
 import {
   buildOpenApiDocument,
   DOC_DESCRIPTIONS,
@@ -43,8 +43,10 @@ const buildV1Routes = (mcpSessions: McpSessionStore, surface: GatewaySurface) =>
     .use(bearer())
     .guard({
       as: 'scoped',
-      beforeHandle: ({ bearer, headers, set, request }) => {
-        const failure = authorizeApiRequest(headers['x-api-key'], bearer, undefined, request.headers, surface)
+      beforeHandle: ({ bearer, headers, set, request, body }) => {
+        const failure =
+          authorizeApiRequest(headers['x-api-key'], bearer, undefined, request.headers, surface) ??
+          authorizeCredentialScope(request, body, surface)
         if (!failure) return undefined
         set.status = failure.status
         return { error: failure.error }
