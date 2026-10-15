@@ -240,7 +240,8 @@ export class SubagentRegistry {
     const run = this.live.get(sessionId)
     const record = this.records.get(sessionId)
     if (!run || !record || record.status === 'finished') return undefined
-    record.stoppedBy = by
+    // A run the user stopped stays theirs while it winds down: it must not become continuable.
+    if (record.stoppedBy !== 'user') record.stoppedBy = by
     run.controller.abort()
     return run.done
   }
