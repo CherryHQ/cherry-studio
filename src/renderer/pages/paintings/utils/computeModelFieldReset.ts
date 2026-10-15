@@ -54,7 +54,10 @@ export async function computeModelFieldReset(input: {
   const crossProvider = newProviderId !== undefined && newProviderId !== providerId
   if (!crossProvider && oldModelId && oldModelId === newModelId) return {}
 
-  const fetchSupport = async (supportProviderId: string, modelId: string): Promise<ImageGenerationSupport | undefined> => {
+  const fetchSupport = async (
+    supportProviderId: string,
+    modelId: string
+  ): Promise<ImageGenerationSupport | undefined> => {
     try {
       const result = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
         params: { providerId: supportProviderId, modelId }
