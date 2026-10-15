@@ -10,7 +10,13 @@ import {
   type DragEndEvent,
   type DragOverEvent
 } from '@dnd-kit/core'
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import {
+  hasSortableData,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable'
+import { isKeyboardEvent } from '@dnd-kit/utilities'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -75,8 +81,22 @@ const BaseNavigatorContent = ({
     }
     return hits.length ? hits : closestCenter(candidates)
   }, [])
-  const getIndicator = useCallback(({ active, over }: DragOverEvent) => {
+  const getIndicator = useCallback(({ active, over, activatorEvent }: DragOverEvent) => {
     if (!over || active.id === over.id) return null
+    if (
+      isKeyboardEvent(activatorEvent) &&
+      hasSortableData(active) &&
+      hasSortableData(over) &&
+      active.data.current.sortable.containerId === over.data.current.sortable.containerId
+    ) {
+      return {
+        id: String(over.id),
+        position:
+          active.data.current.sortable.index < over.data.current.sortable.index
+            ? ('after' as const)
+            : ('before' as const)
+      }
+    }
     const top = active.rect.current.translated?.top ?? 0
     const height = active.rect.current.translated?.height ?? 0
     return {
