@@ -20,12 +20,10 @@ export default defineProvider({
       modelsApiUrls: { default: 'https://tokendance.space/gateway/v1/models' }
     },
     'openai-embeddings': {
-      adapterFamily: 'openai-compatible',
-      baseUrl: 'https://tokendance.space/gateway'
+      adapterFamily: 'openai-compatible'
     },
     'openai-image-generation': {
-      adapterFamily: 'openai-compatible',
-      baseUrl: 'https://tokendance.space/gateway'
+      adapterFamily: 'openai-compatible'
     },
     'openai-responses': {
       adapterFamily: 'openai',

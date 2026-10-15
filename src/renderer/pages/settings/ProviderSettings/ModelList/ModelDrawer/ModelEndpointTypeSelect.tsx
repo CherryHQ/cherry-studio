@@ -14,16 +14,19 @@ interface ModelEndpointTypeSelectProps {
 
 export function ModelEndpointTypeSelect({ value, onChange }: ModelEndpointTypeSelectProps) {
   const { t } = useTranslation()
-  const options: ComboboxOption[] = MODEL_ENDPOINT_OPTIONS.map((option) => ({
-    value: option.id,
-    label: t(option.label)
-  }))
+  const options: ComboboxOption[] = [
+    ...MODEL_ENDPOINT_OPTIONS.map((option) => ({ value: option.id, label: t(option.label) })),
+    ...value
+      .filter((id) => !MODEL_ENDPOINT_OPTIONS.some((option) => option.id === id))
+      .map((id) => ({ value: id, label: id }))
+  ]
 
   const handleChange = (nextValue: string | string[]) => {
     const next = Array.isArray(nextValue) ? nextValue : [nextValue]
-    const nextSet = new Set(next)
-    const ordered = MODEL_ENDPOINT_OPTIONS.map((option) => option.id).filter((optionId) => nextSet.has(optionId))
-    onChange(ordered)
+    onChange([
+      ...value.filter((id) => next.includes(id)),
+      ...(next.filter((id) => !value.includes(id as ModelDrawerEndpointType)) as ModelDrawerEndpointType[])
+    ])
   }
 
   return (
@@ -37,7 +40,7 @@ export function ModelEndpointTypeSelect({ value, onChange }: ModelEndpointTypeSe
       popoverClassName="w-(--radix-popover-trigger-width)"
       renderValue={(selectedValues, availableOptions) => {
         const values = Array.isArray(selectedValues) ? selectedValues : [selectedValues]
-        const labels = availableOptions.filter((option) => values.includes(option.value)).map((option) => option.label)
+        const labels = values.map((value) => availableOptions.find((option) => option.value === value)?.label ?? value)
 
         return labels.length > 0 ? (
           <span className="min-w-0 flex-1 truncate text-left">{labels.join(', ')}</span>

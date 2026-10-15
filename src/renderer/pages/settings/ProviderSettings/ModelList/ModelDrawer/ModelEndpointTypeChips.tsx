@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 
-import { MODEL_ENDPOINT_OPTIONS } from './helpers'
+import { MODEL_ENDPOINT_OPTIONS, toggleModelValue } from './helpers'
 import type { ModelDrawerEndpointType } from './types'
 
 interface ModelEndpointTypeChipsProps {
@@ -16,20 +16,14 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
   const { t } = useTranslation()
   const selected = new Set(value)
 
-  const toggle = (id: ModelDrawerEndpointType) => {
-    const next = new Set(selected)
-    if (next.has(id)) {
-      next.delete(id)
-    } else {
-      next.add(id)
-    }
-    const ordered = MODEL_ENDPOINT_OPTIONS.map((option) => option.id).filter((optionId) => next.has(optionId))
-    onChange(ordered)
-  }
+  const options = [
+    ...MODEL_ENDPOINT_OPTIONS.map((option) => ({ id: option.id as ModelDrawerEndpointType, label: t(option.label) })),
+    ...value.filter((id) => !MODEL_ENDPOINT_OPTIONS.some((option) => option.id === id)).map((id) => ({ id, label: id }))
+  ]
 
   return (
     <div className={drawerClasses.endpointChipRow}>
-      {MODEL_ENDPOINT_OPTIONS.map((option) => {
+      {options.map((option) => {
         const active = selected.has(option.id)
         return (
           <Button
@@ -39,9 +33,9 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
             size="sm"
             aria-pressed={active}
             className={active ? 'border border-border text-foreground' : undefined}
-            onClick={() => toggle(option.id)}>
+            onClick={() => onChange(toggleModelValue(value, option.id))}>
             {active ? <Check aria-hidden className="size-3" /> : null}
-            {t(option.label)}
+            {option.label}
           </Button>
         )
       })}

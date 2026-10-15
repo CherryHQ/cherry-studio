@@ -140,6 +140,8 @@ export type { ModelLookupResult, PersistedEndpointConfig } from './registry-util
 export {
   buildPersistedEndpointConfigs,
   endpointImpliedCapability,
+  canInheritEndpointConnection,
+  ENDPOINT_CONNECTION_FAMILY,
   inferAdapterFamily,
   lookupRegistryModel,
   lookupRegistryProvider
