@@ -173,6 +173,64 @@ describe('HTML layout text extraction', () => {
     })
   })
 
+  it('applies the enclosing level once to a nested heading and leaves later paragraphs as text', () => {
+    document.body.innerHTML =
+      '<ol start="3"><li><h2><span style="display:block"><h3 style="font-weight:700;text-align:center">Quarterly</h3><p>Body</p></span> tail</h2></li></ol>'
+    const heading = document.querySelector('h2')
+    expect(heading?.querySelector(':scope > span > h3')?.textContent).toBe('Quarterly')
+    expect(heading?.querySelector(':scope > h3')).toBeNull()
+    expect(heading?.querySelector('p')?.textContent).toBe('Body')
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks.map(blockShape)).toEqual([
+      { type: 'heading', level: 2, text: 'Quarterly', bullet: 1, orderedNumber: 3, listDepth: 1 },
+      { type: 'text', text: 'Body', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'tail', bullet: undefined, orderedNumber: undefined, listDepth: 1 }
+    ])
+    expect(blocks[0]).toMatchObject({
+      style: { align: 'center' },
+      runs: [expect.objectContaining({ text: 'Quarterly', bold: true })]
+    })
+    expect(blocks.filter((block) => block.type === 'heading')).toHaveLength(1)
+  })
+
+  it('applies the enclosing level to a heading in the first column and leaves later text untitled', () => {
+    document.body.innerHTML =
+      '<h2><div style="display:flex"><div><h3 style="text-align:right">Left</h3></div><div>Right</div></div> leftover</h2>'
+    const heading = document.querySelector('h2')
+    expect(heading?.querySelector('div h3')?.textContent).toBe('Left')
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks.map(blockShape)).toEqual([
+      { type: 'columns' },
+      { type: 'text', text: 'leftover', bullet: undefined, orderedNumber: undefined, listDepth: undefined }
+    ])
+    expect(blocks[0]).toMatchObject({
+      type: 'columns',
+      columns: [
+        [{ type: 'heading', level: 2, text: 'Left', style: { align: 'right' } }],
+        [{ type: 'text', text: 'Right' }]
+      ]
+    })
+    expect(blocks.filter((block) => block.type === 'heading')).toHaveLength(0)
+  })
+
+  it('keeps image order and the first heading when a heading row would otherwise become columns', () => {
+    document.body.innerHTML =
+      '<h2 style="display:flex"><img alt="logo" src="logo.png"><span>Quarterly Report</span></h2>'
+    const { blocks, warnings } = extractHtmlDocument()
+    expect(blocks.map(blockShape)).toEqual([
+      { type: 'image', text: 'logo', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      {
+        type: 'heading',
+        level: 2,
+        text: 'Quarterly Report',
+        bullet: undefined,
+        orderedNumber: undefined,
+        listDepth: undefined
+      }
+    ])
+    expect(warnings).toContain('complex_layout')
+  })
+
   it('preserves pre whitespace around an image on the mixed flush', () => {
     const before = '  keep\t'
     const after = '  tail\n'

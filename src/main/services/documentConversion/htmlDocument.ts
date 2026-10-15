@@ -188,7 +188,7 @@ export function extractHtmlDocument(): DocumentModel {
     }
     if (['absolute', 'fixed', 'sticky'].includes(css.position) || css.transform !== 'none' || css.filter !== 'none')
       warnings.add('complex_layout')
-    if (css.display === 'flex' || css.display === 'grid') {
+    if ((css.display === 'flex' || css.display === 'grid') && !/^H[1-6]$/.test(tag)) {
       const hasDirectText = Array.from(element.childNodes).some(
         (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()
       )
@@ -208,7 +208,8 @@ export function extractHtmlDocument(): DocumentModel {
           }
         ]
       warnings.add('complex_layout')
-    }
+    } else if (/^H[1-6]$/.test(tag) && (css.display === 'flex' || css.display === 'grid'))
+      warnings.add('complex_layout')
     return contained(element, listDepth)
 
     function place(block: DocumentBlock, depth: number, itemStart: boolean): DocumentBlock {
@@ -280,7 +281,7 @@ export function extractHtmlDocument(): DocumentModel {
         if (block.type === 'columns') {
           return { ...block, columns: block.columns.map((column) => column.map(claimHeading)) }
         }
-        if (block.type !== 'text') return block
+        if (block.type !== 'text' && block.type !== 'heading') return block
         headingPlaced = true
         return { ...block, type: 'heading', level: headingLevel }
       }
