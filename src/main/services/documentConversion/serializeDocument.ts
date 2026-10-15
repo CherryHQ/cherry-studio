@@ -1,4 +1,4 @@
-import type { DocumentBlock, DocumentTextRun } from './documentModel'
+import type { DocumentBlock, DocumentStyle, DocumentTextRun } from './documentModel'
 
 export function flattenDocumentBlocks(blocks: DocumentBlock[]): DocumentBlock[] {
   return blocks.flatMap((block) => (block.type === 'columns' ? block.columns.flatMap(flattenDocumentBlocks) : [block]))
@@ -6,6 +6,67 @@ export function flattenDocumentBlocks(blocks: DocumentBlock[]): DocumentBlock[] 
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
+}
+
+type ListTextBlock = DocumentBlock & { type: 'text'; bullet: number }
+
+function isListTextBlock(block: DocumentBlock): block is ListTextBlock {
+  return block.type === 'text' && !!block.bullet
+}
+
+function blockCss(style: DocumentStyle | undefined): string {
+  return [
+    style?.align ? `text-align:${style.align}` : '',
+    style?.before !== undefined ? `margin-top:${style.before}pt` : '',
+    style?.after !== undefined ? `margin-bottom:${style.after}pt` : '',
+    style?.indent ? `margin-left:${style.indent}pt` : '',
+    style?.background ? `background:#${style.background}` : ''
+  ]
+    .filter(Boolean)
+    .join(';')
+}
+
+interface ListNode {
+  block: ListTextBlock
+  children: ListNode[]
+}
+
+function listTree(blocks: ListTextBlock[]): ListNode[] {
+  const roots: ListNode[] = []
+  const stack: ListNode[] = []
+  for (const block of blocks) {
+    const node: ListNode = { block, children: [] }
+    while (stack.length > 0 && stack[stack.length - 1].block.bullet >= block.bullet) stack.pop()
+    const parent = stack[stack.length - 1]
+    if (parent) parent.children.push(node)
+    else roots.push(node)
+    stack.push(node)
+  }
+  return roots
+}
+
+function htmlList(nodes: ListNode[]): string {
+  let html = ''
+  let index = 0
+  while (index < nodes.length) {
+    const ordered = nodes[index].block.orderedNumber !== undefined
+    let end = index + 1
+    while (end < nodes.length && (nodes[end].block.orderedNumber !== undefined) === ordered) end++
+    const group = nodes.slice(index, end)
+    const tag = ordered ? 'ol' : 'ul'
+    const start = ordered ? ` start="${group[0].block.orderedNumber}"` : ''
+    const items = group
+      .map((node) => {
+        const value = ordered ? ` value="${node.block.orderedNumber}"` : ''
+        const nested = node.children.length > 0 ? htmlList(node.children) : ''
+        const content = htmlRuns(node.block.runs ?? [{ text: node.block.text }])
+        return `<li${value} style="${blockCss(node.block.style)}">${content}${nested}</li>`
+      })
+      .join('')
+    html += `<${tag}${start}>${items}</${tag}>`
+    index = end
+  }
+  return html
 }
 
 function htmlRuns(runs: DocumentTextRun[]): string {
@@ -35,15 +96,39 @@ export function documentToHtml(
   imageSource: (source: string) => string,
   title: string
 ): string {
-  const render = (items: DocumentBlock[]): string =>
-    items
-      .map((block) => {
-        if (block.type === 'columns')
-          return `<div style="display:flex;gap:16px">${block.columns.map((column, index) => `<div style="flex:${block.widths[index] || 1};min-width:0">${render(column)}</div>`).join('')}</div>`
-        if (block.type === 'image')
-          return `<p><img src="${escapeHtml(imageSource(block.source))}" alt="${escapeHtml(block.text)}" style="max-width:100%;height:auto${block.width ? `;width:${block.width}px` : ''}"></p>`
-        if (block.type === 'table')
-          return `<table>${block.rows
+  const render = (items: DocumentBlock[]): string => {
+    const parts: string[] = []
+    let index = 0
+    while (index < items.length) {
+      const block = items[index]
+      if (block.type === 'columns') {
+        parts.push(
+          `<div style="display:flex;gap:16px">${block.columns.map((column, columnIndex) => `<div style="flex:${block.widths[columnIndex] || 1};min-width:0">${render(column)}</div>`).join('')}</div>`
+        )
+        index++
+        continue
+      }
+      if (isListTextBlock(block)) {
+        const listBlocks: ListTextBlock[] = []
+        while (index < items.length) {
+          const candidate = items[index]
+          if (!isListTextBlock(candidate)) break
+          listBlocks.push(candidate)
+          index++
+        }
+        parts.push(htmlList(listTree(listBlocks)))
+        continue
+      }
+      if (block.type === 'image') {
+        parts.push(
+          `<p><img src="${escapeHtml(imageSource(block.source))}" alt="${escapeHtml(block.text)}" style="max-width:100%;height:auto${block.width ? `;width:${block.width}px` : ''}"></p>`
+        )
+        index++
+        continue
+      }
+      if (block.type === 'table') {
+        parts.push(
+          `<table>${block.rows
             .map(
               (row, rowIndex) =>
                 `<tr>${row
@@ -55,25 +140,17 @@ export function documentToHtml(
                   .join('')}</tr>`
             )
             .join('')}</table>`
-        const tag = block.type === 'heading' ? `h${Math.min(6, block.level)}` : block.type === 'code' ? 'pre' : 'p'
-        const style = block.style
-        const css = [
-          style?.align ? `text-align:${style.align}` : '',
-          style?.before !== undefined ? `margin-top:${style.before}pt` : '',
-          style?.after !== undefined ? `margin-bottom:${style.after}pt` : '',
-          style?.indent ? `margin-left:${style.indent}pt` : '',
-          style?.background ? `background:#${style.background}` : ''
-        ]
-          .filter(Boolean)
-          .join(';')
-        const content = htmlRuns(block.runs ?? [{ text: block.text }])
-        if (block.type === 'text' && block.bullet) {
-          const listTag = block.orderedNumber !== undefined ? 'ol' : 'ul'
-          return `<${listTag}${block.orderedNumber !== undefined ? ` start="${block.orderedNumber}"` : ''}><li style="${css}">${content}</li></${listTag}>`
-        }
-        return `<${tag} style="${css}">${content}</${tag}>`
-      })
-      .join('\n')
+        )
+        index++
+        continue
+      }
+      const tag = block.type === 'heading' ? `h${Math.min(6, block.level)}` : block.type === 'code' ? 'pre' : 'p'
+      const content = htmlRuns(block.runs ?? [{ text: block.text }])
+      parts.push(`<${tag} style="${blockCss(block.style)}">${content}</${tag}>`)
+      index++
+    }
+    return parts.join('\n')
+  }
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#202020;line-height:1.5}table{border-collapse:collapse;width:100%;margin:16px 0}td,th{border:1px solid #b0b0b0;padding:6px;vertical-align:top}img{max-width:100%}pre{white-space:pre-wrap}p,h1,h2,h3,td{overflow-wrap:anywhere}@media print{body{margin:0}tr,img{break-inside:avoid}}</style></head><body>${render(blocks)}</body></html>`
 }
 
@@ -96,9 +173,11 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
         })
       )
       .join('')
+  const ancestors: { depth: number; width: number }[] = []
   return (
     flattenDocumentBlocks(blocks)
       .map((block) => {
+        if (!isListTextBlock(block)) ancestors.length = 0
         if (block.type === 'columns') return ''
         if (block.type === 'image')
           return `![${block.text.replace(/[[\]]/g, '')}](${markdownDestination(imageSource(block.source))})`
@@ -125,9 +204,12 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
         }
         const content = text(block.runs ?? [{ text: block.text }]).trim()
         if (block.type === 'heading') return `${'#'.repeat(Math.min(6, block.level))} ${content}`
-        return block.bullet
-          ? `${'  '.repeat(block.bullet - 1)}${block.orderedNumber !== undefined ? `${block.orderedNumber}.` : '-'} ${content}`
-          : content
+        if (!isListTextBlock(block)) return content
+        while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth >= block.bullet) ancestors.pop()
+        const indent = ancestors.reduce((total, ancestor) => total + ancestor.width, 0)
+        const marker = block.orderedNumber !== undefined ? `${block.orderedNumber}.` : '-'
+        ancestors.push({ depth: block.bullet, width: marker.length + 1 })
+        return `${' '.repeat(indent)}${marker} ${content}`
       })
       .join('\n\n') + '\n'
   )
