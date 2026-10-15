@@ -373,6 +373,7 @@ describe('goal and background subagents', () => {
   it('keeps the usage of a result delivered while the goal is disarmed, so resume honors the budget', async () => {
     const cwd = tempDir('cwd')
     const held = gate()
+    const hung = gate()
     const port = goalPort({ defaults: { budget: { tokens: 3_000 } } })
     const subagents = recordingSubagentPort().port
     const { model, calls } = routedModel(async (call) => {
@@ -381,19 +382,18 @@ describe('goal and background subagents', () => {
       // A finishes while round 1 still runs; the transcript is taken here, as a crash leaves it.
       if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_a') {
         held.open()
-        return gate().wait(reply('never'))
+        return hung.wait(reply('never'))
       }
       return reply('OK.')
     })
     const crashed = await openGoalSession(model, port, { cwd, subagents })
     await crashed.session.prompt('/goal Check A')
     await waitFor(() => subagentStates(crashed.host.entries).some((state) => state.status === 'finished'))
+    const transcript = plain(crashed.host.entries)
+    await crashed.dispose()
+    hung.open()
 
-    const { session: s, host } = await openGoalSession(model, port, {
-      cwd,
-      subagents,
-      transcript: plain(crashed.host.entries)
-    })
+    const { session: s, host } = await openGoalSession(model, port, { cwd, subagents, transcript })
     await promptIdle(s, 'Where were we?')
     expect(trailingUserTexts(calls.at(-1)!)).toEqual(['Where were we?', expect.stringContaining('REPORT-A')])
     // The parent's round-1 request (10 + 2 cached + 5) and A's one request (5000 + 2 cached).
