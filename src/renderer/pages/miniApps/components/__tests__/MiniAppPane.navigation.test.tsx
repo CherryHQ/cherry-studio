@@ -1,15 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { WebviewTag } from 'electron'
 import i18n from 'i18next'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  clearAllWebviewStates,
-  getWebviewLoaded,
-  setWebviewElement,
-  setWebviewLoaded
-} from '@renderer/services/MiniAppWebviewService'
-import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
+import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
+import { miniAppResourceKey } from '@renderer/utils/miniAppKeepAlive'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppPane from '../MiniAppPane'
@@ -40,7 +36,7 @@ const customApp: MiniApp = {
 }
 
 const guests: HTMLElement[] = []
-const subscriptions: Array<() => void> = []
+const resourceKey = miniAppResourceKey(customApp.appId)
 let previousLanguage: string
 
 beforeAll(async () => {
@@ -50,23 +46,56 @@ beforeAll(async () => {
 
 afterAll(() => i18n.changeLanguage(previousLanguage))
 
+beforeEach(() => {
+  webviewRuntimeService.dispose()
+  webviewRuntimeService.sync(
+    [
+      {
+        key: resourceKey,
+        source: { src: customApp.url, partition: 'persist:webview' },
+        visible: true,
+        protected: false,
+        lastAccessTime: 0
+      }
+    ],
+    1
+  )
+})
+
 // JSDOM provides DOM events; Electron supplies these navigation methods at runtime.
 const createGuest = () => {
   const guest = document.createElement('webview')
   guest.dataset.miniAppId = customApp.appId
   const canGoBack = vi.fn(() => false)
   const canGoForward = vi.fn(() => false)
-  Object.assign(guest, { canGoBack, canGoForward, getURL: vi.fn(() => customApp.url) })
+  Object.assign(guest, {
+    canGoBack,
+    canGoForward,
+    goBack: vi.fn(),
+    goForward: vi.fn(),
+    getURL: vi.fn(() => customApp.url)
+  })
   guests.push(guest)
   return { guest, canGoBack, canGoForward }
 }
 
+const bindGuest = (guest: WebviewTag) => {
+  const resource = webviewRuntimeService.get(resourceKey)!
+  webviewRuntimeService.bind(resourceKey, resource.instance, guest)
+}
+
+const reportLoaded = () => {
+  const resource = webviewRuntimeService.get(resourceKey)!
+  webviewRuntimeService.reportLoaded(resourceKey, resource.instance, true)
+}
+
+const navigationEvent = (type: string) => Object.assign(new Event(type), { isMainFrame: true, url: customApp.url })
+
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
-  subscriptions.splice(0).forEach((unsubscribe) => unsubscribe())
   guests.splice(0).forEach((guest) => guest.remove())
-  clearAllWebviewStates()
+  webviewRuntimeService.dispose()
 })
 
 describe('MiniAppPane navigation', () => {
@@ -74,19 +103,19 @@ describe('MiniAppPane navigation', () => {
     const user = userEvent.setup()
     const replacement = createGuest()
     replacement.canGoBack.mockReturnValue(true)
-    subscriptions.push(
-      webviewRecreationService.subscribe(() => {
-        document.body.append(replacement.guest)
-        setWebviewElement(customApp.appId, replacement.guest)
-      })
-    )
+    const original = webviewRuntimeService.get(resourceKey)!
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Restart MiniApp' }))
-    expect(replacement.guest.isConnected).toBe(true)
-    expect(getWebviewLoaded(customApp.appId)).toBe(false)
+    expect(webviewRuntimeService.get(resourceKey)!.instance).not.toBe(original.instance)
+    expect(webviewRuntimeService.get(resourceKey)!.loaded).toBe(false)
+    expect(screen.getByRole('button', { name: 'Go Back' })).toHaveAttribute('aria-disabled', 'true')
 
-    act(() => setWebviewLoaded(customApp.appId, true))
+    act(() => {
+      document.body.append(replacement.guest)
+      bindGuest(replacement.guest)
+      reportLoaded()
+    })
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Go Back' })).toHaveAttribute('aria-disabled', 'false')
@@ -98,35 +127,36 @@ describe('MiniAppPane navigation', () => {
     const original = createGuest()
     const replacement = createGuest()
     document.body.append(original.guest)
-    setWebviewElement(customApp.appId, original.guest)
-    setWebviewLoaded(customApp.appId, true)
-    subscriptions.push(
-      webviewRecreationService.subscribe(() => {
-        original.guest.replaceWith(replacement.guest)
-        setWebviewElement(customApp.appId, replacement.guest)
-      })
-    )
+    bindGuest(original.guest)
+    reportLoaded()
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
 
     original.canGoBack.mockReturnValue(true)
-    fireEvent(original.guest, new Event('did-navigate'))
+    fireEvent(original.guest, navigationEvent('did-navigate'))
     const back = screen.getByRole('button', { name: 'Go Back' })
     const forward = screen.getByRole('button', { name: 'Go Forward' })
     await waitFor(() => expect(back).toHaveAttribute('aria-disabled', 'false'))
 
     await user.click(screen.getByRole('button', { name: 'Restart MiniApp' }))
-    act(() => setWebviewLoaded(customApp.appId, true))
+    act(() => {
+      original.guest.replaceWith(replacement.guest)
+      bindGuest(replacement.guest)
+      reportLoaded()
+    })
 
     replacement.canGoForward.mockReturnValue(true)
-    fireEvent(replacement.guest, new Event('did-navigate-in-page'))
+    fireEvent(replacement.guest, navigationEvent('did-navigate-in-page'))
     await waitFor(() => expect(forward).toHaveAttribute('aria-disabled', 'false'))
     expect(back).toHaveAttribute('aria-disabled', 'true')
 
     replacement.canGoBack.mockReturnValue(true)
     replacement.canGoForward.mockReturnValue(false)
-    fireEvent(replacement.guest, new Event('did-navigate'))
+    fireEvent(replacement.guest, navigationEvent('did-navigate'))
     await waitFor(() => expect(back).toHaveAttribute('aria-disabled', 'false'))
     expect(forward).toHaveAttribute('aria-disabled', 'true')
+    await user.click(back)
+    expect(replacement.guest.goBack).toHaveBeenCalledOnce()
+    expect(original.guest.goBack).not.toHaveBeenCalled()
   })
 
   it('ignores pending updates and later events from the replaced WebView', async () => {
@@ -135,14 +165,8 @@ describe('MiniAppPane navigation', () => {
     original.canGoBack.mockReturnValue(true)
     replacement.canGoBack.mockReturnValue(true)
     document.body.append(original.guest)
-    setWebviewElement(customApp.appId, original.guest)
-    setWebviewLoaded(customApp.appId, true)
-    subscriptions.push(
-      webviewRecreationService.subscribe(() => {
-        original.guest.replaceWith(replacement.guest)
-        setWebviewElement(customApp.appId, replacement.guest)
-      })
-    )
+    bindGuest(original.guest)
+    reportLoaded()
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
     const back = screen.getByRole('button', { name: 'Go Back' })
     const forward = screen.getByRole('button', { name: 'Go Forward' })
@@ -151,15 +175,19 @@ describe('MiniAppPane navigation', () => {
     vi.useFakeTimers()
     original.canGoBack.mockReturnValue(false)
     original.canGoForward.mockReturnValue(true)
-    fireEvent(original.guest, new Event('did-navigate'))
-    act(() => webviewRecreationService.request(customApp.appId))
-    act(() => setWebviewLoaded(customApp.appId, true))
+    fireEvent(original.guest, navigationEvent('did-navigate'))
+    act(() => webviewRuntimeService.restart(resourceKey))
+    act(() => {
+      original.guest.replaceWith(replacement.guest)
+      bindGuest(replacement.guest)
+      reportLoaded()
+    })
     await act(() => vi.advanceTimersByTimeAsync(100))
 
     expect(back).toHaveAttribute('aria-disabled', 'false')
     expect(forward).toHaveAttribute('aria-disabled', 'true')
 
-    fireEvent(original.guest, new Event('did-navigate-in-page'))
+    fireEvent(original.guest, navigationEvent('did-navigate-in-page'))
     await act(() => vi.advanceTimersByTimeAsync(100))
 
     expect(back).toHaveAttribute('aria-disabled', 'false')

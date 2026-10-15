@@ -110,7 +110,7 @@ describe('listModels - LM Studio response isolation', () => {
       }
     })
 
-    const models = await listModels(provider)
+    const { models } = await listModels(provider)
 
     expect(models.map((model) => model.apiModelId)).toEqual(['first-model', 'second-model'])
     expect(models[0]?.name).toBe('First Model')

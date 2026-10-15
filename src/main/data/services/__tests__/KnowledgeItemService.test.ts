@@ -64,6 +64,7 @@ describe('KnowledgeItemService', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id: KNOWLEDGE_BASE_ID,
       name: 'KB',
       dimensions: 1024,
@@ -372,6 +373,7 @@ describe('KnowledgeItemService', () => {
       })
 
       await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a0',
         id: 'kb-2',
         name: 'KB 2',
         dimensions: 1024,

@@ -4,6 +4,8 @@
  * that keeps its own (translate).
  */
 
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import type { SamplingSettings } from '@main/ai/types'
@@ -13,7 +15,9 @@ import {
   isClaude47SeriesModel,
   isClaudeReasoningModel,
   isGemini3Model,
+  isGemini4Model,
   isMaxTemperatureOneModel,
+  isQwenModel,
   isSupportedFlexServiceTier,
   isSupportTemperatureModel,
   isSupportTopPModel,
@@ -26,6 +30,59 @@ const logger = loggerService.withContext('modelParameters')
 
 /** The two sampling fields these gates read; `maxTokens` has no gate of its own. */
 export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemperature' | 'topP' | 'enableTopP'>
+
+/** Registry support plus the existing family policies for omitting explicit sampling. */
+function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
+  if (isGemini3Model(model) || isClaude47SeriesModel(model)) return false
+  return key === 'temperature' ? isSupportTemperatureModel(model) : isSupportTopPModel(model)
+}
+
+type SamplingParams = {
+  standardParams: Record<string, unknown>
+  providerOptions: ProviderOptions
+  bodyParams: Record<string, unknown>
+}
+
+/** Sanitize model parameters after all request overrides have been merged. */
+export function stripUnsupportedModelParams(params: SamplingParams, model: Model): SamplingParams {
+  const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
+  const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
+  const gemini4 = isGemini4Model(model)
+  const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
+  if (acceptsTemperature && acceptsTopP && !normalizeTemperature) return params
+
+  function strip<T>(values: Record<string, T>): Record<string, T> {
+    const cleaned = { ...values }
+    if (!acceptsTemperature) delete cleaned.temperature
+    if (!acceptsTopP) {
+      delete cleaned.topP
+      delete cleaned.top_p
+    }
+    if (gemini4) {
+      delete cleaned.topK
+      delete cleaned.top_k
+      delete cleaned.cachedContent
+      delete cleaned.cached_content
+    }
+    if (
+      normalizeTemperature &&
+      typeof cleaned.temperature === 'number' &&
+      Number.isFinite(cleaned.temperature) &&
+      cleaned.temperature >= 2
+    ) {
+      cleaned.temperature = 1.9 as T
+    }
+    return cleaned
+  }
+
+  return {
+    standardParams: strip(params.standardParams),
+    providerOptions: Object.fromEntries(
+      Object.entries(params.providerOptions).map(([namespace, options]) => [namespace, strip(options)])
+    ),
+    bodyParams: strip(params.bodyParams)
+  }
+}
 
 /** `undefined` falls back to the provider default. */
 export function getTemperature(
@@ -114,9 +171,9 @@ export function filterStandardParams(
   standardParams: Partial<Record<AiSdkParam, any>>,
   model: Model
 ): Partial<Record<AiSdkParam, any>> {
-  if (isGemini3Model(model) && 'topK' in standardParams) {
+  if ((isGemini3Model(model) || isGemini4Model(model)) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
-    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
+    logger.info(`Gemini model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
     return rest
   }
 

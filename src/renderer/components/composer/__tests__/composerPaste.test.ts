@@ -247,6 +247,26 @@ describe('composer paste handling', () => {
     })
   })
 
+  it('preserves all lines when an unresolved token falls back to a large text fragment', () => {
+    const text = 'x\n'.repeat(70000)
+    const result = getComposerClipboardPasteOverride(
+      {
+        version: 1,
+        segments: [
+          {
+            type: 'token',
+            token: { id: 'skill:missing', kind: 'skill', label: 'Missing skill' },
+            fallbackText: text
+          }
+        ]
+      },
+      {}
+    )
+
+    expect(result?.content.map((node) => (node.type === 'hardBreak' ? '\n' : node.text)).join('')).toBe(text)
+    expect(result?.files).toEqual([])
+  })
+
   it('restores private folder tokens from a session-authored fragment', () => {
     const folderPath = '/Users/example/Notes/Project Notes'
     // createComposerClipboardFragment stamps a session-private nonce, marking the

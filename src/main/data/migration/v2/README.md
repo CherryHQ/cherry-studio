@@ -24,7 +24,7 @@ src/main/data/migration/v2/
 > **⚠️ WARNING: Not using predefined paths may cause user data loss.**
 >
 > v1 users may have configured a custom userData directory via
-> `~/.cherrystudio/config/config.json`. If migration code calls
+> `{cherryHome}/config/config.json` (`~/.cherrystudio` by default). If migration code calls
 > `app.getPath('userData')` or `new Store()` directly, on the first v2
 > launch it will read from the Electron default path instead of the
 > user's actual data directory — causing migration to be silently

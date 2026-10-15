@@ -1,23 +1,43 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
+import type { PhysicalFileMetadata } from '@shared/types/file'
 
 import { findBareFilePathMatches } from '../../markdown/plugins/rehypeBareFilePaths'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../types'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
 
-// Opt out of the global @cherrystudio/ui mock: its PopoverContent ignores `open`,
-// so menu dismissal is only observable against the real popover.
+// Use the real menu to verify right-click activation, selection and dismissal.
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
+
+const mockPlatform = vi.hoisted(() => ({ value: 'darwin' }))
+vi.mock('@renderer/utils/platform', () => ({
+  get isMac() {
+    return mockPlatform.value === 'darwin'
+  },
+  get isWin() {
+    return mockPlatform.value === 'win32'
+  },
+  get platform() {
+    return mockPlatform.value
+  }
+}))
 
 const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockOpenPath = vi.fn().mockResolvedValue(undefined)
 const mockNotifyError = vi.fn()
+const mockNotifySuccess = vi.fn()
+const mockReadText = vi.fn()
+const mockSave = vi.fn()
+let metadata: PhysicalFileMetadata | null
+const bytes = new Uint8Array([0, 255, 10, 128])
 const { externalOpenTargets, mockOpenTarget, mockUseExternalOpenTargets } = vi.hoisted(() => {
   const targets = [
     { id: 'system_default', name: 'TextEdit', kind: 'system_default' },
@@ -62,7 +82,14 @@ vi.mock('react-i18next', () => ({
         'chat.input.tools.file_not_found': `File not found: ${vars?.path ?? ''}`,
         'chat.input.tools.open_file_error': `Failed to open file: ${vars?.path ?? ''}`,
         'agent.session.file_manager.finder': 'Finder',
-        'common.more': 'More'
+        'common.more': 'More',
+        'common.open': 'Open',
+        'chat.input.tools.open_with': 'Open With',
+        'chat.input.tools.reveal_in_file_explorer': 'Show in File Explorer',
+        'chat.input.tools.reveal_in_file_manager': 'Show in File Manager',
+        'agent.preview_pane.copy_path': 'Copy Path',
+        'chat.input.tools.copy_file_content': 'Copy File Contents',
+        'preview.save_as': 'Save As'
       }
       return map[key] ?? key
     }
@@ -86,22 +113,46 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
     meta: { selectionLayer: false }
   }
 
-  return render(<MessageListProvider value={value}>{ui}</MessageListProvider>)
+  return render(
+    <SWRConfig value={{ provider: () => new Map() }}>
+      <MessageListProvider value={value}>{ui}</MessageListProvider>
+    </SWRConfig>
+  )
 }
 
 describe('ClickableFilePath', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockPlatform.value = 'darwin'
     setInlineFilePathHomePath(undefined)
+    metadata = { kind: 'file', type: 'text', mime: 'text/plain', size: 4, createdAt: 0, modifiedAt: 0 }
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) => ({
+      ok: true,
+      data: route === 'file.get_metadata' ? metadata : { content: bytes }
+    }))
+    mockReadText.mockResolvedValue('  original text\n')
+    mockSave.mockResolvedValue('/tmp/saved.ts')
+    vi.stubGlobal('api', {
+      ...window.api,
+      fs: { readText: mockReadText },
+      file: { ...window.api.file, save: mockSave }
+    })
   })
 
-  it('should render displayName when provided', () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" displayName="bar.tsx" />, {
-      openArtifactFile: mockOpenArtifactFile
+  it.each([
+    ['src/report.ts', '/workspace/src/report.ts'],
+    ['~/Desktop/report.ts', '/Users/foo/Desktop/report.ts']
+  ])('shows the full target path in the tooltip for %s', async (path, expectedPath) => {
+    const user = userEvent.setup()
+    setInlineFilePathHomePath('/Users/foo')
+    renderWithProvider(<ClickableFilePath path={path} displayName="report.ts" />, {
+      openArtifactFile: mockOpenArtifactFile,
+      resolvePath: (value) => (value.startsWith('/') ? value : `/workspace/${value}`)
     })
-    const link = screen.getByRole('link', { name: 'bar.tsx' })
-    expect(link).toBeInTheDocument()
-    expect(link).toHaveTextContent('bar.tsx')
+
+    await user.hover(screen.getByRole('link', { name: 'report.ts' }))
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(expectedPath)
   })
 
   it('should open relative paths directly', async () => {
@@ -207,32 +258,136 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should render ellipsis dropdown trigger when open targets are available', () => {
+  it('opens the available targets on right-click without an ellipsis button or opening the file', async () => {
+    const user = userEvent.setup()
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
-    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
-    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/tmp/test.ts', 'file', { enabled: false })
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link', { name: '/tmp/test.ts' }) })
+
+    expect(screen.queryByRole('menuitem', { name: 'Visual Studio Code' })).not.toBeInTheDocument()
+    await user.hover(screen.getByRole('menuitem', { name: 'Open With' }))
+    for (const target of externalOpenTargets.filter((target) => target.kind !== 'file_manager')) {
+      expect(await screen.findByRole('menuitem', { name: target.name })).toBeInTheDocument()
+    }
+    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
   })
 
-  it('should show the path-specific system, file-manager, and app targets without separators', () => {
+  it('opens the selected target and dismisses the context menu', async () => {
+    const user = userEvent.setup()
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
 
-    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link', { name: '/tmp/test.ts' }) })
+    await user.hover(screen.getByRole('menuitem', { name: 'Open With' }))
+    await screen.findByRole('menuitem', { name: 'Cursor' })
+    await user.keyboard('{ArrowRight}{End}{Enter}')
 
-    expect(mockUseExternalOpenTargets).toHaveBeenLastCalledWith('/tmp/test.ts', 'file', { enabled: true })
-    expect(screen.getByText('Finder')).toBeInTheDocument()
-    expect(screen.queryByText('Reveal in Finder')).not.toBeInTheDocument()
-    expect(screen.getByText('Visual Studio Code')).toBeInTheDocument()
-    expect(screen.queryByRole('separator')).toBeNull()
+    await waitFor(() => expect(mockOpenTarget).toHaveBeenCalledWith('/tmp/test.ts', externalOpenTargets[3]))
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
   })
 
-  it('should open the selected target and dismiss the actions menu', async () => {
+  it('opens a file from the primary menu action', async () => {
+    const user = userEvent.setup()
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link') })
+    await user.click(screen.getByRole('menuitem', { name: 'Open' }))
+    expect(mockOpenArtifactFile).toHaveBeenCalledWith('/tmp/test.ts')
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'More' }))
-    fireEvent.click(screen.getByRole('button', { name: /Finder/ }))
+  it.each([
+    ['darwin', '/tmp/test.ts', 'Reveal in Finder'],
+    ['win32', 'C:/Users/test.ts', 'Show in File Explorer'],
+    ['linux', '/tmp/test.ts', 'Show in File Manager']
+  ])('labels and invokes file reveal for %s', async (platform, path, label) => {
+    mockPlatform.value = platform
+    const user = userEvent.setup()
+    renderWithProvider(<ClickableFilePath path={path} />, { openArtifactFile: mockOpenArtifactFile })
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link') })
+    await user.click(screen.getByRole('menuitem', { name: label }))
+    expect(window.api.ipcApi.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'path', path })
+    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
+  })
 
-    await waitFor(() => expect(mockOpenTarget).toHaveBeenCalledWith('/tmp/test.ts', externalOpenTargets[1]))
-    expect(screen.queryByRole('button', { name: /Finder/ })).not.toBeInTheDocument()
+  it('copies the resolved absolute path', async () => {
+    const user = userEvent.setup()
+    renderWithProvider(<ClickableFilePath path="src/test.ts" />, {
+      openArtifactFile: mockOpenArtifactFile,
+      resolvePath: (path) => '/workspace/' + path
+    })
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link') })
+    await user.click(screen.getByRole('menuitem', { name: 'Copy Path' }))
+    expect(await navigator.clipboard.readText()).toBe('/workspace/src/test.ts')
+  })
+
+  it('copies original text including indentation and trailing newline', async () => {
+    const user = userEvent.setup()
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link') })
+    await user.click(await screen.findByRole('menuitem', { name: 'Copy File Contents' }))
+    expect(await navigator.clipboard.readText()).toBe('  original text\n')
+  })
+
+  it('saves original bytes with the original filename and reports cancellation without success', async () => {
+    const user = userEvent.setup()
+    metadata = { kind: 'file', type: 'other', mime: 'application/octet-stream', size: 4, createdAt: 0, modifiedAt: 0 }
+    mockSave.mockResolvedValueOnce(null)
+    renderWithProvider(<ClickableFilePath path="/tmp/data.bin" />, {
+      openArtifactFile: mockOpenArtifactFile,
+      notifySuccess: mockNotifySuccess
+    })
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link') })
+    expect(await screen.findByRole('menuitem', { name: 'Copy File Contents' })).toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('menuitem', { name: 'Save As' }))
+    await waitFor(() => expect(mockSave).toHaveBeenCalledWith('data.bin', bytes))
+    expect(mockNotifySuccess).not.toHaveBeenCalled()
+    expect(mockReadText).not.toHaveBeenCalled()
+  })
+
+  it('omits content-copy and save actions for a directory', async () => {
+    const user = userEvent.setup()
+    metadata = { kind: 'directory', size: 0, createdAt: 0, modifiedAt: 0 }
+    renderWithProvider(<ClickableFilePath path="/tmp/folder" />, { openPath: mockOpenPath })
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link') })
+    expect(await screen.findByRole('menuitem', { name: 'Copy Path' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Copy File Contents' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Save As' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'Reveal in Finder' }))
+    expect(window.api.ipcApi.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'path', path: '/tmp/folder' })
+    expect(mockOpenPath).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed content read without replacing clipboard content', async () => {
+    const user = userEvent.setup()
+    await navigator.clipboard.writeText('keep this')
+    mockReadText.mockRejectedValueOnce(new Error('Permission denied'))
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, {
+      openArtifactFile: mockOpenArtifactFile,
+      notifyError: mockNotifyError
+    })
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link') })
+    await user.click(await screen.findByRole('menuitem', { name: 'Copy File Contents' }))
+    await waitFor(() => expect(mockNotifyError).toHaveBeenCalledWith('message.copy.failed'))
+    expect(await navigator.clipboard.readText()).toBe('keep this')
+  })
+
+  it('dismisses the context menu with Escape without opening a target', async () => {
+    const user = userEvent.setup()
+    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openArtifactFile: mockOpenArtifactFile })
+    await user.pointer({ keys: '[MouseRight]', target: screen.getByRole('link', { name: '/tmp/test.ts' }) })
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(mockOpenTarget).not.toHaveBeenCalled()
+  })
+
+  it('does not offer external targets for an unresolved relative path', () => {
+    renderWithProvider(<ClickableFilePath path="src/main.ts" />, { openArtifactFile: mockOpenArtifactFile })
+    fireEvent.contextMenu(screen.getByRole('link', { name: 'src/main.ts' }))
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('should call openArtifactFile on Enter key', async () => {
@@ -255,7 +410,8 @@ describe('ClickableFilePath', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />)
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
-    expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
+    fireEvent.contextMenu(screen.getByText('/tmp/test.ts'))
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('should disable all file actions when interactive is false', () => {
@@ -265,6 +421,7 @@ describe('ClickableFilePath', () => {
 
     expect(screen.queryByRole('link', { name: '/tmp/test.ts' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
-    expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
+    fireEvent.contextMenu(screen.getByText('/tmp/test.ts'))
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 })

@@ -1,20 +1,15 @@
 import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import WebviewSearch from '@renderer/components/WebviewSearch'
-import {
-  getWebviewElement,
-  getWebviewLoaded,
-  onWebviewElementChange,
-  onWebviewStateChange,
-  setWebviewLoaded
-} from '@renderer/services/MiniAppWebviewService'
-import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
+import { useMiniAppWebview } from '@renderer/hooks/useMiniAppRuntime'
+import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
+import { miniAppResourceKey } from '@renderer/utils/miniAppKeepAlive'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar, { type SplitMode } from './MinimalToolbar'
@@ -35,20 +30,13 @@ interface Props {
   className?: string
 }
 
-function useConcreteWebview(appId: string, isReady: boolean) {
+function useConcreteWebview(webview: WebviewTag | null) {
   const webviewRef = useRef<WebviewTag | null>(null)
   const revisionRef = useRef(0)
-  const subscribe = useCallback(
-    (listener: () => void) => (isReady ? onWebviewElementChange(appId, listener) : () => {}),
-    [appId, isReady]
-  )
-  const getSnapshot = useCallback(() => (isReady ? getWebviewElement(appId) : null), [appId, isReady])
-  const webview = useSyncExternalStore(subscribe, getSnapshot, () => null)
   if (webviewRef.current !== webview) {
     webviewRef.current = webview
     revisionRef.current++
   }
-
   return { webviewRef, webviewRevision: revisionRef.current }
 }
 
@@ -72,11 +60,10 @@ const MiniAppPane: FC<Props> = ({
   // callback identity that changes every render.
   const onActivateRef = useRef(onActivate)
   onActivateRef.current = onActivate
-  // Seed isReady from the pool's own state, not a load event: a pane remounting
-  // over an already-loaded webview must not flash the mask, which reads as a reload.
-  const [isReady, setIsReady] = useState<boolean>(() => getWebviewLoaded(app.appId))
+  const resource = useMiniAppWebview(app.appId)
+  const isReady = resource?.loaded ?? false
   const [currentUrl, setCurrentUrl] = useState<string | null>(app.url)
-  const { webviewRef, webviewRevision } = useConcreteWebview(app.appId, isReady)
+  const { webviewRef, webviewRevision } = useConcreteWebview(isReady ? (resource?.element ?? null) : null)
   const webview = webviewRef.current
 
   useEffect(() => {
@@ -96,25 +83,13 @@ const MiniAppPane: FC<Props> = ({
     }
   }, [webview])
 
-  // Keep local readiness synchronized across load, LRU eviction, and recreation.
-  useEffect(() => {
-    const unsubscribe = onWebviewStateChange(app.appId, setIsReady)
-    setIsReady(getWebviewLoaded(app.appId))
-    return unsubscribe
-  }, [app.appId])
-
   const handleReload = useCallback(() => {
-    if (!isReady || !getWebviewLoaded(app.appId)) return
-    if (!webview?.isConnected) return
-
-    setWebviewLoaded(app.appId, false)
-    setIsReady(false)
-    webview.reload()
-  }, [app.appId, isReady, webview])
+    if (isReady && webview?.isConnected) webview.reload()
+  }, [isReady, webview])
 
   const handleRestart = useCallback(() => {
     setCurrentUrl(app.url)
-    webviewRecreationService.request(app.appId)
+    webviewRuntimeService.restart(miniAppResourceKey(app.appId))
   }, [app.appId, app.url])
 
   const handleOpenDevTools = useCallback(() => {

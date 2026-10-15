@@ -136,6 +136,15 @@ const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
 
 /**
+ * The reserved route characters of a modelId (`#`, `?`) — a value carrying one
+ * cannot be part of an id that round-trips through a URL. Callers ask this
+ * question by going through `UniqueModelIdSchema` or `createUniqueModelId`.
+ */
+function hasReservedRouteChar(value: string): boolean {
+  return RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => value.includes(char))
+}
+
+/**
  * Syntactic check for "looks like an encoded UniqueModelId" — value is a
  * string and contains the separator. Permissive on purpose: empty providerId
  * or modelId parts are accepted here so handler boundaries that legitimately
@@ -160,7 +169,7 @@ export const UniqueModelIdSchema = z.custom<UniqueModelId>(
     if (idx <= 0) return false
     const modelId = value.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
     if (modelId.length === 0) return false
-    return !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
+    return !hasReservedRouteChar(modelId)
   },
   { message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)` }
 )
@@ -445,3 +454,18 @@ export const ModelSchema = z.object({
 })
 
 export type Model = z.infer<typeof ModelSchema>
+
+/**
+ * The result of listing a provider's models. A provider may list entries that
+ * cannot be offered as models — it drops them, and a caller that only received
+ * the models would not know they were held back, so the listing carries their
+ * names too and the fetcher that dropped them says why.
+ *
+ * A provider with nothing to hold back returns the same envelope with `models`
+ * alone, so every fetcher and `ai.provider.model.list` share one shape.
+ */
+export interface ListedModels<M = Partial<Model>> {
+  models: M[]
+  /** Names the provider lists but that are dropped from the model list. */
+  skippedModels?: string[]
+}

@@ -30,6 +30,42 @@ function request(connection: RemoteConnection, method: string, params: unknown) 
 describe('pairing-time capability authorization', () => {
   setupTestDatabase()
 
+  it('hands off addresses only to an authenticated device with a current approved capability', async () => {
+    const { device } = apiGatewayPairedDeviceService.approveRemote({
+      name: 'Phone',
+      platform: 'ios',
+      peerIdentity: 'phone',
+      capabilities: ['agent']
+    })
+    const snapshot = {
+      desktopIdentity: 'desktop',
+      endpoints: [{ host: '100.64.0.2', port: 23333, security: 'ws' as const }]
+    }
+    const connection = new RemoteConnection(
+      channel('phone'),
+      new RemotePairing(),
+      new RemoteTokens(),
+      () => {},
+      new RemoteAgentHub(),
+      async () => snapshot
+    )
+    const hello = await request(connection, 'connection.hello', { protocolVersions: [1] })
+    expect(hello).toMatchObject({ result: { connectionEndpointsVersion: 1 } })
+    expect(await request(connection, 'connection.endpoints', { domain: 'agent' })).toMatchObject({
+      error: { data: { reason: 'UNAUTHENTICATED' } }
+    })
+    await request(connection, 'connection.authenticate', { deviceId: device.id })
+    expect(await request(connection, 'connection.endpoints', { domain: 'configuration' })).toMatchObject({
+      error: { data: { reason: 'FORBIDDEN' } }
+    })
+    expect(await request(connection, 'connection.endpoints', { domain: 'agent' })).toMatchObject({ result: snapshot })
+    apiGatewayPairedDeviceService.revokeRemoteCapability(device.id, 'agent')
+    expect(await request(connection, 'connection.endpoints', { domain: 'agent' })).toMatchObject({
+      error: { data: { reason: 'GRANT_REVOKED' } }
+    })
+    connection.dispose()
+  })
+
   it('makes the approved capability usable immediately and refuses credential export for Agent-only pairing', async () => {
     const pairing = new RemotePairing()
     const invitation = pairing.create()
@@ -38,7 +74,8 @@ describe('pairing-time capability authorization', () => {
       pairing,
       new RemoteTokens(),
       () => {},
-      new RemoteAgentHub()
+      new RemoteAgentHub(),
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await request(connection, 'connection.hello', { protocolVersions: [1] })
     const claim = await request(connection, 'pairing.claim', {
@@ -73,12 +110,26 @@ describe('pairing-time capability authorization', () => {
     })
     const tokens = new RemoteTokens()
     const pairing = new RemotePairing()
-    const connection = new RemoteConnection(channel('phone'), pairing, tokens, () => {}, new RemoteAgentHub())
+    const connection = new RemoteConnection(
+      channel('phone'),
+      pairing,
+      tokens,
+      () => {},
+      new RemoteAgentHub(),
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
+    )
     await request(connection, 'connection.hello', { protocolVersions: [1] })
     expect(await request(connection, 'connection.authenticate', { deviceId: device.id })).toMatchObject({
       result: { deviceId: device.id }
     })
-    const other = new RemoteConnection(channel('other-phone'), pairing, tokens, () => {}, new RemoteAgentHub())
+    const other = new RemoteConnection(
+      channel('other-phone'),
+      pairing,
+      tokens,
+      () => {},
+      new RemoteAgentHub(),
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
+    )
     await request(other, 'connection.hello', { protocolVersions: [1] })
     expect(await request(other, 'connection.authenticate', { deviceId: device.id })).toMatchObject({
       error: { data: { reason: 'UNAUTHENTICATED' } }

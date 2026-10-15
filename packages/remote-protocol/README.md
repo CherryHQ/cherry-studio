@@ -13,6 +13,22 @@ version. Building or passing package tests alone does not qualify Desktop, Expo 
 Run `pnpm --filter @cherrystudio/remote-protocol test`, `typecheck` and `build`.
 External consumers enter through the package exports, never `src/` deep imports.
 
+The event reducer caches streaming text byte lengths by part snapshot without adding wire
+fields. Appends encode only new text after an initial length calculation; restored or replaced
+parts calculate their own length. Producers read `part.append` offsets through the exported
+`textByteLength`, so emitting and validating an append share one cache entry. Completion still checks the full content digest and does
+not inherit the streaming snapshot's cache. Older snapshots remain independently usable
+for atomic recovery; their weakly held cache entries disappear with those objects.
+
+## Connection addresses
+
+`connection.hello.connectionEndpointsVersion: 1` advertises `connection.endpoints`.
+The request names an already approved domain; the desktop rechecks its current grant
+before and after preparing the response. The result contains the desktop identity and
+at most 32 direct endpoints, with no invitation or VPN credentials. Clients pin the
+identity, keep suggestions ephemeral, and persist only explicitly verified selections.
+Peers without this optional capability retain existing pairing and manual-address flows.
+
 ## Failure outcomes
 
 `./failure` owns the bounded execution failure snapshot shared by live execution and message
@@ -57,3 +73,27 @@ The optional public model summary (`modelId`, `providerId`, `name`) is shared by
 and Agent catalog entries. A message records its producing model; the catalog records current
 configuration (`null` for unconfigured, omitted for older hosts). Neither carries provider secrets
 or requires the receiving device to have the model installed.
+
+## Resumable Agent attachments
+
+`connection.hello.agentUploadsVersion: 1` advertises prepare/get/resume/complete/cancel and binary DATA/ACK records.
+Upload identity is scoped to device and Agent grant, independent of sockets and sessions.
+A durable `committedOffset` is the only resume position. `resume` uses an idempotent resume ID
+and expected writer epoch; old writers cannot advance a replaced upload. DATA carries raw bytes authenticated by Noise AEAD, with a durable ACK after each block.
+Desktop computes the full-file SHA-256 before publishing a ready managed reference.
+The optional `agentUploadChecksum: 'sha256'` hello capability supports independent source verification:
+prepare fixes `checksumAlgorithm`, complete supplies `expectedSha256`, and ready returns the actual
+`sha256`. A mismatch becomes durable failed state with `CHECKSUM_MISMATCH`; disk/publication errors
+use `VERIFICATION_FAILED`. Changing a recorded digest or mode is an idempotency conflict.
+Absent-mode uploads retain legacy behavior. New mobile hashes its retained immutable source natively
+in parallel with normal DATA transfer; recovery compares the saved digest before resumed writes.
+
+Limits: 1 GiB/file, 2 GiB/message, eight files, 1 MiB blocks and two outstanding blocks.
+Staging expires after 24 hours idle or seven days total, with 4 GiB/device and 8 GiB/global
+reservations. Upload permission and expiry are rechecked independently of message receipts.
+Send accepts text, files, or both. Clients freeze the upload references in the durable send
+command before submission and query that command's receipt after uncertain outcomes.
+They must never replace expired upload references inside an already submitted command.
+
+Uploaded file history uses a revision-bound content reference, never a desktop filesystem path.
+Content pages are read under the current Agent grant and checked against the complete digest.

@@ -56,7 +56,12 @@ describe('useCherryAccountSession', () => {
   })
 
   it.each([
-    ['login', 'cherry_cloud.login.start', 'isStartingLogin', { phase: 'authorizing', displayName: null }],
+    [
+      'login',
+      'cherry_cloud.login.start',
+      'isStartingLogin',
+      { phase: 'authorizing', accountId: null, displayName: null }
+    ],
     ['cancelLogin', 'cherry_cloud.login.cancel', 'isCancellingLogin', signedOut],
     ['revokeSession', 'cherry_cloud.session.revoke', 'isRevokingSession', signedOut]
   ] as const)('runs %s with an isolated loading state', async (action, route, pendingFlag, nextStatus) => {
