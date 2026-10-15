@@ -9,17 +9,23 @@ import {
 } from '@earendil-works/pi-ai/api/google-generative-ai'
 import { streamSimple as streamOpenAICompletions } from '@earendil-works/pi-ai/api/openai-completions'
 import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api/openai-responses'
-import { fetch as undiciFetch, ProxyAgent } from 'undici'
-import { afterEach, describe, expect, it } from 'vitest'
+import { Agent, fetch as undiciFetch, getGlobalDispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { NodeProxyController } from '@main/services/proxy/NodeProxyController'
 
 const servers: Array<http.Server | net.Server> = []
 let nodeProxyController: NodeProxyController | undefined
 
-async function listen(server: http.Server | net.Server, host = '127.0.0.1'): Promise<number> {
+async function listen(server: http.Server | net.Server): Promise<number> {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject)
+      resolve()
+    })
+  })
   servers.push(server)
-  await new Promise<void>((resolve) => server.listen(0, host, resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('test server did not bind to a TCP port')
   return address.port
@@ -130,6 +136,21 @@ afterEach(async () => {
 })
 
 describe('Pi provider request fetch', () => {
+  it('rejects listener errors without registering an unbound server for cleanup', async () => {
+    const server = http.createServer()
+    const error = Object.assign(new Error('Address unavailable'), { code: 'EADDRNOTAVAIL' })
+    const start = vi.spyOn(server, 'listen').mockImplementation(() => {
+      queueMicrotask(() => server.emit('error', error))
+      return server
+    })
+    try {
+      await expect(listen(server)).rejects.toBe(error)
+      expect(servers).not.toContain(server)
+    } finally {
+      start.mockRestore()
+    }
+  })
+
   it.each([
     ['stream', streamGoogle],
     ['streamSimple', streamGoogleSimple]
@@ -211,26 +232,44 @@ describe('Pi provider request fetch', () => {
       http.createServer((_request, response) => {
         directRequests++
         response.writeHead(200, { 'content-type': 'text/event-stream' }).end(geminiSse('direct response'))
-      }),
-      '127.0.0.2'
+      })
     )
     const proxyPort = await listen(createAuthenticatedHttpProxy('proxy-user', 'proxy-pass', () => proxyRequests++))
-    nodeProxyController = new NodeProxyController()
-    await nodeProxyController.configure({
-      proxyRules: `http://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`,
-      proxyBypassRules: ['127.0.0.2']
+    const originalDispatcher = getGlobalDispatcher()
+    const directDispatcher = new Agent({
+      connect: {
+        lookup: (_hostname, options, callback) =>
+          callback(null, options.all ? [{ address: '127.0.0.1', family: 4 }] : '127.0.0.1', 4)
+      }
     })
-    for (const fetch of [undefined, undiciFetch as unknown as typeof globalThis.fetch]) {
-      const result = await streamGoogleSimple(
-        createModel('google-generative-ai', `http://127.0.0.2:${targetPort}/v1beta`),
-        context,
-        { apiKey: 'test-key', fetch, maxRetries: 0 }
-      ).result()
-      expect(result.stopReason).toBe('stop')
-      expect(result.content).toEqual([expect.objectContaining({ type: 'text', text: 'direct response' })])
+    setGlobalDispatcher(directDispatcher)
+    nodeProxyController = new NodeProxyController()
+    const proxyRules = `http://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`
+    const model = createModel('google-generative-ai', `http://gemini.test:${targetPort}/v1beta`)
+    try {
+      await nodeProxyController.configure({ proxyRules })
+      const proxied = await streamGoogleSimple(model, context, {
+        apiKey: 'test-key',
+        maxRetries: 0
+      }).result()
+      expect(proxied.errorMessage).toContain('expected test rejection')
+      expect(proxyRequests).toBe(1)
+      expect(directRequests).toBe(0)
+
+      await nodeProxyController.configure({ proxyRules, proxyBypassRules: ['gemini.test'] })
+      for (const fetch of [undefined, undiciFetch as unknown as typeof globalThis.fetch]) {
+        const result = await streamGoogleSimple(model, context, { apiKey: 'test-key', fetch, maxRetries: 0 }).result()
+        expect(result.stopReason).toBe('stop')
+        expect(result.content).toEqual([expect.objectContaining({ type: 'text', text: 'direct response' })])
+      }
+      expect(directRequests).toBe(2)
+      expect(proxyRequests).toBe(1)
+    } finally {
+      await nodeProxyController.configure({})
+      nodeProxyController = undefined
+      setGlobalDispatcher(originalDispatcher)
+      await directDispatcher.close()
     }
-    expect(directRequests).toBe(2)
-    expect(proxyRequests).toBe(0)
   })
 
   it('routes OpenAI and Gemini transports through the request-scoped proxy fetch', async () => {
