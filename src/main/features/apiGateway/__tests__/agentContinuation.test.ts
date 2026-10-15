@@ -19,7 +19,26 @@ const assistantTextMessage: CherryUIMessage = {
   ]
 }
 
-const nonTextParts: Array<[string, CherryUIMessage['parts'][number]]> = [
+const reasoningPart: CherryUIMessage['parts'][number] = {
+  type: 'reasoning',
+  text: 'Reasoning',
+  providerMetadata: { anthropic: { signature: 'signature' } }
+}
+
+const continuationParts: Array<[string, CherryUIMessage['parts']]> = [
+  ['text-only', assistantTextMessage.parts],
+  ['reasoning and text', [reasoningPart, ...assistantTextMessage.parts]],
+  [
+    'redacted reasoning and text',
+    [
+      { type: 'reasoning', text: '', providerMetadata: { anthropic: { redactedData: 'redacted' } } },
+      ...assistantTextMessage.parts
+    ]
+  ],
+  ['reasoning-only', [reasoningPart]]
+]
+
+const otherParts: Array<[string, CherryUIMessage['parts'][number]]> = [
   [
     'dynamic-tool part',
     {
@@ -30,7 +49,18 @@ const nonTextParts: Array<[string, CherryUIMessage['parts'][number]]> = [
       input: { path: '/tmp/file' }
     }
   ],
-  ['reasoning part', { type: 'reasoning', text: 'Reasoning' }]
+  [
+    'completed dynamic-tool part',
+    {
+      type: 'dynamic-tool',
+      toolName: 'read_file',
+      toolCallId: 'tool-1',
+      state: 'output-available',
+      input: { path: '/tmp/file' },
+      output: 'File contents'
+    }
+  ],
+  ['file part', { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }]
 ]
 
 describe('appendInternalAgentContinuation', () => {
@@ -40,45 +70,47 @@ describe('appendInternalAgentContinuation', () => {
     expect(appendInternalAgentContinuation(messages)).toBe(messages)
   })
 
-  it('returns the same messages when the list ends with a user message', () => {
-    const messages = [userMessage]
+  it.each(['user', 'system'] as const)('returns the same messages when the list ends with a %s message', (role) => {
+    const messages = [{ ...userMessage, role }]
 
     expect(appendInternalAgentContinuation(messages)).toBe(messages)
   })
 
-  it('appends a user continuation after a text-only assistant message without mutating the input', () => {
-    const messages = [userMessage, assistantTextMessage]
-    const snapshot = structuredClone(messages)
+  it.each(continuationParts)(
+    'appends once after a %s assistant message without mutating the input',
+    (_label, parts) => {
+      const assistantMessage = { ...assistantTextMessage, parts }
+      const messages = [userMessage, assistantMessage]
+      const snapshot = structuredClone(messages)
 
-    const result = appendInternalAgentContinuation(messages)
+      const result = appendInternalAgentContinuation(messages)
 
-    expect(result).not.toBe(messages)
-    expect(result).toEqual([
-      userMessage,
-      assistantTextMessage,
-      {
-        id: 'no-prefill-continuation',
-        role: 'user',
-        parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
-      }
-    ])
-    expect(messages).toHaveLength(2)
-    expect(messages).toEqual(snapshot)
-  })
-
-  it.each(nonTextParts)(
-    'returns the same messages when the trailing assistant contains a %s',
-    (_label, nonTextPart) => {
-      const messages: CherryUIMessage[] = [
+      expect(result).not.toBe(messages)
+      expect(result).toEqual([
         userMessage,
+        assistantMessage,
         {
-          id: 'assistant-2',
-          role: 'assistant',
-          parts: [{ type: 'text', text: 'Context' }, nonTextPart]
+          id: 'no-prefill-continuation',
+          role: 'user',
+          parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
         }
-      ]
-
-      expect(appendInternalAgentContinuation(messages)).toBe(messages)
+      ])
+      expect(messages).toHaveLength(2)
+      expect(messages).toEqual(snapshot)
+      expect(appendInternalAgentContinuation(result)).toBe(result)
     }
   )
+
+  it.each(otherParts)('returns the same messages when the trailing assistant contains a %s', (_label, otherPart) => {
+    const messages: CherryUIMessage[] = [
+      userMessage,
+      {
+        id: 'assistant-2',
+        role: 'assistant',
+        parts: [reasoningPart, { type: 'text', text: 'Context' }, otherPart]
+      }
+    ]
+
+    expect(appendInternalAgentContinuation(messages)).toBe(messages)
+  })
 })

@@ -884,15 +884,17 @@ credential invalidation, and provider-owned usage capture.
 ## Internal Agent continuation normalization
 
 When a Cherry-internal Agent Session request enters the API gateway in Anthropic
-Messages format and its converted UIMessage list ends with a text-only assistant
-attachment, the gateway appends an ephemeral user continuation after conversion.
+Messages format and its converted UIMessage list ends with an assistant containing
+only text and/or reasoning, the gateway appends an ephemeral user continuation
+after conversion. This includes reasoning-only tails; messages containing tool
+calls, tool results, files, or other parts keep their existing handling.
 The Agent request itself proves that Claude Code's standard loop intends another
 sample, so this normalization is independent of the target provider, endpoint,
-and model. The original assistant attachment is preserved and the caller's params
-are not mutated. The continuation is never written to the database, the SDK
-transcript's user-visible history, or the renderer. Direct Anthropic requests do
-not enter the gateway, and external gateway requests remain unchanged so their
-callers can intentionally use assistant prefill.
+and model. The original assistant content and reasoning metadata are preserved,
+and the caller's params are not mutated. The continuation is never written to the
+database, the SDK transcript's user-visible history, or the renderer. Direct
+Anthropic requests do not enter the gateway, and external gateway requests remain
+unchanged so their callers can intentionally use assistant prefill.
 
 ## Native resume failures
 

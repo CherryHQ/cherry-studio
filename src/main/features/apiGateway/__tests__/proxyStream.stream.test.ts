@@ -239,6 +239,11 @@ async function processAndCaptureStreamMessages(
 }
 
 describe('processMessage (internal Agent continuation normalization)', () => {
+  const mixedContent = [
+    { type: 'thinking' as const, thinking: 'Thinking', signature: '' },
+    { type: 'text' as const, text: 'Working' }
+  ]
+
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
     useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
     mockIsInternalAgentRequest.mockReturnValue(true)
@@ -414,7 +419,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     mockResolveAgentSessionUsage.mockReturnValue(undefined)
     const params = createAnthropicParams('claude-opus-5', [
       { role: 'user', content: 'Run the background agent task' },
-      { role: 'assistant', content: 'Deferred tools, agents, and skills context' }
+      { role: 'assistant', content: mixedContent }
     ])
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -426,12 +431,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     })
   })
 
-  it('leaves an external gateway request unchanged', async () => {
+  it.each([
+    { name: 'text', content: 'Intentional prefill' },
+    { name: 'reasoning and text', content: mixedContent }
+  ])('leaves an external gateway request ending with $name unchanged', async ({ content }) => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(false)
     const params = createAnthropicParams('claude-opus-5', [
       { role: 'user', content: 'External request' },
-      { role: 'assistant', content: 'Intentional prefill' }
+      { role: 'assistant', content }
     ])
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -530,12 +538,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     })
   })
 
-  it('leaves a non-Anthropic input format unchanged', async () => {
+  it.each([
+    { name: 'text', content: 'Deferred Agent context' },
+    { name: 'reasoning and text', content: mixedContent }
+  ])('leaves a non-Anthropic input format ending with $name unchanged', async ({ content }) => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
     const params = createAnthropicParams('claude-opus-5', [
       { role: 'user', content: 'Original request' },
-      { role: 'assistant', content: 'Intentional prefill' }
+      { role: 'assistant', content }
     ])
 
     const messages = await processAndCaptureStreamMessages(params, 'openai')
@@ -544,14 +555,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     expect(messages.at(-1)).toMatchObject({ role: 'assistant' })
   })
 
-  it.each([true, false])('normalizes before the streaming branch when stream is %s', async (streaming) => {
-    useGatewayModel('claude-opus-5')
+  it.each([true, false])('normalizes reasoning and text for Gemini when stream is %s', async (streaming) => {
+    useGatewayModel('gemini-flash-lite-latest', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
     mockIsInternalAgentRequest.mockReturnValue(true)
     const params = createAnthropicParams(
-      'claude-opus-5',
+      'gemini-flash-lite-latest',
       [
         { role: 'user', content: 'Original request' },
-        { role: 'assistant', content: 'Deferred tools context' }
+        { role: 'assistant', content: mixedContent },
+        { role: 'user', content: '' }
       ],
       streaming
     )

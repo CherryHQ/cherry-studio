@@ -1,8 +1,6 @@
 /**
- * Claude Code's standard Agent loop requests another sample only when it has
- * new user semantics to provide. Gateway conversion can remove an empty user
- * shell and expose a text-only assistant tail, so authenticated internal Agent
- * requests restore that user semantic explicitly before provider serialization.
+ * Gateway conversion can drop an empty user shell after assistant text or reasoning.
+ * Internal Agent requests restore that user semantic before provider serialization.
  */
 import type { CherryUIMessage } from '@shared/data/types/message'
 
@@ -11,13 +9,13 @@ export const AGENT_CONTINUATION_TEXT =
   'Continue with the original user request above. The preceding assistant message is context, not a reply to complete.'
 
 /**
- * If the converted list ends with a text-only assistant message, return a copy
- * with a minimal user continuation; otherwise return the input unchanged.
+ * Append a minimal user continuation after an assistant containing only text
+ * and/or reasoning; otherwise return the input unchanged.
  */
 export function appendInternalAgentContinuation(messages: CherryUIMessage[]): CherryUIMessage[] {
   const last = messages.at(-1)
   if (!last || last.role !== 'assistant') return messages
-  if (!last.parts.every((part) => part.type === 'text')) return messages
+  if (!last.parts.every((part) => part.type === 'text' || part.type === 'reasoning')) return messages
 
   return [
     ...messages,

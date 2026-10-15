@@ -1,8 +1,11 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import { asSchema } from 'ai'
+import { asSchema, convertToModelMessages, generateText } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import { appendInternalAgentContinuation } from '../../utils/agentContinuation'
+import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
+import type { CherryUIMessage } from '@shared/data/types/message'
+
+import { AGENT_CONTINUATION_TEXT, appendInternalAgentContinuation } from '../../utils/agentContinuation'
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
 
 const converter = new AnthropicMessageConverter()
@@ -12,6 +15,103 @@ const params = (overrides: Partial<MessageCreateParams>): MessageCreateParams =>
   max_tokens: 1024,
   messages: [],
   ...overrides
+})
+
+describe('AnthropicMessageConverter Gemini continuations', () => {
+  const thinking = { type: 'thinking' as const, thinking: 'Thinking', signature: '' }
+  const text = { type: 'text' as const, text: 'Working' }
+
+  async function serialize(messages: CherryUIMessage[]) {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: 'OK' }], role: 'model' }, finishReason: 'STOP' }]
+        }),
+        { headers: { 'content-type': 'application/json' } }
+      )
+    )
+    const provider = createCherryIn({
+      apiKey: 'fake-key',
+      endpointType: 'gemini',
+      geminiBaseURL: 'https://gemini.test/v1beta',
+      fetch
+    })
+    const result = await generateText({
+      model: provider.languageModel('gemini-flash-lite-latest'),
+      messages: await convertToModelMessages(messages),
+      maxRetries: 0
+    })
+    expect(result.text).toBe('OK')
+    return JSON.parse(String(fetch.mock.calls[0][1]?.body)).contents
+  }
+
+  it.each([
+    { name: 'text', content: [text], parts: [{ text: 'Working' }] },
+    {
+      name: 'thinking and text',
+      content: [thinking, text],
+      parts: [{ text: 'Thinking', thought: true }, { text: 'Working' }]
+    },
+    {
+      name: 'redacted thinking and text',
+      content: [{ type: 'redacted_thinking' as const, data: 'redacted' }, text],
+      parts: [{ text: 'Working' }]
+    },
+    { name: 'thinking only', content: [thinking], parts: [{ text: 'Thinking', thought: true }] }
+  ])('ends with a user continuation after $name and an empty user shell', async ({ content, parts }) => {
+    const input = params({
+      messages: [
+        { role: 'user', content: 'Continue task' },
+        { role: 'assistant', content },
+        { role: 'user', content: '' }
+      ]
+    })
+    const inputSnapshot = structuredClone(input)
+    const converted = converter.toUIMessages(input)
+    const convertedSnapshot = structuredClone(converted)
+    const messages = appendInternalAgentContinuation(converted)
+
+    expect(await serialize(messages)).toEqual([
+      { role: 'user', parts: [{ text: 'Continue task' }] },
+      { role: 'model', parts },
+      { role: 'user', parts: [{ text: AGENT_CONTINUATION_TEXT }] }
+    ])
+    expect(messages.slice(0, -1)).toEqual(convertedSnapshot)
+    expect(converted).toEqual(convertedSnapshot)
+    expect(input).toEqual(inputSnapshot)
+  })
+
+  it('preserves reasoning, tool calls and results without inserting an extra user turn', async () => {
+    const input = params({
+      messages: [
+        { role: 'user', content: 'Read the file' },
+        {
+          role: 'assistant',
+          content: [thinking, { type: 'tool_use', id: 'call-1', name: 'read_file', input: { path: '/tmp/file' } }]
+        },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call-1', content: 'File contents' }] }
+      ]
+    })
+    const converted = converter.toUIMessages(input)
+    const messages = appendInternalAgentContinuation(converted)
+    const contents = await serialize(messages)
+
+    expect(messages).toBe(converted)
+    expect(contents).toMatchObject([
+      { role: 'user', parts: [{ text: 'Read the file' }] },
+      {
+        role: 'model',
+        parts: [
+          { text: 'Thinking', thought: true },
+          { functionCall: { name: 'read_file', args: { path: '/tmp/file' } } }
+        ]
+      },
+      {
+        role: 'user',
+        parts: [{ functionResponse: { name: 'read_file', response: { name: 'read_file', content: 'File contents' } } }]
+      }
+    ])
+  })
 })
 
 describe('AnthropicMessageConverter.toUIMessages', () => {
