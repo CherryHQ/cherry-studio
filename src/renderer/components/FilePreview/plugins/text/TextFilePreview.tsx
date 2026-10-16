@@ -4,12 +4,12 @@ import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 
-import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('TextFilePreview')

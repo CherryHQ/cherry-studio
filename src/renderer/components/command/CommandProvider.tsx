@@ -104,7 +104,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   const hasHandler = useCallback((command: CommandId) => Boolean(getActiveHandler(command)), [getActiveHandler])
 
   const execute = useCallback(
-    (command: CommandId) => {
+    (command: CommandId, args?: unknown) => {
       const handler = getActiveHandler(command)?.handler
       if (!handler) {
         logger.warn(`No renderer command handler registered: ${command}`)
@@ -112,7 +112,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        void Promise.resolve(handler()).catch((error) => {
+        void Promise.resolve(handler(args)).catch((error) => {
           logger.error(`Renderer command handler failed: ${command}`, error as Error)
         })
       } catch (error) {

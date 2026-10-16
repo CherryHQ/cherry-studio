@@ -122,6 +122,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.sessionSend.sent') return 'Sent to'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'
+      if (key === 'message.message.user_content.expand') return 'Expand'
+      if (key === 'message.message.user_content.collapse') return 'Collapse'
       if (key === 'common.expand') return 'Expand'
       if (key === 'common.collapse') return 'Collapse'
       if (key === 'common.reasoning_content') return 'Reasoning content'
@@ -899,6 +901,35 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(1)
       expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('retains manual user-text expansion across virtualized remounts without sharing it with another message', async () => {
+      const user = userEvent.setup()
+      const parts: CherryMessagePart[] = [{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }]
+      const toggle = () => screen.getByRole('button', { name: /Expand|Collapse/ })
+      const first = renderParts(parts, msg({ role: 'user' }))
+      await user.click(toggle())
+      expect(toggle()).toHaveAttribute('aria-expanded', 'true')
+      first.unmount()
+      const restored = renderParts(parts, msg({ role: 'user' }))
+      expect(toggle()).toHaveAttribute('aria-expanded', 'true')
+      await user.click(toggle())
+      restored.unmount()
+      const collapsed = renderParts(parts, msg({ role: 'user' }))
+      expect(toggle()).toHaveAttribute('aria-expanded', 'false')
+      await user.click(toggle())
+      collapsed.unmount()
+      renderParts(parts, msg({ id: 'another-user-message', role: 'user' }))
+      expect(toggle()).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('clears retained expansion when a still-mounted message is invalidated', async () => {
+      const user = userEvent.setup()
+      renderParts([{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }], msg({ role: 'user' }))
+      await user.click(screen.getByRole('button', { name: 'Expand' }))
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      act(() => invalidateCachedMessageUiStates(['msg-1']))
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('keeps sent images rendered when the user text is collapsed', () => {
@@ -2345,6 +2376,34 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(reasoningTrigger)
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Only thought')
+    })
+
+    it('keeps completed reasoning visible when thinking auto-collapse is disabled', () => {
+      renderParts(
+        [
+          { type: 'reasoning', text: 'Deep thought', state: 'done' },
+          { type: 'text', text: 'final answer' }
+        ],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Deep thought')
+      expect(screen.getByText('final answer')).toBeVisible()
+    })
+
+    it('keeps tool-only history collapsed when thinking auto-collapse is disabled', () => {
+      renderParts(
+        [toolPart('read')] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          thoughtAutoCollapse: false
+        }
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('reveals completed thinking behind the process summary for a reasoning-and-answer message', () => {

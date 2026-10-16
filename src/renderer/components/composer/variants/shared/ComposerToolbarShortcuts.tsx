@@ -23,6 +23,8 @@ export interface ComposerToolbarCustomTool {
   label: string
   icon: ReactNode
   disabled?: boolean
+  /** When true, the pinned shortcut uses the same accent activation treatment as launcher tools. */
+  active?: boolean
   /** Places the tool first in the default customize-menu order while keeping it reorderable. */
   customizePlacement?: 'leading'
   /** Defaults to true for category shortcuts that need the unified panel. */
@@ -35,6 +37,7 @@ export interface ComposerToolbarCustomTool {
 interface ShortcutCandidate {
   id: string
   label: ReactNode | string
+  actionLabel: ReactNode | string
   icon: ReactNode
   customizePlacement?: 'leading'
   active: boolean
@@ -163,12 +166,14 @@ export const ComposerToolbarShortcuts = ({
       return {
         id: manifest.id,
         label: manifest.label,
+        actionLabel: manifest.label,
         icon: lastResolvedIconById.current.get(manifest.id) ?? manifest.icon,
         active: false,
         disabled: true,
         haspopup: opensPanel ? 'menu' : manifest.kind === 'dialog' ? 'dialog' : undefined,
         toggle: manifest.kind === 'command',
         resolved: false,
+        availableWithoutModel: manifest.availableWithoutModel,
         select: () => undefined
       }
     })
@@ -182,6 +187,7 @@ export const ComposerToolbarShortcuts = ({
       return {
         id: launcher.id,
         label,
+        actionLabel: manifest?.kind === 'command' ? launcher.label : label,
         icon: launcher.icon,
         active: Boolean(launcher.active),
         disabled: Boolean(launcher.disabled) || (opensPanel && panelUnavailable),
@@ -190,6 +196,7 @@ export const ComposerToolbarShortcuts = ({
         haspopup: opensPanel ? 'menu' : kind === 'dialog' ? 'dialog' : undefined,
         toggle: kind === 'command',
         resolved: true,
+        availableWithoutModel: manifest?.availableWithoutModel,
         select: opensPanel
           ? () =>
               unifiedPanelControl?.open({
@@ -204,9 +211,10 @@ export const ComposerToolbarShortcuts = ({
       return {
         id: tool.id,
         label: tool.label,
+        actionLabel: tool.label,
         icon: tool.icon,
         customizePlacement: tool.customizePlacement,
-        active: false,
+        active: Boolean(tool.active),
         disabled: Boolean(tool.disabled) || (requiresPanel && panelUnavailable),
         haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,
@@ -353,7 +361,7 @@ export const ComposerToolbarShortcuts = ({
                     !shortcut.resolved && 'disabled:opacity-100',
                     shortcut.active && 'bg-accent'
                   )}
-                  aria-label={typeof shortcut.label === 'string' ? shortcut.label : undefined}
+                  aria-label={typeof shortcut.actionLabel === 'string' ? shortcut.actionLabel : undefined}
                   aria-haspopup={blockedByMissingModel ? undefined : shortcut.haspopup}
                   aria-pressed={
                     !blockedByMissingModel && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined

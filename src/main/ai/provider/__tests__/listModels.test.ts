@@ -6,7 +6,9 @@ import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
+import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { resolveEffectiveEndpoint } from '../endpoint'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
@@ -41,7 +43,12 @@ vi.mock('@main/data/services/ProviderService', () => ({
 
 vi.mock('@main/data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
-    isRegistryProvider: isRegistryProviderMock
+    isRegistryProvider: isRegistryProviderMock,
+    getProviderPreset: () => ({
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://router.huggingface.co/v1' }
+      }
+    })
   }
 }))
 
@@ -583,6 +590,88 @@ describe('listModels — geminiFetcher API key transport', () => {
     expect(models[0].apiModelId).toBe('gemini-2.0-flash')
     expect(models[0].name).toBe('Gemini 2.0 Flash')
   })
+
+  it.each(['embedContent', 'batchEmbedContents', 'asyncBatchEmbedContent'])(
+    'identifies unregistered embedding models from %s support',
+    async (method) => {
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: {
+          models: [
+            { name: 'models/gemini-embedding-2-preview', supportedGenerationMethods: [method, 'countTokens'] },
+            { name: 'models/new-vector-model', supportedGenerationMethods: [method] }
+          ]
+        }
+      })
+
+      const { models } = await listModels(makeGeminiProvider())
+
+      expect(models).toHaveLength(2)
+      for (const model of models) {
+        expect(model.capabilities).toEqual([MODEL_CAPABILITY.EMBEDDING])
+        expect(model.outputModalities).toEqual([MODALITY.VECTOR])
+        expect(model.supportsStreaming).toBe(false)
+      }
+    }
+  )
+
+  it('classifies image prediction and content generation', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        models: [
+          { name: 'models/new-image-model', supportedGenerationMethods: ['predict'] },
+          { name: 'models/new-chat-model', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/batch-chat-model', supportedGenerationMethods: ['batchGenerateContent'] }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeGeminiProvider())
+
+    expect(models).toHaveLength(3)
+    expect(models[0]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      outputModalities: [MODALITY.IMAGE],
+      supportsStreaming: false
+    })
+    for (const model of models.slice(1)) {
+      expect(model.capabilities).toEqual([])
+      expect(model.supportsStreaming).toBe(true)
+    }
+  })
+
+  it('omits models whose advertised methods have no supported generation path', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        models: [
+          { name: 'models/answer-only', supportedGenerationMethods: ['generateAnswer'] },
+          { name: 'models/tokens-only', supportedGenerationMethods: ['countTokens'] },
+          { name: 'models/music', supportedGenerationMethods: ['bidiGenerateMusic'] },
+          { name: 'models/live', supportedGenerationMethods: ['generateContent', 'bidiGenerateContent'] }
+        ]
+      }
+    })
+
+    expect((await listModels(makeGeminiProvider())).models).toEqual([])
+  })
+
+  it.each([
+    { supportedGenerationMethods: undefined },
+    { supportedGenerationMethods: [] },
+    { supportedGenerationMethods: ['generateContent', 'countTokens'] }
+  ])(
+    'does not infer embedding without an embedding method: $supportedGenerationMethods',
+    async ({ supportedGenerationMethods }) => {
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: { models: [{ name: 'models/embedding-in-name-only', supportedGenerationMethods }] }
+      })
+
+      const { models } = await listModels(makeGeminiProvider())
+
+      expect(models).toHaveLength(1)
+      expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.EMBEDDING)
+      expect(models[0].outputModalities).toBeUndefined()
+    }
+  )
 
   it('drops audio and video generation models, keeping chat, image, and embedding models', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
@@ -1620,4 +1709,88 @@ describe('listModels — ComfyUI credentials', () => {
     // shorter list than the server has.
     expect(listing.skippedModels).toEqual(['a#b', 'c?d'])
   })
+})
+
+describe('listModels — huggingFaceFetcher (router dialects)', () => {
+  // The listing carries no endpoint field, so without this the models fall back to the provider
+  // default and a Claude Code Agent can only reach the router through the translating gateway.
+  it('declares both router dialects on every model, Chat Completions leading', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'deepseek-ai/DeepSeek-V4-Pro-0813', owned_by: 'deepseek-ai' },
+          { id: 'zai-org/GLM-5.1', owned_by: 'zai-org' }
+        ]
+      }
+    })
+
+    const provider = makeProvider({
+      id: 'huggingface',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://router.huggingface.co/v1/' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://router.huggingface.co/v1/' }
+      }
+    })
+    const { models } = await listModels(provider)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://router.huggingface.co/v1/models')
+    expect(models.map((model) => model.apiModelId)).toEqual(['deepseek-ai/DeepSeek-V4-Pro-0813', 'zai-org/GLM-5.1'])
+    for (const model of models) {
+      expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+      expect(resolveEffectiveEndpoint(provider, makeModel(model), ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        baseUrl: 'https://router.huggingface.co/v1/'
+      })
+    }
+  })
+
+  it('routes a copied Hugging Face provider (uuid id + presetProviderId) through the same fetcher', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'zai-org/GLM-5.1' }] } })
+
+    const { models } = await listModels(
+      makeProvider({
+        id: 'a4f1e6c0-0d2b-4f0e-9d1a-2b3c4d5e6f70',
+        presetProviderId: 'huggingface',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' }
+        }
+      })
+    )
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+
+  it.each(['huggingface', 'huggingface-copy'])(
+    'keeps discovered models on the configured Responses server for %s',
+    async (providerId) => {
+      const baseUrl = 'https://hf-proxy.example/v1'
+      const provider = makeProvider({
+        id: providerId,
+        presetProviderId: 'huggingface',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://router.huggingface.co/v1/' }
+        }
+      })
+      aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'custom/model' }] } })
+
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+
+      expect(aiSdkGetFromApiMock.mock.calls[0][0].url).toBe(`${baseUrl}/models`)
+      expect(models[0].endpointTypes).toBeUndefined()
+      const model = makeModel({ ...models[0] })
+      for (const preferredEndpoint of [undefined, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]) {
+        expect(resolveEffectiveEndpoint(provider, model, preferredEndpoint)).toMatchObject({
+          endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+          baseUrl
+        })
+      }
+    }
+  )
 })
