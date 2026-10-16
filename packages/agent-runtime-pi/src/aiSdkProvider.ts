@@ -40,8 +40,9 @@ export interface AiSdkProviderOptions<TRequestOptions = undefined> {
   models: AiSdkModelSpec[]
   sideChannel?: ModelCallSideChannel
   /**
-   * A tool call whose input is unusable (the AI SDK rejected it, or it is not a JSON object) reaches
-   * Pi with `{}` arguments. Pi must answer it with `error` instead of running the tool on them.
+   * A tool call whose input is unusable (the AI SDK rejected it, it is not a JSON object, or the
+   * stream ended before it was finalized) reaches Pi with `{}` arguments. Pi must answer it with
+   * `error` instead of running the tool on them.
    */
   onInvalidToolCall?(toolCallId: string, error: string): void
 }
@@ -147,6 +148,7 @@ function streamModelCall<TRequestOptions>(
     const texts = new Map<string, TextContent>()
     const thinkings = new Map<string, ThinkingContent>()
     const toolCalls = new Map<string, ToolCall>()
+    const finalized = new Set<string>()
     const indexOf = (block: TextContent | ThinkingContent | ToolCall) => output.content.indexOf(block)
     // As in the AI SDK, the last metadata on a part's start, delta or end wins (Anthropic signs on a delta).
     const signature = (current: string | undefined, metadata: ProviderMetadata | undefined) =>
@@ -263,6 +265,7 @@ function streamModelCall<TRequestOptions>(
               provider.onInvalidToolCall?.(part.toolCallId, error)
             }
             block.thoughtSignature = encodeProviderMetadata(part.providerMetadata)
+            finalized.add(part.toolCallId)
             stream.push({ type: 'toolcall_end', contentIndex: indexOf(block), toolCall: block, partial: output })
             break
           }
@@ -295,6 +298,13 @@ function streamModelCall<TRequestOptions>(
       if (signal?.aborted) throw new Error('Model call was aborted')
       if (!finish) throw new Error('Model stream ended without a finish')
       if (output.stopReason === 'error') throw new Error(`Model finished with reason: ${finish.finishReason}`)
+      // Pi runs every call in the message; one whose input never finished (an early EOF) must not run on `{}`.
+      for (const block of toolCalls.values())
+        if (!finalized.has(block.id))
+          provider.onInvalidToolCall?.(
+            block.id,
+            `Tool call ${block.name} was not executed: the model stream ended before its input was complete. Re-issue it with complete arguments.`
+          )
       stream.push({ type: 'done', reason: output.stopReason as 'stop' | 'length' | 'toolUse', message: output })
       stream.end()
     } catch (error) {

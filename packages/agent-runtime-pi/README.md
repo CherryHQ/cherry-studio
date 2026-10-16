@@ -52,12 +52,14 @@ extensions are added by subsequent layers; this adapter is not wired into the de
   `statusCode` and `responseBody`), and `onUnmappedPart` receives `source`, `file` and
   provider-executed tool parts. Both get the request identity. Pi keeps only the error message, as
   the provider wrote it, so Pi's context-overflow detection still works.
-- **Invalid tool calls** – a call whose input is unparsable or not a JSON object is replayed with
-  `{}`, and the tool never runs on it. When the tool's schema has required fields, Pi's argument
-  validation rejects `{}`; otherwise the session builder's guard, fed by `onInvalidToolCall` and
-  ahead of every host `tool_call` handler (an approval prompt never sees the call), answers with the
-  AI SDK's error. A call to an unknown tool gets Pi's `Tool <name> not found`. A host registering
-  `createAiSdkProvider` itself must block the calls `onInvalidToolCall` reports the same way.
+- **Invalid tool calls** – a call whose input is unparsable or not a JSON object, or whose input the
+  stream never finalized (it ended after `tool-input-start`), is replayed with `{}`, and the tool
+  never runs on it. When the tool's schema has required fields, Pi's argument validation rejects
+  `{}`; otherwise the session builder's guard, fed by `onInvalidToolCall` and ahead of every host
+  `tool_call` handler (an approval prompt never sees the call), answers with the AI SDK's error (for
+  an unfinished call: that the stream ended before its input was complete). A call to an unknown
+  tool gets Pi's `Tool <name> not found`. A host registering `createAiSdkProvider` itself must block
+  the calls `onInvalidToolCall` reports the same way.
 - **Usage** – the usage handed to Pi feeds its context accounting and compaction only. The host's AI SDK
   call already accounts it, so it must not be billed again.
 - **Retries** – Pi's retry is always disabled. Retries belong to the AI SDK layer.
