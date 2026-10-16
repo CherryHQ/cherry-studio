@@ -297,7 +297,17 @@ export default defineCreator({
               },
               size: {
                 default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+                options: [
+                  'auto',
+                  '1024x1024',
+                  '1536x1024',
+                  '1024x1536',
+                  '1536x864',
+                  '864x1536',
+                  '1536x960',
+                  '3840x2160',
+                  '2160x3840'
+                ],
                 render: 'chips',
                 type: 'enum'
               }

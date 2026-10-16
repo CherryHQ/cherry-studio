@@ -104,6 +104,7 @@ describe('AssistantDataService', () => {
 
   async function seedKnowledgeBase(id = 'kb-1') {
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id,
       name: 'KB',
       dimensions: 1024,

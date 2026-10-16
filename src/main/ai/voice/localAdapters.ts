@@ -13,6 +13,8 @@ import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 import { appleSpeechDefinition, appleTranscriptionDefinition } from './localAdapters/apple'
 import { funAsrTranscriptionDefinition } from './localAdapters/funasr'
+import { kokoroSpeechDefinition } from './localAdapters/kokoroTts'
+import { qwen3SpeechDefinition } from './localAdapters/qwen3Tts'
 import { windowsSpeechDefinition, windowsTranscriptionDefinition } from './localAdapters/windows'
 import type { LocalVoiceStatus, SpeechModelDefinition, TranscriptionModelDefinition } from './voiceModelTypes'
 import {
@@ -31,7 +33,12 @@ const transcriptionDefinitions: readonly TranscriptionModelDefinition[] = [
   windowsTranscriptionDefinition,
   funAsrTranscriptionDefinition
 ]
-const speechDefinitions: readonly SpeechModelDefinition[] = [appleSpeechDefinition, windowsSpeechDefinition]
+const speechDefinitions: readonly SpeechModelDefinition[] = [
+  appleSpeechDefinition,
+  windowsSpeechDefinition,
+  qwen3SpeechDefinition,
+  kokoroSpeechDefinition
+]
 const definitions = [...transcriptionDefinitions, ...speechDefinitions]
 
 export function describeVoiceModel(modelId: string, environment = getVoiceEnvironment()): VoiceModelLookup {
@@ -156,22 +163,25 @@ export function installVoiceLocale(modelId: LocalTranscriptionModelId, language:
   return definition.installLocale(language, signal)
 }
 
-export function downloadVoiceModel(modelId: LocalTranscriptionModelId) {
-  const definition = transcriptionDefinition(modelId)
+export function downloadVoiceModel(modelId: LocalVoiceModelId) {
+  const definition = definitions.find((model) => model.id === modelId)
+  if (!definition) throw new VoiceRuntimeError('unsupported')
   requireSupport(definition)
   if (!definition.download) throw new VoiceRuntimeError('unsupported')
   return definition.download()
 }
 
-export function cancelVoiceModelDownload(modelId: LocalTranscriptionModelId) {
-  const definition = transcriptionDefinition(modelId)
+export function cancelVoiceModelDownload(modelId: LocalVoiceModelId) {
+  const definition = definitions.find((model) => model.id === modelId)
+  if (!definition) throw new VoiceRuntimeError('unsupported')
   requireSupport(definition)
   if (!definition.cancelDownload) throw new VoiceRuntimeError('unsupported')
   return definition.cancelDownload()
 }
 
-export function removeVoiceModel(modelId: LocalTranscriptionModelId) {
-  const definition = transcriptionDefinition(modelId)
+export function removeVoiceModel(modelId: LocalVoiceModelId) {
+  const definition = definitions.find((model) => model.id === modelId)
+  if (!definition) throw new VoiceRuntimeError('unsupported')
   requireSupport(definition)
   if (!definition.remove) throw new VoiceRuntimeError('unsupported')
   return definition.remove()
@@ -205,9 +215,10 @@ export async function resolveTranscriptionConfiguration(
       if (status.status === 'ready' || input.modelId) return selection
     } catch (error) {
       if (signal?.aborted) throw error
+      const reason = error instanceof VoiceRuntimeError ? error.reason : 'operation_failed'
       const status: LocalVoiceStatus = {
-        status: 'failed',
-        reason: error instanceof VoiceRuntimeError ? error.reason : 'operation_failed'
+        status: reason === 'unsupported' ? 'unsupported' : 'failed',
+        reason
       }
       fallback ??= { modelId, language: input.language, status }
       if (input.modelId) return fallback
@@ -230,8 +241,12 @@ export async function resolveSpeechConfiguration(
     ? (await definition.voices(signal)).find((voice) => voice.id === input.voice)
     : await definition.getDefaultVoice(input.language, signal)
   signal?.throwIfAborted()
-  if (!voice || (input.language && voice.locale.toLowerCase() !== input.language.toLowerCase()))
-    return { ...selection, status: { status: 'not_installed', reason: 'voice_unavailable' } }
-  const resolved = { ...selection, voice: voice.id, language: voice.locale }
+  const language = input.language
+    ? (voice?.languages ?? (voice ? [voice.locale] : [])).find(
+        (locale) => locale.toLowerCase() === input.language!.toLowerCase()
+      )
+    : voice?.locale
+  if (!voice || !language) return { ...selection, status: { status: 'not_installed', reason: 'voice_unavailable' } }
+  const resolved = { ...selection, voice: voice.id, language }
   return { ...resolved, status: await definition.status(resolved, signal) }
 }

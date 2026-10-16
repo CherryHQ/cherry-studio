@@ -137,3 +137,9 @@ only supplies an anchor; it does not attach or detach control. Guest creation an
 use separate IPC events. Per-tool execution leases temporarily disable background throttling and
 restore its previous value after the last execution. Webview screenshots retain a native frame
 subscription for the bounded CDP command, releasing it on completion, cancellation or timeout.
+
+Keyboard readiness is checked against the invocation's current conversation owner
+and exact guest binding before and after renderer acknowledgement. Inert retained
+guests acknowledge background execution without taking DOM focus or revealing the
+pane; visible guests must focus successfully. Missing guests, cancellation and
+ownership changes reject the input before CDP keyboard dispatch.

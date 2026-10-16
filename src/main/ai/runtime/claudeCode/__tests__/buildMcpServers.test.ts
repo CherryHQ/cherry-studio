@@ -1,9 +1,3 @@
-/**
- * Regression for agents-jobs-3: the agent prompt/bootstrap drive memory via
- * `mcp__agent-memory__memory`, so every agent must actually get the `agent-memory`
- * server injected into the runtime MCP list AND allow its tools — not just reference the name.
- */
-
 import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
@@ -13,7 +7,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { AGENT_TYPES, type AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 const {
@@ -260,13 +254,21 @@ describe('buildMcpServers', () => {
     mockGetAgent.mockReset()
   })
 
-  it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
+  it('serves memory tools and instructions when mounted', async () => {
     const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
     const { instance } = result!['agent-memory'] as McpSdkServerConfigWithInstance
     const client = await connectMcpTestClient(instance)
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(['memory'])
+    expect(client.getInstructions()).toContain(path.join('/data/Agents/agent-1', 'memory', 'FACT.md'))
     await client.close()
+  })
+
+  it.each(AGENT_TYPES)('omits memory entirely for an opted-out %s agent', (type) => {
+    const disabledAgent = { ...agent, type, configuration: {}, disabledTools: ['mcp__agent-memory__memory'] }
+    const mounted = resolveMountedMcpServers(disabledAgent, { channelLinked: false })
+
+    expect(buildMcpServers(session, disabledAgent, mounted)?.['agent-memory']).toBeUndefined()
   })
 
   it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {

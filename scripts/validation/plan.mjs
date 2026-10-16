@@ -131,7 +131,12 @@ export function createPlan(files, fullReason) {
     if (affected.includes('system-speech')) add('types-system-speech', file)
     if (affected.includes('file-preview')) add('types-file-preview', file)
     if (scope === 'main' || scope === 'shared') add('migrations', file)
-    for (const task of ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']) add(task, file)
+    const inTestDirectory = file.split('/').includes('__tests__')
+    const testFile = inTestDirectory || /\.(?:test|spec)\.tsx?$/.test(file)
+    if (!testFile || (file.startsWith('src/main/') && !inTestDirectory)) add('i18n-catalog', file)
+    // Renderer unused-key analysis still reads tests, including those under src/main.
+    add('i18n-unused', file)
+    if (!inTestDirectory && !/\.test\.tsx?$/.test(file)) add('i18n-hardcoded', file)
   }
   return {
     tasks: Object.keys(checkTasks).filter((task) => reasons[task]),
