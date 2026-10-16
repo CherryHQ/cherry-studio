@@ -307,6 +307,8 @@ approval extension, so each call the subagent makes is approved on its own.
   host reports running background subagents, which only L6 adds) and no fresh-context (Ralph)
   mode. The package does not know the permission mode; keeping goals from running rounds in plan
   mode is up to the host.
+- A `session.abort()` that lands in the run withdrawing a stale goal round (it ends before any
+  request) is taken for that withdrawal: the goal goes on instead of pausing.
 
 ## Tests
 
