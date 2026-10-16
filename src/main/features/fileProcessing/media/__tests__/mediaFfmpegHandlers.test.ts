@@ -7,6 +7,8 @@ import { join } from 'node:path'
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { UtilityProcessHandlerContext } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
+
 const spawnControl = vi.hoisted(() => ({
   calls: 0,
   replacement: null as null | ((...args: unknown[]) => unknown)
@@ -49,7 +51,14 @@ const ffprobePath = join(bundleDir, process.platform === 'win32' ? 'ffprobe.exe'
 const hasBundledFfmpeg = existsSync(ffmpegPath) && existsSync(ffprobePath)
 
 const logger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }
-const context = (signal = new AbortController().signal) => ({ signal, logger, emit: () => {} })
+const context = (signal = new AbortController().signal): UtilityProcessHandlerContext<never> => ({
+  signal,
+  logger,
+  emit: () => {},
+  callHost: async () => {
+    throw new Error('Media FFmpeg handlers do not call the host')
+  }
+})
 
 describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
   let root: string
