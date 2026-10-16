@@ -339,8 +339,8 @@ export class NotificationService extends BaseService {
         title: t('notification.center.budget_title'),
         message: t('notification.center.budget_message', {
           percent: Math.round((total / budget) * 100),
-          used: total,
-          budget
+          used: `${total / 1000}k`,
+          budget: `${budget / 1000}k`
         }),
         target: { kind: 'settings', tab: 'usage' }
       })

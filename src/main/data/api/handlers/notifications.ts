@@ -2,13 +2,21 @@ import * as z from 'zod'
 
 import { notificationRecordService } from '@data/services/NotificationRecordService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { ReadNotificationSchema, type NotificationSchemas } from '@shared/data/api/schemas/notifications'
+import {
+  ReadConversationNotificationsSchema,
+  ReadNotificationSchema,
+  type NotificationSchemas
+} from '@shared/data/api/schemas/notifications'
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const notificationHandlers: HandlersFor<NotificationSchemas> = {
   '/notifications': { GET: async ({ query }) => notificationRecordService.list(query) },
   '/notifications/unread-count': { GET: async () => ({ count: notificationRecordService.unreadCount() }) },
   '/notifications/read-all': { POST: async () => notificationRecordService.markAllRead() },
+  '/notifications/read-conversation': {
+    POST: async ({ body }) =>
+      notificationRecordService.markConversationRead(ReadConversationNotificationsSchema.parse(body))
+  },
   '/notifications/:id': {
     GET: async ({ params }) => {
       const record = notificationRecordService.getById(z.uuid().parse(params.id))

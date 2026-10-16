@@ -83,26 +83,33 @@ const NotificationSettings: FC = () => {
         <SettingDivider />
         <SettingRow id="setting-notifications-daily-budget" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.daily_budget')}</SettingRowTitle>
-          <InputNumber
-            className="w-36"
-            aria-label={t('settings.notification.daily_budget')}
-            value={notificationSettings.budget || null}
-            min={0}
-            max={Number.MAX_SAFE_INTEGER}
-            step={1}
-            onBlur={(value) => {
-              const budget = value ?? 0
-              if (!Number.isSafeInteger(budget) || budget < 0) return
-              return saveSettings({ budget })
-            }}
-          />
+          <div className="relative w-28">
+            <InputNumber
+              className="w-full pr-7"
+              aria-label={`${t('settings.notification.daily_budget')} (k)`}
+              value={notificationSettings.budget ? notificationSettings.budget / 1000 : null}
+              min={0}
+              max={Number.MAX_SAFE_INTEGER / 1000}
+              step={0.1}
+              onBlur={(value) => {
+                const budget = Math.round((value ?? 0) * 1000)
+                if (!Number.isSafeInteger(budget) || budget < 0) return
+                return saveSettings({ budget })
+              }}
+            />
+            <span
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
+              aria-hidden="true">
+              k
+            </span>
+          </div>
         </SettingRow>
         <p className="my-2 text-sm text-muted-foreground">{t('settings.notification.daily_budget_hint')}</p>
         <SettingDivider />
         <SettingRow id="setting-notifications-daily-threshold" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.daily_threshold')}</SettingRowTitle>
           <InputNumber
-            className="w-36"
+            className="w-28"
             aria-label={t('settings.notification.daily_threshold')}
             value={notificationSettings.threshold}
             min={1}

@@ -228,6 +228,39 @@ describe('NotificationService', () => {
   })
 
   it.each(['assistant', 'agent'] as const)(
+    'reads all notifications only for the entered %s conversation',
+    (conversationType) => {
+      const create = (eventKey: string, target: Parameters<typeof notificationRecordService.create>[0]['target']) =>
+        notificationRecordService.create({
+          eventKey,
+          category: 'system',
+          kind: 'task-completion',
+          title: 'Done',
+          message: 'Finished',
+          createdAt: Date.now(),
+          target
+        })!
+      const target = { kind: 'conversation' as const, conversationType, conversationId: 'shared-id' }
+      const matching = Array.from({ length: 55 }, (_, index) => create(`matching:${index}`, target))
+      const otherType = create('other-type', {
+        ...target,
+        conversationType: conversationType === 'agent' ? 'assistant' : 'agent'
+      })
+      const otherConversation = create('other-conversation', { ...target, conversationId: 'other-id' })
+      const unrelated = create('unrelated', { kind: 'settings', tab: 'usage' })
+      notificationRecordService.markRead(matching[0].id)
+      const originalReadAt = notificationRecordService.getById(matching[0].id)!.readAt
+      vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 1000)
+      notificationRecordService.markConversationRead(target)
+      expect(matching.every(({ id }) => notificationRecordService.getById(id)!.readAt !== null)).toBe(true)
+      expect(notificationRecordService.getById(matching[0].id)!.readAt).toBe(originalReadAt)
+      expect(notificationRecordService.unreadCount()).toBe(3)
+      for (const record of [otherType, otherConversation, unrelated])
+        expect(notificationRecordService.getById(record.id)!.readAt).toBeNull()
+    }
+  )
+
+  it.each(['assistant', 'agent'] as const)(
     'omits all completion delivery while viewing the %s task',
     async (conversationType) => {
       mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
@@ -539,8 +572,8 @@ describe('NotificationService', () => {
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
     expect(t).toHaveBeenCalledWith('notification.center.budget_message', {
       percent: 95,
-      used: 95_000,
-      budget: 100_000
+      used: '95k',
+      budget: '100k'
     })
 
     await service._doStop()

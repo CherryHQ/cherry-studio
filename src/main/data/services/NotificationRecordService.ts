@@ -1,4 +1,4 @@
-import { and, count, eq, gt, isNull, lte } from 'drizzle-orm'
+import { and, count, eq, gt, isNull, lte, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -9,6 +9,7 @@ import {
   type NotificationPage
 } from '@shared/data/api/schemas/notifications'
 import type { CreateNotificationRecordInput, NotificationRecord } from '@shared/data/types/notification'
+import type { ConversationNavigationTarget } from '@shared/types/navigation'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -88,6 +89,23 @@ class NotificationRecordService {
       .update(table)
       .set({ readAt: Date.now() })
       .where(and(visible(), isNull(table.readAt)))
+      .run()
+    if (changes) notifyChanged()
+  }
+
+  markConversationRead({ conversationType, conversationId }: ConversationNavigationTarget): void {
+    const { changes } = this.db
+      .update(table)
+      .set({ readAt: Date.now() })
+      .where(
+        and(
+          visible(),
+          isNull(table.readAt),
+          sql`json_extract(${table.target}, '$.kind') = 'conversation'`,
+          sql`json_extract(${table.target}, '$.conversationType') = ${conversationType}`,
+          sql`json_extract(${table.target}, '$.conversationId') = ${conversationId}`
+        )
+      )
       .run()
     if (changes) notifyChanged()
   }

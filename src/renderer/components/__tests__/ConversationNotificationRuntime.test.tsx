@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 
@@ -87,6 +87,46 @@ describe('ConversationNotificationRuntime', () => {
     vi.clearAllMocks()
     vi.unstubAllGlobals()
   })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each([
+    ['assistant', '/app/chat?topicId='],
+    ['agent', '/app/agents?sessionId=']
+  ] as const)(
+    'reads only the visible active %s conversation on entry and window return',
+    async (conversationType, prefix) => {
+      let focused = false
+      vi.spyOn(document, 'hasFocus').mockImplementation(() => focused)
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+      const view = (url: string) => (
+        <TabsContext value={tabsContext({ id: 'current', type: 'route', url, title: 'Current' })}>
+          <ConversationNotificationRuntime />
+        </TabsContext>
+      )
+      const rendered = render(view(`${prefix}first`))
+      expect(mockDataApiService.post).not.toHaveBeenCalled()
+      focused = true
+      await act(() => window.dispatchEvent(new Event('focus')))
+      expect(mockDataApiService.post).toHaveBeenLastCalledWith('/notifications/read-conversation', {
+        body: { conversationType, conversationId: 'first' }
+      })
+      rendered.rerender(view(`${prefix}second`))
+      expect(mockDataApiService.post).toHaveBeenLastCalledWith('/notifications/read-conversation', {
+        body: { conversationType, conversationId: 'second' }
+      })
+      vi.mocked(mockDataApiService.post).mockClear()
+      await act(() => window.dispatchEvent(new Event('focus')))
+      expect(mockDataApiService.post).toHaveBeenCalledTimes(1)
+      expect(mockDataApiService.post).toHaveBeenLastCalledWith('/notifications/read-conversation', {
+        body: { conversationType, conversationId: 'second' }
+      })
+      rendered.rerender(view('/settings/notifications'))
+      vi.mocked(mockDataApiService.post).mockClear()
+      await act(() => window.dispatchEvent(new Event('focus')))
+      expect(mockDataApiService.post).not.toHaveBeenCalled()
+    }
+  )
 
   it('continues presenting notifications when Web Audio is unavailable', () => {
     vi.stubGlobal(
@@ -279,3 +319,4 @@ describe('ConversationNotificationRuntime', () => {
     })
   })
 })
+import { mockDataApiService } from '@test-mocks/renderer/DataApiService'

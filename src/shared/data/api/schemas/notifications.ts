@@ -11,11 +11,18 @@ export type ListNotificationsQuery = z.infer<typeof ListNotificationsQuerySchema
 export type NotificationPage = { items: NotificationRecord[]; nextCursor?: string }
 
 export const ReadNotificationSchema = z.strictObject({ read: z.literal(true) })
+export const ReadConversationNotificationsSchema = z.strictObject({
+  conversationType: z.enum(['assistant', 'agent']),
+  conversationId: z.string().min(1)
+})
 
 export type NotificationSchemas = {
   '/notifications': { GET: { query: Partial<ListNotificationsQuery>; response: NotificationPage } }
   '/notifications/unread-count': { GET: { response: { count: number } } }
   '/notifications/read-all': { POST: { response: void } }
+  '/notifications/read-conversation': {
+    POST: { body: z.infer<typeof ReadConversationNotificationsSchema>; response: void }
+  }
   '/notifications/:id': {
     GET: { params: { id: string }; response: NotificationRecord }
     PATCH: { params: { id: string }; body: { read: true }; response: void }
