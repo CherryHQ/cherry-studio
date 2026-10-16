@@ -3,6 +3,7 @@ import {
   type AgentSession,
   createAgentSession,
   type CreateAgentSessionOptions,
+  createEventBus,
   DefaultResourceLoader,
   type ExtensionFactory,
   ModelRuntime,
@@ -85,6 +86,9 @@ export interface AgentRuntimeSessionOptions<TRequestOptions = undefined> {
   thinkingLevel?: CreateAgentSessionOptions['thinkingLevel']
 }
 
+/** Pi event-bus channel: the host's `abort()` is stopping the running run for the user. */
+export const USER_ABORT = 'cherry.user-abort'
+
 export interface AgentRuntimeSession {
   session: AgentSession
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
@@ -98,6 +102,11 @@ export interface AgentRuntimeSession {
   prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
   /** `session.compact`, for every manual compaction the host starts, for the same reason. */
   compact(customInstructions?: string): Promise<void>
+  /**
+   * `session.abort()`, for every stop the user makes (the host's stop button): it counts as the
+   * user's even when it lands in a run the runtime is ending itself (a goal withdrawing a round).
+   */
+  abort(): Promise<void>
   /** The user stops a background subagent (the host's stop button); false when it is not running. */
   stopSubagent(sessionId: string): boolean
   /**
@@ -238,7 +247,9 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     }),
     retry: { enabled: false }
   })
+  const events = createEventBus()
   const resourceLoader = new DefaultResourceLoader({
+    eventBus: events,
     cwd,
     agentDir,
     settingsManager,
@@ -298,6 +309,14 @@ export async function createAgentRuntimeSession<TRequestOptions>(
     session,
     prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
     compact: (customInstructions) => held(() => session.compact(customInstructions)),
+    abort() {
+      // Pi reports a run aborted only when one is active; that run's abort is the user's.
+      if (session.isStreaming) {
+        events.emit(USER_ABORT, undefined)
+        subagents?.controls.userAbort()
+      }
+      return session.abort()
+    },
     stopSubagent: (sessionId) => subagents?.controls.stopSubagent(sessionId) ?? false,
     backgroundSubagent: (sessionId) => subagents?.controls.backgroundSubagent(sessionId) ?? false,
     async dispose() {

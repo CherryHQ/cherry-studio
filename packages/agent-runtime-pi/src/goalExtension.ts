@@ -48,6 +48,7 @@ import {
 } from './goalState'
 import { type ConversationModelMessage, toModelMessages } from './modelMessages'
 import type { ToolApprovalEvent } from './ports'
+import { USER_ABORT } from './session'
 import { isSubagentSession, SUBAGENT_GOAL_LINK, type SubagentGoalLink } from './subagent'
 import { SUBAGENT_NOTIFICATION_TYPE } from './subagentDelivery'
 
@@ -173,6 +174,8 @@ interface Runtime {
   reservation: RoundDetails | undefined
   /** A reserved round was withdrawn before its request: the goal changed while the settle finished. */
   withdrawn: boolean
+  /** The host's `abort()` stopped the running run: the user's stop, even in a withdrawal's run. */
+  userAbort: boolean
   noProgressRounds: number
   /** The previous round's last text-bearing reply, normalized (spec §6.1). */
   previousText: string | undefined
@@ -220,6 +223,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       inGoalRound: false,
       reservation: undefined,
       withdrawn: false,
+      userAbort: false,
       noProgressRounds: 0,
       previousText: undefined,
       round: { toolProgress: false, text: undefined },
@@ -234,6 +238,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     pi.events.on(SUBAGENT_GOAL_LINK, (link) => {
       subagents = link as SubagentGoalLink
     })
+    pi.events.on(USER_ABORT, () => (runtime.userAbort = true))
     let branch: () => readonly SessionEntry[] = () => []
     /** Spec §6.1: always read from the branch, never kept. */
     const usage = (): GoalUsage => (runtime.goal ? goalUsage(branch(), runtime.goal.id) : { tokens: 0, usd: 0 })
@@ -741,13 +746,14 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
 
     pi.on('agent_settled', (event, ctx) => {
       const rejected = runtime.reservation !== undefined
-      const { withdrawn } = runtime
+      const { withdrawn, userAbort } = runtime
       runtime.reservation = undefined
       runtime.withdrawn = false
+      runtime.userAbort = false
       runtime.inGoalRound = false
       const goal = runtime.goal
       if (goal?.phase !== 'active') return
-      if (withdrawn) {
+      if (withdrawn && !userAbort) {
         // Our own abort, before the withdrawn round's request: go on as the goal is now (spec §6.3).
         if (!goal.armed) return
         if (goal.wrapUpDone || goal.roundsStarted >= goal.maxGoalRounds)
