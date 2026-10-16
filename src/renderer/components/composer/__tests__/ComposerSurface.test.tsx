@@ -1,12 +1,17 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Editor } from '@tiptap/core'
+import { Mapping } from '@tiptap/pm/transform'
 import type * as TiptapReact from '@tiptap/react'
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
 import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
+import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { voiceTargetManager } from '@renderer/services/voice'
+import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
@@ -17,7 +22,9 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 
 import { ComposerContextProvider, ComposerLayerActiveProvider } from '../ComposerContext'
+import { serializeComposerDocument } from '../composerDraft'
 import type * as ComposerPreset from '../composerPreset'
+import DeferredComposerSurface from '../ComposerSurface'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
 import type * as PasteHandling from '../paste/pasteHandling'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
@@ -60,8 +67,6 @@ const mocks = vi.hoisted(() => ({
   editorIsFocused: false,
   docTextContent: '',
   fileDragDropOptions: undefined as any,
-  setTimeoutTimer: vi.fn(),
-  timeoutCleanups: [] as Array<() => void>,
   preferences: {
     'chat.input.send_message_shortcut': 'Enter'
   } as Record<string, unknown>,
@@ -81,10 +86,6 @@ const mocks = vi.hoisted(() => ({
   translate: (key: string) => (key === 'chat.input.ai_disclaimer' ? '内容由 AI 生成，仅供参考' : key),
   transaction: undefined as any
 }))
-
-function clearMockTimers() {
-  mocks.timeoutCleanups.splice(0).forEach((cleanup) => cleanup())
-}
 
 function getMockEditorMinHeight(node: HTMLElement) {
   if (!mocks.simulateDeferredEditorStyle) return mocks.editorClientHeight
@@ -314,12 +315,6 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [mocks.preferences[key]]
 }))
 
-vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({
-    setTimeoutTimer: mocks.setTimeoutTimer
-  })
-}))
-
 vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
   useFileDragDrop: (options: any) => {
     mocks.fileDragDropOptions = options
@@ -464,7 +459,6 @@ describe('ComposerSurface', () => {
   let hasFocusSpy: ReturnType<typeof vi.spyOn> | undefined
 
   beforeEach(() => {
-    clearMockTimers()
     // jsdom reports an unfocused document, which would short-circuit every focus-restore path.
     hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     mocks.editorOptions = undefined
@@ -507,13 +501,6 @@ describe('ComposerSurface', () => {
     mocks.docTextContent = ''
     mocks.insertContentAt.mockReset()
     mocks.fileDragDropOptions = undefined
-    mocks.setTimeoutTimer.mockReset()
-    mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
-      const timer = setTimeout(callback, delay)
-      const cleanup = () => clearTimeout(timer)
-      mocks.timeoutCleanups.push(cleanup)
-      return cleanup
-    })
     mocks.preferences = {
       'chat.input.send_message_shortcut': 'Enter'
     }
@@ -531,6 +518,9 @@ describe('ComposerSurface', () => {
     mocks.pinnedLauncherIds = []
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
+      getMeta: () => undefined,
+      mapping: new Mapping(),
+      steps: [],
       doc: {},
       delete: vi.fn(() => mocks.transaction),
       setNodeMarkup: vi.fn(() => mocks.transaction),
@@ -560,6 +550,67 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions?.immediatelyRender).toBe(true)
     expect(mocks.focus).toHaveBeenCalledWith('end')
+  })
+
+  it('keeps fallback dictation literal when the rich composer mounts', async () => {
+    function DeferredHarness() {
+      const [text, setText] = useState('')
+      return (
+        <DeferredComposerSurface
+          {...baseProps}
+          text={text}
+          onTextChange={setText}
+          voiceTarget={{ targetId: 'deferred-dictation', sourceEntityId: 'topic' }}
+        />
+      )
+    }
+    const view = render(<DeferredHarness />)
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
+    voiceTargetManager.markCurrent('deferred-dictation')
+    act(() => {
+      expect(voiceTargetManager.insertIntoCurrent('echo ${HOME}\nnext line', 'user_recovery')).toBe('inserted')
+    })
+    await screen.findByTestId('composer-editor')
+    expect(serializeComposerDocument(mocks.editorOptions.content)).toEqual({
+      text: 'echo ${HOME}\nnext line',
+      tokens: []
+    })
+    view.unmount()
+  })
+
+  it('makes the keyboard-focused rich composer toolbar the current voice target', async () => {
+    const manager = new VoiceTargetManager()
+    for (const targetId of ['previous-composer', 'composer']) {
+      manager.bind({
+        targetId,
+        owner: window,
+        sourceEntityId: `${targetId}-topic`,
+        captureReplaceRange: () => ({ from: 0, to: 0 }),
+        replaceRange: () => true
+      })
+    }
+    manager.markCurrent('previous-composer')
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onVoiceTargetInteraction={() => {
+          manager.markCurrent('composer')
+        }}
+        renderLeftControls={() => (
+          <>
+            <ToolbarButton>Previous toolbar control</ToolbarButton>
+            <ToolbarButton>Dictate locally</ToolbarButton>
+          </>
+        )}
+      />
+    )
+    screen.getByRole('button', { name: 'Previous toolbar control' }).focus()
+    manager.markCurrent('previous-composer')
+
+    await userEvent.setup().tab()
+
+    expect(screen.getByRole('button', { name: 'Dictate locally' })).toHaveFocus()
+    expect(manager.captureCurrent()).toMatchObject({ targetId: 'composer', sourceEntityId: 'composer-topic' })
   })
 
   it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
@@ -727,7 +778,6 @@ describe('ComposerSurface', () => {
   })
 
   afterEach(() => {
-    clearMockTimers()
     hasFocusSpy?.mockRestore()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
@@ -976,7 +1026,7 @@ describe('ComposerSurface', () => {
     })
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
@@ -1005,13 +1055,13 @@ describe('ComposerSurface', () => {
     })
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
 
     compactRowScrollWidth = 240
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1028,7 +1078,7 @@ describe('ComposerSurface', () => {
 
     mocks.editorScrollHeight = 28
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1045,16 +1095,16 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorContentLineCount = 1
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
       mocks.editorContentLineCount = 2
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
 
     act(() => {
       mocks.editorContentLineCount = 1
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1086,13 +1136,13 @@ describe('ComposerSurface', () => {
     mocks.editorScrollHeight = 52
     mocks.editorViewComposing = true
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact')
 
     mocks.editorViewComposing = false
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
@@ -1422,7 +1472,7 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.actions).toBeDefined())
     act(() => {
-      mocks.editorOptions?.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions?.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     const liveDraft = mocks.actions?.getDraft()
@@ -1770,6 +1820,83 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, '上海')).toBe(true)
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
+  })
+
+  describe('IME input notifications', () => {
+    let listener: ReturnType<typeof vi.fn<(event?: QuickPanelInputEvent) => void>>
+
+    beforeEach(async () => {
+      mocks.stabilizeEditor = true
+      let inputAdapter: QuickPanelInputAdapter | undefined
+      render(
+        <ComposerSurface
+          {...baseProps}
+          renderLeftControls={(adapter) => {
+            inputAdapter = adapter
+            return null
+          }}
+        />
+      )
+      await waitFor(() => expect(inputAdapter).toBeDefined())
+      listener = vi.fn<(event?: QuickPanelInputEvent) => void>()
+      inputAdapter!.subscribeInput!(listener)
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('notifies input listeners once an IME composition ends without another edit', () => {
+      mocks.editorViewComposing = true
+      act(() => {
+        mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
+      })
+      expect(listener).toHaveBeenCalledWith({ isComposing: true, cause: 'user-input' })
+      listener.mockClear()
+
+      mocks.editorViewComposing = false
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        vi.advanceTimersByTime(39)
+      })
+      expect(listener).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
+
+    it('waits for a restarted composition to end before notifying finalized input', () => {
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知' })
+        mocks.editorViewComposing = true
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionstart()
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).not.toHaveBeenCalled()
+
+      act(() => {
+        mocks.editorViewComposing = false
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
+
+    it('does not repeat an input notification already emitted by the composition flush', () => {
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+
+      act(() => {
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
   })
 
   it('allows typing, replacement and newlines beyond the former input limit', async () => {
@@ -3275,6 +3402,7 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorOptions.onUpdate({
+        transaction: mocks.transaction,
         editor: {
           getJSON: () => ({
             type: 'doc',
@@ -3335,12 +3463,12 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor() })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor() })
     })
     onTokensChange.mockClear()
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('hello ') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('hello ') })
     })
 
     expect(onTokensChange).toHaveBeenCalledWith([
@@ -3391,12 +3519,12 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('${city}') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('${city}') })
     })
     onTokensChange.mockClear()
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('上海') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('上海') })
     })
 
     expect(onTokensChange).toHaveBeenCalledWith([
@@ -4906,6 +5034,7 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorOptions.onUpdate({
+        transaction: mocks.transaction,
         editor: {
           getJSON: () => tokenDocument,
           state: {

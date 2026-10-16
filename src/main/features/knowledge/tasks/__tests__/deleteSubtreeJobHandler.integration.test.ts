@@ -66,6 +66,7 @@ describe('knowledge deletion transaction and job retry', () => {
       .values({
         id: BASE_ID,
         name: 'KB',
+        orderKey: 'a0',
         status: 'completed',
         chunkSize: 1024,
         chunkOverlap: 200

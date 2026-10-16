@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 
 import { buildApp } from './app'
 import { McpSessionStore } from './McpSessionStore'
+import type { GatewaySurface } from './middleware/auth'
 
 const logger = loggerService.withContext('ApiGateway')
 
@@ -40,7 +41,10 @@ export class ApiGateway {
   private boundPort?: number
   private readonly mcpSessions = new McpSessionStore()
 
-  constructor(private readonly endpoint?: { host: string; port: number }) {}
+  constructor(
+    private readonly endpoint?: { host: string; port: number },
+    private readonly surface: GatewaySurface = 'public'
+  ) {}
 
   async start(): Promise<void> {
     if (this.isRunning()) return
@@ -65,7 +69,7 @@ export class ApiGateway {
   }
 
   private async listen(host: string, port: number): Promise<void> {
-    const app = buildApp({ host, port, mcpSessions: this.mcpSessions })
+    const app = buildApp({ host, port, mcpSessions: this.mcpSessions, surface: this.surface })
     // Explicit IPv6-only sockets avoid platform-dependent dual-stack defaults.
     const options = { port, hostname: host, reusePort: false, gracefulShutdown: false, node: { ipv6Only: true } }
     let created: NodeServerInfo | undefined

@@ -36,6 +36,7 @@ describe('validation selection', () => {
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
+    ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
@@ -44,6 +45,21 @@ describe('validation selection', () => {
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
   })
+  it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
+    const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])
+    expect(plan.tasks).toContain('types-system-speech')
+    expect(plan.tasks).toContain('types-node')
+    expect(plan.projects).not.toContain('renderer')
+    expect(selectedGroups(plan).platform).toBe(true)
+  })
+  it.each(['pnpm-lock.yaml', 'src/shared/types/voice.ts'])(
+    'keeps system speech tests and typechecks in shared or full validation: %s',
+    (file) => {
+      const plan = createPlan([file])
+      expect(plan.projects).toContain('system-speech')
+      expect(plan.tasks).toContain('types-system-speech')
+    }
+  )
   it('checks portable previews after their browser setup changes without depending on the desktop setup', () => {
     expect(createPlan(['tests/file-preview.setup.ts']).projects).toContain('file-preview')
     expect(createPlan(['tests/renderer.setup.ts']).projects).not.toContain('file-preview')
@@ -74,6 +90,49 @@ describe('validation selection', () => {
     expect(createPlan(['src/main/data/db/schemas/messages.ts']).tasks).toContain('migrations')
     expect(createPlan(['migrations/sqlite-drizzle/0001.sql']).projects).toContain('main')
     expect(createPlan(['.agents/skills/example/SKILL.md']).tasks).toContain('skills')
+  })
+  it.each([
+    ['src/main/ai/localModel/runtime/__tests__/inferenceEntryTts.test.ts', ['i18n-unused']],
+    ['src/main/service.test.ts', ['i18n-catalog', 'i18n-unused']],
+    ['src/main/service.spec.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']],
+    ['src/renderer/pages/Chat.test.tsx', ['i18n-unused']],
+    ['src/renderer/pages/Chat.spec.tsx', ['i18n-unused', 'i18n-hardcoded']],
+    ['packages/file-preview/src/__tests__/fixtures.ts', ['i18n-unused']],
+    ['src/main/__tests__/helpers.ts', ['i18n-unused']],
+    ['src/main/utils/testHelpers.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']],
+    ['tests/helpers/runtime.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']]
+  ])('keeps every i18n scanner that can read %s', (file, tasks) => {
+    const plan = createPlan([file])
+    expect(plan.tasks.filter((task: string) => task.startsWith('i18n-'))).toEqual(tasks)
+    expect(plan.tasks).toContain('lint')
+    expect(plan.tasks.some((task: string) => task.startsWith('types-'))).toBe(true)
+    expect(plan.projects.length).toBeGreaterThan(0)
+    expect(() => verifyResults(plan, { i18n: 'skipped' }, ['i18n'])).toThrow('i18n: expected success')
+  })
+  it('keeps explicit full validation complete even when every changed file is a test', () => {
+    expect(createPlan(['src/main/__tests__/service.test.ts'], 'Explicit full validation').tasks).toEqual(
+      expect.arrayContaining(['i18n-catalog', 'i18n-unused', 'i18n-hardcoded'])
+    )
+  })
+  it.each([
+    'src/main/service.ts',
+    'src/renderer/i18n/locales/en-us.json',
+    'src/main/i18n/locales/en-us.json',
+    'packages/file-preview/src/locales/en-us.json',
+    'scripts/i18n-check-unused.ts',
+    'scripts/i18n-check-hardcoded-strings.ts',
+    'scripts/i18n-check-values.ts',
+    'scripts/i18n-main-keys.ts',
+    'scripts/i18n-glossary.json',
+    'i18next.config.ts',
+    'tsconfig.node.json',
+    'scripts/validation/plan.mjs',
+    'tests/new.config.ts'
+  ])('retains full i18n checks for mixed tests and scanner/runtime input %s', (file) => {
+    const plan = createPlan(['src/main/__tests__/service.test.ts', file])
+    expect(plan.tasks).toEqual(expect.arrayContaining(['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']))
+    expect(selectedGroups(plan).i18n).toBe(true)
+    expect(() => verifyResults(plan, { i18n: 'skipped' }, ['i18n'])).toThrow('i18n: expected success')
   })
   it('rejects missing, failed, cancelled or unexpectedly skipped planned jobs', () => {
     const plan = createPlan(['src/main/service.ts'])
@@ -139,6 +198,43 @@ describe('working tree changes', () => {
 
 // A docs-only plan must never start compilers, native rebuilds, lint fixes, or tests.
 describe('validation execution', () => {
+  it.each(['types', 'packages', 'platform'])(
+    'builds workspace exports before system speech validation in the %s group',
+    (group) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-speech-'))
+      directories.push(cwd)
+      const log = join(cwd, 'commands.jsonl')
+      const pnpm = join(cwd, 'pnpm.cjs')
+      writeFileSync(
+        pnpm,
+        `require('node:fs').appendFileSync(process.env.COMMAND_LOG, JSON.stringify(process.argv.slice(2)) + '\\n')`
+      )
+      const result = spawnSync(process.execPath, ['scripts/validation/run.mjs', '--group', group], {
+        env: {
+          ...process.env,
+          npm_execpath: pnpm,
+          COMMAND_LOG: log,
+          VALIDATION_PLAN: JSON.stringify(createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts']))
+        },
+        encoding: 'utf8'
+      })
+      expect(result.status, result.stderr).toBe(0)
+      const commands: string[][] = readFileSync(log, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      expect(commands[0]).toEqual(['run', 'postinstall'])
+      if (group === 'types') {
+        expect(commands).toContainEqual(['--filter', '@cherrystudio/system-speech', 'typecheck'])
+      } else {
+        const test = commands.find((command) => command[0] === 'exec' && command[1] === 'vitest')!
+        expect(test).toContain('system-speech')
+        if (group === 'platform')
+          expect(test).toContain('packages/system-speech/tests/SystemSpeechNativeClient.test.ts')
+      }
+    }
+  )
+
   it('executes only planned read-only tasks and propagates command failures', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-run-'))
     directories.push(cwd)

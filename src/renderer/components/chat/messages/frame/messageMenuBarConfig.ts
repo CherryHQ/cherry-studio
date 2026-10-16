@@ -2,6 +2,7 @@ export type MessageMenuBarButtonId =
   | 'user-edit'
   | 'copy'
   | 'quote'
+  | 'read-aloud'
   | 'assistant-regenerate'
   | 'assistant-mention-model'
   | 'translate'
@@ -13,6 +14,7 @@ export type MessageMenuBarButtonId =
 export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = [
   'copy',
   'quote',
+  'read-aloud',
   'user-edit',
   'assistant-regenerate',
   'assistant-mention-model',
@@ -25,6 +27,7 @@ export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenuBarButtonId[] = [
 
 export const STREAMING_DISABLED_BUTTON_IDS: ReadonlySet<MessageMenuBarButtonId> = new Set([
   'user-edit',
+  'read-aloud',
   'delete',
   'assistant-regenerate'
 ])

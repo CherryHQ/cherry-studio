@@ -30,7 +30,7 @@ import {
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useQuotedMessageLocateRequest } from '@renderer/hooks/useQuotedMessageLocateRequest'
@@ -52,7 +52,6 @@ import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
-import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -213,7 +212,6 @@ const AgentChat = ({
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
-  const isModelDisabled = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
@@ -253,6 +251,8 @@ const AgentChat = ({
   const sessionMessagesEnabled = Boolean(sessionSnapshot)
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
+    modelId: activeModel?.id,
+    agentType: activeAgent?.type,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
@@ -471,7 +471,6 @@ const AgentChat = ({
               onModelSelect={handleAgentModelChange}
               onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
               modelFilter={agentModelFilter}
-              isModelDisabled={isModelDisabled}
               onAgentDialogCloseAutoFocus={handleRestoreComposerFocus}
             />
           ) : undefined
@@ -694,7 +693,6 @@ const AgentChatSessionCenter = ({
         </div>
       )}
       {messageList}
-      <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )
 
