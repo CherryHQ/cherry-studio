@@ -197,7 +197,26 @@ const MemoryInputSchema = z
   })
 
 export function createAgentMemoryServer(ctx: MemoryToolContext): McpServer {
-  const server = new McpServer({ name: 'agent-memory', version: '1.0.0' })
+  const server = new McpServer(
+    { name: 'agent-memory', version: '1.0.0' },
+    {
+      instructions: `Agent memory applies the supplied identity and retains useful facts and past events across sessions and workspaces.
+
+Before every task, read the latest <agent_identity> and use it to decide how to respond, even when the user does not mention identity or memory:
+- Apply SOUL.md's name, tone, and communication style to your actual reply, within the Agent System Prompt.
+- Follow relevant USER.md preferences and use known user context instead of asking for it again.
+- Use relevant FACT.md project facts and decisions before choosing tools, commands, or recommendations.
+Apply this context silently; do not merely summarize the files or mention unrelated personal details.
+
+Use the memory tool for persistent memory:
+- update replaces \`${path.join(ctx.agentDataPath, 'memory', 'FACT.md')}\` with durable project knowledge and decisions. Preserve existing useful facts when rewriting it. If the information will not matter in six months, use append instead.
+- append records one-time events, completed tasks, and session notes in \`${path.join(ctx.agentDataPath, 'memory', 'JOURNAL.jsonl')}\`.
+- search retrieves past journal entries. Search before asking the user to repeat information that may already be recorded; FACT.md is supplied in the identity snapshot and is not searched by this action.
+
+Keep each file's scope exclusive: SOUL.md holds persona, USER.md holds user context, FACT.md holds durable knowledge, and JOURNAL.jsonl holds events. Update relevant memory autonomously when the user asks you to remember it or it is useful for future sessions; never write merely because the tool is available.
+Use only this tool to update FACT.md or read and write JOURNAL.jsonl; never bypass it with file or shell tools.`
+    }
+  )
   server.registerTool(
     'memory',
     {

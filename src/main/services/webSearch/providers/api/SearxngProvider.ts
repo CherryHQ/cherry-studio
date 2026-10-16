@@ -2,12 +2,11 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
-import { isAbortError } from '@main/utils/error'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 import { isHttpUrl } from '@shared/utils/url'
 
-import { fetchWebSearchContent } from '../../utils/fetchContent'
+import { fetchSearchResultContents } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { UrlSearchContext } from '../base/context'
 
@@ -36,11 +35,24 @@ const SearxngConfigResponseSchema = z.object({
 })
 
 type SearxngSearchContext = UrlSearchContext
+type SearxngSearchItem = z.infer<typeof SearxngSearchResponseSchema>['results'][number]
 
 const logger = loggerService.withContext('SearxngProvider')
 
 function trimStringList(values: readonly string[]): string[] {
   return values.map((value) => value.trim()).filter(Boolean)
+}
+
+function toSnippetResult(item: SearxngSearchItem): WebSearchResult | undefined {
+  const url = item.url ?? ''
+  // Engines that carry no summary still emit `content: ''`, so pick the first non-empty field
+  // rather than the first present one.
+  const content = [item.content, item.snippet].map((value) => value?.trim() ?? '').find(Boolean) ?? ''
+  if (!content) {
+    return undefined
+  }
+
+  return { title: item.title || url, url, content, sourceInput: url }
 }
 
 export class SearxngProvider extends BaseWebSearchProvider {
@@ -159,35 +171,15 @@ export class SearxngProvider extends BaseWebSearchProvider {
       })
     }
 
-    const settledResults = await Promise.allSettled(
-      validItems.map((item) => fetchWebSearchContent(item.url || '', { signal: context.signal }))
-    )
-
-    const rejectedResults = settledResults.filter((item): item is PromiseRejectedResult => item.status === 'rejected')
-
-    const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
-
-    if (abortResult && context.signal?.aborted) {
-      throw abortResult.reason
-    }
-
-    if (rejectedResults.length > 0) {
-      logger.warn('Some Searxng content fetches failed', {
+    return fetchSearchResultContents(
+      validItems.map((item) => item.url || ''),
+      {
         query: context.query,
-        failedCount: rejectedResults.length,
-        totalCount: validItems.length
-      })
-    }
-
-    const fulfilledResults = settledResults.filter(
-      (item): item is PromiseFulfilledResult<WebSearchResult> => item.status === 'fulfilled'
+        providerLabel: 'Searxng',
+        signal: context.signal,
+        getFallbackResult: (_url, index) => toSnippetResult(validItems[index])
+      }
     )
-
-    if (fulfilledResults.length === 0 && rejectedResults.length > 0) {
-      throw rejectedResults[0].reason
-    }
-
-    return fulfilledResults.map((item) => item.value).filter((item) => item.content.trim().length > 0)
   }
 
   private buildFinalResponse(context: SearxngSearchContext, fetchedResults: WebSearchResult[]): WebSearchResponse {

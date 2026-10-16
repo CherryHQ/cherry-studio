@@ -172,6 +172,7 @@ vi.mock('@application', async () => {
 const { AiStreamManager } = await import('../AiStreamManager')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
+const { WebContentsListener } = await import('../listeners/WebContentsListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -552,6 +553,52 @@ describe('AiStreamManager', () => {
       expect(s2.status).toBe('pending')
       expect(s2.executions).toHaveLength(1)
     })
+
+    it.each(['success', 'error', 'paused'] as const)(
+      'correlates a queued Agent turn with its submitted user on %s',
+      async (outcome) => {
+        const topicId = 'agent-session:s1'
+        const modelId = 'provider-a::model-a'
+        const wc = { id: 1, isDestroyed: () => false, send: vi.fn() }
+        const old = mgr.startRuntimeTurn({
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [new WebContentsListener(wc as unknown as Electron.WebContents, topicId)]
+        })
+        const current = mgr.startRuntimeTurn({
+          topicId,
+          modelId,
+          request: {
+            ...req(topicId),
+            messageId: 'queued-assistant',
+            runtime: { kind: 'agent-session', sessionId: 's1', turnId: 'queued-turn' },
+            messages: [
+              { id: 'queued-user', role: 'user', parts: [] },
+              { id: 'queued-assistant', role: 'assistant', parts: [] }
+            ]
+          },
+          listeners: []
+        })
+        expect(current.activeExecutions[0].attemptId).not.toBe(old.activeExecutions[0].attemptId)
+        if (outcome === 'error') await mgr.onExecutionError(topicId, modelId, error('context window exceeded'))
+        else if (outcome === 'paused') {
+          mgr.abort(topicId, 'user-requested')
+          await mgr.onExecutionPaused(topicId, modelId)
+        } else await mgr.onExecutionDone(topicId, modelId)
+        expect(wc.send).toHaveBeenCalledWith(
+          expect.anything(),
+          outcome === 'error' ? 'ai.stream.error' : 'ai.stream.done',
+          expect.objectContaining({
+            topicId,
+            executionId: modelId,
+            attemptId: current.activeExecutions[0].attemptId,
+            anchorMessageId: 'queued-assistant',
+            userMessageId: 'queued-user'
+          })
+        )
+      }
+    )
 
     it('ignores chunks and terminal callbacks from a replaced runtime execution', async () => {
       vi.useRealTimers()

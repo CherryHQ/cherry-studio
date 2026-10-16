@@ -146,3 +146,19 @@ describe('downloadBundleFiles', () => {
     expect(fractions.at(-1)).toBe(1)
   })
 })
+
+it('fetches a pinned distribution URL without rewriting it as a model registry URL', async () => {
+  const file: BundleFile = {
+    key: 'weights',
+    relPath: 'model.safetensors',
+    urls: ['https://github.com/CherryHQ/cherry-studio/releases/download/runtime/model.safetensors'],
+    sizeBytes: 99,
+    minBytes: 99,
+    weight: 1,
+    sha256: 'a'.repeat(64)
+  }
+  await downloadBundleFiles({ ...BUNDLE, files: [file] }, [file], options())
+  expect(streamToFileVerified.mock.calls[0][0]).toBe(
+    'https://github.com/CherryHQ/cherry-studio/releases/download/runtime/model.safetensors'
+  )
+})

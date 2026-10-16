@@ -150,6 +150,10 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   // validity, so claiming the key is invalid sends users off regenerating working keys.
   if (
     status === 401 ||
+    msg.includes('api key is missing') ||
+    msg.includes('missing api key') ||
+    msg.includes('no api key') ||
+    msg.includes('api_key_missing') ||
     msg.includes('invalid_api_key') ||
     msg.includes('invalid api key') ||
     msg.includes('api key is invalid') ||

@@ -6,17 +6,11 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { AppEdition } from '@shared/types/appEdition'
 
 const mocks = vi.hoisted(() => ({
-  appEdition: 'cn' as AppEdition,
   getProvider: vi.fn(),
   listProviders: vi.fn(),
   listModels: vi.fn()
-}))
-
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: () => mocks.appEdition
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -43,7 +37,6 @@ import { getModels, resolveGatewayModelAddress } from '../models'
 describe('api gateway model listing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.appEdition = 'cn'
     mocks.getProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
     mocks.listProviders.mockReturnValue([
       { id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' },
@@ -80,7 +73,7 @@ describe('api gateway model listing', () => {
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
   })
 
-  it('surfaces the resolved model record for provider-option translation', () => {
+  it('surfaces the resolved model record for provider-option translation', async () => {
     const resolvedModel = {
       id: 'openai::gpt-4o',
       providerId: 'openai',
@@ -91,7 +84,7 @@ describe('api gateway model listing', () => {
     }
     mocks.listModels.mockReturnValue([resolvedModel])
 
-    expect(resolveGatewayModelAddress('openai:gpt-4o')).toMatchObject({
+    await expect(resolveGatewayModelAddress('openai:gpt-4o')).resolves.toMatchObject({
       providerId: 'openai',
       apiModelId: 'gpt-4o',
       uniqueModelId: 'openai::gpt-4o',
@@ -99,7 +92,7 @@ describe('api gateway model listing', () => {
     })
   })
 
-  // The listing shares isGatewayRoutableModel with the renderer's gateway picker: it must never
+  // The listing shares isPublicGatewayRoutableModel with the renderer's gateway picker: it must never
   // advertise a model the proxy cannot route (non-chat classes, un-addressable provider ids).
   it('does not expose non-chat (audio/video/transcription) models', async () => {
     mocks.listProviders.mockReturnValue([{ id: 'openai', name: 'OpenAI' }])
@@ -230,7 +223,7 @@ describe('api gateway model listing', () => {
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
   })
 
-  describe('Cherry Cloud audience', () => {
+  describe('Cherry Cloud module availability', () => {
     const cloudModel = {
       id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
       providerId: CHERRY_CLOUD_PROVIDER_ID,
@@ -252,25 +245,19 @@ describe('api gateway model listing', () => {
       mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI', isEnabled: true })
     })
 
-    it('hides Cherry Cloud models from external callers in the cn edition', async () => {
+    it('keeps listed Cherry Cloud models out of the public gateway', async () => {
       const response = await getModels()
       expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
 
-      expect(() => resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).toThrow(
+      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).rejects.toThrow(
         'not available through the API gateway'
       )
-      expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true).model).toBe(cloudModel)
     })
 
-    it('exposes Cherry Cloud models to every caller in the global edition', async () => {
-      mocks.appEdition = 'global'
-
-      const response = await getModels()
-      expect(response.data.map((model) => model.id)).toEqual([
-        `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
-        'openai:gpt-4o'
-      ])
-      expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`).model).toBe(cloudModel)
+    it('serves Cherry Cloud models to internal requests', async () => {
+      await expect(
+        resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, true)
+      ).resolves.toMatchObject({ model: cloudModel })
     })
   })
 })

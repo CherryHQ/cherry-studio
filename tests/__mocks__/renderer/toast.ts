@@ -9,6 +9,7 @@ import { vi } from 'vitest'
  */
 export const mockToast = {
   error: vi.fn(),
+  errorFromException: vi.fn(),
   success: vi.fn(),
   warning: vi.fn(),
   info: vi.fn(),

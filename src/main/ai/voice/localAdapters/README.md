@@ -1,9 +1,11 @@
 # Private local Voice adapters
 
 `voiceAudioProcess` declares the `voice.audio` utility process. VoiceSessionService
-registers it; Apple, Windows and FunASR ASR request `decode` with Main-read FileEntry bytes and a combined
-owner/caller/timeout AbortSignal. The process uses terminate cancellation, so the
-caller cannot release its operation lease before the old generation exits.
+registers it. Apple and FunASR pass canonical WAV bytes through `inspectCanonicalWav`
+and request `decode` only for WebM. Windows ASR requests `decode` for its accepted
+input. Every decode uses a combined owner/caller/timeout AbortSignal. The process
+uses terminate cancellation, so the caller cannot release its operation lease before
+the old generation exits.
 
 `decodeWebm` uses Mediabunny for WebM packet demux and WAV mux, ts-ebml for metadata
 that Mediabunny does not expose, and opus-decoder's libopus WASM for 16 kHz decode.
@@ -19,6 +21,7 @@ inside the stream, multiple tracks, video, encryption, attachments and non-Opus
 codecs are rejected. ts-ebml 3.0.2 cannot read signed integers wider than six bytes;
 those encodings fail with `VOICE_AUDIO_INVALID`, including an eight-byte padding
 field. This is a bounded MediaRecorder input contract, not a general media importer.
+Canonical WAV is separate: `inspectCanonicalWav` rejects more than 32 MiB with `invalid_audio` and does not apply the five-minute cap.
 
 Limits: 32 MiB encoded input, five minutes decoded audio, 200,000 metadata elements,
 and libopus's packet buffer limit. The adapter supplies a 30-second decoding timeout;

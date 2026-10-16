@@ -44,6 +44,7 @@ import {
 import { SERVICE_NAME_PREFIX } from '@main/core/utilityProcess/protocol/constants'
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
+import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 
 import { asrInferenceProcess } from '../../capabilities/asr/AsrInferenceService'
 import { embeddingInferenceProcess, type InferenceProcessDefinition, ocrInferenceProcess } from '../inferenceProcess'
@@ -71,20 +72,20 @@ class TestInferenceService extends InferenceServiceBase<EchoContract> {
     super(definition, 'embedding')
   }
 
-  ping(signal?: AbortSignal) {
-    return this.run('ping', undefined, { signal })
+  ping(signal?: AbortSignal, modelId: LocalModelBundleId = 'qwen3-embedding-0.6b') {
+    return this.run(modelId, 'ping', () => undefined, { signal })
   }
 
   block(signal?: AbortSignal) {
-    return this.run('wait', undefined, { signal })
+    return this.run('qwen3-embedding-0.6b', 'wait', () => undefined, { signal })
   }
 
   boom() {
-    return this.run('fail', undefined)
+    return this.run('qwen3-embedding-0.6b', 'fail', () => undefined)
   }
 
   nothing() {
-    return this.run('noop', undefined)
+    return this.run('qwen3-embedding-0.6b', 'noop', () => undefined)
   }
 }
 
@@ -326,7 +327,7 @@ describe('InferenceServiceBase teardown', () => {
 
     let spawnsDuringAfter = 0
     const blocked = rejectionOf(
-      service.terminateThen(async () => {
+      service.removeModelThen('qwen3-embedding-0.6b', async () => {
         spawnsDuringAfter = adapter.spawns.filter((spawn) => !spawn.child.exited).length
         await service.ping()
       })
@@ -334,5 +335,35 @@ describe('InferenceServiceBase teardown', () => {
 
     expect(await blocked).toHaveProperty('code', 'PROCESS_BLOCKED')
     expect(spawnsDuringAfter).toBe(0)
+  })
+})
+
+describe('model-scoped removal', () => {
+  it('removes an unused model without interrupting another model using the same process', async () => {
+    const { service, adapter } = await createService()
+    const active = service.block()
+    await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'active inference')
+    let removed = false
+    await service.removeModelThen('pp-ocrv6-medium', async () => {
+      removed = true
+    })
+    expect(removed).toBe(true)
+    expect(adapter.spawns[0].child.exited).toBe(false)
+    childStates[0].release()
+    await expect(active).resolves.toBe('released')
+    await service.terminate()
+  })
+
+  it('invalidates queued work for a removed model without cancelling active work for another', async () => {
+    const { service, adapter } = await createService()
+    const active = service.block()
+    await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'active inference')
+    const queued = rejectionOf(service.ping(undefined, 'pp-ocrv6-medium'))
+    await service.removeModelThen('pp-ocrv6-medium', async () => {})
+    childStates[0].release()
+    await expect(active).resolves.toBe('released')
+    expect(await queued).toHaveProperty('code', 'PROCESS_BLOCKED')
+    expect(adapter.spawns[0].child.exited).toBe(false)
+    await service.terminate()
   })
 })
