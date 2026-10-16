@@ -10,7 +10,6 @@ import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
 import type {
   AgentRuntimeConnectInput,
@@ -46,14 +45,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     await prepareAgentSessionWorkspaceDirectory(session)
     // Side-effect free: dispatch validation must not consume API-key rotation;
     // the concrete key is selected only when the runtime connection starts.
-    try {
-      await assertPiProviderUsable(agent.model)
-    } catch (error) {
-      if (error instanceof ApiGatewayNotRunningError) {
-        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: session.id })
-      }
-      throw error
-    }
+    await assertPiProviderUsable(agent.model)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {

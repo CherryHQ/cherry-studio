@@ -49,6 +49,7 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/scheduled-tasks': { icon: '⏰', labelKey: 'settings.scheduledTasks.title' },
   '/settings/skills': { icon: '🧰', labelKey: 'settings.skills.title' },
   '/settings/usage': { icon: '📊', labelKey: 'settings.usage.title' },
+  '/settings/profile': { icon: '👤', labelKey: 'settings.profile.title' },
 
   // MCP sub-pages
   '/settings/mcp/servers': { icon: '📋', labelKey: 'settings.mcp.title' },

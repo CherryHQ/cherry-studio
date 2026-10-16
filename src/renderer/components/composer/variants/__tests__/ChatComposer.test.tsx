@@ -2384,7 +2384,7 @@ describe('ChatComposer', () => {
     })
 
     expect(onSend).not.toHaveBeenCalled()
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('does not submit a text draft before a newly attached file token is reflected in the editor', async () => {
@@ -2399,7 +2399,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toHaveLength(1)
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('does not submit a text draft while only some attached file tokens are reflected in the editor', async () => {
@@ -2428,7 +2428,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toEqual([syncedFile, unsyncedFile])
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
@@ -2451,7 +2451,7 @@ describe('ChatComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
-    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }))
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
@@ -2648,7 +2648,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.draftTokens).toEqual([fileToken, quoteToken])
     expect(mocks.surfaceProps?.editable).toBe(true)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {
