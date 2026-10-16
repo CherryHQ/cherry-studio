@@ -21,13 +21,14 @@ export default function NotificationAnnouncement({
   announcement: Extract<NotificationTarget, { kind: 'announcement' }>
 }) {
   const { t } = useTranslation()
+  const { url: announcementUrl } = announcement
   const components = useMemo<MarkdownProps['components']>(
     () => ({
       a: ({ href, children }) => {
         if (!href) return <span>{children}</span>
         let url: string
         try {
-          url = new URL(href, announcement.url).href
+          url = new URL(href, announcementUrl).href
         } catch {
           return <span>{children}</span>
         }
@@ -43,7 +44,7 @@ export default function NotificationAnnouncement({
         )
       }
     }),
-    [announcement.url]
+    [announcementUrl]
   )
 
   return (
@@ -51,9 +52,11 @@ export default function NotificationAnnouncement({
       <Markdown id={`notification-${id}`} components={components} className="text-sm text-muted-foreground">
         {announcement.content}
       </Markdown>
-      <Button variant="outline" onClick={() => openLink(announcement.url)}>
-        {t('common.open_in', { name: 'GitHub' })}
-      </Button>
+      {announcementUrl && (
+        <Button variant="outline" onClick={() => openLink(announcementUrl)}>
+          {t('common.open')}
+        </Button>
+      )}
     </>
   )
 }

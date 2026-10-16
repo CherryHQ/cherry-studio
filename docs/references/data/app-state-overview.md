@@ -7,7 +7,6 @@ sources:
   - src/main/services/file/tasks/contentMetadataGeneration.ts
   - src/main/services/NotificationService.ts
   - src/main/services/AppUpdaterService.ts
-  - src/main/services/OfficialAnnouncementService.ts
 ---
 
 # App State System Overview
@@ -88,8 +87,6 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `notification:daily-budget-cycle` | `NotificationService` | UUID string | Reset when the budget or threshold value changes; allows another warning on the next qualifying usage, even when returning to a previously used setting. |
 | `notification:context:<topicId>` | `NotificationService` | `{ stage: string, activeModel?: string, models: Record<string, { stage: string, warned: boolean }> }` | Context warning generation and consumed threshold per model; reset on compaction, an Agent model switch, or a new context stage. |
 | `appUpdater:notification:<version>` | `AppUpdaterService` | `true` | Version already observed, including while Official notifications are disabled; retained beyond notification dismissal and 30-day history expiry. |
-| `officialAnnouncement:subscription` | `OfficialAnnouncementService` | `{ enabled: boolean, since: number }` | First subscription or latest re-enable time. Preserved across restarts so posts published while enabled but offline can be received; disabled-period posts are excluded. |
-| `officialAnnouncement:consumed:<AtomID>` | `OfficialAnnouncementService` | `true` | Announcement already handled or excluded by the subscription baseline. Survives dismissal and history expiry; source edits cannot replay the same post. |
 
 ## Related Source Code
 
