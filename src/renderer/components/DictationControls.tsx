@@ -2,7 +2,7 @@ import { Copy, CornerDownLeft, Mic, RotateCcw, Square, Trash2, X } from 'lucide-
 import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, NormalTooltip } from '@cherrystudio/ui'
+import { BarVisualizer, Button, NormalTooltip } from '@cherrystudio/ui'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { DictationErrorCategory, DictationPhase } from '@renderer/services/voice'
@@ -38,6 +38,7 @@ export function DictationControls({
   const { t } = useTranslation()
   const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
   const target = useSyncExternalStore(voiceTargetManager.subscribe, voiceTargetManager.getSnapshot)
+  const capturing = ['starting', 'recording', 'stopping', 'transcribing'].includes(snapshot.phase)
   const run = (action: () => Promise<unknown>) => {
     void action()
       .catch(() => undefined)
@@ -50,7 +51,20 @@ export function DictationControls({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div
+      className={
+        capturing
+          ? 'flex max-w-full items-center gap-2 rounded-full border border-border bg-popover py-1 pr-1 pl-3'
+          : 'flex flex-wrap items-center gap-1'
+      }>
+      {capturing && (
+        <BarVisualizer
+          aria-hidden
+          analyser={snapshot.analyser}
+          state={snapshot.phase === 'recording' ? 'listening' : 'thinking'}
+          className="h-6 w-16 shrink-0"
+        />
+      )}
       {snapshot.phase !== 'idle' && (
         <span role="status" className="text-xs text-muted-foreground">
           {t(

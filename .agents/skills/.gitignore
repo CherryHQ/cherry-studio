@@ -6,8 +6,6 @@
 !public-skills.txt
 !cherry-electron-dev/
 !cherry-electron-dev/**
-!cherry-pr-test/
-!cherry-pr-test/**
 !cherry-regression-test/
 !cherry-regression-test/**
 !create-skill/
