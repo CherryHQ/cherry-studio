@@ -64,6 +64,22 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         />
       )
     }
+    // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
+    // its values may embed a verbatim provider diagnostic.
+    const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+    if (typeof detailKey === 'string' && detailKey) {
+      const detailFullKey = `error.${detailKey}`
+      if (i18n.exists(detailFullKey)) {
+        const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
+          | Record<string, string>
+          | undefined
+        return (
+          <span>
+            {t(i18nKey)} {t(detailFullKey, detailValues)}
+          </span>
+        )
+      }
+    }
     return t(i18nKey)
   }
 
@@ -97,13 +113,22 @@ const MessageErrorInfo: React.FC<{
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
-  const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
+  const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
+  const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
+  // An app-owned i18nKey is the throwing code's own display text — prefer it over a
+  // pattern-matched category heading, which can name the wrong subsystem entirely (an
+  // OCR-fallback failure must not present as a chat-provider auth error). Keys that
+  // interpolate <provider> still go through the classification branch: plain `t()`
+  // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(
-    () => t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
-    [classification.i18nKey, providerId, t]
+    () =>
+      hasAppOwnedI18nKey && !providerId
+        ? t(appOwnedErrorKey)
+        : t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
+    [hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, providerId, t]
   )
 
   useEffect(() => {

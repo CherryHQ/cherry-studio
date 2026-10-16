@@ -1405,6 +1405,172 @@ describe('release workflow gates', () => {
     }
   })
 
+  it.each([
+    ['windows', 'windows-2022', 'win', '-setup.exe'],
+    ['mac', 'macos-latest', 'mac', '.dmg'],
+    ['linux', 'ubuntu-latest', 'linux', '.AppImage']
+  ])('uploads only separate nightly installers for %s', (platform, runner, filePlatform, suffix) => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'nightly-build.yml'), 'utf8'))
+    const steps = workflow.jobs['nightly-build'].steps
+    const renameStep = steps.find((step: { name?: string }) => step.name === 'Rename artifacts with nightly format')
+    const uploads = steps.filter((step: { uses?: string }) => step.uses?.startsWith('actions/upload-artifact@'))
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nightly-installers-'))
+    roots.push(root)
+    const expected = getExpectedReleaseArtifacts({
+      edition: 'global',
+      platform,
+      productName: 'Cherry Studio',
+      version: '2.1.6'
+    })
+    for (const file of [...expected.files, ...expected.manifests.map((manifest) => manifest.file)]) {
+      write(root, `dist/${file}`, file)
+    }
+    execFileSync(
+      'bash',
+      [
+        '-e',
+        '-c',
+        renameStep.run.replaceAll('${{ matrix.os }}', runner).replaceAll('${{ steps.date.outputs.date }}', '20261015')
+      ],
+      { cwd: root }
+    )
+
+    const stagedFiles = fs.readdirSync(path.join(root, 'renamed-artifacts')).sort()
+    expect(stagedFiles).toEqual([
+      `cherry-studio-nightly-20261015-${filePlatform}-arm64${suffix}`,
+      `cherry-studio-nightly-20261015-${filePlatform}-x64${suffix}`
+    ])
+    const selectedFiles: string[] = []
+    for (const upload of uploads) {
+      const options = upload.with
+      expect(options.archive).toBe(false)
+      expect(options['if-no-files-found']).toBe('error')
+      expect(options['retention-days']).toBe(3)
+      const patterns = options.path.trim().split('\n')
+      const selected = stagedFiles.filter((file) =>
+        patterns.some((pattern: string) => path.matchesGlob(`renamed-artifacts/${file}`, pattern))
+      )
+      expect(selected).toHaveLength(1)
+      const file = selected[0]
+      const arch = file.includes('-arm64') ? 'arm64' : 'x64'
+      expect(fs.readFileSync(path.join(root, 'renamed-artifacts', file), 'utf8')).toBe(
+        `Cherry-Studio-2.1.6-${filePlatform}-${arch}${suffix}`
+      )
+      selectedFiles.push(...selected)
+    }
+    expect(selectedFiles.sort()).toEqual(stagedFiles)
+  })
+
+  it.each(['all', 'partial', 'empty', 'unavailable'])(
+    'summarizes nightly downloads with %s uploads',
+    async (scenario) => {
+      const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'nightly-build.yml'), 'utf8'))
+      const job = workflow.jobs['Build-Summary']
+      expect(job.needs).toContain('nightly-build')
+      expect(job.if).toContain('always()')
+      expect(job.permissions.actions).toBe('read')
+      expect(job.steps.some((step: { uses?: string }) => step.uses?.startsWith('actions/download-artifact@'))).toBe(
+        false
+      )
+      const installers = [
+        {
+          id: 101,
+          name: 'cherry-studio-nightly-20261015-win-x64-setup.exe',
+          size_in_bytes: 1048576,
+          row: '| Windows | x64 | 2026-10-15 | 1.0 MiB |'
+        },
+        {
+          id: 102,
+          name: 'cherry-studio-nightly-20261015-win-arm64-setup.exe',
+          size_in_bytes: 2621440,
+          row: '| Windows | arm64 | 2026-10-15 | 2.5 MiB |'
+        },
+        {
+          id: 103,
+          name: 'cherry-studio-nightly-20261014-mac-x64.dmg',
+          size_in_bytes: 3145728,
+          row: '| macOS | x64 | 2026-10-14 | 3.0 MiB |'
+        },
+        {
+          id: 104,
+          name: 'cherry-studio-nightly-20261014-mac-arm64.dmg',
+          size_in_bytes: 4194304,
+          row: '| macOS | arm64 | 2026-10-14 | 4.0 MiB |'
+        },
+        {
+          id: 105,
+          name: 'cherry-studio-nightly-20261014-linux-x64.AppImage',
+          size_in_bytes: 5242880,
+          row: '| Linux | x64 | 2026-10-14 | 5.0 MiB |'
+        },
+        {
+          id: 106,
+          name: 'cherry-studio-nightly-20261014-linux-arm64.AppImage',
+          size_in_bytes: 6291456,
+          row: '| Linux | arm64 | 2026-10-14 | 6.0 MiB |'
+        }
+      ]
+      const excluded = [
+        { id: 201, name: 'cherry-studio-nightly-20261013-win-x64-setup.exe', expired: true },
+        { id: 202, name: 'cherry-studio-nightly-20261015-windows-2022' },
+        { id: 203, name: 'cherry-studio-nightly-20261015-win-x64-portable.exe' },
+        { id: 204, name: 'cherry-studio-nightly-20261014-mac-arm64.zip' },
+        { id: 205, name: 'cherry-studio-nightly-20261014-linux-x64.deb' },
+        { id: 206, name: 'cherry-studio-nightly-20261014-linux-arm64.rpm' },
+        { id: 207, name: 'SHA256SUMS.txt' },
+        { id: 208, name: 'latest.yml' },
+        { id: 209, name: 'unrelated.zip' }
+      ]
+      const available = scenario === 'all' ? installers : scenario === 'partial' ? installers.slice(0, 2) : []
+      let output = ''
+      const github = {
+        rest: { actions: { listWorkflowRunArtifacts: 'listWorkflowRunArtifacts' } },
+        paginate: async (
+          _endpoint: unknown,
+          params: { owner: string; repo: string; run_id: number; per_page: number }
+        ) => {
+          expect(params).toMatchObject({ owner: 'CherryHQ', repo: 'cherry-studio', run_id: 42, per_page: 100 })
+          return scenario === 'empty' ? [] : [...excluded, ...available].reverse()
+        }
+      }
+      const core = {
+        summary: {
+          addRaw(markdown: string) {
+            output += markdown
+            return this
+          },
+          async write() {}
+        }
+      }
+      const summaryStep = job.steps.find((step: { uses?: string }) => step.uses?.startsWith('actions/github-script@'))
+      const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+      await new AsyncFunction('github', 'context', 'core', summaryStep.with.script)(
+        github,
+        { repo: { owner: 'CherryHQ', repo: 'cherry-studio' }, runId: 42, serverUrl: 'https://github.com' },
+        core
+      )
+
+      expect(output).toContain('## Nightly downloads')
+      expect(output).toContain('3 days')
+      expect(output).toContain('Sign in to GitHub')
+      expect(output).toContain('警告：这是每日构建版本')
+      expect(output).toContain('Warning: This is a nightly build version')
+      expect(output).toContain('安装此版本前请务必备份数据')
+      expect(output).toContain('Please backup your data before installing this version')
+      expect(output.match(/\[Download\]/g) ?? []).toHaveLength(available.length)
+      for (const installer of available) {
+        expect(output).toContain(
+          `${installer.row} [Download](https://github.com/CherryHQ/cherry-studio/actions/runs/42/artifacts/${installer.id}) |`
+        )
+      }
+      for (const artifact of excluded) {
+        expect(output).not.toContain(`/artifacts/${artifact.id}`)
+      }
+      if (!available.length)
+        expect(output).toContain('No nightly installers are available. Check the build jobs for details.')
+    }
+  )
+
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'post-release.yml'), 'utf8'))
     const metadataStep = workflow.jobs['sync-release-metadata'].steps.find(

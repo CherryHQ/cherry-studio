@@ -1,5 +1,17 @@
 # @cherrystudio/ai-core
 
+## 2.4.1
+
+### Patch Changes
+
+- [#20281](https://github.com/CherryHQ/cherry-studio/pull/20281) [`efa7600`](https://github.com/CherryHQ/cherry-studio/commit/efa760045a932ba7c709112839d7036977d5d227) Thanks [@Dante-dan](https://github.com/Dante-dan)! - Restore tool result names from their originating tool calls when rebuilding saved conversation history.
+
+## 2.4.0
+
+### Minor Changes
+
+- [#20746](https://github.com/CherryHQ/cherry-studio/pull/20746) [`0b625df`](https://github.com/CherryHQ/cherry-studio/commit/0b625dfe8c5a28e6ea75701f110003b3692f206d) Thanks [@AtomsH4](https://github.com/AtomsH4)! - Add one-shot speech generation and transcription operations for resolved V3 models, with explicit cancellation, no implicit provider resolution or retries, WAV speech output, and result metadata limited to audio or transcripts.
+
 ## 2.3.0
 
 ### Minor Changes
