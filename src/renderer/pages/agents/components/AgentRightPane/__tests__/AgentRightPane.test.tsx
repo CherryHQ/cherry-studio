@@ -649,6 +649,16 @@ function createPreviewMessage(id: string, parts: CherryMessagePart[], createdAt?
   return { id, role: 'assistant', parts, metadata: { status: 'success', createdAt } } as unknown as CherryUIMessage
 }
 
+/** Wait until a repeated preview of the same attachment has been accepted. The overlay text does not change. */
+async function previewSameAttachmentAgain(user: ReturnType<typeof userEvent.setup>) {
+  const seen = ipcRequestMock.mock.calls.length
+  await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+  await waitFor(() => expect(ipcRequestMock.mock.calls.length).toBeGreaterThan(seen))
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
 function createDeferredPromise<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -3720,6 +3730,136 @@ describe('AgentRightPane', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('shows the prior file after one Back when the same attachment is previewed again', async () => {
+    // Bug: previewing the attachment already on screen consumes the first Back and leaves that attachment visible.
+    const user = userEvent.setup()
+    fileTreeModelState.hasLoaded = true
+    fileTreeModelState.nodeById = new Map([['README.md', { kind: 'file' }]])
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    await previewSameAttachmentAgain(user)
+    await previewSameAttachmentAgain(user)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('notes.md')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+  })
+
+  it('returns to the status pane after one Back when the same attachment is previewed again', async () => {
+    // Bug: repeating an attachment from another pane makes the first Back stay on the file instead of restoring that pane.
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <ActivePanelProbe />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('files')
+    await previewSameAttachmentAgain(user)
+    await previewSameAttachmentAgain(user)
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('restores the status pane with one Back after the already selected attachment is opened again', async () => {
+    // Bug: skipping return-target refresh sends Back to the old files pane after the same attachment is opened from status.
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <ActivePanelProbe />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+
+    await previewSameAttachmentAgain(user)
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('files')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('status')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('restores the closed pane with one Back after the already selected attachment is opened again', async () => {
+    // Bug: skipping return-target refresh leaves the pane open on Back after it was closed and the same attachment reopened.
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+    expect(await screen.findByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+
+    await user.click(document.querySelector('[data-shell-tab-shortcut="files"]') as HTMLElement)
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    await previewSameAttachmentAgain(user)
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('notes.md')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
   it('does not apply a stale discard confirmation after a newer artifact starts waiting', async () => {

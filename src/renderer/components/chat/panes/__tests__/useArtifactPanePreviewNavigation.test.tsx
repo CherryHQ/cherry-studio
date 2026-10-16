@@ -607,4 +607,95 @@ describe('useArtifactPanePreviewNavigation', () => {
     expect(panelActions.requestOpen).toHaveBeenCalledWith('browser')
     expect(panelActions.close).not.toHaveBeenCalled()
   })
+
+  it('restores the prior file with one Back after the displayed attachment is previewed again', async () => {
+    // Bug: previewing the attachment already on screen pushes that file onto return history, so the first Back stays there.
+    vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
+    const prior = fileSelection('/workspace', 'b.md')
+    const { result } = renderHook(() => {
+      const [selection, setSelection] = useState<ArtifactPaneFileSelection | null>(prior)
+      const navigation = useArtifactPanePreviewNavigation({
+        paneId: 'files',
+        previewFileSelection: selection,
+        requestFileSelection: (nextSelection, onAccepted) => {
+          setSelection(nextSelection)
+          onAccepted?.()
+        },
+        workspacePath: '/workspace'
+      })
+      return { selection, ...navigation }
+    })
+
+    const previewA = () => {
+      result.current.previewInputFile({
+        displayName: 'a.md',
+        previewPath: '/workspace/a.md' as AbsoluteFilePath
+      })
+    }
+
+    act(() => previewA())
+    await waitFor(() => expect(result.current.selection?.filePath).toBe('a.md'))
+
+    panelActions.requestOpen.mockClear()
+    act(() => previewA())
+    await waitFor(() => expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true }))
+    expect(result.current.selection?.filePath).toBe('a.md')
+
+    panelActions.requestOpen.mockClear()
+    act(() => previewA())
+    await waitFor(() => expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true }))
+    expect(result.current.selection).toMatchObject({ filePath: 'a.md', previewType: 'file', readOnly: true })
+
+    act(() => result.current.closeFilePreview())
+
+    expect(result.current.selection).toBe(prior)
+  })
+
+  it('restores the original non-file pane with one Back after the same attachment is previewed again', async () => {
+    // Bug: repeating the attachment replaces the non-file return target, so one Back stays on the file pane.
+    vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
+    panelState.activePanelId = 'status'
+    panelState.presentationOpen = true
+    const { result } = renderHook(() => {
+      const [selection, setSelection] = useState<ArtifactPaneFileSelection | null>(null)
+      const navigation = useArtifactPanePreviewNavigation({
+        paneId: 'files',
+        previewFileSelection: selection,
+        requestFileSelection: (nextSelection, onAccepted) => {
+          setSelection(nextSelection)
+          onAccepted?.()
+        },
+        workspacePath: '/workspace'
+      })
+      return { selection, ...navigation }
+    })
+
+    const previewA = () => {
+      result.current.previewInputFile({
+        displayName: 'a.md',
+        previewPath: '/workspace/a.md' as AbsoluteFilePath
+      })
+    }
+
+    act(() => previewA())
+    await waitFor(() => expect(result.current.selection?.filePath).toBe('a.md'))
+    expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true })
+    panelState.activePanelId = 'files'
+
+    panelActions.requestOpen.mockClear()
+    act(() => previewA())
+    await waitFor(() => expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true }))
+    panelActions.requestOpen.mockClear()
+    act(() => previewA())
+    await waitFor(() => expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true }))
+    expect(result.current.selection?.filePath).toBe('a.md')
+
+    panelActions.requestOpen.mockClear()
+    panelActions.close.mockClear()
+    act(() => result.current.closeFilePreview())
+
+    expect(result.current.selection).toBeNull()
+    expect(panelActions.requestOpen).toHaveBeenCalledWith('status')
+    expect(panelActions.close).not.toHaveBeenCalled()
+  })
 })

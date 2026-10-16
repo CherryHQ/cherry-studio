@@ -34,6 +34,16 @@ interface UseArtifactPanePreviewNavigationOptions {
   workspacePath?: string
 }
 
+function isSameAcceptedSelection(current: ArtifactPaneFileSelection | null, next: ArtifactPaneFileSelection): boolean {
+  if (!current) return false
+  return (
+    current.workspacePath === next.workspacePath &&
+    current.filePath === next.filePath &&
+    (current.previewType ?? 'artifact') === (next.previewType ?? 'artifact') &&
+    Boolean(current.readOnly) === Boolean(next.readOnly)
+  )
+}
+
 function createInputFileSelection(
   input: InputFilePreview,
   workspacePath: string | undefined,
@@ -169,7 +179,7 @@ export function useArtifactPanePreviewNavigation({
           (previewPath === input.previewPath ? null : createInputFileSelection(input, workspacePath, input.previewPath))
         if (!selection) return
         await validateSelection(selection, requestId, () => {
-          captureInputPreviewReturnTarget()
+          if (!isSameAcceptedSelection(previewFileSelection, selection)) captureInputPreviewReturnTarget()
           rememberPreviewReturnTarget()
         })
       })()
@@ -179,6 +189,7 @@ export function useArtifactPanePreviewNavigation({
       captureInputPreviewReturnTarget,
       enabled,
       isCurrentRequest,
+      previewFileSelection,
       rememberPreviewReturnTarget,
       validateSelection,
       workspacePath

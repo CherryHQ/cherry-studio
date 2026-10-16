@@ -69,16 +69,14 @@ const backslashIsSeparator = (path: string): boolean => {
 const pathSegmentPattern = (path: string): RegExp => (backslashIsSeparator(path) ? /[/\\]+/ : /\/+/)
 
 export const getPathBasename = (path: string): string => {
-  const trimmed = path.trim()
-  const withoutTrailing = trimmed.replace(backslashIsSeparator(trimmed) ? /[\\/]+$/ : /\/+$/, '')
+  const withoutTrailing = path.replace(backslashIsSeparator(path) ? /[\\/]+$/ : /\/+$/, '')
   if (!withoutTrailing) return path
   const segments = withoutTrailing.split(pathSegmentPattern(withoutTrailing)).filter(Boolean)
   return segments.at(-1) ?? withoutTrailing
 }
 
 export const normalizeTreePath = (path: string): string => {
-  const trimmed = path.trim()
-  const normalized = backslashIsSeparator(trimmed) ? trimmed.replace(/\\/g, '/') : trimmed
+  const normalized = backslashIsSeparator(path) ? path.replace(/\\/g, '/') : path
   const withoutTrailingSlash = normalized.replace(/\/+$/, '')
   if (/^[A-Za-z]:$/.test(withoutTrailingSlash)) return `${withoutTrailingSlash}/`
   if (!withoutTrailingSlash && normalized.startsWith('/')) return '/'

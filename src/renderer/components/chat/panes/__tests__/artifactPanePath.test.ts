@@ -163,6 +163,58 @@ describe('artifactPanePath', () => {
     expect(selection).toMatchObject({ workspacePath: 'D:/work', filePath: 'notes/report.md' })
     expect(selection && getArtifactPaneSelectionPath(selection)).toBe('D:\\work\\notes\\report.md')
   })
+
+  it('keeps a trailing space on a POSIX directory and filename', () => {
+    expect(resolveArtifactPaneFileSelection(undefined, '/tmp/notes /report ')).toEqual({
+      workspacePath: '/tmp/notes ',
+      filePath: 'report '
+    })
+    expect(resolveArtifactPaneFileSelection(undefined, '/var/only /report ')).toEqual({
+      workspacePath: '/var/only ',
+      filePath: 'report '
+    })
+  })
+
+  it.skipIf(process.platform === 'win32')('reads the spaced filename when an unspaced sibling is also present', () => {
+    // Bug: trimming a trailing space opens the sibling that has no space.
+    const root = mkdtempSync(join(tmpdir(), 'artifact-space-sibling-'))
+    const folder = join(root, 'notes ')
+    const intendedFile = join(folder, 'report ')
+    const siblingFile = join(folder, 'report')
+    try {
+      mkdirSync(folder)
+      writeFileSync(intendedFile, 'INTENDED TRAILING SPACE FILE')
+      writeFileSync(siblingFile, 'UNSPACED SIBLING FILE')
+
+      const selection = resolveArtifactPaneFileSelection(undefined, intendedFile)
+      const selectedPath = selection ? getArtifactPaneSelectionPath(selection) : ''
+
+      expect(readFileSync(selectedPath, 'utf8')).toBe('INTENDED TRAILING SPACE FILE')
+      expect(readFileSync(intendedFile, 'utf8')).toBe('INTENDED TRAILING SPACE FILE')
+      expect(readFileSync(siblingFile, 'utf8')).toBe('UNSPACED SIBLING FILE')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('reads the spaced filename when no unspaced sibling exists', () => {
+    // Bug: trimming a trailing space builds a path that is not the file that was opened.
+    const root = mkdtempSync(join(tmpdir(), 'artifact-space-only-'))
+    const folder = join(root, 'notes ')
+    const intendedFile = join(folder, 'report ')
+    try {
+      mkdirSync(folder)
+      writeFileSync(intendedFile, 'INTENDED TRAILING SPACE FILE')
+
+      const selection = resolveArtifactPaneFileSelection(undefined, intendedFile)
+      const selectedPath = selection ? getArtifactPaneSelectionPath(selection) : ''
+
+      expect(readFileSync(selectedPath, 'utf8')).toBe('INTENDED TRAILING SPACE FILE')
+      expect(readFileSync(intendedFile, 'utf8')).toBe('INTENDED TRAILING SPACE FILE')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('getCopyableAbsolutePath', () => {

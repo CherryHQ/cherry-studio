@@ -777,8 +777,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     props.headerVariant === 'pane' ? (
       <div
         data-testid="artifact-pane-header"
-        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
-        <div className="flex min-w-0 flex-1 items-center gap-0.5">
+        className="flex min-h-(--navbar-height) shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
+        <div className="flex min-w-7 flex-1 items-center gap-0.5">
           {overlaySelection ? (
             <Tooltip content={t('common.back')} delay={800}>
               <Button
@@ -818,7 +818,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1">
           {canEditSelection ? (
             <>
               <Tooltip content={modeActionLabel} delay={800}>
