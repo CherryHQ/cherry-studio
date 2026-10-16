@@ -40,9 +40,9 @@ const invalid = (entryId: string | undefined, reason: string) =>
 
 function toPiUsage(usage: TranscriptUsage | undefined, entryId: string): Usage {
   if (usage !== undefined && !isRecord(usage)) throw invalid(entryId, 'usage must be an object of counts')
-  const { input = 0, output = 0, cacheRead = 0, cacheWrite = 0, reasoning } = usage ?? {}
-  if (![input, output, cacheRead, cacheWrite].every(isCount) || (reasoning !== undefined && !isCount(reasoning)))
-    throw invalid(entryId, 'usage counts must be non-negative numbers')
+  const { input = 0, output = 0, cacheRead = 0, cacheWrite = 0, reasoning, cost = 0 } = usage ?? {}
+  if (![input, output, cacheRead, cacheWrite, cost].every(isCount) || (reasoning !== undefined && !isCount(reasoning)))
+    throw invalid(entryId, 'usage counts and cost must be non-negative numbers')
   return {
     input,
     output,
@@ -50,7 +50,8 @@ function toPiUsage(usage: TranscriptUsage | undefined, entryId: string): Usage {
     cacheWrite,
     ...(reasoning === undefined ? {} : { reasoning }),
     totalTokens: input + output + cacheRead + cacheWrite,
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+    // The billed total only; the model's price may have changed since.
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: cost }
   }
 }
 

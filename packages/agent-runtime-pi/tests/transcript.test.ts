@@ -7,6 +7,8 @@ import {
   createTestSession,
   finish,
   hostStore,
+  lastAssistant,
+  MODEL,
   plain,
   scriptedModel,
   streamTextPort,
@@ -104,6 +106,34 @@ describe('session transcript', () => {
       { state: 'cherry.goal', data: { objective: 'plan the trip', status: 'active' } },
       { customMessage: 'cherry.goal-round', content: 'GOAL-ROUND: keep going' }
     ])
+  })
+
+  // Breaks when a rebuilt reply's cost is recomputed from the current model's price (or dropped)
+  // instead of being the cost the reply was billed at.
+  it('keeps the cost each reply was billed at through a rebuild, and reads a reply stored without one as free', async () => {
+    const live = scriptedModel([[...textParts('a', 'Planned.'), finish('stop', 400, 100)]])
+    const host = hostStore()
+    const cwd = tempDir('cwd')
+    const liveRuntime = await createTestSession({ cwd, port: streamTextPort(live.model).port, onEvent: host.onEvent })
+    await liveRuntime.session.prompt('Plan the trip')
+    const billed = lastAssistant(liveRuntime.session).usage.cost.total
+    expect(billed).toBeGreaterThan(0)
+    const reply = host.entries.find((entry) => entry.kind === 'message' && entry.message.role === 'assistant')
+    expect(reply).toMatchObject({ usage: { cost: billed } })
+
+    const older = { ...plain(reply!), id: 'older' } as TranscriptEntry & { usage: { cost?: number } }
+    delete older.usage.cost
+    const repriced = { ...MODEL, cost: { input: 50, output: 50, cacheRead: 5, cacheWrite: 0 } }
+    const rebuilt = await createTestSession({
+      cwd,
+      model: repriced,
+      port: streamTextPort(scriptedModel([]).model).port,
+      transcript: [...plain(host.entries), older]
+    })
+    const costs = rebuilt.session.messages.flatMap((message) =>
+      message.role === 'assistant' ? [message.usage.cost.total] : []
+    )
+    expect(costs).toEqual([billed, 0])
   })
 
   it('emits each entry once, in Pi order, and reports the head when a turn settles', async () => {
@@ -317,6 +347,10 @@ describe('session transcript', () => {
     { label: 'a non-string response id', entry: { ...reply, responseId: 42 } },
     // Breaks when malformed usage is read as zero counts instead of being refused.
     { label: 'non-object usage', entry: { ...reply, usage: 'corrupt' } },
+    {
+      label: 'a non-number cost',
+      entry: { ...reply, usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: '0.1' } }
+    },
     { label: 'null user content', entry: message(null) },
     { label: 'non-string text', entry: message([{ type: 'text', text: 42 }]) },
     { label: 'null assistant content', entry: message(null, 'assistant') },
