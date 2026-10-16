@@ -28,6 +28,7 @@ vi.mock('node:child_process', async () => {
   }
 })
 
+import { relativeInputSeekMs, videoTailProbePoint, videoTailReadInterval } from '../probeClassification'
 import {
   FRAME_SIMILARITY_MAD_THRESHOLD,
   meanAbsoluteDifference,
@@ -42,7 +43,8 @@ import { readFrameSignature } from '../frameSignature'
 import {
   applyMediaFfmpegInitData,
   disposeMediaChildren,
-  mediaFfmpegHandlers
+  mediaFfmpegHandlers,
+  packetPtsSeconds
 } from '../utilityEntries/mediaFfmpegHandlers'
 
 const bundleDir = join(process.cwd(), 'resources', 'binaries', `${process.platform}-${process.arch}`)
@@ -58,6 +60,16 @@ const context = (signal = new AbortController().signal): UtilityProcessHandlerCo
   callHost: async () => {
     throw new Error('Media FFmpeg handlers do not call the host')
   }
+})
+
+describe('packetPtsSeconds', () => {
+  it('reads the timestamp when an empty side-data column leaves a trailing comma', () => {
+    expect(packetPtsSeconds('7.316667,')).toBe(7.316667)
+    expect(packetPtsSeconds('1.000000')).toBe(1)
+    expect(packetPtsSeconds('')).toBeUndefined()
+    expect(packetPtsSeconds(',')).toBeUndefined()
+    expect(packetPtsSeconds('N/A,')).toBeUndefined()
+  })
 })
 
 describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
@@ -224,6 +236,57 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
       context()
     )
     expect(beyond.frames).toEqual([])
+  })
+
+  it('returns the last decodable MPEG-TS frame when the packet row has an empty side-data field', async () => {
+    const tsPath = join(root, 'sparse-12fps.ts')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:r=12:d=6', '-c:v', 'mpeg4', '-f', 'mpegts', tsPath])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: tsPath, fallbackExt: 'ts' }, context())
+    const endAnchorMs = probe.durationMs - 50
+    const raw = JSON.parse(
+      spawnSync(ffprobePath, ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', tsPath], {
+        encoding: 'utf8'
+      }).stdout
+    )
+    const tail = videoTailProbePoint(raw)
+    expect(tail).toBeDefined()
+    const listed = spawnSync(
+      ffprobePath,
+      [
+        '-v',
+        'error',
+        '-select_streams',
+        'V:0',
+        '-show_entries',
+        'packet=pts_time',
+        '-of',
+        'csv=p=0',
+        '-read_intervals',
+        videoTailReadInterval(tail?.endSeconds ?? 0),
+        tsPath
+      ],
+      { encoding: 'utf8' }
+    )
+    const lastRow = listed.stdout.trim().split('\n').filter(Boolean).at(-1) ?? ''
+    const lastFrameMs = relativeInputSeekMs(Number(lastRow.split(',')[0]), tail?.formatStartTimeSeconds ?? Number.NaN)
+
+    expect(lastRow.endsWith(',')).toBe(true)
+    expect(Number(lastRow)).toBeNaN()
+    expect(lastFrameMs).toBeLessThan(endAnchorMs)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: tsPath,
+        outputDir: join(root, 'ts-frames'),
+        timestampsMs: [0, endAnchorMs],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([0, lastFrameMs])
+    expect(frames.frames.every((frame) => existsSync(frame.path) && readFileSync(frame.path).length > 0)).toBe(true)
   })
 
   it('seeks the last packet when a long VFR frame makes the average rate land past it', async () => {
