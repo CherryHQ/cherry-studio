@@ -104,8 +104,6 @@ describe('AppUpdaterService — update-not-available feed target', () => {
     const broadcast = emitNotAvailable(feedInfo('2.0.13'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
-      currentVersion: '2.0.13',
-      feedVersion: '2.0.13',
       isCurrent: true
     })
   })
@@ -114,8 +112,6 @@ describe('AppUpdaterService — update-not-available feed target', () => {
     const broadcast = emitNotAvailable(feedInfo('2.0.9'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
-      currentVersion: '2.0.13',
-      feedVersion: '2.0.9',
       isCurrent: false
     })
   })
@@ -126,8 +122,6 @@ describe('AppUpdaterService — update-not-available feed target', () => {
     const broadcast = emitNotAvailable(feedInfo('2.0.14'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
-      currentVersion: '2.0.9',
-      feedVersion: '2.0.14',
       isCurrent: false
     })
   })
@@ -138,31 +132,37 @@ describe('AppUpdaterService — update-not-available feed target', () => {
     const broadcast = emitNotAvailable(feedInfo('2.0.9'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
-      currentVersion: '2.0.14-beta.1',
-      feedVersion: '2.0.9',
       isCurrent: true
     })
+  })
+
+  it('marks a prerelease install withheld when the feed advertises a newer prerelease', () => {
+    vi.mocked(app.getVersion).mockReturnValue('2.0.14-beta.1')
+
+    const broadcast = emitNotAvailable(feedInfo('2.0.14-beta.2'))
+
+    expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
+      isCurrent: false
+    })
+  })
+
+  it('keeps diagnostic versions in main-process logs rather than the broadcast payload', () => {
+    const broadcast = emitNotAvailable(feedInfo('2.0.9'))
+
+    expect(Object.keys(broadcast.mock.calls[0][2] as object)).toEqual(['isCurrent'])
   })
 
   it('fails closed to current when the feed version is missing, empty, or unparseable', () => {
     const broadcastMissing = emitNotAvailable({ ...feedInfo('2.0.13'), version: undefined as unknown as string })
     expect(broadcastMissing).toHaveBeenLastCalledWith(expect.anything(), 'app.updater.not_available', {
-      currentVersion: '2.0.13',
-      feedVersion: null,
       isCurrent: true
     })
 
     const broadcastEmpty = emitNotAvailable(feedInfo(''))
-    expect(broadcastEmpty).toHaveBeenLastCalledWith(expect.anything(), 'app.updater.not_available', {
-      currentVersion: '2.0.13',
-      feedVersion: null,
-      isCurrent: true
-    })
+    expect(broadcastEmpty).toHaveBeenLastCalledWith(expect.anything(), 'app.updater.not_available', { isCurrent: true })
 
     const broadcastGarbage = emitNotAvailable(feedInfo('not-a-version'))
     expect(broadcastGarbage).toHaveBeenLastCalledWith(expect.anything(), 'app.updater.not_available', {
-      currentVersion: '2.0.13',
-      feedVersion: 'not-a-version',
       isCurrent: true
     })
   })

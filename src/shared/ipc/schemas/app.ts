@@ -104,11 +104,9 @@ export const appRequestSchemas = {
  * reports it with the feed's target even when that target is older than the
  * install (withdrawn or stale feed) or newer but unoffered (staged rollout).
  * `isCurrent` carries the explicit comparison so the UI never presents a
- * withheld rollout as up to date.
+ * withheld rollout as up to date. The compared versions stay in main-process logs.
  */
 export type AppUpdaterNotAvailablePayload = {
-  currentVersion: string
-  feedVersion: string | null
   isCurrent: boolean
 }
 

@@ -6,17 +6,9 @@ import type { AppEventSchemas } from '@shared/ipc/schemas/app'
 
 const GITHUB_RELEASES_URL = 'https://github.com/CherryHQ/cherry-studio/releases'
 
-const currentPayload: AppEventSchemas['app.updater.not_available'] = {
-  currentVersion: '1.0.0',
-  feedVersion: '1.0.0',
-  isCurrent: true
-}
+const currentPayload: AppEventSchemas['app.updater.not_available'] = { isCurrent: true }
 
-const withheldPayload: AppEventSchemas['app.updater.not_available'] = {
-  currentVersion: '2.0.13',
-  feedVersion: '2.0.9',
-  isCurrent: false
-}
+const withheldPayload: AppEventSchemas['app.updater.not_available'] = { isCurrent: false }
 
 const mocks = vi.hoisted(() => ({
   appUpdateState: { manualCheck: false },

@@ -161,12 +161,13 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
     const onUpdateNotAvailable = (updateInfo: UpdateInfo) => {
-      const payload = this.resolveNotAvailablePayload(updateInfo)
-      if (!payload.isCurrent) {
+      const result = this.resolveNotAvailableResult(updateInfo)
+      if (!result.isCurrent) {
         logger.warn(
-          `managed feed target ${payload.feedVersion} differs from installed ${payload.currentVersion} (channel: ${autoUpdater.channel}) — treating as withheld, not current`
+          `managed feed target ${result.feedVersion} differs from installed ${result.currentVersion} (channel: ${autoUpdater.channel}) — treating as withheld, not current`
         )
       }
+      const payload: AppUpdaterNotAvailablePayload = { isCurrent: result.isCurrent }
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', payload)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
@@ -421,14 +422,24 @@ export class AppUpdaterService extends BaseService {
     setImmediate(() => autoUpdater.quitAndInstall(true, true))
   }
 
-  /** Feed/install mismatch means withheld (withdrawn/stale/staged); prerelease installs and unparseable versions stay current. */
-  private resolveNotAvailablePayload(updateInfo: UpdateInfo | null | undefined): AppUpdaterNotAvailablePayload {
+  /**
+   * Feed/install mismatch means withheld (withdrawn/stale/staged). A prerelease install stays
+   * current against an older (e.g. stable) feed, but not when the feed advertises a newer version.
+   * Unparseable versions stay current.
+   */
+  private resolveNotAvailableResult(updateInfo: UpdateInfo | null | undefined): {
+    currentVersion: string
+    feedVersion: string | null
+    isCurrent: boolean
+  } {
     const currentVersion = app.getVersion()
     const feedVersion = updateInfo?.version || null
     let isCurrent = true
     if (feedVersion) {
       try {
-        isCurrent = semver.eq(feedVersion, currentVersion) || semver.prerelease(currentVersion) !== null
+        isCurrent =
+          semver.eq(feedVersion, currentVersion) ||
+          (semver.prerelease(currentVersion) !== null && !semver.gt(feedVersion, currentVersion))
       } catch {
         // Unparseable versions fail closed to current.
       }
