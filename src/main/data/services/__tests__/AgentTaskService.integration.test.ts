@@ -333,6 +333,8 @@ describe('Agent dashboard lifecycle integration', () => {
         }
       },
       PowerService: {
+        onSuspend: new Emitter<void>().event,
+        onResume: new Emitter<void>().event,
         onLockScreen: locked.event,
         onUnlockScreen: unlocked.event,
         getPowerPhase: () => 'active',

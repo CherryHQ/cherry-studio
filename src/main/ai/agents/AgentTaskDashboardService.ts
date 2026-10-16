@@ -57,19 +57,25 @@ export class AgentTaskDashboardService extends BaseService {
     const runtime = application.get('AgentSessionRuntimeService')
     const jobs = application.get('JobManager')
     const power = application.get('PowerService')
+    const resetAttention = () =>
+      application.get('IpcApiService').broadcast('ai.agent.task_dashboard.attention_reset', undefined)
     this.registerDisposable(runtime.onWorkChanged((sessionId) => this.observe(() => this.observeSession(sessionId))))
     this.registerDisposable(jobs.onJobChanged((job) => this.observe(() => this.observeJob(job))))
     this.registerDisposable(jobs.onRecoveryCompleted(() => this.observe(() => this.reconcileJobs())))
     this.registerDisposable(
       power.onLockScreen(() => {
         this.screenLocked = true
+        resetAttention()
       })
     )
     this.registerDisposable(
       power.onUnlockScreen(() => {
         this.screenLocked = false
+        resetAttention()
       })
     )
+    this.registerDisposable(power.onSuspend(resetAttention))
+    this.registerDisposable(power.onResume(resetAttention))
     if (jobs.startupRecoveryComplete) this.reconcileJobs()
     this.registerInterval(
       () =>

@@ -1,17 +1,26 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import enUS from '@renderer/i18n/locales/en-us.json'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { DashboardEntry, DashboardPage } from '@shared/data/api/schemas/agentTaskDashboard'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
+vi.unmock('@cherrystudio/ui')
+vi.mock('../components/AgentTaskDashboard', () => ({
+  AgentTaskDashboard: () => <section aria-label="Task dashboard" />
+}))
 
 const agentPageMocks = vi.hoisted(() => ({
   workspace: {
@@ -194,6 +203,8 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
     usePersistCache: (key: string) => {
       const initialValue = (() => {
         switch (key) {
+          case 'ui.agent.task_dashboard.collapsed_groups':
+            return []
           case 'ui.agent.last_used_agent_id':
             return agentPageMocks.lastUsedAgentId
           case 'ui.agent.last_used_session_id':
@@ -207,6 +218,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         }
       })()
       const [value, setValue] = React.useState(initialValue)
+      if (key === 'ui.agent.task_dashboard.collapsed_groups') return [value, setValue]
       if (
         key !== 'ui.agent.last_used_agent_id' &&
         key !== 'ui.agent.last_used_session_id' &&
@@ -349,14 +361,20 @@ vi.mock('react-i18next', () => ({
     type: '3rdParty'
   },
   useTranslation: () => ({
-    t: (key: string, options?: { name?: string }) =>
+    i18n: { language: 'en-us' },
+    t: (key: string, options?: { name?: string; count?: number }) =>
       ({
         'agent.manage.title': '管理智能体',
         'agent.session.list.title': '任务',
         'settings.about.feedback.agent.description': '使用内置的问题反馈 Agent 获取使用帮助或提交反馈。',
         'settings.skills.intentInvalid': 'Skill unavailable',
         'settings.skills.launchDraft': `Use ${options?.name ?? ''} Skill to help me.`
-      })[key] ?? key
+      })[key] ??
+      (
+        (key.startsWith('agent.task_dashboard.') || key.startsWith('agent.tasks.') || key.startsWith('common.')
+          ? enUS[key as keyof typeof enUS]
+          : undefined) ?? key
+      ).replace(/{{(name|count)}}/g, (_, variable: 'name' | 'count') => String(options?.[variable] ?? ''))
   })
 }))
 
@@ -708,9 +726,167 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 
 import AgentPage from '../AgentPage'
+import type { AgentTaskDashboard as DashboardComponent } from '../components/AgentTaskDashboard'
+
+describe('Agent task dashboard interactions', () => {
+  const defaultQuery = mockUseQuery.getMockImplementation()!
+  const defaultMutation = mockUseMutation.getMockImplementation()!
+  afterEach(() => {
+    mockUseQuery.mockImplementation(defaultQuery)
+    mockUseMutation.mockImplementation(defaultMutation)
+  })
+  let Dashboard: typeof DashboardComponent
+  beforeAll(async () => {
+    Dashboard = (
+      await vi.importActual<{ AgentTaskDashboard: typeof DashboardComponent }>('../components/AgentTaskDashboard')
+    ).AgentTaskDashboard
+  })
+  let pages: Record<'running' | 'awaiting', DashboardPage>
+  let loadError: Error | undefined
+  const refresh = vi.fn(async () => {})
+  const review = vi.fn(async () => {})
+  const run = (id: string, status: DashboardEntry['status']): DashboardEntry => ({
+    id,
+    source: 'agent',
+    runId: id,
+    taskId: null,
+    sessionId: 'session',
+    agentId: 'agent',
+    nameSnapshot: id,
+    agentNameSnapshot: 'Agent A',
+    messageAnchor: 'anchor',
+    startedAt: 1000,
+    endedAt: status === 'running' ? null : 2000,
+    lastActivityAt: 2000,
+    status,
+    blockedOn: null,
+    reasonCode: null,
+    errorSummary: null,
+    viewedAt: null,
+    runIds: [id],
+    runCount: 1
+  })
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
+    loadError = undefined
+    pages = {
+      running: { items: [], totals: { running: 0, awaiting: 0 } },
+      awaiting: { items: [], totals: { running: 0, awaiting: 0 } }
+    }
+    mockUseQuery.mockImplementation((_path, options) => {
+      const query = options?.query as { group: 'running' | 'awaiting'; cursor?: string }
+      return {
+        data: (query.cursor
+          ? { ...pages[query.group], items: [run('Older result', 'succeeded')], nextCursor: undefined }
+          : pages[query.group]) as any,
+        error: loadError,
+        isLoading: false,
+        isRefreshing: false,
+        refetch: refresh,
+        mutate: vi.fn()
+      }
+    })
+    mockUseMutation.mockImplementation(() => ({ trigger: review, isLoading: false, error: undefined }))
+    MockUseDataApiUtils.mockPaginatedData('/agent-tasks', [
+      { id: 'scheduled', name: 'Daily summary', status: 'active', runSummary: { status: 'queued' } } as any
+    ])
+    ipcMocks.request.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('distinguishes empty results from loading failure and retries', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<Dashboard enabled />)
+    expect(screen.getByText('No active tasks')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Running' })).not.toBeInTheDocument()
+    loadError = new Error('Offline')
+    rerender(<Dashboard enabled />)
+    expect(screen.queryByText('No active tasks')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(refresh).toHaveBeenCalled()
+  })
+
+  it('keeps accurate totals across cursor pages and supports collapsing an empty group', async () => {
+    const user = userEvent.setup()
+    pages.awaiting = {
+      items: [run('Latest result', 'succeeded')],
+      totals: { running: 0, awaiting: 2001 },
+      nextCursor: 'older'
+    }
+    render(<Dashboard enabled />)
+    expect(screen.getByRole('button', { name: 'Running 0' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Awaiting review 2001' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('Older result')).toBeInTheDocument()
+    expect(screen.queryByText('Latest result')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByText('Latest result')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Running 0' }))
+    expect(screen.queryByRole('list', { name: 'Running' })).not.toBeInTheDocument()
+  })
+
+  it('captures the clicked runs, exposes Stopping, and reports one partial-failure toast', async () => {
+    const user = userEvent.setup()
+    const active = {
+      ...run('Research', 'running'),
+      runIds: ['old-1', 'old-2'],
+      runCount: 2,
+      blockedOn: 'approval' as const
+    }
+    pages.running = { items: [active], totals: { running: 1, awaiting: 0 } }
+    let settle!: (results: unknown) => void
+    ipcMocks.request.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve
+        })
+    )
+    const { rerender } = render(<Dashboard enabled />)
+    expect(screen.getByText('Needs approval')).toBeInTheDocument()
+    const stop = screen.getByRole('button', { name: 'Stop Research' })
+    stop.focus()
+    await user.keyboard('{Enter}')
+    expect(stop).toBeDisabled()
+    expect(screen.getByText('Stopping…')).toBeInTheDocument()
+    pages.running.items = [{ ...active, runIds: ['newer-run'] }]
+    rerender(<Dashboard enabled />)
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.task_dashboard.stop', { runIds: ['old-1', 'old-2'] })
+    await act(async () =>
+      settle([
+        { id: 'old-1', result: 'cancelled' },
+        { id: 'old-2', result: 'failed' }
+      ])
+    )
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
+  })
+
+  it('opens anchored results and keeps unavailable rows dismissible from the keyboard', async () => {
+    const user = userEvent.setup()
+    pages.awaiting = { items: [run('Result', 'failed')], totals: { running: 0, awaiting: 1 } }
+    render(<Dashboard enabled />)
+    await user.click(screen.getByRole('button', { name: /Result Agent A Failed/ }))
+    expect(ipcMocks.request).toHaveBeenCalledWith('navigation.focus_or_open_conversation', {
+      target: { conversationType: 'agent', conversationId: 'session' },
+      title: 'Result',
+      messageId: 'anchor'
+    })
+    ipcMocks.request.mockRejectedValueOnce(new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Deleted'))
+    await user.click(screen.getByRole('button', { name: /Result Agent A Failed/ }))
+    expect(screen.getByRole('button', { name: /Result Agent A No longer available/ })).toBeDisabled()
+    screen.getByRole('button', { name: 'Dismiss Result' }).focus()
+    await user.keyboard('{Enter}')
+    expect(review).toHaveBeenCalledWith({ params: { id: 'Result' }, body: { viewed: true } })
+    screen.getByRole('button', { name: 'Mark all reviewed' }).focus()
+    await user.keyboard('{Enter}')
+    expect(review).toHaveBeenCalledWith({ body: { viewed: true } })
+  })
+})
 
 describe('AgentPage', () => {
   beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
     agentPageMocks.fileNavigationRequest.mockImplementation((transition) => transition())
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }

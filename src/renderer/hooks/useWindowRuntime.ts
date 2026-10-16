@@ -5,6 +5,7 @@ import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
+import { useTaskDashboardViewing } from '@renderer/hooks/agent/useTaskDashboardViewing'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -103,6 +104,7 @@ export function useWindowRuntime(): void {
   // Each BrowserWindow has its own SWR cache, so both keep their own invalidation.
   useTopicAutoRenameSync()
   useAgentSessionAutoRenameSync()
+  useTaskDashboardViewing()
 
   // Launcher-list convergence after IPC-side writes: exactly once per window,
   // and outside every `<Activity>`.

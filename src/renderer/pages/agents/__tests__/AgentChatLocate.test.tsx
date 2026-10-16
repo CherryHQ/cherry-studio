@@ -242,6 +242,7 @@ const activeSessionMocks = vi.hoisted(() => ({
 const agentSessionPartsMocks = vi.hoisted(() => ({
   loadOlder: vi.fn(),
   locateAgentMessageInList: vi.fn(),
+  scrollToEnd: vi.fn(),
   result: {
     messages: [] as any[],
     isLoading: false,
@@ -295,6 +296,7 @@ vi.mock('@renderer/utils/agentSession', () => ({
 }))
 
 vi.mock('../messages/agentMessageListAdapter', () => ({
+  scrollAgentMessageListToEnd: (...args: unknown[]) => agentSessionPartsMocks.scrollToEnd(...args),
   locateAgentMessageInList: (...args: unknown[]) => agentSessionPartsMocks.locateAgentMessageInList(...args)
 }))
 
@@ -347,6 +349,7 @@ describe('AgentChat locate pending message', () => {
     }
     agentSessionPartsMocks.loadOlder = vi.fn()
     agentSessionPartsMocks.locateAgentMessageInList = vi.fn()
+    agentSessionPartsMocks.scrollToEnd = vi.fn()
     agentSessionPartsMocks.result = {
       messages: [],
       isLoading: false,
@@ -375,6 +378,24 @@ describe('AgentChat locate pending message', () => {
       }
     })
   })
+
+  it.each([true, false])(
+    'scrolls to the end for an explicit end request or a missing anchor (explicit=%s)',
+    async (explicit) => {
+      const handled = vi.fn()
+      render(
+        <AgentChat
+          {...activeSessionProps()}
+          locateToEnd={explicit}
+          locateMessageId={explicit ? undefined : 'deleted-message'}
+          onLocateMessageHandled={handled}
+        />
+      )
+      await waitFor(() => expect(agentSessionPartsMocks.scrollToEnd).toHaveBeenCalledWith('agent-session:session-1'))
+      expect(handled).toHaveBeenCalledOnce()
+      expect(agentSessionPartsMocks.loadOlder).not.toHaveBeenCalled()
+    }
+  )
 
   it('keeps pending locate requests while session history is still loading', () => {
     const onLocateMessageHandled = vi.fn()

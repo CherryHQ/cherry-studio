@@ -7,6 +7,7 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
@@ -446,6 +447,30 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('emits viewing selections for explicit tab activation, not restoration or background changes', async () => {
+    const user = userEvent.setup()
+    const selected = vi.fn()
+    const dispose = EventEmitter.on(EVENT_NAMES.ACTIVE_TAB_SELECTED, selected)
+    try {
+      render(
+        <TabsProvider initialDefaultTab={HOME_TAB}>
+          <ConversationTabMutationControls />
+        </TabsProvider>
+      )
+      expect(selected).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Seed tabs' }))
+      await user.click(screen.getByRole('button', { name: 'Activate home' }))
+      selected.mockClear()
+      await user.click(screen.getByRole('button', { name: 'Rename background topic' }))
+      await user.click(screen.getByRole('button', { name: 'Close unrelated tab' }))
+      expect(selected).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Activate home' }))
+      expect(selected).toHaveBeenCalledWith({ tabId: 'home', url: '/app/chat' })
+    } finally {
+      dispose()
+    }
+  })
+
   it('preserves Settings on failed detach and selects the requested survivor only after success', async () => {
     function Navigation() {
       const { openTab, detachTab, activeTabId, tabs } = useTabsContext()

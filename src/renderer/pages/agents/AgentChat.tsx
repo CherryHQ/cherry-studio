@@ -51,7 +51,7 @@ import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
-import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
+import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 import type { AgentConversationBootstrap } from './useAgentConversationBootstrap'
@@ -96,6 +96,7 @@ interface AgentChatProps {
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -160,6 +161,7 @@ const AgentChat = ({
   sidebarOpen,
   onSidebarToggle,
   locateMessageId,
+  locateToEnd,
   onLocateMessageHandled,
   onPaneCollapse,
   onPaneAutoCollapseChange,
@@ -346,18 +348,19 @@ const AgentChat = ({
   const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
 
   useEffect(() => {
-    if (!runtimeSessionId || !locateMessageId) {
+    if (!runtimeSessionId || (!locateMessageId && !locateToEnd)) {
       locateLoadRequestRef.current = undefined
       return
     }
 
-    if (runtimeUiMessages.some((message) => message.id === locateMessageId)) {
+    if ((locateToEnd && !runtimeIsLoading) || runtimeUiMessages.some((message) => message.id === locateMessageId)) {
       locateLoadRequestRef.current = undefined
-      window.requestAnimationFrame(() => {
-        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+      const frame = window.requestAnimationFrame(() => {
+        if (locateToEnd) scrollAgentMessageListToEnd(sessionTopicId)
+        else if (locateMessageId) locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+        onLocateMessageHandled?.()
       })
-      onLocateMessageHandled?.()
-      return
+      return () => window.cancelAnimationFrame(frame)
     }
 
     if (runtimeHasOlder && !runtimeIsLoading) {
@@ -371,10 +374,16 @@ const AgentChat = ({
 
     if (!runtimeHasOlder && !runtimeIsLoading) {
       locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
+      const frame = window.requestAnimationFrame(() => {
+        scrollAgentMessageListToEnd(sessionTopicId)
+        onLocateMessageHandled?.()
+      })
+      return () => window.cancelAnimationFrame(frame)
     }
+    return undefined
   }, [
     locateMessageId,
+    locateToEnd,
     onLocateMessageHandled,
     runtimeHasOlder,
     runtimeIsLoading,

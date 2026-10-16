@@ -29,7 +29,7 @@ import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -49,12 +49,14 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { InstalledSkill } from '@shared/data/types/agent'
+import { conversationRouteUrl } from '@shared/utils/conversationRoute'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
+import { AgentTaskDashboard } from './components/AgentTaskDashboard'
 import Sessions from './components/Sessions'
 import {
   createFeedbackComposerLaunch,
@@ -110,6 +112,7 @@ const AgentPage = () => {
   const isSkillIntent = routeSearch.intent === 'skill'
   const isPreparedIntent = isFeedbackIntent || isSkillIntent
   const currentTabId = useCurrentTabId()
+  const isActiveTab = useIsActiveTab()
   const routeSessionId = routeSearch.sessionId
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
@@ -375,11 +378,21 @@ const AgentPage = () => {
   // While the bound session is still loading, keep the tab's stored title/icon instead of stamping
   // a generic one.
   const targetSessionId = activeSessionId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
+  const announceSessionSelection = useCallback(
+    (sessionId: string) => {
+      void EventEmitter.emit(EVENT_NAMES.ACTIVE_TAB_SELECTED, {
+        tabId: currentTabId,
+        url: conversationRouteUrl({ conversationType: 'agent', conversationId: sessionId })
+      })
+    },
+    [currentTabId]
+  )
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -443,10 +456,18 @@ const AgentPage = () => {
         rememberLastUsedSession(agentId, isUserWorkspaceSession(session) ? session.workspaceId : undefined)
       }
       setActiveSession(session)
+      announceSessionSelection(session.id)
       closeSurface()
       requestComposerFocus(buildAgentSessionTopicId(session.id))
     },
-    [clearLocate, closeSurface, rememberLastUsedSession, requestComposerFocus, setActiveSession]
+    [
+      announceSessionSelection,
+      clearLocate,
+      closeSurface,
+      rememberLastUsedSession,
+      requestComposerFocus,
+      setActiveSession
+    ]
   )
 
   const resolveEmptySession = useCallback(
@@ -647,6 +668,7 @@ const AgentPage = () => {
         }
 
         selectSession(sessionId)
+        announceSessionSelection(sessionId)
         sessionRevealRequestIdRef.current += 1
         setSessionRevealRequest({
           clearFilters: true,
@@ -660,6 +682,7 @@ const AgentPage = () => {
     [
       clearLocate,
       closeSurface,
+      announceSessionSelection,
       requestSessionNavigation,
       requestLocate,
       selectSession,
@@ -838,8 +861,9 @@ const AgentPage = () => {
       setMissingAgentSelection(false)
       setPendingSessionDefaults(null)
       selectSession(sessionId, session)
+      announceSessionSelection(sessionId)
     },
-    [clearLocate, closeSurface, reenterAgentRoute, selectSession]
+    [announceSessionSelection, clearLocate, closeSurface, reenterAgentRoute, selectSession]
   )
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
@@ -899,7 +923,10 @@ const AgentPage = () => {
     },
     [replacingSessionWorkspace, setActiveSession, setLastUsedWorkspaceId, setSessionWorkspace, visibleSession]
   )
-  const handleLocateMessageHandled = clearLocate
+  const handleLocateMessageHandled = useCallback(() => {
+    clearLocate()
+    if (visibleSession) announceSessionSelection(visibleSession.id)
+  }, [announceSessionSelection, clearLocate, visibleSession])
 
   // Classic layout = entity rail + right session panel; modern layout = one left navigation panel (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? null
@@ -1071,7 +1098,12 @@ const AgentPage = () => {
           <AgentChat
             centerSurface={centerSurface}
             conversationBootstrap={conversationBootstrap}
-            pane={pane}
+            pane={
+              <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                <AgentTaskDashboard enabled={shellPaneOpen && isActiveTab} />
+                <div className="min-h-0 flex-1 overflow-hidden">{pane}</div>
+              </div>
+            }
             paneOpen={shellPaneOpen}
             panePosition="left"
             onPaneCollapse={() => setShellPaneOpenManually(false)}
@@ -1089,6 +1121,7 @@ const AgentPage = () => {
             onVisibleAgentChange={setLastUsedAgentId}
             onVisibleWorkspaceChange={setLastUsedWorkspaceId}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             selectingMissingAgent={selectingMissingAgent}
             replacingSessionWorkspace={replacingSessionWorkspace}
