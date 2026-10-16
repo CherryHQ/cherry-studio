@@ -37,9 +37,9 @@ const TOKENS = { access_token: 'at', token_type: 'Bearer', refresh_token: 'rt' }
 
 describe('McpOAuthClientProvider.invalidateCredentials', () => {
   let configDir: string
-  const serverUrlHash = 'hash-1'
+  const storageKey = 'hash-1'
 
-  const makeProvider = () => new McpOAuthClientProvider({ serverUrlHash, configDir })
+  const makeProvider = () => new McpOAuthClientProvider({ storageKey, configDir })
 
   const seedRegisteredClient = async (authServerUrl?: string) => {
     const seed = makeProvider()
@@ -168,9 +168,9 @@ describe('McpOAuthClientProvider.invalidateCredentials', () => {
 
 describe('McpOAuthClientProvider.saveDiscoveryState', () => {
   let configDir: string
-  const serverUrlHash = 'hash-2'
+  const storageKey = 'hash-2'
 
-  const makeProvider = () => new McpOAuthClientProvider({ serverUrlHash, configDir })
+  const makeProvider = () => new McpOAuthClientProvider({ storageKey, configDir })
 
   beforeEach(async () => {
     configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'oauth-discovery-test-'))
@@ -411,7 +411,7 @@ describe('upgrade from credentials saved before issuer stamping', () => {
         lastUpdated: 1
       })
     )
-    const provider = new McpOAuthClientProvider({ serverUrlHash: 'upgrade', configDir })
+    const provider = new McpOAuthClientProvider({ storageKey: 'upgrade', configDir })
     const redirect = vi.spyOn(provider, 'redirectToAuthorization')
     const client = new Client({ name: 'test', version: '1' }, { versionNegotiation: { mode: 'legacy' } })
 

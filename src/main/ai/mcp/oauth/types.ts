@@ -79,7 +79,7 @@ export interface OAuthCallbackServerOptions {
 }
 
 export interface OAuthProviderOptions {
-  serverUrlHash: string
+  storageKey: string
   callbackPort?: number
   callbackPath?: string
   configDir?: string

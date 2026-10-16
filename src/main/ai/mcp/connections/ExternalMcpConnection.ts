@@ -29,7 +29,7 @@ import {
   type McpAuthorizationLease
 } from '../oauth/McpOAuthCoordinator'
 import { McpOAuthClientProvider } from '../oauth/provider'
-import { oauthServerUrlHash } from '../oauth/storage'
+import { oauthServerKey } from '../oauth/storage'
 import { getBuiltinAutoInstallEnv } from '../servers/factory'
 import { ClientMcpConnection } from './ClientMcpConnection'
 import type { McpConnection, McpConnectionEvents } from './McpConnection'
@@ -136,7 +136,7 @@ export async function createExternalMcpConnection({
   signal?: AbortSignal
 }): Promise<McpConnection> {
   const authProvider = new McpOAuthClientProvider({
-    serverUrlHash: oauthServerUrlHash(server.baseUrl || '')
+    storageKey: oauthServerKey(server.id, server.baseUrl || '')
   })
   const headers = mergeHeaders(defaultAppHeaders(), server.headers)
   const useOAuth = !('authorization' in headers)
@@ -161,8 +161,13 @@ export async function createExternalMcpConnection({
     window?.once('closed', close)
     try {
       operation.lease = await oauthCoordinator.begin(
-        authProvider.config.serverUrlHash,
-        AbortSignal.any([operation.signal, windowClosed.signal])
+        authProvider.config.storageKey,
+        AbortSignal.any([operation.signal, windowClosed.signal]),
+        async () => {
+          const callback = callbackServer
+          callbackServer = undefined
+          await callback?.close()
+        }
       )
       operation.lease.signal.addEventListener('abort', () => window?.removeListener('closed', close), { once: true })
       if (connecting) onAuthorizationStarted?.()
@@ -226,6 +231,8 @@ export async function createExternalMcpConnection({
 
   let callbackServer: CallBackServer | undefined
   authProvider.prepareAuthorization = async () => {
+    const lease = (authOperations.getStore() ?? initialAuthorization).lease
+    lease?.signal.throwIfAborted()
     callbackServer ??= new CallBackServer({
       port: authProvider.config.callbackPort,
       path: authProvider.config.callbackPath,
@@ -243,6 +250,7 @@ export async function createExternalMcpConnection({
         { cause: error }
       )
     }
+    lease?.signal.throwIfAborted()
   }
 
   const authenticate = async (transport: UrlTransport, operation: AuthOperation): Promise<void> => {

@@ -30,14 +30,14 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   constructor(options: OAuthProviderOptions) {
     const configDir = application.getPath('feature.mcp.oauth')
     this.config = {
-      serverUrlHash: options.serverUrlHash,
+      storageKey: options.storageKey,
       callbackPort: options.callbackPort || 12346,
       callbackPath: options.callbackPath || '/oauth/callback',
       configDir: options.configDir || configDir,
       clientName: options.clientName || 'Cherry Studio',
       clientUri: options.clientUri || 'https://github.com/CherryHQ/cherry-studio'
     }
-    this.storage = new JsonFileStorage(this.config.serverUrlHash, this.config.configDir)
+    this.storage = new JsonFileStorage(this.config.storageKey, this.config.configDir)
   }
 
   get redirectUrl(): string {
@@ -65,7 +65,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   reloadCredentials(): void {
-    this.storage = new JsonFileStorage(this.config.serverUrlHash, this.config.configDir)
+    this.storage = new JsonFileStorage(this.config.storageKey, this.config.configDir)
   }
 
   withAuthorizationFlow<T>(callback: () => Promise<T>): Promise<T> {
