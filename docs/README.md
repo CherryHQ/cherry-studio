@@ -100,6 +100,7 @@
 | [Code Block Rendering](./references/components/code-block-view.md) | How CodeBlock classifies Markdown code and CodeBlockView renders the fenced-code workbench across streaming states |
 | [Code Execution](./references/components/code-execution.md) | Current Python code-block execution path through CodeBlockView, PyodideService, and the Pyodide Web Worker |
 | [Image Preview Components](./references/components/image-preview.md) | Current Mermaid, PlantUML, SVG, and Graphviz preview pipeline with sanitized Shadow DOM rendering and shared controls |
+| [OpenUI POC](./references/components/openui-poc.md) | Render-only OpenUI proof of concept using Cherry Studio components, with a sample prompt and manual verification steps |
 | [UI Semantic Contract](./references/components/ui-semantic-contract.md) | The data-ui semantic selector contract for themes, tests, and automation, and its build-time generation pipeline |
 
 ### Data

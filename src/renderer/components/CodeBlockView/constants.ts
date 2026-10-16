@@ -8,6 +8,10 @@ type SpecialViewProps = BasicPreviewProps & { ref?: RefObject<BasicPreviewHandle
  * 特殊视图组件映射表
  */
 export const SPECIAL_VIEW_COMPONENTS = {
+  openui: {
+    component: lazy(() => import('@renderer/components/Preview/OpenUiPreview')),
+    supportsImageActions: false
+  },
   latex: {
     component: lazy(() => import('@renderer/components/Preview/LatexPreview')),
     supportsImageActions: false
