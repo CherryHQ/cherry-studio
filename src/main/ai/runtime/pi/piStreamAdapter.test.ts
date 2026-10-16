@@ -252,6 +252,46 @@ describe('PiStreamAdapter', () => {
     })
   })
 
+  it('keeps automation REPL content blocks that pi nests in structuredContent', async () => {
+    const mcpResult = {
+      content: [
+        { type: 'text', text: '649' },
+        { type: 'text', text: 'REPL_CONTEXT {}', annotations: { audience: ['assistant'] } }
+      ],
+      structuredContent: { replContext: { cell: 'c1' } }
+    }
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'a1', toolName: 'mcp__automation__js', args: { code: '1' } },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'a1',
+          toolName: 'mcp__automation__js',
+          result: { content: [{ type: 'text', text: '649\nREPL_CONTEXT {}' }], structuredContent: mcpResult },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    const output = (message.parts.find((part) => part.type === 'dynamic-tool') as { output?: unknown }).output
+    expect(output).toEqual(mcpResult)
+  })
+
+  it("reports a failed automation REPL cell with its MCP content, not pi's wrapper", () => {
+    const mcpResult = { isError: true, content: [{ type: 'text', text: 'TypeError: boom' }] }
+    const chunks = collect([
+      { type: 'tool_execution_start', toolCallId: 'a2', toolName: 'mcp__automation__js', args: { code: '1' } },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'a2',
+        toolName: 'mcp__automation__js',
+        result: { content: [{ type: 'text', text: 'TypeError: boom' }], structuredContent: mcpResult, isError: true },
+        isError: true
+      }
+    ] as AgentSessionEvent[])
+    const error = chunks.find((chunk) => chunk.type === 'tool-output-error') as { errorText: string }
+    expect(JSON.parse(error.errorText)).toEqual(mcpResult)
+  })
+
   /**
    * pi's code mode is unconditional, so cherry-tools is never a tool name of its own — every call
    * arrives as `tool_call`, returning the target's MCP result verbatim. The renderer resolves

@@ -56,7 +56,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [API Gateway Reference](./references/api-gateway/README.md) | Local HTTP gateway for OpenAI, Anthropic, Gemini, Cherry REST, and MCP-compatible clients |
+| [API Gateway Reference](./references/api-gateway/README.md) | API gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference |
 | [Remote Agent Access (Design)](./references/api-gateway/remote-agent-access.md) | JSON-RPC remote access architecture, device-level authorization, shared protocol package, and staged desktop/mobile implementation plan |
 | [Remote Connectivity Design](./references/api-gateway/remote-connectivity.md) | Identity-based remote connectivity design and first implementation boundaries for DNS-SD discovery, configured endpoints and serial reconnect |
 
@@ -184,12 +184,6 @@
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard and recovery semantics for Knowledge add, delete, reindex, and embedding-enable operations |
 | [Knowledge Workflow Architecture](./references/knowledge/workflow-architecture.md) | Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics |
 | [Knowledge Storage and Retrieval Implementation](./references/knowledge/experiment/knowledge-technical-design.md) | Current Knowledge storage and retrieval implementation - raw files, per-base index schema, invariants, and migration validation |
-
-### LAN Transfer
-
-| Document | Description |
-|----------|-------------|
-| [Cherry Studio LAN Transfer Protocol Specification](./references/lan-transfer/README.md) | LAN transfer protocol spec for desktop-mobile sync covering mDNS discovery, TCP handshake, and file transfer |
 
 ### Lifecycle
 

@@ -36,8 +36,8 @@ export function withComposerFilePartMeta(
  * `fileEntryId` plus a `file://` URL pointing at the freshly-copied physical file.
  *
  * `ComposerAttachment.path` is already an `AbsoluteFilePath` — producers validate
- * it — so the only precondition left here is that the path is *present*: an
- * attachment reconstructed for message editing carries none, and such an
+ * it. A captured image instead carries an owned Blob. An
+ * attachment reconstructed for message editing carries neither, and such an
  * attachment must never be re-sent through `createInternalEntry` (the edit flow
  * reuses the original part instead).
  *
@@ -52,18 +52,28 @@ export function withComposerFilePartMeta(
  */
 export async function buildFilePartsForAttachments(attachments: ComposerAttachment[]): Promise<FileUIPart[]> {
   const paths = attachments.map((attachment) => {
-    if (!attachment.path) {
-      throw new Error(`Cannot send attachment "${attachment.origin_name || attachment.name}": it has no file path`)
+    if (!attachment.path && !attachment.blob) {
+      throw new Error(
+        `Cannot send attachment "${attachment.origin_name || attachment.name}": it has no file path or image data`
+      )
     }
     return attachment.path
   })
   return Promise.all(
     attachments.map(async (attachment, index) => {
-      const entry = await window.api.file.createInternalEntry({
-        source: 'path',
-        path: paths[index],
-        cleanupPolicy: 'delete_when_unreferenced'
-      })
+      const entry = attachment.blob
+        ? await window.api.file.createInternalEntry({
+            source: 'bytes',
+            data: new Uint8Array(await attachment.blob.arrayBuffer()),
+            name: attachment.origin_name || attachment.name,
+            ext: attachment.ext.replace(/^\./, '') || null,
+            cleanupPolicy: 'delete_when_unreferenced'
+          })
+        : await window.api.file.createInternalEntry({
+            source: 'path',
+            path: paths[index]!,
+            cleanupPolicy: 'delete_when_unreferenced'
+          })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
       const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(physicalPath))
       if (metadata === null) {

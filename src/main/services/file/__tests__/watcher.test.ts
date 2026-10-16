@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -15,7 +15,7 @@ vi.mock('@application', async () => {
 const { createDirectoryWatcher } = await import('../watcher')
 const { danglingCache } = await import('../danglingCache')
 
-import type { DirectoryWatcher, WatcherEvent } from '../watcher'
+import type { CreateDirectoryWatcherOptions, DirectoryWatcher, WatcherEvent } from '../watcher'
 
 const waitForReady = async (w: DirectoryWatcher): Promise<void> => {
   await new Promise<void>((resolve) => {
@@ -60,30 +60,40 @@ const waitForEvent = (
 
 describe('createDirectoryWatcher', () => {
   let dir: string
+  let watchers: DirectoryWatcher[]
+
+  const watchDirectory = (options?: CreateDirectoryWatcherOptions): DirectoryWatcher => {
+    const watcher = createDirectoryWatcher(dir as AbsoluteFilePath, options)
+    watchers.push(watcher)
+    return watcher
+  }
 
   beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'cherry-fm-watcher-'))
+    watchers = []
+    // Windows TEMP can use an 8.3 alias that libuv cannot match to long-path events.
+    dir = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-fm-watcher-')))
     danglingCache.clear()
   })
 
   afterEach(async () => {
+    await Promise.all(watchers.map((watcher) => watcher.close()))
     await rm(dir, { recursive: true, force: true })
   })
 
   it('emits "ready" after the initial scan', async () => {
-    const w = createDirectoryWatcher(dir as AbsoluteFilePath)
+    const w = watchDirectory()
     await waitForReady(w)
-    await w.close()
   })
 
   it('emits "add" for newly created files and writes "present" into DanglingCache', async () => {
     const target = path.join(dir, 'note.txt') as AbsoluteFilePath
     danglingCache.addEntry('e-w-add', target)
 
-    const w = createDirectoryWatcher(dir as AbsoluteFilePath)
+    const w = watchDirectory()
     await waitForReady(w)
+    const added = waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
     await writeFile(target, 'hello')
-    const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
+    const ev = await added
     expect(ev.kind).toBe('add')
     expect(
       await danglingCache.check({
@@ -98,7 +108,6 @@ describe('createDirectoryWatcher', () => {
         updatedAt: 0
       } as never)
     ).toBe('present')
-    await w.close()
   })
 
   it('emits "unlink" for removed files and writes "missing" into DanglingCache', async () => {
@@ -107,10 +116,11 @@ describe('createDirectoryWatcher', () => {
     danglingCache.addEntry('e-w-unlink', target)
     danglingCache.onFsEvent(target, 'present')
 
-    const w = createDirectoryWatcher(dir as AbsoluteFilePath, { stabilityThresholdMs: 0 })
+    const w = watchDirectory({ stabilityThresholdMs: 0 })
     await waitForReady(w)
+    const removed = waitForEvent(w, (e) => e.kind === 'unlink' && e.path === target)
     await rm(target)
-    const ev = await waitForEvent(w, (e) => e.kind === 'unlink' && e.path === target)
+    const ev = await removed
     expect(ev.kind).toBe('unlink')
     expect(
       await danglingCache.check({
@@ -125,7 +135,6 @@ describe('createDirectoryWatcher', () => {
         updatedAt: 0
       } as never)
     ).toBe('missing')
-    await w.close()
   })
 
   it('emits "change" when a watched file is modified in place', async () => {
@@ -134,36 +143,36 @@ describe('createDirectoryWatcher', () => {
     // Default stabilityThresholdMs (200) keeps chokidar's event sequencing
     // deterministic across busy CI hosts; stability=0 was flaky on macOS
     // FSEvents when many tests share tmpdir traffic.
-    const w = createDirectoryWatcher(dir as AbsoluteFilePath)
+    const w = watchDirectory()
     await waitForReady(w)
 
     // First write registers the file (fires 'add'); second write fires 'change'.
+    const added = waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
     await writeFile(target, 'v1')
-    await waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
+    await added
     // Brief settle so chokidar's awaitWriteFinish window closes on the add.
     await new Promise((r) => setTimeout(r, 250))
+    const changed = waitForEvent(w, (e) => e.kind === 'change' && e.path === target)
     await writeFile(target, 'v2-content-larger')
-    const ev = await waitForEvent(w, (e) => e.kind === 'change' && e.path === target)
+    const ev = await changed
     expect(ev.kind).toBe('change')
-    await w.close()
   })
 
   it('suppresses .DS_Store events via the built-in ignore set', async () => {
-    const w = createDirectoryWatcher(dir as AbsoluteFilePath, { stabilityThresholdMs: 0 })
+    const w = watchDirectory({ stabilityThresholdMs: 0 })
     await waitForReady(w)
     const seen: WatcherEvent[] = []
     w.onEvent((e) => seen.push(e))
     await writeFile(path.join(dir, '.DS_Store'), 'noise')
     await new Promise((r) => setTimeout(r, 600))
     expect(seen.find((e) => (e.kind === 'add' || e.kind === 'change') && e.path?.endsWith('.DS_Store'))).toBeUndefined()
-    await w.close()
   })
 
   it('limits recursive watching to maxDepth when provided', async () => {
     const nestedDir = path.join(dir, 'nested')
     await mkdir(nestedDir)
 
-    const w = createDirectoryWatcher(dir as AbsoluteFilePath, { maxDepth: 0, stabilityThresholdMs: 0 })
+    const w = watchDirectory({ maxDepth: 0, stabilityThresholdMs: 0 })
     await waitForReady(w)
 
     const seen: WatcherEvent[] = []
@@ -180,7 +189,6 @@ describe('createDirectoryWatcher', () => {
 
     expect(seen.some((e) => e.kind === 'add' && e.path === nestedFile)).toBe(false)
     off()
-    await w.close()
   })
 
   // On Linux ext4, filenames are opaque bytes — writeFile preserves the NFD
@@ -205,10 +213,11 @@ describe('createDirectoryWatcher', () => {
       // by registering the entry under the exact NFD bytes on disk.
       danglingCache.addEntry('e-w-nfd', writtenPath)
 
-      const w = createDirectoryWatcher(dir as AbsoluteFilePath)
+      const w = watchDirectory()
       await waitForReady(w)
+      const added = waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'), 30_000)
       await writeFile(writtenPath, 'hello')
-      const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'), 30_000)
+      const ev = await added
       if (ev.kind !== 'add') throw new Error('expected add event')
       expect(ev.path).toBe(writtenPath)
 
@@ -227,13 +236,12 @@ describe('createDirectoryWatcher', () => {
           updatedAt: 0
         } as never)
       ).toBe('present')
-      await w.close()
     },
     35_000
   )
 
   it('close() is idempotent and stops further event delivery', async () => {
-    const w = createDirectoryWatcher(dir as AbsoluteFilePath, { stabilityThresholdMs: 0 })
+    const w = watchDirectory({ stabilityThresholdMs: 0 })
     await waitForReady(w)
     await w.close()
     await w.close() // idempotent

@@ -22,6 +22,17 @@ function includesFile(filename: string, patterns = config.files): boolean {
 }
 
 describe('packaged dependency contents', () => {
+  it('keeps the Computer Use SDK while its native helpers are installed outside ASAR', () => {
+    expect(includesFile('node_modules/@cherrystudio/computer-use/dist/index.cjs')).toBe(true)
+    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
+      for (const platform of ['darwin', 'linux', 'win32']) {
+        for (const arch of ['arm64', 'x64']) {
+          expect(includesFile(`${modules}/@cherrystudio/computer-use-${platform}-${arch}/runtime/helper`)).toBe(false)
+        }
+      }
+    }
+  })
+
   it('keeps the SDK but excludes every native Claude payload, including nested packages', () => {
     for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
       expect(includesFile(`${modules}/@anthropic-ai/claude-agent-sdk/sdk.mjs`)).toBe(true)
@@ -119,8 +130,6 @@ describe('packaged dependency contents', () => {
     }
     for (const file of [
       'node_modules/koffi/src/koffi/index.cjs',
-      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/cherry_acl.ps1',
-      'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/SKILL.md',
       'node_modules/pdfjs-dist/cmaps/Adobe-GB1-UCS2.bcmap',
       'resources/builtin-agents/icon.png'
     ]) {
