@@ -867,7 +867,7 @@ function redactBodyText(text: string, contentType?: string, preserveIntegerLiter
 function hasJsonIntegerPrecisionRisk(text: string, contentType?: string): boolean {
   if (!isJsonContentType(contentType) && !looksJson(text)) return false
 
-  for (const match of text.matchAll(/(?<=[:,[])\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?=\s*[,}\]])/g)) {
+  for (const match of text.matchAll(/(?<=^|[:,[])\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?=\s*(?:[,}\]]|$))/g)) {
     const token = match[1]
     if (!token || !jsonNumberTokenHasPrecisionRisk(token)) continue
     return true
@@ -876,6 +876,25 @@ function hasJsonIntegerPrecisionRisk(text: string, contentType?: string): boolea
   return false
 }
 
+/** Exact decimal identity of a JSON number token: sign, significant digits and power-of-ten exponent. */
+function normalizeJsonNumberToken(token: string): string | undefined {
+  const match = token.trim().match(/^(-?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/)
+  if (!match) return undefined
+  const [, sign, intPart = '', fracPart = '', expPart] = match
+  let digits = `${intPart}${fracPart}`.replace(/^0+/, '')
+  let exponent = Number(expPart ?? 0) - fracPart.length
+  if (!digits) return '0'
+  while (digits.endsWith('0')) {
+    digits = digits.slice(0, -1)
+    exponent++
+  }
+  return `${sign}${digits}e${exponent}`
+}
+
+/**
+ * True when parsing the token into a double and re-serializing it would change the number (lost integer
+ * digits, dropped fractions such as `9007199254740992.5`). The full token is compared, not just its integer part.
+ */
 function jsonNumberTokenHasPrecisionRisk(token: string): boolean {
   let value: number
   try {
@@ -884,34 +903,9 @@ function jsonNumberTokenHasPrecisionRisk(token: string): boolean {
     return false
   }
   if (typeof value !== 'number' || !Number.isFinite(value)) return false
-
-  const integerDigits = token.match(/^(-?)(\d+)/)
-  if (integerDigits) {
-    const sign = integerDigits[1] === '-' ? '-' : ''
-    const digits = integerDigits[2]
-    if (digits.length > 15) {
-      try {
-        return BigInt(`${sign}${digits}`) !== BigInt(value)
-      } catch {
-        return true
-      }
-    }
-  }
-
-  const fixedInteger = token.match(/^(-?\d+)\.0+$/)
-  if (fixedInteger) {
-    try {
-      return BigInt(fixedInteger[1]) !== BigInt(value)
-    } catch {
-      return true
-    }
-  }
-
-  if (/[eE]/.test(token) && Number.isInteger(value)) {
-    return !Number.isSafeInteger(value)
-  }
-
-  return false
+  const original = normalizeJsonNumberToken(token)
+  const reserialized = normalizeJsonNumberToken(JSON.stringify(value))
+  return original === undefined || original !== reserialized
 }
 
 function skipJsonValue(text: string, start: number): number {
@@ -990,8 +984,17 @@ function redactJsonSensitiveValuesInText(text: string): string {
 
   if (replacements.length === 0) return text
 
+  // Keep only outermost ranges: a sensitive parent already covers its descendants, and applying a nested
+  // replacement first would shift the parent's end offset and leak part of its value.
+  const outermost: typeof replacements = []
+  for (const range of replacements.sort((a, b) => a.start - b.start)) {
+    const last = outermost.at(-1)
+    if (last && range.start < last.end) continue
+    outermost.push(range)
+  }
+
   let output = text
-  for (const { start, end, replacement } of replacements.sort((a, b) => b.start - a.start)) {
+  for (const { start, end, replacement } of outermost.reverse()) {
     output = output.slice(0, start) + replacement + output.slice(end)
   }
   return output

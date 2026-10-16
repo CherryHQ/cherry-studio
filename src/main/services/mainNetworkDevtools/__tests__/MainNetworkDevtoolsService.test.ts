@@ -284,6 +284,25 @@ describe('MainNetworkDevtoolsService helpers', () => {
     expect(captured?.text).not.toContain('secret')
   })
 
+  it('redacts a sensitive parent whole even when nested sensitive keys sit under it', () => {
+    const captured = captureRequestBody(
+      '{"id":9007199254740993,"credentials":{"token":0,"key":0,"pass":0,"value":"TOP_SECRET"}}',
+      'application/json'
+    )
+
+    expect(captured?.text).toContain('9007199254740993')
+    expect(captured?.text).toContain('"credentials":"<redacted>"')
+    expect(captured?.text).not.toContain('TOP_SECRET')
+  })
+
+  it('marks root-level and fractional precision-losing JSON numbers as non-replayable', () => {
+    expect(captureRequestBody('9007199254740993', 'application/json')).toMatchObject({ replayable: false })
+    expect(captureRequestBody('{"record_id":9007199254740992.5}', 'application/json')).toMatchObject({
+      replayable: false
+    })
+    expect(captureRequestBody('{"n":1.50,"m":42}', 'application/json')).not.toMatchObject({ replayable: false })
+  })
+
   it('marks gzip-compressed binary JSON bodies as non-replayable', () => {
     const body = Buffer.from('{"prompt":"hi"}', 'utf8')
     expect(captureRequestBody(body, 'application/json', { 'content-encoding': 'gzip' })).toMatchObject({
