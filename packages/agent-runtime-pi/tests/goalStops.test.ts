@@ -95,6 +95,49 @@ describe('goal caps and budgets', () => {
     })
   })
 
+  // Breaks when a withdrawn round ends the goal's run although the goal still has room: after a change
+  // during a later settle handler, the goal must go on with a fresh round reserved for it as it is now.
+  it.each([
+    { command: '/goal edit Keep working carefully', sent: [1, 2, 3], stop: 'round_limit' },
+    { command: '/goal budget 1', sent: [1, 2], stop: 'budget_exhausted' }
+  ])(
+    'after withdrawing a round reserved before `$command`, runs a fresh one for the goal as it now is',
+    async ({ command, sent, stop }) => {
+      let started!: () => void
+      const awaiting = new Promise<void>((resolve) => (started = resolve))
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      const slowSettle: ExtensionFactory = (pi) => {
+        let settles = 0
+        pi.on('agent_before_settle', async () => {
+          if (settles++ > 0) return undefined
+          started()
+          await gate
+          return undefined
+        })
+      }
+      const {
+        session: s,
+        host,
+        calls
+      } = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 3 } }), {
+        laterExtensions: [slowSettle]
+      })
+      const run = promptIdle(s, '/goal Keep working')
+      await awaiting
+      await s.prompt(command)
+      release()
+      await run
+      await s.waitForIdle()
+
+      expect(calls.map((call) => roundStart(call.prompt))).toEqual(sent)
+      const [, withdrawn, fresh] = rounds(host.entries)
+      expect(fresh).toMatchObject({ round: 2 })
+      expect(fresh.revision).toBeGreaterThan(withdrawn.revision)
+      expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: sent.length, lastStop: { code: stop } })
+    }
+  )
+
   it('after round_limit, resume is refused until the cap is raised, then one more round runs', async () => {
     const { session: s, host } = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 1 } }))
     await promptIdle(s, '/goal Keep working')
