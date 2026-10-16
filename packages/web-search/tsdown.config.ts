@@ -22,6 +22,7 @@ export default defineConfig({
   },
   outDir: 'dist',
   format: ['esm', 'cjs'],
+  fixedExtension: true,
   platform: 'neutral',
   target: 'es2020',
   clean: true,
