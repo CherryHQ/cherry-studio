@@ -1,8 +1,9 @@
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Bot, Layers, Network, Settings2, Sparkles, WandSparkles } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Activity, lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, Spinner } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useAgentCatalogPresets } from '@renderer/hooks/useAgentCatalogPresets'
 import {
@@ -22,6 +23,8 @@ import { MarketplaceTemplates } from './MarketplaceTemplates'
 import { SkillSubscriptionBar } from './SkillSubscriptionBar'
 import { useMarketplace } from './useMarketplace'
 
+// The personal library is not released yet; keep the "My Resources" navigation entry hidden.
+const MyResourcesPage = lazy(() => import('./MyResourcesPage'))
 const RESOURCE_TYPES = [
   { id: 'all', label: 'common.all', icon: Layers },
   { id: 'skill', label: 'marketplace.type.skill', icon: Sparkles },
@@ -32,6 +35,24 @@ const RESOURCE_TYPES = [
 const OVERVIEW_TYPES = ['skill', 'agent', 'assistant', 'mcp'] as const
 
 export default function MarketplacePage() {
+  const { t } = useTranslation()
+  const { view } = useSearch({ from: '/app/marketplace' })
+  const navigate = useNavigate({ from: '/app/marketplace' })
+  return (
+    <>
+      <Activity mode={view === 'mine' ? 'hidden' : 'visible'}>
+        <MarketplaceCatalog active={view !== 'mine'} />
+      </Activity>
+      <Activity mode={view === 'mine' ? 'visible' : 'hidden'}>
+        <Suspense fallback={<Spinner text={t('common.loading')} />}>
+          <MyResourcesPage onBrowseTemplates={() => void navigate({ search: {} })} />
+        </Suspense>
+      </Activity>
+    </>
+  )
+}
+
+function MarketplaceCatalog({ active }: { active: boolean }) {
   const { t, i18n } = useTranslation()
   const [resourceType, setResourceType] = useState<MarketplaceView>('all')
   const [sourceId, setSourceId] = useState<string | null>(null)
@@ -46,10 +67,10 @@ export default function MarketplacePage() {
   const [moreMcpSources, setMoreMcpSources] = useState(false)
   const query = queries[resourceType]
   const skillSourceId = resourceType === 'skill' ? sourceId : null
-  const skills = useMarketplace(skillSourceId, resourceType === 'all' || resourceType === 'skill')
-  const agents = useAgentCatalogPresets({ enabled: resourceType === 'all' || resourceType === 'agent' })
+  const skills = useMarketplace(skillSourceId, active && (resourceType === 'all' || resourceType === 'skill'))
+  const agents = useAgentCatalogPresets({ enabled: active && (resourceType === 'all' || resourceType === 'agent') })
   const assistants = useAssistantCatalogPresets({
-    enabled: resourceType === 'all' || resourceType === 'assistant'
+    enabled: active && (resourceType === 'all' || resourceType === 'assistant')
   })
   const mcp = useBuiltinMcpCatalog()
   const agentItems = useMemo<MarketplaceTemplate[]>(
@@ -104,17 +125,23 @@ export default function MarketplacePage() {
     setResourceType(type)
   }
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
-    if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active />
+    if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active={active} />
     if (type === 'mcp')
       return (
-        <MarketplaceMcp catalog={mcp} query={query} preview={preview} moreSources={!preview && moreMcpSources} active />
+        <MarketplaceMcp
+          catalog={mcp}
+          query={query}
+          preview={preview}
+          moreSources={!preview && moreMcpSources}
+          active={active}
+        />
       )
     return (
       <MarketplaceTemplates
         items={type === 'agent' ? agentItems : assistantItems}
         query={query}
         preview={preview}
-        active
+        active={active}
         loading={type === 'agent' ? agents.isLoading : assistants.isLoading}
         error={type === 'agent' ? agents.error : assistants.error}
         retry={type === 'agent' ? agents.retry : assistants.retry}
@@ -159,7 +186,7 @@ export default function MarketplacePage() {
           {resourceType === 'skill' ? (
             <SkillSubscriptionBar
               sourceId={sourceId}
-              active
+              active={active}
               refreshing={skills.catalog.isValidating}
               onSelect={setSourceId}
               onRefresh={() => void skills.catalog.mutate().catch(() => {})}

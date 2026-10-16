@@ -332,6 +332,13 @@
       "description": "User-subscribed skill catalogs; fetched contents are cached separately"
     },
     {
+      "targetKey": "ui.marketplace.skill_tags",
+      "type": "PreferenceTypes.SkillLibraryTags",
+      "defaultValue": { "assignments": {}, "custom": [] },
+      "status": "classified",
+      "description": "User labels and installed-skill label assignments in My Resources; separate from SKILL.md metadata"
+    },
+    {
       "targetKey": "ui.custom_css",
       "type": "string",
       "defaultValue": "",

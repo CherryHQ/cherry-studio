@@ -91,6 +91,7 @@ import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
   isModelDisabled?: ModelSelectorFilter
+  preventOutsideClose?: boolean
 }
 
 type AgentEditFormValues = {
@@ -269,7 +270,8 @@ export function AgentEditDialog({
   onOpenChange,
   modelFilter,
   isModelDisabled,
-  initialTab
+  initialTab,
+  preventOutsideClose
 }: AgentEditDialogProps) {
   if (!resource) return null
 
@@ -281,6 +283,7 @@ export function AgentEditDialog({
       modelFilter={modelFilter}
       isModelDisabled={isModelDisabled}
       initialTab={initialTab}
+      preventOutsideClose={preventOutsideClose}
     />
   )
 }
@@ -291,8 +294,9 @@ function AgentEditDialogContent({
   onOpenChange,
   modelFilter,
   isModelDisabled,
-  initialTab
-}: EditDialogBaseProps & { resource: AgentDetail; isModelDisabled?: ModelSelectorFilter }) {
+  initialTab,
+  preventOutsideClose
+}: AgentEditDialogProps & { resource: AgentDetail }) {
   const { t } = useTranslation()
   const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
@@ -535,6 +539,7 @@ function AgentEditDialogContent({
 
   return (
     <EditDialogShell
+      preventOutsideClose={preventOutsideClose}
       activeTab={activeTab}
       form={form}
       onActiveTabChange={setActiveTab}
