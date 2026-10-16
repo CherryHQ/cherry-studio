@@ -99,21 +99,48 @@ const Failure = ({
   buttonLabel: string
   error?: string
   onRestart: () => void
-}) => (
-  <div className="flex w-full flex-col items-center gap-3 text-center">
-    <XCircle className="text-destructive" size={40} />
-    <h2 className="text-base font-semibold text-foreground">{title}</h2>
-    <p className="text-sm text-muted-foreground">{description}</p>
-    {error && (
-      <pre className="max-h-24 w-full overflow-auto rounded border border-border bg-background-subtle px-3 py-2 text-left text-xs break-words whitespace-pre-wrap text-foreground-tertiary">
-        {error}
-      </pre>
-    )}
-    <Button onClick={onRestart} className="mt-2 w-full">
-      {buttonLabel}
-    </Button>
-  </div>
-)
+}) => {
+  const { t } = useTranslation()
+  return (
+    <div className="flex w-full flex-col items-center gap-3 text-center">
+      <XCircle className="text-destructive" size={40} />
+      <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      <p className="text-sm text-muted-foreground">{description}</p>
+      {error && (
+        <pre className="max-h-24 w-full overflow-auto rounded border border-border bg-background-subtle px-3 py-2 text-left text-xs break-words whitespace-pre-wrap text-foreground-tertiary">
+          {error}
+        </pre>
+      )}
+      <p className="text-xs text-muted-foreground">{t('relocation.support.analysis_unavailable')}</p>
+      <div className="flex w-full flex-wrap justify-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (!error) return
+            void navigator.clipboard.writeText(error)
+          }}>
+          {t('relocation.support.copy')}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open('mailto:support@cherry-ai.com?subject=Cherry%20Studio%20Feedback', '_blank')}>
+          {t('relocation.support.feedback')}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open('https://github.com/CherryHQ/cherry-studio/releases', '_blank')}>
+          {t('relocation.support.releases')}
+        </Button>
+      </div>
+      <Button onClick={onRestart} className="mt-2 w-full">
+        {buttonLabel}
+      </Button>
+    </div>
+  )
+}
 
 const Completion = ({
   title,

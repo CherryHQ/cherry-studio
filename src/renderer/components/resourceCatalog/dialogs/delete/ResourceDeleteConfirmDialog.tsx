@@ -14,6 +14,7 @@ import {
 } from '@renderer/hooks/resourceCatalog'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { restoreRecycleBinUndoGroup, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -206,13 +207,19 @@ const DeleteDialogContent: FC<{
     setPending(true)
     try {
       await onDelete()
+      return true
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
-      throw error
+      toastAppError(t('common.delete_failed'), error, {
+        source: 'resource',
+        operation: 'resource.delete',
+        recordId: resource.id
+      })
+      // ConfirmDialog stays open when this resolves false; a rejection is a second fault.
+      return false
     } finally {
       setPending(false)
     }
-  }, [onDelete, t])
+  }, [onDelete, resource.id, t])
 
   const title = t(resource.type === 'skill' ? 'library.delete.skill.title' : 'settings.prompts.delete')
   const description = t(resource.type === 'skill' ? 'library.delete.skill.content' : 'settings.prompts.deleteConfirm')
@@ -253,13 +260,19 @@ const ConversationOwnerDeleteDialogContent: FC<{
         onClose()
       } catch (error) {
         if (isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+        else {
+          toastAppError(t('common.delete_failed'), error, {
+            source: 'resource',
+            operation: resource.type === 'agent' ? 'agent.delete' : 'assistant.delete',
+            recordId: resource.id
+          })
+        }
         throw error
       } finally {
         setPending(false)
       }
     },
-    [onClose, onDelete, t]
+    [onClose, onDelete, resource.id, resource.type, t]
   )
 
   return (

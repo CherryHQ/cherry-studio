@@ -1,3 +1,4 @@
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -51,6 +52,7 @@ function QuickAssistantApp(): React.ReactElement {
           <ErrorBoundary>
             <HomeWindow />
           </ErrorBoundary>
+          <AppErrorRuntime mode="local" />
           <PopupHost />
           <ToastHost />
           <VoicePlaybackHost />

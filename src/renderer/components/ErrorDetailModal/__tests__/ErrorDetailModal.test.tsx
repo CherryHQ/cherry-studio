@@ -9,6 +9,7 @@ import type * as DoctorComponents from '@renderer/components/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckResult, DoctorPendingCheck, DoctorState } from '@shared/types/doctor'
+import { createAppErrorContext } from '@shared/utils/appError'
 
 import type { ErrorDetailContentProps } from '../ErrorDetailModal'
 
@@ -103,7 +104,10 @@ const translations: Record<string, string> = {
   'common.cancel': 'Cancel',
   'common.none': 'None',
   'common.retry': 'Retry',
+  'error.context.operation': 'Operation',
+  'error.context.source': 'Source',
   'error.detail': 'Error Details',
+  'error.responseBody': 'Response body',
   'error.diagnosis.view_details': 'View Details',
   'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
@@ -180,9 +184,16 @@ await i18next.use(initReactI18next).init({
   keySeparator: false
 })
 
-vi.mock('@data/CacheService', () => ({
-  cacheService: { isSharedCacheReady: () => mocks.cacheReady, onSharedCacheReady: vi.fn() }
-}))
+vi.mock('@data/CacheService', async () => {
+  const { mockCacheService } = await import('../../../../../tests/__mocks__/renderer/CacheService')
+  return {
+    cacheService: {
+      ...mockCacheService,
+      isSharedCacheReady: () => mocks.cacheReady,
+      onSharedCacheReady: vi.fn()
+    }
+  }
+})
 
 vi.mock('@data/hooks/useCache', () => ({
   useSharedCacheValue: () => mocks.doctorState
@@ -215,7 +226,10 @@ vi.mock('@renderer/services/LoggerService', () => ({
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: (...args: unknown[]) => mocks.openSettingsTab(...args)
 }))
-vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+  toastInlineError: () => undefined
+}))
 vi.mock('@renderer/utils/errorDiagnosis', () => ({ diagnoseError: mocks.diagnoseError }))
 
 vi.mock('@renderer/i18n/resolver', () => ({ default: { t: (key: string) => translations[key] ?? key } }))
@@ -228,10 +242,62 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre>{value}</pre>
 }))
 
+import { cacheService } from '@data/CacheService'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
+import type { DoctorScopeKey } from '@shared/types/doctor'
+import type { DoctorAgentIncident, DoctorAgentState } from '@shared/types/doctorAgent'
+import { doctorAgentKey, doctorAgentStateCacheKey, doctorStateCacheKey } from '@shared/utils/doctor'
+
+import { MockCacheUtils } from '../../../../../tests/__mocks__/renderer/CacheService'
 
 const { ErrorDetailContent, showErrorDetailPopup } = await import('../ErrorDetailModal')
+
+function publishDiagnosis(scope: DoctorScopeKey, text: string, incident?: DoctorAgentIncident) {
+  const runId = 'report-1'
+  cacheService.setShared(doctorStateCacheKey(scope), {
+    status: 'completed',
+    report: {
+      schemaVersion: 1,
+      scope,
+      runId,
+      tier: 'quick',
+      selectedCheckIds: [],
+      startedAt: '2026-05-01T00:00:00.000Z',
+      finishedAt: '2026-05-01T00:00:01.000Z',
+      expiresAt: '2026-05-01T00:10:01.000Z',
+      basics: {
+        version: '2.0.0',
+        edition: 'global',
+        channel: 'latest',
+        platform: 'darwin',
+        arch: 'arm64',
+        osRelease: '25.0.0',
+        runtime: {},
+        isPackaged: true,
+        isPortable: false
+      },
+      results: [],
+      summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
+    }
+  })
+  const agent: DoctorAgentState = {
+    status: 'completed',
+    runId: 'agent-run-1',
+    scope,
+    reportRunId: runId,
+    sessionId: 'session-1',
+    modelId: 'openai::gpt-4o',
+    startedAt: '2026-05-01T00:00:02.000Z',
+    text,
+    toolCalls: [],
+    proposals: [],
+    changes: [],
+    ...(incident ? { incident } : {})
+  }
+  cacheService.setShared(doctorAgentStateCacheKey(doctorAgentKey(scope, incident)), agent)
+}
 
 Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() })
 
@@ -309,6 +375,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
     mocks.cacheReady = true
     mocks.doctorState = { status: 'idle' }
     mocks.diagnoseError.mockResolvedValue(aiDiagnosis)
@@ -380,7 +447,7 @@ describe('ErrorDetailContent diagnostics', () => {
     const view = render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
+      void showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
     })
 
     const outerDialog = screen.getByText('Basic information').closest('[role="dialog"]')
@@ -427,7 +494,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({
+      void showErrorDetailPopup({
         subject: { kind: 'global' },
         diagnosticReport: { location: 'Agent conversation' },
         error: providerError
@@ -468,7 +535,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
+      void showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
     })
 
     await user.click(screen.getByRole('button', { name: 'View Details' }))
@@ -486,7 +553,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({
+      void showErrorDetailPopup({
         subject: { kind: 'global' },
         error: { ...providerError, name: 'AI_InvalidArgumentError', cause: htmlCause }
       })
@@ -765,7 +832,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({
+      void showErrorDetailPopup({
         subject: { kind: 'global' },
         diagnosticReport: { location: 'Home conversation' },
         error: providerError
@@ -790,5 +857,202 @@ describe('ErrorDetailContent diagnostics', () => {
       initialDescription: expect.stringContaining('Location: Home conversation')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('does not reserve the detail when no popup host is mounted', () => {
+    expect(showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })).toBeNull()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    render(<PopupHost />)
+    act(() => {
+      void showErrorDetailPopup({
+        error: providerError,
+        localizedErrorMessage: 'Host is ready',
+        subject: { kind: 'global' }
+      })
+    })
+    expect(screen.getByText(/Host is ready/)).toBeInTheDocument()
+  })
+
+  it('does not replace an error detail the user is already reading', () => {
+    render(<PopupHost />)
+
+    act(() => {
+      void showErrorDetailPopup({
+        error: providerError,
+        localizedErrorMessage: 'First fault',
+        subject: chatSubject
+      })
+    })
+    expect(screen.getByText(/First fault/)).toBeInTheDocument()
+
+    let second: Promise<void> | null = null
+    act(() => {
+      second = showErrorDetailPopup({
+        error: providerError,
+        localizedErrorMessage: 'Second fault',
+        subject: { kind: 'global' }
+      })
+    })
+
+    expect(second).toBeNull()
+    expect(screen.getByText(/First fault/)).toBeInTheDocument()
+    expect(screen.queryByText(/Second fault/)).not.toBeInTheDocument()
+  })
+
+  it('reports an operation fault with its context and without a conversation', async () => {
+    vi.useFakeTimers()
+    render(<PopupHost />)
+    const errorContext = createAppErrorContext({
+      id: 'op-1',
+      message: 'HTTP 500 upstream boom',
+      modelId: 'gpt-image-1',
+      operation: 'painting.generate',
+      providerId: 'openai',
+      source: 'painting'
+    })
+
+    act(() => {
+      void showErrorDetailPopup({ errorContext })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }))
+    act(() => {
+      vi.advanceTimersByTime(POPUP_EXIT_MS)
+    })
+    await act(async () => {})
+
+    expect(mocks.showDoctor).toHaveBeenCalledWith({
+      errorContext,
+      initialDescription: expect.stringContaining('Source: painting'),
+      initialPanel: 'report'
+    })
+    expect(mocks.showDoctor.mock.calls[0]?.[0].initialDescription).toContain('Operation: painting.generate')
+    expect(mocks.showDoctor.mock.calls[0]?.[0].initialDescription).not.toContain('topicId')
+  })
+
+  it('forwards the current operation analysis and fault id when the report is opened', async () => {
+    vi.useFakeTimers()
+    const errorContext = createAppErrorContext({
+      id: 'op-1',
+      message: 'HTTP 500 upstream boom',
+      operation: 'painting.generate',
+      source: 'painting'
+    })
+    publishDiagnosis('operation:op-1', 'Operation conclusion.', { kind: 'operation', context: errorContext })
+    render(<PopupHost />)
+
+    act(() => {
+      void showErrorDetailPopup({ errorContext })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }))
+    act(() => {
+      vi.advanceTimersByTime(POPUP_EXIT_MS)
+    })
+    await act(async () => {})
+
+    const handoff = mocks.showDoctor.mock.calls[0]?.[0] as {
+      aiDiagnosis?: DiagnosticAiDiagnosis
+      errorContext?: { id: string }
+    }
+    expect(handoff.errorContext?.id).toBe(errorContext.id)
+    expect(handoff.aiDiagnosis).toMatchObject({
+      source: 'doctor-agent',
+      status: 'completed',
+      errorId: errorContext.id,
+      text: 'Operation conclusion.'
+    })
+    expect(handoff.aiDiagnosis).not.toHaveProperty('topicId')
+    expect(handoff.aiDiagnosis).not.toHaveProperty('messageId')
+  })
+
+  it('forwards an explicit snapshot when the report has no fault and no live capture', async () => {
+    const user = userEvent.setup()
+    const onOpenDiagnosticReport = vi.fn()
+    publishDiagnosis('global', 'Global cached conclusion.')
+    const snapshot: DiagnosticAiDiagnosis = {
+      source: 'error-summary',
+      status: 'completed',
+      text: 'Explicit conclusion.'
+    }
+    renderErrorDetailContent({
+      aiDiagnosis: snapshot,
+      diagnosticReport: { location: 'Home conversation' },
+      onOpenDiagnosticReport,
+      subject: undefined
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+
+    expect(onOpenDiagnosticReport).toHaveBeenCalledWith(
+      expect.stringContaining('Location: Home conversation'),
+      undefined,
+      expect.objectContaining({ source: 'error-summary', status: 'completed', text: 'Explicit conclusion.' })
+    )
+    expect(onOpenDiagnosticReport.mock.calls[0]?.[2]).not.toHaveProperty('errorId')
+    expect(onOpenDiagnosticReport.mock.calls[0]?.[2].text).not.toContain('Global cached conclusion.')
+  })
+
+  it('does not attach a global cached result to a contextual report', async () => {
+    const user = userEvent.setup()
+    const onOpenDiagnosticReport = vi.fn()
+    const errorContext = createAppErrorContext({
+      id: 'op-1',
+      message: 'HTTP 500 upstream boom',
+      operation: 'painting.generate',
+      source: 'painting'
+    })
+    publishDiagnosis('global', 'Global cached conclusion.')
+    renderErrorDetailContent({
+      errorContext,
+      incident: { kind: 'operation', context: errorContext },
+      onOpenDiagnosticReport,
+      subject: { kind: 'operation', operationId: errorContext.id }
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+
+    expect(onOpenDiagnosticReport).toHaveBeenCalledWith(expect.any(String), errorContext, undefined)
+  })
+
+  it('shows provider status and response body in the technical detail', async () => {
+    const user = userEvent.setup()
+    renderErrorDetailContent({
+      error: {
+        cause: null,
+        data: null,
+        isRetryable: false,
+        message: 'quota',
+        name: 'AI_APICallError',
+        requestBodyValues: null,
+        responseBody: '{"error":"quota"}',
+        responseHeaders: null,
+        stack: 'stack line',
+        statusCode: 429,
+        url: 'https://example.test/v1'
+      }
+    })
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+    expect(screen.getByText('429')).toBeInTheDocument()
+    expect(screen.getByText('{"error":"quota"}')).toBeInTheDocument()
+  })
+
+  it('shows the supplied stack when the detail was opened without a serialized error', async () => {
+    const user = userEvent.setup()
+    renderErrorDetailContent({
+      error: undefined,
+      errorContext: createAppErrorContext({
+        id: 'ctx-1',
+        message: 'Render failed',
+        name: 'TypeError',
+        operation: 'react.render',
+        source: 'renderer',
+        stack: 'TypeError: boom\n at Widget.tsx:4'
+      }),
+      subject: { kind: 'operation', operationId: 'ctx-1' }
+    })
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+    expect(screen.getByText(/Widget\.tsx:4/)).toBeInTheDocument()
   })
 })

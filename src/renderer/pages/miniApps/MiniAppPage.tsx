@@ -6,6 +6,7 @@ import BeatLoader from 'react-spinners/BeatLoader'
 
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
@@ -119,6 +120,11 @@ const MiniAppPage: FC = () => {
           <div className="text-[14px] text-muted-foreground">
             {t(isNotFound ? 'miniApp.error.not_found' : 'miniApp.error.load_failed')}
           </div>
+          <ErrorDetailAction
+            error={error}
+            source="miniapp"
+            operation={isNotFound ? 'miniapp.resolve' : 'miniapp.load'}
+          />
         </div>
       </div>
     )

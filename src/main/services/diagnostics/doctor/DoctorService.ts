@@ -72,6 +72,24 @@ function applies(scope: DoctorCheckScope, subject: DoctorSubject | null): boolea
   return scope.every((key) => key in subject)
 }
 
+const CONVERSATION_PROBE: DoctorCheckId = 'provider-model-conversation'
+
+/**
+ * An operation may only run checks its facts satisfy. A null subject would otherwise
+ * admit every check, including ones that substitute the default chat model.
+ */
+function operationFactsAllow(id: DoctorCheckId, facts: DoctorSubject | null, imageOnly: boolean): boolean {
+  if (imageOnly && id === CONVERSATION_PROBE) return false
+  const meta = DOCTOR_CHECK_CATALOG[id]
+  const modelLess = !facts?.providerId && !facts?.modelId
+  if (modelLess) {
+    if (meta.scope !== 'global' && meta.scope !== 'any') return false
+  } else if (!applies(meta.scope, facts)) {
+    return false
+  }
+  return meta.requires.every((dependency) => operationFactsAllow(dependency, facts, imageOnly))
+}
+
 function summarize(results: readonly DoctorCheckResult[]): Record<DoctorCheckStatus, number> {
   const summary: Record<DoctorCheckStatus, number> = { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
   for (const result of results) summary[result.status] += 1
@@ -116,6 +134,11 @@ export class DoctorService extends BaseService {
   private resolveSubject(ref: DoctorSubjectRef): DoctorSubject | null {
     if (ref.kind === 'global') return null
     if (ref.kind === 'chat') return { providerId: ref.providerId, modelId: ref.modelId }
+    if (ref.kind === 'operation') {
+      if (ref.providerId && ref.modelId) return { providerId: ref.providerId, modelId: ref.modelId }
+      if (ref.providerId) return { providerId: ref.providerId }
+      return null
+    }
     const agent = agentService.getAgent(ref.agentId)
     if (!agent) throw DataApiErrorFactory.notFound('Agent', ref.agentId)
     const model =
@@ -160,7 +183,12 @@ export class DoctorService extends BaseService {
     if (active) return { status: 'busy', runId: active.runId }
     const subject = this.resolveSubject(input.subject)
     if (!subject?.providerId || !subject.modelId) throw new Error('No model is configured for this subject')
-    const ids = this.selectChecks([...DOCTOR_CONNECTIVITY_CHECK_IDS], 'live', subject)
+    const imageOnly = input.subject.kind === 'operation' && input.subject.imageOnly === true
+    const ids = this.selectChecks(
+      DOCTOR_CONNECTIVITY_CHECK_IDS.filter((id) => operationFactsAllow(id, subject, imageOnly)),
+      'live',
+      subject
+    )
     const record = this.createExecution(scope, input.runId, input.subject, ids)
     const controller = new AbortController()
     this.connectivityRuns.set(scope, { runId: input.runId, controller })
@@ -218,6 +246,17 @@ export class DoctorService extends BaseService {
     return { status: 'not_running' }
   }
 
+  private implicitCheckIds(ref: DoctorSubjectRef, tier: DoctorRunTier, facts: DoctorSubject | null): DoctorCheckId[] {
+    if (ref.kind !== 'operation') return this.defaultCheckIds(tier, facts)
+    const imageOnly = ref.imageOnly === true
+    return (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) => {
+      const meta = DOCTOR_CHECK_CATALOG[id]
+      if ('includeByDefault' in meta) return false
+      if (!TIERS_FOR_RUN[tier].includes(meta.tier)) return false
+      return operationFactsAllow(id, facts, imageOnly)
+    })
+  }
+
   private defaultCheckIds(tier: DoctorRunTier, subject: DoctorSubject | null): DoctorCheckId[] {
     return (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) => {
       const meta = DOCTOR_CHECK_CATALOG[id]
@@ -259,7 +298,15 @@ export class DoctorService extends BaseService {
   }): Promise<DoctorRunResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
     const subject = this.resolveSubject(input.subject)
-    const ids = this.selectChecks(input.checkIds ?? this.defaultCheckIds(input.tier, subject), input.tier, subject)
+    const requested = input.checkIds ?? this.implicitCheckIds(input.subject, input.tier, subject)
+    const imageOnly = input.subject.kind === 'operation' && input.subject.imageOnly === true
+    const ids = this.selectChecks(
+      input.subject.kind === 'operation'
+        ? requested.filter((id) => operationFactsAllow(id, subject, imageOnly))
+        : requested,
+      input.tier,
+      subject
+    )
     return this.runSelected(input.subject, input.tier, ids)
   }
 
@@ -267,7 +314,14 @@ export class DoctorService extends BaseService {
   async runContextualDiagnosis(subjectRef: DoctorConnectivitySubject): Promise<DoctorRunResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
     const subject = this.resolveSubject(subjectRef)
-    const contextualIds = DOCTOR_CONNECTIVITY_CHECK_IDS.filter((id) => applies(DOCTOR_CHECK_CATALOG[id].scope, subject))
+    if (subjectRef.kind === 'operation' && !subject?.modelId) {
+      const ids = this.selectChecks(this.implicitCheckIds(subjectRef, 'quick', subject), 'live', subject)
+      return this.runSelected(subjectRef, 'live', ids)
+    }
+    const imageOnly = subjectRef.kind === 'operation' && subjectRef.imageOnly === true
+    const contextualIds = DOCTOR_CONNECTIVITY_CHECK_IDS.filter(
+      (id) => applies(DOCTOR_CHECK_CATALOG[id].scope, subject) && operationFactsAllow(id, subject, imageOnly)
+    )
     const ids = this.selectChecks([...this.defaultCheckIds('quick', subject), ...contextualIds], 'live', subject)
     return this.runSelected(subjectRef, 'live', ids)
   }

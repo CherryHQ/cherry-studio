@@ -2,6 +2,7 @@ import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
@@ -89,9 +90,17 @@ export function ResourceCatalogView({
                 message={t('common.error')}
                 description={resourceError.message}
                 action={
-                  <Button variant="outline" size="sm" onClick={refetch}>
-                    {t('common.retry')}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={refetch}>
+                      {t('common.retry')}
+                    </Button>
+                    <ErrorDetailAction
+                      error={resourceError}
+                      message={resourceError.message}
+                      source="resource.catalog"
+                      operation={`${resourceType}.list`}
+                    />
+                  </div>
                 }
                 className="max-w-lg rounded-md px-4 py-3 shadow-none"
               />

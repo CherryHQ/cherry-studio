@@ -21,6 +21,7 @@ const translations: Record<string, string> = {
   'settings.doctor.checks.provider-api-key-present.title': 'Provider API key',
   'settings.doctor.checks.provider-model-conversation.confirmation': 'Send one short test message?',
   'settings.doctor.checks.network-model-endpoint.title': 'Selected model endpoint',
+  'settings.doctor.checks.network-online.title': 'Network connection',
   'settings.doctor.checks.provider-model-conversation.title': 'Model conversation',
   'settings.doctor.checks.provider-model-list.title': 'Remote model availability',
   'settings.doctor.empty.canceled_description': 'The diagnostic run was canceled before it finished.',
@@ -63,6 +64,7 @@ function createController(state: DoctorState) {
       ignore: false,
       manualCheck: false
     },
+    actionError: null,
     cancel: vi.fn<DoctorController['cancel']>(),
     canChangePanel: true,
     cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
@@ -247,6 +249,33 @@ describe('ErrorDiagnosisPanel contextual diagnosis', () => {
     ).toHaveLength(2)
   })
 
+  it('lists the system checks that ran for a model-less operation', () => {
+    const networkOnline: DoctorCheckResult = { id: 'network-online', status: 'pass', durationMs: 1 }
+    renderPanel(completedState([networkOnline]), { kind: 'operation', operationId: 'op-1' })
+
+    const panel = screen.getByRole('region', { name: 'Diagnostic result' })
+    expect(within(panel).getByRole('button', { name: /Network connection/ })).toHaveTextContent('Passed')
+    expect(within(panel).queryByRole('button', { name: /Selected model endpoint/ })).not.toBeInTheDocument()
+    expect(within(panel).queryByRole('button', { name: /Model conversation/ })).not.toBeInTheDocument()
+    expect(within(panel).queryByText('Skipped')).not.toBeInTheDocument()
+  })
+
+  it('omits the conversation probe for an image-only operation', () => {
+    renderPanel(completedState([modelEndpointPass, modelListFail]), {
+      kind: 'operation',
+      imageOnly: true,
+      modelId: 'local-image',
+      operationId: 'paint-1',
+      providerId: 'openai'
+    })
+
+    const panel = screen.getByRole('region', { name: 'Diagnostic result' })
+    expect(within(panel).getByRole('button', { name: /Selected model endpoint/ })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: /Remote model availability/ })).toBeInTheDocument()
+    expect(within(panel).queryByRole('button', { name: /Model conversation/ })).not.toBeInTheDocument()
+    expect(within(panel).queryByText('Skipped')).not.toBeInTheDocument()
+  })
+
   it.each([
     ['failed', 'Diagnosis failed', 'The diagnostic run could not be completed.'],
     ['canceled', 'Diagnosis canceled', 'The diagnostic run was canceled before it finished.']
@@ -263,5 +292,25 @@ describe('ErrorDiagnosisPanel contextual diagnosis', () => {
     await user.click(screen.getByRole('button', { name: 'Run checks again' }))
 
     expect(controller.run).toHaveBeenCalledWith('contextual')
+  })
+
+  it('shows a cancel failure while a global diagnosis is still running', () => {
+    const controller = {
+      ...createController({
+        status: 'running',
+        runId: 'run-1',
+        tier: 'quick',
+        selectedCheckIds: ['install-version-channel'],
+        startedAt: '2026-10-15T00:00:00.000Z',
+        activeCheckIds: ['install-version-channel'],
+        results: []
+      }),
+      actionError: 'settings.doctor.messages.cancel_failed'
+    }
+    render(<ErrorDiagnosisPanel doctorController={controller} subject={{ kind: 'global' }} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.messages.cancel_failed')
+    expect(screen.getByRole('button', { name: 'settings.doctor.actions.cancel_run' })).toBeEnabled()
+    expect(screen.queryByText('Diagnosis canceled')).not.toBeInTheDocument()
   })
 })

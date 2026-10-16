@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
@@ -285,11 +286,19 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           await ipcApi.request('mcp.server.restart', { serverId: server.id })
           toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const summary = t('settings.mcp.updateError')
           void popup.error({
-            title: t('settings.mcp.updateError'),
-            content: error.message,
-            centered: true
+            title: summary,
+            content: summary,
+            cause: error,
+            centered: true,
+            data: {
+              source: 'settings.mcp',
+              operation: 'mcp.server.update',
+              recordId: server.id,
+              localizedErrorMessage: summary
+            }
           })
         }
       } else {
@@ -548,6 +557,15 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               showIcon
               message={t('settings.mcp.runtimeStatus.unavailable', 'Server unavailable')}
               description={runtimeError}
+              action={
+                <ErrorDetailAction
+                  error={runtimeError}
+                  message={runtimeError}
+                  source="mcp"
+                  operation="mcp.runtime"
+                  recordId={server.id}
+                />
+              }
             />
           ) : (
             <McpToolsSection

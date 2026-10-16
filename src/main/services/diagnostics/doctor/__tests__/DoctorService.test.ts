@@ -343,6 +343,55 @@ describe('DoctorService scopes', () => {
     expect(started.report.selectedCheckIds).toEqual(expect.arrayContaining(ids))
   })
 
+  it('does not select model probes for an operation that has no model', async () => {
+    const service = createReadyService()
+    const started = await service.run({
+      tier: 'quick',
+      subject: { kind: 'operation', operationId: 'op-bare' },
+      checkIds: ['network-online', 'provider-model', 'provider-model-conversation', 'network-model-endpoint']
+    })
+    expect(started.status).toBe('completed')
+    if (started.status !== 'completed') return
+    const ids = started.report.results.map((entry) => entry.id)
+    expect(ids).toContain('network-online')
+    expect(ids).not.toContain('provider-model')
+    expect(ids).not.toContain('provider-model-conversation')
+    expect(ids).not.toContain('network-model-endpoint')
+    expect(registryMocks.modelConversationRun).not.toHaveBeenCalled()
+    expect(registryMocks.modelConversationConfirm).not.toHaveBeenCalled()
+    expect(registryMocks.modelEndpointRun).not.toHaveBeenCalled()
+    expect(stateOf('operation:op-bare')?.status).toBe('completed')
+    expect(state()).toBeUndefined()
+
+    await service.run({
+      tier: 'quick',
+      subject: { kind: 'operation', operationId: 'op-other' },
+      checkIds: ['network-online']
+    })
+    expect(stateOf('operation:op-bare')?.status).toBe('completed')
+    expect(stateOf('operation:op-other')?.status).toBe('completed')
+  })
+
+  it('does not confirm a conversation probe for an image-only operation', async () => {
+    const started = await createReadyService().runContextualDiagnosis({
+      kind: 'operation',
+      operationId: 'paint-1',
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      imageOnly: true
+    })
+    if (started.status !== 'completed') throw new Error('expected report')
+    const ids = [
+      ...started.report.results.map((entry) => entry.id),
+      ...(started.report.pendingChecks ?? []).map((pending) => pending.checkId)
+    ]
+    expect(ids).toEqual(expect.arrayContaining(['network-online', 'network-model-endpoint', 'provider-model-list']))
+    expect(ids).not.toContain('provider-model-conversation')
+    expect(registryMocks.modelConversationRun).not.toHaveBeenCalled()
+    expect(registryMocks.modelConversationConfirm).not.toHaveBeenCalled()
+    expect(registryMocks.modelEndpointRun).toHaveBeenCalled()
+  })
+
   it('diagnoses the real Agent model and MCP membership, and refuses a removed association', async () => {
     dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' }).run()
     dbh.db

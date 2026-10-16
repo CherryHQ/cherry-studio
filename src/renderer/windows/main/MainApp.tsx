@@ -8,6 +8,7 @@ import {
   SidebarShortcutRegistry,
   SidebarShortcutRegistryProvider
 } from '@renderer/components/app/sidebarShortcuts'
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
@@ -129,6 +130,7 @@ export function MainWindowContent(): React.ReactElement {
           <MainWindowRuntime />
           <ConversationNotificationRuntime />
           <McpInteractionHost />
+          <AppErrorRuntime mode="main" />
           <PopupHost />
           <ToastHost />
           <VoicePlaybackHost />

@@ -19,7 +19,13 @@ const MermaidPreview = ({
   enableToolbar = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
-  const { mermaid, isLoading: isLoadingMermaid, error: mermaidError, forceRenderKey } = useMermaid()
+  const {
+    mermaid,
+    isLoading: isLoadingMermaid,
+    error: mermaidError,
+    cause: mermaidCause,
+    forceRenderKey
+  } = useMermaid()
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
   const [isVisible, setIsVisible] = useState(true)
 
@@ -70,6 +76,7 @@ const MermaidPreview = ({
   const {
     containerRef,
     error: renderError,
+    cause: renderCause,
     isLoading: isRendering
   } = useDebouncedRender(children, renderMermaid, {
     debounceDelay: 300,
@@ -122,11 +129,13 @@ const MermaidPreview = ({
   // 合并加载状态和错误状态
   const isLoading = isLoadingMermaid || isRendering
   const error = mermaidError || renderError
+  const cause = mermaidError ? mermaidCause : renderCause
 
   return (
     <ImagePreviewLayout
       loading={isLoading}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}

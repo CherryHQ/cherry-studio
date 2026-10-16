@@ -11,6 +11,7 @@ import {
   Button,
   Scrollbar
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useEnableKnowledgeBaseEmbedding } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -77,9 +78,18 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           description={failureReason}
           data-testid="rag-failed-state"
           action={
-            <Button type="button" size="sm" onClick={() => onRestoreBase(base)}>
-              {t('knowledge.restore.action')}
-            </Button>
+            <div className="flex items-center gap-2">
+              <ErrorDetailAction
+                error={base.error ?? failureReason}
+                message={failureReason}
+                operation="knowledge.base.failed"
+                recordId={base.id}
+                source="knowledge"
+              />
+              <Button type="button" size="sm" onClick={() => onRestoreBase(base)}>
+                {t('knowledge.restore.action')}
+              </Button>
+            </div>
           }
         />
       </div>

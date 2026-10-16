@@ -26,6 +26,7 @@ import {
   startTopicRenaming,
   useTopicMutations
 } from '@renderer/hooks/useTopic'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import {
   restoreRecycleBinItem,
   restoreRecycleBinItems,
@@ -236,7 +237,13 @@ const AssistantHistoryRecords = ({
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(err instanceof Error ? err.message : t('recycle_bin.move_failed'))
+        else {
+          toastAppError(t('recycle_bin.move_failed'), err, {
+            source: 'history',
+            operation: 'topic.delete',
+            recordId: topic.id
+          })
+        }
         return
       }
 

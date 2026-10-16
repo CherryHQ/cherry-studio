@@ -1,12 +1,13 @@
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
 import Selector from '@renderer/components/Selector'
@@ -44,6 +45,11 @@ const S3Settings: FC = () => {
   const { openSmartMiniApp } = useMiniAppPopup()
 
   const s3Sync = useBackupSyncState('s3')
+  const s3SyncErrorReason = s3Sync?.lastSyncError
+  const s3SyncError = useMemo(() => (s3SyncErrorReason ? new Error(s3SyncErrorReason) : null), [s3SyncErrorReason])
+  const s3SyncErrorMessage = s3SyncErrorReason
+    ? t('settings.data.s3.syncStatus.error', { message: s3SyncErrorReason })
+    : ''
 
   const onSyncIntervalChange = async (value: number) => {
     await setS3SyncInterval(value)
@@ -77,11 +83,16 @@ const S3Settings: FC = () => {
     return (
       <RowFlex className="items-center gap-1.25">
         {s3Sync?.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!s3Sync?.syncing && s3Sync?.lastSyncError && (
-          <WarnTooltip
-            content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
-            iconProps={{ style: { color: 'var(--error)' } }}
-          />
+        {!s3Sync?.syncing && s3SyncError && (
+          <>
+            <WarnTooltip content={s3SyncErrorMessage} iconProps={{ style: { color: 'var(--error)' } }} />
+            <ErrorDetailAction
+              error={s3SyncError}
+              message={s3SyncErrorMessage}
+              source="settings.data.s3"
+              operation="backup.sync"
+            />
+          </>
         )}
         {s3Sync?.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>

@@ -18,8 +18,14 @@ export const mockToast = {
   getToastQueue: vi.fn(() => ({ toasts: [] }))
 }
 
+export function toastInlineError(message: string): string {
+  mockToast.error({ title: message, data: { suppressDetail: true } })
+  return 'inline-error'
+}
+
 export const MockToast = {
-  toast: mockToast
+  toast: mockToast,
+  toastInlineError
 }
 
 export const resetToastMocks = () => {

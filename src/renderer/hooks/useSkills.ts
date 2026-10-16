@@ -3,9 +3,10 @@ import useSWR, { useSWRConfig } from 'swr'
 
 import { useDataChange, useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
-import { searchSkills } from '@renderer/utils/skillSearch'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
+import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '@renderer/utils/skillSearch'
 import type {
   InstalledSkill,
   LocalSkill,
@@ -23,7 +24,26 @@ const logger = loggerService.withContext('useSkills')
 const EMPTY_SKILLS: readonly InstalledSkill[] = Object.freeze([])
 
 function skillErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error ?? 'Unknown error')
+  if (error instanceof Error && error.message.trim().length > 0) return error.message
+  if (typeof error === 'string' && error.trim().length > 0) return error
+  return i18n.t('error.unknown')
+}
+
+function searchFailureMessage(cause: unknown): string {
+  if (cause instanceof Error && cause.message.trim().length > 0) return cause.message
+  if (typeof cause === 'string' && cause.trim().length > 0) return cause
+  return SKILL_SEARCH_FAILED_ERROR
+}
+
+/** Visible skill-mutation summary. The raw cause stays on the detail payload. */
+function skillMutationSummary(action: string, name?: string): string {
+  if (action === 'import system skill') {
+    const skillName = name?.trim()
+    return i18n.t('settings.skills.installFailed', {
+      name: skillName && skillName.length > 0 ? skillName : i18n.t('settings.skills.source.system')
+    })
+  }
+  return i18n.t('error.unexpected')
 }
 
 function unwrapSkillResult<T>(result: SkillResult<T>): T {
@@ -31,11 +51,19 @@ function unwrapSkillResult<T>(result: SkillResult<T>): T {
   throw new Error(skillErrorMessage(result.error))
 }
 
-function reportSkillMutationError(action: string, error: unknown): string {
-  const message = skillErrorMessage(error)
-  logger.error(`Failed to ${action}`, { error: message })
-  toast.error(message)
-  return message
+function reportSkillMutationError(
+  action: string,
+  error: unknown,
+  context?: { readonly name?: string; readonly recordId?: string }
+): string {
+  const summary = skillMutationSummary(action, context?.name)
+  logger.error(`Failed to ${action}`, { error: skillErrorMessage(error) })
+  toastAppError(summary, error, {
+    source: 'skills',
+    operation: action === 'import system skill' ? 'skill.import_system' : action,
+    ...(context?.recordId ? { recordId: context.recordId } : {})
+  })
+  return summary
 }
 
 function logAndRethrowSkillMutationError(action: string, error: unknown): never {
@@ -257,7 +285,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string, options: 
 export function useSystemSkills(enabled = true) {
   const [skills, setSkills] = useState<SystemSkillCandidate[]>([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [cause, setCause] = useState<unknown>(null)
   const [importing, setImporting] = useState<Set<string>>(() => new Set())
   const importingRef = useRef<Set<string>>(new Set())
   const invalidate = useInvalidateSkills()
@@ -267,22 +295,21 @@ export function useSystemSkills(enabled = true) {
     const requestId = ++requestIdRef.current
     if (!enabled) {
       setSkills([])
-      setError(null)
+      setCause(null)
       setLoading(false)
       return
     }
 
     setLoading(true)
-    setError(null)
+    setCause(null)
     try {
       const discovered = await ipcApi.request('skill.discover_system', {})
       if (requestId === requestIdRef.current) setSkills(discovered)
-    } catch (cause) {
+    } catch (caught) {
       if (requestId !== requestIdRef.current) return
-      const message = skillErrorMessage(cause)
       setSkills([])
-      setError(message)
-      logger.warn('Failed to discover system skills', { error: message })
+      setCause(caught)
+      logger.warn('Failed to discover system skills', { error: skillErrorMessage(caught) })
     } finally {
       if (requestId === requestIdRef.current) setLoading(false)
     }
@@ -308,7 +335,7 @@ export function useSystemSkills(enabled = true) {
         return installed
       } catch (cause) {
         await discover()
-        reportSkillMutationError('import system skill', cause)
+        reportSkillMutationError('import system skill', cause, { name: skill.name, recordId: skill.id })
         return null
       } finally {
         importingRef.current.delete(skill.id)
@@ -322,7 +349,14 @@ export function useSystemSkills(enabled = true) {
     [discover, invalidate]
   )
 
-  return { skills, loading, error, importSkill, importing }
+  return {
+    skills,
+    loading,
+    error: cause == null ? null : skillErrorMessage(cause),
+    cause,
+    importSkill,
+    importing
+  }
 }
 
 /**
@@ -331,7 +365,7 @@ export function useSystemSkills(enabled = true) {
 export function useSkillSearch() {
   const [results, setResults] = useState<SkillSearchResult[]>([])
   const [searching, setSearching] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [cause, setCause] = useState<unknown>(null)
   const abortRef = useRef(0)
 
   const search = useCallback(async (query: string) => {
@@ -344,7 +378,7 @@ export function useSkillSearch() {
     }
 
     setSearching(true)
-    setError(null)
+    setCause(null)
 
     try {
       const data = await searchSkills(query)
@@ -352,9 +386,7 @@ export function useSkillSearch() {
         setResults(data)
       }
     } catch (err) {
-      if (requestId === abortRef.current) {
-        setError(err instanceof Error ? err.message : 'Search failed')
-      }
+      if (requestId === abortRef.current) setCause(err)
     } finally {
       if (requestId === abortRef.current) {
         setSearching(false)
@@ -366,10 +398,17 @@ export function useSkillSearch() {
     abortRef.current++
     setResults([])
     setSearching(false)
-    setError(null)
+    setCause(null)
   }, [])
 
-  return { results, searching, error, search, clear }
+  return {
+    results,
+    searching,
+    error: cause == null ? null : searchFailureMessage(cause),
+    cause,
+    search,
+    clear
+  }
 }
 
 /**

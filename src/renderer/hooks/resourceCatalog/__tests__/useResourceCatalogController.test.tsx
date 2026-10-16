@@ -240,7 +240,22 @@ describe('useResourceCatalogController', () => {
       await result.current.gridProps.onDuplicate(assistantResource)
     })
 
-    expect(toast.error).toHaveBeenCalledWith('duplicate failed')
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'library.duplicate_assistant_failed',
+        cause: expect.objectContaining({ message: 'duplicate failed' }),
+        data: expect.objectContaining({
+          localizedErrorMessage: 'library.duplicate_assistant_failed',
+          errorContext: expect.objectContaining({
+            message: 'duplicate failed',
+            source: 'resource',
+            operation: 'assistant.duplicate',
+            recordId: 'assistant-to-duplicate'
+          })
+        })
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('duplicate failed')
     expect(controllerMocks.refetch).not.toHaveBeenCalled()
   })
 
@@ -304,7 +319,22 @@ describe('useResourceCatalogController', () => {
     })
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('export failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'library.export_assistant_failed',
+          cause: expect.objectContaining({ message: 'export failed' }),
+          data: expect.objectContaining({
+            localizedErrorMessage: 'library.export_assistant_failed',
+            errorContext: expect.objectContaining({
+              message: 'export failed',
+              source: 'resource',
+              operation: 'assistant.export',
+              recordId: 'assistant-to-duplicate'
+            })
+          })
+        })
+      )
+      expect(toast.error).not.toHaveBeenCalledWith('export failed')
     })
   })
 

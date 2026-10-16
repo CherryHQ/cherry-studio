@@ -6,6 +6,7 @@ import useSWRMutation from 'swr/mutation'
 import { Button, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
 
@@ -16,7 +17,7 @@ export function ComputerUseSettings() {
   const { t } = useTranslation()
   const [enabled, setEnabled] = usePreference('app.computer_use.agent_control.enabled')
   const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(false)
+  const [saveError, setSaveError] = useState<unknown>(null)
   const { data, error, isLoading, isValidating, mutate } = useSWR(
     PERMISSION_KEY,
     () => ipcApi.request(PERMISSION_KEY),
@@ -78,11 +79,11 @@ export function ComputerUseSettings() {
           aria-describedby="computer-use-control-help"
           onCheckedChange={async (value) => {
             setSaving(true)
-            setSaveError(false)
+            setSaveError(null)
             try {
               await setEnabled(value)
             } catch (cause) {
-              setSaveError(true)
+              setSaveError(cause)
               logger.warn('Failed to change desktop control permission', cause as Error)
             } finally {
               setSaving(false)
@@ -90,9 +91,15 @@ export function ComputerUseSettings() {
           }}
         />
       </div>
-      {saveError && (
-        <p role="alert" className="text-sm text-destructive">
-          {t('settings.computerUse.controlError')}
+      {saveError != null && (
+        <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+          <span>{t('settings.computerUse.controlError')}</span>
+          <ErrorDetailAction
+            error={saveError}
+            message={t('settings.computerUse.controlError')}
+            operation="computer_use.preference"
+            source="settings.computerUse"
+          />
         </p>
       )}
       {busy && (
@@ -101,8 +108,14 @@ export function ComputerUseSettings() {
         </p>
       )}
       {(error || requestError) && (
-        <p role="alert" className="text-sm text-destructive">
-          {t('settings.computerUse.error')}
+        <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+          <span>{t('settings.computerUse.error')}</span>
+          <ErrorDetailAction
+            error={requestError ?? error}
+            message={t('settings.computerUse.error')}
+            operation={requestError ? 'computer_use.request_permissions' : 'computer_use.get_permission_status'}
+            source="settings.computerUse"
+          />
         </p>
       )}
       {!error && data && (

@@ -19,7 +19,8 @@ vi.mock('@renderer/services/LoggerService', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: vi.fn(), success: vi.fn() }
+  toast: { error: vi.fn(), success: vi.fn() },
+  toastInlineError: () => undefined
 }))
 
 vi.mock('react-i18next', () => ({

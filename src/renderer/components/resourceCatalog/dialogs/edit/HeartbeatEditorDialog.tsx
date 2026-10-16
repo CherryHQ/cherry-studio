@@ -13,6 +13,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -23,6 +24,12 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
 
 const logger = loggerService.withContext('HeartbeatEditorDialog')
+
+type HeartbeatFault = {
+  cause: unknown
+  summary: string
+  operation: 'heartbeat.load' | 'heartbeat.save' | 'heartbeat.run'
+}
 
 const runResultKeys: Record<HeartbeatRunResult, string> = {
   started: 'agent.tasks.runTriggered',
@@ -45,7 +52,7 @@ export function HeartbeatEditorDialog({
   const inputId = useId()
   const [document, setDocument] = useState<HeartbeatDocument | null>(null)
   const [content, setContent] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [fault, setFault] = useState<HeartbeatFault | null>(null)
   const [busy, setBusy] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [runNotice, setRunNotice] = useState<HeartbeatRunResult | null>(null)
@@ -60,7 +67,7 @@ export function HeartbeatEditorDialog({
   useEffect(() => {
     let cancelled = false
     setDocument(null)
-    setError(null)
+    setFault(null)
     void ipcApi
       .request('ai.agent.heartbeat.read', { agentId })
       .then((value) => {
@@ -71,7 +78,7 @@ export function HeartbeatEditorDialog({
       .catch((cause) => {
         if (cancelled) return
         logger.warn('Failed to read heartbeat tasks', { cause })
-        setError(t('agent.heartbeat.load_failed'))
+        setFault({ cause, summary: t('agent.heartbeat.load_failed'), operation: 'heartbeat.load' })
       })
     return () => {
       cancelled = true
@@ -87,7 +94,7 @@ export function HeartbeatEditorDialog({
   async function save(run: boolean) {
     if (!document || busy) return
     setBusy(true)
-    setError(null)
+    setFault(null)
     setRunNotice(null)
     try {
       if (dirty) {
@@ -104,13 +111,15 @@ export function HeartbeatEditorDialog({
       }
     } catch (cause) {
       logger.warn('Failed to save or run heartbeat tasks', { cause })
-      setError(
-        t(
+      setFault({
+        cause,
+        summary: t(
           cause instanceof IpcError && cause.code === fileErrorCodes.STALE_VERSION
             ? 'agent.heartbeat.conflict'
             : 'agent.heartbeat.action_failed'
-        )
-      )
+        ),
+        operation: run ? 'heartbeat.run' : 'heartbeat.save'
+      })
     } finally {
       setBusy(false)
     }
@@ -159,9 +168,18 @@ export function HeartbeatEditorDialog({
                 ? t('agent.heartbeat.empty')
                 : t('agent.heartbeat.saved_next_run')}
           </p>
-          {error ? (
+          {fault ? (
             <div role="alert" className="space-y-2 text-destructive text-sm">
-              <p>{error}</p>
+              <div className="flex items-center gap-2">
+                <p>{fault.summary}</p>
+                <ErrorDetailAction
+                  error={fault.cause}
+                  message={fault.summary}
+                  source="agent.heartbeat"
+                  operation={fault.operation}
+                  recordId={agentId}
+                />
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -175,14 +193,34 @@ export function HeartbeatEditorDialog({
           <div className="space-y-1 border-t border-border-subtle pt-3 text-sm" aria-live="polite">
             <p className="font-medium">{t('agent.tasks.lastRun')}</p>
             {statusError ? (
-              <p role="alert">{t('agent.tasks.logs.loadError')}</p>
+              <div role="alert" className="flex items-center gap-2">
+                <p>{t('agent.tasks.logs.loadError')}</p>
+                <ErrorDetailAction
+                  error={statusError}
+                  message={t('agent.tasks.logs.loadError')}
+                  source="agent.heartbeat"
+                  operation="heartbeat.status"
+                  recordId={agentId}
+                />
+              </div>
             ) : latest ? (
               <>
                 <p>
                   {running ? t('agent.tasks.logs.running') : t(`agent.tasks.logs.${latest.status}`)} ·{' '}
                   {new Date(latest.createdAt).toLocaleString()}
                 </p>
-                {latest.error ? <p className="text-destructive">{latest.error.message}</p> : null}
+                {latest.error ? (
+                  <div className="flex items-center gap-2 text-destructive">
+                    <p>{latest.error.message}</p>
+                    <ErrorDetailAction
+                      error={latest.error}
+                      message={t('agent.tasks.logs.failed')}
+                      source="agent.heartbeat"
+                      operation="heartbeat.run"
+                      recordId={latest.id}
+                    />
+                  </div>
+                ) : null}
                 {result?.result ? (
                   <p className="max-h-28 overflow-auto whitespace-pre-wrap break-words text-muted-foreground">
                     {result.result}

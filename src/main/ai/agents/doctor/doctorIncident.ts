@@ -24,7 +24,8 @@ import { defangSystemReminderTags, sanitizeUntrustedText } from '@main/ai/untrus
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
+import type { DoctorAgentIncident, DoctorMessageIncident } from '@shared/types/doctorAgent'
+import { isOperationIncident } from '@shared/utils/doctor'
 
 import { redactForModel } from './doctorWrites'
 
@@ -77,8 +78,9 @@ export function conversationIdOf(topicId: string): string {
   return isAgentSessionTopic(topicId) ? extractAgentSessionId(topicId) : topicId
 }
 
-/** The incident message, or undefined once it was deleted. */
+/** The incident message, or undefined once it was deleted. Operation incidents have no message. */
 export function readIncidentMessage(incident: DoctorAgentIncident): IncidentMessage | undefined {
+  if (isOperationIncident(incident)) return undefined
   const conversationId = conversationIdOf(incident.topicId)
   try {
     if (temporaryChatService.hasTopic(conversationId)) {
@@ -116,7 +118,7 @@ export function incidentErrors(message: IncidentMessage): unknown[] {
   )
 }
 
-function conversationKind(incident: DoctorAgentIncident): 'agent' | 'temporary' | 'topic' {
+function conversationKind(incident: DoctorMessageIncident): 'agent' | 'temporary' | 'topic' {
   if (isAgentSessionTopic(incident.topicId)) return 'agent'
   return temporaryChatService.hasTopic(incident.topicId) ? 'temporary' : 'topic'
 }
@@ -146,6 +148,7 @@ function compactMessage(message: IncidentMessage): unknown {
 
 /** Where the failed message lives, which Agent or assistant produced it, and its errors. */
 export function incidentOverview(incident: DoctorAgentIncident): unknown {
+  if (isOperationIncident(incident)) return untrustedForModel({ operation: incident.context })
   const kind = conversationKind(incident)
   const conversationId = conversationIdOf(incident.topicId)
   const message = readIncidentMessage(incident)
@@ -178,7 +181,7 @@ export function incidentOverview(incident: DoctorAgentIncident): unknown {
   })
 }
 
-function precedingMessages(incident: DoctorAgentIncident, count: number): IncidentMessage[] {
+function precedingMessages(incident: DoctorMessageIncident, count: number): IncidentMessage[] {
   const conversationId = conversationIdOf(incident.topicId)
   const kind = conversationKind(incident)
   if (kind === 'topic') return messageService.getPathToNode(incident.messageId).slice(-(count + 1))
@@ -193,6 +196,7 @@ function precedingMessages(incident: DoctorAgentIncident, count: number): Incide
 
 /** The failed message and the `before` messages leading up to it, oldest first. */
 export function incidentMessages(incident: DoctorAgentIncident, before: number): unknown {
+  if (isOperationIncident(incident)) return { unavailable: 'operation' }
   let messages: unknown[]
   try {
     messages = precedingMessages(incident, before).map(compactMessage)
@@ -217,6 +221,7 @@ function truncateStrings(value: unknown): unknown {
  * parsed: text redaction on a raw JSON line treats a leading `agentSessionId` key as a secret and eats the line.
  */
 export function incidentLogs(incident: DoctorAgentIncident, limit: number): unknown {
+  if (isOperationIncident(incident)) return { unavailable: 'operation' }
   const ids = new Set([incident.topicId, conversationIdOf(incident.topicId)])
   const logsDir = application.getPath('app.logs')
   const files = fs.existsSync(logsDir)
@@ -288,6 +293,7 @@ function originOf(url: unknown): string | undefined {
 
 /** Where the request went (now and at error time) and what it asked for, without any conversation text. */
 export function incidentRequest(incident: DoctorAgentIncident): unknown {
+  if (isOperationIncident(incident)) return { unavailable: 'operation' }
   const message = readIncidentMessage(incident)
   if (!message) return { missing: true }
   let route: { endpointType?: string; baseUrl?: string; optionsNamespace?: string; providerId: string } | undefined
@@ -323,6 +329,7 @@ export function incidentRequest(incident: DoctorAgentIncident): unknown {
 
 /** The Agent runtime's own transcript around the failure: API errors, retries, failing tools, hook errors. */
 export async function incidentTranscript(incident: DoctorAgentIncident, maxEntries: number): Promise<unknown> {
+  if (isOperationIncident(incident)) return { unavailable: 'operation' }
   if (conversationKind(incident) !== 'agent') return { unavailable: 'only Agent sessions keep a runtime transcript' }
   const sessionId = conversationIdOf(incident.topicId)
   const session = agentSessionService.getById(sessionId)

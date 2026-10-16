@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { notificationService } from '@renderer/services/notification'
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
 
@@ -37,23 +37,31 @@ function isUnpublishedReleaseError(message: string): boolean {
 export function useAppUpdateHandler() {
   const { t } = useTranslation()
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
-  // notificationService is imported as a module-level singleton
-  const manualCheckRef = useRef(appUpdateState.manualCheck)
 
-  // Keep ref in sync with current state
-  useEffect(() => {
-    manualCheckRef.current = appUpdateState.manualCheck
-  }, [appUpdateState.manualCheck])
+  // Read the flag the click set synchronously. A ref copied in an effect is still
+  // false when the updater event arrives before the next render.
+  const manual = () => appUpdateCheckService.isManualUpdateCheck() || appUpdateState.manualCheck
+
+  useIpcOn('app.updater.run_check', () => {
+    void appUpdateCheckService.runAppUpdateCheck(appUpdateState, updateAppUpdateState).catch(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+    })
+  })
 
   useIpcOn('app.updater.not_available', () => {
+    if (!appUpdateCheckService.isActiveUpdateSession()) return
+    const wasManual = manual()
+    appUpdateCheckService.endManualUpdateCheck()
     updateAppUpdateState({ checking: false, manualCheck: false })
-    // Only surface the "already up to date" result for a user-initiated check.
-    if (manualCheckRef.current) {
+    if (wasManual) {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateNotAvailable')
       toast.success(t('settings.about.updateNotAvailable'))
     }
   })
 
   useIpcOn('app.updater.available', (releaseInfo) => {
+    if (!appUpdateCheckService.isActiveUpdateSession()) return
+    appUpdateCheckService.markUpdateDownloading(releaseInfo)
     void notificationService.send({
       id: uuid(),
       type: 'info',
@@ -71,6 +79,8 @@ export function useAppUpdateHandler() {
   })
 
   useIpcOn('app.updater.download_progress', (progress) => {
+    if (!appUpdateCheckService.isActiveUpdateSession()) return
+    appUpdateCheckService.markUpdateProgress()
     updateAppUpdateState({
       downloading: progress.percent < 100,
       downloadProgress: progress.percent
@@ -78,40 +88,46 @@ export function useAppUpdateHandler() {
   })
 
   useIpcOn('app.updater.downloaded', (releaseInfo) => {
+    if (!appUpdateCheckService.isActiveUpdateSession()) return
+    const wasManual = manual()
+    appUpdateCheckService.markUpdateDownloaded(releaseInfo)
     updateAppUpdateState({
       downloading: false,
       info: releaseInfo,
       downloaded: true
     })
-    // Auto show update dialog when download completes (only if user manually triggered the check).
-    // Dynamic import (S6c): the dialog drags the streamdown/remark markdown stack
-    // (~0.84 MB) along — imperative, rarely shown, so it must not sit in main's first paint.
-    if (manualCheckRef.current) {
-      import('@renderer/components/UpdateDialogPopup')
-        .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
-        .catch((error) => {
-          // Update state stays `downloaded` — AboutSettings' static entry
-          // still lets the user open the dialog and install.
-          logger.error('Failed to load UpdateDialogPopup chunk:', error as Error)
-        })
+    // Manual downloads confirm through the shared presenter. It keeps the dialog lazy and
+    // refuses a release whose session changed while that chunk was still loading.
+    if (wasManual) {
+      void appUpdateCheckService.presentDownloadedUpdate(releaseInfo)
     }
   })
 
   useIpcOn('app.updater.error', (error) => {
+    if (!appUpdateCheckService.isActiveUpdateSession()) return
+    const wasManual = manual()
+    appUpdateCheckService.endManualUpdateCheck()
     updateAppUpdateState({
       checking: false,
       downloading: false,
       downloadProgress: 0,
       manualCheck: false
     })
-    // AppUpdaterService swallows updater failures after broadcasting UpdateError, so
-    // AboutSettings.onCheckUpdate never sees them — surface it here for manual checks.
-    if (manualCheckRef.current) {
-      void popup.info({
-        title: t('settings.about.updateError'),
-        content: t(getManualUpdateErrorMessageKey(error)),
-        icon: null
-      })
+    // AppUpdaterService broadcasts updater failures instead of rejecting the check IPC.
+    // The notice sits on the check control. A toast is not a second error dialog.
+    if (wasManual) {
+      const key = getManualUpdateErrorMessageKey(error)
+      appUpdateCheckService.setUpdateNotice(key)
+      toast.error({ title: t(key), data: { suppressDetail: true } })
     }
   })
+
+  useEffect(() => {
+    void ipcApi.request('app.surface.receiver', { kind: 'update', ready: true }).catch((error) => {
+      logger.error('Failed to register the main update receiver', error as Error)
+    })
+    return () => {
+      void ipcApi.request('app.surface.receiver', { kind: 'update', ready: false }).catch(() => undefined)
+    }
+  }, [])
 }

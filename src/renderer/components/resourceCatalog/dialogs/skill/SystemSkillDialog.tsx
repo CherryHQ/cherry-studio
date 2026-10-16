@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Center, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Spinner } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
@@ -22,7 +23,8 @@ type Props = BaseProps &
 export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selectedSkillIds }: Props) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
-  const { skills, loading, error, importSkill, importing } = useSystemSkills(open)
+  const { skills, loading, error, cause, importSkill, importing } = useSystemSkills(open)
+  const loadFailureSummary = t('error.unexpected')
   const visibleSkills = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return skills
@@ -76,7 +78,22 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
               <Spinner text={t('common.loading')} />
             </Center>
           ) : error ? (
-            <EmptyState preset="no-result" title={t('common.error')} description={error} className="min-h-0 flex-1" />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <EmptyState
+                preset="no-result"
+                title={t('common.error')}
+                description={loadFailureSummary}
+                className="min-h-0 flex-1"
+              />
+              <div className="flex justify-center pb-6">
+                <ErrorDetailAction
+                  error={cause ?? error}
+                  message={loadFailureSummary}
+                  source="skills"
+                  operation="skill.discover_system"
+                />
+              </div>
+            </div>
           ) : skills.length === 0 ? (
             <EmptyState
               preset="no-resource"

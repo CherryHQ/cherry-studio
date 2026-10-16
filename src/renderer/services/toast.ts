@@ -20,3 +20,11 @@ const resolveToastLabels = (): Partial<ToastLabels> => ({
 })
 
 export const toast = getToastUtilities(resolveToastLabels)
+
+/** An error toast that must not open another error-detail dialog. */
+export function toastInlineError(message: string): string {
+  return toast.error({
+    title: message,
+    data: { suppressDetail: true }
+  })
+}

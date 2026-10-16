@@ -62,6 +62,8 @@ describe('RelocationApp', () => {
     fireEvent.click(screen.getByRole('button', { name: 'relocation.restart_failure' }))
 
     expect(screen.getByText('disk full')).toBeInTheDocument()
+    expect(screen.getByText('relocation.support.analysis_unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'relocation.support.releases' })).toBeInTheDocument()
     expect(screen.getByText('relocation.failed.description')).toBeInTheDocument()
     expect(restartMock).toHaveBeenCalledOnce()
   })

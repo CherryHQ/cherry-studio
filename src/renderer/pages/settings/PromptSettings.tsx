@@ -22,6 +22,7 @@ import {
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import {
@@ -272,9 +273,17 @@ export function PromptSettings() {
               message={t('settings.prompts.errors.loadFailed')}
               description={error.message}
               action={
-                <Button variant="outline" size="sm" onClick={() => void refetch()}>
-                  {t('common.retry')}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                    {t('common.retry')}
+                  </Button>
+                  <ErrorDetailAction
+                    error={error}
+                    message={error.message}
+                    source="settings.prompts"
+                    operation="prompt.list"
+                  />
+                </div>
               }
               className="max-w-lg rounded-md px-4 py-3 shadow-none"
             />

@@ -22,6 +22,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
@@ -73,8 +74,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toastAppError(t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: 'profile.set_avatar'
+      })
     }
   }
 
@@ -84,8 +88,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       await ipcApi.request('profile.set_avatar', { kind: 'default' })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toastAppError(t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: 'profile.set_avatar'
+      })
     }
   }
 
@@ -104,8 +111,14 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      // Image processing already throws a localized retry message. IPC failures do not.
+      const processed =
+        error instanceof Error && error.message === t('message.error.image_process_failed') ? error.message : undefined
+      toastAppError(processed ?? t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: 'profile.set_avatar'
+      })
     }
   }
 

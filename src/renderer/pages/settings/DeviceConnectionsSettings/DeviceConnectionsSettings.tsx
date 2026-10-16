@@ -28,6 +28,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePersistCache, useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import {
   SettingGroup,
   SettingRowTitle,
@@ -487,13 +488,16 @@ const DeviceConnectionsSettings: FC = () => {
                       showIcon
                       message={t('deviceConnections.devices.loadError')}
                       action={
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          loading={isRefreshingDevices}
-                          onClick={() => void refetchDevices().catch(() => {})}>
-                          {t('common.retry')}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            loading={isRefreshingDevices}
+                            onClick={() => void refetchDevices().catch(() => {})}>
+                            {t('common.retry')}
+                          </Button>
+                          <ErrorDetailAction error={devicesError} source="settings.devices" operation="device.list" />
+                        </div>
                       }
                     />
                   ) : isLoadingDevices ? (

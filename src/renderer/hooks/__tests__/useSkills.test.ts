@@ -45,6 +45,7 @@ function stubSkillRoutes() {
   })
 }
 
+import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 
@@ -456,6 +457,51 @@ describe('useSystemSkills', () => {
 
     expect(importSystemSkillMock).not.toHaveBeenCalled()
   })
+
+  it('keeps a discover failure without toasting the raw cause', async () => {
+    const failure = new Error('discover down')
+    discoverSystemSkillsMock.mockRejectedValue(failure)
+    const { result, rerender } = renderHook(() => useSystemSkills())
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.skills).toEqual([])
+    expect(result.current.cause).toBe(failure)
+    expect(result.current.error).toBe('discover down')
+    rerender()
+    expect(result.current.cause).toBe(failure)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('reports a system-skill import with a translated summary and the original cause', async () => {
+    const failure = new Error('import down')
+    importSystemSkillMock.mockRejectedValue(failure)
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([candidate]))
+
+    await act(async () => {
+      await expect(result.current.importSkill(candidate)).resolves.toBeNull()
+    })
+
+    const summary = i18n.t('settings.skills.installFailed', { name: candidate.name })
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: summary,
+        cause: failure,
+        data: expect.objectContaining({
+          localizedErrorMessage: summary,
+          errorContext: expect.objectContaining({
+            message: 'import down',
+            source: 'skills',
+            operation: 'skill.import_system',
+            recordId: candidate.id
+          })
+        })
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('import down')
+    expect(toast.error).not.toHaveBeenCalledWith('Unknown error')
+  })
 })
 
 describe('useSkillSearch', () => {
@@ -467,7 +513,7 @@ describe('useSkillSearch', () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('network down'))
     vi.stubGlobal('fetch', fetchMock)
 
-    const { result } = renderHook(() => useSkillSearch())
+    const { result, rerender } = renderHook(() => useSkillSearch())
 
     await act(async () => {
       await result.current.search('react')
@@ -477,5 +523,10 @@ describe('useSkillSearch', () => {
     expect(result.current.results).toEqual([])
     expect(result.current.searching).toBe(false)
     expect(result.current.error).toBe(SKILL_SEARCH_FAILED_ERROR)
+    expect(result.current.cause).toBeInstanceOf(Error)
+    expect((result.current.cause as Error).message).toBe(SKILL_SEARCH_FAILED_ERROR)
+    const cause = result.current.cause
+    rerender()
+    expect(result.current.cause).toBe(cause)
   })
 })

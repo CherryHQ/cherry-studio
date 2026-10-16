@@ -36,6 +36,33 @@ describe('WindowFatalFallback', () => {
     expect(request).toHaveBeenCalledWith('window.main.reload', undefined)
   })
 
+  it('copies the technical error and exports that same snapshot', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    request.mockResolvedValue({ ok: true, data: { status: 'busy' } })
+    render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.copy') }))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('boom from provider'))
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.export') }))
+    expect(request).toHaveBeenCalledWith(
+      'diagnostics.bundle.export',
+      expect.objectContaining({
+        includeChatRecords: false,
+        includeLogs: true,
+        errorContext: expect.objectContaining({
+          source: 'renderer',
+          operation: 'react.render',
+          message: 'boom from provider'
+        })
+      })
+    )
+    expect(await screen.findByText(i18n.t('error.boundary.export_busy'))).toBeInTheDocument()
+    expect(screen.getByText(i18n.t('error.boundary.analysis_unavailable'))).toBeInTheDocument()
+  })
+
   it('opens devtools when the devtools button is clicked', async () => {
     const user = userEvent.setup()
     render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)

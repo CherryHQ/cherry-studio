@@ -27,6 +27,10 @@ export interface ToastConfig {
   onClose?: () => void
   className?: string
   style?: React.CSSProperties
+  /** Opaque host payload. The toast library never reads it. */
+  data?: unknown
+  /** Original failure retained for the host. The toast library never reads it. */
+  cause?: unknown
 }
 
 export interface LoadingToastConfig<T = unknown> extends ToastConfig {
@@ -37,6 +41,8 @@ export interface LoadingToastConfig<T = unknown> extends ToastConfig {
 export interface ToastRecord extends ToastConfig {
   key: string
   type: ToastType
+  /** New value on every write, including a replacement of the same key. */
+  occurrence: number
 }
 
 export interface ToastLabels {
@@ -85,6 +91,7 @@ const createToastStore = () => {
   const remaining = new Map<string, number>()
   let paused = false
   const loadingTokens = new Map<string, symbol>()
+  let nextOccurrence = 1
 
   const notify = () => {
     listeners.forEach((listener) => listener())
@@ -171,16 +178,17 @@ const createToastStore = () => {
     }
   }
 
-  const upsert = (toast: ToastRecord) => {
-    const existingIndex = toastQueue.findIndex((item) => item.key === toast.key)
+  const upsert = (toast: Omit<ToastRecord, 'occurrence'>) => {
+    const record: ToastRecord = { ...toast, occurrence: nextOccurrence++ }
+    const existingIndex = toastQueue.findIndex((item) => item.key === record.key)
 
     if (existingIndex >= 0) {
-      toastQueue = toastQueue.map((item, index) => (index === existingIndex ? toast : item))
+      toastQueue = toastQueue.map((item, index) => (index === existingIndex ? record : item))
     } else {
-      toastQueue = [...toastQueue, toast]
+      toastQueue = [...toastQueue, record]
     }
 
-    schedule(toast)
+    schedule(record)
     notify()
   }
 
@@ -212,7 +220,7 @@ const createToastStore = () => {
 const defaultToastStore = createToastStore()
 const ToastLabelsContext = createContext<ToastLabelsInput | undefined>(undefined)
 
-const upsertToast = (toast: ToastRecord, store = defaultToastStore) => {
+const upsertToast = (toast: Omit<ToastRecord, 'occurrence'>, store = defaultToastStore) => {
   store.upsert(toast)
 }
 
@@ -284,6 +292,7 @@ const createLoadingToast =
         upsertToast(
           {
             ...restConfig,
+            cause: err,
             description: err?.message || description || toastLabels.errorDescription,
             key,
             title: title || toastLabels.error,
@@ -366,7 +375,18 @@ const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivEl
   return { 'aria-live': 'polite', role: 'status' }
 }
 
-const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
+const ToastItem = ({
+  labels,
+  renderExtra,
+  store,
+  toast
+}: {
+  labels: ToastLabels
+  renderExtra?: (toast: ToastRecord) => React.ReactNode
+  store: ToastStore
+  toast: ToastRecord
+}) => {
+  const extra = renderExtra?.(toast)
   const action = toast.action
   const secondaryAction = toast.secondaryAction
   const icon = toast.icon ?? typeIconMap[toast.type]
@@ -378,81 +398,86 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       className={cn(
         // no-drag punches the popup's area out of any titlebar drag region it overlaps,
         // so hover/click reach the items instead of the window-drag hit test (Electron).
-        'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
+        'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] flex-col gap-2 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
         toast.className
       )}
       style={toast.style}
       onClick={toast.onClick}>
-      <div className="flex min-h-7 shrink-0 items-center justify-center">{icon}</div>
-      <div className="min-w-0 flex-1">
-        {toast.title && (
-          <div
-            title={typeof toast.title === 'string' ? toast.title : undefined}
-            className="min-h-7 truncate py-1 text-sm leading-5 font-medium">
-            {toast.title}
-          </div>
-        )}
-        {toast.description && (
-          <div
-            className={cn(
-              'text-xs leading-5 break-words text-muted-foreground',
-              (toast.title || !action) && 'mt-0.5',
-              action && !toast.title && 'min-h-7 py-1'
-            )}>
-            {toast.description}
-          </div>
-        )}
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="flex min-h-7 shrink-0 items-center justify-center">{icon}</div>
+        <div className="min-w-0 flex-1">
+          {toast.title && (
+            <div
+              title={typeof toast.title === 'string' ? toast.title : undefined}
+              className="py-1 text-sm leading-5 font-medium break-words">
+              {toast.title}
+            </div>
+          )}
+          {toast.description && (
+            <div className={cn('text-xs leading-5 break-words text-muted-foreground', toast.title && 'mt-0.5')}>
+              {toast.description}
+            </div>
+          )}
+        </div>
+        <div className="flex min-h-7 shrink-0 items-center">
+          <button
+            type="button"
+            aria-label={labels.close}
+            className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            onClick={(event) => {
+              event.stopPropagation()
+              store.remove(toast.key)
+            }}>
+            <X className="size-3.5" />
+          </button>
+        </div>
       </div>
-      {secondaryAction && (
-        <Button
-          type="button"
-          className="shrink-0"
-          size="sm"
-          variant="link"
-          onClick={(event) => {
-            event.stopPropagation()
-            store.remove(toast.key)
-            void secondaryAction.onClick()
-          }}>
-          {secondaryAction.label}
-        </Button>
-      )}
-      {action && (
-        <Button
-          type="button"
-          className="shrink-0"
-          size="sm"
-          variant="outline"
-          onClick={(event) => {
-            event.stopPropagation()
-            store.remove(toast.key)
-            void action.onClick()
-          }}>
-          {action.label}
-        </Button>
-      )}
-      <div className="flex min-h-7 shrink-0 items-center">
-        <button
-          type="button"
-          aria-label={labels.close}
-          className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          onClick={(event) => {
-            event.stopPropagation()
-            store.remove(toast.key)
-          }}>
-          <X className="size-3.5" />
-        </button>
-      </div>
+      {extra || secondaryAction || action ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {extra}
+          {secondaryAction && (
+            <Button
+              type="button"
+              className="shrink-0"
+              size="sm"
+              variant="link"
+              onClick={(event) => {
+                event.stopPropagation()
+                store.remove(toast.key)
+                void secondaryAction.onClick()
+              }}>
+              {secondaryAction.label}
+            </Button>
+          )}
+          {action && (
+            <Button
+              type="button"
+              className="shrink-0"
+              size="sm"
+              variant="outline"
+              onClick={(event) => {
+                event.stopPropagation()
+                store.remove(toast.key)
+                void action.onClick()
+              }}>
+              {action.label}
+            </Button>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }
 
 export const ToastViewport = ({
   labels,
+  renderExtra,
   store = defaultToastStore
 }: {
   labels?: ToastLabelsInput
+  /** Host-supplied control. The library does not interpret the node. */
+  renderExtra?: (toast: ToastRecord) => React.ReactNode
   store?: ToastStore
 }) => {
   const toasts = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
@@ -512,7 +537,7 @@ export const ToastViewport = ({
             }}
             transition={transition}
             className="origin-top">
-            <ToastItem labels={toastLabels} store={store} toast={toast} />
+            <ToastItem labels={toastLabels} renderExtra={renderExtra} store={store} toast={toast} />
           </motion.div>
         </motion.div>
       ))}

@@ -31,11 +31,19 @@ import type { DoctorSubjectRef } from '@shared/types/doctor'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import type {
   DoctorAgentChange,
+  DoctorAgentOwnedRunFailure,
   DoctorAgentProposal,
   DoctorAgentProposalStatus,
+  DoctorAgentState,
   DoctorAgentWrite
 } from '@shared/types/doctorAgent'
-import { doctorCheckTitleKey, doctorScopeKey, doctorStateCacheKey } from '@shared/utils/doctor'
+import {
+  doctorCheckTitleKey,
+  doctorProposalFailureDetail,
+  doctorRunFailureDetail,
+  doctorScopeKey,
+  doctorStateCacheKey
+} from '@shared/utils/doctor'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
 const PROPOSAL_STATUS_KEYS = {
@@ -111,6 +119,7 @@ export function DoctorAgentConsultation({
         </DialogHeader>
         {showPicker ? (
           <ModelPicker
+            actionError={agent.actionError}
             disabled={!reportRunId || agent.busy?.kind === 'start'}
             loading={agent.busy?.kind === 'start'}
             onCancel={() => (pickerForced ? setPickerForced(false) : onOpenChange(false))}
@@ -134,12 +143,14 @@ export function DoctorAgentConsultation({
 }
 
 function ModelPicker({
+  actionError,
   disabled,
   loading,
   onCancel,
   onSettingsNavigate,
   onStart
 }: {
+  readonly actionError: string | null
   readonly disabled: boolean
   readonly loading: boolean
   readonly onCancel: () => void
@@ -242,6 +253,14 @@ function ModelPicker({
           }
         />
       ) : null}
+      {actionError ? (
+        <Alert
+          type="error"
+          showIcon
+          className="mt-3 [&_[data-slot=alert-description]]:mt-0"
+          description={actionError}
+        />
+      ) : null}
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}
@@ -277,6 +296,7 @@ function Consultation({
   return (
     <>
       <div className="max-h-[55vh] space-y-3 overflow-y-auto rounded-xl border border-border bg-background p-4 text-sm">
+        {agent.actionError ? <Alert type="error" showIcon description={agent.actionError} /> : null}
         {running ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status" aria-live="polite">
             <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
@@ -287,7 +307,7 @@ function Consultation({
             </span>
           </div>
         ) : null}
-        {state.status === 'failed' ? <Alert type="error" showIcon description={state.error} /> : null}
+        {state.status === 'failed' ? <RunFailureAlert state={state} /> : null}
         {state.status === 'canceled' ? (
           <Alert type="warning" showIcon description={t('settings.doctor.agent.canceled')} />
         ) : null}
@@ -351,6 +371,58 @@ function Consultation({
   )
 }
 
+function serviceRunFailureText(t: (key: string) => string, failure: DoctorAgentOwnedRunFailure): string | null {
+  if (failure.kind === 'unknown') return null
+  if (failure.kind === 'execution_failed') return t('settings.doctor.agent.messages.execution_failed')
+  switch (failure.reason) {
+    case 'busy':
+      return t('settings.doctor.agent.messages.not_started_busy')
+    case 'session-invalid':
+      return t('settings.doctor.agent.messages.not_started_session_invalid')
+  }
+}
+
+function RunFailureAlert({ state }: { readonly state: Extract<DoctorAgentState, { status: 'failed' }> }) {
+  const { t } = useTranslation()
+  const detail = doctorRunFailureDetail(state)
+  const serviceText =
+    detail.source === 'service' && detail.failure.kind !== 'report_superseded'
+      ? serviceRunFailureText(t, detail.failure)
+      : null
+  return (
+    <Alert
+      type="error"
+      showIcon
+      description={
+        <div className="space-y-1">
+          <div>{t('settings.doctor.agent.messages.run_failed')}</div>
+          {detail.source === 'external' ? (
+            <div className="break-words font-mono text-xs">{detail.text}</div>
+          ) : serviceText ? (
+            <div>{serviceText}</div>
+          ) : null}
+        </div>
+      }
+    />
+  )
+}
+
+function ProposalFailure({ proposal }: { readonly proposal: DoctorAgentProposal }) {
+  const { t } = useTranslation()
+  const detail = doctorProposalFailureDetail(proposal)
+  if (!detail) return null
+  return (
+    <div className="text-destructive">
+      <div>
+        {detail.source === 'service' && detail.failure.kind === 'report_superseded'
+          ? t('settings.doctor.agent.messages.report_superseded')
+          : t('settings.doctor.agent.messages.proposal_failed')}
+      </div>
+      {detail.source === 'external' ? <div className="break-words font-mono text-xs">{detail.text}</div> : null}
+    </div>
+  )
+}
+
 function ProposalRow({
   proposal,
   disabled,
@@ -370,7 +442,7 @@ function ProposalRow({
         <div className="text-muted-foreground">
           <WriteLabel write={proposal.write} />
         </div>
-        {proposal.error ? <div className="text-destructive">{proposal.error}</div> : null}
+        <ProposalFailure proposal={proposal} />
       </div>
       {proposal.status === 'pending' ? (
         <Button size="sm" variant="outline" disabled={disabled} loading={loading} onClick={onApply}>

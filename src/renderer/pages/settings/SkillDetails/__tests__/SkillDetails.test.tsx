@@ -136,15 +136,18 @@ vi.mock('@cherrystudio/ui', () => ({
   DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
   EmptyState: ({
     actionLabel,
+    description,
     onAction,
     title
   }: {
     actionLabel?: ReactNode
+    description?: ReactNode
     onAction?: () => void
     title: ReactNode
   }) => (
     <div>
       <span>{title}</span>
+      {description}
       {actionLabel ? (
         <button type="button" onClick={onAction}>
           {actionLabel}
@@ -157,6 +160,9 @@ vi.mock('@cherrystudio/ui', () => ({
     <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} {...props} />
   )
 }))
+
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import { SkillDetails } from '../SkillDetails'
 
@@ -203,9 +209,36 @@ describe('SkillDetails', () => {
     expect(screen.getAllByTestId('skeleton')).toHaveLength(2)
 
     view.unmount()
-    mocks.query = { data: undefined, error: new Error('missing'), isLoading: false }
+    const missing = DataApiErrorFactory.notFound('Skill', 'skill-1')
+    mocks.query = { data: undefined, error: missing, isLoading: false }
     render(<SkillDetails skillId="skill-1" />)
     expect(screen.getByText('settings.skills.notFound')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+    expect(screen.queryByText(missing.message)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('skill-file-browser')).not.toBeInTheDocument()
+  })
+
+  it('shows load details for a skill record failure and hides the raw cause', () => {
+    mocks.query = { data: undefined, error: new Error('database locked'), isLoading: false }
+    render(<SkillDetails skillId="skill-1" />)
+
+    expect(screen.getByText('error.unexpected')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+    expect(screen.queryByText('database locked')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.skills.notFound')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('skill-file-browser')).not.toBeInTheDocument()
+  })
+
+  it('shows file-load details when the skill folder cannot be resolved', () => {
+    mocks.folder = { data: undefined, error: new Error('folder missing on disk'), isLoading: false }
+    render(<SkillDetails skillId="skill-1" />)
+
+    expect(screen.getByText('library.skill_detail.file_load_failed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.queryByText('folder missing on disk')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.skill_detail.no_files')).not.toBeInTheDocument()
     expect(screen.queryByTestId('skill-file-browser')).not.toBeInTheDocument()
   })
 
@@ -244,6 +277,36 @@ describe('SkillDetails', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'library.action.uninstall' }))
     await waitFor(() => expect(mocks.uninstallSkill).toHaveBeenCalledOnce())
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/skills', search: { scope: undefined } })
+  })
+
+  it('reports a skill delete failure with the translated caption and the original cause', async () => {
+    const failure = new Error('uninstall rejected')
+    mocks.uninstallSkill.mockRejectedValueOnce(failure)
+    render(<SkillDetails skillId="skill-1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: /library.action.uninstall/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'library.action.uninstall' }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'common.delete_failed',
+          cause: failure,
+          data: expect.objectContaining({
+            localizedErrorMessage: 'common.delete_failed',
+            errorContext: expect.objectContaining({
+              message: 'uninstall rejected',
+              source: 'skills',
+              operation: 'skill.delete',
+              recordId: 'skill-1'
+            })
+          })
+        })
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('uninstall rejected')
+    expect(mocks.navigate).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
   it('returns to the list from the header', () => {

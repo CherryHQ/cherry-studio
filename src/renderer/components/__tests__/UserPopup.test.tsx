@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
@@ -302,6 +303,31 @@ describe('UserPopup', () => {
       expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
         'profile.set_avatar',
         expect.objectContaining({ kind: 'image' })
+      )
+    })
+  })
+
+  it('shows a translated avatar failure and keeps the IPC cause', async () => {
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
+      if (route === 'profile.set_avatar') throw new Error('disk full')
+      return undefined
+    })
+    showUserPopup()
+
+    fireEvent.click(await screen.findByTestId('popover-trigger'))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.general.avatar.reset' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: expect.objectContaining({ message: 'disk full' }),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ message: 'disk full', operation: 'profile.set_avatar' }),
+            localizedErrorMessage: 'settings.general.avatar.update_failed'
+          }),
+          title: 'settings.general.avatar.update_failed'
+        })
       )
     })
   })

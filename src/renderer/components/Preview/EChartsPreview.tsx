@@ -69,7 +69,7 @@ const EChartsPreview = ({
     [isStreaming, t, renderChartOption]
   )
 
-  const { containerRef, error, isLoading, triggerImmediateRender } = useDebouncedRender(children, renderChart, {
+  const { containerRef, error, cause, isLoading, triggerImmediateRender } = useDebouncedRender(children, renderChart, {
     debounceDelay: 300
   })
 
@@ -154,6 +154,7 @@ const EChartsPreview = ({
     <ImagePreviewLayout
       loading={isLoading || isStreaming}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
       // ECharts owns interactions inside the chart; generic image pan/zoom would break its coordinate model.
       enableDrag={false}

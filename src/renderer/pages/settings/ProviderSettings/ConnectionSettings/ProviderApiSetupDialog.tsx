@@ -24,6 +24,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { joinApiKeyString } from '@renderer/utils/api'
@@ -72,6 +73,7 @@ type VerificationStepStatus = 'pending' | 'active' | 'complete' | 'error' | 'war
 interface SetupError {
   kind: SetupErrorKind
   message: string
+  cause?: unknown
 }
 
 export default function ProviderApiSetupDialog({ providerId, initialStep, onClose }: ProviderApiSetupDialogProps) {
@@ -201,7 +203,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         ...storedApiKeyEntries.map((entry) => entry.key)
       ])
       const summary = details.i18nKey ? t(details.i18nKey) : canSafelyShowSummary ? details.summary : ''
-      return { kind, message: summary ? `${fallback} ${summary}` : fallback }
+      return { kind, message: summary ? `${fallback} ${summary}` : fallback, cause }
     },
     [apiKey, apiKeysData?.keys, storedApiKeyEntries, t]
   )
@@ -597,7 +599,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                   </div>
                 ) : null}
               </div>
-              {error?.kind === 'api-key' ? <SetupErrorMessage message={error.message} /> : null}
+              {error?.kind === 'api-key' ? <SetupErrorMessage cause={error.cause} message={error.message} /> : null}
             </div>
           ) : step === 'models' ? (
             <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
@@ -620,7 +622,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
                     onClick={openManualModelDialog}>
                     {t('settings.provider.api_setup.add_model_manually')}
                   </Button>
-                  <SetupErrorMessage message={error.message} />
+                  <SetupErrorMessage cause={error.cause} message={error.message} />
                 </div>
               ) : (
                 <ModelListSyncContent
@@ -649,6 +651,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
               {error && !hasBlockingModelError ? (
                 <SetupErrorMessage
+                  cause={error.cause}
                   message={error.message}
                   className={
                     error.kind === 'models'
@@ -852,7 +855,7 @@ function VerificationProgressRow({
   )
 }
 
-function SetupErrorMessage({ message, className }: { message: string; className?: string }) {
+function SetupErrorMessage({ cause, message, className }: { cause?: unknown; message: string; className?: string }) {
   return (
     <div
       role="alert"
@@ -861,7 +864,10 @@ function SetupErrorMessage({ message, className }: { message: string; className?
         className
       )}>
       <AlertCircle size={15} className="mt-0.5 shrink-0" />
-      <span className="break-words">{message}</span>
+      <span className="min-w-0 flex-1 break-words">{message}</span>
+      {cause != null ? (
+        <ErrorDetailAction error={cause} message={message} operation="provider.setup" source="settings.provider" />
+      ) : null}
     </div>
   )
 }

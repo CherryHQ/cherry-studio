@@ -5,10 +5,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
-import { toast } from '@renderer/services/toast'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { cn } from '@renderer/utils/style'
 
 interface CliConfigEditorProps {
@@ -42,8 +43,11 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
     if (!activeFile) return
     try {
       onChange(files.map((file) => (file.target === activeFile.target ? formatCliConfigDraftFile(file) : file)))
-    } catch {
-      toast.error(t('code.cli_config.format_failed'))
+    } catch (caught) {
+      toastAppError(t('code.cli_config.format_failed'), caught, {
+        source: 'code.cli',
+        operation: 'cli.config.format'
+      })
     }
   }
 
@@ -88,8 +92,9 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
       )}
 
       {error && (
-        <div className="rounded-md border border-error-border bg-error-subtle px-2 py-1.5 text-xs text-error-subtle-foreground">
-          {error}
+        <div className="flex items-start justify-between gap-2 rounded-md border border-error-border bg-error-subtle px-2 py-1.5 text-xs text-error-subtle-foreground">
+          <span>{error}</span>
+          <ErrorDetailAction error={error} message={error} source="code.cli" operation="cli.config.validate" />
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
 
@@ -27,6 +28,7 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
         type="error"
         action={
           <div className="flex items-center gap-2">
+            <ErrorDetailAction error={error} source="renderer" operation="react.render" />
             <Button size="sm" onClick={debug}>
               {t('error.boundary.default.devtools')}
             </Button>
