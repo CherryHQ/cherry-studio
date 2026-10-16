@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { toast } from '@renderer/services/toast'
+import { FILE_TYPE } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getFileExtension } from '@renderer/utils/file'
+import { isTextFile } from '@renderer/utils/file'
 import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { isKnowledgeSupportedFileName } from '@shared/utils/file'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeItemDialogFooter'
@@ -30,16 +31,16 @@ interface AddKnowledgeItemDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
+type KnowledgeFileAddItemInput = Extract<KnowledgeAddItemInput, { type: 'file' }>
+
 // `file` and `directory` skip the in-dialog panel entirely: clicking the menu item opens the OS
 // picker directly and submits the selection. Only `note` / `url` still render the dialog panel.
 const isDirectPickSource = (source: KnowledgeItemType) => source === 'file' || source === 'directory'
 
-const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
-// Electron's open-dialog `filters` want bare extensions (no leading dot); the set above keeps the
-// dots for the post-pick safety filter.
-const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ext.replace(/^\./, ''))
+const FILE_ADMISSION_CONCURRENCY = 4
 
-const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
+const isSupportedKnowledgeFile = (fileName: string, filePath: string) =>
+  isKnowledgeSupportedFileName(fileName) || isTextFile(filePath)
 
 const resolveFileEntryDataFromFile = (file: File) => {
   const filePath = window.api.file.getPathForFile(file)
@@ -49,6 +50,46 @@ const resolveFileEntryDataFromFile = (file: File) => {
   }
 
   return resolveKnowledgeFileData(filePath, file.name)
+}
+
+const collectSupportedFileInputs = async <T,>(
+  files: readonly T[],
+  resolveInput: (file: T) => Promise<KnowledgeFileAddItemInput>,
+  isSupported: (file: T, input: KnowledgeFileAddItemInput) => boolean | Promise<boolean>
+): Promise<{ items: KnowledgeFileAddItemInput[]; skippedCount: number }> => {
+  const accepted = new Map<number, KnowledgeFileAddItemInput>()
+  let nextIndex = 0
+  let skippedCount = 0
+
+  const worker = async () => {
+    while (accepted.size <= KNOWLEDGE_ADD_ITEMS_MAX) {
+      const index = nextIndex++
+      const file = files[index]
+      if (file === undefined) {
+        return
+      }
+
+      try {
+        const input = await resolveInput(file)
+        if (await isSupported(file, input)) {
+          if (accepted.size > KNOWLEDGE_ADD_ITEMS_MAX) {
+            return
+          }
+          accepted.set(index, input)
+        } else {
+          skippedCount++
+        }
+      } catch {
+        skippedCount++
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(FILE_ADMISSION_CONCURRENCY, files.length) }, () => worker()))
+  return {
+    items: [...accepted.entries()].sort(([left], [right]) => left - right).map(([, input]) => input),
+    skippedCount
+  }
 }
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
@@ -214,31 +255,35 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   // Returns null when the user cancels the picker so the caller can close the flow.
   const collectFileInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
     if (pendingAddFiles?.length) {
-      const supportedFiles = pendingAddFiles.filter((file) => isSupportedKnowledgeFile(file.name))
-      const skippedCount = pendingAddFiles.length - supportedFiles.length
+      const { items, skippedCount } = await collectSupportedFileInputs(
+        pendingAddFiles,
+        async (file) => ({ type: 'file' as const, data: await resolveFileEntryDataFromFile(file) }),
+        (file, input) => isSupportedKnowledgeFile(file.name, input.data.path)
+      )
       if (skippedCount > 0) {
         toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
       }
-      const fileData = await Promise.all(supportedFiles.map(resolveFileEntryDataFromFile))
-      return fileData.map((data) => ({ type: 'file' as const, data }))
+      return items
     }
 
     const selected = await window.api.file.select({
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Knowledge', extensions: knowledgeFilePickerExtensions }]
+      filters: [{ name: t('files.all'), extensions: ['*'] }]
     })
 
     if (!selected) {
       return null
     }
 
-    const supportedFiles = selected.filter((file) => isSupportedKnowledgeFile(file.origin_name || file.name))
-    const skippedCount = selected.length - supportedFiles.length
+    const { items, skippedCount } = await collectSupportedFileInputs(
+      selected,
+      async (file) => ({ type: 'file' as const, data: await resolveKnowledgeFileMetadataEntryData(file) }),
+      (file) => isKnowledgeSupportedFileName(file.origin_name || file.name) || file.type === FILE_TYPE.TEXT
+    )
     if (skippedCount > 0) {
       toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
     }
-    const fileData = await Promise.all(supportedFiles.map(resolveKnowledgeFileMetadataEntryData))
-    return fileData.map((data) => ({ type: 'file' as const, data }))
+    return items
   }, [pendingAddFiles, t])
 
   const collectDirectoryInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {

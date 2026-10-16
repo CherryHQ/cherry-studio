@@ -12,6 +12,7 @@ const mockFileSelect = vi.fn()
 const mockSelectFolder = vi.fn()
 const mockGetPathForFile = vi.fn()
 const mockReadExternal = vi.fn()
+const mockIsTextFile = vi.fn()
 const mockUseDirectoryTree = vi.fn()
 const mockProjectNotesTree = vi.fn()
 
@@ -25,8 +26,14 @@ const createNoteNode = (name: string, externalPath: string) => ({
   updatedAt: ''
 })
 
-// Native picker returns FileMetadata; only `path` + `origin_name`/`name` are read downstream.
-const createSelectedFile = (name: string, path = `/picked/${name}`) => ({ name, origin_name: name, path }) as never
+// Native picker returns FileMetadata; knowledge admission uses its resolved name, path, and type.
+const createSelectedFile = (name: string, path = `/picked/${name}`, type = 'other') =>
+  ({
+    name,
+    origin_name: name,
+    path,
+    type
+  }) as never
 
 const createMockFile = (name: string, size: number) =>
   new File([new Uint8Array(size)], name, { type: 'application/octet-stream' })
@@ -37,6 +44,10 @@ vi.mock('../../KnowledgePageProvider', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
+}))
+
+vi.mock('@renderer/utils/file', () => ({
+  isTextFile: (...args: unknown[]) => mockIsTextFile(...args)
 }))
 
 // The note picker's real data layer (useNotesSettings → NotesService → @renderer/utils)
@@ -224,6 +235,7 @@ vi.mock('react-i18next', () => {
       'common.close': '关闭',
       'common.delete': '删除',
       'common.select_all': '全选',
+      'files.all': '所有文件',
       'knowledge.data_source.add_dialog.conflict_dialog.title': '存在同名数据源',
       'knowledge.data_source.add_dialog.conflict_dialog.description': `有 ${options?.count ?? 0} 个数据源与知识库中已存在的项目同名，请选择处理方式。`,
       'knowledge.data_source.add_dialog.conflict_dialog.keep_all': '全部保留',
@@ -272,6 +284,7 @@ describe('AddKnowledgeItemDialog', () => {
     mockFileSelect.mockResolvedValue(null)
     mockSelectFolder.mockResolvedValue(null)
     mockGetPathForFile.mockImplementation((file: File) => `/external/${file.name}`)
+    mockIsTextFile.mockResolvedValue(false)
     mockUseDirectoryTree.mockReturnValue({ root: {}, isLoading: false, error: null })
     mockProjectNotesTree.mockReturnValue([])
     ;(window as any).api = {
@@ -300,7 +313,10 @@ describe('AddKnowledgeItemDialog', () => {
 
       await waitFor(() => {
         expect(mockFileSelect).toHaveBeenCalledWith(
-          expect.objectContaining({ properties: ['openFile', 'multiSelections'] })
+          expect.objectContaining({
+            properties: ['openFile', 'multiSelections'],
+            filters: [{ name: '所有文件', extensions: ['*'] }]
+          })
         )
       })
       // No "添加数据源" panel for the file source.
@@ -349,6 +365,32 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
+    it('accepts compound extensions without widening their terminal suffix', async () => {
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('build.zig.zon'), createSelectedFile('arbitrary.zon')])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/picked/build.zig.zon', path: '/picked/build.zig.zon' } }],
+          'detect'
+        )
+      })
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+    })
+
+    it('accepts extensionless files classified as text by content', async () => {
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('README', '/picked/README', 'text')])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/picked/README', path: '/picked/README' } }],
+          'detect'
+        )
+      })
+      expect(mockIsTextFile).not.toHaveBeenCalled()
+    })
+
     it('submits page-level pending files without opening the picker', async () => {
       setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('external.exe', 1024)])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
@@ -361,6 +403,35 @@ describe('AddKnowledgeItemDialog', () => {
       })
       expect(mockFileSelect).not.toHaveBeenCalled()
       expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+    })
+
+    it('skips an unresolvable pending file without rejecting the rest of the batch', async () => {
+      const pathless = createMockFile('pathless.pdf', 1024)
+      const resolvable = createMockFile('resolvable.pdf', 1024)
+      mockGetPathForFile.mockImplementation((file: File) => (file === pathless ? '' : `/external/${file.name}`))
+      setPendingAddFiles([pathless, resolvable])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/external/resolvable.pdf', path: '/external/resolvable.pdf' } }],
+          'detect'
+        )
+      })
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+    })
+
+    it('does not count unsupported files toward the per-batch limit', async () => {
+      mockFileSelect.mockResolvedValueOnce([
+        ...Array.from({ length: 8 }, (_, index) => createSelectedFile(`image-${index}.png`)),
+        ...Array.from({ length: 20 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
+      ])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1))
+      expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toHaveLength(20)
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 8 个不支持的文件')
+      expect(toast.warning).not.toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
     })
 
     it('warns and skips submit when the pick exceeds the per-batch limit', async () => {

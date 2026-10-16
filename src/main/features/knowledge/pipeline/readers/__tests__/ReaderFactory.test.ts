@@ -221,14 +221,14 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('falls back to TextFileReader for unmatched file extensions', async () => {
-    const item = createFileItem('.log')
+  it.each(['.log', '.py', '.m', '.ts', '.yaml'])('falls back to TextFileReader for unmatched %s files', async (ext) => {
+    const item = createFileItem(ext)
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(readerSpies.text).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.log')
+    expect(readerSpies.text).toHaveBeenCalledWith(`/mock/feature.knowledgebase.data/base-1/raw/sample${ext}`)
     expect(docs[0]).toMatchObject({
       metadata: {
-        source: '/tmp/sample.log'
+        source: `/tmp/sample${ext}`
       }
     })
   })
