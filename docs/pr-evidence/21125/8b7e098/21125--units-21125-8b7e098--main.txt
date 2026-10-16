@@ -1,0 +1,78 @@
+$ pnpm rebuild:node
+$ node scripts/invalidate-electron-rebuild-metadata.js && pnpm rebuild better-sqlite3
+✓ Lockfile passes supply-chain policies (verified 2d ago)
+Already up to date
+.../node_modules/better-sqlite3 install$ prebuild-install || node-gyp rebuild --release
+.../node_modules/better-sqlite3 install: (node:79208) [DEP0176] DeprecationWarning: fs.R_OK is deprecated, use fs.constants.R_OK instead
+.../node_modules/better-sqlite3 install: (Use `node --trace-deprecation ...` to show where the warning was created)
+.../node_modules/better-sqlite3 install: Done
+Done in 1.1s using pnpm v12.6.0
+$ vitest run --project main src/main/ai/utils/__tests__/ollamaRequestNumCtx.test.ts src/main/ai/utils/__tests__/options.test.ts src/main/ai/messages/__tests__/attachmentBudget.test.ts src/main/ai/runtime/aiSdk/params/__tests__/buildAgentParams.test.ts src/main/ai/runtime/aiSdk/retry/__tests__/retryPolicy.test.ts src/main/ai/runtime/aiSdk/retry/__tests__/buildFallbackModels.test.ts src/main/ai/streamManager/__tests__/AiStreamManager.test.ts src/main/ai/streamManager/context/__tests__/PersistentChatContextProvider.compaction.test.ts src/main/ai/utils/__tests__/serializeError.test.ts src/main/ipc/handlers/__tests__/ai.test.ts src/main/ai/__tests__/AiService.test.ts src/main/ai/agents/doctor/__tests__/doctorTools.test.ts
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (electron.vite.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/checkChunkExports.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/types/appEdition.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/build-theme-css.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/sentry.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/vitePlugin.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/piVccBundle.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/releaseNotes.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/claudeCodeBinaryManifest.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/redaction.ts:4:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/scan.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/semanticId.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/transform.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/theme-contract.ts:12:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(node:79264) Warning: Accessing non-existent property 'replaceRouteChunk' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/conversation-entry.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/-conversation-entry.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/search.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-search.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/about.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-about.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/skills.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-skills.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+
+ RUN  v5.0.1 /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src
+
+
+ Test Files  12 passed (12)
+      Tests  574 passed (574)
+   Start at  12:28:49
+   Duration  3.80s (import 52%, transform 30%, tests 18%, setup 1%)
+
+  Transform  |main| transforming modules took 2.01s · 30% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+
