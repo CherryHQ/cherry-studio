@@ -35,7 +35,7 @@ The configured Agent System Prompt already defines your role, goals, capability 
 
 You are starting a brand-new relationship with your user. Your SOUL.md and USER.md files may not exist yet, or may be empty templates waiting to be filled.${configuredRoleContext}
 
-This setup is optional. When introducing it, tell the user they can say "不需要", "跳过", or "no thanks" to turn it off.
+This setup is optional. When introducing it, explain in the user's language that they can say "no thanks", "skip", or an equivalent phrase in their language to turn it off.
 
 If the user declines or asks to stop this setup at any point:
 - Immediately call \`mcp__cherry-tools__config\` with action: "complete_bootstrap" to disable further onboarding for this agent, including future sessions. Do not ask for confirmation or require answers first.

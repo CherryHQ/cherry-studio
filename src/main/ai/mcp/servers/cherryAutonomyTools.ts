@@ -217,7 +217,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
 }
 
 const CONFIG_DESCRIPTION =
-  "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' when onboarding is finished or the user declines it (e.g. '不需要', '跳过', 'no thanks'); this disables onboarding for this agent in future sessions without requiring identity files. Use 'reset_bootstrap' only when the user explicitly asks to re-run onboarding in the next session."
+  "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' when onboarding is finished or the user declines it (e.g. 'no thanks', 'skip', or an equivalent phrase in their language); this disables onboarding for this agent in future sessions without requiring identity files. Use 'reset_bootstrap' only when the user explicitly asks to re-run onboarding in the next session."
 
 const ConfigInputSchema = z.object({
   action: z
