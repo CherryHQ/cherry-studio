@@ -131,7 +131,6 @@ export class MainWindowService extends BaseService {
     this.registerContextMenu()
     this.registerIpcHandlers()
     this.registerActivateHandler()
-    this.registerSecondInstanceHandler()
   }
 
   private registerWindowShortcuts() {
@@ -162,6 +161,15 @@ export class MainWindowService extends BaseService {
     // (in createWindow's trailing updateDockVisibility), so the Dock is hidden
     // from the moment the app finishes launching.
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
+    // A launcher/shortcut cold start (`cherrystudio://chat/...` in argv on Windows/Linux, or
+    // the macOS open-url event recorded by ProtocolService) only needs the floating chat;
+    // Main stays in the background until the user opens it.
+    const isFloatingChatLaunch =
+      process.argv.some((arg) => arg.toLowerCase().startsWith('cherrystudio://chat/')) ||
+      application.get('ProtocolService').isFloatingChatColdStart()
+    if (isFloatingChatLaunch) {
+      this.suppressInitialLaunchShow = true
+    }
     if (isLaunchToTray) {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       // Suppress only the process-launch window; runtime rebuilds must show.
@@ -190,15 +198,6 @@ export class MainWindowService extends BaseService {
     const handler = () => this.showMainWindow()
     app.on('activate', handler)
     this.registerDisposable(() => app.removeListener('activate', handler))
-  }
-
-  private registerSecondInstanceHandler() {
-    // Protocol URL dispatch is handled by ProtocolService on the same event.
-    // Multiple listeners on 'second-instance' are intentional: ProtocolService
-    // dispatches the URL, MainWindowService restores the window.
-    const handler = () => this.showMainWindow()
-    app.on('second-instance', handler)
-    this.registerDisposable(() => app.removeListener('second-instance', handler))
   }
 
   private registerIpcHandlers() {

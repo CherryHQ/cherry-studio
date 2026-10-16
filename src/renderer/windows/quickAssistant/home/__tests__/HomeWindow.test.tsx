@@ -1,13 +1,17 @@
 import '@testing-library/jest-dom/vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { VoiceTargetRegistration } from '@renderer/services/voice'
+import type { Assistant } from '@renderer/types/assistant'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import type { QuickChatRequest } from '@shared/ipc/schemas/quickAssistant'
 
 type TestModel = {
   id: `${string}::${string}`
@@ -15,23 +19,29 @@ type TestModel = {
   name: string
   providerId: string
   group: string
+  capabilities: []
 }
 
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
+  assistant: undefined as Assistant | undefined,
+  assistantModel: undefined as TestModel | undefined,
+  defaultTemporary: false,
   defaultModel: {
     id: 'cherryai::qwen',
     modelId: 'qwen',
     name: 'Qwen',
     providerId: 'cherryai',
-    group: 'CherryAI'
+    group: 'CherryAI',
+    capabilities: []
   },
   quickModel: {
     id: 'anthropic::claude-sonnet',
     modelId: 'claude-sonnet',
     name: 'Claude Sonnet',
     providerId: 'anthropic',
-    group: 'Anthropic'
+    group: 'Anthropic',
+    capabilities: []
   } as TestModel | undefined,
   messages: [] as never[],
   activeExecutions: [] as ActiveExecution[],
@@ -43,7 +53,9 @@ const state = vi.hoisted(() => ({
   resetExecutionMessages: vi.fn(),
   clearExecutionMessages: vi.fn(),
   resetTemporaryTopic: vi.fn(),
+  persistTemporaryTopic: vi.fn(),
   temporaryTopicId: 'temp-topic',
+  launchRequest: null as QuickChatRequest | null,
   bindVoiceTarget: vi.fn(),
   unbindVoiceTarget: vi.fn(),
   voiceTargetRegistration: null as VoiceTargetRegistration | null,
@@ -56,12 +68,24 @@ const state = vi.hoisted(() => ({
   windowStyle: 'default'
 }))
 
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
+
 import HomeWindow, { finalizeLiveMessages } from '../HomeWindow'
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
+  ipcApi: {
+    request: vi.fn(async (route: string) => {
+      if (route === 'window.get_init_data') return state.launchRequest
+      if (route === 'quick_assistant.chat.ack') state.launchRequest = null
+      return undefined
+    }),
+    on: vi.fn(() => () => {})
+  },
   useIpcOn: vi.fn()
 }))
+
+vi.mock('@renderer/services/popup', () => ({ popup: { confirm: vi.fn(async () => true) } }))
 
 vi.mock('@ai-sdk/react', () => ({
   useChat: () => ({
@@ -77,6 +101,7 @@ vi.mock('@data/hooks/usePreference', () => ({
     const values: Record<string, unknown> = {
       'feature.quick_assistant.read_clipboard_at_startup': false,
       'feature.quick_assistant.assistant_id': state.quickAssistantId,
+      'feature.quick_assistant.default_temporary': state.defaultTemporary,
       'feature.voice.auto_read.enabled': state.autoReadEnabled,
       'app.language': 'en-US',
       'ui.window_style': state.windowStyle
@@ -90,24 +115,27 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  platform: 'linux',
   get isMac() {
     return state.isMac
   }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({ assistant: undefined, model: undefined })
+  useAssistant: () => ({ assistant: state.assistant, model: state.assistantModel })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: state.defaultModel, quickModel: state.quickModel })
+  useDefaultModel: () => ({ defaultModel: state.defaultModel, quickModel: state.quickModel }),
+  useModels: () => ({ models: [] })
 }))
 
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   useTemporaryTopic: () => ({
     topicId: state.temporaryTopicId,
     ready: Boolean(state.temporaryTopicId),
-    reset: state.resetTemporaryTopic
+    reset: state.resetTemporaryTopic,
+    persist: state.persistTemporaryTopic
   })
 }))
 
@@ -158,6 +186,10 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({ trigger }: { trigger: React.ReactNode }) => trigger
+}))
+
 vi.mock('../components/InputBar', () => ({
   default: ({
     text,
@@ -202,6 +234,17 @@ vi.mock('../components/FeatureMenus', () => ({
       }
       return (
         <div data-testid="feature-menus">
+          {(['summary', 'explanation'] as const).map((route) => (
+            <button
+              type="button"
+              key={route}
+              onClick={() => {
+                setRoute(route)
+                onSendMessage()
+              }}>
+              {route}
+            </button>
+          ))}
           <button type="button" onClick={() => setRoute('chat')}>
             Chat route
           </button>
@@ -211,21 +254,6 @@ vi.mock('../components/FeatureMenus', () => ({
         </div>
       )
     }
-  )
-}))
-
-vi.mock('../components/Footer', () => ({
-  default: ({ loading, onEsc, onReadAloud }: { loading?: boolean; onEsc: () => void; onReadAloud?: () => void }) => (
-    <div data-testid="footer">
-      <button type="button" onClick={onEsc}>
-        Escape
-      </button>
-      {!loading && onReadAloud && (
-        <button type="button" onClick={onReadAloud}>
-          Read result aloud
-        </button>
-      )}
-    </div>
   )
 }))
 
@@ -283,12 +311,17 @@ describe('finalizeLiveMessages', () => {
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.assistant = undefined
+    state.assistantModel = undefined
+    vi.mocked(dataApiService.get).mockResolvedValue({ activeNodeId: undefined })
+    state.defaultTemporary = false
     state.quickModel = {
       id: 'anthropic::claude-sonnet',
       modelId: 'claude-sonnet',
       name: 'Claude Sonnet',
       providerId: 'anthropic',
-      group: 'Anthropic'
+      group: 'Anthropic',
+      capabilities: []
     }
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
@@ -296,11 +329,17 @@ describe('HomeWindow', () => {
     state.resetExecutionMessages.mockClear()
     state.clearExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
+    state.resetTemporaryTopic.mockImplementation(() => {
+      state.temporaryTopicId = 'fresh-topic'
+    })
+    state.persistTemporaryTopic.mockReset().mockResolvedValue(undefined)
     state.temporaryTopicId = 'temp-topic'
-    state.activeExecutions = []
-    state.liveAssistants = []
+    state.launchRequest = null
     state.messages = []
+    state.liveAssistants = []
+    state.activeExecutions = []
     state.isPending = false
+    vi.mocked(ipcApi.request).mockClear()
     state.bindVoiceTarget.mockReset()
     state.unbindVoiceTarget.mockReset()
     state.voiceTargetRegistration = null
@@ -317,18 +356,7 @@ describe('HomeWindow', () => {
     state.windowStyle = 'default'
   })
 
-  it('uses an opaque floating surface for the Windows dark-mode first render', () => {
-    state.theme = 'dark'
-
-    const { container } = render(<HomeWindow draggable={false} />)
-
-    // Windows needs the opaque floating-surface token because its native window is not transparent.
-    expect(container.querySelector('[data-ui~="quick-assistant.view"]')).toHaveStyle({
-      backgroundColor: 'var(--popover)'
-    })
-  })
-
-  it('uses the configured quick model in model-only mode', () => {
+  it('uses the configured quick model in model-only mode', async () => {
     const quickModelId = state.quickModel!.id
     render(<HomeWindow draggable={false} />)
 
@@ -338,7 +366,21 @@ describe('HomeWindow', () => {
     fireEvent.change(input, { target: { value: 'hello' } })
     fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
 
-    expect(state.sendMessage).toHaveBeenCalledWith({ text: 'hello' }, { body: { mentionedModels: [quickModelId] } })
+    await waitFor(() =>
+      expect(state.sendMessage).toHaveBeenCalledWith(
+        { text: 'hello' },
+        { body: { mentionedModels: [quickModelId], reasoningEffort: 'default' } }
+      )
+    )
+  })
+
+  it.each([false, true])('uses the configured default for a fresh normal opening (%s)', async (temporary) => {
+    state.defaultTemporary = temporary
+    render(<HomeWindow />)
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalled())
+    expect(state.persistTemporaryTopic).toHaveBeenCalledTimes(temporary ? 0 : 1)
   })
 
   it('does not fall back to the default model while the quick model is unresolved', () => {
@@ -357,6 +399,346 @@ describe('HomeWindow', () => {
 
     expect(screen.getByTestId('quick-input')).toHaveValue('hello')
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+  })
+
+  it('saves a launcher conversation before sending once and consumes the launch request', async () => {
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'launch-1',
+      prompt: 'where is paris',
+      temporary: false,
+      submit: true
+    }
+    const first = render(<HomeWindow draggable={false} />)
+
+    await waitFor(() =>
+      expect(state.sendMessage).toHaveBeenCalledWith(
+        { text: 'where is paris' },
+        { body: { mentionedModels: [state.quickModel!.id], reasoningEffort: 'default' } }
+      )
+    )
+    expect(state.persistTemporaryTopic).toHaveBeenCalledWith('where is paris')
+    expect(state.persistTemporaryTopic.mock.invocationCallOrder[0]).toBeLessThan(
+      state.sendMessage.mock.invocationCallOrder[0]
+    )
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('quickAssistant.chat.saved'))
+    expect(state.launchRequest).toBeNull()
+
+    first.unmount()
+    render(<HomeWindow draggable={false} />)
+    expect(state.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a temporary launcher chat out of saved history until Save and Open is chosen', async () => {
+    const user = userEvent.setup()
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'launch-temp',
+      prompt: 'שלום פריז',
+      temporary: true,
+      submit: false
+    }
+    render(<HomeWindow draggable={false} />)
+
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('שלום פריז'))
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    expect(state.persistTemporaryTopic).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'quickAssistant.chat.open_in_app' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('navigation.open_route_in_main', {
+        path: '/app/chat?topicId=fresh-topic'
+      })
+    )
+    expect(state.persistTemporaryTopic).toHaveBeenCalledTimes(1)
+  })
+
+  it('archives a saved launcher conversation through the existing Recycle Bin command', async () => {
+    const user = userEvent.setup()
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'launch-delete',
+      prompt: 'where is paris',
+      temporary: false,
+      submit: true
+    }
+    const view = render(<HomeWindow draggable={false} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalled())
+    state.isPending = true
+    view.rerender(<HomeWindow draggable={false} />)
+    state.isPending = false
+    view.rerender(<HomeWindow draggable={false} />)
+    await user.click(screen.getByRole('button', { name: 'common.delete' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('trash.topic.archive', { topicIds: ['fresh-topic'] })
+    )
+  })
+
+  it('does not send when saving fails and retains the prompt for retry', async () => {
+    state.persistTemporaryTopic.mockRejectedValue(new Error('Disk is full'))
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'launch-fail',
+      prompt: 'where is paris',
+      temporary: false,
+      submit: true
+    }
+    render(<HomeWindow draggable={false} />)
+
+    await screen.findByText('Disk is full')
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    expect(screen.getByTestId('quick-input')).toHaveValue('where is paris')
+  })
+
+  it('Stop cancels a saved send that is still saving and keeps the prompt', async () => {
+    let finishSave!: () => void
+    state.persistTemporaryTopic.mockReturnValue(new Promise<void>((resolve) => (finishSave = resolve)))
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'launch-stop',
+      prompt: 'where is paris',
+      temporary: false,
+      submit: true
+    }
+    const user = userEvent.setup()
+    render(<HomeWindow draggable={false} />)
+
+    await waitFor(() => expect(state.persistTemporaryTopic).toHaveBeenCalledTimes(1))
+    await user.click(await screen.findByRole('button', { name: 'common.stop' }))
+    finishSave()
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'common.stop' })).not.toBeInTheDocument())
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    expect(screen.getByTestId('quick-input')).toHaveValue('where is paris')
+  })
+
+  it('a replacement launcher request cancels the previous send that is still saving', async () => {
+    let finishSave!: () => void
+    state.persistTemporaryTopic.mockReturnValue(new Promise<void>((resolve) => (finishSave = resolve)))
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'launch-old',
+      prompt: 'old question',
+      temporary: false,
+      submit: true
+    }
+    render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(state.persistTemporaryTopic).toHaveBeenCalledTimes(1))
+
+    const reused = vi.mocked(useIpcOn).mock.calls.findLast(([channel]) => channel === 'window.reused')
+    expect(reused).toBeDefined()
+    const deliver = reused![1] as (payload: QuickChatRequest) => void
+    act(() => deliver({ kind: 'chat', requestId: 'launch-new', prompt: 'new draft', temporary: false, submit: false }))
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('new draft'))
+    await act(async () => finishSave())
+
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    expect(screen.getByTestId('quick-input')).toHaveValue('new draft')
+  })
+
+  it('keeps a temporary conversation open when discarding is cancelled', async () => {
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'close-temp',
+      prompt: 'private question',
+      temporary: true,
+      submit: false
+    }
+    const view = render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('private question'))
+    state.messages = [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'private question' }] }] as never[]
+    view.rerender(<HomeWindow draggable={false} />)
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+    const resets = state.resetTemporaryTopic.mock.calls.length
+    await userEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+    expect(state.resetTemporaryTopic).toHaveBeenCalledTimes(resets)
+    expect(ipcApi.request).not.toHaveBeenCalledWith('quick_assistant.hide')
+    expect(screen.getByTestId('chat-window')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('quick_assistant.hide'))
+    expect(state.persistTemporaryTopic).not.toHaveBeenCalled()
+  })
+  it('Escape hides a temporary chat without resetting it or saving it', async () => {
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'escape-temp',
+      prompt: 'private question',
+      temporary: true,
+      submit: false
+    }
+    render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('private question'))
+    const resets = state.resetTemporaryTopic.mock.calls.length
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('quick_assistant.hide'))
+    expect(state.resetTemporaryTopic).toHaveBeenCalledTimes(resets)
+    expect(state.persistTemporaryTopic).not.toHaveBeenCalled()
+    expect(screen.getByTestId('quick-input')).toHaveValue('private question')
+  })
+
+  it('minimizing retains a temporary chat without changing its mode or opening Main', async () => {
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'minimize-temp',
+      prompt: 'keep this chat',
+      temporary: true,
+      submit: false
+    }
+    render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('keep this chat'))
+    const resets = state.resetTemporaryTopic.mock.calls.length
+    await userEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('quick_assistant.hide'))
+    expect(state.persistTemporaryTopic).toHaveBeenCalledWith('keep this chat', true)
+    expect(state.resetTemporaryTopic).toHaveBeenCalledTimes(resets)
+    expect(ipcApi.request).not.toHaveBeenCalledWith('navigation.open_route_in_main', expect.anything())
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('quickAssistant.chat.temporary'))
+  })
+
+  it('a failed minimize keeps the temporary conversation visible for retry', async () => {
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'minimize-fail',
+      prompt: 'keep this chat',
+      temporary: true,
+      submit: false
+    }
+    render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('keep this chat'))
+    state.persistTemporaryTopic.mockRejectedValueOnce(new Error('Disk is full'))
+    await userEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    await screen.findByText('Disk is full')
+    expect(ipcApi.request).not.toHaveBeenCalledWith('quick_assistant.hide')
+    expect(screen.getByTestId('quick-input')).toHaveValue('keep this chat')
+  })
+
+  it.each([false, true])('labels an empty explicitly selected chat mode (temporary=%s)', async (temporary) => {
+    state.launchRequest = { kind: 'chat', requestId: 'empty-mode', prompt: '', temporary, submit: false }
+    render(<HomeWindow />)
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        temporary ? 'quickAssistant.chat.temporary' : 'quickAssistant.chat.saved'
+      )
+    )
+  })
+
+  it('minimize cannot promote an active temporary stream but Escape can hide it', async () => {
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'stream-temp',
+      prompt: 'private question',
+      temporary: true,
+      submit: false
+    }
+    const view = render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('private question'))
+    state.isPending = true
+    view.rerender(<HomeWindow draggable={false} />)
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeDisabled()
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('quick_assistant.hide'))
+    expect(state.persistTemporaryTopic).not.toHaveBeenCalled()
+  })
+  it('C copies the latest answer without intercepting typing in the composer', async () => {
+    const user = userEvent.setup()
+    const clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    state.launchRequest = { kind: 'chat', requestId: 'copy-answer', prompt: '', temporary: true, submit: false }
+    const view = render(<HomeWindow draggable={false} />)
+    await screen.findByRole('button', { name: 'common.delete' })
+    state.liveAssistants = [
+      { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'Paris is in France.', state: 'done' }] }
+    ] as never[]
+    view.rerender(<HomeWindow draggable={false} />)
+    await user.click(screen.getByRole('status'))
+    await user.keyboard('c')
+    await waitFor(() => expect(clipboard).toHaveBeenCalledWith('Paris is in France.'))
+    clipboard.mockClear()
+    await user.type(screen.getByTestId('quick-input'), 'c')
+    expect(screen.getByTestId('quick-input')).toHaveValue('c')
+    expect(clipboard).not.toHaveBeenCalled()
+  })
+  it.each([false, true])(
+    'anchors saved follow-ups to durable history, including after promotion (%s)',
+    async (temporary) => {
+      const user = userEvent.setup()
+      state.launchRequest = { kind: 'chat', requestId: 'context', prompt: 'first turn', temporary, submit: true }
+      const view = render(<HomeWindow />)
+      await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+      state.isPending = true
+      view.rerender(<HomeWindow />)
+      state.isPending = false
+      view.rerender(<HomeWindow />)
+      if (temporary) await user.click(screen.getByRole('button', { name: 'common.minimize' }))
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent(
+          temporary ? 'quickAssistant.chat.temporary' : 'quickAssistant.chat.saved'
+        )
+      )
+      vi.mocked(dataApiService.get).mockResolvedValue({ activeNodeId: 'persisted-answer' })
+      await user.type(screen.getByTestId('quick-input'), 'follow-up')
+      await user.click(screen.getByRole('button', { name: 'chat.input.send' }))
+      await waitFor(() =>
+        expect(state.sendMessage).toHaveBeenLastCalledWith(
+          { text: 'follow-up' },
+          { body: expect.objectContaining({ parentAnchorId: 'persisted-answer' }) }
+        )
+      )
+    }
+  )
+
+  it('retains a launcher draft without saving or sending when its assistant has no model', async () => {
+    state.quickAssistantId = 'model-less'
+    state.assistant = { id: 'model-less', name: 'Assistant', modelId: null } as unknown as Assistant
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'no-model',
+      prompt: 'keep this draft',
+      temporary: false,
+      submit: true
+    }
+    const view = render(<HomeWindow />)
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('keep this draft'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.delete' })).not.toBeDisabled())
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    expect(state.persistTemporaryTopic).not.toHaveBeenCalled()
+    state.assistantModel = state.quickModel
+    view.rerender(<HomeWindow />)
+    expect(screen.getByTestId('quick-input')).toHaveValue('keep this draft')
+    expect(state.sendMessage).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'chat.input.send' }))
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledWith({ text: 'keep this draft' }, expect.anything()))
+  })
+
+  it('sends explicit Default reasoning instead of inheriting assistant high reasoning', async () => {
+    state.quickAssistantId = 'reasoning-assistant'
+    state.assistant = {
+      id: 'reasoning-assistant',
+      name: 'Assistant',
+      settings: { reasoning_effort: 'high' }
+    } as Assistant
+    state.assistantModel = state.quickModel
+    state.launchRequest = { kind: 'chat', requestId: 'reasoning', prompt: 'hello', temporary: true, submit: true }
+    render(<HomeWindow />)
+    await waitFor(() =>
+      expect(state.sendMessage).toHaveBeenCalledWith(
+        { text: 'hello' },
+        { body: expect.objectContaining({ reasoningEffort: 'default' }) }
+      )
+    )
+  })
+
+  it.each(['summary', 'explanation'])('offers Stop while %s is generating', async (route) => {
+    const user = userEvent.setup()
+    const view = render(<HomeWindow />)
+    await user.type(screen.getByTestId('quick-input'), 'some text')
+    await user.click(screen.getByRole('button', { name: route }))
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalled())
+    state.isPending = true
+    view.rerender(<HomeWindow />)
+    const stops = state.stopChat.mock.calls.length
+    await user.click(await screen.findByRole('button', { name: 'common.stop' }))
+    expect(state.stopChat).toHaveBeenCalledTimes(stops + 1)
   })
 
   it('binds dictation to the temporary topic and replaces the live input selection without sending', async () => {
@@ -434,7 +816,7 @@ describe('HomeWindow', () => {
       isError: false,
       eligible: true
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Read result aloud' }))
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.read_aloud.label' }))
     expect(state.readMessageAloud).toHaveBeenCalledWith({
       messageId: 'quick-result-7',
       parts: message.parts,
@@ -449,7 +831,7 @@ describe('HomeWindow', () => {
 
     state.isPending = true
     view.rerender(<HomeWindow draggable={false} />)
-    expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.message.read_aloud.label' })).not.toBeInTheDocument()
   })
 
   it('does not infer auto-read from an execution disappearing without a finish event', () => {
@@ -463,7 +845,7 @@ describe('HomeWindow', () => {
     view.rerender(<HomeWindow draggable={false} />)
 
     expect(state.autoReadConsume).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.message.read_aloud.label' })).not.toBeInTheDocument()
   })
 
   it('marks translate finishes ineligible and never offers manual playback', () => {
@@ -488,7 +870,7 @@ describe('HomeWindow', () => {
     })
 
     expect(state.autoReadConsume).toHaveBeenCalledWith(expect.objectContaining({ message, eligible: false }))
-    expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.message.read_aloud.label' })).not.toBeInTheDocument()
     expect(state.readMessageAloud).not.toHaveBeenCalled()
   })
 
@@ -499,7 +881,10 @@ describe('HomeWindow', () => {
     state.activeExecutions = [{ executionId: 'provider::model', attemptId: 10 }]
     view.rerender(<HomeWindow draggable={false} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Escape' }))
+    const onExpired = vi.mocked(useIpcOn).mock.calls.findLast(([channel]) => channel === 'quick_assistant.chat.expired')
+    expect(onExpired).toBeDefined()
+    const expire = onExpired![1] as (payload: { topicIds: string[] }) => void
+    act(() => expire({ topicIds: ['temp-topic'] }))
     act(() => {
       state.overlayOnFinish?.('provider::model', {
         attemptId: 10,
@@ -530,6 +915,6 @@ describe('HomeWindow', () => {
     })
 
     expect(state.autoReadConsume).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.message.read_aloud.label' })).not.toBeInTheDocument()
   })
 })

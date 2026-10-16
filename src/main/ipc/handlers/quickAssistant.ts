@@ -8,6 +8,12 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * NSPanel focus-poll pin state machine) stays in those service methods, unchanged.
  */
 export const quickAssistantHandlers: IpcHandlersFor<typeof quickAssistantRequestSchemas> = {
+  'quick_assistant.chat.open': async (input) => {
+    await application.get('QuickAssistantService').openChat(input)
+  },
+  'quick_assistant.chat.ack': async ({ requestId }, { senderId }) => {
+    application.get('QuickAssistantService').acknowledgeChatRequest(senderId, requestId)
+  },
   'quick_assistant.hide': async () => {
     application.get('QuickAssistantService').hideQuickAssistant()
   },

@@ -3,7 +3,7 @@
 import { randomBytes } from 'node:crypto'
 
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -64,7 +64,8 @@ function rowToTopic(row: TopicRow): Topic {
     lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
-    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined,
+    expiresAt: row.expiresAt != null ? timestampToISO(row.expiresAt) : undefined
   }
 }
 
@@ -121,6 +122,62 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
+  listExpiredIds(now = Date.now()): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(lte(topicTable.expiresAt, now))
+      .all()
+      .map((row) => row.id)
+  }
+
+  isExpired(id: string, now = Date.now()): boolean {
+    return (
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), lte(topicTable.expiresAt, now)))
+        .get() !== undefined
+    )
+  }
+
+  persist(id: string): Topic {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .update(topicTable)
+      .set({ expiresAt: null })
+      .where(
+        and(
+          eq(topicTable.id, id),
+          isNull(topicTable.deletedAt),
+          or(isNull(topicTable.expiresAt), gt(topicTable.expiresAt, Date.now()))
+        )
+      )
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+    this.notifyReadModelChange([id], 'projection')
+    return rowToTopic(row)
+  }
+
+  purgeExpired(id: string, now = Date.now()): void {
+    const deletedIds = application.get('DbService').withWriteTx((tx) => {
+      const row = tx
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), lte(topicTable.expiresAt, now)))
+        .get()
+      return row ? this.purgeManyByIdsTx(tx, [id], { targetState: row.deletedAt == null ? 'active' : 'trashed' }) : []
+    })
+    this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
+    this.notifyPurged(deletedIds)
+  }
+
   notifyReadModelChange(
     topicIds: readonly string[],
     kind: 'membership' | 'projection',
@@ -163,7 +220,7 @@ export class TopicService {
       .limit(1)
       .all()
 
-    if (!row) {
+    if (!row || (row.expiresAt !== null && row.expiresAt <= Date.now())) {
       throw DataApiErrorFactory.notFound('Topic', id)
     }
 

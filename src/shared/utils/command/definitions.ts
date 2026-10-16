@@ -187,6 +187,26 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'chat.temporary.open',
+    titleKey: 'quickAssistant.chat.new_temporary',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'main',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Shift', 'N'],
+      global: true
+    }
+  }),
+  defineCommand({
+    id: 'chat.saved.open',
+    titleKey: 'quickAssistant.chat.new_saved',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'main',
+    keybinding: {
+      defaultBinding: [],
+      global: true
+    }
+  }),
+  defineCommand({
     id: 'selection.capture_text',
     titleKey: 'settings.shortcuts.selection_assistant_select_text',
     categoryKey: 'settings.shortcuts.feature.selection',

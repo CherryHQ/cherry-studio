@@ -97,6 +97,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     activeNodeId: t.activeNodeId,
+    expiresAt: t.expiresAt,
     orderKey: t.orderKey,
     traceId: t.traceId,
     messages: [],

@@ -1,4 +1,4 @@
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { isDev, isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { type WindowOptions, WindowType, type WindowTypeMetadata } from '@main/core/window/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 
@@ -274,15 +274,18 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     // singleton reopen (wm.open) from accidentally re-showing the window before reposition runs.
     showMode: 'manual',
     // Persist & restore position/size across launches (never maximized — maximizable:false).
-    rememberBounds: true,
+    rememberBounds: !isLinuxWayland,
     windowOptions: {
-      width: 550,
-      height: 400,
-      minWidth: 350,
+      width: 600,
+      height: 520,
+      minWidth: 420,
       minHeight: 380,
       maxWidth: 1024,
       maxHeight: 768,
       frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      roundedCorners: true,
       alwaysOnTop: true,
       useContentSize: true,
       skipTaskbar: true,
@@ -292,9 +295,16 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       maximizable: false,
       fullscreenable: false,
       platformOverrides: {
+        linux: {
+          // Wayland compositors resize frameless transparent windows natively (xdg_toplevel.resize),
+          // which lets the renderer draw rounded corners without an opaque square behind them.
+          // X11 keeps the opaque fallback because transparent X11 windows depend on the WM.
+          transparent: isLinuxWayland,
+          backgroundColor: isLinuxWayland ? '#00000000' : '#ffffff',
+          useContentSize: false
+        },
         mac: {
           type: 'panel',
-          transparent: true,
           vibrancy: 'under-window',
           visualEffectState: 'followWindow'
         }

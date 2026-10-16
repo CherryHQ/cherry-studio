@@ -267,6 +267,7 @@ const Chat: FC<Props> = (props) => {
       topBar={
         showConversationChrome ? (
           <ChatNavbar
+            temporaryTopic={activeTopic}
             conversationControls={
               activeTopic ? (
                 <ChatTopBarControls

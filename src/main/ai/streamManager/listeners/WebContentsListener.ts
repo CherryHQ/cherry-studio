@@ -158,6 +158,11 @@ export class WebContentsListener implements StreamListener {
     return alive
   }
 
+  /** Send any coalesced delta immediately (used before this listener is replaced). */
+  flush(): void {
+    this.flushPending()
+  }
+
   private flushPending(): void {
     if (this.flushTimer !== null) {
       clearTimeout(this.flushTimer)

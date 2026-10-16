@@ -43,6 +43,7 @@ import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import type { Model } from '@shared/data/types/model'
 
 const QuickAssistantSettings: FC = () => {
+  const [defaultTemporary, setDefaultTemporary] = usePreference('feature.quick_assistant.default_temporary')
   const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
   const [clickTrayToShowQuickAssistant, setClickTrayToShowQuickAssistant] = usePreference(
     'feature.quick_assistant.click_tray_to_show'
@@ -140,6 +141,41 @@ const QuickAssistantSettings: FC = () => {
             </SettingRow>
           </>
         )}
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.quickAssistant.default_chat_mode')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SegmentedControl
+            aria-label={t('settings.quickAssistant.default_chat_mode')}
+            value={defaultTemporary ? 'temporary' : 'saved'}
+            onValueChange={(value) => void setDefaultTemporary(value === 'temporary')}
+            options={[
+              { label: t('quickAssistant.chat.saved'), value: 'saved' },
+              { label: t('quickAssistant.chat.temporary'), value: 'temporary' }
+            ]}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('quickAssistant.chat.new_temporary')}</SettingRowTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void navigate({ to: '/settings/shortcut', search: { command: 'chat.temporary.open' } })}>
+            {t('settings.shortcuts.title')}
+          </Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('quickAssistant.chat.new_saved')}</SettingRowTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void navigate({ to: '/settings/shortcut', search: { command: 'chat.saved.open' } })}>
+            {t('settings.shortcuts.title')}
+          </Button>
+        </SettingRow>
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>

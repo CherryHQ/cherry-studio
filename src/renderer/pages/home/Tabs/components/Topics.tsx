@@ -1964,6 +1964,14 @@ const TopicRow = memo(function TopicRow({
           </ResourceList.ItemTitle>
         </SessionHoverPreview>
       )}
+      {topic.expiresAt && (
+        <span
+          data-ui="chat.topic-list.temporary"
+          className="px-1 text-xs text-muted-foreground"
+          title={new Date(topic.expiresAt).toLocaleString()}>
+          {t('quickAssistant.chat.new_temporary')}
+        </span>
+      )}
       {!rowState.renaming && (
         <TopicTrailingStatus
           topicId={topic.id}

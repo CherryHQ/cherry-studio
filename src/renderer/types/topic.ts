@@ -26,6 +26,7 @@ export type Topic = {
    * never be the active node.
    */
   activeNodeId?: string
+  expiresAt?: string
   orderKey?: string
   traceId?: string
   messages: Message[]

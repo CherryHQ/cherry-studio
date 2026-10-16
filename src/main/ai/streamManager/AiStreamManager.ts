@@ -1868,6 +1868,11 @@ export class AiStreamManager extends BaseService {
     // Reconnect: compact-replay each execution's buffer in isolation so
     // text-delta / reasoning-delta merging stays per-execution.
     const listener = new WebContentsListener(sender, req.topicId)
+    // The same window may already listen (e.g. `listen()` raced this attach). Deliver its
+    // coalesced batch now: once replaced, a late flush could reach a branch that the
+    // replacement has already completed, and the renderer would drop that text.
+    const previous = stream.listeners.get(listener.id)
+    if (previous instanceof WebContentsListener) previous.flush()
     stream.listeners.set(listener.id, listener)
 
     const totalDropped = [...stream.executions.values()].reduce((sum, exec) => sum + exec.droppedChunks, 0)

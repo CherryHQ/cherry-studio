@@ -109,9 +109,11 @@ const InputBar = ({
     : ''
 
   return (
-    <div ref={ref} className="mt-2.5 flex items-center gap-2 [-webkit-app-region:no-drag]">
+    <div ref={ref} className="flex min-w-0 flex-1 items-center gap-2 [-webkit-app-region:no-drag]">
       {model && <ModelAvatar model={model} size={30} />}
       <Input
+        dir="auto"
+        style={{ textAlign: 'start' }}
         ref={resolvedInputRef}
         value={text}
         placeholder={placeholder}
@@ -120,7 +122,7 @@ const InputBar = ({
         onPointerDown={markDictationTarget}
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
       />
       {dictationStatus && (
         <span role="status" className="text-xs text-muted-foreground">

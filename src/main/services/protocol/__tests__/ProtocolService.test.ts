@@ -12,6 +12,7 @@ const {
   mcpServerServiceMock,
   openSettingsInMainWindowMock,
   platformMock,
+  quickAssistantServiceMock,
   windowManagerMock
 } = vi.hoisted(() => {
   const appMock = {
@@ -29,6 +30,7 @@ const {
     handleNavigateProtocolUrl: vi.fn(),
     handleProvidersProtocolUrl: vi.fn()
   }
+  const quickAssistantServiceMock = { openChat: vi.fn(async () => undefined) }
   const ipcApiServiceMock = {
     broadcast: vi.fn()
   }
@@ -47,7 +49,8 @@ const {
   const windowManagerMock = {
     getWindowType: vi.fn(() => 'main'),
     onWindowCreatedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn()),
-    onWindowDestroyedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn())
+    onWindowDestroyedByType: vi.fn<(type: string, listener: unknown) => () => void>(() => vi.fn()),
+    getWindowsByType: vi.fn<(type: string) => unknown[]>(() => [{}])
   }
   return {
     appMock,
@@ -58,6 +61,7 @@ const {
     mcpServerServiceMock,
     openSettingsInMainWindowMock,
     platformMock,
+    quickAssistantServiceMock,
     windowManagerMock
   }
 })
@@ -79,6 +83,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'IpcApiService') return ipcApiServiceMock
       if (name === 'MainWindowService') return mainWindowServiceMock
+      if (name === 'QuickAssistantService') return quickAssistantServiceMock
       if (name === 'WindowManager') return windowManagerMock
       throw new Error(`unexpected service: ${name}`)
     },
@@ -210,6 +215,39 @@ describe('ProtocolService', () => {
     await vi.waitFor(() => {
       expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle providers protocol URL', error)
     })
+  })
+
+  it('queues a launcher prompt until ready and sends it only to Quick Assistant once', async () => {
+    ;(service as any).handleProtocolUrl('cherrystudio://chat/new?prompt=where+is+paris&submit=true')
+    expect(quickAssistantServiceMock.openChat).not.toHaveBeenCalled()
+    await markProtocolHandlingReady()
+    service.onMainRendererReady('main-1')
+    expect(quickAssistantServiceMock.openChat).toHaveBeenCalledExactlyOnceWith({
+      prompt: 'where is paris',
+      temporary: undefined,
+      submit: true
+    })
+    expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('reports a launcher cold start only for chat URLs received before bootstrap', async () => {
+    ;(service as any).handleProtocolUrl('cherrystudio://navigate/settings')
+    expect(service.isFloatingChatColdStart()).toBe(false)
+    ;(service as any).handleProtocolUrl('cherrystudio://chat/new?prompt=paris')
+    expect(service.isFloatingChatColdStart()).toBe(true)
+  })
+
+  it('does not treat a hot-start chat URL as a cold start', async () => {
+    await markProtocolHandlingReady()
+    ;(service as any).handleProtocolUrl('cherrystudio://chat/new?prompt=paris')
+    expect(service.isFloatingChatColdStart()).toBe(false)
+  })
+
+  it('rejects an invalid launcher request without broadcasting its prompt', async () => {
+    await markProtocolHandlingReady()
+    ;(service as any).handleProtocolUrl('cherrystudio://chat/new?prompt=private&submit=yes')
+    expect(quickAssistantServiceMock.openChat).not.toHaveBeenCalled()
+    expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
   })
 
   it('broadcasts unknown protocol hosts to all windows', async () => {
@@ -411,6 +449,54 @@ describe('ProtocolService', () => {
       return call[1] as (event: unknown, argv: string[]) => void
     }
 
+    it('delivers queued floating chats after services initialize without waiting for Main', async () => {
+      await (service as any).onInit()
+      const handler = getSecondInstanceHandler()
+      handler({}, ['CherryStudio', 'cherrystudio://navigate/agents'])
+      handler({}, ['CherryStudio', 'cherrystudio://chat/new?prompt=hello&temporary=true&submit=false'])
+      expect(quickAssistantServiceMock.openChat).not.toHaveBeenCalled()
+      await (service as any).onAllReady()
+      expect(quickAssistantServiceMock.openChat).toHaveBeenCalledWith({
+        prompt: 'hello',
+        temporary: true,
+        submit: false
+      })
+      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+      service.onMainRendererReady('main-1')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledWith(new URL('cherrystudio://navigate/agents'))
+      expect(quickAssistantServiceMock.openChat).toHaveBeenCalledTimes(1)
+    })
+
+    it('delivers a floating chat after Main is destroyed without reopening Main', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+      const destroyed = windowManagerMock.onWindowDestroyedByType.mock.calls[0][1] as () => void
+      destroyed()
+      getSecondInstanceHandler()({}, ['CherryStudio', 'cherrystudio://chat/new?temporary=true&submit=false'])
+      expect(quickAssistantServiceMock.openChat).toHaveBeenCalledWith({
+        prompt: '',
+        temporary: true,
+        submit: false
+      })
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+    })
+
+    it('recreates a destroyed Main for deep links that need it, then delivers them once ready', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+      const destroyed = windowManagerMock.onWindowDestroyedByType.mock.calls[0][1] as () => void
+      destroyed()
+      windowManagerMock.getWindowsByType.mockReturnValueOnce([])
+
+      getSecondInstanceHandler()({}, ['CherryStudio', 'cherrystudio://navigate/agents'])
+
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
+      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+      service.onMainRendererReady('main-1')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledWith(new URL('cherrystudio://navigate/agents'))
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
+    })
+
     it('dispatches the URL when argv carries a cherrystudio:// deep link', async () => {
       await (service as any).onInit()
       await markProtocolHandlingReady()
@@ -420,6 +506,21 @@ describe('ProtocolService', () => {
 
       expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledWith(new URL('cherrystudio://navigate/agents'))
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+    })
+
+    it('opens a floating launcher chat without raising the main window', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+
+      getSecondInstanceHandler()({}, ['/path/to/cherry', 'cherrystudio://chat/new?prompt=Paris&submit=true'])
+
+      expect(quickAssistantServiceMock.openChat).toHaveBeenCalledWith({
+        prompt: 'Paris',
+        temporary: undefined,
+        submit: true
+      })
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
       expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
     })
 

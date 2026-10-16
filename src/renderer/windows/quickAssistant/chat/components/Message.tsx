@@ -41,13 +41,15 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
       )}
       style={{ maxWidth }}>
       <div
+        dir="auto"
         className={cn(
           'message-content-container mt-5 flex max-w-full flex-col justify-between',
           isAssistantMessage ? 'w-full' : 'rounded-[10px] bg-muted px-4 py-2.5'
         )}
         style={{
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-          fontSize
+          fontSize,
+          textAlign: 'start'
         }}>
         <MessageErrorBoundary>
           <MessageContent message={message} />

@@ -15,9 +15,7 @@ vi.mock('react-i18next', () => ({
 describe('Quick Assistant Footer', () => {
   const requiredProps = {
     route: 'chat',
-    onEsc: vi.fn(),
-    setIsPinned: vi.fn(),
-    isPinned: false
+    onEsc: vi.fn()
   }
 
   it('offers manual playback only when a completed result is available and the window is idle', async () => {

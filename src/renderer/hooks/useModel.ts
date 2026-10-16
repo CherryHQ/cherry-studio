@@ -36,7 +36,9 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
   const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
 
   const { model: defaultModel } = useModelById(enabled ? (defaultModelId as UniqueModelId) : null)
-  const { model: quickModel } = useModelById(enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null)
+  const { model: quickModel, isLoading: isQuickModelPending } = useModelById(
+    enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null
+  )
   const { model: translateModel } = useModelById(
     enabled ? ((translateModelId as UniqueModelId) ?? defaultModelId) : null
   )
@@ -45,6 +47,7 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
   return {
     defaultModel,
     quickModel,
+    isQuickModelPending,
     translateModel,
     paintingModel,
     // v2 Model.id is already the UniqueModelId — store it directly.

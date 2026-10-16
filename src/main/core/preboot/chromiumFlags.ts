@@ -41,16 +41,10 @@ export function configureChromiumFlags(): void {
     app.commandLine.appendSwitch('wm-window-animations-disabled')
   }
 
-  // Linux Wayland: enable the xdg-desktop-portal global-shortcut backend so
-  // globalShortcut.register() actually works under Wayland compositors.
-  // https://www.electronjs.org/docs/latest/api/global-shortcut
-  if (isLinuxWayland) {
-    app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
-  }
-
   // Linux (X11 and Wayland): set the window class/name so window managers
   // identify the app correctly in alt-tab switchers, docks, etc.
   if (isLinux) {
+    if (process.env.FLATPAK_ID) app.setDesktopName(`${process.env.FLATPAK_ID}.desktop`)
     app.commandLine.appendSwitch('class', 'CherryStudio')
     app.commandLine.appendSwitch('name', 'CherryStudio')
   }
@@ -71,8 +65,16 @@ export function configureChromiumFlags(): void {
   // - PageAllocatorRetryOnCommitFailure: retry memory page commits under
   //   transient commit pressure instead of failing immediately.
   // https://github.com/microsoft/vscode/pull/241640/files
-  app.commandLine.appendSwitch(
-    'enable-features',
-    'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
-  )
+  const enabledFeatures = new Set(app.commandLine.getSwitchValue('enable-features').split(',').filter(Boolean))
+  for (const feature of [
+    'DocumentPolicyIncludeJSCallStacksInCrashReports',
+    'EarlyEstablishGpuChannel',
+    'EstablishGpuChannelAsync',
+    'PageAllocatorRetryOnCommitFailure'
+  ]) {
+    enabledFeatures.add(feature)
+  }
+  // appendSwitch replaces an existing value; preserve launcher flags and the Wayland portal together.
+  if (isLinuxWayland) enabledFeatures.add('GlobalShortcutsPortal')
+  app.commandLine.appendSwitch('enable-features', [...enabledFeatures].join(','))
 }
