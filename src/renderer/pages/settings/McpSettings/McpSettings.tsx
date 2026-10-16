@@ -5,11 +5,10 @@ import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { Alert, Button, Flex, Form, Scrollbar, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
