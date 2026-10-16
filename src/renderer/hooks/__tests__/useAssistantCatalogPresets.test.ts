@@ -64,7 +64,7 @@ describe('assistant catalog presets', () => {
     const { result } = renderHook(() => useAssistantCatalogPresets({ enabled: false }))
 
     expect(assistantCatalogMocks.read).not.toHaveBeenCalled()
-    expect(result.current).toEqual({ isLoading: false, presets: [] })
+    expect(result.current).toEqual({ error: null, retry: expect.any(Function), isLoading: false, presets: [] })
   })
 
   it('keeps my assistants first and orders known system groups before custom groups', () => {
