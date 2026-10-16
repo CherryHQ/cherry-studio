@@ -10,6 +10,7 @@ import {
   type ModelMessage,
   APICallError,
   NoImageGeneratedError,
+  RetryError,
   NoTranscriptGeneratedError,
   type UIMessageChunk
 } from 'ai'
@@ -41,11 +42,13 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { jobService } from '@data/services/JobService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import { ImageResponseContractError } from '@main/ai/imageResponseContractError'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -359,11 +362,16 @@ export interface AiImageResult {
 /** True when the cause chain holds the SDK's NoImageGeneratedError. Depth-capped so a cyclic chain cannot hang. */
 const MAX_IMAGE_ERROR_CAUSE_DEPTH = 10
 
+/** Next link in an image error chain; the AI SDK retry wrapper keeps the final attempt in `lastError`, not `cause`. */
+function nextImageErrorLink(error: Error): unknown {
+  return RetryError.isInstance(error) ? error.lastError : error.cause
+}
+
 function isEmptyImageResponseError(error: unknown): boolean {
   let current: unknown = error
   for (let depth = 0; depth < MAX_IMAGE_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
     if (NoImageGeneratedError.isInstance(current)) return true
-    current = current.cause
+    current = nextImageErrorLink(current)
   }
   return false
 }
@@ -373,7 +381,7 @@ function findUnusableSuccessResponseError(error: unknown): APICallError | undefi
   let current: unknown = error
   for (let depth = 0; depth < MAX_IMAGE_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
     if (APICallError.isInstance(current) && current.statusCode === 200) return current
-    current = current.cause
+    current = nextImageErrorLink(current)
   }
   return undefined
 }
@@ -1112,23 +1120,18 @@ export class AiService extends BaseService {
       onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
     }).catch((error: unknown) => {
       // Upstream finished but unusable locally — a contract failure, not a retryable timeout. May have been billed; not retried.
+      const messageParams = { provider: sdkConfig.providerId, model: sdkConfig.modelId }
       if (isEmptyImageResponseError(error)) {
-        throw new Error(
-          `The image provider returned a successful response but no usable image data (provider "${sdkConfig.providerId}", model "${sdkConfig.modelId}"). The operation may still have been billed. It was not retried automatically.`,
-          { cause: error }
-        )
+        throw new ImageResponseContractError(t('ai.image.error.empty_response', messageParams), { cause: error })
       }
       const unusableError = findUnusableSuccessResponseError(error)
       if (unusableError) {
         // Only the numeric status crosses IPC — raw bodies/URLs stay behind the
         // provider-error redaction boundary (serializeNestedProviderError nulls them).
-        throw Object.assign(
-          new Error(
-            `The image provider returned a response that could not be processed (provider "${sdkConfig.providerId}", model "${sdkConfig.modelId}", HTTP 200). The operation may still have been billed. It was not retried automatically.`,
-            { cause: error }
-          ),
-          { statusCode: unusableError.statusCode }
-        )
+        throw new ImageResponseContractError(t('ai.image.error.unusable_response', messageParams), {
+          cause: error,
+          statusCode: unusableError.statusCode
+        })
       }
       throw error
     })

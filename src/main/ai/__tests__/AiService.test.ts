@@ -4,10 +4,11 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { APICallError, modelMessageSchema, NoImageGeneratedError } from 'ai'
+import { APICallError, modelMessageSchema, NoImageGeneratedError, RetryError } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type * as MainI18n from '@main/i18n'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -75,6 +76,11 @@ vi.mock('@application', () => ({
   }
 }))
 
+// Resolve main catalog strings in en-US regardless of the mocked app language.
+vi.mock('@main/i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof MainI18n>()
+  return { ...actual, t: (key: string, params?: Record<string, string | number>) => actual.t(key, params, 'en-US') }
+})
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     getById: (...args: unknown[]) => mockAssistantGetById(...args)
@@ -797,6 +803,32 @@ describe('AiService', () => {
     expect(rejection).toBeInstanceOf(Error)
     expect((rejection as Error).message).toMatch(
       /successful response but no usable image data.*test-provider.*test-model.*may still have been billed.*not retried automatically/s
+    )
+    expect((rejection as Error).cause).toBe(sdkFailure)
+  })
+
+  it('classifies an unusable image response wrapped by the SDK retry error', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    // RetryError keeps the attempts in `errors`/`lastError`, not in `cause`.
+    const sdkFailure = new RetryError({
+      message: 'Failed after 3 attempts.',
+      reason: 'maxRetriesExceeded',
+      errors: [new Error('timeout'), new NoImageGeneratedError({ responses: [] })]
+    })
+    mockGenerateImage.mockRejectedValueOnce(sdkFailure)
+
+    const rejection = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'edit this image',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect((rejection as Error).message).toMatch(
+      /successful response but no usable image data.*may still have been billed/s
     )
     expect((rejection as Error).cause).toBe(sdkFailure)
   })

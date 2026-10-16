@@ -11,6 +11,8 @@
   "agent.session.workspace_status.inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
   "agent.session.workspace_status.missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
   "agent.session.workspace_status.not_directory": "Der Workspace-Pfad ist kein Verzeichnis: {{path}}",
+  "ai.image.error.empty_response": "Der Bildanbieter hat eine erfolgreiche Antwort ohne verwendbare Bilddaten zurückgegeben (Anbieter „{{provider}}“, Modell „{{model}}“). Der Vorgang wurde möglicherweise trotzdem abgerechnet. Er wurde nicht automatisch wiederholt.",
+  "ai.image.error.unusable_response": "Die Antwort des Bildanbieters konnte nicht verarbeitet werden (Anbieter „{{provider}}“, Modell „{{model}}“, HTTP 200). Der Vorgang wurde möglicherweise trotzdem abgerechnet. Er wurde nicht automatisch wiederholt.",
   "apiGateway.docs.description": "OpenAI-, Anthropic- und Gemini-kompatible HTTP-API für Cherry Studio, dazu Cherry-eigene Endpunkte (Modelle, Wissensdatenbanken)",
   "apiGateway.docs.language_switcher_label": "Sprache der Dokumentation",
   "apiGateway.docs.operations.chat_completions": "Erstellt eine Chat-Completion. Anfrage- und Antwortformat entsprechen OpenAI Chat Completions; mit `stream: true` erfolgt die Ausgabe schrittweise.",
