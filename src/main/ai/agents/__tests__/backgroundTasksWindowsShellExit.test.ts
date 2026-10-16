@@ -5,31 +5,32 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The runner stops a task through `taskkill`, a real process spawn that outlives a fast exit:
-// the mock resolves it instead, so the stop's own bookkeeping is what is under test. Spawn and
-// execFileSync stay real — the runner is a separate process nothing here can mock.
-const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn() }))
+// The stop shells out to `taskkill`, a real process spawn that outlives a fast exit: only
+// `taskkill` is mocked here, so the stop's own bookkeeping is what is under test. The process
+// table reads stay real — both the runner and the stop consult the fake probe below through it.
+const { taskkillMock } = vi.hoisted(() => ({ taskkillMock: vi.fn() }))
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof ChildProcessModule>()
+  const routed = ((file: string, args: string[], options: unknown, callback: (error: Error | null) => void) => {
+    if (file === 'taskkill') return taskkillMock(file, args, options, callback)
+    return actual.execFile(file, args, options as never, callback)
+  }) as typeof actual.execFile
   return {
     ...actual,
-    execFile: execFileMock
+    execFile: routed
   }
 })
 
 import {
+  BACKGROUND_TASK_EVIDENCE_EXT,
   getDetachedBackgroundTask,
-  isPidAlive,
   startDetachedBackgroundTask,
   stopDetachedBackgroundTask
 } from '../backgroundTasks'
 
 const nodeBin = `"${process.execPath}"`
-
-// A worker that outlives its shell: it prints its pid and keeps running after the shell exits —
-// the shape a backgrounded job (`start "" /b …`) leaves behind on Windows.
-const orphanWorkerCommand = `${nodeBin} -e "process.stdout.write(String(process.pid)); setInterval(() => {}, 60_000)" &`
+const TABLE_HEADER = '"ProcessId","ParentProcessId"'
 
 describe('a Windows task whose shell exits before its work', () => {
   let storageDir: string
@@ -37,7 +38,6 @@ describe('a Windows task whose shell exits before its work', () => {
   let fakeTable: string
   let realPlatform: NodeJS.Platform
   let realPath: string | undefined
-  let lastWorkerPid = 0
 
   /** Puts a stand-in `powershell.exe` on PATH that prints a fake process table. */
   const useFakeProbe = async (rows: string): Promise<void> => {
@@ -55,16 +55,24 @@ describe('a Windows task whose shell exits before its work', () => {
     await writeFile(fakeTable, rows)
   }
 
-  const waitForWorkerPid = async (logFile: string): Promise<number> => {
+  /** The shell pid the runner recorded at spawn — the root of everything the shell left behind. */
+  const waitForShellPid = async (taskId: string): Promise<number> => {
+    const evidence = path.join(storageDir, `${taskId}${BACKGROUND_TASK_EVIDENCE_EXT}`)
     await vi.waitFor(
       async () => {
-        expect((await readFile(logFile, 'utf8')).trim()).toMatch(/^\d+$/)
+        expect(Number(JSON.parse(await readFile(evidence, 'utf8')).shellPid)).toBeGreaterThan(0)
       },
       { timeout: 10_000 }
     )
-    const workerPid = Number((await readFile(logFile, 'utf8')).trim())
-    expect(isPidAlive(workerPid)).toBe(true)
-    return workerPid
+    return Number(JSON.parse(await readFile(evidence, 'utf8')).shellPid)
+  }
+
+  /** Lets every taskkill through resolved, the way an effective kill reports. */
+  const letTaskkillThrough = (): void => {
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
   }
 
   beforeEach(async () => {
@@ -79,19 +87,11 @@ describe('a Windows task whose shell exits before its work', () => {
   afterEach(async () => {
     // Empty the fake table so any live runner reads a drained tree and exits instead of polling
     // a survivor that only exists inside the test.
-    if (fakeTable) await writeFile(fakeTable, '"ProcessId","ParentProcessId"\n').catch(() => undefined)
-    if (lastWorkerPid > 0) {
-      try {
-        process.kill(lastWorkerPid, 'SIGKILL')
-      } catch {
-        // already gone
-      }
-      lastWorkerPid = 0
-    }
+    if (fakeTable) await writeFile(fakeTable, `${TABLE_HEADER}\n`).catch(() => undefined)
     if (realPath !== undefined) process.env.PATH = realPath
     delete process.env.BG_FAKE_TABLE
     Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
-    execFileMock.mockReset()
+    taskkillMock.mockReset()
     const deadline = Date.now() + 10_000
     for (;;) {
       try {
@@ -105,47 +105,17 @@ describe('a Windows task whose shell exits before its work', () => {
     }
   }, 20_000)
 
-  it('keeps the task running and stoppable while escaped work survives', async () => {
-    // A row whose parent is the runner itself stands in for the worker the shell backgrounded:
-    // the probe keeps reporting it, so the tree never reads as drained.
-    await useFakeProbe('"ProcessId","ParentProcessId"\n"999999","@PPID@"\n')
+  it('does not hold the anchor open for its own process probe', async () => {
+    // Every successful probe is itself a runner child in the very table it reads. Counted as
+    // work, the tree can never read as drained and no task ever completes; only the shell may
+    // descend from the runner.
+    await useFakeProbe(`${TABLE_HEADER}\n"999999","@PPID@"\n`)
     const record = await startDetachedBackgroundTask({
       storageDir,
-      command: orphanWorkerCommand,
+      command: `${nodeBin} -e "process.exit(0)"`,
       cwd: storageDir
     })
-    lastWorkerPid = await waitForWorkerPid(record.logFile)
 
-    // The shell is gone — its orphan printed its pid — but the runner anchors the task, so the
-    // record must still read running and Stop/Kill must still reach it.
-    await new Promise((resolve) => setTimeout(resolve, 1_500))
-    const held = await getDetachedBackgroundTask(storageDir, record.id)
-    expect(held?.status).toBe('running')
-
-    execFileMock.mockImplementation((...args: unknown[]) => {
-      const callback = args.at(-1) as (error: Error | null) => void
-      setTimeout(() => callback(null), 20)
-    })
-    const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true)
-    expect(stopped?.status).toBe('stopped')
-    expect(await getDetachedBackgroundTask(storageDir, record.id)).toMatchObject({ status: 'stopped' })
-  })
-
-  it('settles the task once nothing of its work remains', async () => {
-    await useFakeProbe('"ProcessId","ParentProcessId"\n"999999","@PPID@"\n')
-    const record = await startDetachedBackgroundTask({
-      storageDir,
-      command: orphanWorkerCommand,
-      cwd: storageDir
-    })
-    lastWorkerPid = await waitForWorkerPid(record.logFile)
-
-    await new Promise((resolve) => setTimeout(resolve, 1_000))
-    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
-
-    // The escaped work ends and the table reads empty: the anchor leaves, and the completion the
-    // runner observed finally lands.
-    await writeFakeRows('"ProcessId","ParentProcessId"\n')
     await vi.waitFor(
       async () => {
         await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({
@@ -155,6 +125,72 @@ describe('a Windows task whose shell exits before its work', () => {
       { timeout: 10_000, interval: 100 }
     )
   })
+
+  it('keeps the task running while escaped work survives', async () => {
+    // The worker survives its shell, so its row stays parented to the shell pid the runner
+    // recorded: the probe keeps reporting it, so the tree never reads as drained.
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}"\n`)
+
+    // The shell is gone and its orphan keeps working: the runner anchors the task, so the
+    // record must still read running.
+    await new Promise((resolve) => setTimeout(resolve, 1_200))
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+  })
+
+  it('keeps an escaped worker tracked when the kill cannot prove it stopped', async () => {
+    // `taskkill /T` follows live parents only, so a worker behind a shell that has already
+    // exited is not reached. With the table still reporting it, the task may not be published
+    // as `stopped` — reconciliation and the permanent purge trust that word, and a survivor
+    // would lose its tracking and controls while its work goes on.
+    const onExit = vi.fn()
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}"\n`)
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+
+    letTaskkillThrough()
+    const withheld = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    expect(withheld?.status).toBe('running')
+    expect(withheld?.stopRequestedAt).toEqual(expect.any(String))
+    expect(onExit).not.toHaveBeenCalled()
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+  }, 20_000)
+
+  it('publishes the kill once nothing of the task is left in the table', async () => {
+    const onExit = vi.fn()
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}"\n`)
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+
+    letTaskkillThrough()
+    const stopped = stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+    // The kill lands: the table no longer reports the escaped work.
+    await writeFakeRows(`${TABLE_HEADER}\n`)
+    await expect(stopped).resolves.toMatchObject({ status: 'stopped' })
+
+    expect(onExit).toHaveBeenCalledTimes(1)
+    expect(onExit.mock.calls[0][0].record.status).toBe('stopped')
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'stopped' })
+  }, 20_000)
 
   it('still completes when no process-table probe exists', async () => {
     // No shim on PATH: the runner cannot read evidence at all, so it cannot hold the anchor open

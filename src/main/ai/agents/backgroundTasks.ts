@@ -165,6 +165,8 @@ async function withRecordLock<T>(taskId: string, operation: () => Promise<T>): P
 export const BACKGROUND_TASK_RECORD_EXT = '.json'
 export const BACKGROUND_TASK_LOG_EXT = '.log'
 export const BACKGROUND_TASK_SENTINEL_EXT = '.done'
+/** Shell pid the Windows runner records at spawn, so a stop can walk past the shell's exit. */
+export const BACKGROUND_TASK_EVIDENCE_EXT = '.pids'
 
 export const MAX_BACKGROUND_TASK_COMMAND_LENGTH = 10_000
 
@@ -222,6 +224,12 @@ const { spawn, execFileSync } = require('node:child_process')
 const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
 const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })
+// The shell pid is the one member of the tree the app cannot rediscover once the shell has
+// exited — taskkill follows live parents only — so the app records it and seeds its own walk
+// with it, reaching the work the shell left behind across the dead link.
+try {
+  require('node:fs').writeFileSync(process.argv[2], JSON.stringify({ shellPid: task.pid || 0 }))
+} catch (error) {}
 task.on('error', () => process.exit(1))
 task.on('exit', (code, signal) => {
   const status = signal ? 1 : (code == null ? 1 : code)
@@ -250,9 +258,13 @@ task.on('exit', (code, signal) => {
       if (error.code === 'ENOENT') settle()
       return
     }
-    // Everything descended from this runner or its shell is the work; each row found inside that
-    // closure seeds the next round, so a worker whose own parent has exited is still accounted for.
-    const seeds = new Set([process.pid, Number(task.pid) || 0])
+    // Everything descended from this runner's shell is the work; each row found inside that
+    // closure seeds the next round, so a worker whose own parent has exited is still accounted
+    // for. The table also holds this very probe — the runner's own supervision, reading as a
+    // child of the runner — and only the shell may descend from the runner: any other row
+    // parented there is supervision, not the task's work.
+    const shellPid = Number(task.pid) || 0
+    const seeds = new Set([process.pid, shellPid])
     let grew = true
     while (grew) {
       grew = false
@@ -260,6 +272,7 @@ task.on('exit', (code, signal) => {
         const fields = row.replace(/"/g, '').trim().split(',')
         const pid = Number(fields[0])
         if (fields.length !== 2 || !pid || seeds.has(pid)) continue
+        if (Number(fields[1]) === process.pid && pid !== shellPid) continue
         if (seeds.has(Number(fields[1]))) {
           seeds.add(pid)
           grew = true
@@ -346,7 +359,8 @@ export function buildDetachedBackgroundTaskSpawn(
   command: string,
   cwd: string,
   stdoutFd: number,
-  stderrFd: number
+  stderrFd: number,
+  evidenceFile: string
 ): DetachedBackgroundTaskSpawn {
   const options: SpawnOptions = {
     cwd,
@@ -360,7 +374,9 @@ export function buildDetachedBackgroundTaskSpawn(
   if (process.platform === 'win32') {
     return {
       file: process.execPath,
-      args: ['-e', WINDOWS_DETACHED_TASK_RUNNER, command],
+      // The runner records the shell pid in `evidenceFile` at spawn: the root a stop walk seeds
+      // from once the shell has exited and taskkill's live-parent walk can no longer cross it.
+      args: ['-e', WINDOWS_DETACHED_TASK_RUNNER, command, evidenceFile],
       options: { ...options, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
     }
   }
@@ -402,11 +418,12 @@ export async function startDetachedBackgroundTask(
   await mkdir(input.storageDir, { recursive: true })
   const id = `bt-${Date.now()}-${randomUUID().slice(0, 8)}`
   const logFile = path.join(input.storageDir, `${id}${BACKGROUND_TASK_LOG_EXT}`)
+  const evidenceFile = path.join(input.storageDir, `${id}${BACKGROUND_TASK_EVIDENCE_EXT}`)
   const startedAt = new Date().toISOString()
 
   const logHandle = await open(logFile, 'a', 0o600)
   try {
-    const target = buildDetachedBackgroundTaskSpawn(command, input.cwd, logHandle.fd, logHandle.fd)
+    const target = buildDetachedBackgroundTaskSpawn(command, input.cwd, logHandle.fd, logHandle.fd, evidenceFile)
     const child = spawn(target.file, target.args, target.options)
     child.unref()
 
@@ -720,6 +737,13 @@ async function stopDetachedBackgroundTaskUnlocked(
   if (process.platform !== 'win32' && !(await waitForGroupDrain(record.pid))) {
     return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
   }
+  // On Windows the kill is only as good as taskkill's live-parent walk, which cannot reach a
+  // worker past the shell that spawned it. Until the table proves nothing of the task is left,
+  // the record stays `running` and stop-requested: stoppable again, refusing the purge, and
+  // honest about work that may still be going on.
+  if (process.platform === 'win32' && !(await verifyWindowsTaskTerminated(storageDir, record))) {
+    return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+  }
   const completion: BackgroundTaskCompletion = {
     id: record.id,
     status: 'stopped',
@@ -864,6 +888,111 @@ async function waitForGroupDrain(pgid: number): Promise<boolean> {
   return true
 }
 
+/** A live row of the Windows process table: a pid and the parent it was created under. */
+interface WindowsProcessRow {
+  pid: number
+  ppid: number
+}
+
+/**
+ * The Windows process table, read through the same probe the runner uses. Awaited rather than
+ * run inline so one slow read cannot block the main process behind every other task. `null`
+ * when it cannot be read, which is never evidence of anything.
+ */
+async function readWindowsProcessTable(): Promise<WindowsProcessRow[] | null> {
+  try {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      execFile(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Csv -NoTypeInformation'
+        ],
+        { timeout: 5_000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 },
+        (error, stdout) => {
+          if (error) reject(error)
+          else resolve(String(stdout))
+        }
+      )
+    })
+    const rows: WindowsProcessRow[] = []
+    for (const row of String(stdout).split('\n')) {
+      const fields = row.replace(/"/g, '').trim().split(',')
+      if (fields.length !== 2) continue
+      const pid = Number(fields[0])
+      const ppid = Number(fields[1])
+      if (!pid || !ppid) continue
+      rows.push({ pid, ppid })
+    }
+    return rows
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The live processes that still belong to the task, found from the pid roots this app recorded —
+ * the runner and the shell that may have exited before its work. A row names its parent even
+ * after that parent has exited, so this walk crosses the dead link that `taskkill /T`, which
+ * follows live parents only, cannot.
+ */
+function collectTaskProcessPids(rows: WindowsProcessRow[], roots: number[]): Set<number> {
+  const closure = new Set(roots)
+  for (let grew = true; grew;) {
+    grew = false
+    for (const row of rows) {
+      if (closure.has(row.pid) || !closure.has(row.ppid)) continue
+      closure.add(row.pid)
+      grew = true
+    }
+  }
+  return closure
+}
+
+/**
+ * The shell pid the runner recorded at spawn. Absent — an older record, or a failed write — it
+ * establishes nothing: without that root no walk can cross the shell's exit.
+ */
+async function readTaskShellPid(storageDir: string, taskId: string): Promise<number | undefined> {
+  try {
+    const parsed = JSON.parse(
+      await readFile(path.join(storageDir, `${taskId}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+    ) as { shellPid?: number }
+    const pid = Number(parsed.shellPid)
+    return Number.isInteger(pid) && pid > 0 ? pid : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Whether the Windows kill is proven complete. `taskkill /T` cannot reach a worker past a shell
+ * that has already exited — the worker survives it behind the dead link — so survivors are
+ * looked up through the recorded shell pid and killed directly, and only a table reading with
+ * nothing of the task's left may call the task stopped.
+ */
+async function verifyWindowsTaskTerminated(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
+  const shellPid = await readTaskShellPid(storageDir, record.id)
+  if (!shellPid) return false
+  const roots = [record.pid, shellPid]
+  const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  for (;;) {
+    const rows = await readWindowsProcessTable()
+    if (rows) {
+      const closure = collectTaskProcessPids(rows, roots)
+      const survivors = rows.filter((row) => closure.has(row.pid))
+      if (survivors.length === 0) return true
+      for (const survivor of survivors) {
+        await execTaskkill(['/PID', String(survivor.pid), '/F']).catch(() => undefined)
+      }
+    }
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+  }
+}
+
 /**
  * List every task record, newest first. Records still marked `running` are
  * reconciled read-only: an existing sentinel wins, then a pid liveness probe,
@@ -913,6 +1042,13 @@ async function reconcileDetachedBackgroundTask(
     return ownedTaskGroups.get(record.id)?.pgid === record.pid
       ? record
       : { ...record, status: 'unknown', note: t('background_task.note.group_unattributed') }
+  }
+  // A Windows kill whose termination could not be verified left the record running on purpose:
+  // taskkill's live-parent walk cannot reach a worker past its dead shell, so reading `stopped`
+  // here would strip the survivor's last tracking while its work goes on. The record stays as
+  // the stop left it — stop-requested, and stoppable once its survivor can be accounted for.
+  if (process.platform === 'win32' && record.stopRequestedAt) {
+    return record
   }
   if (record.stopRequestedAt) {
     return {
