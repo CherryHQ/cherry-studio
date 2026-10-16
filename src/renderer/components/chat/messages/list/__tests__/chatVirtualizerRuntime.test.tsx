@@ -3072,38 +3072,43 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it.each([
+  it.each<{
+    name: string
+    initialWheelDeltaY: number
+    initialOffset: number
+    nextInput: { wheelDeltaY: number } | { direction: 'up' | 'down' | 'none' }
+    nextOffset: number
+    following: boolean
+    offsetAfterGrowth: number
+  }>([
     {
       name: 'yields to an upward pointer scroll after wheeling down to the bottom',
-      nextInput: 'pointer',
-      wheelDelta: 600,
-      wheelOffset: 800,
-      nextDirection: 'none' as const,
+      initialWheelDeltaY: 600,
+      initialOffset: 800,
+      nextInput: { direction: 'none' },
       nextOffset: 700,
       following: false,
       offsetAfterGrowth: 700
     },
     {
       name: 'resumes following on a downward scroll key after wheeling up',
-      nextInput: 'keyboard',
-      wheelDelta: -300,
-      wheelOffset: 500,
-      nextDirection: 'down' as const,
+      initialWheelDeltaY: -300,
+      initialOffset: 500,
+      nextInput: { direction: 'down' },
       nextOffset: 800,
       following: true,
       offsetAfterGrowth: 1000
     },
     {
-      name: 'keeps following when an upward wheel has not moved the viewport',
-      nextInput: 'wheel',
-      wheelDelta: 600,
-      wheelOffset: 800,
-      nextDirection: 'up' as const,
+      name: 'keeps following when a scroll event after an upward wheel has no viewport movement',
+      initialWheelDeltaY: 600,
+      initialOffset: 800,
+      nextInput: { wheelDeltaY: -40 },
       nextOffset: 800,
       following: true,
       offsetAfterGrowth: 1000
     }
-  ])('$name', ({ nextInput, wheelDelta, wheelOffset, nextDirection, nextOffset, following, offsetAfterGrowth }) => {
+  ])('$name', ({ initialWheelDeltaY, initialOffset, nextInput, nextOffset, following, offsetAfterGrowth }) => {
     const callbacks: ResizeObserverCallback[] = []
     const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
@@ -3129,13 +3134,16 @@ describe('useChatVirtualizerRuntime', () => {
       act(() => runtime!.takeUserControl('user-scrolled-up'))
 
       act(() => {
-        runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: wheelDelta }))
-        scroller.scrollTop = wheelOffset
-        runtime!.scrollerProps.onScroll(wheelOffset)
+        runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: initialWheelDeltaY }))
+        scroller.scrollTop = initialOffset
+        runtime!.scrollerProps.onScroll(initialOffset)
       })
       act(() => {
-        if (nextInput === 'wheel') runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: -40 }))
-        else runtime!.markUserInput(nextDirection)
+        if ('wheelDeltaY' in nextInput) {
+          runtime!.scrollerProps.onWheel(new WheelEvent('wheel', { deltaY: nextInput.wheelDeltaY }))
+        } else {
+          runtime!.markUserInput(nextInput.direction)
+        }
         scroller.scrollTop = nextOffset
         runtime!.scrollerProps.onScroll(nextOffset)
       })
