@@ -5033,6 +5033,7 @@
   "settings.profile.title": "Thông tin cá nhân",
   "settings.prompts.add": "Thêm Lời Nhắc",
   "settings.prompts.binding.bind": "Liên kết lời nhắc",
+  "settings.prompts.binding.globalDescription": "Lời nhắc toàn cục có thể dùng trong mọi cuộc trò chuyện và được quản lý trong Cài đặt.",
   "settings.prompts.binding.manageTargets": "Quản lý đích cho {{title}}",
   "settings.prompts.binding.noLinked": "Chưa liên kết lời nhắc nào",
   "settings.prompts.binding.noMore": "Không còn lời nhắc khả dụng",

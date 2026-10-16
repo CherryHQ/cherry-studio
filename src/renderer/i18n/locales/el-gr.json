@@ -5033,6 +5033,7 @@
   "settings.profile.title": "Προσωπικές πληροφορίες",
   "settings.prompts.add": "Προσθήκη Prompt",
   "settings.prompts.binding.bind": "Σύνδεση προτροπής",
+  "settings.prompts.binding.globalDescription": "Οι καθολικές προτροπές είναι διαθέσιμες σε κάθε συνομιλία και διαχειρίζονται στις Ρυθμίσεις.",
   "settings.prompts.binding.manageTargets": "Διαχείριση στόχων για {{title}}",
   "settings.prompts.binding.noLinked": "Δεν υπάρχουν συνδεδεμένες προτροπές",
   "settings.prompts.binding.noMore": "Δεν υπάρχουν άλλες διαθέσιμες προτροπές",

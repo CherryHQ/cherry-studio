@@ -5033,6 +5033,7 @@
   "settings.profile.title": "Persönliche Informationen",
   "settings.prompts.add": "Prompt hinzufügen",
   "settings.prompts.binding.bind": "Prompt verknüpfen",
+  "settings.prompts.binding.globalDescription": "Globale Prompts sind in jeder Unterhaltung verfügbar und werden in den Einstellungen verwaltet.",
   "settings.prompts.binding.manageTargets": "Ziele für {{title}} verwalten",
   "settings.prompts.binding.noLinked": "Keine Prompts verknüpft",
   "settings.prompts.binding.noMore": "Keine weiteren Prompts verfügbar",
