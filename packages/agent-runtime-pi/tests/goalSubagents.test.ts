@@ -581,6 +581,63 @@ describe('goal and background subagents', () => {
     expect(calls).toHaveLength(sent)
   })
 
+  // Breaks when a notification that rides with a round's start (Pi 1.2.0 hands queued results to every
+  // run start, `/goal resume`'s included) ends that round for the goal: a subagent the round then
+  // launches would lose its owner on a rebuild, and its result would not count.
+  it("keeps a subagent launched after a notification that rode with a resumed round the goal's across a rebuild", async () => {
+    const cwd = tempDir('cwd')
+    const hung = gate()
+    const heldA = gate()
+    const port = goalPort({ defaults: { budget: { tokens: 4_000 } } })
+    const host = recordingSubagentPort()
+    const { model, calls } = routedModel(async (call) => {
+      if (call.userText.includes('TASK-A')) return heldA.wait(reply('REPORT-A'))
+      if (call.userText.includes('TASK-B')) return reply('REPORT-B', 5_000, 0)
+      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls', 10, 0)]
+      // The resumed round's request ends with its round prompt and the notification that rode with it.
+      if (trailingUserTexts(call).some((text) => text.startsWith('<goal_round>') && text.includes('Round: 2/')))
+        return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
+      // Round 2 goes on after B's launch; the app closes here, B's result not delivered.
+      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b')
+        return hung.wait(reply('never'))
+      return reply('Waiting.', 10, 0)
+    })
+    const live = await openGoalSession(model, port, { cwd, subagents: host.port })
+    await promptIdle(live.session, '/goal Check A, then B')
+    await promptIdle(live.session, '/goal pause')
+    // The user's stop of A is quiet: it waits for the next run's start, here the resumed round.
+    expect(live.stopSubagent(host.subagents[0].sessionId)).toBe(true)
+    heldA.open()
+    await waitFor(() =>
+      subagentStates(live.host.entries).some((state) => state.stoppedBy === 'user' && state.status === 'finished')
+    )
+    void live.session.prompt('/goal resume')
+    await waitFor(() =>
+      subagentStates(live.host.entries).some(
+        (state) => state.status === 'finished' && state.run === 1 && state.description === 'Check B'
+      )
+    )
+    const resumed = calls.find((call) => call.lastText.startsWith(NOTE) && call.userText.includes('Round: 2/'))!
+    expect(trailingUserTexts(resumed)).toEqual([
+      expect.stringContaining('<goal_round>'),
+      expect.stringMatching(/^Background subagent update/)
+    ])
+    const transcript = plain(live.host.entries)
+    await live.dispose()
+    hung.open()
+
+    const { session: s, host: store } = await openGoalSession(model, port, { cwd, subagents: host.port, transcript })
+    await promptIdle(s, 'Where were we?')
+    expect(trailingUserTexts(calls.at(-1)!)).toEqual(['Where were we?', expect.stringContaining('REPORT-B')])
+    // Rounds 1 and 2 (three requests of 12 tokens) and B's request (5000 + 2 cached).
+    await s.prompt('/goal')
+    expect(notices(store.entries).at(-1)).toContain('Rounds: 2/100 · Tokens: 5038 ·')
+    const sent = calls.length
+    await promptIdle(s, '/goal resume')
+    expect(notices(store.entries).at(-1)).toBe('raise max_goal_rounds or the budget before resuming')
+    expect(calls).toHaveLength(sent)
+  })
+
   /**
    * A two-round goal whose round 1 starts subagent A by the call `call_a`; A's own call `call_a` is
    * denied, by an event that names its session when `named`. Resolves with the goal's last stop.
