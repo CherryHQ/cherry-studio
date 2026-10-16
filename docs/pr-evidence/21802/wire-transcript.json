@@ -1,0 +1,45 @@
+{
+  "packageRoot": "/Volumes/cherrydev/development/cherry-studio/worktrees/issue-21802/packages/web-search",
+  "distEntries": [
+    "dist/index.mjs",
+    "dist/providers/tavily.mjs"
+  ],
+  "requests": [
+    {
+      "method": "POST",
+      "url": "/search",
+      "headers": {
+        "host": "127.0.0.1:61624",
+        "connection": "keep-alive",
+        "content-type": "application/json",
+        "authorization": "Bearer probe-dummy-key",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "user-agent": "node",
+        "accept-encoding": "gzip, deflate",
+        "content-length": "41"
+      },
+      "rawBody": "{\"query\":\"Cherry Studio\",\"max_results\":5}"
+    }
+  ],
+  "resultSet": {
+    "providerId": "tavily",
+    "capability": "searchKeywords",
+    "input": "Cherry Studio",
+    "results": [
+      {
+        "title": "Tavily Title",
+        "content": "Tavily Content",
+        "url": "https://tavily.example/result",
+        "sourceInput": "Cherry Studio"
+      }
+    ]
+  },
+  "rejectedSearchWithoutMaxResults": {
+    "name": "WebSearchError",
+    "kind": "configuration",
+    "code": "invalid_max_results",
+    "message": "Invalid web search configuration"
+  }
+}
