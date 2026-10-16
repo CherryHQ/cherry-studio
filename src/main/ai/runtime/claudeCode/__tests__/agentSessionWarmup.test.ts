@@ -124,7 +124,6 @@ const {
 } = await import('../agentSessionWarmup')
 const { setSessionEffectivePermissionMode, clearSessionEffectivePermissionMode } =
   await import('@main/ai/agentSession/sessionPermissionOverrides')
-const { ApiGatewayNotRunningError } = await import('../../agentApiGateway')
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
   const preferred =
