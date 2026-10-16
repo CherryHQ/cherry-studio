@@ -1,0 +1,103 @@
+$ pnpm rebuild:node
+$ node scripts/invalidate-electron-rebuild-metadata.js && pnpm rebuild better-sqlite3
+✓ Lockfile passes supply-chain policies (verified 2d ago)
+Already up to date
+.../node_modules/better-sqlite3 install$ prebuild-install || node-gyp rebuild --release
+.../node_modules/better-sqlite3 install: (node:83176) [DEP0176] DeprecationWarning: fs.R_OK is deprecated, use fs.constants.R_OK instead
+.../node_modules/better-sqlite3 install: (Use `node --trace-deprecation ...` to show where the warning was created)
+.../node_modules/better-sqlite3 install: Done
+Done in 633ms using pnpm v12.6.0
+$ vitest run --project main --reporter=verbose src/main/ai/voice/localAdapters/__tests__/funasr.test.ts
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (electron.vite.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/build-theme-css.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/releaseNotes.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/vitePlugin.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/piVccBundle.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/checkChunkExports.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/claudeCodeBinaryManifest.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/types/appEdition.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/sentry.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/theme-contract.ts:12:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/scan.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/transform.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/semanticId.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/redaction.ts:4:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(node:83210) Warning: Accessing non-existent property 'replaceRouteChunk' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/about.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-about.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/conversation-entry.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/-conversation-entry.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/search.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-search.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/skills.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-skills.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+
+ RUN  v5.0.1 /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src
+
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > reports a resource download failure without exposing transport or filesystem details 2ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > decodes WebM, transcribes private WAV scratch, and returns timed segments 2ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > transcribes WAV with a 16-byte fmt unchanged and reports the data duration 6ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > transcribes WAV with a 18-byte fmt unchanged and reports the data duration 4ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with truncated header before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with 17-byte fmt chunk before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with 20-byte fmt chunk before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with 40-byte fmt chunk before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with 18-byte fmt chunk with nonzero extension size before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with wrong RIFF size before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with missing data chunk before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with empty data chunk before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects a WAV with odd data chunk size before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects stereo PCM WAV before creating scratch 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects WAV input over 32 MiB before inference 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects unsupported media types even when the bytes are a valid WAV 1ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects non-byte audio before creating scratch 1ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > rejects an explicit language because FunASR only supports automatic detection 1ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > normalizes worker failures without exposing audio or private paths 3ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > normalizes protocol failures as worker crashes without exposing native details 1ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > maps model initialization failures to a stable non-sensitive reason 1ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > maps an inference deadline to the stable timeout reason 53ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > maps local model status not_downloaded into Voice status 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > maps local model status downloading into Voice status 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > maps local model status ready into Voice status 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > maps local model status error into Voice status 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > maps local model status unsupported into Voice status 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > does not start decoding until the model is ready 0ms
+ ✓ |main| src/main/ai/voice/localAdapters/__tests__/funasr.test.ts > FunASR local adapter > forwards caller cancellation and removes scratch 53ms
+
+ Test Files  1 passed (1)
+      Tests  29 passed (29)
+   Start at  12:29:48
+   Duration  439ms (transform 34%, tests 34%, import 31%, setup 1%, worker 1%)
+
