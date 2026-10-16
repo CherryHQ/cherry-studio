@@ -75,11 +75,12 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   const [provider, apiKeysRes, modelRecord] = await Promise.all([
     dataApiService.get(`/providers/${providerId}`) as Promise<Provider | undefined>,
     dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
-    // Model metadata only tunes optional fields (endpoint pick, context window),
-    // so a fetch failure degrades the config quietly — leave a breadcrumb.
-    dataApiService.get(`/models/${args.modelId}`).catch((error) => {
-      logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
-      return null
+    // The model record carries its per-model key binding, so it is required for credential
+    // selection: a failed read must abort rather than look like an unset binding and silently
+    // pick the first enabled key (wrong account / quota).
+    dataApiService.get(`/models/${args.modelId}`).catch((error: unknown) => {
+      logger.error(`Failed to load model record for ${args.modelId}`, error as Error)
+      throw new Error(`Failed to load model ${args.modelId} for credential selection`, { cause: error })
     })
   ])
   if (!provider) {

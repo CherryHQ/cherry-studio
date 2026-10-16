@@ -110,6 +110,20 @@ describe('per-model API key binding in direct CLI config', () => {
     expect(writtenKey(await draftWith([keyA, { ...keyB, isEnabled: false }], 'kb'))).toBe('sk-first')
     expect(writtenKey(await draftWith([keyA, keyB], 'gone'))).toBe('sk-first')
   })
+
+  it('aborts instead of picking the first enabled key when the model read fails', async () => {
+    mockGet({
+      '/providers/deepseek/api-keys': () => ({ keys: [keyA, keyB] }),
+      '/providers/deepseek': () => chatProvider,
+      '/models/': () => {
+        throw new Error('ipc down')
+      }
+    })
+
+    await expect(
+      readCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat', configBlob: {} })
+    ).rejects.toThrow('Failed to load model deepseek::deepseek-chat for credential selection')
+  })
 })
 
 describe('formatCliConfigDraftFile', () => {
