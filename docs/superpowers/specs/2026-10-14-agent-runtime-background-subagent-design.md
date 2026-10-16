@@ -373,15 +373,15 @@ Background subagent update (automatic message, not from the user):
 
 ### 7.5 静默项
 
-用户停止的运行只是让父代理"知道一下"，不值得为它开一轮。静默项留在队列里，随下一条通知（7.3/7.4）或下一个用户回合一起送达；送进用户回合时由父会话的 `before_agent_start` 返回为 `message`，排在用户消息之后。不用 `deliverAs: 'nextTurn'`：它只随真正的 `session.prompt()` 送出，命令（如 `/goal resume`）开出的轮不带它，消息会滞留在 Pi 的队列里（实施计划探针 c）。在用户回合真正开始之前，这些项留在包的队列里，也会在下一个 settle 并入。
+用户停止的运行只是让父代理"知道一下"，不值得为它开一轮。静默项留在队列里，随下一个运行的开头一起送达（用户回合、命令如 `/goal resume` 开出的轮、通知轮），由父会话的 `before_agent_start` 返回为 `message`，排在开出这一轮的消息之后；某次 settle 并入会唤醒的项时，静默项也一起并入。settle 时只有静默项不并入。（Pi 1.2.0 起 `before_agent_start` 对每个运行都触发，见 18 节第 20 条。）
 
 ### 7.6 中止后的抑制期
 
-父代理一轮被用户中止后，到下一个人类回合开始之前不自动开轮。两种中止都算：`session.abort()`（`agent_settled { aborted: true }`），以及宿主经自己的请求 signal 中止（`agent_before_settle` 的 `outcome: 'aborted'`，`agent_settled` 报 `aborted: false`，见 L5 的 I1）。用户按停止往往是想插话，立刻开一轮会和用户抢。期间结束的子代理照常进队列，随用户下一条消息一起送达（父会话 `before_agent_start` 返回的 `message`，见 7.5），之后恢复自动开轮。goal 为撤回过期轮而中止运行（L5 spec 6.3）不是用户停止：goal 在中止前经包内的 goal 链接告诉投递，这次 `aborted` 的 settle 不进入抑制期，照常投递。用户的停止由宿主经 `AgentRuntimeSession.abort()` 发出（13 节第 1 条）：它在 Pi 的事件总线上告诉 goal、经子代理控制告诉投递"这是用户停的"，所以即使落在撤回的那次运行里，也照样进入抑制期，已武装的 goal 记 `paused / aborted`。宿主经请求 signal 的中止不需要另外标记：它中止的是一次请求，而撤回的轮不发请求。
+父代理一轮被用户中止后，到下一个运行开始之前（用户下一条消息，或用户敲的命令）不自动开轮。两种中止都算：`session.abort()`（`agent_settled { aborted: true }`），以及宿主经自己的请求 signal 中止（`agent_before_settle` 的 `outcome: 'aborted'`，`agent_settled` 报 `aborted: false`，见 L5 的 I1）。用户按停止往往是想插话，立刻开一轮会和用户抢。期间结束的子代理照常进队列，随下一个运行的开头一起送达（父会话 `before_agent_start` 返回的 `message`，见 7.5），之后恢复自动开轮。goal 为撤回过期轮而中止运行（L5 spec 6.3）不是用户停止：goal 在中止前经包内的 goal 链接告诉投递，这次 `aborted` 的 settle 不进入抑制期，照常投递。用户的停止由宿主经 `AgentRuntimeSession.abort()` 发出（13 节第 1 条）：它在 Pi 的事件总线上告诉 goal、经子代理控制告诉投递"这是用户停的"，所以即使落在撤回的那次运行里，也照样进入抑制期，已武装的 goal 记 `paused / aborted`。宿主经请求 signal 的中止不需要另外标记：它中止的是一次请求，而撤回的轮不发请求。
 
 ### 7.7 重建后的未送达通知
 
-父会话重建（含重启）时，未送达的结束项，以及被打断的运行（作为 outcome 为 `interrupted`、用量为 0 的条目），恢复进队列，但**不自动开轮**，而是合成一条 `cherry.subagent-notification` 随用户下一条消息送达（7.5 的方式）。用通知而不是状态消息，是因为通知的 `(sessionId, run)` 去重键能保证每一项只说一次；状态消息每次重建都会再说一遍。Claude Code 在 2.1.280 明确改成"恢复会话时不再自行开回合"。
+父会话重建（含重启）时，未送达的结束项，以及被打断的运行（作为 outcome 为 `interrupted`、用量为 0 的条目），恢复进队列，但**不自动开轮**，而是合成一条 `cherry.subagent-notification` 随下一个运行的开头送达（7.5 的方式）。用通知而不是状态消息，是因为通知的 `(sessionId, run)` 去重键能保证每一项只说一次；状态消息每次重建都会再说一遍。Claude Code 在 2.1.280 明确改成"恢复会话时不再自行开回合"。
 
 ## 8. 续接与持久化
 
@@ -602,3 +602,8 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 2026-10-16，按第四轮修复的复审修订：
 
 19. 7.6、13：用户的停止改为显式的 `AgentRuntimeSession.abort()`，不再只靠推断。它把这次中止标为用户的：落在 goal 撤回过期轮的那次运行里时，原来被当成撤回（goal 接着开新轮，投递不进入抑制期），现在照样暂停已武装的 goal、进入抑制期；运行时自己的中止仍走撤回信号。宿主的请求 signal 中止不受影响（撤回的轮不发请求）。
+
+2026-10-15，升级 Pi 1.2.0（L7）后修订：
+
+20. 7.5、7.6、7.7：Pi 1.2.0 起 `before_agent_start` 对自定义消息开出的运行（命令、通知轮、goal 轮）也触发，`messageType` 为 `custom`。决定接受这一行为：每个运行的开头都带走队列里的全部项并结束抑制期；第 11 条作废，settle 时只在有会唤醒的项时并入。17 节的 Pi 1.1.0 事实中，`prompt()` 准备期误报空闲的窗口在 1.2.0 缩小为命令与 `input` 处理器阶段，`settle` 派发期间推迟 `prompt()` 不变。
+21. 11.3、11.4：Pi 1.2.0 下 `/goal resume` 开出的轮也带着排队的结果开头，branch 上是"goal 轮消息 → 通知 → 这一轮派出的后台子代理"。随轮开头送达的通知属于这一轮，不结束它，所以这一轮派出的运行仍归 goal，重建后照样计入（由 15、17 条的同一个计入函数保证，按 PR #21743 评审补测试：resume → 派出 → 重建 → 送达）。
