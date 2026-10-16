@@ -28,7 +28,6 @@ vi.mock('node:child_process', async () => {
   }
 })
 
-import { relativeInputSeekMs, videoTailProbePoint, videoTailReadInterval } from '../probeClassification'
 import {
   FRAME_SIMILARITY_MAD_THRESHOLD,
   meanAbsoluteDifference,
@@ -40,6 +39,7 @@ import {
   selectDistinctFrameIndexes
 } from '../frameSelection'
 import { readFrameSignature } from '../frameSignature'
+import { relativeInputSeekMs, videoTailProbePoint, videoTailReadInterval } from '../probeClassification'
 import {
   applyMediaFfmpegInitData,
   disposeMediaChildren,
