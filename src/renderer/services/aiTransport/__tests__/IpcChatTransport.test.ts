@@ -1,6 +1,7 @@
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -221,6 +222,48 @@ describe('IpcChatTransport', () => {
     mock.emitError(topicId, 'Something went wrong')
 
     await expect(reader.read()).rejects.toThrow('Something went wrong')
+  })
+
+  it.each(['live', 'reconnect'] as const)('uses a localized fallback for empty %s errors', async (mode) => {
+    const previousLanguage = i18n.language
+    await i18n.changeLanguage('zh-CN')
+    try {
+      const error: SerializedError = { name: 'Error', message: '', stack: null }
+      mock.mockApi.streamAttach.mockResolvedValue({ status: 'error', error })
+      const stream =
+        mode === 'live'
+          ? await transport.sendMessages(baseOptions)
+          : await transport.reconnectToStream({ chatId: topicId })
+      const reader = stream!.getReader()
+      if (mode === 'live') mock.emitError(topicId, '')
+
+      await expect(reader.read()).rejects.toThrow('未知错误')
+    } finally {
+      await i18n.changeLanguage(previousLanguage)
+    }
+  })
+
+  it.each(['live', 'reconnect'] as const)('preserves safe provider detail in %s errors', async (mode) => {
+    const error: SerializedError = {
+      name: 'AI_APICallError',
+      message: '',
+      stack: null,
+      statusCode: 400,
+      responseBody: JSON.stringify({ error: { message: 'Model unavailable; Bearer provider-secret' } })
+    }
+    mock.mockApi.streamAttach.mockResolvedValue({ status: 'error', error })
+    const stream =
+      mode === 'live'
+        ? await transport.sendMessages(baseOptions)
+        : await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    if (mode === 'live') mock.listeners.error[0]({ topicId, error })
+
+    const failure = await reader.read().catch((reason: Error) => reason)
+    expect(failure).toBeInstanceOf(Error)
+    if (!(failure instanceof Error)) throw new Error('Expected a stream failure')
+    expect(failure.message).toContain('Model unavailable')
+    expect(failure.message).not.toContain('provider-secret')
   })
 
   it('closes the stream when dispatch is blocked', async () => {
