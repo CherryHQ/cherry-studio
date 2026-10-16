@@ -1009,6 +1009,41 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    // The recipients a replaced turn stashed were owed THIS work's delivery. When the work drains
+    // without a wake the connection stays warm, so a later unrelated wake must not inherit the stale
+    // stash and post its own output to the previous run's external chats.
+    it('retires stashed wake recipients when detached work drains without a wake', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.finalizeHeldTopicStream.mockClear()
+      mocks.clearPendingChannelListeners.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(mocks.clearPendingChannelListeners).toHaveBeenCalledWith('agent-session:session-1')
+      void service.closeSession('session-1')
+    })
+
+    // While a turn is still settling the wake can still come, so the drain edge swallowed by the
+    // busy guard must leave the stash alone.
+    it('keeps stashed wake recipients while the drain edge lands inside a settling turn', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = warmConnection()
+      mocks.clearPendingChannelListeners.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(mocks.clearPendingChannelListeners).not.toHaveBeenCalled()
+      void service.closeSession('session-1')
+    })
+
     it('leaves the held topic stream to a still-settling turn instead of finalizing it early', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -3436,6 +3471,32 @@ describe('AgentSessionRuntimeService', () => {
         currentTurn: 'interactive'
       })
       expect(service.getMcpInteractionHost('session-1', 'agent-a')).toMatchObject({ windowId: 'window-1' })
+    })
+
+    // A CLI crash after SubagentStart but before SubagentStop leaves the child bound while a later
+    // desktop turn reuses the entry and reconnects with no surviving child: an unprovenanced root
+    // MCP call must not hit the headless denial (and its consent-host suppression) there. Bindings
+    // are connection-owned — they still survive ordinary turns on the same live connection.
+    it('clears connection-owned native child bindings during the guarded teardown', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const entry = getEntry(service)
+      const connection = warmConnection()
+      entry.connection = connection
+      service.bindNativeChildOrigin('session-1', 'agent-crashed')
+      service.markTurnTerminal('session-1', 'success')
+
+      // The crash detaches the connection; the guarded teardown runs for it.
+      ;(service as any).resetConnectionRuntimeState(entry, connection)
+
+      // The desktop follow-up reuses the entry; its unprovenanced calls resolve by the live session.
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      expect(service.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
     })
 
     it('carries spawning-turn provenance through nested children that never reach the task panel', async () => {

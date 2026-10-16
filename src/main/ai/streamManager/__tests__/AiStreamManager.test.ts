@@ -784,6 +784,64 @@ describe('AiStreamManager', () => {
     expect(mgr.inspect(topicId)?.listenerIds).not.toContain('channel:ch1:chat-1:unthreaded')
   })
 
+  // A desktop submission that lands through the ordinary dispatch replacement (context/dispatch →
+  // send()) after foreground settlement evicts the held scheduled fire. Its recipients are still
+  // owed the background work's result, so this boundary must stash them too — at base the later
+  // wake found nothing and the subscribed chats never received the child's output.
+  it('stashes a held stream’s channel recipients when an ordinary send() replaces it', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // The fire's own turn settles into the chaining hold — its background child is still running.
+    mockWillContinueTopic.mockReturnValueOnce(true)
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    // The desktop follow-up replaces the held stream through send() — the boundary dispatch uses.
+    mgr.send({
+      topicId,
+      models: [{ modelId: 'provider-a::model-a', request: req(topicId) }],
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // The background work's wake is the only route its result has to the subscribed chat.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Child result: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+    expect(sent).toEqual(['Child result: 42'])
+  })
+
   // ── send (inject path) ─────────────────────────────────────────────
 
   describe('send (inject)', () => {
