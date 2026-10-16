@@ -152,13 +152,25 @@ function loadState(scopeKey: string): FollowupQueueState {
  * which is exactly when pending sends die too. */
 const liveSends = new Set<string>()
 
-type ScopeListener = () => void
+/**
+ * `sync`: the persisted entry changed — reload it. `reconcile`: a send claim held by an
+ * instance that is no longer the scope's active owner (unmounted / switched away) released
+ * without dequeuing, so the active owner must reconcile any completion edge it deferred.
+ */
+type ScopeEvent = 'sync' | 'reconcile'
+type ScopeListener = (event: ScopeEvent) => void
 const scopeListeners = new Map<string, Set<ScopeListener>>()
 
-function notifyScope(scopeKey: string): void {
+function notifyScope(scopeKey: string, event: ScopeEvent = 'sync'): void {
   const listeners = scopeListeners.get(scopeKey)
   if (!listeners) return
-  for (const listener of [...listeners]) listener()
+  for (const listener of [...listeners]) listener(event)
+}
+
+/** Whether a send claim that is live somewhere in this page currently blocks the scope. */
+function hasLiveClaim(scopeKey: string): boolean {
+  const marker = loadState(scopeKey).pendingDrainId ?? null
+  return marker !== null && liveSends.has(marker)
 }
 
 function subscribeScope(scopeKey: string, listener: ScopeListener): () => void {
@@ -583,8 +595,27 @@ export function useFollowupQueue({
     if (entry.pendingDrainId && !liveSends.has(entry.pendingDrainId)) {
       clearPendingInScope(scopeKey, entry.pendingDrainId)
     }
-    return subscribeScope(scopeKey, () => {
-      if (mountedRef.current) syncFromEntry()
+    return subscribeScope(scopeKey, (event) => {
+      if (!mountedRef.current) return
+      syncFromEntry()
+      if (event !== 'reconcile') return
+      // A failed send released by a former owner left its item queued: drain the
+      // completion edge this instance deferred while that claim was live.
+      if (
+        scopeKeyRef.current !== scopeKey ||
+        !isFulfilledRef.current ||
+        stateRef.current.paused ||
+        failedItemIdRef.current ||
+        drainingIdRef.current !== null ||
+        hasLiveClaim(scopeKey)
+      ) {
+        return
+      }
+      const head = stateRef.current.items[0]
+      if (head && !inflightRef.current.has(head.id)) {
+        markSeenRef.current()
+        drainHeadRef.current(head)
+      }
     })
   }, [scopeKey, syncFromEntry])
 
@@ -628,7 +659,13 @@ export function useFollowupQueue({
     setFailedItemId(next.failedItemId ?? null)
     // If the restored queue is non-empty and completion is already fulfilled, re-arm
     // draining immediately — the isFulfilled effect won't re-fire since its dep hasn't changed.
-    if (next.items.length > 0 && !next.paused && !next.failedItemId && isFulfilledRef.current) {
+    if (
+      next.items.length > 0 &&
+      !next.paused &&
+      !next.failedItemId &&
+      isFulfilledRef.current &&
+      !hasLiveClaim(scopeKey)
+    ) {
       markSeenRef.current()
       // Defer to next tick so state has committed before drainHead checks drainingIdRef.
       // Re-read head inside the microtask so a rapid second scope switch does not
@@ -752,7 +789,7 @@ export function useFollowupQueue({
       setState(next)
       if (!nextPaused && isFulfilledRef.current && !failedItemIdRef.current && drainingIdRef.current === null) {
         const head = next.items[0]
-        if (head && !inflightRef.current.has(head.id)) {
+        if (head && !inflightRef.current.has(head.id) && !hasLiveClaim(scopeKeyRef.current)) {
           markSeenRef.current()
           drainHead(head)
         }
@@ -768,6 +805,10 @@ export function useFollowupQueue({
     if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current || drainingIdRef.current !== null) return
     const head = stateRef.current.items[0]
     if (!head || inflightRef.current.has(head.id)) return
+    // Another instance's live send (e.g. a manual steer started before a remount) blocks
+    // the head: leave the completion unacknowledged so the claim's release can still
+    // reconcile it, instead of consuming the edge on a drain that cannot start.
+    if (hasLiveClaim(scopeKeyRef.current)) return
     markSeen()
     drainHead(head)
   }, [isFulfilled, markSeen, drainHead])
@@ -825,6 +866,16 @@ export function useFollowupQueue({
       // changes no effect dependency — so reconcile that outstanding completion here.
       // A successful steer already dequeued its item and opened a new turn, so it
       // must not drain the next head into that turn.
+      if (
+        claimScope !== undefined &&
+        (!mountedRef.current || claimScope !== scopeKeyRef.current) &&
+        loadState(claimScope).items.some((item) => item.id === id)
+      ) {
+        // This instance is no longer the scope's owner (remounted / switched away):
+        // hand the outstanding completion to whichever instance now owns the scope.
+        notifyScope(claimScope, 'reconcile')
+        return
+      }
       if (
         mountedRef.current &&
         claimScope === scopeKeyRef.current &&

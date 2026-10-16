@@ -436,6 +436,59 @@ describe('useFollowupQueue', () => {
     expect(result.current.items.map((i) => i.id)).toEqual(['h1'])
   })
 
+  it('a failed manual steer released after a remount hands its completion to the new instance', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const first = renderHook(() => useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen, onDrain }))
+    act(() => {
+      expect(first.result.current.tryClaimSend('h2')).toBe(true)
+    })
+    const staleController = first.result.current
+    first.unmount()
+
+    // The composer remounts while the steer is pending and the current turn completes.
+    const second = renderHook(() => useFollowupQueue({ scopeKey: 's1', isFulfilled: true, markSeen, onDrain }))
+    await act(async () => {})
+    // The live claim blocks the head, so the completion stays unacknowledged.
+    expect(markSeen).not.toHaveBeenCalled()
+    expect(onDrain).not.toHaveBeenCalled()
+
+    // The steer resolves as not sent: the old instance releases its claim with h2 still queued.
+    await act(async () => {
+      staleController.releaseSend('h2')
+    })
+
+    expect(markSeen).toHaveBeenCalledTimes(1)
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(onDrain).toHaveBeenCalledWith(payload('first'))
+    expect(second.result.current.items.map((i) => i.id)).toEqual(['h2'])
+    expect(second.result.current.failedItemId).toBeNull()
+  })
+
+  it('a successful manual steer released after a remount does not drain the next item', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const first = renderHook(() => useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen, onDrain }))
+    act(() => {
+      expect(first.result.current.tryClaimSend('h2')).toBe(true)
+    })
+    const staleController = first.result.current
+    first.unmount()
+
+    const second = renderHook(() => useFollowupQueue({ scopeKey: 's1', isFulfilled: true, markSeen, onDrain }))
+    await act(async () => {
+      staleController.removeId('h2')
+      staleController.releaseSend('h2')
+    })
+
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(second.result.current.items.map((i) => i.id)).toEqual(['h1'])
+  })
+
   it('clear during an in-flight drain drops the resolution instead of resurrecting failure state', async () => {
     let resolveDrain!: (sent: boolean) => void
     const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
