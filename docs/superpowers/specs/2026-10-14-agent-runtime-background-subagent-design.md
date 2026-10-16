@@ -454,12 +454,12 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 ### 11.3 通知轮的身份
 
-通知开出的轮（自动开轮或 settle 时并入的续跑）既不是人类回合，也不是 goal 轮：不计入 goal 轮数，不重置人类回合相关的计数，模型在这一轮里不能新建、修改、暂停或恢复 goal（L5 已有规则：这些动作只在人类回合）。L5 只给 goal 轮记用量；本文新增一条：goal 激活且已武装时，通知轮里父代理自己的用量也计入预算，因为这一轮是在为 goal 处理子代理的结果。
+通知开出的轮（自动开轮或 settle 时并入的续跑）既不是人类回合，也不是 goal 轮：不计入 goal 轮数，不重置人类回合相关的计数，模型在这一轮里不能新建、修改、暂停或恢复 goal（L5 已有规则：这些动作只在人类回合）。随某次运行的开头一起送达的通知（随用户消息、随 goal 轮）属于那一回合，不另开通知轮。L5 只给 goal 轮记用量；本文新增一条：goal 激活且已武装时，通知轮里父代理自己的用量也计入预算，因为这一轮是在为 goal 处理子代理的结果。是否武装从 branch 上的快照读出（L5 spec §5.1、§11），与 goal 轮一样由 L5 spec §6.1 的同一个函数从 branch 算出，live 与重建一致。
 
 ### 11.4 用量与预算
 
-- goal 轮里派出的后台子代理，其每次运行的用量随通知 `details.subagents[].usage` 在送达时计入该 goal（续接运行同样计入）。goal 记下自己的轮里派出的 `sessionId`。送达时 goal 没在跑（未武装，例如重建后用户的下一条消息带着它；或已暂停、已停下）也照样计入：用量从 branch 算出（L5 spec §6.1），`/goal resume` 的余量判断和重建都看得到。
-- 预算用完、goal 进入收尾或停止时：拒绝新的后台派出（`subagent` 返回 `The goal's budget is used up; background subagents cannot be started.`），并停掉这些 goal 派出的、正在跑的后台子代理（`stoppedBy: 'budget'`）。
+- goal 轮里开出的后台运行（派出、转后台、`message_subagent` 续接）属于该 goal，按 `(sessionId, run)` 记；别的回合续接出的运行不属于它。这样一次运行的用量在结果送到模型时计入一次：通知的 `details.subagents[].usage`，或模型 `stop_subagent` 结果的 `details.usage`；同一次运行被几个结果带到（例如重叠的两次 `stop_subagent` 拿到同一个结果）也只算一次。送达时 goal 没在跑（未武装，例如重建后用户的下一条消息带着它；或已暂停、已停下）也照样计入：用量从 branch 算出（L5 spec §6.1），`/goal resume` 的余量判断和重建都看得到。
+- 预算用完、goal 进入收尾或停止时：拒绝新的后台派出（`subagent` 返回 `The goal's budget is used up; background subagents cannot be started.`），并停掉当前运行属于该 goal、正在跑的后台子代理（`stoppedBy: 'budget'`）。
 - goal 与子代理表在同一个包里，goal 通过包内接口（不对外导出）查询运行中的后台子代理、停止它们。
 
 ### 11.5 审批事件归属
@@ -588,3 +588,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 12. 9：用户停止的运行在收尾期间又被 `stop_subagent` 或预算停止时，停止来源仍记为用户，运行结束后不能续接。2026-10-16 补："模型已用 `stop_subagent` 拿到结果"另记为 `modelStopped`（4.2、5.3），不论谁先停，这次运行都不再通知、重建时也不再送达，goal 只计一次用量。
 13. 4.3：重建时未送达的结果按 `(sessionId, run)` 逐次运行恢复，不再只看每个子代理的最后一条快照。
 14. 11.4：goal 没在跑时送达的子代理用量同样计入，`/goal resume` 的余量判断和重建都看得到（用量从 branch 算出，不另写快照）。
+
+2026-10-16，按 PR #21693 第二轮评审修订：
+
+15. 11.3、11.4：goal 的用量改由 L5 spec §6.1 的同一个函数从 branch 算出（不再有内存里的累计和"送达时补写快照"），等待后台子代理期间关机、重建后不丢用量。运行按 `(sessionId, run)` 归属和计数：goal 轮里开出的那次运行才属于 goal，每次运行的用量只计一次，重叠的两次 `stop_subagent` 不再重复计费。随运行开头送达的通知属于那一回合。
