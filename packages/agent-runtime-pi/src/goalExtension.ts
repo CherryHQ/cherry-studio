@@ -160,6 +160,8 @@ interface Runtime {
   /** The turn(s) since the last admitted round belong to a goal round. */
   inGoalRound: boolean
   reservation: RoundDetails | undefined
+  /** A reserved round was withdrawn before its request: the goal changed while the settle finished. */
+  withdrawn: boolean
   noProgressRounds: number
   /** The previous round's last text-bearing reply, normalized (spec §6.1). */
   previousText: string | undefined
@@ -204,6 +206,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       unsaved: false,
       inGoalRound: false,
       reservation: undefined,
+      withdrawn: false,
       noProgressRounds: 0,
       previousText: undefined,
       round: { toolProgress: false, text: undefined },
@@ -550,8 +553,17 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       if (runtime.goal?.phase !== 'active' || !runtime.goal.armed || !ctx.isIdle()) return
       pi.sendMessage(roundMessage(runtime.goal, reserve(runtime.goal)), { triggerTurn: true })
     }
-    /** Spec §6.3: a reserved round counts once Pi sends its message on. */
-    const admit = (details: RoundDetails | undefined) => {
+    /** The goal is still the one the round was reserved for, with room for it. */
+    const stillReserved = (goal: GoalSnapshot, reserved: RoundDetails) =>
+      goal.id === reserved.goalId &&
+      goal.revision === reserved.revision &&
+      goal.phase === 'active' &&
+      goal.armed &&
+      reserved.round === goal.roundsStarted + 1 &&
+      reserved.round <= goal.maxGoalRounds &&
+      (reserved.kind === 'wrap-up' || !budgetExceeded(goal, usage()))
+    /** Spec §6.3: a reserved round counts once Pi sends its message on, if it is still valid then. */
+    const admit = (details: RoundDetails | undefined, ctx: ExtensionContext) => {
       const reserved = runtime.reservation
       if (!runtime.goal || !reserved || !details) return
       if (
@@ -561,6 +573,12 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       )
         return
       runtime.reservation = undefined
+      // A command changed the goal while a later settle handler ran: the round must not reach the model.
+      if (!stillReserved(runtime.goal, reserved)) {
+        runtime.withdrawn = true
+        ctx.abort()
+        return
+      }
       runtime.inGoalRound = true
       runtime.roundAdmitted = true
       runtime.round = { toolProgress: false, text: undefined }
@@ -632,13 +650,13 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     }
 
     // A round the settle committed is on the branch when its run starts; Pi emits no message_end for it.
-    pi.on('turn_start', (_event, ctx) => admit(tailRound(ctx.sessionManager.getBranch())))
-    pi.on('message_end', (event) => {
+    pi.on('turn_start', (_event, ctx) => admit(tailRound(ctx.sessionManager.getBranch()), ctx))
+    pi.on('message_end', (event, ctx) => {
       const { message } = event
       if (message.role === 'user') startHumanTurn()
       // A round a command sent: its message_end comes after turn_start, before Pi persists it.
       else if (message.role === 'custom' && message.customType === GOAL_ROUND_TYPE)
-        admit(message.details as RoundDetails)
+        admit(message.details as RoundDetails, ctx)
     })
 
     pi.on('tool_call', (event) => {
@@ -691,12 +709,22 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       return result
     })
 
-    pi.on('agent_settled', (event) => {
+    pi.on('agent_settled', (event, ctx) => {
       const rejected = runtime.reservation !== undefined
+      const { withdrawn } = runtime
       runtime.reservation = undefined
+      runtime.withdrawn = false
       runtime.inGoalRound = false
       const goal = runtime.goal
       if (goal?.phase !== 'active') return
+      if (withdrawn) {
+        // Our own abort, before the withdrawn round's request: go on as the goal is now (spec §6.3).
+        if (!goal.armed) return
+        if (goal.wrapUpDone || goal.roundsStarted >= goal.maxGoalRounds)
+          stop(goal.roundsStarted >= goal.maxGoalRounds ? 'round_limit' : 'budget_exhausted')
+        else startRound(ctx)
+        return
+      }
       // Pi skips agent_before_settle after session.abort(); the abort surfaces only here. An unarmed
       // goal is not running, so aborting an unrelated turn leaves it alone.
       if (event.aborted) {

@@ -62,6 +62,39 @@ describe('goal caps and budgets', () => {
     })
   })
 
+  // Breaks when an admission compares the round only with its own reservation: a cap lowered while a
+  // later extension's settle handler still runs would let the reserved round reach the model.
+  it('a round reserved before the cap is lowered during a later settle handler never reaches the model', async () => {
+    let started!: () => void
+    const awaiting = new Promise<void>((resolve) => (started = resolve))
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    const slowSettle: ExtensionFactory = (pi) => {
+      let settles = 0
+      pi.on('agent_before_settle', async () => {
+        if (settles++ > 0) return undefined
+        started()
+        await gate
+        return undefined
+      })
+    }
+    const { session: s, host, calls } = await goalSession([working], goalPort(), { laterExtensions: [slowSettle] })
+    const run = promptIdle(s, '/goal Keep working')
+    await awaiting
+    expect(rounds(host.entries).map((round) => round.round)).toEqual([1])
+    await s.prompt('/goal rounds 1')
+    release()
+    await run
+
+    expect(calls).toHaveLength(1)
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'blocked',
+      roundsStarted: 1,
+      maxGoalRounds: 1,
+      lastStop: { code: 'round_limit' }
+    })
+  })
+
   it('after round_limit, resume is refused until the cap is raised, then one more round runs', async () => {
     const { session: s, host } = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 1 } }))
     await promptIdle(s, '/goal Keep working')

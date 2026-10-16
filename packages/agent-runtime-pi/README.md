@@ -232,7 +232,10 @@ handles.
   plus the `usage` a tool result reports when the request that made its call counted (a foreground
   subagent still running under `/goal pause` counts when it returns). Snapshots record that usage
   when written (`tokensUsed`, `costUsed`) for display only, and a stop's snapshot the progress up to
-  the stop. A round prompt Pi committed but never sent on (another extension vetoed the
+  the stop. A round reserved at a settle is checked again when it starts: if a command changed the
+  goal meanwhile (a later extension's settle handler was still running), the round is withdrawn
+  before its request, and the goal goes on as it now is (a new round, or the stop its new limits
+  call for). A round prompt Pi committed but never sent on (another extension vetoed the
   continuation, or the run was aborted at the settle) stays in the transcript and is left out of
   later model requests and of the verifier's conversation; the compaction summarizer still reads it.
   `update_goal(complete)` passes the host's `GoalVerifier` (it
