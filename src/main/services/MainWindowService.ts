@@ -713,11 +713,9 @@ export class MainWindowService extends BaseService {
       const isShowTray = preferenceService.get('app.tray.enabled')
       const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
-      // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
-      if (!isShowTray || (isShowTray && !isTrayOnClose)) {
-        // 如果是Windows或Linux，直接退出
-        // mac按照系统默认行为，不退出
-        if (isWin || isLinux) {
+      // Windows或Linux未开启托盘、设置了直接关闭或托盘不可用时，直接退出
+      if (isWin || isLinux) {
+        if (!isShowTray || (isShowTray && !isTrayOnClose) || application.get('TrayService').isActivated !== true) {
           return application.quit()
         }
       }
