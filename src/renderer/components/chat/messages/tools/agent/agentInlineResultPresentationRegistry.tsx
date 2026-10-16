@@ -7,6 +7,8 @@ import { getCreateAgentResult, isCreateAgentResultPart } from './createAgentResu
 import { CreateAgentToolInline } from './CreateAgentTool'
 import { getPrepareDiagnosticReportResult, isPrepareDiagnosticReportResultPart } from './prepareDiagnosticReportResult'
 import { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
+import { getScheduledTaskResult, isScheduledTaskResultPart } from './scheduledTaskResult'
+import { ScheduledTaskToolInline } from './ScheduledTaskTool'
 
 interface AgentInlineResultPresentation {
   readonly isResultPart: (part: CherryMessagePart) => boolean
@@ -26,6 +28,13 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
     renderResult: (toolResponse) => {
       const result = getCreateAgentResult(toolResponse)
       return result ? <CreateAgentToolInline result={result} /> : undefined
+    }
+  },
+  {
+    isResultPart: isScheduledTaskResultPart,
+    renderResult: (toolResponse) => {
+      const result = getScheduledTaskResult(toolResponse)
+      return result ? <ScheduledTaskToolInline result={result} /> : undefined
     }
   }
 ] satisfies readonly AgentInlineResultPresentation[]

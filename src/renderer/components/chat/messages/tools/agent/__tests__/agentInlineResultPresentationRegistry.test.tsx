@@ -26,6 +26,17 @@ const inlineResultParts = [
     state: 'output-available',
     input: {},
     output: { ok: true, description: 'Editable diagnostic report draft' }
+  },
+  {
+    type: 'dynamic-tool',
+    toolCallId: 'create-task',
+    toolName: 'mcp__cherry-tools__cron',
+    state: 'output-available',
+    input: { action: 'add', name: 'Gold price', message: 'Check the gold price', cron: '0 21 * * *' },
+    output: {
+      content: `Job created:\n${JSON.stringify({ id: 'task-1', name: 'Gold price' })}`,
+      metadata: { type: 'mcp', name: 'cron', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+    }
   }
 ] as CherryMessagePart[]
 
