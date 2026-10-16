@@ -79,6 +79,14 @@ function appendBounded(current: string, chunk: string): { value: string; truncat
 
 const MAX_PTS_LINE_CHARS = 64
 
+/** First field of an ffprobe `csv=p=0` packet row. An empty side-data column leaves a trailing comma. */
+export function packetPtsSeconds(line: string): number | undefined {
+  const field = line.split(',')[0]?.trim() ?? ''
+  if (field === '') return undefined
+  const pts = Number(field)
+  return Number.isFinite(pts) ? pts : undefined
+}
+
 /** Tracks the greatest complete `pts_time` line. A partial line is capped; the rest is discarded. */
 function createPacketPtsTracker(): {
   push: (chunk: string) => void
@@ -88,9 +96,8 @@ function createPacketPtsTracker(): {
   let partial = ''
   let overflow = false
   const consider = (line: string) => {
-    if (line.trim() === '') return
-    const pts = Number(line)
-    if (Number.isFinite(pts) && pts > max) max = pts
+    const pts = packetPtsSeconds(line)
+    if (pts != null && pts > max) max = pts
   }
   return {
     push(chunk: string) {
