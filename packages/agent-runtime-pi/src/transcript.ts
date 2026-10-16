@@ -27,6 +27,8 @@ export interface TranscriptUsage {
   cacheRead: number
   cacheWrite: number
   reasoning?: number
+  /** USD the reply cost at the price it was made with (Pi's `usage.cost.total`); absent counts as 0. */
+  cost?: number
 }
 
 /** Context message an extension added (Pi `custom_message`), e.g. a goal-round prompt. */
