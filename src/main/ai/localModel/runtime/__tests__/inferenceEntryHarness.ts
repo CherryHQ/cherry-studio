@@ -56,6 +56,9 @@ export async function loadInferenceEntries(initData: InferenceInitData): Promise
   const context = <Event>(emit: (event: Event) => void = () => {}) => ({
     signal: new AbortController().signal,
     emit,
+    callHost: async () => {
+      throw new Error('Inference entries do not have host capabilities')
+    },
     logger
   })
 

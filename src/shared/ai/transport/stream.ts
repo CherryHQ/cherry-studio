@@ -147,6 +147,8 @@ type AiStreamRegenerateTarget =
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
+  /** Submitted Agent user row that owns this execution, including queued follow-ups. */
+  userMessageId?: string
   executionId?: UniqueModelId
   attemptId?: number
   /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
@@ -159,6 +161,8 @@ export interface StreamDonePayload {
 /** Stream error. */
 export interface StreamErrorPayload {
   topicId: string
+  /** Submitted Agent user row that owns this execution, including queued follow-ups. */
+  userMessageId?: string
   /** Multi-model: which model's execution errored. */
   executionId?: UniqueModelId
   attemptId?: number

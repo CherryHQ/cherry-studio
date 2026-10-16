@@ -21,7 +21,14 @@
 
 import { useCallback, useRef, useState } from 'react'
 
-import { type ParamsOption, useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
+import {
+  type ParamsOption,
+  useInvalidateCache,
+  useMutation,
+  useReadCache,
+  useWriteCache,
+  useWriteInfiniteCache
+} from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
@@ -31,6 +38,7 @@ import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_
 const logger = loggerService.withContext('useReorder')
 
 type ItemList = Array<Record<string, unknown>>
+export type ReorderRequest = OrderRequest | ({ anchor: OrderRequest } & Record<string, unknown>)
 
 /**
  * Extract the item list from a collection cache value.
@@ -70,7 +78,26 @@ function defaultUpdateItems(cache: unknown, items: ItemList): unknown {
   return items
 }
 
+function selectInfiniteItems(cache: unknown): ItemList | undefined {
+  if (!Array.isArray(cache)) return undefined
+  const lists = cache.map(defaultSelectItems)
+  return lists.every((items) => items !== undefined) ? lists.flat() : undefined
+}
+
+function updateInfiniteItems(cache: unknown, items: ItemList): unknown {
+  let offset = 0
+  return (cache as Array<{ items: ItemList }>).map((page) => {
+    const nextItems = items.slice(offset, offset + page.items.length)
+    offset += page.items.length
+    return { ...page, items: nextItems }
+  })
+}
+
 export interface UseReorderOptions {
+  /** Query parameters of the collection cache to update. */
+  query?: Record<string, unknown>
+  /** Target a useInfiniteQuery collection with the same page limit. */
+  infinite?: { limit: number }
   /**
    * Revalidate the collection key after a successful server write.
    * Defaults to `true`. Failure always revalidates regardless of this flag.
@@ -92,13 +119,14 @@ export interface UseReorderOptions {
   /**
    * Custom optimistic reducer. Defaults to {@link reorderLocally}.
    * Receives the current items, the moving id, the anchor, and the resolved
-   * `idKey`; must return a new array — inputs must not be mutated.
+   * `idKey`, and full request; must return a new array — inputs must not be mutated.
    */
   computeOptimistic?: <T extends Record<string, unknown>>(
     current: T[],
     id: string,
     anchor: OrderRequest,
-    idKey: string
+    idKey: string,
+    request: ReorderRequest
   ) => T[]
   /**
    * Escape hatch: extract the items list from the collection cache value.
@@ -120,8 +148,8 @@ export interface UseReorderOptions {
 }
 
 export interface UseReorderResult {
-  /** Move a single item to a new slot described by `anchor`. */
-  move: (id: string, anchor: OrderRequest) => Promise<void>
+  /** Move an item using an anchor or an extended body containing `anchor`. */
+  move: (id: string, request: ReorderRequest) => Promise<void>
   /**
    * Drop-in callback for dnd libraries: accepts the fully reordered list and
    * internally diffs it against the cached collection, dispatching either a
@@ -218,8 +246,8 @@ export function useReorder(
   if (hasSelect !== hasUpdate) {
     throw new Error('useReorder: options.selectItems and options.updateItems must be provided together')
   }
-  const selectItems = options?.selectItems ?? defaultSelectItems
-  const updateItems = options?.updateItems ?? defaultUpdateItems
+  const selectItems = options?.selectItems ?? (options?.infinite ? selectInfiniteItems : defaultSelectItems)
+  const updateItems = options?.updateItems ?? (options?.infinite ? updateInfiniteItems : defaultUpdateItems)
 
   const readCache = useReadCache()
   const writeCache = useWriteCache()
@@ -241,6 +269,22 @@ export function useReorder(
     throw new Error('useReorder: collection params must not use the reserved item parameter "id"')
   }
   const resolvedCollectionUrl = resolveTemplate(collectionUrl, mutationParams) as ConcreteApiPaths
+  const query = options?.query
+  const infinite = options?.infinite
+  const writeInfiniteCache = useWriteInfiniteCache(
+    resolvedCollectionUrl as never,
+    {
+      query,
+      limit: infinite?.limit
+    } as never
+  )
+  const writeCurrent = useCallback(
+    async (value: unknown) => {
+      if (infinite) await writeInfiniteCache(value as never)
+      else await writeCache(resolvedCollectionUrl, value, query)
+    },
+    [infinite, writeInfiniteCache, writeCache, resolvedCollectionUrl, query]
+  )
 
   // Template path `${collectionUrl}/:id/order` is not yet registered in
   // ApiSchemas for arbitrary resources, so we widen via `TemplateApiPaths`.
@@ -264,8 +308,8 @@ export function useReorder(
    * caller distinguishes this from an unrecognized shape.
    */
   const readCurrent = useCallback(
-    (): unknown => readCache<unknown>(resolvedCollectionUrl),
-    [readCache, resolvedCollectionUrl]
+    (): unknown => readCache<unknown>(resolvedCollectionUrl, query, infinite),
+    [readCache, resolvedCollectionUrl, query, infinite]
   )
 
   const warnUnrecognizedShape = useCallback(
@@ -281,24 +325,25 @@ export function useReorder(
   )
 
   const move = useCallback(
-    async (id: string, anchor: OrderRequest) => {
+    async (id: string, request: ReorderRequest) => {
       const current = readCurrent()
       if (current === undefined) {
         logger.warn(`move called before data loaded at ${String(collectionUrl)}; ignored`)
         return
       }
 
-      setIsPending(true)
+      const anchor = 'anchor' in request ? request.anchor : request
       const items = selectItems(current)
       const optimistic =
-        items !== undefined ? updateItems(current, computeOptimistic(items, id, anchor, idKey)) : undefined
+        items !== undefined ? updateItems(current, computeOptimistic(items, id, anchor, idKey, request)) : undefined
       if (items === undefined) warnUnrecognizedShape('move')
 
+      setIsPending(true)
       try {
         if (optimistic !== undefined) {
-          await writeCache(resolvedCollectionUrl, optimistic)
+          await writeCurrent(optimistic)
         }
-        await patchOrder({ params: { ...mutationParams, id }, body: anchor })
+        await patchOrder({ params: { ...mutationParams, id }, body: request })
       } catch (err) {
         logger.warn(`move failed for ${String(collectionUrl)} id=${id}, rolling back`, { error: err })
         // Rollback regardless of `revalidateOnSuccess` — the optimistic
@@ -315,7 +360,7 @@ export function useReorder(
       updateItems,
       computeOptimistic,
       idKey,
-      writeCache,
+      writeCurrent,
       invalidateCache,
       collectionUrl,
       mutationParams,
@@ -332,12 +377,12 @@ export function useReorder(
       setIsPending(true)
       let next = items
       for (const m of moves) {
-        next = computeOptimistic(next, m.id, m.anchor, idKey)
+        next = computeOptimistic(next, m.id, m.anchor, idKey, m.anchor)
       }
       const optimistic = updateItems(current, next)
 
       try {
-        await writeCache(resolvedCollectionUrl, optimistic)
+        await writeCurrent(optimistic)
         await patchBatch({ params: mutationParams, body: { moves } } as Parameters<typeof patchBatch>[0])
       } catch (err) {
         logger.warn(`batch reorder failed for ${String(collectionUrl)}, rolling back`, { error: err })
@@ -351,7 +396,7 @@ export function useReorder(
       updateItems,
       computeOptimistic,
       idKey,
-      writeCache,
+      writeCurrent,
       invalidateCache,
       collectionUrl,
       mutationParams,

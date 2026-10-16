@@ -45,6 +45,7 @@ vi.mock('@main/services/RegionService', () => ({
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
 import { Crawl4AIProvider } from '../api/Crawl4AIProvider'
+import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { FirecrawlProvider } from '../api/FirecrawlProvider'
@@ -1059,7 +1060,7 @@ describe('main web search API providers', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('filters empty fetched content from Searxng results', async () => {
+  it('falls back to the Searxng snippet when the result page yields no readable content', async () => {
     fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
     fetchRemoteTextMock.mockResolvedValueOnce('<html><body><div></div></body></html>')
 
@@ -1080,8 +1081,132 @@ describe('main web search API providers', () => {
       providerId: 'searxng',
       capability: 'searchKeywords',
       inputs: ['hello'],
-      results: []
+      results: [
+        {
+          title: 'Searxng Title',
+          content: 'Searxng Content',
+          url: 'https://searx.example/result',
+          sourceInput: 'hello'
+        }
+      ]
     })
+  })
+
+  it('falls back to the Searxng snippet when the result page cannot be fetched', async () => {
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Searxng Title',
+        content: 'Searxng Content',
+        url: 'https://searx.example/result',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
+  it.each(['', '   '])('falls back to the Searxng snippet when the content field is %j', async (content) => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'Searxng Title',
+            content,
+            snippet: 'Searxng Snippet',
+            url: 'https://searx.example/result'
+          }
+        ]
+      })
+    )
+    fetchRemoteTextMock.mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Searxng Title',
+        content: 'Searxng Snippet',
+        url: 'https://searx.example/result',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
+  it('keeps fetched pages and snippet fallbacks in search-result order', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        results: [
+          { title: 'Invalid result', content: 'Invalid summary', url: 'not a url' },
+          { title: 'First result', content: 'First summary', url: 'https://searx.example/first' },
+          { title: 'Second result', snippet: 'Second summary', url: 'https://searx.example/second' }
+        ]
+      })
+    )
+    fetchRemoteTextMock
+      .mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+      .mockRejectedValueOnce(new Error('HTTP error: 403'))
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({ id: 'searxng', apiHost: 'https://searx.example', engines: ['google'] })
+    )
+
+    const result = await provider.searchKeywords('hello', { ...runtimeConfig, maxResults: 2 })
+
+    expect(result.results).toEqual([
+      {
+        title: 'Resolved Page Title',
+        content: 'Resolved content from the target page.',
+        url: 'https://searx.example/first',
+        sourceInput: 'hello'
+      },
+      {
+        title: 'Second result',
+        content: 'Second summary',
+        url: 'https://searx.example/second',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
+  it('drops Searxng hits with neither readable page content nor a summary', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({ results: [{ url: 'https://searx.example/empty', content: '   ', snippet: '' }] })
+    )
+    fetchRemoteTextMock.mockResolvedValueOnce('<html><body><div></div></body></html>')
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({ id: 'searxng', apiHost: 'https://searx.example', engines: ['google'] })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([])
   })
 
   it('warns when every Searxng result URL fails validation', async () => {
@@ -1223,6 +1348,7 @@ describe('main web search API providers', () => {
           },
           {
             title: 'Second result',
+            snippet: 'A summary must not override caller cancellation',
             url: 'https://searx.example/second'
           }
         ]
@@ -2233,6 +2359,206 @@ describe('main web search API providers', () => {
       await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
         'Firecrawl scrape returned empty content for https://example.com/article'
       )
+    })
+  })
+
+  describe('DuckduckgoProvider', () => {
+    it('decodes redirect URLs, skips ads and non-http links, and fetches content per result', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(fetchMock.mock.calls[0][0]).toBe('https://html.duckduckgo.com/html/?q=hello')
+      expect(fetchRemoteTextMock.mock.calls.map(([url]) => url)).toEqual([
+        'https://example.com/hello',
+        'https://example.org/direct'
+      ])
+      expect(result.providerId).toBe('duckduckgo')
+      expect(result.capability).toBe('searchKeywords')
+      expect(result.results).toEqual([
+        {
+          title: 'Resolved Page Title',
+          url: 'https://example.com/hello',
+          content: 'Resolved content from the target page.',
+          sourceInput: 'hello'
+        },
+        {
+          title: 'Resolved Page Title',
+          url: 'https://example.org/direct',
+          content: 'Resolved content from the target page.',
+          sourceInput: 'hello'
+        }
+      ])
+    })
+
+    it('percent-decodes redirect targets exactly once', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Ffile%2520name&amp;rut=r1">Encoded Target</a></h2></div>`,
+          'text/html'
+        )
+      )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results[0].url).toBe('https://example.com/file%20name')
+    })
+
+    it('throws when the search page is a bot-detection challenge instead of returning empty results', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          '<div class="anomaly-modal">Unusual traffic detected</div><form id="challenge-form" action="/anomaly.js"></form>',
+          'text/html',
+          200
+        )
+      )
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(/bot-detection challenge/)
+      expect(fetchRemoteTextMock).not.toHaveBeenCalled()
+    })
+
+    it('treats a 202 response as a bot-detection challenge even without anomaly markers', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse('', 'text/html', 202))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(/bot-detection challenge/)
+      expect(fetchRemoteTextMock).not.toHaveBeenCalled()
+    })
+
+    it('returns empty results for a legitimate no-hit search instead of throwing', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse('<html><body>No results.</body></html>', 'text/html', 200))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('asdfqwerty', runtimeConfig)
+
+      expect(result.results).toEqual([])
+      expect(mocks.loggerWarn).toHaveBeenCalled()
+    })
+
+    it('decodes redirect targets with uppercase schemes', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="//duckduckgo.com/l/?uddg=HTTP%3A%2F%2Fexample.com%2Fupper&amp;rut=r1">Uppercase Scheme</a></h2></div>`,
+          'text/html'
+        )
+      )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results[0].url).toBe('HTTP://example.com/upper')
+    })
+
+    it('does not mistake results mentioning the anomaly markers for a challenge page', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="https://example.org/anomaly-modal">Anomaly modal docs</a></h2></div>`,
+          'text/html'
+        )
+      )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('anomaly modal', runtimeConfig)
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0].url).toBe('https://example.org/anomaly-modal')
+    })
+
+    it('caps parsed results at the configured max results', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', { ...runtimeConfig, maxResults: 1 })
+
+      expect(fetchRemoteTextMock).toHaveBeenCalledOnce()
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0].url).toBe('https://example.com/hello')
+    })
+
+    it('keeps successful content fetches when some result pages fail', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
+      fetchRemoteTextMock
+        .mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+        .mockRejectedValueOnce(new Error('connection reset'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0].url).toBe('https://example.com/hello')
+      expect(mocks.loggerWarn).toHaveBeenCalledWith(
+        'Some Duckduckgo content fetches failed',
+        expect.objectContaining({ failedCount: 1, totalCount: 2 })
+      )
+    })
+
+    it('throws when the search page request fails', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse('challenge page', 'text/html', 403))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
+        'Duckduckgo search failed: HTTP 403 challenge page'
+      )
+    })
+
+    it('throws when every result content fetch fails', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
+      fetchRemoteTextMock.mockRejectedValue(new Error('connection reset'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow('connection reset')
     })
   })
 })

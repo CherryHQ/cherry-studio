@@ -6,7 +6,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
-  WINDOWS_TTS_MODEL_ID
+  QWEN3_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -166,27 +166,25 @@ describe('VoiceService state ownership', () => {
     })
   })
 
-  it('preserves an explicit voice without imposing the interface language', async () => {
-    request.mockResolvedValue({
-      modelId: WINDOWS_TTS_MODEL_ID,
-      voice: 'chinese',
-      language: 'zh-CN',
-      speed: 1,
-      status: { status: 'ready' }
-    })
-    const service = new VoiceService({
-      ipc: { request, on },
-      ownerWindow,
-      readSpeechPreferences: async () => ({ modelId: WINDOWS_TTS_MODEL_ID, voice: 'chinese', language: '', speed: 1 })
-    })
-    await expect(service.resolveSpeechPreferences()).resolves.toMatchObject({ voice: 'chinese', language: 'zh-CN' })
-    expect(request).toHaveBeenCalledWith('ai.voice.speech.resolve', {
-      modelId: WINDOWS_TTS_MODEL_ID,
-      voice: 'chinese',
-      language: undefined,
-      speed: 1
-    })
-  })
+  it.each([
+    [APPLE_TTS_MODEL_ID, 'japanese', 'ja-JP'],
+    [QWEN3_TTS_MODEL_ID, 'vivian', 'zh-CN']
+  ] as const)(
+    'resolves follow-interface independently of the selected %s voice',
+    async (modelId, voice, initialLanguage) => {
+      let language: string = initialLanguage
+      const service = new VoiceService({
+        ipc: { request, on },
+        ownerWindow,
+        readSpeechPreferences: async () => ({ modelId, voice, language, speed: 1 })
+      })
+      expect(await service.readSpeechPreferenceInput()).toEqual({ modelId, voice, language: initialLanguage, speed: 1 })
+      language = ''
+      expect(await service.readSpeechPreferenceInput()).toEqual({ modelId, voice, language: 'en-US', speed: 1 })
+      await i18n.changeLanguage('de-DE')
+      expect(await service.readSpeechPreferenceInput()).toEqual({ modelId, voice, language: 'de-DE', speed: 1 })
+    }
+  )
 
   it('surfaces missing resources before opening the microphone', async () => {
     request.mockResolvedValue({
