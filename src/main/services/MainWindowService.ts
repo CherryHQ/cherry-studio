@@ -11,7 +11,7 @@ import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
-import { getLinuxTitleBarOverlay, syncLinuxTitleBarOverlayWithTheme } from '@main/core/window/linuxTitleBarOverlay'
+import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
@@ -263,9 +263,9 @@ export class MainWindowService extends BaseService {
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
         ...(isLinux && { icon: linuxIcon }),
-        ...(this.usesLinuxTitleBarOverlay() && {
+        ...(this.usesTitleBarOverlay() && {
           titleBarStyle: 'hidden',
-          titleBarOverlay: getLinuxTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
+          titleBarOverlay: getTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
         }),
         ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
         ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
@@ -276,9 +276,9 @@ export class MainWindowService extends BaseService {
     })
   }
 
-  /** Linux draws window controls via WCO unless the user opted into the system title bar. */
-  private usesLinuxTitleBarOverlay(): boolean {
-    return isLinux && !application.get('PreferenceService').get('app.use_system_title_bar')
+  /** Windows uses WCO; Linux can opt into the system title bar instead. */
+  private usesTitleBarOverlay(): boolean {
+    return isWin || (isLinux && !application.get('PreferenceService').get('app.use_system_title_bar'))
   }
 
   private setupMainWindow(mainWindow: BrowserWindow) {
@@ -288,7 +288,7 @@ export class MainWindowService extends BaseService {
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
     // Runs inside openMainWindow's open() call, so it sees the same preference value.
-    if (this.usesLinuxTitleBarOverlay()) syncLinuxTitleBarOverlayWithTheme(mainWindow)
+    if (this.usesTitleBarOverlay()) syncTitleBarOverlayWithTheme(mainWindow)
 
     this.setupWebviewSecurityProfiles(mainWindow)
     this.setupWindowEvents(mainWindow)
@@ -713,11 +713,9 @@ export class MainWindowService extends BaseService {
       const isShowTray = preferenceService.get('app.tray.enabled')
       const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
-      // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
-      if (!isShowTray || (isShowTray && !isTrayOnClose)) {
-        // 如果是Windows或Linux，直接退出
-        // mac按照系统默认行为，不退出
-        if (isWin || isLinux) {
+      // Windows或Linux未开启托盘、设置了直接关闭或托盘不可用时，直接退出
+      if (isWin || isLinux) {
+        if (!isShowTray || (isShowTray && !isTrayOnClose) || application.get('TrayService').isActivated !== true) {
           return application.quit()
         }
       }

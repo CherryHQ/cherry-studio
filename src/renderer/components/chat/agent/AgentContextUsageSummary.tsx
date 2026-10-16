@@ -44,7 +44,7 @@ export function AgentContextUsageSummary({
   modelName,
   showCategories = true
 }: AgentContextUsageSummaryProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const data =
     usage && percentage !== null
       ? {
@@ -77,7 +77,7 @@ export function AgentContextUsageSummary({
                   {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
                 </span>
                 <span className="shrink-0 text-muted-foreground">
-                  {category.tokens.toLocaleString()} ({share}%)
+                  {category.tokens.toLocaleString(i18n.resolvedLanguage)} ({share}%)
                 </span>
               </div>
             )

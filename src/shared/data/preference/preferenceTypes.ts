@@ -262,6 +262,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'crawl4ai',
   'parallel',
   'serply',
+  'duckduckgo',
   'serpkite'
 ] as const
 

@@ -11,9 +11,9 @@ export const testProjects = [
   'provider-registry',
   'scripts',
   'ai-sdk-provider',
-  'dsh-bridge',
   'remote-protocol',
-  'remote-transport'
+  'remote-transport',
+  'system-speech'
 ]
 
 export const checkTasks = {
@@ -29,6 +29,7 @@ export const checkTasks = {
   'types-e2e': { group: 'types', args: ['typecheck:e2e'] },
   'types-remote-protocol': { group: 'types', args: ['--filter', '@cherrystudio/remote-protocol', 'typecheck'] },
   'types-remote-transport': { group: 'types', args: ['--filter', '@cherrystudio/remote-transport', 'typecheck'] },
+  'types-system-speech': { group: 'types', args: ['--filter', '@cherrystudio/system-speech', 'typecheck'] },
   'types-file-preview': { group: 'types', args: ['--filter', '@cherrystudio/file-preview', 'typecheck'] },
   'i18n-catalog': { group: 'i18n', args: ['i18n:check'] },
   'i18n-unused': { group: 'i18n', args: ['i18n:unused:check'] },
@@ -45,9 +46,9 @@ const consumers = {
   'file-preview': ['file-preview', 'renderer'],
   'provider-registry': ['provider-registry', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'extension-table-plus': ['renderer'],
-  'dsh-bridge': ['dsh-bridge', 'main', 'preload'],
   'remote-protocol': ['remote-protocol', 'remote-transport', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'remote-transport': ['remote-transport', 'main', 'preload', 'renderer'],
+  'system-speech': ['system-speech', 'main', 'preload'],
   scripts: ['scripts']
 }
 
@@ -127,9 +128,15 @@ export function createPlan(files, fullReason) {
     if (affected.includes('aiCore')) add('types-aicore', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
+    if (affected.includes('system-speech')) add('types-system-speech', file)
     if (affected.includes('file-preview')) add('types-file-preview', file)
     if (scope === 'main' || scope === 'shared') add('migrations', file)
-    for (const task of ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']) add(task, file)
+    const inTestDirectory = file.split('/').includes('__tests__')
+    const testFile = inTestDirectory || /\.(?:test|spec)\.tsx?$/.test(file)
+    if (!testFile || (file.startsWith('src/main/') && !inTestDirectory)) add('i18n-catalog', file)
+    // Renderer unused-key analysis still reads tests, including those under src/main.
+    add('i18n-unused', file)
+    if (!inTestDirectory && !/\.test\.tsx?$/.test(file)) add('i18n-hardcoded', file)
   }
   return {
     tasks: Object.keys(checkTasks).filter((task) => reasons[task]),
