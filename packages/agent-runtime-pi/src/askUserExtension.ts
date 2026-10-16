@@ -96,9 +96,11 @@ function answeredText(
   response: Extract<AskUserResponse, { status: 'answered' }>
 ) {
   const lines = questions.map(({ question }) => {
-    const answer = response.answers[question]
+    // Own keys only: a question may be named like an Object.prototype member ("constructor").
+    const answer = Object.hasOwn(response.answers, question) ? response.answers[question] : undefined
     if (answer === undefined) return `"${question}" = (not answered)`
-    const notes = response.annotations?.[question]?.notes?.trim()
+    const { annotations } = response
+    const notes = annotations && Object.hasOwn(annotations, question) ? annotations[question]?.notes?.trim() : undefined
     return `"${question}" = "${answer}"${notes ? ` (user notes: ${notes})` : ''}`
   })
   return ['The user answered your questions:', ...lines, "Continue with the user's answers in mind."].join('\n')
