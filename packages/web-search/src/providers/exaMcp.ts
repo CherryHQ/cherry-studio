@@ -127,7 +127,9 @@ export const exaMcp: WebSearchProviderModule = {
     const { texts, empty } = readTexts(context, response.bodyText)
     if (call.capability === 'searchKeywords') {
       const results = searchResults(texts.join('\n\n'), call.input).slice(0, call.config.maxResults)
-      if (!results.length && !empty)
+      const noSearchResults =
+        texts.length > 0 && texts.every((text) => text === 'No search results found. Please try a different query.')
+      if (!results.length && !empty && !noSearchResults)
         throw invalidResponse(context, 'mcp_invalid_response', 'Exa MCP returned no recognizable search results')
       return results
     }

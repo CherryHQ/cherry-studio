@@ -264,6 +264,38 @@ describe('Exa MCP content contracts', () => {
       code: 'mcp_invalid_response'
     })
   })
+
+  it.each(['exa-mcp-zero-results-response.json', 'exa-mcp-zero-results-response.txt'])(
+    'accepts successful zero search hits from %s without treating them as page content',
+    async (name) => {
+      const { client } = setup(exaMcp, fixture(name))
+      expect((await client.execute(search('exa-mcp'))).results).toEqual([])
+      await expect(
+        client.execute({ providerId: 'exa-mcp', capability: 'fetchUrls', input: 'https://example.com', config: {} })
+      ).rejects.toMatchObject({ kind: 'invalid_response', code: 'empty_content' })
+    }
+  )
+
+  it('rejects unrecognized successful MCP search text', async () => {
+    const { client } = setup(
+      exaMcp,
+      JSON.stringify({ result: { content: [{ type: 'text', text: 'Unexpected search response' }] } })
+    )
+    await expect(client.execute(search('exa-mcp'))).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'mcp_invalid_response'
+    })
+  })
+
+  it('preserves MCP tool failures even when their text matches the zero-hit response', async () => {
+    const response = JSON.parse(fixture('exa-mcp-zero-results-response.json'))
+    response.result.isError = true
+    const { client } = setup(exaMcp, JSON.stringify(response))
+    await expect(client.execute(search('exa-mcp'))).rejects.toMatchObject({
+      kind: 'provider',
+      code: 'provider_error'
+    })
+  })
 })
 
 describe('failure and capability contracts', () => {

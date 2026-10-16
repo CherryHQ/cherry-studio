@@ -70,9 +70,10 @@ raw responses, headers, and credentials. Cancellations retain the `AbortError` n
 retain `TimeoutError`. Application-facing messages and retry decisions remain host-owned.
 
 The MCP module supports finite JSON/SSE responses and existing Exa search Text/Highlights and
-page text formats. Explicit successful `result.content: []` means zero search hits; blank or
-unrecognized responses are errors, and empty page content is always an error. It does not manage
-MCP connections, sessions, or streaming subscriptions.
+page text formats. Successful `result.content: []` or the upstream message
+`No search results found. Please try a different query.` means zero search hits. Blank or unrecognized responses are errors,
+and empty page content is always an error. It does not manage MCP connections, sessions, or
+streaming subscriptions.
 
 ## Distribution and development
 
