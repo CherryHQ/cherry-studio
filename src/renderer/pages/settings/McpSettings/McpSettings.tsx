@@ -526,14 +526,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   if (server.isActive) {
     tabs.push({
-      key: 'instructions',
-      label: t('settings.mcp.instructions.title'),
-      children:
-        activeTab === 'instructions' ? (
-          <McpInstructions key={server.id} serverId={server.id} connectionState={runtimeStatus.state} />
-        ) : null
-    })
-    tabs.push({
       key: 'tools',
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
@@ -580,6 +572,15 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         )
       }
     )
+
+    tabs.push({
+      key: 'instructions',
+      label: t('settings.mcp.instructions.title'),
+      children:
+        activeTab === 'instructions' ? (
+          <McpInstructions key={server.id} serverId={server.id} connectionState={runtimeStatus.state} />
+        ) : null
+    })
   }
 
   tabs.push({

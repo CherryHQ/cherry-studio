@@ -4676,7 +4676,7 @@
   "settings.mcp.install": "安装",
   "settings.mcp.instructions.empty": "当前连接未提供指令。",
   "settings.mcp.instructions.source": "由 {{name}} 提供。这些说明不会授予权限或激活技能。",
-  "settings.mcp.instructions.title": "Server 指令",
+  "settings.mcp.instructions.title": "服务器指令",
   "settings.mcp.instructions.truncated": "指令超出长度限制，仅将当前显示的片段发送给模型。",
   "settings.mcp.interaction.elicitation.description": "MCP 服务器请求补充输入。",
   "settings.mcp.interaction.elicitation.title": "MCP 服务器请求输入",
