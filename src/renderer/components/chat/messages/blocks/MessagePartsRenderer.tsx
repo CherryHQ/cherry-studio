@@ -241,23 +241,33 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
 
 // Must agree with what the hoisting container actually renders, or a dropped entry
 // leaves no attachment at all.
-function isHoistableFilePart(part: CherryMessagePart): boolean {
-  return isImageFilePart(part) && !!extractImageUrl(part)
+function isHoistableFilePart(part: CherryMessagePart, hoistNonImageFiles: boolean): boolean {
+  if ((part.type as string) !== 'file') return false
+  if (isImageFilePart(part)) return !!extractImageUrl(part)
+  return hoistNonImageFiles && !!fileHandleFromPart(part)
 }
 
 /** Attachments a hoisting container renders in place of the inline file blocks. */
-export function getHoistedAttachments(parts: readonly CherryMessagePart[]) {
+export function getHoistedAttachments(
+  parts: readonly CherryMessagePart[],
+  messageId: string,
+  hoistNonImageFiles = false
+) {
   const images: MessageImageSource[] = []
+  const files: HoistedFileAttachment[] = []
 
-  parts.forEach((part) => {
-    if ((part.type as string) !== 'file') return
+  parts.forEach((part, index) => {
+    if (!isHoistableFilePart(part, hoistNonImageFiles)) return
     if (isImageFilePart(part)) {
       const source = toImageSource(part)
       if (source) images.push(source)
+      return
     }
+    const attachment = toFileAttachment(part, `${messageId}-part-${index}`)
+    if (attachment) files.push(attachment)
   })
 
-  return { images, files: [] as HoistedFileAttachment[] }
+  return { images, files }
 }
 
 /** Get video filePath from a data-video part. */
@@ -476,13 +486,14 @@ function getDisplayProjection(
   entries: readonly PartEntry[],
   message: MessageListItem,
   visibleComposerFileTokens: readonly VisibleComposerFileToken[],
-  hoistAttachments: boolean
+  hoistAttachments: boolean,
+  hoistNonImageFiles: boolean
 ): {
   entries: PartEntry[]
   hiddenImageTokens: ReadonlySet<ComposerMessageToken>
   associatedReadOnlyFilePreviews: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
 } {
-  const isHoistedEntry = (entry: PartEntry) => hoistAttachments && isHoistableFilePart(entry.part)
+  const isHoistedEntry = (entry: PartEntry) => hoistAttachments && isHoistableFilePart(entry.part, hoistNonImageFiles)
 
   if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
     return {
@@ -550,9 +561,12 @@ function getDisplayProjection(
     }
 
     const matchedToken = visibleComposerFileTokens[matchIndex]
+    const hoisted = isHoistedEntry(entry)
     const mappedPreview =
-      matchedToken.sourceId && !isImageFilePart(entry.part) ? readOnlyFileTokenPreviewFromPart(entry.part) : undefined
-    const imageKeepsOwnControl = isHoistedEntry(entry) || (isImageFilePart(entry.part) && !!extractImageUrl(entry.part))
+      !hoisted && matchedToken.sourceId && !isImageFilePart(entry.part)
+        ? readOnlyFileTokenPreviewFromPart(entry.part)
+        : undefined
+    const imageKeepsOwnControl = hoisted || (isImageFilePart(entry.part) && !!extractImageUrl(entry.part))
     // A filename hit with no token key must not drop the only remaining control.
     if (!mappedPreview && !imageKeepsOwnControl) {
       if (!isHoistedEntry(entry)) displayEntries.push(entry)
@@ -1548,7 +1562,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   priorCitationParts
 }: MessagePartsRendererContentProps) {
   const { subagentListTitle } = useMessageRenderConfig()
-  const { openAgentToolFlow, isAgentToolFlowActive, previewInputFile } = useMessageListActions()
+  const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
+  const hoistNonImageFiles = !!hoistAttachments && !previewInputFile && !!(previewFile || openFile)
   const { t } = useTranslation()
   const subscribeDisclosures = React.useCallback(
     (listener: () => void) => subscribeCachedMessageUiState(message.id, listener),
@@ -1634,8 +1649,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [expandedTextPartIds, message, messageParts]
   )
   const displayProjection = useMemo(
-    () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistAttachments),
-    [hoistAttachments, message, partEntries, visibleComposerFileTokens]
+    () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistAttachments, hoistNonImageFiles),
+    [hoistAttachments, hoistNonImageFiles, message, partEntries, visibleComposerFileTokens]
   )
   const nextReadOnlyFilePreviews = useMemo(() => {
     const associated = displayProjection.associatedReadOnlyFilePreviews

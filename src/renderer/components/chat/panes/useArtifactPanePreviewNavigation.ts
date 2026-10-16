@@ -28,6 +28,9 @@ interface UseArtifactPanePreviewNavigationOptions {
   /** Shared with other file navigations so a newer artifact or attachment wins. */
   selectionGenerationRef?: SelectionGeneration
   scopeKey?: string
+  /** Committed workspace. Return history clears only when this or `scopeKey` changes. */
+  acceptedWorkspacePath?: string
+  /** Incoming workspace. Changes invalidate in-flight metadata and do not clear return history. */
   workspacePath?: string
 }
 
@@ -53,6 +56,7 @@ export function useArtifactPanePreviewNavigation({
   paneId,
   previewFileSelection,
   requestFileSelection,
+  acceptedWorkspacePath,
   selectionGenerationRef,
   scopeKey,
   workspacePath
@@ -66,9 +70,14 @@ export function useArtifactPanePreviewNavigation({
   useEffect(() => {
     return () => {
       requestRef.current += 1
-      returnRef.current = null
     }
   }, [requestRef, scopeKey, workspacePath])
+
+  useEffect(() => {
+    return () => {
+      returnRef.current = null
+    }
+  }, [acceptedWorkspacePath, scopeKey])
 
   const beginRequest = useCallback(() => {
     requestRef.current += 1

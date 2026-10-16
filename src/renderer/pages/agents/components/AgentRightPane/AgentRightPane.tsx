@@ -349,6 +349,7 @@ interface AgentRightPaneActionsProviderProps {
   conversationState: AgentConversationState
   sessionId?: string
   workspacePath?: string
+  acceptedWorkspacePath?: string
   replaceFlowTab: (input: AgentToolFlowOpenInput, nested?: boolean) => void
   openBrowserUrl: (url: string) => void
   previewFileSelection: ArtifactPaneFileSelection | null
@@ -366,6 +367,7 @@ function AgentRightPaneActionsProvider({
   conversationState,
   sessionId,
   workspacePath,
+  acceptedWorkspacePath,
   replaceFlowTab,
   openBrowserUrl,
   previewFileSelection,
@@ -432,6 +434,7 @@ function AgentRightPaneActionsProvider({
     requestFileSelection,
     selectionGenerationRef: artifactOpenRequestRef,
     scopeKey: sessionId,
+    acceptedWorkspacePath,
     workspacePath
   })
   const openAgentToolFlow = useCallback(
@@ -607,6 +610,9 @@ function AgentRightPaneStateProvider({
   const previousSessionIdRef = useRef(sessionId)
   const artifactOpenRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
+  const pendingWorkspaceCommitRef = useRef<(() => void) | null>(null)
+  // Decline follows one incoming request. A new session or workspace key starts another.
+  const declinedWorkspaceRequestRef = useRef<{ sessionId: string | undefined; workspaceKey: string } | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
   // External route/session changes can update props before this subtree gets a
   // chance to confirm. Keep the file tree and editor on one committed workspace
@@ -764,10 +770,22 @@ function AgentRightPaneStateProvider({
     return () => onFileNavigationRequestChange?.(null)
   }, [onFileNavigationRequestChange, requestFileTransition])
 
-  const handleDirtyLeaveConfirmationChange = useCallback((open: boolean) => {
-    setShowDirtyLeaveConfirmation(open)
-    if (!open) pendingFileTransitionRef.current = null
-  }, [])
+  const handleDirtyLeaveConfirmationChange = useCallback(
+    (open: boolean) => {
+      setShowDirtyLeaveConfirmation(open)
+      if (!open) {
+        if (
+          pendingWorkspaceCommitRef.current &&
+          pendingFileTransitionRef.current === pendingWorkspaceCommitRef.current
+        ) {
+          declinedWorkspaceRequestRef.current = { sessionId, workspaceKey }
+        }
+        pendingFileTransitionRef.current = null
+        pendingWorkspaceCommitRef.current = null
+      }
+    },
+    [sessionId, workspaceKey]
+  )
 
   const handleDiscardAndContinue = useCallback(() => {
     const transition = pendingFileTransitionRef.current
@@ -843,8 +861,17 @@ function AgentRightPaneStateProvider({
   )
 
   useLayoutEffect(() => {
-    if (fileWorkspace.key === workspaceKey) return
+    if (fileWorkspace.key === workspaceKey) {
+      declinedWorkspaceRequestRef.current = null
+      return
+    }
+    const declined = declinedWorkspaceRequestRef.current
+    if (declined && declined.sessionId === sessionId && declined.workspaceKey === workspaceKey) return
+    // A different incoming request replaces the decline before it commits.
+    declinedWorkspaceRequestRef.current = null
     const commitWorkspace = () => {
+      declinedWorkspaceRequestRef.current = null
+      pendingWorkspaceCommitRef.current = null
       setFileWorkspace({ key: workspaceKey, path: workspacePath })
       setEditMode('preview')
       setSelectedFile(null)
@@ -858,8 +885,9 @@ function AgentRightPaneStateProvider({
       commitWorkspace()
       return
     }
+    pendingWorkspaceCommitRef.current = commitWorkspace
     requestFileTransition(commitWorkspace)
-  }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, workspaceKey, workspacePath])
+  }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, sessionId, workspaceKey, workspacePath])
 
   const fileState = useMemo<AgentRightPaneFileState>(
     () => ({
@@ -956,6 +984,7 @@ function AgentRightPaneStateProvider({
                 conversationState={conversationState}
                 sessionId={sessionId}
                 workspacePath={workspacePath}
+                acceptedWorkspacePath={fileWorkspace.path}
                 replaceFlowTab={replaceFlowTab}
                 openBrowserUrl={openBrowserUrl}
                 previewFileSelection={previewFileSelection}

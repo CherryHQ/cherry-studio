@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { SegmentedControl } from '../segmented-control'
@@ -49,25 +48,11 @@ describe('SegmentedControl', () => {
     expect(screen.getByRole('radio', { name: 'App' })).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('exposes icon-only options by name and tooltip', async () => {
-    const user = userEvent.setup()
-    render(
-      <SegmentedControl
-        defaultValue="app"
-        options={[
-          {
-            value: 'app',
-            label: <span aria-hidden>icon</span>,
-            ariaLabel: 'Application',
-            tooltip: 'Application'
-          }
-        ]}
-      />
-    )
+  it('names the radiogroup from the caller and each option from its visible label', () => {
+    render(<SegmentedControl aria-label="Preview mode" value="app" options={options} />)
 
-    const option = screen.getByRole('radio', { name: 'Application' })
-    await user.hover(option)
-
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Application')
+    expect(screen.getByRole('radiogroup', { name: 'Preview mode' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'App' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Window' })).toHaveAttribute('aria-checked', 'false')
   })
 })

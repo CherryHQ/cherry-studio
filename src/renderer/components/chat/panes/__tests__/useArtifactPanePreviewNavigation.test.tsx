@@ -470,6 +470,109 @@ describe('useArtifactPanePreviewNavigation', () => {
     expect(panelActions.close).not.toHaveBeenCalled()
   })
 
+  it('keeps Back when the incoming workspace changes before the committed workspace does', async () => {
+    const requestFileSelection = vi.fn()
+    vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
+    const notes = fileSelection('/workspace-a', 'notes.md')
+    const design = fileSelection('/workspace-a', 'DESIGN.md')
+    const { result, rerender } = renderHook(
+      ({
+        acceptedWorkspacePath,
+        previewFileSelection,
+        workspacePath
+      }: {
+        acceptedWorkspacePath: string
+        previewFileSelection: ArtifactPaneFileSelection | null
+        workspacePath: string
+      }) =>
+        useArtifactPanePreviewNavigation({
+          acceptedWorkspacePath,
+          paneId: 'files',
+          previewFileSelection,
+          requestFileSelection,
+          workspacePath
+        }),
+      {
+        initialProps: {
+          acceptedWorkspacePath: '/workspace-a',
+          previewFileSelection: null as ArtifactPaneFileSelection | null,
+          workspacePath: '/workspace-a'
+        }
+      }
+    )
+
+    act(() => {
+      result.current.previewInputFile({
+        displayName: 'notes.md',
+        previewPath: '/workspace-a/notes.md' as AbsoluteFilePath
+      })
+    })
+    await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
+    acceptLastSelection(requestFileSelection)
+    rerender({
+      acceptedWorkspacePath: '/workspace-a',
+      previewFileSelection: notes,
+      workspacePath: '/workspace-a'
+    })
+    act(() => result.current.captureInputPreviewReturnTarget())
+    rerender({
+      acceptedWorkspacePath: '/workspace-a',
+      previewFileSelection: design,
+      workspacePath: '/workspace-a'
+    })
+    rerender({
+      acceptedWorkspacePath: '/workspace-a',
+      previewFileSelection: design,
+      workspacePath: '/workspace-b'
+    })
+
+    act(() => result.current.closeFilePreview())
+    expect(requestFileSelection).toHaveBeenLastCalledWith(notes, expect.any(Function))
+
+    rerender({
+      acceptedWorkspacePath: '/workspace-b',
+      previewFileSelection: design,
+      workspacePath: '/workspace-b'
+    })
+    act(() => result.current.closeFilePreview())
+    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function))
+  })
+
+  it('drops in-flight attachment metadata when the incoming workspace changes', async () => {
+    let resolveMetadata: (metadata: { kind: 'file' }) => void = () => {}
+    vi.mocked(ipcApi.request).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMetadata = resolve
+        })
+    )
+    const requestFileSelection = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ acceptedWorkspacePath, workspacePath }) =>
+        useArtifactPanePreviewNavigation({
+          acceptedWorkspacePath,
+          paneId: 'files',
+          previewFileSelection: null,
+          requestFileSelection,
+          workspacePath
+        }),
+      { initialProps: { acceptedWorkspacePath: '/workspace-a', workspacePath: '/workspace-a' } }
+    )
+
+    act(() => {
+      result.current.previewInputFile({
+        displayName: 'notes.md',
+        previewPath: '/workspace-a/notes.md' as AbsoluteFilePath
+      })
+    })
+    rerender({ acceptedWorkspacePath: '/workspace-a', workspacePath: '/workspace-b' })
+    await act(async () => {
+      resolveMetadata({ kind: 'file' })
+    })
+
+    expect(requestFileSelection).not.toHaveBeenCalled()
+  })
+
   it('keeps the previous panel until Back is accepted', async () => {
     const requestFileSelection = vi.fn()
     const artifact = fileSelection('/workspace', 'report.md')
