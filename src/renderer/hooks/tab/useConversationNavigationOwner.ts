@@ -10,7 +10,7 @@ import type { TabsContextValue } from './useTabsContext'
 
 const logger = loggerService.withContext('useConversationNavigationOwner')
 
-type ConversationNavigationOwner = Pick<TabsContextValue, 'openTab' | 'setActiveTab'> & {
+type ConversationNavigationOwner = Pick<TabsContextValue, 'openTab' | 'setActiveTab' | 'activeTabId'> & {
   tabs: readonly Tab[]
 }
 
@@ -33,11 +33,17 @@ function reportOwnership(requestId: string, ownsTarget: boolean): void {
  * Connects one TabsProvider to main's cross-window conversation-navigation coordinator.
  * Ownership is answered on demand from the current render state; no tab mirror or sync effect exists.
  */
-export function useConversationNavigationOwner({ tabs, openTab, setActiveTab }: ConversationNavigationOwner): void {
+export function useConversationNavigationOwner({
+  tabs,
+  activeTabId,
+  openTab,
+  setActiveTab
+}: ConversationNavigationOwner): void {
   const pendingNavigationsRef = useRef(new Map<string, PendingNavigation>())
 
-  useIpcOn('navigation.conversation_ownership_requested', ({ requestId, target }) => {
-    reportOwnership(requestId, findConversationTab(tabs, target) !== undefined)
+  useIpcOn('navigation.conversation_ownership_requested', ({ requestId, target, activeOnly }) => {
+    const candidates = activeOnly ? tabs.filter((tab) => tab.id === activeTabId) : tabs
+    reportOwnership(requestId, findConversationTab(candidates, target) !== undefined)
   })
 
   useIpcOn('navigation.conversation_focus_or_open_requested', ({ requestId, target, title }) => {

@@ -97,6 +97,16 @@ export class ConversationNavigationService extends BaseService {
     if (command?.destinationWindowId === windowId) this.settleNavigationCommand(requestId, ownsTarget)
   }
 
+  public async isActiveInFocusedWindow(target: ConversationNavigationTarget): Promise<boolean> {
+    const focused = getFullChromeWindowInfos().find((window) => window.isFocused)
+    if (!focused || this.isStopping) return false
+    const snapshot = await this.queryOwners([focused], target, true)
+    return (
+      !!snapshot?.ownerWindowIds.includes(focused.id) &&
+      getFullChromeWindowInfos().some((window) => window.id === focused.id && window.isFocused)
+    )
+  }
+
   protected onStop(): void {
     this.isStopping = true
     this.cancelOwnershipQueries()
@@ -223,7 +233,8 @@ export class ConversationNavigationService extends BaseService {
 
   private queryOwners(
     windows: WindowInfo[],
-    target: ConversationNavigationTarget
+    target: ConversationNavigationTarget,
+    activeOnly = false
   ): Promise<({ requestId: string } & OwnershipSnapshot) | null> {
     const requestId = `conversation-navigation:${this.nextRequestId++}`
     if (windows.length === 0) {
@@ -244,7 +255,8 @@ export class ConversationNavigationService extends BaseService {
       for (const window of windows) {
         application.get('IpcApiService').send(window.id, 'navigation.conversation_ownership_requested', {
           requestId,
-          target
+          target,
+          ...(activeOnly ? { activeOnly: true } : {})
         })
       }
     })

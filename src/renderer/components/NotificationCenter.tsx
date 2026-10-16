@@ -1,4 +1,4 @@
-import { Bell, Gauge, Megaphone, X } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,6 +20,8 @@ import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { NotificationCategory, NotificationRecord } from '@shared/data/types/notification'
+
+import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
 
 const logger = loggerService.withContext('NotificationCenter')
 const ReleaseNotes = lazy(() => import('./ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })))
@@ -51,7 +53,7 @@ function NotificationItem({
   const release = record.target?.kind === 'release' ? record.target : null
   const announcement = record.target?.kind === 'announcement' ? record.target : null
   const expandable = !!(release || announcement)
-  const Icon = record.category === 'usage' ? Gauge : record.category === 'official' ? Megaphone : Bell
+  const Icon = notificationCategoryIcons[record.category]
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
 
   const activate = async () => {
@@ -101,18 +103,22 @@ function NotificationItem({
           className="h-auto min-w-0 flex-1 items-start justify-start gap-3 whitespace-normal px-2 py-2 text-left"
           disabled={activating}
           onClick={() => void activate()}>
-          <Icon className="mt-0.5 size-4 text-muted-foreground" />
-          <span className="min-w-0 flex-1 space-y-1">
-            <span className="flex items-center gap-2 font-medium">
+          <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1">
+            <span className="mb-2 flex items-center gap-2 font-medium">
               {record.readAt === null && (
                 <span className="size-1.5 shrink-0 rounded-full bg-primary">
                   <span className="sr-only">{t('notification.center.unread')}</span>
                 </span>
               )}
-              <span className="min-w-0 break-words">{record.title}</span>
+              <span className="min-w-0 flex-1 truncate">{notificationPreview(record.title, true)}</span>
             </span>
-            <span className="block break-words text-sm text-muted-foreground">{record.message}</span>
-            <time dateTime={new Date(record.createdAt).toISOString()} className="block text-xs text-muted-foreground">
+            <span className="block max-h-[2lh] overflow-hidden break-words text-sm text-muted-foreground">
+              {notificationPreview(record.message)}
+            </span>
+            <time
+              dateTime={new Date(record.createdAt).toISOString()}
+              className="mt-1 block text-xs text-muted-foreground">
               {new Date(record.createdAt).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}
             </time>
           </span>
@@ -315,11 +321,15 @@ export function NotificationCenterButton() {
           }}
           className="gap-0">
           <TabsList className="mx-3 mb-2 grid w-auto grid-cols-4">
-            {categories.map((category) => (
-              <TabsTrigger key={category} value={category}>
-                {categoryLabels[category]}
-              </TabsTrigger>
-            ))}
+            {categories.map((category) => {
+              const Icon = category === 'all' ? Bell : notificationCategoryIcons[category]
+              return (
+                <TabsTrigger key={category} value={category}>
+                  <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+                  {categoryLabels[category]}
+                </TabsTrigger>
+              )
+            })}
           </TabsList>
           <TabsContent value={filter} className="m-0">
             <Scrollbar className="max-h-[min(65vh,560px)] px-2">

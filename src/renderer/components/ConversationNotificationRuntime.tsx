@@ -7,6 +7,8 @@ import { playCompletionSound } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
 import { findConversationTab } from '@renderer/utils/conversationNavigation'
 
+import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
+
 const logger = loggerService.withContext('ConversationNotificationRuntime')
 
 /** Foreground-only presentation of main-prepared conversation notifications. */
@@ -35,10 +37,12 @@ export function ConversationNotificationRuntime(): null {
         : notification.category === 'official'
           ? toast.info
           : toast.success
+    const Icon = notificationCategoryIcons[notification.category]
     showToast({
       key: notification.id,
-      title: notification.title,
-      description: notification.message,
+      title: notificationPreview(notification.title, true),
+      description: notificationPreview(notification.message),
+      icon: <Icon aria-hidden="true" className="size-4" />,
       timeout: 6000,
       onClick: () => {
         toast.closeToast(notification.id)
@@ -56,8 +60,8 @@ export function ConversationNotificationRuntime(): null {
     const showToast = notification.kind === 'task-completion' ? toast.success : toast.warning
     showToast({
       key: notification.id,
-      title: notification.title,
-      description: notification.message,
+      title: notificationPreview(notification.title, true),
+      description: notificationPreview(notification.message),
       timeout: 6000,
       onClick: () => {
         toast.closeToast(notification.id)

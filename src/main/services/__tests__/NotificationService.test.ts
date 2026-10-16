@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => ({
     show: ReturnType<typeof vi.fn<() => void>>
   }>,
   focusOrOpen: vi.fn(() => Promise.resolve()),
+  isActiveInFocusedWindow: vi.fn(async () => false),
   getWindowInfosByType: vi.fn(),
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
@@ -151,6 +152,7 @@ describe('NotificationService', () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     mocks.send.mockReset()
+    mocks.isActiveInFocusedWindow.mockResolvedValue(false)
     mocks.electronNotifications.length = 0
     mocks.agentApprovalListener = undefined
     mocks.completionListener = undefined
@@ -190,7 +192,8 @@ describe('NotificationService', () => {
           }
         }
       }
-      if (name === 'ConversationNavigationService') return { focusOrOpen: mocks.focusOrOpen }
+      if (name === 'ConversationNavigationService')
+        return { focusOrOpen: mocks.focusOrOpen, isActiveInFocusedWindow: mocks.isActiveInFocusedWindow }
       if (name === 'WindowManager') return { getWindowInfosByType: mocks.getWindowInfosByType }
       if (name === 'IpcApiService') return { send: mocks.send, broadcastToType: mocks.broadcastToType }
       if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
@@ -223,6 +226,39 @@ describe('NotificationService', () => {
     expect(notificationRecordService.list({}).items).toEqual([])
     expect(notificationRecordService.unreadCount()).toBe(0)
   })
+
+  it.each(['assistant', 'agent'] as const)(
+    'omits all completion delivery while viewing the %s task',
+    async (conversationType) => {
+      mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+        type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
+      )
+      mocks.preferenceValues['app.notification.completion_sound.enabled'] = true
+      mocks.isActiveInFocusedWindow.mockResolvedValue(true)
+      const input = {
+        eventKey: 'active-task',
+        category: 'system' as const,
+        kind: 'task-completion' as const,
+        title: 'Done',
+        message: 'Finished',
+        createdAt: Date.now(),
+        target: { kind: 'conversation' as const, conversationType, conversationId: 'conversation-1' }
+      }
+      await service.publish(input, { completion: true, source: 'assistant' })
+      expect(notificationRecordService.list({}).items).toEqual([])
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      expect(mocks.send).not.toHaveBeenCalled()
+      expect(mocks.electronNotifications).toHaveLength(0)
+
+      mocks.isActiveInFocusedWindow.mockResolvedValue(false)
+      await service.publish(input, { completion: true, source: 'assistant' })
+      expect(notificationRecordService.unreadCount()).toBe(1)
+      expect(mocks.send.mock.calls.map(([, event]) => event)).toEqual([
+        'notification.completion_sound',
+        'notification.present'
+      ])
+    }
+  )
 
   it('plays one completion chime and silences the OS notification across multiple windows', () => {
     mocks.preferenceValues['app.notification.completion_sound.enabled'] = true
@@ -515,7 +551,7 @@ describe('NotificationService', () => {
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
   })
 
-  it('sends one presentation-ready event to the focused full-chrome window', () => {
+  it('sends one presentation-ready event to the focused full-chrome window', async () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main
         ? [mainWindowInfo()]
@@ -532,7 +568,7 @@ describe('NotificationService', () => {
 
     emitCompletion()
 
-    expect(mocks.send).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(mocks.send).toHaveBeenCalledOnce())
     expect(mocks.send).toHaveBeenCalledWith(
       'sub-1',
       'notification.present',

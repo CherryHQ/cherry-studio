@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -130,6 +130,36 @@ describe('ConversationNotificationRuntime', () => {
     )
     await act(() => mocks.toastSuccess.mock.calls[0][0].onClick())
     expect(mocks.ipcRequest).toHaveBeenCalledWith('notification.activate', { id: 'record-1' })
+  })
+
+  it('bounds a long notification preview without breaking Unicode or its navigation action', async () => {
+    renderRuntime(tabsContext())
+    const title = 'Task '.repeat(30).trim()
+    const message = '结果😀'.repeat(70)
+    act(() =>
+      mocks.ipcHandlers.get('notification.present')?.({
+        id: 'long-record',
+        category: 'system',
+        kind: 'task-completion',
+        title,
+        message,
+        target: null
+      })
+    )
+    const shown = mocks.toastSuccess.mock.calls[0][0]
+    render(
+      <>
+        {shown.title}
+        {shown.description}
+        {shown.icon}
+      </>
+    )
+    expect(Array.from(screen.getByTitle(title).textContent ?? '')).toHaveLength(61)
+    expect(Array.from(screen.getByTitle(message).textContent ?? '')).toHaveLength(120)
+    expect(screen.getByTitle(message).textContent).not.toContain('…')
+    expect(screen.getByTitle(message).textContent).not.toContain('\uFFFD')
+    await act(() => shown.onClick())
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('notification.activate', { id: 'long-record' })
   })
 
   it('does not show a completion toast for the conversation already being viewed', () => {

@@ -67,6 +67,40 @@ describe('ConversationNavigationService', () => {
     service = new ConversationNavigationService()
   })
 
+  it.each([WindowType.Main, WindowType.SubWindow])('detects an active task only in the focused %s', async (type) => {
+    let focused = true
+    mocks.getWindowInfosByType.mockImplementation((candidate: WindowType) =>
+      candidate === type ? [windowInfo('focused', type, { isFocused: focused })] : []
+    )
+    const active = service.isActiveInFocusedWindow(target)
+    const requestId = ownershipRequestId('focused')
+    expect(mocks.send).toHaveBeenCalledWith('focused', 'navigation.conversation_ownership_requested', {
+      requestId,
+      target,
+      activeOnly: true
+    })
+    service.reportOwnership(requestId, 'focused', true)
+    await expect(active).resolves.toBe(true)
+
+    const changedFocus = service.isActiveInFocusedWindow(target)
+    focused = false
+    service.reportOwnership(ownershipRequestId('focused'), 'focused', true)
+    await expect(changedFocus).resolves.toBe(false)
+    await expect(service.isActiveInFocusedWindow(target)).resolves.toBe(false)
+  })
+
+  it('does not suppress a completion when the focused renderer fails to answer', async () => {
+    vi.useFakeTimers()
+    try {
+      const active = service.isActiveInFocusedWindow(target)
+      service.reportOwnership(ownershipRequestId('sub-1'), 'unrelated-window', true)
+      await vi.advanceTimersByTimeAsync(200)
+      await expect(active).resolves.toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('focuses the one window that currently owns the conversation', async () => {
     const navigation = service.focusOrOpen(target, 'Refactor project', 'main-1')
     const requestId = ownershipRequestId()
