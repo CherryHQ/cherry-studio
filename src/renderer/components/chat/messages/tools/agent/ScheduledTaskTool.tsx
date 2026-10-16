@@ -14,10 +14,20 @@ import {
 } from '@cherrystudio/ui'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
 import { TaskFormDialog } from '@renderer/components/ScheduledTask/TaskFormDialog'
+import { TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
-import { useDeleteTask, useRunTask, useSetTaskEnabled, useTask, useUpdateTask } from '@renderer/hooks/agent/useTasks'
-import type { ScheduledTaskEntity } from '@shared/data/types/agent'
+import {
+  useDeleteTask,
+  useRunTask,
+  useSetTaskEnabled,
+  useTask,
+  useTaskLogs,
+  useUpdateTask
+} from '@renderer/hooks/agent/useTasks'
+import { ErrorCode, toDataApiError } from '@shared/data/api/errors'
+import type { TaskRunSummary } from '@shared/data/api/schemas/agents'
+import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -39,10 +49,18 @@ function formatNextRun(value: string) {
   return zone ? `${time} (${zone})` : time
 }
 
-export function ScheduledTaskToolInline({ result }: { result: ScheduledTaskResult }) {
-  const { task, error, isLoading } = useTask(result.taskId)
+function toRunSummary(log: TaskRunLogEntity | undefined): TaskRunSummary | null {
+  if (!log) return null
+  if (log.status === 'running') return { status: 'running' }
+  return { status: log.status, finishedAt: new Date(Date.parse(log.startedAt) + (log.durationMs ?? 0)).toISOString() }
+}
 
-  if (task) return <ScheduledTaskCard task={task} />
+export function ScheduledTaskToolInline({ result }: { result: ScheduledTaskResult }) {
+  const { task, error } = useTask(result.taskId)
+  // SWR keeps the last task alongside the refetch error, so a deletion must win over cached data.
+  const isDeleted = !!error && toDataApiError(error).code === ErrorCode.NOT_FOUND
+
+  if (task && !isDeleted) return <ScheduledTaskCard task={task} />
   return (
     <div className="my-1 flex min-h-12 max-w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2">
       <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -52,7 +70,7 @@ export function ScheduledTaskToolInline({ result }: { result: ScheduledTaskResul
         <div className="truncate font-medium text-foreground text-sm" title={result.name}>
           {result.name}
         </div>
-        {error && !isLoading ? <ScheduledTaskDeletedLabel /> : null}
+        {isDeleted ? <ScheduledTaskDeletedLabel /> : null}
       </div>
     </div>
   )
@@ -72,6 +90,9 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
   const { setTaskEnabled } = useSetTaskEnabled()
   const { runTask } = useRunTask()
   const { deleteTask } = useDeleteTask()
+  // Logs come newest first, so the head is the last run.
+  const { logs } = useTaskLogs(task.agentId, task.id)
+  const lastRun = toRunSummary(logs[0])
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -131,9 +152,14 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
           {schedule}
           {nextRun ? ` · ${t('agent.tasks.nextRun')} ${nextRun}` : null}
         </div>
-        {channelNames.length > 0 ? (
-          <div className="truncate text-muted-foreground text-xs">
-            {t('agent.tasks.channels.label')}: {channelNames.join(', ')}
+        <div className="truncate text-muted-foreground text-xs">
+          {channelNames.length > 0
+            ? `${t('agent.tasks.channels.label')}: ${channelNames.join(', ')}`
+            : t('agent.tasks.card.inApp')}
+        </div>
+        {lastRun ? (
+          <div className="text-xs">
+            <TaskRunSummaryLine summary={lastRun} />
           </div>
         ) : null}
         <div className="mt-2 flex flex-wrap items-center gap-2">
