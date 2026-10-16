@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { FILE_TYPE } from '@renderer/types/file'
@@ -5,6 +6,9 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { getFileTokenPresentation } from '../fileTokenPresentation'
+
+const iconNameOf = (presentation: { icon: unknown }) =>
+  (presentation.icon as ReactElement<{ icon: string }>).props.icon.replace(/^material-icon-theme:/, '')
 
 function imageAttachment(overrides: Partial<ComposerAttachment> = {}): ComposerAttachment {
   return {
@@ -39,5 +43,40 @@ describe('getFileTokenPresentation image previewUrl', () => {
     const editRoundTrip = imageAttachment({ path: undefined, previewUrl: 'file:///tmp/image.png' })
 
     expect(getFileTokenPresentation(editRoundTrip, 'image').previewUrl).toBeDefined()
+  })
+})
+
+describe('getFileTokenPresentation icon', () => {
+  const presentationFor = (name: string, file?: Partial<ComposerAttachment>) =>
+    getFileTokenPresentation(file && imageAttachment(file), name)
+
+  it('resolves the type icon from the app-wide file icon mapping', () => {
+    // The same mapping the file tree, clickable file paths and agent file mentions use, so a token
+    // names a `.ts` a TypeScript icon instead of a token-local "code" bucket.
+    expect(iconNameOf(presentationFor('agents.ts'))).toBe('typescript')
+    expect(iconNameOf(presentationFor('App.tsx'))).toBe('react-ts')
+    expect(iconNameOf(presentationFor('main.py'))).toBe('python')
+    expect(iconNameOf(presentationFor('archive.zip'))).toBe('zip')
+    expect(iconNameOf(presentationFor('clip.mp4'))).toBe('video')
+    expect(iconNameOf(presentationFor('notes.md'))).toBe('markdown')
+    expect(iconNameOf(presentationFor('Dockerfile'))).toBe('docker')
+  })
+
+  it('keeps the generic document glyph for unknown types', () => {
+    expect(iconNameOf(presentationFor('mystery.xyz'))).toBe('document')
+    expect(iconNameOf(presentationFor(''))).toBe('document')
+  })
+
+  it('prefers the attachment file name over the display label', () => {
+    const renamed = presentationFor('Renamed label', { origin_name: 'notes.md', name: 'notes.md' })
+
+    expect(iconNameOf(renamed)).toBe('markdown')
+  })
+
+  it('sizes the chip icon to the chip slot and the popover icon for the preview card', () => {
+    const presentation = presentationFor('notes.md')
+
+    expect((presentation.icon as ReactElement<{ className: string }>).props.className).toBe('size-full shrink-0')
+    expect((presentation.previewIcon as ReactElement<{ className: string }>).props.className).toBe('size-7')
   })
 })
