@@ -70,6 +70,7 @@ import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
+import { createPiLoopGuardExtension } from './loopGuard'
 import {
   materializePiProviderStream,
   type PiProviderInjection,
@@ -379,6 +380,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
           createPiApprovalExtension(approvalContext),
           createPiIdentityExtension(agentDataPath),
+          // Wallet gate against degeneration loops; user overrides live in a
+          // loop-guard.json under the Cherry pi root (PI_LOOP_GUARD=off kills it).
+          createPiLoopGuardExtension({ configPath: application.getPath('feature.agents.pi.root', 'loop-guard.json') }),
           pi.createCodemodeExtension({ models: false }),
           pi.createToolSearchExtension(),
           createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log')),
