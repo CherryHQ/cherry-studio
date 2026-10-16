@@ -584,7 +584,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       runtime.roundAdmitted = true
       runtime.round = { toolProgress: false, text: undefined }
       runtime.repeat = { key: undefined, count: 0 }
-      commit(admitRound(runtime.goal, reserved.kind, now()))
+      commit(admitRound(runtime.goal, reserved, now()))
     }
     const roundProgressed = () =>
       runtime.round.toolProgress || (runtime.round.text !== undefined && runtime.round.text !== runtime.previousText)

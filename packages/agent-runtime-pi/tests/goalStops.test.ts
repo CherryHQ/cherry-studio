@@ -16,8 +16,10 @@ import {
   openGoalSession,
   promptIdle,
   readGoal,
+  roundPrompts,
   rounds,
   roundStart,
+  roundTexts,
   say,
   snapshots,
   working
@@ -95,8 +97,8 @@ describe('goal caps and budgets', () => {
     })
   })
 
-  // Breaks when a withdrawn round ends the goal's run although the goal still has room: after a change
-  // during a later settle handler, the goal must go on with a fresh round reserved for it as it is now.
+  // Breaks when a withdrawn round ends the goal's run although the goal still has room, or its prompt
+  // rides in later requests: the goal must go on with a fresh round reserved for it as it is now.
   it.each([
     { command: '/goal edit Keep working carefully', sent: [1, 2, 3], stop: 'round_limit' },
     { command: '/goal budget 1', sent: [1, 2], stop: 'budget_exhausted' }
@@ -135,6 +137,15 @@ describe('goal caps and budgets', () => {
       expect(fresh).toMatchObject({ round: 2 })
       expect(fresh.revision).toBeGreaterThan(withdrawn.revision)
       expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: sent.length, lastStop: { code: stop } })
+      // Every request carries the rounds that ran so far, never the withdrawn one.
+      const texts = roundTexts(host.entries)
+      const ran = texts.filter((_, index) => index !== 1)
+      expect(calls.map((call) => roundPrompts(call.prompt))).toEqual(ran.map((_, index) => ran.slice(0, index + 1)))
+
+      // So does a session rebuilt from the transcript.
+      const rebuilt = await goalSession([working], goalPort(), { transcript: plain(host.entries) })
+      await promptIdle(rebuilt.session, 'What is left?')
+      expect(roundPrompts(rebuilt.calls[0].prompt)).toEqual(ran)
     }
   )
 
