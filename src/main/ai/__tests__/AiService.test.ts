@@ -6,6 +6,7 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type * as MainI18n from '@main/i18n'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -73,6 +74,11 @@ vi.mock('@application', () => ({
   }
 }))
 
+// Resolve main catalog strings in en-US regardless of the mocked app language.
+vi.mock('@main/i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof MainI18n>()
+  return { ...actual, t: (key: string, params?: Record<string, string | number>) => actual.t(key, params, 'en-US') }
+})
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     getById: (...args: unknown[]) => mockAssistantGetById(...args)

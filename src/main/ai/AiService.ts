@@ -35,6 +35,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -1007,9 +1008,10 @@ export class AiService extends BaseService {
         modelId: sdkConfig.modelId,
         filteredCount
       })
-      const emptyError = new Error(
-        `Image generation returned no images for ${sdkConfig.modelId}. The provider may have filtered the request; try a different prompt or try again.`
-      ) as Error & { providerId: string; modelId: string }
+      const emptyError = new Error(t('ai.image.error.no_images', { model: sdkConfig.modelId })) as Error & {
+        providerId: string
+        modelId: string
+      }
       emptyError.providerId = sdkConfig.providerId
       emptyError.modelId = sdkConfig.modelId
       throw emptyError
