@@ -223,6 +223,8 @@ describe('MediaAnalysisService', () => {
     const analysis = await service.analyze(file)
     expect(analysis.audio).toEqual({ segments: [] })
     expect(analysis.warnings).toContain('no_speech')
+    await service.analyze(file)
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1)
   })
 
   it('reuses the cache until the file version changes', async () => {
@@ -544,5 +546,38 @@ describe('MediaAnalysisService', () => {
 
     await service.analyze(file)
     expect(runtime.transcribe).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries frame extraction after a recoverable visual failure instead of caching it', async () => {
+    runtime.probe.mockResolvedValue({
+      durationMs: 10_000,
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockRejectedValueOnce(new Error('frame extraction unavailable'))
+    runtime.extractFrames.mockImplementation(async ({ outputDir }) => {
+      const framePath = join(outputDir, 'frame.jpg')
+      await writeFile(framePath, Buffer.from('jpeg'))
+      return { frames: [{ path: framePath, timestampMs: 0 }] }
+    })
+
+    const failed = await service.analyze(file)
+    expect(failed.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
+    expect(failed.visuals).toBeUndefined()
+    expect(failed.warnings).toContain('visual_analysis_failed')
+    expect(runtime.cache.size).toBe(0)
+
+    const recovered = await service.analyze(file)
+    expect(recovered.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
+    expect(recovered.visuals).toEqual([{ timestampMs: 0 }])
+    expect(recovered.warnings).not.toContain('visual_analysis_failed')
+    expect(recovered.warnings).toContain('vision_model_unavailable')
+    expect(runtime.extractFrames).toHaveBeenCalledTimes(2)
+    expect(runtime.cache.size).toBe(1)
+
+    await service.analyze(file)
+    expect(runtime.extractFrames).toHaveBeenCalledTimes(2)
   })
 })
