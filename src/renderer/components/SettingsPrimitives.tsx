@@ -30,7 +30,7 @@ export const SettingsContentColumn = ({
   ...rest
 }: React.ComponentPropsWithoutRef<typeof Scrollbar> & { theme?: ThemeMode; innerClassName?: string }) => (
   <Scrollbar data-theme-mode={theme} className={cn('flex min-h-0 min-w-0 flex-1 flex-col p-6', className)} {...rest}>
-    <div className={cn('mx-auto w-full max-w-3xl shrink-0', innerClassName)}>{children}</div>
+    <div className={cn('mx-auto w-full max-w-3xl shrink-0 [scrollbar-color:auto]', innerClassName)}>{children}</div>
   </Scrollbar>
 )
 
