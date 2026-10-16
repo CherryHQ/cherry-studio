@@ -1509,6 +1509,147 @@ describe('ClaudeCodeStreamAdapter', () => {
         )
       ).toThrow(ClaudeCodeResultError)
     })
+
+    describe('thinking_tokens host correlation', () => {
+      function thinkingTokens(estimatedTokens: number, userMessageUuid?: string) {
+        return {
+          type: 'system',
+          subtype: 'thinking_tokens',
+          session_id: 'sdk-thinking',
+          uuid: crypto.randomUUID(),
+          estimated_tokens: estimatedTokens,
+          estimated_tokens_delta: 1,
+          ...(userMessageUuid ? { user_message_uuid: userMessageUuid } : {})
+        } as any
+      }
+
+      function reasoningTokens(part: CherryUIMessageChunk): number | undefined {
+        if (part.type !== 'message-metadata' && part.type !== 'finish') return undefined
+        return part.messageMetadata?.stats?.outputTokenDetails?.reasoningTokens
+      }
+
+      type Adapter = InstanceType<typeof ClaudeCodeStreamAdapter>
+
+      function deliver(adapter: Adapter, message: Parameters<Adapter['handleMessage']>[0]) {
+        // Driver order: the omission predicate is recorded, then the frame is still dispatched.
+        const omitFromHostTurn = adapter.shouldOmitFromHostTurn(message)
+        const result = adapter.handleMessage(message)
+        return { omitFromHostTurn, result }
+      }
+
+      it('does not apply a foreign thinking_tokens estimate to live or finish reasoning metadata', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        const foreign = thinkingTokens(77, otherUserMessageUuid)
+        const delivered = deliver(adapter, foreign)
+        const liveReasoning = parts.map(reasoningTokens).filter((value) => value != null)
+
+        adapter.handleMessage(successResult())
+        const finish = parts.find((part) => part.type === 'finish')
+
+        expect({
+          omitFromHostTurn: delivered.omitFromHostTurn,
+          handled: delivered.result,
+          liveReasoning,
+          finishReasoning: finish ? reasoningTokens(finish) : 'missing-finish'
+        }).toEqual({
+          omitFromHostTurn: true,
+          handled: { type: 'continue' },
+          liveReasoning: [],
+          finishReasoning: undefined
+        })
+      })
+
+      it('keeps a thinking_tokens estimate that names the host send', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        const own = thinkingTokens(40, hostUserMessageUuid)
+        const delivered = deliver(adapter, own)
+
+        expect(delivered).toEqual({ omitFromHostTurn: false, result: { type: 'continue' } })
+        expect(parts.map(reasoningTokens).filter((value) => value != null)).toEqual([40])
+
+        adapter.handleMessage(successResult({ user_message_uuid: hostUserMessageUuid }))
+        const finish = parts.find((part) => part.type === 'finish')
+        expect(finish && reasoningTokens(finish)).toBe(40)
+      })
+
+      it('ignores an unlinked thinking_tokens estimate before the host send is queued', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+        const unlinked = thinkingTokens(55)
+        const delivered = deliver(adapter, unlinked)
+        const liveReasoning = parts.map(reasoningTokens).filter((value) => value != null)
+
+        adapter.markHostInputQueued()
+        adapter.handleMessage(successResult())
+        const finish = parts.find((part) => part.type === 'finish')
+
+        expect({
+          omitFromHostTurn: delivered.omitFromHostTurn,
+          handled: delivered.result,
+          liveReasoning,
+          finishReasoning: finish ? reasoningTokens(finish) : 'missing-finish'
+        }).toEqual({
+          omitFromHostTurn: true,
+          handled: { type: 'continue' },
+          liveReasoning: [],
+          finishReasoning: undefined
+        })
+      })
+
+      it('still delivers session status, compaction, and task messages before the host send is queued', () => {
+        const { adapter, parts, statusEvents } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'status',
+          session_id: 'sdk-control',
+          uuid: crypto.randomUUID(),
+          status: 'compacting'
+        } as any)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'compact_boundary',
+          session_id: 'sdk-compact',
+          uuid: crypto.randomUUID(),
+          compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+        } as any)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_started',
+          session_id: 'sdk-task',
+          uuid: 'task-started-uuid',
+          task_id: 'task-1',
+          description: 'Build launch deck',
+          task_type: 'local_agent'
+        } as any)
+
+        expect(statusEvents).toEqual([
+          { type: 'compaction-start' },
+          {
+            type: 'compaction-complete',
+            anchor: expect.objectContaining({ trigger: 'auto', preTokens: 50_000, postTokens: 12_000 })
+          },
+          {
+            type: 'background-task-event',
+            data: expect.objectContaining({ taskId: 'task-1', event: 'started', description: 'Build launch deck' })
+          }
+        ])
+        expect(parts).toEqual([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ taskId: 'task-1', event: 'started' })
+          })
+        ])
+      })
+    })
   })
 
   it('throws SDK error results after capturing session id', () => {

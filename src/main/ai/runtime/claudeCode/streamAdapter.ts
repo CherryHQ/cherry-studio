@@ -708,13 +708,16 @@ export class ClaudeCodeStreamAdapter {
       this.autonomousTurn = true
     }
 
+    // thinking_tokens is turn progress stamped with user_message_uuid. Other system
+    // messages stay session-scoped and skip this gate.
     if (
       this.turnActive &&
       (message.type === 'result' ||
         message.type === 'stream_event' ||
         message.type === 'assistant' ||
         message.type === 'user' ||
-        message.type === 'tool_progress') &&
+        message.type === 'tool_progress' ||
+        (message.type === 'system' && message.subtype === 'thinking_tokens')) &&
       this.shouldOmitFromHostTurn(message)
     ) {
       if (message.type === 'result') {
