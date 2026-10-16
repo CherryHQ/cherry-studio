@@ -50,6 +50,19 @@ describe('VideoFilePreview', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.video.load_error.title')
   })
 
+  it('points the media element at a POSIX filename that contains a backslash', () => {
+    render(
+      <VideoFilePreview
+        filePath={'/tmp/clip\\part.mp4' as AbsoluteFilePath}
+        fileName="part.mp4"
+        refreshKey={0}
+        metadata={metadata}
+      />
+    )
+
+    expect(screen.getByLabelText('part.mp4')).toHaveAttribute('src', 'file:///tmp/clip%5Cpart.mp4')
+  })
+
   it('returns to loading when refresh remounts the media element', () => {
     const { rerender } = render(
       <VideoFilePreview filePath={filePath} fileName="video-preview.mp4" refreshKey={0} metadata={metadata} />
