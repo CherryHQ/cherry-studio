@@ -3308,14 +3308,27 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       abortController: receiveOnlyTurn.abortController,
       // The wake delivers the background work's result to whichever chat or scheduled fire spawned
-      // it — its channel listeners survived the inter-turn gap for exactly this turn.
-      carryChannelListeners: true,
+      // it — but only once every owed work has drained. While the connection still lists detached
+      // tasks, the stashed recipients belong to THOSE works' wakes.
+      carryChannelListeners: this.wakeClaimsStashedRecipients(entry),
       listeners: [
         this.createPersistenceListener(entry, syntheticMessage),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
         new TraceFlushListener(entry.topicId)
       ]
     })
+  }
+
+  /**
+   * Whether this wake may claim the topic's stashed channel recipients. The stash is bound to the
+   * background work owing a delivery: while the connection still lists detached tasks, those works'
+   * wakes own the recipients, and an earlier settler must not post its output to their chats — or
+   * consume the stash the real owner still needs. An empty membership (or a driver that publishes
+   * none) means every owed work has completed, so this wake is the last delivery route.
+   */
+  private wakeClaimsStashedRecipients(entry: AgentSessionRuntimeEntry): boolean {
+    const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
+    return (tasks ?? []).length === 0
   }
 
   /**

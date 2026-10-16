@@ -286,6 +286,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       // The retained listeners outlive this handler, which owned failure notices; hand error
       // reporting to the wake so a failed wake still reaches the subscribed chats.
       for (const listener of channelListeners) listener.enableErrorDelivery()
+      // Bind the recipients to this fire's outstanding obligation explicitly: only the fire knows
+      // its background work still owes the chats a delivery. A later stream replacement must not
+      // stash whatever it finds, or an unrelated wake revives a chat this fire already served.
+      application.get('AiStreamManager').stashWakeChannelListeners(topicId, channelListeners)
     }
     settle()
   }

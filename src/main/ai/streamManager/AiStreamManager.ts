@@ -155,9 +155,9 @@ export interface StartRuntimeTurnInput {
   rootSpan?: Span
   abortController?: AbortController
   /**
-   * Receive-only wake turns may carry the topic's IM-channel listeners (a scheduled fire's or
-   * channel chat's recipients delivering the background work's result). Ordinary successor turns
-   * must not inherit them.
+   * Receive-only wake turns may claim the channel recipients a fire stashed for the background
+   * work's delivery. Ordinary successor turns must not inherit them — and only a wake whose owed
+   * work has drained may claim the stash.
    */
   carryChannelListeners?: boolean
 }
@@ -840,18 +840,10 @@ export class AiStreamManager extends BaseService {
       return { mode: 'injected', activeExecutions: [] }
     }
 
-    // Evict any grace-period stream so two streams never coexist on one topic. A held stream still
-    // owes its channel recipients a delivery — stash them for the settlement wake, the same binding
-    // a runtime-turn replacement keeps.
-    if (existing) {
-      if (existing.heldForContinuation) {
-        this.stashPendingChannelListeners(
-          input.topicId,
-          [...existing.listeners.values()].filter((listener) => listener.id.startsWith('channel:'))
-        )
-      }
-      this.evictStream(input.topicId)
-    }
+    // Evict any grace-period stream so two streams never coexist on one topic. Channel recipients
+    // a replacement drops were stashed by the fire that owes their delivery — a replacement itself
+    // must not guess, or an unrelated wake revives chats this stream already served.
+    if (existing) this.evictStream(input.topicId)
 
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
@@ -963,8 +955,13 @@ export class AiStreamManager extends BaseService {
     })
   }
 
-  /** Keep channel recipients owed a delivery across a stream replacement that dropped them. */
-  private stashPendingChannelListeners(topicId: string, listeners: StreamListener[]): void {
+  /**
+   * Bind channel recipients to the background work that still owes their chat a delivery, so a
+   * stream replacement can drop them without stranding that obligation. Only the component that
+   * knows the obligation — the task fire retaining its recipients — may stash: a replacement that
+   * stashed whatever it found would hand a served chat to an unrelated wake.
+   */
+  stashWakeChannelListeners(topicId: string, listeners: StreamListener[]): void {
     if (listeners.length === 0) return
     const pending = new Map(this.pendingChannelListeners.get(topicId)?.map((l) => [l.id, l]))
     for (const listener of listeners) pending.set(listener.id, listener)
@@ -973,9 +970,6 @@ export class AiStreamManager extends BaseService {
 
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
-    const detachedChannelListeners = existing
-      ? [...existing.listeners.values()].filter((listener) => listener.id.startsWith('channel:'))
-      : []
     const carriedListeners = existing
       ? [...existing.listeners.values()].filter((listener) => {
           if (listener.id.startsWith('persistence:') || listener.id.startsWith('agent-runtime:')) return false
@@ -988,11 +982,8 @@ export class AiStreamManager extends BaseService {
 
     if (existing) this.evictStream(input.topicId)
 
-    // A turn that drops the recipients must not strand them: detached work can still be running,
-    // and its wake is the only route its result has to those chats.
-    if (!input.carryChannelListeners) {
-      this.stashPendingChannelListeners(input.topicId, detachedChannelListeners)
-    }
+    // Retained recipients were stashed by the fire that owes their delivery; a successor turn that
+    // drops them must not re-stash whatever it found, or a served chat rides into an unrelated wake.
     const owedChannelListeners = input.carryChannelListeners
       ? (this.pendingChannelListeners.get(input.topicId) ?? [])
       : []
