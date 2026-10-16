@@ -372,12 +372,6 @@ const MainTextBlock: React.FC<Props> = ({
     [isUserContentExpanded, onUserContentExpandedChange, userContentExpanded]
   )
 
-  useEffect(() => {
-    if (!isUserContentCollapsible) {
-      setUserContentExpanded(false)
-    }
-  }, [isUserContentCollapsible, setUserContentExpanded])
-
   const userDisplayContent = isUserContentCollapsible && !isUserContentExpanded ? userMessagePreview.content : content
 
   const [smoothedContent, setSmoothedContent] = useState(content)
