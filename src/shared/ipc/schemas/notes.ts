@@ -12,7 +12,6 @@ const MAX_SEARCH_MATCHES_PER_FILE = 50
 const MAX_SEARCH_CONTEXT_LENGTH = 1_000
 const MAX_SEARCH_RESULT_TEXT_LENGTH = 2_005
 const MAX_SEARCH_RESULTS = 100
-const MAX_NOTE_ID_LENGTH = 1_000
 const MAX_NOTE_NAME_LENGTH = 1_000
 const MAX_NOTE_PATH_LENGTH = 32_768
 const MAX_NOTE_TIMESTAMP_LENGTH = 100
@@ -20,7 +19,7 @@ const MAX_NOTE_CHILDREN = 10_000
 const MAX_SEARCH_TREE_DEPTH = 100
 
 const notesTreeNodeFieldsSchema = z.strictObject({
-  id: z.string().max(MAX_NOTE_ID_LENGTH),
+  id: z.string().max(MAX_NOTE_PATH_LENGTH),
   name: z.string().max(MAX_NOTE_NAME_LENGTH),
   type: z.enum(['folder', 'file', 'hint']),
   treePath: z.string().max(MAX_NOTE_PATH_LENGTH),

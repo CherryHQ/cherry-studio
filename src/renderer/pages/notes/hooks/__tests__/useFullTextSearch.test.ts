@@ -1,6 +1,7 @@
-import type { NotesSearchResult, NotesTreeNode } from '@shared/types/note'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { NotesSearchResult, NotesTreeNode } from '@shared/types/note'
 
 const ipcRequest = vi.hoisted(() => vi.fn())
 

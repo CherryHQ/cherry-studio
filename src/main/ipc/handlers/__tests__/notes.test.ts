@@ -1,5 +1,7 @@
-import type { NotesTreeNode } from '@shared/types/note'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { notesRequestSchemas } from '@shared/ipc/schemas/notes'
+import type { NotesTreeNode } from '@shared/types/note'
 
 const service = vi.hoisted(() => ({
   cancel: vi.fn(),
@@ -35,6 +37,34 @@ beforeEach(() => {
 })
 
 describe('notesHandlers', () => {
+  it.each([1_001, 32_768])('accepts path-derived note IDs of length %s throughout the tree', (length) => {
+    const externalPath = `/${'a'.repeat(length - 1)}`
+    const file = { ...node, id: externalPath, externalPath, treePath: externalPath }
+    const input = {
+      requestId: 'long-path',
+      nodes: [{ ...node, type: 'folder', children: [file] }, node],
+      keyword: 'note',
+      options: {},
+      maxResults: 10
+    }
+
+    const parsed = notesRequestSchemas['notes.full_text.search'].input.parse(input)
+    expect(parsed.nodes[0].children?.[0]).toEqual(file)
+    expect(parsed.nodes[1]).toEqual(node)
+  })
+
+  it('rejects an ID exceeding the supported path length', () => {
+    const input = {
+      requestId: 'oversized-id',
+      nodes: [{ ...node, id: 'a'.repeat(32_769) }],
+      keyword: 'note',
+      options: {},
+      maxResults: 10
+    }
+
+    expect(notesRequestSchemas['notes.full_text.search'].input.safeParse(input).success).toBe(false)
+  })
+
   it('returns no results without resolving the service when the sender has no window identity', async () => {
     await expect(
       notesHandlers['notes.full_text.search'](

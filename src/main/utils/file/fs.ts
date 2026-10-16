@@ -468,10 +468,9 @@ function isSameOrInsideResolved(candidate: AbsoluteFilePath, container: Absolute
 }
 
 /**
- * Read a fixed regular-file snapshot only when the opened inode is still reachable through a path
- * inside one of the trusted roots. Both path resolutions are treated as hints: acceptance depends
- * on a second safely-opened snapshot matching the source `(dev, ino)`, which closes the
- * realpath/stat/read TOCTOU window when a parent or leaf is replaced concurrently.
+ * Read a fixed regular-file snapshot after a best-effort resolved-root filter.
+ * This is not an authorization boundary: concurrent ancestor replacement can
+ * redirect pathname resolution outside the roots before the file is opened.
  */
 export async function readTextFileWithinRoots(
   target: AbsoluteFilePath,
@@ -490,16 +489,6 @@ export async function readTextFileWithinRoots(
   const source = await openReadableFileSnapshot(resolvedBefore, signal)
   try {
     if (source.size > maxBytes) return null
-
-    const resolvedAfter = AbsoluteFilePathSchema.parse(await waitForAbort(fsRealpath(target), signal))
-    if (!roots.some((root) => isSameOrInsideResolved(resolvedAfter, root))) return null
-
-    const verifier = await openReadableFileSnapshot(resolvedAfter, signal)
-    try {
-      if (source.dev !== verifier.dev || source.ino !== verifier.ino) return null
-    } finally {
-      await verifier.close()
-    }
 
     signal?.throwIfAborted()
     const stream = source.createReadStream()

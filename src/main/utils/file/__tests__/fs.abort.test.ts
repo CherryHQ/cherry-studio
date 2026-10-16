@@ -80,7 +80,7 @@ describe('readChunk cancellation', () => {
     expect(closeMock).toHaveBeenCalledOnce()
   })
 
-  it.each([1, 2])('cancels while snapshot %s verification is stalled and starts handle cleanup', async (snapshot) => {
+  it('cancels while snapshot verification is stalled and starts handle cleanup', async () => {
     const fileStat = { dev: 1, ino: 2, size: 4, mtimeMs: 0, isFile: () => true }
     lstatMock.mockResolvedValue(fileStat)
     realpathMock.mockImplementation(async (target: string) => target)
@@ -89,7 +89,6 @@ describe('readChunk cancellation', () => {
     const pendingStat = new Promise<typeof fileStat>((resolve) => {
       resolveStat = resolve
     })
-    if (snapshot === 2) statMock.mockResolvedValueOnce(fileStat)
     statMock.mockReturnValueOnce(pendingStat)
     closeMock.mockImplementationOnce(() => pendingStat.then(() => undefined))
     const controller = new AbortController()
@@ -97,11 +96,11 @@ describe('readChunk cancellation', () => {
       maxBytes: 4,
       signal: controller.signal
     })
-    await vi.waitFor(() => expect(statMock).toHaveBeenCalledTimes(snapshot))
+    await vi.waitFor(() => expect(statMock).toHaveBeenCalledOnce())
     controller.abort()
 
     await expect(operation).rejects.toMatchObject({ name: 'AbortError' })
-    expect(closeMock).toHaveBeenCalledTimes(snapshot)
+    expect(closeMock).toHaveBeenCalledOnce()
     resolveStat(fileStat)
     await expect(closeMock.mock.results[0].value).resolves.toBeUndefined()
   })

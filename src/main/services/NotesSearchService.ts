@@ -275,11 +275,8 @@ async function searchFileContent(
   try {
     throwIfAborted(signal)
     const maxFileSize = options.maxFileSize ?? DEFAULT_MAX_FILE_SIZE
-    // This is the single authorization and file-shape boundary: it resolves the
-    // path under a trusted root, opens a regular-file snapshot, enforces size,
-    // verifies inode identity, and reads through that handle. Do not preflight
-    // the same path here; duplicated path/stat checks add syscalls without
-    // authorizing the inode that is actually read.
+    // Root filtering is best-effort, not authorization against concurrent filesystem changes.
+    // The opened snapshot bounds reads without following later pathname replacements.
     const content = await waitForSearchOperation(
       readTextFileWithinRoots(parsedPath.data, notesRoots, { maxBytes: maxFileSize, signal }),
       signal

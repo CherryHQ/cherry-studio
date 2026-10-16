@@ -1,5 +1,6 @@
-import type { NotesTreeNode } from '@shared/types/note'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { NotesTreeNode } from '@shared/types/note'
 
 const { preferenceGetMock, readMock, realpathMock } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
