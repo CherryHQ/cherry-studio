@@ -253,6 +253,7 @@ describe('AgentSessionDeliveryService', () => {
       agentId: 'agent-1',
       agentUpdatedAt: now,
       agentType: 'claude-code',
+      agentDefaultModel: 'provider::model',
       uniqueModelId: 'provider::model'
     })
     mocks.persistDispatchTx.mockReturnValue({
