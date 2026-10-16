@@ -103,7 +103,7 @@ describe('backgroundTasks', () => {
 
   describe('buildDetachedBackgroundTaskSpawn', () => {
     it('detaches the child into its own session with the log fds wired to stdio', () => {
-      const { options } = buildDetachedBackgroundTaskSpawn('echo hi', '/workspace', 7, 7)
+      const { options } = buildDetachedBackgroundTaskSpawn('echo hi', '/workspace', 7, 7, '/store/bt-x.pids')
       expect(options.detached).toBe(true)
       expect(options.windowsHide).toBe(true)
       expect(options.cwd).toBe('/workspace')
@@ -113,15 +113,29 @@ describe('backgroundTasks', () => {
 
     it.skipIf(process.platform !== 'win32')('routes the command through the detached Node runner', () => {
       // A detached cmd.exe drops the log fds, so the shell itself must stay attached.
-      const { file, args, options } = buildDetachedBackgroundTaskSpawn('echo hi', '/workspace', 7, 7)
+      const { file, args, options } = buildDetachedBackgroundTaskSpawn(
+        'echo hi',
+        '/workspace',
+        7,
+        7,
+        '/store/bt-x.pids'
+      )
       expect(file).toBe(process.execPath)
-      expect(args).toEqual(['-e', WINDOWS_DETACHED_TASK_RUNNER, 'echo hi'])
+      // The runner is told where to record the shell pid: the root a stop walk seeds from once
+      // the shell has exited and taskkill's live-parent walk can no longer cross it.
+      expect(args).toEqual(['-e', WINDOWS_DETACHED_TASK_RUNNER, 'echo hi', '/store/bt-x.pids'])
       expect(options.shell).toBeUndefined()
       expect(options.env?.ELECTRON_RUN_AS_NODE).toBe('1')
     })
 
     it.skipIf(process.platform === 'win32')('runs the command under the group supervisor on POSIX', () => {
-      const { file, args, options } = buildDetachedBackgroundTaskSpawn('echo hi', '/workspace', 7, 7)
+      const { file, args, options } = buildDetachedBackgroundTaskSpawn(
+        'echo hi',
+        '/workspace',
+        7,
+        7,
+        '/store/bt-x.pids'
+      )
       // The supervisor leads the group, so the recorded pid is its own and the group it leads is
       // the task's for as long as it lives. It must ignore the stop signals: they are addressed to
       // the work, and an anchor that abandoned the group would strand the members it vouches for.

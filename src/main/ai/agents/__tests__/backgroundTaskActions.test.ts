@@ -272,6 +272,26 @@ describe('stopAllAgentBackgroundTasks', () => {
     }
   )
 
+  it('refuses the purge when a stop leaves the task running and stop-requested', async () => {
+    // A Windows kill that cannot prove it reached a worker past its shell's exit hands back the
+    // record still `running` — the shape the verified stop returns. The sweep must refuse and
+    // leave the record, or the purge would delete the survivor's last tracking and index.
+    await writeRunningRecord(storageDir, 'bt-unverified-kill')
+    const stopSpy = vi.spyOn(tasks, 'stopDetachedBackgroundTask')
+    stopSpy.mockImplementation(async (dir, id) => {
+      const current = await getDetachedBackgroundTask(dir, id)
+      return { ...current!, stopRequestedAt: new Date().toISOString() }
+    })
+    try {
+      await expect(stopAllAgentBackgroundTasks('agent-1')).rejects.toThrow(
+        'Cannot permanently delete Agent agent-1 while background task bt-unverified-kill is running'
+      )
+      expect(await readFile(path.join(storageDir, 'bt-unverified-kill.json'), 'utf8')).toContain('"running"')
+    } finally {
+      stopSpy.mockRestore()
+    }
+  })
+
   it.skipIf(process.platform === 'win32')(
     'keeps an unattributable leaderless record through the purge refusal',
     async () => {
