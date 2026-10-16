@@ -9,11 +9,6 @@ import {
   CalendarFold,
   ChevronDown,
   ChevronRight,
-  CircleCheck,
-  CircleStop,
-  CircleX,
-  Clock3,
-  Loader2,
   MoreHorizontal,
   PencilLine,
   Play,
@@ -71,6 +66,7 @@ import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
 import { type AgentInfo, TaskFormDialog, toChannelInfo } from '@renderer/components/ScheduledTask/TaskFormDialog'
+import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import {
   SettingDescription,
   SettingDivider,
@@ -149,62 +145,6 @@ const TaskScheduleStatusIcon: FC<{ status: ScheduledTaskEntity['status'] }> = ({
     <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', wrapperClassName)}>
       <Icon size={20} aria-hidden className={iconClassName} />
     </div>
-  )
-}
-
-function formatTaskCardTime(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
-}
-
-const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskListItem['runSummary']> }> = ({ summary }) => {
-  const { t } = useTranslation()
-
-  if (summary.status === 'queued') {
-    return (
-      <span className="flex items-center gap-1.5 text-muted-foreground">
-        <Clock3 aria-hidden className="size-3" />
-        {t('agent.tasks.runSummary.queued')}
-      </span>
-    )
-  }
-
-  if (summary.status === 'running') {
-    return (
-      <span className="flex items-center gap-1.5 text-foreground">
-        <Loader2 aria-hidden className="size-3 text-foreground motion-safe:animate-spin" />
-        {t('agent.tasks.runSummary.running')}
-      </span>
-    )
-  }
-
-  const time = formatTaskCardTime(summary.finishedAt)
-  if (summary.status === 'completed') {
-    return (
-      <span className="flex items-center gap-1.5 text-foreground">
-        <CircleCheck aria-hidden className="size-3 text-foreground" />
-        {t('agent.tasks.runSummary.completed', { time })}
-      </span>
-    )
-  }
-  if (summary.status === 'failed') {
-    return (
-      <span className="flex items-center gap-1.5 text-foreground">
-        <CircleX aria-hidden className="size-3 text-foreground" />
-        {t('agent.tasks.runSummary.failed', { time })}
-      </span>
-    )
-  }
-  return (
-    <span className="flex items-center gap-1.5 text-foreground">
-      <CircleStop aria-hidden className="size-3 text-foreground" />
-      {t('agent.tasks.runSummary.cancelled', { time })}
-    </span>
   )
 }
 
