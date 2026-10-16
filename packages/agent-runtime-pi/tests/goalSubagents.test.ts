@@ -338,6 +338,31 @@ describe('goal and background subagents', () => {
     expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 5_050, lastStop: { code: 'round_limit' } })
   })
 
+  // Breaks when only rounds own the background runs they launch: a run launched in an armed goal's
+  // notification turn (goal work, whose requests count) would escape the budget.
+  it("owns a background run launched in an armed notification turn, so its usage ends the goal's budget", async () => {
+    let notified = 0
+    const { model, calls } = routedModel((call) => {
+      if (call.userText.includes('TASK-B')) return reply('REPORT-B', 5_000, 0)
+      if (call.userText.includes('TASK-A')) return reply('REPORT-A', 10, 0)
+      if (isNotice(call) && call.lastRole === 'user' && ++notified === 1)
+        return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
+      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls', 10, 0)]
+      return reply(`working ${calls.length}`, 10, 0)
+    })
+    const { session: s, host } = await openGoalSession(
+      model,
+      goalPort({ defaults: { maxGoalRounds: 4, budget: { tokens: 3_000 } } }),
+      { subagents: recordingSubagentPort().port }
+    )
+    await promptIdle(s, '/goal Fix what A finds')
+    await waitFor(() => lastSnapshot(host.entries)?.phase === 'blocked')
+
+    // B's 5002 tokens count once its result arrives: one wrap-up round, then the budget stop.
+    expect(rounds(host.entries).map((round) => round.kind)).toEqual(['work', 'wrap-up'])
+    expect(lastSnapshot(host.entries)).toMatchObject({ lastStop: { code: 'budget_exhausted' } })
+  })
+
   // Breaks when stopped runs are counted per result instead of per run: two overlapping stop_subagent
   // calls both get the run's result, and the goal would pay for it twice.
   it('counts a run two overlapping stop_subagent calls both report once', async () => {
