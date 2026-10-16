@@ -7,7 +7,7 @@ const Text = defineComponent({
   name: 'Text',
   description: 'Plain text. HTML and Markdown are displayed as text.',
   props: z.object({ text: z.string() }),
-  component: ({ props }) => <p className="whitespace-pre-wrap">{props.text}</p>
+  component: ({ props }) => <p className="whitespace-pre-wrap!">{props.text}</p>
 })
 
 const Metric = defineComponent({
