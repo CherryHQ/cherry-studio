@@ -31,7 +31,7 @@ export const MODEL: AgentRuntimeModel = {
 export const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 export const finish = (
-  unified: 'stop' | 'tool-calls' | 'length',
+  unified: 'stop' | 'tool-calls' | 'length' | 'other',
   input = 10,
   output = 5
 ): LanguageModelV3StreamPart => ({
