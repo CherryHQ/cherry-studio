@@ -87,12 +87,11 @@ const model: Model = {
   isHidden: false
 }
 
-const createModelOnlyMessage = (): CherryUIMessage =>
-  ({
-    id: 'assistant-1',
-    role: 'assistant',
-    parts: [{ type: 'text', text: 'Hello' }]
-  }) as CherryUIMessage
+const createModelOnlyMessage = (): CherryUIMessage => ({
+  id: 'assistant-1',
+  role: 'assistant',
+  parts: [{ type: 'text', text: 'Hello' }]
+})
 
 describe('QuickAssistantMessageList display metadata', () => {
   afterEach(() => {

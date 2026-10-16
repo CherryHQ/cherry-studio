@@ -110,6 +110,7 @@ function useQuickAssistantMessageListProviderValue({
       id: topicId,
       assistantId: assistant?.id,
       name: '',
+      lastActivityAt: '',
       createdAt: '',
       updatedAt: '',
       messages: EMPTY_TOPIC_MESSAGES
@@ -147,7 +148,7 @@ const QuickAssistantMessageList = (props: QuickAssistantMessageListProps) => {
   const value = useQuickAssistantMessageListProviderValue(props)
 
   return (
-    <div className="bubble relative mb-auto flex min-h-0 w-full flex-1 [-webkit-app-region:no-drag]">
+    <div className="bubble relative mb-auto flex min-h-0 w-full flex-1 flex-col [-webkit-app-region:no-drag]">
       <MessageListProvider value={value}>
         <MessageList />
       </MessageListProvider>
