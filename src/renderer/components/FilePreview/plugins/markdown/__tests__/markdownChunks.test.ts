@@ -39,6 +39,32 @@ const chunkHeadingIds = (content: string, budgetChars?: number): string[] =>
   chunksOf(content, budgetChars).flatMap((chunk) => renderedHeadingIds(chunk.text, chunk.headingSlugs))
 
 /**
+ * The destinations a source's references render as links to — mdast keeps a reference a
+ * `linkReference` that remark-rehype resolves against the document's definitions, so a reference
+ * the parser left literal text resolves to none.
+ */
+const resolvedReferenceUrls = (source: string): string[] => {
+  const definitions = new Map<string, string>()
+  const urls: string[] = []
+  const walk = (
+    node: { type: string; identifier?: string; url?: string; children?: unknown[] },
+    phase: 'definitions' | 'references'
+  ): void => {
+    if (phase === 'definitions' && node.type === 'definition' && typeof node.url === 'string') {
+      if (!definitions.has(node.identifier ?? '')) definitions.set(node.identifier ?? '', node.url)
+    }
+    if (phase === 'references' && node.type === 'linkReference') {
+      const url = definitions.get(node.identifier ?? '')
+      if (url !== undefined) urls.push(url)
+    }
+    for (const child of node.children ?? []) walk(child as never, phase)
+  }
+  walk(parsed(source) as never, 'definitions')
+  walk(parsed(source) as never, 'references')
+  return urls
+}
+
+/**
  * The numbers the ordered lists of a source render with. A list is one block: split apart, every
  * piece restarts at its own first marker and the numbering the document shows is lost.
  */
@@ -384,6 +410,43 @@ describe('splitMarkdownChunks', () => {
     const chunks = chunksOf(content, 1)
 
     expect(chunks.filter((chunk) => chunk.text.includes('bar]: https://example.com/url'))).toHaveLength(1)
+  })
+
+  it('carries a wrapped label whose closing line renders as a definition the reference resolves', () => {
+    // The closing line contributes its label content only: appending the closing syntax to a span
+    // that still held the line's own `]: destination` rebuilt `[foo\nbar]: /url]: /url`, which the
+    // parser refuses — so `see [foo bar]` rendered as literal text where the document links it.
+    const content = [
+      '[foo',
+      'bar]: https://example.com/url',
+      '',
+      'filler paragraph that spends the budget',
+      '',
+      'see [foo bar]'
+    ].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    // The definition registers wherever it is carried, the way the document's own does.
+    expect(referenceTarget(content, 'foo bar')).toBe('https://example.com/url')
+    expect(referenceTarget(joined(chunks), 'foo bar')).toBe('https://example.com/url')
+    // And the reference renders as a link to it, not as the literal brackets.
+    for (const chunk of chunks) {
+      if (chunk.text.includes('see [foo bar]'))
+        expect(resolvedReferenceUrls(chunk.text)).toEqual(['https://example.com/url'])
+    }
+  })
+
+  it('does not hoist prose that only resembles the tail of a wrapped label', () => {
+    // `hello]: /url` never opens a label; collecting a wrapped definition anyway dropped the `h`,
+    // built `[ello]: /url]...` and prepended it to every chunk — text the document does not render.
+    const content = ['hello]: https://example.com/url', '', 'world'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(joined(chunks)).toBe(content)
+    expect(chunks[0].text.startsWith('hello')).toBe(true)
   })
 
   it('does not carry the quoted text that follows a block-quoted definition', () => {
@@ -1798,6 +1861,39 @@ describe('document-wide heading slugs', () => {
     expect(chunkHeadingIds(content, 1)).toEqual(['chunk--title', 'chunk--title-2'])
     expect(chunks[1].headingSlugs?.get('title')).toEqual(['title-1'])
     expect(chunks[2].headingSlugs?.get('title')).toEqual(['title-2'])
+  })
+
+  it('numbers two headings a raw HTML block renders on one line in document order', () => {
+    // Both headings share the line they render on, so the line holds both assignments in order —
+    // keeping only the last reversed the ids, and `[jump](#title)` aimed at the second heading.
+    const content = ['<h2>Title</h2><h2>Title</h2>', '', '[jump](#title)'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[0].headingSlugs?.get('title')).toEqual(['title', 'title-1'])
+  })
+
+  it('counts a raw HTML heading whose tag and text sit on different lines', () => {
+    // `<h2>` opens the block and its text and closing tag sit below; the heading renders all the
+    // same, so the document numbers it and the `# Title` after it takes `-1`.
+    const content = ['<h2>', 'Title', '</h2>', '', '# Title', ''].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks[0].headingSlugs?.get('title')).toEqual(['title'])
+    expect(chunks[1].headingSlugs?.get('title')).toEqual(['title-1'])
+    expect(chunkHeadingIds(content, 1)).toEqual(['chunk--title-1'])
+  })
+
+  it('counts a raw HTML heading the document ends inside', () => {
+    // No blank line closes the block, so the scan runs at the end of the document rather than at
+    // the blank — the heading still counts, and a duplicate below another chunk keys off it.
+    const content = ['filler paragraph that spends the budget', '', '<h2>', 'Title', '</h2>'].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.at(-1)?.headingSlugs?.get('title')).toEqual(['title'])
   })
 
   it('does not count a heading a raw comment only mentions', () => {
