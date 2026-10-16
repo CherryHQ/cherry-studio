@@ -182,8 +182,10 @@ host must return the parent's extensions for it; calls a subagent may not make (
 
 A subagent that fails, is cut off by its output limit, is aborted with the parent's turn or would
 start a 201st model request returns an `isError` result with the reason, its last partial output,
-`details` and `usage`; `outcome` is `failed`, `truncated`, `aborted` or `limit_reached`. A host
-whose `configure` throws fails that call only.
+`details` and `usage`; `outcome` is `failed`, `truncated`, `aborted` or `limit_reached`. Requests
+are counted where its session makes them: its turns and the compaction summaries made for it (Pi's
+own summarizer through the port, or the host's `compaction.summarize`) alike, and the 201st is
+refused before it goes out. A host whose `configure` throws fails that call only.
 
 ## Extensions
 

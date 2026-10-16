@@ -93,6 +93,32 @@ export interface AgentRuntimeSession {
   abort(): Promise<void>
 }
 
+/** The port and host summarizer of `options`, each request first passing `before` (a subagent's request cap). */
+function gateModelRequests<TRequestOptions>(
+  options: AgentRuntimeSessionOptions<TRequestOptions>,
+  before: () => void
+): Pick<AgentRuntimeSessionOptions<TRequestOptions>, 'port' | 'compaction'> {
+  const { port, compaction } = options
+  const summarize = compaction?.summarize
+  return {
+    port: {
+      streamText(request) {
+        before()
+        return port.streamText(request)
+      }
+    },
+    compaction: summarize
+      ? {
+          ...compaction,
+          summarize(request) {
+            before()
+            return summarize(request)
+          }
+        }
+      : compaction
+  }
+}
+
 /**
  * Builds a Pi agent session in memory: no credentials, settings, extensions or session files from disk.
  * Workspace context files and skills load only when the host opts in.
@@ -159,8 +185,13 @@ export async function createAgentRuntimeSession<TRequestOptions>(
           subagentExtension({
             port: options.subagents,
             // A fork keeps `subagent` so its tools match the parent's; a fresh subagent has none.
-            createSession: ({ fork, ...overrides }) =>
-              createAgentRuntimeSession({ ...options, ...overrides, subagents: fork ? options.subagents : undefined }),
+            createSession: ({ fork, beforeModelRequest, ...overrides }) =>
+              createAgentRuntimeSession({
+                ...options,
+                ...overrides,
+                ...gateModelRequests(options, beforeModelRequest),
+                subagents: fork ? options.subagents : undefined
+              }),
             parentTranscript: () => tap.entries()
           })
         ]
