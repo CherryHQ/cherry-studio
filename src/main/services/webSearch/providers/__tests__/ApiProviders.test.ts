@@ -780,9 +780,10 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-      'custom reader failed'
-    )
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'network',
+      providerId: 'jina'
+    })
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['https://reader.example.com/https://example.com/article'])
   })
@@ -812,7 +813,7 @@ describe('main web search API providers', () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
     abortController.abort(abortError)
 
-    await expect(request).rejects.toBe(abortError)
+    await expect(request).rejects.toMatchObject({ kind: 'cancelled', name: 'AbortError', cause: abortError })
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['https://r.jinaai.cn/https://example.com/article'])
   })
 
@@ -838,12 +839,14 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-      'Jina Reader returned empty content for https://example.com/article'
-    )
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'empty_content',
+      providerId: 'jina'
+    })
   })
 
-  it('includes Jina Reader upstream error body for HTTP failures', async () => {
+  it('preserves Jina Reader HTTP status without exposing raw error bodies', async () => {
     fetchMock
       .mockResolvedValueOnce(createTextResponse('unauthorized reader token', 'text/plain', 401))
       .mockResolvedValueOnce(createTextResponse('unauthorized reader token', 'text/plain', 401))
@@ -858,9 +861,11 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-      'Jina Reader fetch failed: HTTP 401 unauthorized reader token'
-    )
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'http',
+      status: 401,
+      providerId: 'jina'
+    })
   })
 
   it('matches Searxng search requests and parsed content snapshots from fixtures', async () => {
@@ -1209,7 +1214,7 @@ describe('main web search API providers', () => {
     expect(result.results).toEqual([])
   })
 
-  it('warns when every Searxng result URL fails validation', async () => {
+  it('drops invalid Searxng citations before attempting to download pages', async () => {
     fetchMock.mockResolvedValueOnce(
       createJsonResponse({
         query: 'hello',
@@ -1235,10 +1240,7 @@ describe('main web search API providers', () => {
     const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect(result.results).toEqual([])
-    expect(mocks.loggerWarn).toHaveBeenCalledWith('All Searxng search URLs failed validation', {
-      query: 'hello',
-      total: 1
-    })
+    expect(fetchRemoteTextMock).not.toHaveBeenCalled()
   })
 
   it('keeps successful Searxng content fetches when some results fail', async () => {
@@ -1370,9 +1372,10 @@ describe('main web search API providers', () => {
 
     controller.abort(abortError)
 
-    await expect(provider.searchKeywords('hello', runtimeConfig, { signal: controller.signal })).rejects.toThrow(
-      'Search cancelled'
-    )
+    await expect(provider.searchKeywords('hello', runtimeConfig, { signal: controller.signal })).rejects.toMatchObject({
+      kind: 'cancelled',
+      name: 'AbortError'
+    })
   })
 
   it('throws when every Searxng content fetch fails', async () => {
@@ -1651,12 +1654,16 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toThrow(
-      'Querit contents failed: Rate limit exceeded'
-    )
-    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toThrow(
-      'Querit contents returned empty content for https://querit.example/article'
-    )
+    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'provider',
+      providerCode: '429',
+      message: 'Rate limit exceeded'
+    })
+    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'empty_content',
+      providerId: 'querit'
+    })
   })
 
   it('matches Zhipu request and normalized response snapshots from fixtures', async () => {
@@ -1727,9 +1734,12 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
-      'exa search response validation failed for https://api.exa.ai/search'
-    )
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'schema_mismatch',
+      providerId: 'exa',
+      capability: 'searchKeywords'
+    })
   })
 
   it('adds provider context when API response body is invalid JSON', async () => {
@@ -1745,12 +1755,15 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
-      'searxng config returned invalid JSON from https://searx.example/config'
-    )
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'invalid_json',
+      providerId: 'searxng',
+      capability: 'searchKeywords'
+    })
   })
 
-  it('truncates oversized upstream HTTP error bodies in provider errors', async () => {
+  it('omits oversized plain-text upstream bodies from structured HTTP errors', async () => {
     fetchMock.mockResolvedValue(createTextResponse('x'.repeat(600), 'text/plain', 502))
 
     const provider = createProviderDriver(
@@ -1763,9 +1776,12 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
-      `Exa search failed: HTTP 502 ${'x'.repeat(500)}... [truncated]`
-    )
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      kind: 'http',
+      status: 502,
+      providerId: 'exa',
+      message: 'exa request failed: HTTP 502'
+    })
   })
 
   it('matches Exa MCP request and normalized response snapshots from fixtures', async () => {
@@ -1981,7 +1997,8 @@ describe('main web search API providers', () => {
     const searchPromise = provider.searchKeywords('hello', runtimeConfig)
     const timeoutAssertion = expect(searchPromise).rejects.toMatchObject({
       name: 'TimeoutError',
-      message: 'Exa MCP search timed out after 25000ms'
+      kind: 'timeout',
+      code: 'request_timeout'
     })
 
     await vi.advanceTimersByTimeAsync(25000)
@@ -2115,7 +2132,10 @@ describe('main web search API providers', () => {
 
     it('reports server HTTP failures rather than producing a page result', async () => {
       fetchMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
-      await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toThrow('HTTP 401 Unauthorized')
+      await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toMatchObject({
+        kind: 'http',
+        status: 401
+      })
     })
   })
 
@@ -2217,9 +2237,11 @@ describe('main web search API providers', () => {
         })
       )
 
-      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
-        'Firecrawl search failed: Rate limit exceeded'
-      )
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+        kind: 'provider',
+        message: 'Rate limit exceeded',
+        providerId: 'firecrawl'
+      })
     })
 
     it('falls back to description when markdown is missing, and to empty string if both missing', async () => {
@@ -2353,12 +2375,16 @@ describe('main web search API providers', () => {
         })
       )
 
-      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-        'Firecrawl scrape failed: Rate limit exceeded'
-      )
-      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
-        'Firecrawl scrape returned empty content for https://example.com/article'
-      )
+      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+        kind: 'provider',
+        message: 'Rate limit exceeded',
+        providerId: 'firecrawl'
+      })
+      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toMatchObject({
+        kind: 'invalid_response',
+        code: 'empty_content',
+        providerId: 'firecrawl'
+      })
     })
   })
 
