@@ -1,0 +1,181 @@
+Scope: all 10 workspace projects
+✓ Lockfile passes supply-chain policies (verified 23h ago)
+Lockfile is up to date, resolution step is skipped
+Packages: +7 -9
++++++++---------
+Progress: resolved 7, reused 7, downloaded 0, added 7, done
+.../node_modules/msw postinstall$ node -e "import('./config/scripts/postinstall.js').catch(() => void 0)"
+.../node_modules/protobufjs postinstall$ node scripts/postinstall
+.../node_modules/protobufjs postinstall: Done
+.../node_modules/msw postinstall: Done
+.../@paymoapp/electron-shutdown-handler install$ node -e ""
+.../node_modules/@sentry/cli postinstall$ node ./scripts/install.js
+.../@paymoapp/electron-shutdown-handler install: Done
+.../node_modules/@swc/core postinstall$ node postinstall.js
+.../node_modules/@swc/core postinstall: Done
+.../node_modules/@sentry/cli postinstall: Done
+.../node_modules/unrs-resolver postinstall$ node postinstall.js
+.../node_modules/selection-hook install$ node-gyp-build
+.../node_modules/unrs-resolver postinstall: Done
+.../node_modules/msw postinstall$ node -e "import('./config/scripts/postinstall.js').catch(() => void 0)"
+.../node_modules/msw postinstall$ node -e "import('./config/scripts/postinstall.js').catch(() => void 0)"
+.../node_modules/msw postinstall: Done
+.../node_modules/msw postinstall: Done
+.../node_modules/selection-hook install: Done
+. postinstall$ pnpm --filter @cherrystudio/remote-protocol build && pnpm --filter @cherrystudio/remote-transport build && pnpm --filter @cherrystudio/system-speech build
+. postinstall: $ tsdown
+. postinstall: ℹ tsdown v0.22.14 powered by rolldown v1.2.6
+. postinstall: ℹ config file: /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/packages/remote-protocol/tsdown.config.ts 
+. postinstall: ℹ entry: src/index.ts, src/agent.ts, src/configuration.ts, src/failure.ts
+. postinstall: ℹ tsconfig: tsconfig.json
+. postinstall: ℹ Build start
+. postinstall: ℹ Cleaning 10 files
+. postinstall: ℹ dist/agent.js               32.87 kB │ gzip:  7.32 kB
+. postinstall: ℹ dist/index.js                8.29 kB │ gzip:  2.74 kB
+. postinstall: ℹ dist/failure.js              1.35 kB │ gzip:  0.61 kB
+. postinstall: ℹ dist/configuration.js        0.94 kB │ gzip:  0.43 kB
+. postinstall: ℹ dist/errors-DraEu1WZ.js      1.31 kB │ gzip:  0.71 kB
+. postinstall: ℹ dist/agent.d.ts            191.31 kB │ gzip: 12.23 kB
+. postinstall: ℹ dist/index.d.ts             19.40 kB │ gzip:  2.79 kB
+. postinstall: ℹ dist/failure.d.ts            3.82 kB │ gzip:  0.83 kB
+. postinstall: ℹ dist/configuration.d.ts      2.86 kB │ gzip:  0.70 kB
+. postinstall: ℹ dist/values-PwquYDbQ.d.ts    0.16 kB │ gzip:  0.14 kB
+. postinstall: ℹ 10 files, total: 262.30 kB
+. postinstall: ✔ Build complete in 735ms
+. postinstall: $ tsdown
+. postinstall: ℹ tsdown v0.22.14 powered by rolldown v1.2.6
+. postinstall: ℹ config file: /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/packages/remote-transport/tsdown.config.ts 
+. postinstall: ℹ entry: src/index.ts
+. postinstall: ℹ tsconfig: tsconfig.json
+. postinstall: ℹ Build start
+. postinstall: ℹ Cleaning 2 files
+. postinstall: ℹ dist/index.js    13.19 kB │ gzip: 3.85 kB
+. postinstall: ℹ dist/index.d.ts   4.51 kB │ gzip: 1.48 kB
+. postinstall: ℹ 2 files, total: 17.71 kB
+. postinstall: ✔ Build complete in 321ms
+. postinstall: $ tsdown
+. postinstall: ℹ tsdown v0.22.14 powered by rolldown v1.2.6
+. postinstall: ℹ config file: /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/packages/system-speech/tsdown.config.ts 
+. postinstall: ℹ entry: src/contracts.ts, src/SystemSpeechNativeClient.ts
+. postinstall: ℹ tsconfig: tsconfig.json
+. postinstall: ℹ Build start
+. postinstall: ℹ [CJS] dist/contracts.cjs                     3.94 kB │ gzip: 1.30 kB
+. postinstall: ℹ [CJS] dist/SystemSpeechNativeClient.cjs      3.35 kB │ gzip: 1.15 kB
+. postinstall: ℹ [CJS] dist/contracts.cjs.map                 6.16 kB │ gzip: 1.59 kB
+. postinstall: ℹ [CJS] dist/SystemSpeechNativeClient.cjs.map  5.86 kB │ gzip: 2.00 kB
+. postinstall: ℹ [CJS] 4 files, total: 19.31 kB
+. postinstall: ℹ [CJS] dist/contracts.d.cts                 4.90 kB │ gzip: 1.14 kB
+. postinstall: ℹ [CJS] dist/SystemSpeechNativeClient.d.cts  0.67 kB │ gzip: 0.34 kB
+. postinstall: ℹ [CJS] 2 files, total: 5.57 kB
+. postinstall: ✔ Build complete in 526ms
+. postinstall: ℹ [ESM] dist/SystemSpeechNativeClient.mjs      3.00 kB │ gzip: 1.08 kB
+. postinstall: ℹ [ESM] dist/contracts.mjs                     2.58 kB │ gzip: 0.82 kB
+. postinstall: ℹ [ESM] dist/contracts.mjs.map                 6.08 kB │ gzip: 1.59 kB
+. postinstall: ℹ [ESM] dist/SystemSpeechNativeClient.mjs.map  5.67 kB │ gzip: 1.95 kB
+. postinstall: ℹ [ESM] dist/contracts.d.mts                   4.90 kB │ gzip: 1.14 kB
+. postinstall: ℹ [ESM] dist/SystemSpeechNativeClient.d.mts    0.67 kB │ gzip: 0.34 kB
+. postinstall: ℹ [ESM] 6 files, total: 22.91 kB
+. postinstall: ✔ Build complete in 546ms
+. postinstall: Done
+. prepare$ git config blame.ignoreRevsFile .git-blame-ignore-revs && node -e "process.env.CI||require('child_process').execSync('prek install',{stdio:'inherit'})"
+. prepare: prek installed at `.git/hooks/pre-commit`
+. prepare: prek installed at `.git/hooks/post-checkout`
+. prepare: prek installed at `.git/hooks/post-merge`
+. prepare: Done
+
+dependencies:
+- @cherrystudio/computer-use 0.1.4
++ @cherrystudio/computer-use 0.1.7
++ quickjs-wasi 3.6.2
+
+devDependencies:
++ acorn 8.15.0
+
+Done in 4.4s using pnpm v12.6.0
+$ pnpm rebuild:node
+$ node scripts/invalidate-electron-rebuild-metadata.js && pnpm rebuild better-sqlite3
+✓ Lockfile passes supply-chain policies (verified 23h ago)
+Already up to date
+.../node_modules/better-sqlite3 install$ prebuild-install || node-gyp rebuild --release
+.../node_modules/better-sqlite3 install: (node:76602) [DEP0176] DeprecationWarning: fs.R_OK is deprecated, use fs.constants.R_OK instead
+.../node_modules/better-sqlite3 install: (Use `node --trace-deprecation ...` to show where the warning was created)
+.../node_modules/better-sqlite3 install: Done
+Done in 1.3s using pnpm v12.6.0
+$ vitest run --project main src/main/ai/provider/__tests__/config.test.ts src/main/data/services/__tests__/ProviderService.apiKeys.test.ts src/main/data/services/__tests__/ModelService.test.ts src/main/ai/runtime/aiSdk/retry/__tests__/buildApiKeyFallbackModels.test.ts src/main/ai/__tests__/AiService.test.ts src/main/data/api/handlers/__tests__/models.test.ts src/main/ai/runtime/claudeCode/__tests__/agentSessionWarmup.test.ts
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (electron.vite.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/piVccBundle.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/claudeCodeBinaryManifest.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/sentry.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/types/appEdition.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/build-theme-css.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/vitePlugin.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/checkChunkExports.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/releaseNotes.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/redaction.ts:4:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/semanticId.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/scan.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/theme-contract.ts:12:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/transform.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(node:76718) Warning: Accessing non-existent property 'replaceRouteChunk' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/about.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-about.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/profile.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-profile.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/conversation-entry.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/-conversation-entry.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/search.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-search.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/skills.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-skills.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+
+ RUN  v5.0.1 /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src
+
+
+ Test Files  7 passed (7)
+      Tests  419 passed (419)
+   Start at  12:28:11
+   Duration  3.42s (import 39%, transform 35%, tests 24%)
+
+  Transform  |main| transforming modules took 2.19s · 35% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+

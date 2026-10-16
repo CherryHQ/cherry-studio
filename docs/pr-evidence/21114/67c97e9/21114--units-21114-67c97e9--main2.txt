@@ -1,0 +1,254 @@
+$ pnpm rebuild:node
+$ node scripts/invalidate-electron-rebuild-metadata.js && pnpm rebuild better-sqlite3
+✓ Lockfile passes supply-chain policies (verified 23h ago)
+Already up to date
+.../node_modules/better-sqlite3 install$ prebuild-install || node-gyp rebuild --release
+.../node_modules/better-sqlite3 install: (node:78028) [DEP0176] DeprecationWarning: fs.R_OK is deprecated, use fs.constants.R_OK instead
+.../node_modules/better-sqlite3 install: (Use `node --trace-deprecation ...` to show where the warning was created)
+.../node_modules/better-sqlite3 install: Done
+Done in 646ms using pnpm v12.6.0
+$ vitest run --project main --reporter=verbose src/main/data/db/__tests__/knowledgeOrderMigration.test.ts src/main/services/__tests__/OpenClawService.test.ts src/main/services/codeCli/__tests__/antigravity.test.ts src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (electron.vite.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/build-theme-css.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/vitePlugin.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/piVccBundle.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/checkChunkExports.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/sentry.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/releaseNotes.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/types/appEdition.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/claudeCodeBinaryManifest.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/scan.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/semanticId.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/theme-contract.ts:12:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/transform.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/redaction.ts:4:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(node:78048) Warning: Accessing non-existent property 'replaceRouteChunk' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/conversation-entry.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/-conversation-entry.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/about.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-about.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/profile.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-profile.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/search.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-search.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/skills.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-skills.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+
+ RUN  v5.0.1 /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src
+
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > preserves JSON validation output when validate exits with code 1 184ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > reports binary incompatibility when the schema command is unavailable 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > reports schema timeouts without suggesting an incompatible binary and kills the command 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > keeps waiting for a slow schema command past 12.5 seconds and times out at 30 seconds 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > returns the schema timeout message from syncProviderConfig 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > returns the runtime schema reported by the resolved OpenClaw binary 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > uses a dedicated bounded capture limit for the runtime schema 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > accepts a runtime schema larger than the diagnostic capture limit 2ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > redacts secrets and bounds diagnostic output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > runs config validation against the explicit candidate path and accepts a valid invalid report 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > accepts a successful OpenClaw validation report without an issues field 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects a successful validation report with a missing config path 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects a successful validation report with a different config path 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > accepts a validation report whose config path resolves to the requested path 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects an invalid validation report that omits the config path as binary incompatible 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects valid false with missing issues as a preflight failure without exposing command output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects valid false with no issues as a preflight failure without exposing command output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects non-boolean valid field as a preflight failure without exposing command output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects non-string issue path as a preflight failure without exposing command output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects non-array allowed values as a preflight failure without exposing command output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects malformed warnings as a preflight failure without exposing command output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects truncated output as a preflight failure without exposing command output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > rejects valid report with non-zero exit as a preflight failure without exposing command output 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > classifies a rejected Cherry-managed provider field as binary incompatibility 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > keeps rejected user-owned path tools.web.fetch.ssrfPolicy classified as external config 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > OpenClaw config preflight boundaries > keeps rejected user-owned path gateway.bind classified as external config 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getDashboardUrl > uses fragment token to keep dashboard auth client-side 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway health probe > uses the canonical /healthz endpoint when /health serves HTML 7ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway health probe > reports an HTML health response without exposing a JSON parser error 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getStatus > returns "starting" immediately without probing health 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getStatus > detects externally running gateway when stopped 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getStatus > detects externally running gateway when in error state 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getStatus > detects crashed gateway and transitions running → stopped 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getStatus > stays running when health probe is healthy 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getStatus > stays stopped when health probe is unhealthy 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getStatus > stays in error when health probe is unhealthy 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > serializes concurrent starts into one child and confirms the ready URL with HTTP 200 4ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > probes and returns the complete authenticated URL printed by dsh 0.1.2-rc.1 8ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > exchanges the token for a 303 whose Location resolves to the root: ./ (relative form emitted by dsh 0.1.7-rc.2) 1ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > exchanges the token for a 303 whose Location resolves to the root: http://127.0.0.1:43123/ (absolute form targeting the same root resource) 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > does not accept a 303 whose Location resolves elsewhere 1ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: https://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ 1ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://localhost:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://2130706433:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://127.0.0.1:0/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://127.0.0.1:65536/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://127.0.0.1:43123/admin?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://127.0.0.1:43123/?token= 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ&token=duplicate 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ&debug=true 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects an unsafe ready URL: http://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ#fragment 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > does not accept an unauthenticated 401 response as readiness 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > redacts the launch token from startup diagnostics and process-error logs 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > restarts only the managed child when its launch permission changes 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > uses an enabled API key obtained through CherryIN-style OAuth in direct mode 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > writes the no-key placeholder for auth-optional providers without an API key 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > writes provider-specific placeholders for keyless local providers 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > does not expose provider request headers through the DeepSeek Harness settings route 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects direct mode when an OAuth-obtained API key is no longer available 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rejects OAuth-only direct mode even when stale key metadata is present 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > starts the global gateway and projects its current address, key, and gateway model id 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > rolls back configuration and redacts credentials when the child exits before readiness 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > records the dsh version with scrubbed env when launch fails 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > still reports the launch failure when the version probe fails 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > does not block launch for a populated home holding only archived sessions (#20395) 2ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > times out a silent child, terminates only its own process group, and rolls back config 1ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > escalates from SIGTERM to SIGKILL after the upstream cleanup window 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > terminates the complete Windows process tree before accepting wrapper exit 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > bounds graceful and forced termination below the lifecycle stop ceiling 1ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > uses child exit confirmation during application shutdown without probing HTTP again 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > interrupts a pending startup when application shutdown begins 52ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > shared status snapshots > publishes starting then running on a successful start 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > shared status snapshots > publishes error when the launch fails 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > shared status snapshots > does not publish stopped while cleaning up a failed launch 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > shared status snapshots > publishes error immediately when the running child is killed, without waiting for a poll 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > shared status snapshots > announces stopped exactly once when a stop completes 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > shared status snapshots > republishes running when a start hits the already-running fast path 0ms
+ ✓ |main| src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts > DeepSeekHarnessService > shared status snapshots > confirms stopped on a no-op stop of an already-stopped harness 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > getStatus > discards a probe that resolves after a transition completed mid-flight 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > resolves a system OpenClaw through BinaryManager availability 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > rejects concurrent startup calls 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > rejects an invalid formal config before checking or stopping the gateway port 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > runs formal config validation with the explicit OpenClaw config path 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > spawns a system OpenClaw with the raw user environment and formal config path 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > spawns a managed OpenClaw with the refreshed environment and formal config path 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > launches a system OpenClaw .cmd through the process runner on Windows 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > strips proxy variables from the gateway spawn env without mutating the source shellEnv 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > stops stale gateway and restarts when port is in use by our gateway 16ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > fails when port is in use by another application 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > fails when binary is not found 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > transitions to running on successful start 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > transitions to error when start fails 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > sets status to starting during startup 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > startGateway > uses custom port when provided 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > stopGateway > transitions to stopped on successful stop 14ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > stopGateway > transitions to error when gateway fails to stop 16ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway shared status > publishes starting then running on a successful start 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway shared status > publishes error when the start fails 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway shared status > announces stopped when a stop completes 15ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway shared status > confirms stopped on a no-op stop so a stale renderer is corrected 15ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway shared status > keeps the current custom port when startGateway is called without one 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway port preference sync > adopts the persisted custom gateway port at readiness 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway port preference sync > keeps the default port when the preference value is not a positive integer 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway port preference sync > keeps the current port when the preference value exceeds the valid range 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway port preference sync > adopts a changed custom port while the gateway is idle 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway port preference sync > keeps the running gateway port when the preference changes mid-run 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > gateway port preference sync > adopts a port change deferred during a run once the gateway becomes idle 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > marks a dead gateway stopped when the probe goes unhealthy 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > does no IO while stopped 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > does no IO while error 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > does no IO while starting 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > broadcasts nothing while the gateway stays healthy 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > swallows a probe failure instead of throwing 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > discards a healthy probe that resolves after a stop completed mid-flight 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > discards an unhealthy probe when the gateway port changed mid-flight 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > probeGatewayTick (liveness of a running gateway) > discards an unhealthy probe after a restart returned to the same status and port 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > maps input-token pricing tiers to OpenClaw whole-request ranges 4ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > applies the caller port before syncProviderConfig writes the config 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > leaves the current gateway port unchanged when no port is supplied 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > uses automatic provider credentials and per-model bindings when syncing OpenClaw config 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > keeps unbound models on automatic provider credentials when the primary model is bound 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > resolves per-model api key bindings for non-primary models when syncing 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > omits the per-model api key when the bound key is disabled and selection falls back to automatic 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > resolves a unique model id before syncing OpenClaw config 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > does not route a mixed provider OpenAI model through the Anthropic endpoint 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > excludes hidden models from the synced model list 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > excludes non-chat models from the synced model list 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > returns an error for invalid model selections 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > returns an error when the selected endpoint has no API host 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > does not borrow an API host from another endpoint type 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > returns an error when an API-key provider has no enabled API key 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > returns an error when the selected OpenClaw model is non-chat 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > allows keyless GPUStack providers during sync 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > syncs a keyless provider with no dedicated placeholder by authOptional 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > allows keyless oMLX providers during sync 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > maps Anthropic endpoint models to Anthropic OpenClaw provider config 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > maps OpenAI Responses endpoint models through provider and model config 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > determines OpenAI Responses API type from model endpoint type 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncConfig > returns an error for providers OpenClaw sync cannot adapt yet 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > aborts the sync when the existing config is not valid JSON 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > writes a fresh config when none exists yet 23ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > writes per-model api keys when the schema supports them 19ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > fails the sync when a bound model key cannot be served without schema-level model api keys 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > reads legacy config when both legacy and primary config files exist 16ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > does not migrate legacy config files when sync fails before writing 1ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > drops a retained per-model api key once the model is no longer bound 17ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > disables the OpenClaw update hint so its banner cannot swap the managed binary 17ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > keeps an explicit checkOnStart choice instead of forcing the update hint off 17ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > removes stale Cherry providers while preserving supported hand edits on the selected provider 24ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > recursively removes unsupported nested managed fields while preserving schema-supported values 16ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > emits only optional provider and model fields supported by the resolved OpenClaw schema 17ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > keeps the formal config unchanged when validation reports a different path 12ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > keeps the formal config and empty in-memory token unchanged when external config is invalid 17ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > keeps the formal config and existing in-memory token unchanged when external config is invalid 15ms
+ ✓ |main| src/main/services/codeCli/__tests__/antigravity.test.ts > prepareAntigravityLaunch > resolves a direct Gemini provider and preserves isolated settings with mode 0600 19ms
+ ✓ |main| src/main/services/codeCli/__tests__/antigravity.test.ts > prepareAntigravityLaunch > resolves bindings when the launch model id is the provider-facing apiModelId 17ms
+ ✓ |main| src/main/services/codeCli/__tests__/antigravity.test.ts > prepareAntigravityLaunch > resolves api key bindings by provider-facing apiModelId when the internal id differs 16ms
+ ✓ |main| src/main/services/codeCli/__tests__/antigravity.test.ts > prepareAntigravityLaunch > reads gateway credentials in main and uses an Antigravity custom model URL without the Gemini sentinel 14ms
+ ✓ |main| src/main/services/codeCli/__tests__/antigravity.test.ts > prepareAntigravityLaunch > rejects a gateway launch whose provider id carries the path separator 4ms
+ ✓ |main| src/main/services/codeCli/__tests__/antigravity.test.ts > prepareAntigravityLaunch > rejects an unsafe model id without touching the isolated settings 0ms
+ ✓ |main| src/main/services/codeCli/__tests__/antigravity.test.ts > prepareAntigravityLaunch > rejects malformed isolated settings instead of overwriting them 8ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > publishes a generated token only after candidate validation and a successful formal write 23ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > redacts and limits external validation issues returned in the operation result 8ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > classifies rejected Cherry-generated fields as binary incompatibility without changing the formal file 9ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > validates a same-directory candidate, removes it, and atomically writes the formal config as 0600 17ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > syncProviderConfig existing-config handling > returns a sanitized preflight failure and leaves the formal file unchanged for malformed validation output 9ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > full lifecycle transitions > stopped → starting → running → (crash) → stopped 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > full lifecycle transitions > stopped → starting → error → (external recovery) → running 0ms
+ ✓ |main| src/main/services/__tests__/OpenClawService.test.ts > OpenClawService gateway status state machine > full lifecycle transitions > running → getStatus unhealthy → stopped → getStatus healthy → running 0ms
+ ✓ |main| src/main/data/db/__tests__/knowledgeOrderMigration.test.ts > knowledge ordering migrate-forward > upgrades a populated previous schema without losing rows or changing timestamps 61ms
+ ✓ |main| src/main/data/db/__tests__/knowledgeOrderMigration.test.ts > knowledge ordering migrate-forward > preserves custom keys and child rows when migrations run again 11ms
+
+ Test Files  4 passed (4)
+      Tests  171 passed (171)
+   Start at  12:28:32
+   Duration  1.47s (tests 40%, transform 31%, import 28%, setup 1%)
+
