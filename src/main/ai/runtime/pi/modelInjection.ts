@@ -44,6 +44,7 @@ import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGatew
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
+import { projectPiReasoningCompat } from './piReasoningCompat'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
 
@@ -443,16 +444,10 @@ function buildPiModelConfig(
     input.push('image')
   }
   const thinkingLevelMap = buildThinkingLevelMap(model)
-  const profile =
+  const reasoningCompat =
     api === 'anthropic-messages'
-      ? providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
-      : undefined
-  const thinkingType = profile?.wire.effort?.operations.findLast((operation) => operation.target === 'thinking.type')
-  const forceAdaptiveThinking =
-    profile?.wireDialect === 'adaptive-always' &&
-    profile.wire.disabled !== true &&
-    thinkingType?.value.source === 'literal' &&
-    thinkingType.value.value === 'adaptive'
+      ? projectPiReasoningCompat(providerRegistryService.resolveReasoningProfile(provider, model, endpointType))
+      : {}
   const compat = {
     // Cherry's endpoint capability overrides pi's URL-based developer-role inference.
     ...(api === 'openai-completions' || api === 'openai-responses'
@@ -460,7 +455,7 @@ function buildPiModelConfig(
       : {}),
     // CherryIN can omit the signature delta on thinking blocks that must be replayed.
     ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { allowEmptySignature: true } : {}),
-    ...(forceAdaptiveThinking ? { forceAdaptiveThinking: true } : {})
+    ...reasoningCompat
   }
 
   return {
