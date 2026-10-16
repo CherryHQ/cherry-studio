@@ -1,0 +1,34 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [macOS] › tests/e2e/regression/03-models-and-assistants.test.ts:132:5 › [C-03] Preserve a partial chat response after disconnect and restart @chat-stream-failure (1.2m)
+End-to-end phase verdict: Failed
+
+
+  1) [macOS] › tests/e2e/regression/03-models-and-assistants.test.ts:132:5 › [C-03] Preserve a partial chat response after disconnect and restart @chat-stream-failure 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('[data-ui~="chat.message"][data-message-id="01a144f0-53da-763f-afb4-248cc41561c5"]:visible').getByText('Sunlight enters a raindrop and separates into colors.', { exact: true })
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for locator('[data-ui~="chat.message"][data-message-id="01a144f0-53da-763f-afb4-248cc41561c5"]:visible').getByText('Sunlight enters a raindrop and separates into colors.', { exact: true })
+
+
+      251 |     await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
+      252 |     const restored = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]:visible`)
+    > 253 |     await expect(restored.getByText(partialText, { exact: true })).toBeVisible()
+          |                                                                    ^
+      254 |     const stored = await page.evaluate(
+      255 |       (id) => window.api.dataApi.request({ id: 'stream-failure-reloaded', method: 'GET', path: `/messages/${id}` }),
+      256 |       messageId
+        at /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/tests/e2e/regression/03-models-and-assistants.test.ts:253:68
+
+    Error Context: ../runs/regression-21783-chat-stream-failure-bb1af4d/run.213853/evidence/playwright/03-models-and-assistants/03-models-and-assistants---94432-fter-disconnect-and-restart-macOS/error-context.md
+
+  1 failed
+    [macOS] › tests/e2e/regression/03-models-and-assistants.test.ts:132:5 › [C-03] Preserve a partial chat response after disconnect and restart @chat-stream-failure 

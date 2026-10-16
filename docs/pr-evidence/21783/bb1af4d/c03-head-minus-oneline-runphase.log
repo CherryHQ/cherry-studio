@@ -1,0 +1,7 @@
+
+Running 1 test using 1 worker
+
+  ✓  1 [macOS] › tests/e2e/regression/03-models-and-assistants.test.ts:132:5 › [C-03] Preserve a partial chat response after disconnect and restart @chat-stream-failure (35.0s)
+End-to-end phase verdict: Passed
+
+  1 passed (35.5s)
