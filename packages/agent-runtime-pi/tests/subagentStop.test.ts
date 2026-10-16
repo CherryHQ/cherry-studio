@@ -110,7 +110,9 @@ describe('stopping subagents', () => {
     const { sessionId } = host.subagents[0]
 
     expect(runtime.stopSubagent(sessionId)).toBe(true)
-    await waitFor(() => subagentStates(parent.entries).some((state) => state.stoppedBy === 'user'))
+    await waitFor(() =>
+      subagentStates(parent.entries).some((state) => state.stoppedBy === 'user' && state.status === 'finished')
+    )
     // A run the stop would start begins as the stop is recorded, so it would show by now.
     expect(runtime.session.isIdle).toBe(true)
     expect(notified(calls)).toEqual([])
@@ -139,7 +141,9 @@ describe('stopping subagents', () => {
       parameters: Type.Object({}),
       async execute() {
         runtime.stopSubagent!(host.subagents[0].sessionId)
-        await waitFor(() => subagentStates(parent.entries).some((state) => state.stoppedBy === 'user'))
+        await waitFor(() =>
+          subagentStates(parent.entries).some((state) => state.stoppedBy === 'user' && state.status === 'finished')
+        )
         return { content: [{ type: 'text', text: 'pressed' }], details: undefined }
       }
     })
@@ -202,7 +206,9 @@ describe('stopping subagents', () => {
       host.subagents.find((subagent) => subagent.description === description)!.sessionId
 
     runtime.stopSubagent(id('Check A'))
-    await waitFor(() => subagentStates(parent.entries).some((state) => state.stoppedBy === 'user'))
+    await waitFor(() =>
+      subagentStates(parent.entries).some((state) => state.stoppedBy === 'user' && state.status === 'finished')
+    )
     heldB.open()
     await waitFor(() => notified(calls).length === 1)
 
@@ -235,6 +241,66 @@ describe('stopping subagents', () => {
 
     expect(stopped).toBe(false)
     expect(textOf(toolResultOf(created.session, 'call_a'))).toMatch(/^REPORT-A/)
+  })
+
+  // Breaks when the user's stop is written only once the run has wound down: closing the app in
+  // between leaves the run's start as its last snapshot, and the rebuilt parent could continue it.
+  it("keeps the user's stop of a run the app closes on while it winds down, so it cannot be continued", async () => {
+    const started = gate()
+    const windDown = gate()
+    const slowWork = defineTool({
+      name: 'work',
+      label: 'Work',
+      description: 'Works until stopped, then takes a while to wind down',
+      parameters: Type.Object({}),
+      async execute(_id, _params, signal) {
+        void started.wait(undefined)
+        await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), { once: true }))
+        await windDown.wait(undefined)
+        return { content: [{ type: 'text', text: 'stopped working' }], details: undefined }
+      }
+    })
+    const host = storingSubagentPort()
+    const parent = hostStore()
+    const { model, calls } = routedModel((call) => {
+      const { userText, lastText } = call
+      if (userText.includes('TASK-A'))
+        return lastText.includes('TASK-A') ? [toolCallPart('work_1', 'work'), finish('tool-calls')] : reply('LATE-A')
+      if (lastText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      // The rebuilt parent's undelivered result rides with this message, after it.
+      if (call.lastRole === 'user' && userText.includes('Go on with A'))
+        return [
+          toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' }),
+          finish('tool-calls')
+        ]
+      return reply('OK.')
+    })
+    const runtime = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [slowWork],
+      subagents: host.port,
+      onEvent: parent.onEvent
+    })
+    await runtime.prompt('Check A in the background')
+    await started.reached
+    expect(runtime.stopSubagent(host.subagents[0].sessionId)).toBe(true)
+    const closed = runtime.dispose()
+    windDown.open()
+    await closed
+
+    const rebuilt = await createTestSession({
+      port: streamTextPort(model).port,
+      tools: [slowWork],
+      subagents: host.port,
+      transcript: plain(parent.entries)
+    })
+    await rebuilt.prompt('Go on with A')
+    const refused = toolResultOf(rebuilt.session, 'call_msg')
+    expect(refused.isError).toBe(true)
+    expect(textOf(refused)).toMatch(/was stopped by the user and cannot be continued/)
+    expect(calls.filter((call) => call.lastText === 'GO-ON')).toEqual([])
+    // The result rides with that message as the user's stop, not as a run to continue.
+    expect(notified(calls).at(-1)?.lastText).toMatch(/was stopped by the user\.$/m)
   })
 
   // Breaks when a later stop replaces the user's while the run winds down (the model could then
