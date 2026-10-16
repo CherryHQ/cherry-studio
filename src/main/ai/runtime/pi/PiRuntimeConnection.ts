@@ -5,6 +5,7 @@ import type { AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi
 import type {
   AgentSession,
   AgentSessionEvent,
+  BashToolOptions,
   CompactionResult,
   ContextUsage,
   ProviderConfig,
@@ -66,7 +67,8 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
-import { createPiApprovalExtension } from './approvalExtension'
+import { createPiActionFusionExtension } from './actionFusion'
+import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
@@ -356,6 +358,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         agentDataPath,
         this.input.knowledgeBaseIds
       )
+      // The Cherry bash contract shared by the regular bash tool and fused
+      // then_run commands: preserve pi's agent-bin PATH and safely layer the
+      // applicable Cherry-managed binary contract.
+      const managedBashOptions = {
+        commandPrefix: loginPathPrefix,
+        shellPath,
+        spawnHook: (context) => ({
+          ...context,
+          env: mergePiBashExecutionEnv(context.env)
+        })
+      } satisfies BashToolOptions
       const resourceLoader = new pi.DefaultResourceLoader({
         cwd: workspacePath,
         agentDir,
@@ -379,6 +392,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
           createPiApprovalExtension(approvalContext),
           createPiIdentityExtension(agentDataPath),
+          // Replaces the built-in edit/write tools with fused versions; the
+          // nested then_run command is authorized through the same boundary as
+          // nested code-mode calls.
+          createPiActionFusionExtension(pi, {
+            workspacePath,
+            bashToolOptions: managedBashOptions,
+            authorize: createPiToolAuthorizer(approvalContext)
+          }),
           pi.createCodemodeExtension({ models: false }),
           pi.createToolSearchExtension(),
           createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log')),
@@ -393,16 +414,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       const sessionManager = this.resolveSessionManager(pi, workspacePath, sessionDir)
 
-      // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
-      // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
-      const managedBashTool = pi.createBashToolDefinition(workspacePath, {
-        commandPrefix: loginPathPrefix,
-        shellPath,
-        spawnHook: (context) => ({
-          ...context,
-          env: mergePiBashExecutionEnv(context.env)
-        })
-      }) as ToolDefinition
+      // Replace pi's built-in bash with its SDK definition plus the managed
+      // bash contract above.
+      const managedBashTool = pi.createBashToolDefinition(workspacePath, managedBashOptions) as ToolDefinition
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,
         this.input.agentId,
