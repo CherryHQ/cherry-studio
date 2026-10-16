@@ -4,6 +4,7 @@ import useSWR, { useSWRConfig } from 'swr'
 
 import { Button, Dialog, Spinner } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { MarketplaceInstallResult, MarketplaceSkill } from '@shared/types/skillMarketplace'
 import { localizeMarketplaceText } from '@shared/utils/cherrySkillMarketplace'
 
@@ -195,7 +196,7 @@ export function MarketplaceSkillDialog({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => window.open(validSource)}
+              onClick={() => openExternalWebsite(validSource)}
               className="text-xs text-muted-foreground">
               <ExternalLink className="size-3.5" />
               {t(item.githubRepoUrl ? 'marketplace.view_repository' : 'marketplace.view_source')}

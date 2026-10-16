@@ -5,7 +5,6 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { paintingService } from '@data/services/PaintingService'
 import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
-import { removeLibraryTagAssignments } from '@data/services/utils/libraryTags'
 import { loggerService } from '@logger'
 import type { JobHandlerFor } from '@main/core/job/types'
 
@@ -70,11 +69,10 @@ const PURGE_DOMAINS: ReadonlyArray<{
   },
   {
     name: 'assistant',
-    purgeExpired: async (cutoffMs, limit) => {
+    purgeExpired: (cutoffMs, limit) => {
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit))
-      await removeLibraryTagAssignments(purgedIds.map((id) => `assistant:${id}`))
       return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => {
         assistantDataService.notifyReadModelChange(purgedIds, 'membership')
         promptService.notifyTargetBindingsChanged()
@@ -112,12 +110,11 @@ const PURGE_DOMAINS: ReadonlyArray<{
  * Hard-deletes trashed rows whose retention window has expired, then reclaims
  * orphaned disk artifacts (file blobs + agent directories).
  *
- * Recovery 'singleton': after a restart only the newest non-terminal purge
- * survives — one full sweep covers everything an older queued run would have
- * done.
+ * Recovery 'retry' retains each unfinished request and its deletion scope.
+ * Runs remain serial: a scheduled purge cannot replace an empty-all request.
  */
 export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
-  recovery: 'singleton',
+  recovery: 'retry',
   defaultConcurrency: 1,
   async execute(ctx) {
     const emptyAll = ctx.input?.emptyAll === true

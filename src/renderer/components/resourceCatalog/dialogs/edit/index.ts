@@ -1,5 +1,3 @@
 export { default as PromptEditDialog } from './PromptEditDialog'
-export { PromptEditDialogHost } from './PromptEditDialogHost'
-export { AssistantCreateDialog } from './AssistantEditDialog'
 export { ResourceEditDialogHost } from './ResourceEditDialogHost'
 export type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'

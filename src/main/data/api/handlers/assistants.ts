@@ -8,7 +8,6 @@
  * All input validation happens here at the system boundary.
  */
 
-import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
@@ -67,7 +66,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
 
     DELETE: async ({ params, query }) => {
       DeleteAssistantQuerySchema.parse(query)
-      return application.get('TrashService').deleteTrashedAssistantPermanently(params.id)
+      return assistantDataService.delete(params.id, { permanent: true })
     }
   },
 

@@ -20,15 +20,6 @@ const {
   reorderBatchMock: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'TrashService') return { deleteTrashedAssistantPermanently: deleteMock }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
-  }
-}))
-
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     list: listMock,
@@ -36,6 +27,7 @@ vi.mock('@data/services/AssistantService', () => ({
     createFromImport: createFromImportMock,
     getById: getByIdMock,
     update: updateMock,
+    delete: deleteMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -274,7 +266,7 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toEqual({ deleted: true, deletedTopicIds: undefined })
 
-      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID)
+      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { permanent: true })
 
       deleteMock.mockClear()
       await expect(

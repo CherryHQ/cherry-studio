@@ -11,6 +11,7 @@ const baseFileName = `${baseLocale}.json`
 const rendererLocalesDir = path.join(__dirname, '../src/renderer/i18n/locales')
 const mainI18nDir = path.join(__dirname, '../src/main/i18n')
 const mainSrcDir = path.join(__dirname, '../src/main')
+const filePreviewLocalesDir = path.join(__dirname, '../packages/file-preview/src/locales')
 
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
 type I18N = { [key: string]: string }
@@ -144,6 +145,8 @@ function checkTranslations(): void {
   const mainBaseJson = checkCatalog('main', mainBaseFilePath, mainFiles)
 
   checkMainKeyCoverage(mainBaseJson)
+
+  checkCatalog('file-preview', path.join(filePreviewLocalesDir, baseFileName), listJsonFiles(filePreviewLocalesDir))
 }
 
 export function main() {

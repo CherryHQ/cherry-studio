@@ -7,7 +7,6 @@ import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
-import { removeLibraryTagAssignments } from '@data/services/utils/libraryTags'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
@@ -911,7 +910,6 @@ export class SkillService {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       agentGlobalSkillService.deleteById(skillId)
-      await removeLibraryTagAssignments([skillId])
       await this.unlinkMirror(skill.folderName)
       agentGlobalSkillService.notifySkillMembershipChange(skillId)
       logger.info('Pruned missing Skill during scoped reconcile', { skillId, folderName: skill.folderName })
@@ -1300,7 +1298,6 @@ export class SkillService {
         }
       }
       agentGlobalSkillService.deleteById(skill.id)
-      await removeLibraryTagAssignments([skill.id])
       await this.unlinkMirror(skill.folderName)
       logger.info('Pruned skill whose library folder was removed', { folderName: skill.folderName })
     }
@@ -1597,7 +1594,6 @@ export class SkillService {
     await this.installer.uninstall(skillPath)
     await this.unlinkMirror(skill.folderName)
     agentGlobalSkillService.deleteById(skill.id)
-    await removeLibraryTagAssignments([skill.id])
     logger.info('Skill uninstalled', { skillId: skill.id, folderName: skill.folderName })
   }
 }

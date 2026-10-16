@@ -1,12 +1,10 @@
 import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { CreatePromptDto, PromptBindingParams, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptBindingTarget } from '@shared/data/types/prompt'
-import { PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
@@ -35,7 +33,6 @@ export const promptAdapter: ResourceAdapter<Prompt> = {
 }
 
 export function usePromptMutations() {
-  const { t } = useTranslation()
   const { trigger: createTrigger } = useMutation('POST', '/prompts', {
     refresh: ['/prompts']
   })
@@ -45,19 +42,7 @@ export function usePromptMutations() {
     [createTrigger]
   )
 
-  const duplicatePrompt = useCallback(
-    (source: Prompt): Promise<Prompt> => {
-      const nameLimit = PROMPT_TITLE_MAX - t('library.duplicate_name', { name: '' }).length
-      return createPrompt({
-        title: t('library.duplicate_name', { name: source.title.slice(0, nameLimit) }),
-        content: source.content,
-        visibility: source.visibility
-      })
-    },
-    [createPrompt, t]
-  )
-
-  return { createPrompt, duplicatePrompt }
+  return { createPrompt }
 }
 
 export function usePromptMutationsById(id: string) {

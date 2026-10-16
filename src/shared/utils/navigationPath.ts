@@ -70,6 +70,7 @@ const KNOWN_NAVIGATION_ROUTES = [
   '/settings/scheduled-tasks',
   '/settings/skills',
   '/settings/usage',
+  '/settings/profile',
   '/settings/mcp/servers',
   '/settings/mcp/builtin',
   '/settings/mcp/marketplaces',
