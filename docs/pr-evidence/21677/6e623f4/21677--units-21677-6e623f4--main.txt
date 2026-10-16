@@ -1,0 +1,85 @@
+$ pnpm rebuild:node
+$ node scripts/invalidate-electron-rebuild-metadata.js && pnpm rebuild better-sqlite3
+✓ Lockfile passes supply-chain policies (verified 2d ago)
+Already up to date
+.../node_modules/better-sqlite3 install$ prebuild-install || node-gyp rebuild --release
+.../node_modules/better-sqlite3 install: (node:82562) [DEP0176] DeprecationWarning: fs.R_OK is deprecated, use fs.constants.R_OK instead
+.../node_modules/better-sqlite3 install: (Use `node --trace-deprecation ...` to show where the warning was created)
+.../node_modules/better-sqlite3 install: Done
+Done in 1.1s using pnpm v12.6.0
+$ vitest run --project main --reporter=verbose src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (electron.vite.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/vitePlugin.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/piVccBundle.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/sentry.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/checkChunkExports.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/claudeCodeBinaryManifest.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/types/appEdition.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/build-theme-css.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/releaseNotes.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/redaction.ts:4:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/semanticId.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/scan.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/transform.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/theme-contract.ts:12:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(node:82619) Warning: Accessing non-existent property 'replaceRouteChunk' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/conversation-entry.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/-conversation-entry.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/search.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-search.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/skills.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-skills.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/about.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-about.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+
+ RUN  v5.0.1 /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src
+
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > health probe error classification > recognizes only unsupported or unanswered probes, including wrapped errors 1ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > keeps a usable connection after a timeout probe 2ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > keeps a usable connection after a method not found probe 0ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > replaces a connection after an unknown probe error 0ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > backs off repeated dead connections and settles after the fifth failed probe 2ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > lets a window-backed caller recover after background OAuth probes fail 1ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > lets restart supersede a terminal probe waiting for close 1ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > publishes an unavailable status during finite probe cooldown and recovers 0ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > clears the streak after a successful probe 0ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > McpRuntimeService existing connection probes > allows a fresh connection after stopping a settled server 1ms
+ ✓ |main| src/main/ai/mcp/__tests__/McpRuntimeService.healthProbe.test.ts > legacy stdio health probe wire > sends ping after initialization, without a second discovery request 45ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  12:29:40
+   Duration  512ms (transform 51%, import 36%, tests 12%, setup 1%)
+
