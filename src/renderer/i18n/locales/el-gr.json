@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "Εγκατάσταση τώρα",
   "marketplace.install_remaining": "Εγκατάσταση υπολοίπων",
   "marketplace.installed_hint": "Εγκαταστάθηκε στη βιβλιοθήκη δεξιοτήτων. Ενεργοποιήστε το στις ρυθμίσεις του Agent.",
-  "marketplace.installed_load_failed": "Δεν ήταν δυνατή η ανάγνωση των εγκατεστημένων δεξιοτήτων.",
   "marketplace.instructions": "Οδηγίες",
   "marketplace.load_failed": "Δεν ήταν δυνατή η φόρτωση της αγοράς. Δοκιμάστε ξανά.",
   "marketplace.manage_mcp": "Διαχείριση MCP",

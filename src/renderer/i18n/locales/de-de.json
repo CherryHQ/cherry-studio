@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "Jetzt installieren",
   "marketplace.install_remaining": "Verbleibende installieren",
   "marketplace.installed_hint": "In der Skill-Bibliothek installiert. In der Agent-Konfiguration aktivieren.",
-  "marketplace.installed_load_failed": "Installierte Skills konnten nicht geladen werden.",
   "marketplace.instructions": "Anweisungen",
   "marketplace.load_failed": "Der Marktplatz konnte nicht geladen werden. Bitte erneut versuchen.",
   "marketplace.manage_mcp": "MCP verwalten",

@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "Установить",
   "marketplace.install_remaining": "Установить оставшиеся",
   "marketplace.installed_hint": "Установлено в библиотеку навыков. Включите в настройках Agent.",
-  "marketplace.installed_load_failed": "Не удалось прочитать установленные навыки.",
   "marketplace.instructions": "Инструкции",
   "marketplace.load_failed": "Не удалось загрузить рынок. Попробуйте ещё раз.",
   "marketplace.manage_mcp": "Управление MCP",

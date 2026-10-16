@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "Instalar ahora",
   "marketplace.install_remaining": "Instalar restantes",
   "marketplace.installed_hint": "Instalado en la biblioteca de habilidades. Actívalo en la configuración del Agent.",
-  "marketplace.installed_load_failed": "No se pudieron leer las habilidades instaladas.",
   "marketplace.instructions": "Instrucciones",
   "marketplace.load_failed": "No se pudo cargar el mercado. Inténtalo de nuevo.",
   "marketplace.manage_mcp": "Gestionar MCP",

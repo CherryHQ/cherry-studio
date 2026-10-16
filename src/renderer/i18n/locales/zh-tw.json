@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "立即安裝",
   "marketplace.install_remaining": "安裝剩餘技能",
   "marketplace.installed_hint": "已安裝到技能庫，可在 Agent 設定中啟用",
-  "marketplace.installed_load_failed": "無法讀取已安裝的技能",
   "marketplace.instructions": "指令",
   "marketplace.load_failed": "市場載入失敗，請重試",
   "marketplace.manage_mcp": "管理 MCP",

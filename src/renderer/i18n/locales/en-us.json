@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "Install now",
   "marketplace.install_remaining": "Install remaining",
   "marketplace.installed_hint": "Installed in your skill library. Enable it in your Agent configuration.",
-  "marketplace.installed_load_failed": "Unable to read installed skills.",
   "marketplace.instructions": "Instructions",
   "marketplace.load_failed": "Unable to load the marketplace. Please try again.",
   "marketplace.manage_mcp": "Manage MCP",

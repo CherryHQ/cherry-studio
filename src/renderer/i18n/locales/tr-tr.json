@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "Şimdi yükle",
   "marketplace.install_remaining": "Kalanları yükle",
   "marketplace.installed_hint": "Beceri kitaplığına yüklendi. Agent yapılandırmasından etkinleştirin.",
-  "marketplace.installed_load_failed": "Yüklü beceriler okunamadı.",
   "marketplace.instructions": "Talimatlar",
   "marketplace.load_failed": "Pazar yüklenemedi. Lütfen yeniden deneyin.",
   "marketplace.manage_mcp": "MCP yönetimi",

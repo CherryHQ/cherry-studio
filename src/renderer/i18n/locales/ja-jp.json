@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "今すぐインストール",
   "marketplace.install_remaining": "残りをインストール",
   "marketplace.installed_hint": "スキルライブラリにインストール済みです。Agent の設定で有効にできます。",
-  "marketplace.installed_load_failed": "インストール済みスキルを読み込めません。",
   "marketplace.instructions": "指示",
   "marketplace.load_failed": "マーケットを読み込めません。もう一度お試しください。",
   "marketplace.manage_mcp": "MCP を管理",

@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "Instalează acum",
   "marketplace.install_remaining": "Instalează restul",
   "marketplace.installed_hint": "Instalat în biblioteca de abilități. Activează-l în configurația Agentului.",
-  "marketplace.installed_load_failed": "Nu s-au putut citi abilitățile instalate.",
   "marketplace.instructions": "Instrucțiuni",
   "marketplace.load_failed": "Piața nu a putut fi încărcată. Încearcă din nou.",
   "marketplace.manage_mcp": "Gestionare MCP",

@@ -2235,7 +2235,6 @@
   "marketplace.install_now": "Cài đặt ngay",
   "marketplace.install_remaining": "Cài đặt phần còn lại",
   "marketplace.installed_hint": "Đã cài vào thư viện kỹ năng. Bật trong cấu hình Agent.",
-  "marketplace.installed_load_failed": "Không thể đọc các kỹ năng đã cài đặt.",
   "marketplace.instructions": "Chỉ dẫn",
   "marketplace.load_failed": "Không thể tải thị trường. Vui lòng thử lại.",
   "marketplace.manage_mcp": "Quản lý MCP",
