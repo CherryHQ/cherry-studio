@@ -203,7 +203,12 @@ describe('FileStorage', () => {
     it('extracts document content from an uppercase DOC extension', async () => {
       const documentPath = path.join(os.tmpdir(), `filestorage-read-test-${uniqueId()}.DOC`)
       fs.writeFileSync(documentPath, 'not plain text')
-      documentParserMocks.extractWord.mockResolvedValueOnce({ getBody: () => 'extracted legacy document text' })
+      documentParserMocks.extractWord.mockResolvedValueOnce({
+        getBody: () => 'extracted legacy document text',
+        getTextboxes: () => '',
+        getFootnotes: () => '',
+        getEndnotes: () => ''
+      })
 
       try {
         await expect(fileStorage.readExternalFile(event, documentPath, true)).resolves.toBe(
