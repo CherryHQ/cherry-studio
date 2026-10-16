@@ -197,6 +197,53 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('carries every restriction applied in the startup window, not just the final save', async () => {
+    const primary = fakeConnection()
+    // Each forwarded save applies on the old connection; the second re-enables what the first
+    // disabled, so its final policy names no disabled tool and the row the replacement re-derives
+    // cannot recover the restriction — only a carried union of what the window applied can.
+    primary.reconcile.mockImplementation(async () => {
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: ['bash'] })
+      return 'patched'
+    })
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    // Two completed saves during the delayed replacement startup: bash disabled, then re-enabled.
+    await wrapper.reconcile({ modelId: 'primary::model' })
+    primary.reconcile.mockImplementation(async () => {
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+      return 'current'
+    })
+    await wrapper.reconcile({ modelId: 'primary::model' })
+
+    releaseConnect()
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+
+    // The replay is admitted only under the union of what the window applied: bash stays disabled
+    // on the replacement even though the saved row has it enabled again.
+    expect(fallback.reconcile).toHaveBeenCalledWith({ modelId: 'backup::model', carriedDisabledTools: ['bash'] })
+    expect(fallback.send).toHaveBeenCalled()
+    await wrapper.close()
+  })
+
   it('replays the turn under the prompt it was admitted with, not one saved mid-turn', async () => {
     const primary = fakeConnection()
     primary.getPromptPolicy = vi.fn(() => ({ instructions: 'A' }))

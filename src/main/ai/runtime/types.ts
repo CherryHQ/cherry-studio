@@ -269,6 +269,12 @@ export interface AgentRuntimeConnection {
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    /**
+     * Disabled tools already applied to the live turn while a fallback replacement was starting.
+     * The connection unions them onto whatever it derives (tighten-only): the agent row it reads
+     * may already reflect a later re-enable, so the row alone cannot restore this turn's set.
+     */
+    carriedDisabledTools?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
