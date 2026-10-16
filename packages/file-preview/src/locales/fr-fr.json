@@ -12,6 +12,8 @@
   "file_preview.pdf.page_number": "Numéro de page",
   "file_preview.pdf.too_large.description": "Une partie de ce PDF est trop volumineuse pour être prévisualisée en toute sécurité dans l'application.",
   "file_preview.pdf.too_large.title": "Impossible de prévisualiser ce PDF",
+  "file_preview.powerpoint.zip_limit.description": "Ce fichier PowerPoint dépasse les limites de prévisualisation sécurisée de l'application.",
+  "file_preview.powerpoint.zip_limit.title": "Impossible de prévisualiser ce fichier PowerPoint",
   "file_preview.too_large.action": "Ouvrir avec l'application par défaut",
   "file_preview.too_large.description": "La taille du fichier {{size}} dépasse la limite d’aperçu de {{limit}}.",
   "file_preview.too_large.title": "Fichier trop volumineux pour être prévisualisé",
