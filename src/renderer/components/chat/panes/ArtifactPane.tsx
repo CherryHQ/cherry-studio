@@ -1,6 +1,8 @@
 import {
   AlertCircle,
   ArrowLeft,
+  ChevronDown,
+  ClipboardCopy,
   Copy,
   CopySlash,
   Eye,
@@ -22,7 +24,18 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  ButtonGroup,
+  ConfirmDialog,
+  MenuItem,
+  MenuList,
+  NormalTooltip,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
@@ -48,7 +61,9 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   type ArtifactPaneFileSelection,
   getArtifactPaneSelectionPath,
+  getArtifactPaneSelectionDisplayPath,
   getCopyableAbsolutePath,
+  getPathBasename,
   WORKSPACE_ROOT_ID
 } from './artifactPanePath'
 import {
@@ -100,13 +115,25 @@ export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@re
 
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
 const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
+const DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES = 25 * 1024 * 1024
+const COPYABLE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx'])
+const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods'])
+const TOOLBAR_SPLIT_BUTTON_GROUP_CLASS = 'h-8 overflow-hidden rounded-md border border-border-subtle'
+const TOOLBAR_SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
+const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 
-function getPreviewFileTitle(filePath: string): string {
-  const segments = filePath
-    .trim()
-    .split(/[/\\]+/)
-    .filter(Boolean)
-  return segments.at(-1) ?? filePath
+function getPreviewFileTitle(selection: ArtifactPaneFileSelection): string {
+  // displayName is the attachment filename; filePath may be a managed copy.
+  if (selection.displayName) return selection.displayName
+  return getPathBasename(selection.filePath)
+}
+
+function canCopyFileContent(filePath: string | null, isText: string, fileSize: { status: string; size?: number }) {
+  if (!filePath || fileSize.status !== 'ok' || typeof fileSize.size !== 'number') return false
+  const extension = getFileExtension(filePath)
+  if (COPYABLE_DOCUMENT_EXTENSIONS.has(extension)) return fileSize.size <= DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES
+  if (NON_TEXT_DOCUMENT_EXTENSIONS.has(extension)) return false
+  return isText === 'text' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 }
 
 function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id: string }): string | null {
@@ -187,6 +214,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
   const [knownFileSizeBytes, setKnownFileSizeBytes] = useState<number | undefined>(undefined)
   const [staleConflictOpen, setStaleConflictOpen] = useState(false)
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false)
   const [selectionReference, setSelectionReference] = useState<SelectionReference | null>(null)
   // Destructure the stable callbacks so effect/callback deps don't have to
   // list the whole `model` (a fresh object every render).
@@ -240,9 +268,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
 
   const isText = useIsTextFile(previewWorkspacePath, previewFilePath)
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken, knownFileSizeBytes)
+  const canCopyPreviewContent = canCopyFileContent(previewFilePath ?? null, isText, fileSize)
   const hasActiveEditSession = editMode === 'edit' && fileSession?.status === 'ready'
   const canEditSelection =
-    Boolean(fileSession && overlaySelection) &&
+    Boolean(fileSession && overlaySelection && !overlaySelection.readOnly) &&
     isText === 'text' &&
     (hasActiveEditSession || (fileSize.status === 'ok' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
   const isEditDirty = fileSession?.isDirty ?? false
@@ -341,12 +370,18 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   editorLoadingRef.current = editorLoading
   const canEditSelectionRef = useRef(canEditSelection)
   canEditSelectionRef.current = canEditSelection
+  const canCopyPreviewContentRef = useRef(canCopyPreviewContent)
+  canCopyPreviewContentRef.current = canCopyPreviewContent
   const isEditDirtyRef = useRef(isEditDirty)
   isEditDirtyRef.current = isEditDirty
   const fileSessionReloadRef = useRef(fileSessionReload)
   fileSessionReloadRef.current = fileSessionReload
-  const overlayPathsRef = useRef<{ filePath?: string; workspacePath?: string }>({})
-  overlayPathsRef.current = { filePath: overlayFilePath, workspacePath: overlayWorkspacePath }
+  const overlayPathsRef = useRef<{ displayPath?: string; filePath?: string; workspacePath?: string }>({})
+  overlayPathsRef.current = {
+    displayPath: overlaySelection ? getArtifactPaneSelectionDisplayPath(overlaySelection) : undefined,
+    filePath: overlayFilePath,
+    workspacePath: overlayWorkspacePath
+  }
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
@@ -410,6 +445,29 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     },
     [t]
   )
+
+  const handleCopyPreviewPath = useCallback(async () => {
+    const { displayPath } = overlayPathsRef.current
+    if (!displayPath) return
+    await copyPath(getCopyableAbsolutePath(displayPath, isWin))
+  }, [copyPath])
+
+  const handleCopyPreviewContent = useCallback(async () => {
+    const { filePath, workspacePath } = overlayPathsRef.current
+    if (!filePath || !workspacePath || !canCopyPreviewContentRef.current) return
+    try {
+      const absolutePath = getArtifactPaneSelectionPath({ workspacePath, filePath })
+      const extension = getFileExtension(absolutePath)
+      const content = COPYABLE_DOCUMENT_EXTENSIONS.has(extension)
+        ? await window.api.file.readExternal(absolutePath, true)
+        : await window.api.fs.readText(absolutePath)
+      await navigator.clipboard.writeText(content)
+      toast.success(t('message.copy.success'))
+    } catch (error) {
+      logger.error('Failed to copy file content', error as Error)
+      toast.error(t('message.copy.failed'))
+    }
+  }, [t])
 
   const getFileTreeMenuItems = useCallback(
     async (node: FileTreeNode): Promise<readonly CommandContextMenuExtraItem[]> => {
@@ -541,11 +599,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   // The items factory snapshots display state but reads refs at click time so portals never act stale.
   const buildTabActionItems = useCallback(
     (snapshot?: {
+      canCopyPreviewContent?: boolean
       canEditSelection?: boolean
       editMode?: 'preview' | 'edit'
       editorLoading?: boolean
     }): CommandContextMenuExtraItem[] => {
       const canEdit = snapshot?.canEditSelection ?? canEditSelectionRef.current
+      const canCopyContent = snapshot?.canCopyPreviewContent ?? canCopyPreviewContentRef.current
       const currentMode = snapshot?.editMode ?? editModeRef.current
       const isLoading = snapshot?.editorLoading ?? editorLoadingRef.current
       // Label and action must promise the same thing: navigate to the mode this
@@ -569,6 +629,28 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               }
             ]
           : []),
+        ...(canCopyContent
+          ? [
+              {
+                type: 'item' as const,
+                id: 'artifact-pane.overlay.copy-content',
+                label: t('agent.preview_pane.copy_content'),
+                icon: <ClipboardCopy size={14} />,
+                onSelect: () => void handleCopyPreviewContent()
+              }
+            ]
+          : []),
+        ...(overlaySelection
+          ? [
+              {
+                type: 'item' as const,
+                id: 'artifact-pane.overlay.copy-path',
+                label: t('agent.preview_pane.copy_path'),
+                icon: <Copy size={14} />,
+                onSelect: () => void handleCopyPreviewPath()
+              }
+            ]
+          : []),
         {
           type: 'item' as const,
           id: 'artifact-pane.overlay.refresh',
@@ -586,15 +668,79 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         }
       ]
     },
-    [handleClosePreview, handleEditorModeChange, handleRefresh, t]
+    [
+      handleClosePreview,
+      handleCopyPreviewContent,
+      handleCopyPreviewPath,
+      handleEditorModeChange,
+      handleRefresh,
+      overlaySelection,
+      t
+    ]
   )
 
   // Pending baseline rendered synchronously while open targets resolve; the
   // menus are disabled without a selection, so skip building items entirely.
   const tabActionItems = useMemo(
-    () => (overlaySelection ? buildTabActionItems({ canEditSelection, editMode, editorLoading }) : []),
-    [buildTabActionItems, canEditSelection, editMode, editorLoading, overlaySelection]
+    () =>
+      overlaySelection ? buildTabActionItems({ canCopyPreviewContent, canEditSelection, editMode, editorLoading }) : [],
+    [buildTabActionItems, canCopyPreviewContent, canEditSelection, editMode, editorLoading, overlaySelection]
   )
+
+  const primaryCopyLabel = t(canCopyPreviewContent ? 'agent.preview_pane.copy_content' : 'agent.preview_pane.copy_path')
+  const handlePrimaryCopy = canCopyPreviewContent ? handleCopyPreviewContent : handleCopyPreviewPath
+  const previewCopyAction = overlaySelection ? (
+    <ButtonGroup
+      attached={false}
+      aria-label={t('common.copy')}
+      className={cn(TOOLBAR_SPLIT_BUTTON_GROUP_CLASS, 'gap-0')}>
+      <NormalTooltip content={primaryCopyLabel} delayDuration={500}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn('w-8 min-w-8', TOOLBAR_SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)}
+          aria-label={primaryCopyLabel}
+          onClick={() => void handlePrimaryCopy()}>
+          {canCopyPreviewContent ? <ClipboardCopy size={14} /> : <Copy size={14} />}
+        </Button>
+      </NormalTooltip>
+      <Popover open={copyMenuOpen} onOpenChange={setCopyMenuOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={cn('w-6 min-w-6', TOOLBAR_SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)}
+            aria-label={t('common.more')}>
+            <ChevronDown size={14} />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-40 p-1" align="end">
+          <MenuList>
+            {canCopyPreviewContent ? (
+              <MenuItem
+                label={t('agent.preview_pane.copy_content')}
+                icon={<ClipboardCopy size={14} />}
+                onClick={() => {
+                  setCopyMenuOpen(false)
+                  void handleCopyPreviewContent()
+                }}
+              />
+            ) : null}
+            <MenuItem
+              label={t('agent.preview_pane.copy_path')}
+              icon={<Copy size={14} />}
+              onClick={() => {
+                setCopyMenuOpen(false)
+                void handleCopyPreviewPath()
+              }}
+            />
+          </MenuList>
+        </PopoverContent>
+      </Popover>
+    </ButtonGroup>
+  ) : null
 
   // Open-target items can outlive their opening render (the menu stays open
   // across file switches), so drop them when the selection changed mid-flight.
@@ -630,8 +776,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     props.headerVariant === 'pane' ? (
       <div
         data-testid="artifact-pane-header"
-        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
-        <div className="flex min-w-0 flex-1 items-center gap-0.5">
+        className="flex min-h-(--navbar-height) shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
+        <div className="flex min-w-7 flex-1 items-center gap-0.5">
           {overlaySelection ? (
             <Tooltip content={t('common.back')} delay={800}>
               <Button
@@ -659,7 +805,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   overlaySelection && 'cursor-context-menu'
                 )}
                 title={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : undefined}>
-                {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
+                {overlaySelection ? getPreviewFileTitle(overlaySelection) : props.paneTitle}
               </div>
             </CommandContextMenu>
             {overlaySelection && isEditDirty ? (
@@ -671,7 +817,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1">
           {canEditSelection ? (
             <>
               <Tooltip content={modeActionLabel} delay={800}>
@@ -689,6 +835,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
             </>
           ) : null}
+          {previewCopyAction}
+          {previewCopyAction ? <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" /> : null}
           {previewWorkspacePath ? (
             <>
               <OpenTargetButton
@@ -716,7 +864,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     <FilePreview
       filePath={getArtifactPaneSelectionPath(overlaySelection)}
       refreshKey={contentRefreshToken}
-      type="artifact"
+      type={overlaySelection.previewType ?? 'artifact'}
       onSelectionReference={onInsertSelectionReference && pickerActive ? setSelectionReference : undefined}
     />
   ) : null
@@ -773,7 +921,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 pendingExtraItems={tabActionItems}
                 getExtraItems={getOverlayMenuItems}>
                 <span className="cursor-context-menu truncate" title={getArtifactPaneSelectionPath(overlaySelection)}>
-                  {getPreviewFileTitle(overlaySelection.filePath)}
+                  {getPreviewFileTitle(overlaySelection)}
                 </span>
               </CommandContextMenu>
               {isEditDirty && (
@@ -802,6 +950,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
                 </>
               )}
+              {previewCopyAction}
               {overlayActions}
             </div>
           </div>
