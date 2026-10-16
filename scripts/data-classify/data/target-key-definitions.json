@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "app.computer_use.agent_control.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow local agents to observe and control desktop applications through the Computer Use SDK"
+    },
+    {
       "targetKey": "agent.commit_attribution.enabled",
       "type": "boolean",
       "defaultValue": true,

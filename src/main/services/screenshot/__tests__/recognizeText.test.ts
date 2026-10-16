@@ -6,7 +6,7 @@ vi.mock('@main/core/platform', () => platform)
 const native = vi.hoisted(() => ({ recognize: vi.fn(), OcrAccuracy: { Accurate: 1 } }))
 vi.mock('@napi-rs/system-ocr', () => native)
 
-const localModel = vi.hoisted(() => ({ isCapabilityReady: vi.fn() }))
+const localModel = vi.hoisted(() => ({ isDefaultModelReady: vi.fn() }))
 const inference = vi.hoisted(() => ({ recognize: vi.fn() }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -40,7 +40,7 @@ describe('screenshot OCR', () => {
     native.recognize.mockReset()
     platform.isMac = true
     platform.isWin = false
-    localModel.isCapabilityReady.mockReturnValue(false)
+    localModel.isDefaultModelReady.mockReturnValue(false)
     inference.recognize.mockResolvedValue(paddleResult)
   })
 
@@ -63,7 +63,7 @@ describe('screenshot OCR', () => {
 
   it('retains Paddle glyph bounds and reading order on Linux', async () => {
     platform.isMac = false
-    localModel.isCapabilityReady.mockReturnValue(true)
+    localModel.isDefaultModelReady.mockReturnValue(true)
 
     expect(isScreenshotOcrAvailable()).toBe(true)
     expect(await recognizeScreenshotText(image, size)).toEqual({
@@ -84,7 +84,7 @@ describe('screenshot OCR', () => {
 
   it('uses the installed Paddle model if the native binding fails', async () => {
     native.recognize.mockRejectedValue(new Error('Cannot find native binding'))
-    localModel.isCapabilityReady.mockReturnValue(true)
+    localModel.isDefaultModelReady.mockReturnValue(true)
 
     expect(await recognizeScreenshotText(image, size)).toEqual({
       status: 'ok',
@@ -101,7 +101,7 @@ describe('screenshot OCR', () => {
 
   it('keeps an empty native recognition as success without falling back', async () => {
     native.recognize.mockResolvedValue({ text: '', confidence: 1, lines: [] })
-    localModel.isCapabilityReady.mockReturnValue(true)
+    localModel.isDefaultModelReady.mockReturnValue(true)
 
     expect(await recognizeScreenshotText(image, size)).toEqual({ status: 'ok', lines: [] })
     expect(inference.recognize).not.toHaveBeenCalled()

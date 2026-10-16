@@ -1705,7 +1705,7 @@ describe('VoiceSessionService file and admission contract', () => {
       'process',
       Object.defineProperties(Object.create(process), {
         platform: { value: 'win32' },
-        arch: { value: 'arm64' }
+        arch: { value: 'ia32' }
       })
     )
     for (let index = 0; index < 17; index++) {

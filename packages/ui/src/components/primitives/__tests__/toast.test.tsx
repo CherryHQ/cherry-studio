@@ -106,6 +106,41 @@ describe('Toast', () => {
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
   })
 
+  it('shows technical details only on request while preserving the recovery action', async () => {
+    const user = userEvent.setup()
+    render(<ToastViewport />)
+    act(() => {
+      toast.warning({ title: 'Configure your provider', details: 'HTTP 401: invalid_api_key' })
+    })
+    expect(screen.getByText('HTTP 401: invalid_api_key')).not.toBeVisible()
+    await user.click(screen.getByText('View details'))
+    expect(screen.getByText('HTTP 401: invalid_api_key')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByText('Configure your provider')).not.toBeInTheDocument()
+  })
+
+  it('settles manual loading in place and ignores a superseded promise', async () => {
+    let settle!: () => void
+    render(<ToastViewport />)
+    act(() => {
+      toast.loading({
+        key: 'request',
+        title: 'Old request',
+        promise: new Promise<void>((resolve) => {
+          settle = resolve
+        })
+      })
+      toast.loading({ key: 'request', title: 'Retrying' })
+    })
+    expect(screen.getByText('Retrying')).toBeInTheDocument()
+    await act(async () => {
+      toast.success({ key: 'request', title: 'Recovered' })
+      settle()
+    })
+    expect(screen.getByText('Recovered')).toBeInTheDocument()
+    expect(toast.getToastQueue().toasts).toHaveLength(1)
+  })
+
   it('dismisses an actionable toast before running its action without triggering the toast click', async () => {
     const user = userEvent.setup()
     const onToastClick = vi.fn()
@@ -264,8 +299,8 @@ describe('Toast', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('uses configured labels for fallback loading states and close button', async () => {
-    const labels: Partial<ToastLabels> = {
+  it('accepts the original label shape and defaults the details label', async () => {
+    const labels: ToastLabels = {
       close: 'Dismiss',
       error: 'Localized error',
       errorDescription: 'Localized fallback error',
@@ -277,11 +312,12 @@ describe('Toast', () => {
     render(<ToastViewport labels={labels} />)
 
     await act(async () => {
-      localizedToast.loading({ promise: Promise.resolve() })
+      localizedToast.loading({ promise: Promise.resolve(), details: 'Operation details' })
     })
 
     expect(screen.getByText('Localized success')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
+    expect(screen.getByText('View details')).toBeInTheDocument()
   })
 
   it('keeps loading rejection errors sticky and calls onError', async () => {

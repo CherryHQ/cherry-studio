@@ -3,6 +3,14 @@ import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import {
+  ProtocolError,
+  ProtocolErrorCode,
+  SdkError,
+  SdkErrorCode,
+  type ServerCapabilities,
+  UnauthorizedError
+} from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { acceptedContent, inputRequired, McpServer } from '@modelcontextprotocol/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -68,6 +76,58 @@ describe('modern in-process MCP wire', () => {
 
   afterEach(async () => {
     await fs.rm(tempDir, { recursive: true, force: true })
+  })
+
+  it.each([false, true])('keeps a legacy stdio session usable when ping is unsupported: %s', async (rejectPing) => {
+    const entry = path.join(tempDir, 'legacy.cjs')
+    await fs.writeFile(
+      entry,
+      `
+const methods = [];
+require('node:readline').createInterface({ input: process.stdin }).on('line', line => {
+  const request = JSON.parse(line);
+  if (request.id === undefined) return;
+  methods.push(request.method);
+  let result;
+  if (request.method === 'initialize') result = { protocolVersion: '2025-11-25', capabilities: { tools: {} }, serverInfo: { name: 'legacy', version: '1' } };
+  else if (request.method === 'ping' && !${rejectPing}) result = {};
+  else if (request.method === 'tools/list') result = { tools: [{ name: 'inspect', inputSchema: { type: 'object' } }] };
+  else if (request.method === 'tools/call') result = { content: [{ type: 'text', text: JSON.stringify({ pid: process.pid, methods, calls: methods.filter(m => m === 'tools/call').length }) }] };
+  const response = result === undefined ? { error: { code: -32601, message: 'Method not found' } } : { result };
+  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: request.id, ...response }) + '\\n');
+});
+`
+    )
+    const connection = new ClientMcpConnection(
+      { name: 'test', version: '1' },
+      {
+        capabilities: { elicitation: { form: {} }, sampling: {}, roots: {} },
+        versionNegotiation: { mode: 'auto', probe: { timeoutMs: 1_000, maxRetries: 0 } }
+      },
+      events
+    )
+    const transport = new StdioClientTransport({ command: process.execPath, args: [entry], stderr: 'pipe' })
+    try {
+      await connection.connect(transport)
+      expect(connection.era).toBe('legacy')
+      const pid = transport.pid
+      expect(pid).not.toBeNull()
+      for (let pass = 0; pass < 2; pass++) {
+        await connection.health()
+        await expect(connection.listTools('refresh')).resolves.toMatchObject([{ name: 'inspect' }])
+        const result = await connection.callTool('inspect', {}, callOptions())
+        const part = result.content[0]
+        if (part.type !== 'text') throw new Error('Expected inspection text')
+        const state = JSON.parse(part.text)
+        expect(state.pid).toBe(pid)
+        expect(state.calls).toBe(pass + 1)
+        expect(state.methods).not.toContain('server/discover')
+        expect(state.methods.filter((method: string) => method === 'ping')).toHaveLength(rejectPing ? 1 : pass + 1)
+      }
+    } finally {
+      await connection.close()
+    }
+    expect(transport.pid).toBeNull()
   })
 
   it('routes interleaved tools, prompts and resources over a real stdio child to their own hosts', async () => {
@@ -410,6 +470,18 @@ serveStdio(() => {
 })
 
 describe('ClientMcpConnection health checks', () => {
+  const healthConnection = (era: 'modern' | 'legacy' = 'legacy', capabilities: ServerCapabilities = { tools: {} }) => {
+    const connection = new ClientMcpConnection(
+      { name: 'test', version: '1' },
+      { capabilities: { elicitation: { form: {} }, sampling: {}, roots: {} } },
+      events
+    )
+    const client = (connection as any).client
+    vi.spyOn(client, 'getProtocolEra').mockReturnValue(era)
+    vi.spyOn(client, 'getServerCapabilities').mockReturnValue(capabilities)
+    vi.spyOn(client, 'transport', 'get').mockReturnValue({})
+    return { connection, client }
+  }
   it.each([
     { era: 'modern' as const, expected: 'discover', skipped: 'ping' },
     { era: 'legacy' as const, expected: 'ping', skipped: 'discover' }
@@ -431,5 +503,76 @@ describe('ClientMcpConnection health checks', () => {
 
     expect(health).toHaveBeenCalledWith({ timeout: 5_000 })
     expect(other).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      era: 'legacy',
+      error: new ProtocolError(ProtocolErrorCode.MethodNotFound, 'unsupported'),
+      capabilities: { tools: {}, prompts: {}, resources: {} },
+      method: 'listTools',
+      result: { tools: [] }
+    },
+    {
+      era: 'legacy',
+      error: new SdkError(SdkErrorCode.RequestTimeout, 'timeout'),
+      capabilities: { prompts: {}, resources: {} },
+      method: 'listPrompts',
+      result: { prompts: [] }
+    },
+    {
+      era: 'modern',
+      error: new SdkError(SdkErrorCode.MethodNotSupportedByProtocolVersion, 'unsupported'),
+      capabilities: { resources: {} },
+      method: 'listResources',
+      result: { resources: [] }
+    }
+  ] as const)(
+    'confirms $era liveness with fresh $method and retains the working method',
+    async ({ era, error, capabilities, method, result }) => {
+      const { connection, client } = healthConnection(era, capabilities)
+      const primary = vi.spyOn(client, era === 'legacy' ? 'ping' : 'discover').mockRejectedValue(error)
+      const other = vi.spyOn(client, era === 'legacy' ? 'discover' : 'ping')
+      const confirm = vi.spyOn(client, method).mockResolvedValue(result)
+      await expect(connection.health()).resolves.toBeUndefined()
+      await expect(connection.health()).resolves.toBeUndefined()
+      expect(primary).toHaveBeenCalledTimes(1)
+      expect(other).not.toHaveBeenCalled()
+      expect(confirm).toHaveBeenCalledTimes(2)
+      expect(confirm).toHaveBeenCalledWith(expect.any(Object), {
+        cacheMode: 'refresh',
+        timeout: 5_000,
+        signal: expect.any(AbortSignal)
+      })
+    }
+  )
+
+  it.each([
+    { error: new UnauthorizedError(), connected: true, capabilities: { tools: {} } },
+    { error: new SdkError(SdkErrorCode.ConnectionClosed, 'closed'), connected: true, capabilities: { tools: {} } },
+    { error: new SdkError(SdkErrorCode.RequestTimeout, 'timeout'), connected: false, capabilities: { tools: {} } },
+    { error: new ProtocolError(ProtocolErrorCode.MethodNotFound, 'unsupported'), connected: true, capabilities: {} }
+  ])('does not bypass an unconfirmable health failure: $error', async ({ error, connected, capabilities }) => {
+    const { connection, client } = healthConnection('legacy', capabilities)
+    vi.spyOn(client, 'transport', 'get').mockReturnValue(connected ? {} : undefined)
+    vi.spyOn(client, 'ping').mockRejectedValue(error)
+    const confirm = vi.spyOn(client, 'listTools').mockResolvedValue({ tools: [] })
+    await expect(connection.health()).rejects.toBe(error)
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed fresh confirmation instead of accepting cached tools', async () => {
+    const { connection, client } = healthConnection()
+    vi.spyOn(client, 'ping').mockRejectedValue(new ProtocolError(ProtocolErrorCode.MethodNotFound, 'unsupported'))
+    const failure = new SdkError(SdkErrorCode.RequestTimeout, 'catalog timeout')
+    const confirm = vi
+      .spyOn(client, 'listTools')
+      .mockImplementation((_params, options) =>
+        (options as { cacheMode: string }).cacheMode === 'refresh'
+          ? Promise.reject(failure)
+          : Promise.resolve({ tools: [{ name: 'cached' }] })
+      )
+    await expect(connection.health()).rejects.toBe(failure)
+    expect(confirm).toHaveBeenCalledTimes(1)
   })
 })
