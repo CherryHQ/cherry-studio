@@ -52,6 +52,22 @@ describe('getPermissionRiskEffects', () => {
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'mv old.txt new.txt' })).toEqual(['destructive'])
   })
 
+  it('flags copies that may overwrite their destination as destructive', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'cp config.json backup/config.json' })).toEqual([
+      'destructive'
+    ])
+  })
+
+  it('treats PowerShell -WhatIf previews as non-destructive', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'Remove-Item -Recurse ./dist -WhatIf' })).toEqual(
+      []
+    )
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'Move-Item a.txt b.txt -WhatIf' })).toEqual([])
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, { command: 'Get-Item x -WhatIf; Remove-Item ./dist' })
+    ).toEqual(expect.arrayContaining(['destructive', 'irreversible']))
+  })
+
   it('does not mistake arrow functions for shell redirection', () => {
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: "node -e 'list.map((x) => x)'" })).toEqual([])
   })

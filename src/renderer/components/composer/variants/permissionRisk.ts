@@ -59,12 +59,17 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   if (/\bmv\s+\S+\s+\S+/.test(text)) {
     effects.add('destructive')
   }
+  // Copying onto an existing destination overwrites it, so flag it like `mv`.
+  if (/\bcp\s+\S+\s+\S+/.test(text)) {
+    effects.add('destructive')
+  }
   // `pwsh` normalizes to Bash before this runs, so cover PowerShell verbs here too.
-  if (/\b(Remove-Item|Clear-Content|Clear-Item)\b/i.test(text)) {
+  // `-WhatIf` previews change nothing, scoped to one simple command.
+  if (/\b(Remove-Item|Clear-Content|Clear-Item)\b(?![^;&|]*\s-WhatIf\b)/i.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
-  if (/\bMove-Item\b/i.test(text)) {
+  if (/\bMove-Item\b(?![^;&|]*\s-WhatIf\b)/i.test(text)) {
     effects.add('destructive')
   }
   // Git work-discarders, scoped to one simple command so flags past `&&`/`;`/`|`
