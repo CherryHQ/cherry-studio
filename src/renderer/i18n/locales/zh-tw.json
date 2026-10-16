@@ -5033,6 +5033,7 @@
   "settings.profile.title": "個人資訊",
   "settings.prompts.add": "新增提示詞",
   "settings.prompts.binding.bind": "關聯提示詞",
+  "settings.prompts.binding.globalDescription": "全域提示詞可在所有對話中使用，請前往設定管理。",
   "settings.prompts.binding.manageTargets": "管理「{{title}}」的適用對象",
   "settings.prompts.binding.noLinked": "暫未關聯快捷提示詞",
   "settings.prompts.binding.noMore": "沒有更多可用的提示詞",

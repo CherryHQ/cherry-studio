@@ -5033,6 +5033,7 @@
   "settings.profile.title": "Kişisel Bilgiler",
   "settings.prompts.add": "İstem Ekle",
   "settings.prompts.binding.bind": "İstemi bağla",
+  "settings.prompts.binding.globalDescription": "Genel istemler tüm konuşmalarda kullanılabilir ve Ayarlar bölümünden yönetilir.",
   "settings.prompts.binding.manageTargets": "{{title}} için hedefleri yönet",
   "settings.prompts.binding.noLinked": "Bağlı istem yok",
   "settings.prompts.binding.noMore": "Kullanılabilir başka istem yok",

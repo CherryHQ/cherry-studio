@@ -5033,6 +5033,7 @@
   "settings.profile.title": "Informații personale",
   "settings.prompts.add": "Adaugă Prompt",
   "settings.prompts.binding.bind": "Asociază promptul",
+  "settings.prompts.binding.globalDescription": "Prompturile globale sunt disponibile în toate conversațiile și se gestionează în Setări.",
   "settings.prompts.binding.manageTargets": "Gestionează destinațiile pentru {{title}}",
   "settings.prompts.binding.noLinked": "Nu există prompturi asociate",
   "settings.prompts.binding.noMore": "Nu mai sunt prompturi disponibile",

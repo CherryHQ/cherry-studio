@@ -5033,6 +5033,7 @@
   "settings.profile.title": "個人情報",
   "settings.prompts.add": "プロンプトを追加",
   "settings.prompts.binding.bind": "プロンプトを関連付ける",
+  "settings.prompts.binding.globalDescription": "グローバルプロンプトはすべての会話で利用でき、設定で管理できます。",
   "settings.prompts.binding.manageTargets": "{{title}} の対象を管理",
   "settings.prompts.binding.noLinked": "関連付けられたプロンプトはありません",
   "settings.prompts.binding.noMore": "利用可能なプロンプトはこれ以上ありません",
