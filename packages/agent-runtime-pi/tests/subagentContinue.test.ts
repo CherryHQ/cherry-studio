@@ -119,7 +119,9 @@ describe('continuing a finished subagent', () => {
     )
     await runtime.prompt('Stop A')
     expect(runtime.stopSubagent(id('Check B'))).toBe(true)
-    await waitFor(() => subagentStates(parent.entries).some((state) => state.stoppedBy === 'user'))
+    await waitFor(() =>
+      subagentStates(parent.entries).some((state) => state.stoppedBy === 'user' && state.status === 'finished')
+    )
 
     await runtime.prompt('Go on with A and B')
 

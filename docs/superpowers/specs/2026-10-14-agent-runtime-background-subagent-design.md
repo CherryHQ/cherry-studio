@@ -122,7 +122,7 @@ type SubagentOutcome =
 
 **从父 transcript 恢复子代理表**（父会话重建、`session_start` 时）：每个 `sessionId` 的状态取最后一条 `cherry.subagent-state`；未送达的结果按 `(sessionId, run)` 逐次运行判断：
 
-- 一次运行的最后一条快照还是"开始运行"，说明已经没有活着的运行，按 `interrupted` 处理（应用退出和崩溃都一样）。
+- 一次运行的最后一条快照还是"运行中"，说明已经没有活着的运行，按 `interrupted` 处理（应用退出和崩溃都一样）；这条快照带 `stoppedBy: 'user'`（用户停止已被接受、运行还在收尾时应用关了）时按用户停止（`stopped` / `user`）处理，不能续接。
 - 一次运行已结束且没有任何 `cherry.subagent-notification` 的 `details` 记录过它的 `(sessionId, run)`，就是"未送达"，不论它是不是最近一次运行：运行 1 在父会话忙时结束、通知送达前就被续接成运行 2，重建后运行 1 的结果也要送达。
 - 一直在前台、从未续接的子代理没有快照：它的存在由 `subagent` 工具结果的 `details.sessionId` 证明，`description`、`fork`、`model` 取自那次调用的参数，`modelKey` 缺省时取父会话当时的模型（transcript 里 assistant 消息的 `modelKey`）。
 
@@ -423,7 +423,7 @@ Background subagent update (automatic message, not from the user):
 | 用户中止父代理的一轮 | `session.abort()` | 后台：不受影响；前台：`aborted`（L4） | 前台：工具结果 | 是 |
 | 父会话销毁 | `dispose()` → `session_shutdown` | 包中止所有运行中的子代理；重建后按 `interrupted` 恢复 | 重建后随用户下一条消息送达 | 是 |
 
-Pi 不会替扩展取消工具返回之后仍在跑的工作，父会话 dispose 后 `pi.*` 还会同步抛错，所以后台子代理的收尾必须在父会话的 `session_shutdown` 里做：中止每个子会话、等它们 settle、销毁。此时不再写快照（不保证还能写），重建时由"最后一条是开始运行"推断为 `interrupted`。
+Pi 不会替扩展取消工具返回之后仍在跑的工作，父会话 dispose 后 `pi.*` 还会同步抛错，所以后台子代理的收尾必须在父会话的 `session_shutdown` 里做：中止每个子会话、等它们 settle、销毁。此时不再写快照（不保证还能写），重建时由"最后一条是运行中"推断为 `interrupted`。用户停止是例外：它在被接受时就写一条快照（仍是运行中，带 `stoppedBy: 'user'`），不等收尾结束，所以收尾期间关闭应用，重建后它仍是用户停止、不能续接。
 
 ## 10. 审批
 
@@ -592,3 +592,4 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 2026-10-16，按 PR #21693 第二轮评审修订：
 
 15. 11.3、11.4：goal 的用量改由 L5 spec §6.1 的同一个函数从 branch 算出（不再有内存里的累计和"送达时补写快照"），等待后台子代理期间关机、重建后不丢用量。运行按 `(sessionId, run)` 归属和计数：goal 轮里开出的那次运行才属于 goal，每次运行的用量只计一次，重叠的两次 `stop_subagent` 不再重复计费。随运行开头送达的通知属于那一回合。
+16. 4.3、9：用户停止在被接受时就写快照（`stoppedBy: 'user'`，运行仍在收尾），收尾期间关闭应用后重建，这次运行按用户停止恢复，`message_subagent` 不能续接它。
