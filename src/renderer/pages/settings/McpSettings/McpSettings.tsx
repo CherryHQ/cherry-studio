@@ -201,6 +201,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       await fetchServerVersion()
     } catch (error) {
       logger.warn('MCP server retry failed', { error })
+      toast.errorFromException(error, { category: 'mcp', mcpServer: server })
     } finally {
       setLoadingServer(null)
     }
@@ -286,11 +287,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          void popup.error({
-            title: t('settings.mcp.updateError'),
-            content: error.message,
-            centered: true
-          })
+          toast.errorFromException(error, { category: 'mcp', mcpServer: server })
         }
       } else {
         await updateMcpServer({ body: { ...mcpServerDto, isActive: false } })

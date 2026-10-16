@@ -92,6 +92,9 @@ interface Pending {
   resolve: (value: unknown) => void
   reject: (error: unknown) => void
   onEvent?: (event: unknown) => void
+  onHostCall?: UtilityProcessRequestOptions<unknown>['onHostCall']
+  hostCalls: AbortController
+  lastCallId: number
   signal?: AbortSignal
   onAbort?: () => void
   /** Terminal frames for this request are dropped; it settles at exit (stop, terminate-cancel). */
@@ -146,9 +149,10 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
 
   constructor(
     private readonly definition: UtilityProcessDefinition<Contract, InitData>,
-    private readonly deps: ProcessHostDeps
+    private readonly deps: ProcessHostDeps,
+    instanceId?: string
   ) {
-    this.serviceName = `${SERVICE_NAME_PREFIX}${definition.id}`
+    this.serviceName = `${SERVICE_NAME_PREFIX}${definition.id}${instanceId ? `:${instanceId}` : ''}`
   }
 
   // ─── Public API (mirrored 1:1 by UtilityProcessClient) ───
@@ -158,7 +162,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     input: Contract['methods'][M]['input'],
     options: UtilityProcessRequestOptions<Contract['methods'][M]['event']> = {}
   ): Promise<Contract['methods'][M]['output']> {
-    const { signal, onEvent } = options
+    const { signal, onEvent, onHostCall } = options
     for (;;) {
       if (signal?.aborted) throw signal.reason
       if (this.disposed || this.blockedDepth > 0) {
@@ -179,7 +183,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       if (generation.phase === 'starting') await abortable(generation.ready.promise, signal)
       if (generation.settled) throw generation.settleError
       if (generation.phase !== 'ready') continue
-      return this.dispatch(generation, method, input, signal, onEvent)
+      return this.dispatch(generation, method, input, signal, onEvent, onHostCall)
     }
   }
 
@@ -402,6 +406,40 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
         this.relayLog(generation, data)
         return
       }
+      case 'host-call': {
+        if (this.classify(generation, data.requestId, 'event') !== 'pending') return
+        const pending = generation.pending.get(data.requestId)!
+        if (pending.dropTerminals) return
+        if (data.callId <= pending.lastCallId) {
+          this.violation(generation, 'non-monotonic host call')
+          return
+        }
+        pending.lastCallId = data.callId
+        const invoke = async (): Promise<void> => {
+          let outcome: { value: unknown } | { error: ReturnType<typeof toRemoteError> }
+          try {
+            pending.hostCalls.signal.throwIfAborted()
+            if (!pending.onHostCall) throw new Error('Host calls are not available for this request')
+            outcome = { value: await pending.onHostCall(data.method, data.input, pending.hostCalls.signal) }
+          } catch (error) {
+            outcome = { error: toRemoteError(error) }
+          }
+          if (generation.settled || pending.dropTerminals || generation.pending.get(data.requestId) !== pending) return
+          try {
+            generation.handle.send({
+              ...this.identity(generation),
+              kind: 'host-reply',
+              requestId: data.requestId,
+              callId: data.callId,
+              outcome
+            })
+          } catch (error) {
+            this.cancelRequest(generation, data.requestId, error)
+          }
+        }
+        void invoke()
+        return
+      }
       case 'event': {
         if (this.classify(generation, data.requestId, 'event') !== 'pending') return
         const pending = generation.pending.get(data.requestId)!
@@ -529,7 +567,8 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     method: string,
     input: unknown,
     signal: AbortSignal | undefined,
-    onEvent: ((event: unknown) => void) | undefined
+    onEvent: ((event: unknown) => void) | undefined,
+    onHostCall: UtilityProcessRequestOptions<unknown>['onHostCall']
   ): Promise<unknown> {
     return new Promise<unknown>((resolve, reject) => {
       if (signal?.aborted) {
@@ -539,7 +578,17 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       this.clearIdleTimer()
       const requestId = generation.nextRequestId
       generation.nextRequestId += 1
-      const pending: Pending = { resolve, reject, onEvent, signal, dropTerminals: false, settleWith: null }
+      const pending: Pending = {
+        resolve,
+        reject,
+        onEvent,
+        signal,
+        onHostCall,
+        hostCalls: new AbortController(),
+        lastCallId: 0,
+        dropTerminals: false,
+        settleWith: null
+      }
       generation.pending.set(requestId, pending)
       try {
         generation.handle.send({ ...this.identity(generation), kind: 'request', requestId, method, input })
@@ -576,6 +625,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       return
     }
     if (pending.settleWith !== null) return
+    pending.hostCalls.abort(reason)
     pending.dropTerminals = true
     pending.settleWith = { reason }
     if (generation.phase === 'stopping') return
@@ -590,6 +640,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     const pending = generation.pending.get(requestId)
     if (pending === undefined) return
     generation.pending.delete(requestId)
+    pending.hostCalls.abort(new Error('Request finished'))
     if (pending.signal !== undefined && pending.onAbort !== undefined) {
       pending.signal.removeEventListener('abort', pending.onAbort)
     }
@@ -604,7 +655,10 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     generation.intentionalExit = true
     const graceful = generation.phase === 'ready' && !generation.settled
     generation.phase = 'stopping'
-    for (const pending of generation.pending.values()) pending.dropTerminals = true
+    for (const pending of generation.pending.values()) {
+      pending.dropTerminals = true
+      pending.hostCalls.abort(new Error('Utility process is stopping'))
+    }
     if (graceful) {
       try {
         generation.handle.send({ ...this.identity(generation), kind: 'shutdown' })

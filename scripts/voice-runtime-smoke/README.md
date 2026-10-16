@@ -57,3 +57,9 @@ pnpm exec vitest run --project scripts scripts/voice-runtime-smoke/__tests__/smo
 ```
 
 These tests check target selection, installed-model readiness, recording admission and session ownership, explicit model selection without fallback, sensitive-output suppression, cleanup, and empty transcription from either engine. Their browser/IPC doubles reject uploads without an active recording lease and reject access after another session takes ownership; only a real application run is voice-runtime evidence. This differs from the separate [utility-process smoke](../utility-process-smoke/README.md), which boots a throwaway engine test app.
+
+## Sherpa Windows ARM64 runtime
+
+Runtime compilation, native Node/Electron inference checks, and publication are maintained independently in [CherryHQ/sherpa-onnx](https://github.com/CherryHQ/sherpa-onnx), using its [Windows ARM64 runtime workflow](https://github.com/CherryHQ/sherpa-onnx/blob/master/.github/workflows/cherry-win-arm64-runtime.yml). See the fork's [build and publication guide](https://github.com/CherryHQ/sherpa-onnx/blob/master/scripts/cherry-runtime/README.md). This repository does not run a Sherpa runtime build workflow.
+
+The application downloads the released archive pinned in `src/main/ai/localModel/catalog/sherpaRuntimeRelease.json` through the existing checksum-verified local-model pipeline. When upgrading Sherpa, keep the release pin, JavaScript dependency, and loader patch compatible. Runtime inference checks do not replace packaged application or UI validation.
