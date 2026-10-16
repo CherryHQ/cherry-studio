@@ -530,6 +530,19 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
   })
 
+  it('propagates the original request-construction rejection from start()', async () => {
+    const failure = new Error('route resolution failed')
+    mocks.buildRequest.mockRejectedValue(failure)
+
+    await expect(
+      new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+    ).rejects.toBe(failure)
+  })
+
   it('uses the serving receipt retained by a consumed warm process', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
