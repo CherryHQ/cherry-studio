@@ -92,6 +92,16 @@ export function roundStart(prompt: LanguageModelV3Prompt): number | undefined {
   return round ? Number(round[1]) : undefined
 }
 
+const ROUND_PROMPT = /<goal_round>[\s\S]*?<\/goal_round>/g
+
+/** Every goal-round prompt a request carries, oldest first. */
+export const roundPrompts = (prompt: LanguageModelV3Prompt): string[] =>
+  prompt.flatMap((message) =>
+    message.role === 'user'
+      ? message.content.flatMap((part) => (part.type === 'text' ? (part.text.match(ROUND_PROMPT) ?? []) : []))
+      : []
+  )
+
 /**
  * A `goalModel` whose calls wait until `release()`, so a test can act while a turn is in flight. An
  * abort settles the run without a release.
@@ -293,6 +303,18 @@ export const rounds = (entries: readonly TranscriptEntry[]) =>
   entries.flatMap((entry) =>
     entry.kind === 'message' && entry.custom?.type === GOAL_ROUND_TYPE
       ? [entry.custom.details as unknown as RoundDetails]
+      : []
+  )
+
+/** The prompt of every goal-round message, oldest first. */
+export const roundTexts = (entries: readonly TranscriptEntry[]) =>
+  entries.flatMap((entry) =>
+    entry.kind === 'message' && entry.custom?.type === GOAL_ROUND_TYPE
+      ? [
+          typeof entry.message.content === 'string'
+            ? entry.message.content
+            : entry.message.content.map((part) => (part.type === 'text' ? part.text : '')).join('')
+        ]
       : []
   )
 

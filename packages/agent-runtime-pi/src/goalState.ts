@@ -61,6 +61,8 @@ export interface GoalSnapshot {
    * that restores it (a rebuild starts disarmed). Changing it alone does not bump `revision`.
    */
   armed: boolean
+  /** Id of the last round admitted for this goal (its `RoundDetails.id`); a round no snapshot names never ran (spec §6.3). */
+  admittedRound?: string
   lastStop?: GoalStop
   createdAt: number
   updatedAt: number
@@ -233,8 +235,12 @@ export function resumeGoal(goal: GoalSnapshot, now: number, usage: GoalUsage): G
   return goal.armed ? goal : { ...goal, armed: true }
 }
 
-export function admitRound(goal: GoalSnapshot, kind: 'work' | 'hint' | 'wrap-up', now: number): GoalSnapshot {
-  return bump(goal, now, { roundsStarted: goal.roundsStarted + 1, ...(kind === 'wrap-up' ? { wrapUpDone: true } : {}) })
+export function admitRound(goal: GoalSnapshot, round: Pick<RoundDetails, 'id' | 'kind'>, now: number): GoalSnapshot {
+  return bump(goal, now, {
+    roundsStarted: goal.roundsStarted + 1,
+    admittedRound: round.id,
+    ...(round.kind === 'wrap-up' ? { wrapUpDone: true } : {})
+  })
 }
 
 /** The snapshot to write: `goal` with the usage the branch shows now (no revision bump). */
@@ -308,30 +314,19 @@ export function tailRound(entries: readonly SessionEntry[]): RoundDetails | unde
 
 /**
  * Ids of the round messages Pi committed but never sent on (a continuation another extension
- * vetoed, a run aborted or cut off at the settle). A round ran once a snapshot of its goal counts
- * it: the snapshot before it (a command's round) or the first one after it (a settle's round).
+ * vetoed, a run aborted or cut off at the settle, a withdrawn round): no snapshot admitted them.
  */
 export function unadmittedRounds(entries: readonly SessionEntry[]): Set<string> {
-  const started = new Map<string, number>()
-  const undecided = new Map<string, RoundDetails>()
-  const stale = new Set<string>()
+  const admitted = new Set<string>()
+  const rounds: string[] = []
   for (const entry of entries) {
-    if (entry.type === 'custom_message' && isRoundMessage(entry)) {
-      const details = entry.details as RoundDetails
-      if ((started.get(details.goalId) ?? 0) < details.round) undecided.set(details.id, details)
-    } else if (isGoalState(entry)) {
+    if (isRoundMessage(entry)) rounds.push((entry.details as RoundDetails).id)
+    else if (isGoalState(entry)) {
       const data = entry.data as GoalSnapshot | GoalCleared
-      const roundsStarted = 'cleared' in data ? 0 : data.roundsStarted
-      for (const [id, details] of undecided) {
-        if (details.goalId !== data.id) continue
-        if (roundsStarted < details.round) stale.add(id)
-        undecided.delete(id)
-      }
-      started.set(data.id, roundsStarted)
+      if (!('cleared' in data) && data.admittedRound) admitted.add(data.admittedRound)
     }
   }
-  for (const id of undecided.keys()) stale.add(id)
-  return stale
+  return new Set(rounds.filter((id) => !admitted.has(id)))
 }
 
 const requestTokens = (usage: Usage) => usage.input + usage.output + usage.cacheRead + usage.cacheWrite
@@ -451,7 +446,8 @@ export function renderRoundPrompt(
 /** The model-facing view: the goal with the usage the branch shows now, its activation beside it. */
 export function goalView(goal: GoalSnapshot | undefined, usage: GoalUsage) {
   if (!goal) return { goal: null } as const
-  const { wrapUpDone: _wrapUpDone, armed, ...view } = withUsage(goal, usage)
+  const { wrapUpDone: _wrapUpDone, admittedRound: _admittedRound, armed, ...view } = withUsage(goal, usage)
   void _wrapUpDone // Intentionally unused - the model-facing view omits the internal wrap-up flag
+  void _admittedRound // Intentionally unused - the view omits round bookkeeping too
   return { goal: view, activation: armed ? ('armed' as const) : ('disarmed' as const) }
 }
