@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { Folder } from 'lucide-react'
 import postcss from 'postcss'
 import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -472,7 +473,7 @@ describe('ComposerToken', () => {
     )
 
     const token = getRenderedFileToken(container)
-    expect(token).toHaveClass('items-baseline', 'rounded-xs', 'bg-muted', 'border-border-selected', 'font-medium')
+    expect(token).toHaveClass('items-baseline', 'rounded-xs', 'bg-muted', 'ring-border-selected', 'font-medium')
     expect(token).not.toHaveClass('h-6', 'align-middle', 'text-xs')
     expect(token).toHaveTextContent('avatar-preview.png')
 
@@ -816,7 +817,7 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'text')
-    expect(token).toHaveClass('group-focus-visible:border-primary')
+    expect(token).toHaveClass('group-focus-visible:ring-1', 'group-focus-visible:ring-inset')
     expect(token).not.toHaveClass('group-data-[state=open]:border-primary')
     const trigger = getFileTokenTrigger(container)
     expect(trigger).toHaveAttribute('role', 'button')
@@ -969,12 +970,38 @@ describe('ComposerToken', () => {
     }
   })
 
-  it('keeps selected file tokens highlighted with the selected border role', () => {
+  it('keeps selected file tokens highlighted with the selected role', () => {
     const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} selected />)
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('border-border-selected')
-    expect(token).not.toHaveClass('ring-1', 'ring-primary/40', 'border-primary')
+    // An inset ring draws without adding layout pixels, so selecting a token cannot shift the line.
+    expect(token).toHaveClass('ring-1', 'ring-inset', 'ring-border-selected')
+    expect(token).not.toHaveClass('border-border-selected', 'ring-primary/40', 'border')
+  })
+
+  it('leaves the chip box to the paragraph line box so descenders are not clipped', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'agent.ts' }} />)
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    const label = token?.lastElementChild
+
+    // `truncate` clips at the label's content box: a `line-height` below the font's own height cuts
+    // the descender off (`g`, `y`, `p`), so the label inherits the paragraph line-height instead.
+    expect(label).toHaveClass('leading-[inherit]', 'truncate')
+    expect(label).not.toHaveClass('leading-none')
+    expect(token).not.toHaveClass('border', 'border-transparent', 'py-px')
+  })
+
+  it('pins a token-provided icon glyph to the chip icon slot', () => {
+    // Agent file and folder mentions pass their own 16px glyph, which used to overflow the 0.9em slot.
+    const { container } = render(
+      <ComposerToken token={{ id: 'folder:1', kind: 'folder', label: 'docs', icon: <Folder size={16} /> }} />
+    )
+
+    const iconSlot = container.querySelector('[data-folder-token-icon]')
+    const wrapper = iconSlot?.querySelector('span')
+    expect(wrapper).toHaveClass('[&>svg]:size-full')
+    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {
@@ -1647,40 +1674,4 @@ describe('ComposerToken', () => {
       expect(editor!.state.selection.empty).toBe(true)
     }
   )
-})
-
-it('keeps image ownership separate from preview URLs across token removal and undo', () => {
-  const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValueOnce('blob:first').mockReturnValueOnce('blob:undo')
-  const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
-  const blob = new Blob(['image'], { type: 'image/png' })
-  const token = {
-    id: 'file:shot',
-    kind: 'file' as const,
-    label: 'shot.png',
-    payload: {
-      fileTokenSourceId: 'shot',
-      name: 'shot.png',
-      origin_name: 'shot.png',
-      type: FILE_TYPE.IMAGE,
-      ext: '.png',
-      size: blob.size,
-      blob
-    }
-  }
-  try {
-    const first = render(<FileComposerToken token={token} imageIconPreview />)
-    expect(first.container.querySelector('img')).toHaveAttribute('src', 'blob:first')
-    first.unmount()
-    expect(revokeUrl).toHaveBeenCalledWith('blob:first')
-    const restored = render(<FileComposerToken token={token} imageIconPreview />)
-    expect(restored.container.querySelector('img')).toHaveAttribute('src', 'blob:undo')
-    expect(createUrl).toHaveBeenLastCalledWith(blob)
-    fireEvent.click(getFileTokenTrigger(restored.container))
-    expect(imagePreviewShowMock).toHaveBeenCalledWith(blob)
-    restored.unmount()
-    expect(revokeUrl).toHaveBeenCalledWith('blob:undo')
-  } finally {
-    createUrl.mockRestore()
-    revokeUrl.mockRestore()
-  }
 })
