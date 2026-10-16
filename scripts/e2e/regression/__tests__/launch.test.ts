@@ -12,6 +12,47 @@ import { ensureRunDirectories, getRunPaths } from '../paths'
 
 beforeEach(() => vi.clearAllMocks())
 
+it('launches on explicitly allocated ports while another workspace owns the defaults', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-custom-ports-'))
+  const paths = getRunPaths(directory)
+  ensureRunDirectories(paths)
+  let launched = false
+  execFileSync.mockImplementation((_file, args: string[]) =>
+    args.includes('-iTCP:9222') ? '99000' : launched ? '42001' : ''
+  )
+  spawn.mockImplementation(() => {
+    launched = true
+    return { pid: 42001, unref() {} }
+  })
+  vi.spyOn(process, 'kill').mockReturnValue(true)
+  const urls: string[] = []
+  vi.stubGlobal('fetch', async (url: string) => {
+    urls.push(url)
+    return {
+      ok: true,
+      json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5174/windows/main/index.html' }]
+    }
+  })
+  try {
+    const record = await launchApp(paths, {
+      mode: 'branch',
+      platform: 'macos',
+      profile: 'clean',
+      targetRoot: directory,
+      runKey: 'custom-ports',
+      cdpPort: 19322,
+      inspectorPort: 19329
+    })
+    expect(record).toMatchObject({ cdpPort: 19322, inspectorPort: 19329, electronPid: 42001 })
+    expect(urls).toEqual(['http://127.0.0.1:19322/json/list'])
+    expect(spawn.mock.calls[0][1]).toEqual(expect.arrayContaining(['--inspect=19329', '--remote-debugging-port=19322']))
+  } finally {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 it.each(['macos', 'windows'] as const)(
   'isolates the %s profile and launches Node directly to retain process-group ownership',
   async (platform) => {

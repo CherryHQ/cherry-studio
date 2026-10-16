@@ -1,0 +1,79 @@
+diff --git a/dist/attempt-session.d.ts b/dist/attempt-session.d.ts
+index bc07fe9e6a11311da8b2295e169b8a04d7a8e8d8..d909766c6e394f63521c2a819e1fae639662de95 100644
+--- a/dist/attempt-session.d.ts
++++ b/dist/attempt-session.d.ts
+@@ -22,6 +22,7 @@ interface SessionOptions {
+     /** Starts the browser provider's own recording of the attempt's browser, when it records; the attempt records the screencast otherwise. */
+     readonly record?: ((signal: AbortSignal) => Promise<LeaseRecording>) | undefined;
+     readonly persistent?: {
++        readonly existingTargetId?: string;
+         readonly provision: CdpEndpointResolver;
+         readonly reconnect: CdpEndpointResolver;
+         /**
+diff --git a/dist/attempt-session.js b/dist/attempt-session.js
+index e94f9be5410654a72dc72a61e2f44c8d377f402f..03efb40d56324827a03e7d96e55b3d47cf350c84 100644
+--- a/dist/attempt-session.js
++++ b/dist/attempt-session.js
+@@ -198,7 +198,12 @@ export class AttemptSession {
+         const first = this.firstPage;
+         this.firstPage = false;
+         if (first && this.options.persistent !== undefined) {
+-            const initial = context.pages().find((page) => !page.isClosed());
++            const targetId = this.options.persistent.existingTargetId;
++            const pages = context.pages().filter((page) => !page.isClosed());
++            const candidates = targetId === undefined ? pages : await Promise.all(pages.map(async (page) =>
++                (await targetIdentity(page)).targetId === targetId ? page : undefined));
++            const initial = candidates.find((page) => page !== undefined);
++            if (targetId !== undefined && initial === undefined) throw recoveryFailed('the requested native target is missing');
+             if (initial !== undefined) {
+                 await initial.goto('about:blank');
+                 return initial;
+diff --git a/dist/engine.js b/dist/engine.js
+index 39260cd9dc3a9044f185e3d8d7b0ea5094cb13a9..63ace1273694eec12685605b0f8f59b9cfeb49a9 100644
+--- a/dist/engine.js
++++ b/dist/engine.js
+@@ -37,7 +37,7 @@ export function web(options = {}) {
+         throw new ConfigurationError('INVALID_CONFIG', `web({ browser, connect }) names two browser sources; browser provider "${provider.name}" leases its own browsers, so remove connect`);
+     }
+     if (isRecord(options.connect))
+-        rejectUnknownKeys('web({ connect })', options.connect, ['cdpEndpoint', 'reconnectEndpoint']);
++        rejectUnknownKeys('web({ connect })', options.connect, ['cdpEndpoint', 'reconnectEndpoint', 'existingTargetId']);
+     if (options.connect !== undefined && typeof options.browser === 'string' && options.browser !== 'chromium') {
+         throw new ConfigurationError('INVALID_CONFIG', `web({ connect }) requires the chromium browser; CDP attach is chromium-only, got "${options.browser}"`);
+     }
+@@ -64,6 +64,9 @@ export function web(options = {}) {
+     }
+     // A per-attempt lease rides the same persistent context as `reconnectEndpoint`, with the same limits.
+     const recoverable = reconnecting || provider?.scope === 'attempt';
++    if (options.connect?.existingTargetId !== undefined && (!reconnecting || typeof options.connect.existingTargetId !== 'string' || options.connect.existingTargetId.length === 0)) {
++        throw new ConfigurationError('INVALID_CONFIG', 'connect.existingTargetId requires a nonempty target ID and reconnectEndpoint');
++    }
+     const mode = provider === undefined ? 'connect.reconnectEndpoint' : `browser provider "${provider.name}" with scope "attempt"`;
+     const creationOptions = CREATION_OPTION_KEYS.filter((key) => options[key] !== undefined);
+     if (recoverable && creationOptions.length > 0) {
+diff --git a/dist/surface.d.ts b/dist/surface.d.ts
+index ced81946c6c87bef8309b707efaed2883640907a..c45cddbf6005fb2ae671e65a8efc12772b3f690f 100644
+--- a/dist/surface.d.ts
++++ b/dist/surface.d.ts
+@@ -46,6 +46,8 @@ export interface WebConnectOptions {
+      * Dispatched operations are never retried. The host owns browser cleanup.
+      * Context replacement, headers, basicAuth, userAgent, locale, and timezoneId are unavailable in this mode.
+      */
++    /** Bind the first attempt page to this existing native target instead of choosing the first tab. */
++    readonly existingTargetId?: string;
+     readonly reconnectEndpoint?: (signal: AbortSignal) => string | Promise<string>;
+ }
+ /** HTTP basic authentication the browser answers a `401` challenge with. */
+diff --git a/dist/surface.js b/dist/surface.js
+index f9f910f27543f26b2cd82a3fb142d50025df2b64..f91f4ce90e7e8a6822dca17f947f5df70f6caa92 100644
+--- a/dist/surface.js
++++ b/dist/surface.js
+@@ -224,7 +224,7 @@ export class PlaywrightSurface {
+     async persistentBinding(context) {
+         const { connect, usedContexts } = this;
+         if (connect?.reconnectEndpoint !== undefined) {
+-            return { provision: connect.cdpEndpoint, reconnect: connect.reconnectEndpoint, usedContexts };
++            return { provision: connect.cdpEndpoint, reconnect: connect.reconnectEndpoint, usedContexts, existingTargetId: connect.existingTargetId };
+         }
+         if (this.leases?.scope !== 'attempt')
+             return undefined;

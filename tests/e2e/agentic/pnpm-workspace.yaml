@@ -1,0 +1,6 @@
+packages: []
+allowBuilds:
+  esbuild: true
+minimumReleaseAge: 0
+patchedDependencies:
+  "@e2e-dev/web@0.15.1": patches/@e2e-dev__web@0.15.1.patch
