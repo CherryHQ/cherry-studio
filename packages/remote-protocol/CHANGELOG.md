@@ -1,5 +1,23 @@
 # @cherrystudio/remote-protocol
 
+## 0.5.0
+
+### Minor Changes
+
+- [#21527](https://github.com/CherryHQ/cherry-studio/pull/21527) [`755f06d`](https://github.com/CherryHQ/cherry-studio/commit/755f06d1a367aaef741e35e6e9896e1300682af5) Thanks [@DeJeune](https://github.com/DeJeune)! - Advertise optional source SHA-256 verification for Agent uploads and persist verified completion outcomes.
+
+## 0.4.0
+
+### Minor Changes
+
+- [#21399](https://github.com/CherryHQ/cherry-studio/pull/21399) [`5485d7e`](https://github.com/CherryHQ/cherry-studio/commit/5485d7ef2974c2ac193a55427f6419461cb4cbd5) Thanks [@DeJeune](https://github.com/DeJeune)! - Add negotiated, bounded Agent attachment uploads and file-only messages with opaque upload references, resumable transfers, and revisioned attachment drafts for upload-before-send.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#21179](https://github.com/CherryHQ/cherry-studio/pull/21179) [`a03c8bb`](https://github.com/CherryHQ/cherry-studio/commit/a03c8bb3664e7eefe31a55d401d6bb433e5e6fec) Thanks [@DeJeune](https://github.com/DeJeune)! - Add an optional connection endpoint capability and an authenticated, capability-scoped address handoff method. Older peers retain their existing pairing and connection behavior.
+
 ## 0.2.0
 
 ### Minor Changes

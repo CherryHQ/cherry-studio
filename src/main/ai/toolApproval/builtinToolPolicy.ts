@@ -54,7 +54,7 @@ export function findBuiltinToolPolicy(
   return undefined
 }
 
-/** Standard MCP runtime name used by Claude Code and by safe DSH bridged identities. */
+/** Standard MCP runtime name used by Claude Code and legacy bridged identities. */
 export function toMcpRuntimeName(ref: Pick<BuiltinToolPolicyEntry, 'serverName' | 'toolName'>): string {
   return `mcp__${ref.serverName}__${ref.toolName}`
 }

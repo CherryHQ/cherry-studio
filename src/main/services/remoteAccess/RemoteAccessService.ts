@@ -1,6 +1,7 @@
 import { powerMonitor } from 'electron'
 
 import { application } from '@application'
+import { isUploadChunk } from '@cherrystudio/remote-protocol'
 import { remoteLimits, type RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
   acceptSecureChannel,
@@ -35,13 +36,19 @@ const transportLog: ChannelOptions['logger'] = {
 
 @Injectable('RemoteAccessService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiStreamManager', 'AgentSessionRuntimeService'])
+@DependsOn([
+  'AiStreamManager',
+  'AgentSessionRuntimeService',
+  'FileManager',
+  'FileIntakeService',
+  'AttachmentPresenceService'
+])
 export class RemoteAccessService extends BaseService {
   private identity?: Promise<Uint8Array>
   private readonly advertisement = new RemoteAdvertisement((status) => {
     application.get('CacheService').setShared('feature.remote_access.discovery_status', status)
   })
-  private endpoint?: { port: number; identity?: string }
+  private endpoint?: { port: number; ipv6?: boolean; identity?: string }
   private endpointRevision = 0
   private readonly pairing = new RemotePairing()
   private readonly tokens = new RemoteTokens()
@@ -55,7 +62,8 @@ export class RemoteAccessService extends BaseService {
     remoteCommandService.interruptPending()
     this.registerDisposable(agentSessionService.onSessionUpdated(({ sessionId }) => this.hub.publishSession(sessionId)))
     const refreshAdvertisement = () => {
-      if (this.endpoint?.identity) this.advertisement.update(this.endpoint.identity, this.endpoint.port)
+      if (this.endpoint?.identity)
+        this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
     }
     this.registerInterval(refreshAdvertisement, 5000)
     powerMonitor.on('resume', refreshAdvertisement)
@@ -82,9 +90,13 @@ export class RemoteAccessService extends BaseService {
     })
   }
 
+  protected onStop(): void {
+    this.closeIngress()
+  }
+
   /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */
-  updateDirectEndpoint(endpoint: { port: number } | undefined): void {
-    if (this.endpoint?.port === endpoint?.port) return
+  updateDirectEndpoint(endpoint: { port: number; ipv6?: boolean } | undefined): void {
+    if (this.endpoint?.port === endpoint?.port && this.endpoint?.ipv6 === endpoint?.ipv6) return
     const revision = ++this.endpointRevision
     this.endpoint = endpoint
     this.advertisement.stop()
@@ -98,7 +110,7 @@ export class RemoteAccessService extends BaseService {
       .then((identity) => {
         if (revision !== this.endpointRevision) return
         this.endpoint = { ...advertised, identity: deviceIdentityId(identity) }
-        this.advertisement.update(this.endpoint.identity!, advertised.port)
+        this.advertisement.update(this.endpoint.identity!, advertised.port, advertised.ipv6)
       })
       .catch((error: unknown) => {
         if (revision !== this.endpointRevision) return
@@ -107,11 +119,17 @@ export class RemoteAccessService extends BaseService {
       })
   }
 
+  async getConnectionEndpoints() {
+    const desktopIdentity = deviceIdentityId(await this.getIdentity())
+    const { addresses, port } = await application.get('ApiGatewayService').getRemoteEndpoint()
+    return { desktopIdentity, endpoints: addresses.map((host) => ({ host, port, security: 'ws' as const })) }
+  }
+
   async createInvitation() {
     const identity = await this.getIdentity()
     if (this.endpoint && !this.endpoint.identity) {
       this.endpoint.identity = deviceIdentityId(identity)
-      this.advertisement.update(this.endpoint.identity, this.endpoint.port)
+      this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
     }
     return { ...this.pairing.create(), desktopIdentity: deviceIdentityId(identity), protocolVersions: [1] }
   }
@@ -184,18 +202,36 @@ export class RemoteAccessService extends BaseService {
       this.pairing,
       this.tokens,
       () => application.get('IpcApiService').broadcast('api_gateway.remote.pairing_changed', undefined),
-      this.hub
+      this.hub,
+      () => this.getConnectionEndpoints()
     )
     entry.remote = remote
     let windowStart = Date.now()
     let count = 0
+    let uploadCount = 0
     while (!entry.abort.signal.aborted) {
       const input = await channel.read(entry.abort.signal)
+      if (isUploadChunk(input)) {
+        void remote.receiveUpload(input).catch(() => socket.close(1011, 'Remote upload failed'))
+        continue
+      }
       if (Date.now() - windowStart >= 1000) {
         windowStart = Date.now()
         count = 0
+        uploadCount = 0
       }
-      if (++count > 64) throw new Error('Remote request rate exceeded')
+      const upload =
+        input !== null && typeof input === 'object' && 'method' in input && input.method === 'agent.content.read'
+      if (upload ? ++uploadCount > 512 : ++count > 256) {
+        // Awaiting keeps a flood of refusals from queueing ahead of the socket; excess must not end the session.
+        const refusal = remote.rpc.refuse(input, {
+          reason: 'RATE_LIMITED',
+          message: 'Request rate exceeded',
+          retryAfterMs: Math.max(1, windowStart + 1000 - Date.now())
+        })
+        if (refusal) await remote.send(refusal).catch(() => socket.close(1011, 'Remote request failed'))
+        continue
+      }
       void remote.rpc
         .receive(input, undefined)
         .then(async (response) => {

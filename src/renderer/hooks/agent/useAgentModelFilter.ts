@@ -11,23 +11,14 @@
  */
 
 import { useMemo } from 'react'
-import useSWR from 'swr'
 
-import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
-const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
-const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
-const EMPTY_CHERRY_CLOUD_AVAILABILITY = {
-  entitledModelIds: [],
-  quotaExhaustedModelIds: []
-}
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
 
@@ -43,31 +34,4 @@ export function useAgentModelFilter(agentType: AgentType | undefined): ModelPred
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
   }, [agentType])
-}
-
-/** Returns the Agent selector rule for models that stay visible but cannot be selected. */
-export function useAgentModelDisabled(enabled = true): ModelPredicate {
-  const { data: cloudAvailability, mutate } = useSWR(
-    enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null,
-    () => ipcApi.request('cherry_cloud.models.sync'),
-    {
-      dedupingInterval: 5_000,
-      refreshInterval: CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false
-    }
-  )
-
-  useIpcOn('cherry_cloud.status_changed', () => {
-    if (!enabled) return
-    void mutate(EMPTY_CHERRY_CLOUD_AVAILABILITY, { revalidate: true }).catch(() => undefined)
-  })
-
-  return useMemo(() => {
-    const entitledModelIds = new Set(cloudAvailability?.entitledModelIds)
-    const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
-    return (model: Model) =>
-      isManagedCherryCloudModel(model.providerId) &&
-      (!cloudAvailability || !entitledModelIds.has(model.id) || quotaExhaustedModelIds.has(model.id))
-  }, [cloudAvailability])
 }

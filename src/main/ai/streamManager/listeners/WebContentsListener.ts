@@ -1,5 +1,6 @@
 import type { UIMessageChunk } from 'ai'
 
+import { application } from '@application'
 import { projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
@@ -43,6 +44,10 @@ type CoalescableChunk =
 /** One instance per (topic, window). Id `wc:${wc.id}:${topicId}` is stable across re-attach. */
 export class WebContentsListener implements StreamListener {
   readonly id: string
+
+  get windowId(): string | undefined {
+    return this.isAlive() ? application.get('WindowManager').getWindowIdByWebContents(this.wc) : undefined
+  }
 
   private pending: PendingDelta | null = null
   private pendingStartedAt = 0
@@ -100,6 +105,7 @@ export class WebContentsListener implements StreamListener {
     this.flushPending()
     this.emit('ai.stream.done', {
       topicId: this.topicId,
+      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
       ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
@@ -117,6 +123,7 @@ export class WebContentsListener implements StreamListener {
     this.flushPending()
     this.emit('ai.stream.done', {
       topicId: this.topicId,
+      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
       ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
@@ -135,6 +142,7 @@ export class WebContentsListener implements StreamListener {
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
     this.emit('ai.stream.error', {
       topicId: this.topicId,
+      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
       ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
