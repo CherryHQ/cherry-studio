@@ -5314,6 +5314,78 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1' })
   })
 
+  it('does not settle a queued successor when a stale pre-admission stop resumes', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      abortTurn: vi.fn(async () => true)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+
+    // Turn 1 runs to completion so the preserved runtime leaves a warm connection behind.
+    const firstHandle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: firstHandle.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    const entry = getEntry(service)
+    ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+    void terminalListener(firstHandle).onDone({ status: 'success', isTopicDone: false })
+
+    // The stopped turn parks in its pre-admission connect window.
+    const stoppedHandle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
+    const connectGate = createDeferred<boolean>()
+    const realEnsure = (service as any).ensureConnection.bind(service)
+    vi.spyOn(service as any, 'ensureConnection').mockImplementationOnce(async (target: unknown) => {
+      const connected = await realEnsure(target)
+      return connectGate.promise.then(() => connected)
+    })
+    const stoppedController = new AbortController()
+    const stoppedReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: stoppedHandle.turnId, signal: stoppedController.signal })
+      .getReader()
+    await expect(stoppedReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+    // The stop drains the parked turn while its start() is still parked: cancellation settles it,
+    // terminal persistence lands, and a queued successor opens and is admitted — all before the
+    // parked connect resolves.
+    stoppedController.abort('user-requested')
+    await vi.waitFor(() => expect(connection.abortTurn).toHaveBeenCalledOnce())
+    await stoppedReader.cancel().catch(() => undefined)
+    void terminalListener(stoppedHandle).onDone({ status: 'paused', isTopicDone: false })
+
+    const nextHandle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-3') })
+    const nextReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: nextHandle.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(nextReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+
+    // The parked connect resumes into a successor-owned execution: the stale aborted continuation
+    // must end its own stream only — an identity-free settle here would close the successor's
+    // controller before its prompt is sent, surfacing an empty success.
+    connectGate.resolve(true)
+    await expect(
+      Promise.race([
+        nextReader.read(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('successor still open')), 50))
+      ])
+    ).rejects.toThrow('successor still open')
+    expect(connection.send).toHaveBeenCalledTimes(2)
+    void service.closeSession('session-1')
+  })
+
   it('ends the stream when the turn is opened with its stop already aborted', async () => {
     const connection = {
       events: createAsyncQueue<any>().iterable,

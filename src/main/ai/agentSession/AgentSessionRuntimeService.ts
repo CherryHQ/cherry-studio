@@ -986,7 +986,10 @@ export class AgentSessionRuntimeService extends BaseService {
           if (!this.isTurnLive(entry, turn)) return
           const connected = await this.ensureConnection(entry)
           if (input.signal.aborted) {
-            abandonTurnStream()
+            // The stop that aborted this signal can have settled this turn and opened a queued
+            // successor while reconciliation awaited; the settle below names no turn, so it must
+            // not run once the execution belongs to another.
+            if (this.isTurnLive(entry, turn)) abandonTurnStream()
             return
           }
           if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
