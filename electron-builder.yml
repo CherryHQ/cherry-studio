@@ -230,6 +230,7 @@ releaseInfo:
     - [MCP] Connect to remote MCP servers that reject the version probe with 5xx errors; confirm health before reconnects.
     - [Models] Accept null Gemini model list pagination tokens; improve Gemini model discovery and metadata refresh.
     - [Tray] Use a stable Windows tray GUID for portable installs.
+    - [Voice] Fixed read-aloud skipping text in code blocks and inline code.
 
     <!--LANG:zh-CN-->
     Cherry Studio 2.1.7 - 语音、云服务与模型更新
@@ -263,4 +264,5 @@ releaseInfo:
     - [MCP] 连接拒绝版本探测并返回 5xx 错误的远程 MCP 服务器；重连前确认健康状态。
     - [模型] 接受空的 Gemini 模型列表分页标记；改进 Gemini 模型发现和元数据刷新。
     - [托盘] 为便携版安装使用稳定的 Windows 托盘 GUID。
+    - [语音] 修复朗读跳过代码块及行内代码中文字的问题。
     <!--LANG:END-->
