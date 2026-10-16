@@ -232,6 +232,7 @@ releaseInfo:
     - [Tray] Use a stable Windows tray GUID for portable installs.
     - [Voice] Fixed read-aloud skipping text in code blocks and inline code.
     - [Agents] Allow users to turn off onboarding by declining setup.
+    - [Translation] Keep idle dictation and copy buttons beside the input text without adding an extra toolbar row.
 
     <!--LANG:zh-CN-->
     Cherry Studio 2.1.7 - 语音、云服务与模型更新
@@ -267,4 +268,5 @@ releaseInfo:
     - [托盘] 为便携版安装使用稳定的 Windows 托盘 GUID。
     - [语音] 修复朗读跳过代码块及行内代码中文字的问题。
     - [智能体] 支持回复“不需要”或“跳过”关闭初始化引导。
+    - [翻译] 修复听写和复制按钮额外占据一行的问题，空闲时保持在输入文字右侧。
     <!--LANG:END-->
