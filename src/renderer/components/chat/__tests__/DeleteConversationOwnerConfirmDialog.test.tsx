@@ -219,56 +219,37 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
 })
 
 describe('deleteConversationOwnerPopup', () => {
-  it.each(['agent', 'assistant'] as const)(
-    'requires explicit confirmation for permanently deleting an %s',
-    async (type) => {
-      const user = userEvent.setup()
-      const action = vi.fn()
-      render(<PopupHost />)
-      let result!: Promise<boolean>
-      act(() => {
-        result = deleteConversationOwnerPopup.show({ type, permanent: true, action })
-      })
-      const checkbox = await screen.findByRole('checkbox')
-      expect(checkbox).not.toBeChecked()
-      expect(checkbox).toHaveAccessibleName(/including archived/)
-      expect(screen.getByRole('dialog')).toHaveTextContent('This action cannot be undone.')
-      expect(action).not.toHaveBeenCalled()
-      await user.click(screen.getByRole('button', { name: 'Cancel' }))
-      await expect(result).resolves.toBe(false)
-      expect(action).not.toHaveBeenCalled()
-    }
-  )
-
-  it('submits the permanent cascade only after it is explicitly checked and confirmed', async () => {
+  it.each(['agent', 'assistant'] as const)('requires explicit confirmation for archiving an %s', async (type) => {
     const user = userEvent.setup()
     const action = vi.fn()
     render(<PopupHost />)
     let result!: Promise<boolean>
     act(() => {
-      result = deleteConversationOwnerPopup.show({ type: 'agent', permanent: true, action })
+      result = deleteConversationOwnerPopup.show({ type, action })
     })
-    await user.click(await screen.findByRole('checkbox'))
+    const checkbox = await screen.findByRole('checkbox')
+    expect(checkbox).not.toBeChecked()
+    expect(checkbox).toHaveAccessibleName(/Also archive related/)
+    expect(screen.queryByRole('button', { name: 'Delete Permanently' })).not.toBeInTheDocument()
     expect(action).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
-    await expect(result).resolves.toBe(true)
-    expect(action).toHaveBeenCalledExactlyOnceWith(true)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await expect(result).resolves.toBe(false)
+    expect(action).not.toHaveBeenCalled()
   })
 
-  it('resolves false without running the action when cancelled', async () => {
+  it('submits the archive cascade only after it is explicitly checked and confirmed', async () => {
     const user = userEvent.setup()
     const action = vi.fn()
     render(<PopupHost />)
-
     let result!: Promise<boolean>
     act(() => {
       result = deleteConversationOwnerPopup.show({ type: 'agent', action })
     })
-
-    await user.click(await screen.findByRole('button', { name: 'Cancel' }))
-
+    await user.click(await screen.findByRole('checkbox'))
     expect(action).not.toHaveBeenCalled()
-    await expect(result).resolves.toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    await expect(result).resolves.toBe(true)
+    expect(action).toHaveBeenCalledExactlyOnceWith(true)
   })
 
   it('shows an error, stays open, and resolves true after retrying the same single-flight popup', async () => {

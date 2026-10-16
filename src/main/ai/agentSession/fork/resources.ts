@@ -13,6 +13,7 @@ export const AgentSessionForkResourcesSchema = z.object({
   version: z.literal(1),
   operationId: z.uuid(),
   targetSessionId: z.uuid(),
+  resumeToken: z.string().optional(),
   createdAt: z.number().int(),
   artifactDirectory: z.string(),
   artifactIdentity: z.string().optional(),

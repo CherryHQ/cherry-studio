@@ -2,8 +2,10 @@ import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState }
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
-import { type MarkdownSource } from '@cherrystudio/ui'
+import { type MarkdownSource, Scrollbar } from '@cherrystudio/ui'
 
+import { getDistanceToBottom, getRealBottom } from '../list/scrollGeometry'
+import { VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX } from '../list/ScrollOwnershipContext'
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
@@ -11,10 +13,9 @@ import { normalizeThinkingPreview, scanThinkingPreview, type ThinkingPreviewScan
 import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
-// This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
-const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
-const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
 const THINKING_PREVIEW_MIN_DURATION_MS = 1000
+const THINKING_CONTENT_PANEL_CLASSNAME =
+  'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground'
 
 function getThinkingPreviewKey(preview: string): string {
   return preview
@@ -56,11 +57,10 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
 
   return (
     <div
-      className="relative [&_.markdown>p:only-child]:mb-0!"
+      className="relative text-muted-foreground [&_.markdown>p:only-child]:mb-0!"
       style={
         {
-          '--markdown-foreground': THINKING_MUTED_COLOR,
-          color: THINKING_MUTED_COLOR,
+          '--markdown-foreground': 'var(--muted-foreground)',
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize
         } as CSSProperties
@@ -75,6 +75,20 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   const { thoughtAutoCollapse } = useMessageRenderConfig()
   const [isExpanded, setIsExpanded] = useState(!thoughtAutoCollapse)
   const contentId = useId()
+  const contentRef = useRef<HTMLDivElement>(null)
+  const followingRef = useRef(true)
+  const hasContent = !!content
+
+  useEffect(() => {
+    const panel = contentRef.current
+    if (!panel || !isExpanded || !isStreaming) return
+    const observer = new ResizeObserver(() => {
+      if (followingRef.current) panel.scrollTop = getRealBottom(panel)
+    })
+    observer.observe(panel)
+    if (panel.firstElementChild) observer.observe(panel.firstElementChild)
+    return () => observer.disconnect()
+  }, [hasContent, isExpanded, isStreaming])
   const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
@@ -142,8 +156,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
                 {streamingPreviewText && (
                   <span
                     aria-hidden="true"
-                    className="min-w-0 flex-1 overflow-hidden text-[13px] leading-5 whitespace-nowrap"
-                    style={{ color: THINKING_MUTED_COLOR }}>
+                    className="min-w-0 flex-1 overflow-hidden text-[13px] leading-5 whitespace-nowrap text-muted-foreground">
                     {streamingPreviewText}
                   </span>
                 )}
@@ -151,21 +164,26 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
             ) : showTitlePreview && previewText ? (
               <span
                 aria-hidden="true"
-                className="min-w-0 flex-1 truncate text-[13px] leading-5 whitespace-nowrap"
-                style={{ color: THINKING_MUTED_COLOR }}>
+                className="min-w-0 flex-1 truncate text-[13px] leading-5 whitespace-nowrap text-muted-foreground">
                 {previewText}
               </span>
             ) : null
           }
         />
       </div>
-      <div
+      <Scrollbar
+        ref={contentRef}
         id={contentId}
         hidden={!isExpanded}
-        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5"
-        style={{ color: THINKING_SECONDARY_COLOR }}>
+        autoHideScrollbar={false}
+        className={THINKING_CONTENT_PANEL_CLASSNAME}
+        onScroll={() => {
+          const panel = contentRef.current
+          if (!panel || !isExpanded || !isStreaming) return
+          followingRef.current = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
+        }}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
-      </div>
+      </Scrollbar>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 
@@ -58,4 +59,39 @@ describe('AgentTaskService active-Agent read contract', () => {
     })
     expect(agentTaskService.getTask('agent-trashed', trashedTaskId)).toMatchObject({ id: trashedTaskId })
   })
+})
+
+describe('AgentTaskService ownership mutation contract', () => {
+  const dbh = setupTestDatabase()
+
+  it.each(['targeted', 'reconciliation'] as const)(
+    '%s returns deleted schedules without deciding workspace ownership',
+    (mode) => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace', type: 'user', name: 'Workspace', path: '/tmp/task-workspace', orderKey: 'a0' })
+        .run()
+      const schedule = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'heartbeat_missing',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {
+          agentId: 'missing',
+          prompt: '__heartbeat__',
+          workspace: { type: 'user', workspaceId: 'workspace' }
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      const result = dbh.db.transaction((tx) =>
+        mode === 'targeted'
+          ? agentTaskService.setOwnerStateTx(tx, 'missing', 'missing', Date.now())
+          : agentTaskService.reconcileOwnerStatesTx(tx, Date.now())
+      )
+
+      expect(jobScheduleService.getById(schedule.id)).toBeNull()
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toMatchObject([{ id: 'workspace' }])
+      expect(result).toEqual({ scheduleIds: [schedule.id], deletedSchedules: [schedule] })
+    }
+  )
 })

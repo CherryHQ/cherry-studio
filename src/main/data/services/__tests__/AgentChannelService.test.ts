@@ -9,6 +9,7 @@ import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { ErrorCode } from '@shared/data/api/errors'
+import { UpdateAgentChannelSchema } from '@shared/data/api/schemas/agentChannels'
 
 const notifyDataApiDataChange = vi.hoisted(() => vi.fn())
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange }))
@@ -47,6 +48,32 @@ describe('AgentChannelService', () => {
     })
   }
 
+  it('applies separate configuration field patches to the latest persisted channel', () => {
+    const channel = agentChannelService.createChannel({
+      type: 'wecom',
+      name: 'WeCom',
+      workspace: SYSTEM_WORKSPACE,
+      isActive: false,
+      config: { bot_id: 'old', secret: 'original', allowed_chat_ids: ['dm:alice'], allowed_user_ids: [] }
+    })
+    agentChannelService.updateChannel(channel.id, UpdateAgentChannelSchema.parse({ configPatch: { bot_id: 'new' } }))
+    agentChannelService.updateChannel(
+      channel.id,
+      UpdateAgentChannelSchema.parse({ configPatch: { secret: ' secret ' } })
+    )
+    expect(agentChannelService.getChannel(channel.id)?.config).toEqual({
+      bot_id: 'new',
+      secret: ' secret ',
+      allowed_chat_ids: ['dm:alice'],
+      allowed_user_ids: []
+    })
+    expect(() => agentChannelService.updateChannel(channel.id, { configPatch: { unknown: true } })).toThrow()
+    expect(
+      UpdateAgentChannelSchema.safeParse({ config: channel.config, configPatch: { bot_id: 'ambiguous' } }).success
+    ).toBe(false)
+    expect(agentChannelService.getChannel(channel.id)?.config).toMatchObject({ bot_id: 'new', secret: ' secret ' })
+  })
+
   describe('createChannel', () => {
     it('creates a channel and returns the entity', async () => {
       const channel = agentChannelService.createChannel({
@@ -63,6 +90,7 @@ describe('AgentChannelService', () => {
       expect(channel.isActive).toBe(true)
       expect(channel.config).toMatchObject({ bot_token: 'test-token-123' })
       expect(notifyDataApiDataChange).toHaveBeenCalledWith([
+        { endpoint: '/agent-workspaces', kind: 'membership' },
         { endpoint: '/agent-channels', kind: 'membership', entityIds: [channel.id] },
         {
           endpoint: '/agent-channels/:channelId',

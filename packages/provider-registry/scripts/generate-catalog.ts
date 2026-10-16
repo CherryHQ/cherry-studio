@@ -9,11 +9,13 @@
  *     tsx scripts/generate-catalog.ts            # dry run (prints summary)
  *     tsx scripts/generate-catalog.ts --write    # write both JSON files
  *     tsx scripts/generate-catalog.ts --report   # also dump /tmp/gen-*.txt review files
+ *     tsx scripts/generate-catalog.ts --write --model gemini-4-argon # refresh one canonical model
  */
 import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseArgs } from 'node:util'
 
 import type { ZodType } from 'zod'
 
@@ -34,6 +36,7 @@ import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
 import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
+import { scopeModelRefresh } from './scopeModelRefresh'
 import {
   type CherryMeta,
   finalizeMeta,
@@ -56,8 +59,16 @@ const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json'
 const REASONING_FAMILIES_GEN_PATH = path.join(__dirname, '../src/patterns/reasoning-families.gen.ts')
 const SERVER_TOOL_MODELS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-models.gen.ts')
 const SERVER_TOOL_CONSTRAINTS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-constraints.gen.ts')
-const WRITE = process.argv.includes('--write')
-const REPORT = process.argv.includes('--report')
+const { values: args } = parseArgs({
+  options: {
+    write: { type: 'boolean' },
+    report: { type: 'boolean' },
+    model: { type: 'string', multiple: true },
+    'providers-only': { type: 'boolean' }
+  }
+})
+const WRITE = args.write
+const REPORT = args.report
 // Each artifact's `version` is a hash of its own (version-less, key-sorted) content: equal content ⇒
 // equal version, ANY content change ⇒ new version. Seeders (`PresetProviderSeeder` via `SeedRunner`)
 // skip when the journal version matches, so a date stamp would let a same-day regeneration change
@@ -651,6 +662,10 @@ function buildProviderModels(
 }
 
 void (async () => {
+  if (args['providers-only']) {
+    if (WRITE) fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers: buildProviders() }))
+    return
+  }
   const md = await load('MODELSDEV_CACHE', 'https://models.dev/api.json', ModelsDevApiSchema)
   const [orModels, orImageModels] = await Promise.all([
     load('OPENROUTER_CACHE', 'https://openrouter.ai/api/v1/models', OpenRouterApiSchema),
@@ -660,7 +675,25 @@ void (async () => {
 
   const index = buildIndex(md, or)
   const claimed = await assignCreators(index, md)
-  const models = buildModels(index, claimed)
+  let models = buildModels(index, claimed)
+  let pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  if (args.model?.length) {
+    const scoped = scopeModelRefresh(
+      {
+        models: JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8')).models,
+        overrides: JSON.parse(fs.readFileSync(PROVIDER_MODELS_PATH, 'utf8')).overrides
+      },
+      { models: [...models.values()], overrides: pm.overrides },
+      args.model
+    )
+    models = new Map(scoped.models.map((model) => [model.id, model]))
+    pm = {
+      overrides: scoped.overrides.sort((a, b) =>
+        `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`)
+      )
+    }
+    console.log(`refreshing only: ${args.model.join(', ')}`)
+  }
 
   const unassigned = [...index.keys()].filter((k) => !claimed.has(k))
   console.log(`creators: ${CREATORS.length}`)
@@ -702,7 +735,6 @@ void (async () => {
       return { ...rest, ...(metadata ? { metadata } : {}) }
     })
   const providers = buildProviders()
-  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
   const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
   if (serviceTierErrors.length > 0) {
     throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)

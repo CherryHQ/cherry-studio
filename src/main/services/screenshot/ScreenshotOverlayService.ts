@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import dayjs from 'dayjs'
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nativeImage, screen } from 'electron'
@@ -22,6 +23,7 @@ import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 
+import { isScreenshotOcrAvailable, recognizeScreenshotText } from './recognizeText'
 import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
 import { listWindowsOffThread } from './windowEnumerator'
@@ -120,6 +122,22 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
+  private hiddenSourceWindow: BrowserWindow | null = null
+  private resultConsumer: {
+    submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
+    dispose: () => void
+  } | null = null
+
+  public async submitResult(result: ScreenshotResultData & { text: string }): Promise<void> {
+    const consumer = this.resultConsumer
+    const generation = this.sessionGeneration
+    if (!consumer) throw new Error('No result consumer is available')
+    if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
+      throw new Error('The screenshot could not be decoded')
+    }
+    await consumer.submit(result)
+    if (generation === this.sessionGeneration) this.dismiss()
+  }
 
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
   private renderersReady = new Set<WindowId>()
@@ -212,7 +230,13 @@ export class ScreenshotOverlayService extends BaseService {
    * screen, when the feature is off, or when screen recording is not granted (guiding
    * the user instead).
    */
-  public async startCapture(): Promise<void> {
+  public async startCapture(
+    sourceWindowId?: WindowId,
+    consumer?: {
+      submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
+      dispose: () => void
+    }
+  ): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
     // `overlayWindowIds` is still empty and a second hotkey press would otherwise pass.
     if (this.capturing || this.overlayWindowIds.length > 0) return
@@ -231,11 +255,27 @@ export class ScreenshotOverlayService extends BaseService {
       // Advance only once a session is definitely starting: bumping it above the guards
       // would let a blocked second attempt freeze the FIRST session's overlays at opacity 0.
       const generation = ++this.sessionGeneration
+      const manager = application.get('WindowManager')
+      this.resultConsumer = consumer ?? null
 
       const t0 = performance.now()
       this.overlaysCreated = 0
 
       try {
+        const sourceWindow = sourceWindowId && manager.getWindow(sourceWindowId)
+        if (
+          sourceWindow &&
+          !sourceWindow.isDestroyed() &&
+          sourceWindow.isVisible() &&
+          !sourceWindow.isMinimized() &&
+          !(isMac && sourceWindow.isFullScreen())
+        ) {
+          this.hiddenSourceWindow = sourceWindow
+          sourceWindow.hide()
+          // Give the desktop compositor time to remove the source before freezing the display.
+          await delay(150)
+          if (generation !== this.sessionGeneration) return
+        }
         // Started before the capture so the enumeration — hundreds of milliseconds of
         // native work — overlaps the PNG encode and the window opening rather than
         // following them. It runs off the main thread; see listWindowsOffThread.
@@ -259,7 +299,7 @@ export class ScreenshotOverlayService extends BaseService {
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
-        const ocrAvailable = application.get('LocalModelService').isCapabilityReady('ocr')
+        const ocrAvailable = isScreenshotOcrAvailable()
 
         // Which overlay covers which display, for the snap-target push below.
         const snapOverlays: { windowId: WindowId; display: Display }[] = []
@@ -298,6 +338,7 @@ export class ScreenshotOverlayService extends BaseService {
           const windowId = windowManager.open<ScreenshotInitData>(WindowType.Screenshot, {
             options: bounds,
             initData: {
+              canSubmitResult: this.resultConsumer !== null,
               imageUrl: mediaProtocol.getUrl(MediaKind.Image, mediaId),
               mediaId,
               display: {
@@ -436,10 +477,8 @@ export class ScreenshotOverlayService extends BaseService {
   /**
    * Recognize text inside one region of an overlay's frozen capture.
    *
-   * Serialization is `OcrInferenceService`'s own `PQueue({ concurrency: 1 })`; this only
-   * has to make sure a superseded request produces nothing. The token is re-checked right
-   * before the recognition and again after it, so a request overtaken while it waited for
-   * its queue slot is dropped rather than painted over the newer result.
+   * Native OCR runs asynchronously; Paddle uses its inference worker. Only the latest
+   * request may publish lines, including across pooled-window sessions.
    */
   public async recognizeText(windowId: WindowId, mediaId: string, region: OcrRegion): Promise<OcrRecognitionResult> {
     const token = Symbol('ocr-request')
@@ -450,8 +489,8 @@ export class ScreenshotOverlayService extends BaseService {
     if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
     // Re-checked per request, never cached from initData: the user can delete the
-    // model in settings while the overlay is open.
-    if (!application.get('LocalModelService').isCapabilityReady('ocr')) return { status: 'unavailable' }
+    // Paddle model in settings while the overlay is open.
+    if (!isScreenshotOcrAvailable()) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }
@@ -476,14 +515,14 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const result = await application.get('OcrInferenceService').recognize({ kind: 'bytes', imageBytes })
+      const result = await recognizeScreenshotText(imageBytes, clamped)
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-      return { status: 'ok', lines: result.lines }
+      return result
     } catch (error) {
       // Rethrown so the overlay shows its error state; logged here because the IPC
       // transport only serializes the error to the renderer, it never records it.
@@ -722,6 +761,11 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Release every session resource. Pairs with, but is not a substitute for, closing the windows. */
   private cleanup(): void {
+    this.resultConsumer?.dispose()
+    this.resultConsumer = null
+    const sourceWindow = this.hiddenSourceWindow
+    this.hiddenSourceWindow = null
+    if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.show()
     // Makes any callback still in flight a no-op; it cannot make timers disappear,
     // which is what the loop below is for.
     this.sessionGeneration++
@@ -917,11 +961,14 @@ function matchCapture(
       return result
     }
 
-    // 3. Windows HiDPI: the native side reports physical pixels in the primary
-    //    display's grid while Electron reports DIP, so normalize before comparing.
-    if (primaryScaleFactor !== 1) {
-      const normX = Math.round(monitorInfo.x / primaryScaleFactor)
-      const normY = Math.round(monitorInfo.y / primaryScaleFactor)
+    // 3. Windows HiDPI: native origins can follow either the primary or the
+    //    monitor's physical-pixel grid, so normalize against both scales.
+    const scaleFactors = [primaryScaleFactor]
+    if (isWin && monitorInfo.scaleFactor !== primaryScaleFactor) scaleFactors.push(monitorInfo.scaleFactor)
+    for (const scaleFactor of scaleFactors) {
+      if (scaleFactor === 1) continue
+      const normX = Math.round(monitorInfo.x / scaleFactor)
+      const normY = Math.round(monitorInfo.y / scaleFactor)
       if (Math.abs(normX - display.bounds.x) <= 1 && Math.abs(normY - display.bounds.y) <= 1) return result
     }
   }

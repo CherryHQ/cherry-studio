@@ -82,6 +82,12 @@ describe('RegionService', () => {
     await expect(regionService.isInChina()).resolves.toBe(false)
   })
 
+  it('propagates failures when callers require a confirmed region', async () => {
+    netFetchMock.mockRejectedValueOnce(new Error('network down'))
+
+    await expect(regionService.detectIsInChina()).rejects.toThrow('network down')
+  })
+
   it.each([
     ['network failure', () => netFetchMock.mockRejectedValueOnce(new Error('network down'))],
     [

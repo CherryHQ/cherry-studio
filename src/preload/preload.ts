@@ -3,7 +3,7 @@ import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { DataApiDataChangeEffect, DataRequest, DataResponse } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
@@ -24,15 +24,7 @@ import type {
   EnsureExternalEntryIpcParams,
   GetPhysicalPathIpcParams
 } from '@shared/types/file'
-import type {
-  LanClientEvent,
-  LanFileCompleteMessage,
-  LanHandshakeAckMessage,
-  LanTransferConnectPayload,
-  LanTransferState
-} from '@shared/types/lanTransfer'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
-import type { SkillFileNode, SkillResult } from '@shared/types/skill'
 import type { CommandId } from '@shared/utils/command'
 
 import { ipcApi } from './ipc'
@@ -95,11 +87,7 @@ const api = {
     restoreFromS3: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_RestoreFromS3, s3Config),
     listS3Files: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_ListS3Files, s3Config),
     deleteS3File: (fileName: string, s3Config: S3Config) =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
-    createLanTransferBackup: (data: string, destinationPath?: string): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
-    deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config)
   },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
@@ -190,7 +178,7 @@ const api = {
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
   // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
-  // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
+  // `ipcApi.request('oauth.*' | 'cherryin.*')`.
   // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   nutstore: {
     getSSOUrl: () => ipcRenderer.invoke(IpcChannel.Nutstore_GetSsoUrl),
@@ -254,7 +242,7 @@ const api = {
   },
   // Data API related APIs
   dataApi: {
-    request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
+    request: (req: DataRequest): Promise<DataResponse<unknown>> => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
     // DataApi data change notifications: single fixed channel, main → all windows.
     onDataChanged: (callback: (effects: DataApiDataChangeEffect[]) => void) => {
       const listener = (_: any, effects: DataApiDataChangeEffect[]) => callback(effects)
@@ -263,42 +251,7 @@ const api = {
     }
   },
   // IpcApi RPC channel — generic forwarder; the typed facade lives in src/renderer/ipc
-  ipcApi,
-  // All `ai.*` / `translate.*` capability IPC moved to IpcApi (`ipcApi.request(...)` /
-  // `ipcApi.on('ai.stream_*')`): model ops, streaming chat + translate, agent-session
-  // warm-up, tool approval, agent run-task, and the topic/agent-session auto-rename events.
-  skill: {
-    readSkillFile: (skillId: string, filename: string): Promise<SkillResult<string | null>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ReadFile, skillId, filename),
-    listFiles: (skillId: string): Promise<SkillResult<SkillFileNode[]>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_ListFiles, skillId)
-  },
-  lanTransfer: {
-    startScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StartScan),
-    stopScan: (): Promise<LanTransferState> => ipcRenderer.invoke(IpcChannel.LanTransfer_StopScan),
-    connect: (payload: LanTransferConnectPayload): Promise<LanHandshakeAckMessage> =>
-      ipcRenderer.invoke(IpcChannel.LanTransfer_Connect, payload),
-    disconnect: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_Disconnect),
-    onServicesUpdated: (callback: (state: LanTransferState) => void): (() => void) => {
-      const channel = IpcChannel.LanTransfer_ServicesUpdated
-      const listener = (_: Electron.IpcRendererEvent, state: LanTransferState) => callback(state)
-      ipcRenderer.on(channel, listener)
-      return () => {
-        ipcRenderer.removeListener(channel, listener)
-      }
-    },
-    onClientEvent: (callback: (event: LanClientEvent) => void): (() => void) => {
-      const channel = IpcChannel.LanTransfer_ClientEvent
-      const listener = (_: Electron.IpcRendererEvent, event: LanClientEvent) => callback(event)
-      ipcRenderer.on(channel, listener)
-      return () => {
-        ipcRenderer.removeListener(channel, listener)
-      }
-    },
-    sendFile: (filePath: string): Promise<LanFileCompleteMessage> =>
-      ipcRenderer.invoke(IpcChannel.LanTransfer_SendFile, { filePath }),
-    cancelTransfer: (): Promise<void> => ipcRenderer.invoke(IpcChannel.LanTransfer_CancelTransfer)
-  }
+  ipcApi
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

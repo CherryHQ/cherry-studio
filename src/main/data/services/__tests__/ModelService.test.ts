@@ -2108,6 +2108,7 @@ describe('ModelService.delete', () => {
       })
     )
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -2296,6 +2297,7 @@ describe('ModelService.bulkDelete', () => {
       })
     ])
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -2520,6 +2522,22 @@ describe('ModelService.reconcileForProvider', () => {
   beforeEach(() => {
     resolveModelMock.mockClear()
   })
+
+  it.each(['comfyui', 'ollama', 'openai'])(
+    'preserves custom %s models during reconcile but allows explicit deletion',
+    (providerId) => {
+      dbh.db.insert(userProviderTable).values(providerRow(providerId, providerId)).run()
+      const id = createUniqueModelId(providerId, 'saved-model')
+      dbh.db
+        .insert(userModelTable)
+        .values(modelRow(providerId, 'saved-model', { id }))
+        .run()
+      const remaining = modelService.reconcileForProvider(providerId, { toAdd: [], toRemove: [id] })
+      expect(remaining.map((model) => model.id)).toEqual([id])
+      modelService.delete(providerId, 'saved-model')
+      expect(dbh.db.select().from(userModelTable).all()).toEqual([])
+    }
+  )
 
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer

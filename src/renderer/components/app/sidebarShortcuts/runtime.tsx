@@ -278,7 +278,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
         const existing = destination.conversation
           ? findConversationTab(tabs, destination.conversation)
           : tabs.find(
-              (tab) => tab.type === 'route' && (destination.matchesCurrent?.(tab.url) ?? tab.url === destination.url)
+              (tab) => tab.type === 'route' && (destination.matchesTab?.(tab.url) ?? tab.url === destination.url)
             )
         if (existing) {
           setActiveTab(existing.id)
@@ -286,7 +286,10 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
         }
         if (activeTab && !activeTab.isPinned) {
           if (miniAppIdFromTabUrl(activeTab.url)) {
+            // Keep this tab alive for the WebView pool, so the destination gets its own tab. Reuse was
+            // already resolved above for destinations that declare an identity.
             openTab(destination.url, {
+              forceNew: true,
               title: destination.title,
               icon: destination.icon
             })
