@@ -737,9 +737,15 @@ export class ClaudeCodeStreamAdapter {
     )
     if (existing) return existing
 
+    // Spawning-turn ownership, not turnActive alone: a follow-up reusing the session can be active
+    // while a PREVIOUS turn's child emits its first parented content, and that content belongs to
+    // the row owning the tool call. Only a parent tool call of the still-active current turn
+    // streams into the main sink; anything else takes the detached background-flow path.
     const flow: FlowContext = {
       rootToolCallId: parentToolCallId,
-      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
+      stream: this.createTurnContext(
+        this.turnActive && this.ctx.toolStates.has(parentToolCallId) ? this.sink : this.createFlowSink(parentToolCallId)
+      )
     }
     this.flowContexts.push(flow)
     return flow
