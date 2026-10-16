@@ -99,6 +99,12 @@ export const ASSISTANTS_DEFAULT_PAGE = 1
 export const ASSISTANTS_DEFAULT_LIMIT = 100
 export const ASSISTANTS_MAX_LIMIT = 500
 
+/** Query-family identifiers used by assistant read-model notifications. */
+export const ASSISTANT_DATA_CHANGE_DIMENSIONS = {
+  membership: { search: 'search', groupId: 'groupId', updatedAtFrom: 'updatedAtFrom' },
+  order: { createdAt: 'createdAt', updatedAt: 'updatedAt', name: 'name', orderKey: 'orderKey' }
+} as const
+
 /**
  * Query parameters for listing assistants.
  *
@@ -126,7 +132,7 @@ export const ListAssistantsQuerySchema = z.strictObject({
   /** Filter by assistant updatedAt timestamp, inclusive (`updatedAt >= updatedAtFrom`). */
   updatedAtFrom: z.iso.datetime().optional(),
   /** Sort field. Defaults to orderKey for library/resource ordering. */
-  sortBy: z.enum(['createdAt', 'updatedAt', 'name', 'orderKey']).optional(),
+  sortBy: z.enum(Object.values(ASSISTANT_DATA_CHANGE_DIMENSIONS.order)).optional(),
   /**
    * Sort direction. Defaults to asc for `orderKey`/`name`, desc otherwise.
    * `sortBy=updatedAt` intentionally bypasses pin ordering so freshness queries

@@ -1,5 +1,5 @@
 import { Sparkles, Trash2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -111,12 +111,47 @@ type AssistantEditFormValues = {
   mcpServerIds: string[]
 }
 
+type AssistantSaveSnapshot = {
+  values: Partial<AssistantEditFormValues>
+  editVersions: Partial<Record<keyof AssistantEditFormValues, number>>
+  observedFields: Set<keyof AssistantEditFormValues>
+  inFlight: boolean
+}
 type CustomParameter = AssistantFormState['customParameters'][number]
 type CustomParameterType = CustomParameter['type']
 type AssistantToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
+const CONTEXT_OVERRIDE_FIELDS: ReadonlySet<keyof AssistantEditFormValues> = new Set([
+  'contextCompressEnabled',
+  'contextTruncateThreshold',
+  'contextCompressThresholdPercent',
+  'contextCompressModelId'
+])
+
+function serializedFormValue(name: string, value: unknown): string | undefined {
+  const comparable =
+    (name === 'mcpServerIds' || name === 'knowledgeBaseIds') && Array.isArray(value)
+      ? Array.from(new Set(value)).sort()
+      : value
+  return JSON.stringify(comparable)
+}
+
+function serializedPersistedValue(name: string, value: unknown): string | undefined {
+  return serializedFormValue(name, name === 'name' && typeof value === 'string' ? value.trim() : value)
+}
+
+function acknowledgeSavedFields(snapshot: AssistantSaveSnapshot | null, defaults: AssistantEditFormValues) {
+  if (!snapshot) return
+  for (const [name, value] of Object.entries(snapshot.values)) {
+    const key = name as keyof AssistantEditFormValues
+    if (serializedPersistedValue(name, value) === serializedFormValue(name, defaults[key]))
+      snapshot.observedFields.add(key)
+    // Keep submitted values for newer-input comparisons until the save settles.
+    if (!snapshot.inFlight && snapshot.observedFields.has(key)) delete snapshot.values[key]
+  }
+}
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.builtin' || value === 'tools.mcp' || value === 'tools.knowledge'
@@ -207,6 +242,7 @@ export function AssistantEditDialog({
 
   return (
     <AssistantEditDialogContent
+      key={resource.id}
       resource={resource}
       open={open}
       onOpenChange={onOpenChange}
@@ -231,16 +267,39 @@ function AssistantEditDialogContent({
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
-  const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
+  const [baselineResource, setBaselineResource] = useState(resource)
+  const baselineResourceRef = useRef(resource)
+  const observedResourceRef = useRef(resource)
+  const defaultValues = useMemo(() => defaultValuesForAssistant(baselineResource), [baselineResource])
+  const baselineValuesRef = useRef(defaultValues)
+  const saveSnapshotRef = useRef<AssistantSaveSnapshot | null>(null)
+  const editVersionsRef = useRef<Partial<Record<keyof AssistantEditFormValues, number>>>({})
+  const reconcilingRef = useRef(false)
   const form = useForm<AssistantEditFormValues>({ defaultValues })
+  const inputValuesRef = useRef(defaultValues)
+  useEffect(
+    () =>
+      form.subscribe({
+        formState: { values: true },
+        callback: ({ name, values: nextValues }) => {
+          if (name && !reconcilingRef.current) {
+            const key = name.split('.')[0] as keyof AssistantEditFormValues
+            if (serializedFormValue(key, nextValues[key]) !== serializedFormValue(key, inputValuesRef.current[key]))
+              editVersionsRef.current[key] = (editVersionsRef.current[key] ?? 0) + 1
+          }
+          inputValuesRef.current = nextValues
+        }
+      }),
+    [form]
+  )
   const values = form.watch()
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
-    const baseline = initialAssistantFormState(resource)
-    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, resource)
-  }, [resource, values])
+    const baseline = initialAssistantFormState(baselineResource)
+    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, baselineResource)
+  }, [baselineResource, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -264,6 +323,70 @@ function AssistantEditDialogContent({
   // the user changes the form, while a later close can explicitly discard it.
   const failedSaveKeyRef = useRef<string | null>(null)
 
+  const reconcileResource = useCallback(
+    (
+      nextResource: AssistantEditDialogResource,
+      justOpened = false,
+      savedFields?: ReadonlySet<keyof AssistantEditFormValues>
+    ) => {
+      // Rebase untouched fields while retaining only changes made against the editing snapshot.
+      const nextDefaultValues = defaultValuesForAssistant(nextResource)
+      const currentValues = form.getValues()
+      const localValues = justOpened
+        ? {}
+        : Object.fromEntries(
+            Object.entries(currentValues).filter(([name, value]) => {
+              const key = name as keyof AssistantEditFormValues
+              if (CONTEXT_OVERRIDE_FIELDS.has(key) && !currentValues.contextOverrideEnabled) return false
+              const snapshot = saveSnapshotRef.current
+              const submittedValues = snapshot?.values
+              const changedAgainstBaseline =
+                serializedPersistedValue(name, value) !== serializedFormValue(name, baselineValuesRef.current[key])
+              // An unobserved write may still replace a newer return to the old baseline.
+              const changedSinceSave =
+                submittedValues &&
+                key in submittedValues &&
+                (editVersionsRef.current[key] ?? 0) > (snapshot.editVersions[key] ?? 0) &&
+                (changedAgainstBaseline || !snapshot.observedFields.has(key))
+              if (savedFields?.has(key) && !changedSinceSave) return false
+              return (
+                (changedAgainstBaseline || changedSinceSave) &&
+                serializedPersistedValue(name, value) !== serializedFormValue(name, nextDefaultValues[key])
+              )
+            })
+          )
+      const overrideDisabled =
+        'contextOverrideEnabled' in localValues
+          ? localValues.contextOverrideEnabled === false
+          : !nextDefaultValues.contextOverrideEnabled
+      const locallyEnabled = 'contextOverrideEnabled' in localValues && localValues.contextOverrideEnabled === true
+      // Disabled configuration is a session draft, not a pending persisted edit.
+      if (!justOpened && (overrideDisabled || locallyEnabled)) {
+        Object.assign(localValues, {
+          contextCompressEnabled: currentValues.contextCompressEnabled,
+          contextTruncateThreshold: currentValues.contextTruncateThreshold,
+          contextCompressThresholdPercent: currentValues.contextCompressThresholdPercent,
+          contextCompressModelId: currentValues.contextCompressModelId
+        })
+      }
+      // Adopting a refresh is not user input, including the local values restored after reset.
+      reconcilingRef.current = true
+      try {
+        form.reset(nextDefaultValues, { keepErrors: !justOpened })
+        setFormValues(form, localValues)
+      } finally {
+        reconcilingRef.current = false
+      }
+      baselineValuesRef.current = nextDefaultValues
+      baselineResourceRef.current = nextResource
+      if (justOpened) saveSnapshotRef.current = null
+      else acknowledgeSavedFields(saveSnapshotRef.current, nextDefaultValues)
+      setBaselineResource(nextResource)
+      if (!('modelId' in localValues)) setModelLabels(modelLabelsForAssistant(nextResource))
+    },
+    [form]
+  )
+
   const wasOpenRef = useRef(false)
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
@@ -272,9 +395,10 @@ function AssistantEditDialogContent({
       setCreateGroupDialogOpen(false)
       return
     }
+    if (!justOpened && resource === observedResourceRef.current) return
+    observedResourceRef.current = resource
+    reconcileResource(resource, justOpened)
     if (!justOpened) return
-
-    form.reset(defaultValues)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
@@ -285,17 +409,23 @@ function AssistantEditDialogContent({
     // hold in useResourceCatalogController) must not silently discard a new,
     // coincidentally-identical edit as if it were a repeated close.
     failedSaveKeyRef.current = null
-  }, [defaultValues, form, initialTab, open, resource])
+  }, [form, initialTab, open, reconcileResource, resource])
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
-  const changeKey = canPersist ? JSON.stringify(values) : null
+  const changeKey = canPersist ? JSON.stringify([defaultValues, values]) : null
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
 
   const persist = async () => {
-    const pending = saveIntent
-    if (!pending || !changeKey) return
-    const attemptedKey = changeKey
+    const submittedValues = form.getValues()
+    const baseline = initialAssistantFormState(baselineResourceRef.current)
+    const pending = diffAssistantSaveIntent(
+      buildAssistantFormState(baseline, submittedValues),
+      baseline,
+      baselineResourceRef.current
+    )
+    if (!pending || !submittedValues.name.trim()) return
+    const attemptedKey = JSON.stringify(submittedValues)
 
     // A close-triggered flush does not cancel the already scheduled debounce.
     // Keep both paths from resending an unchanged payload that already failed.
@@ -304,20 +434,54 @@ function AssistantEditDialogContent({
     form.clearErrors('root')
     failedSaveKeyRef.current = null
 
+    const observedResource = observedResourceRef.current
+    const snapshot: AssistantSaveSnapshot = {
+      values: Object.fromEntries(
+        Object.entries(submittedValues).filter(
+          ([name, value]) =>
+            (submittedValues.contextOverrideEnabled ||
+              !CONTEXT_OVERRIDE_FIELDS.has(name as keyof AssistantEditFormValues)) &&
+            serializedFormValue(name, value) !==
+              serializedFormValue(name, baselineValuesRef.current[name as keyof AssistantEditFormValues])
+        )
+      ),
+      editVersions: { ...editVersionsRef.current },
+      observedFields: new Set(),
+      inFlight: true
+    }
+    const savedValues = { ...snapshot.values }
+    saveSnapshotRef.current = snapshot
     try {
-      await updateAssistant(pending.payload)
+      const updated = await updateAssistant(pending.payload)
+      if (saveSnapshotRef.current === snapshot) {
+        const persistedValues = defaultValuesForAssistant(updated)
+        const savedFields = new Set<keyof AssistantEditFormValues>()
+        for (const [name, value] of Object.entries(savedValues)) {
+          const key = name as keyof AssistantEditFormValues
+          if (serializedPersistedValue(name, value) === serializedFormValue(name, persistedValues[key]))
+            savedFields.add(key)
+        }
+        // Object identity only shows a refresh happened; its timestamp determines whether it predates the write.
+        const observed = baselineResourceRef.current
+        const keepObserved =
+          observedResourceRef.current !== observedResource &&
+          Date.parse(observed.updatedAt) >= Date.parse(updated.updatedAt)
+        reconcileResource(keepObserved ? observed : updated, false, savedFields)
+        acknowledgeSavedFields(snapshot, persistedValues)
+      }
     } catch (error) {
+      if (saveSnapshotRef.current === snapshot) saveSnapshotRef.current = null
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
       form.setError('root', { message: saveFailedMessage })
       toast.error(saveFailedMessage)
+    } finally {
+      snapshot.inFlight = false
+      acknowledgeSavedFields(snapshot, baselineValuesRef.current)
     }
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /assistants/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
+  // External refreshes rebase the editing snapshot; only remaining local changes arm autosave.
   const flush = useDebouncedAutoSave({
     enabled: open,
     changeKey,
@@ -332,7 +496,7 @@ function AssistantEditDialogContent({
       onOpenChange(next)
       return
     }
-    if (failedSaveKeyRef.current === changeKey) {
+    if (failedSaveKeyRef.current === JSON.stringify(form.getValues())) {
       toast.error(saveFailedMessage)
       onOpenChange(false)
       return
@@ -943,6 +1107,9 @@ function ContextManagementFields({
   // override is customized — an ON→OFF→ON round trip on a stored override must
   // preserve the saved values.
   const hadStoredOverride = useRef(values.contextOverrideEnabled)
+  useEffect(() => {
+    if (values.contextOverrideEnabled) hadStoredOverride.current = true
+  }, [values.contextOverrideEnabled])
 
   const onOverrideToggle = (checked: boolean) => {
     if (checked && !hadStoredOverride.current) {

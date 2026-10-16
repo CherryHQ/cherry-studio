@@ -17,14 +17,16 @@ import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type {
-  CreateAssistantDto,
-  DuplicateAssistantDto,
-  ImportAssistantDto,
-  ListAssistantsQuery,
-  UpdateAssistantDto
+import {
+  ASSISTANT_DATA_CHANGE_DIMENSIONS,
+  type CreateAssistantDto,
+  type DuplicateAssistantDto,
+  type ImportAssistantDto,
+  type ListAssistantsQuery,
+  type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -42,6 +44,11 @@ type AssistantRow = typeof assistantTable.$inferSelect
 
 type AssistantRelationIds = Pick<Assistant, 'mcpServerIds' | 'knowledgeBaseIds'>
 type AssistantEntitySearchItem = Extract<EntitySearchItem, { type: 'assistant' }>
+type AssistantChangeDimensions = typeof ASSISTANT_DATA_CHANGE_DIMENSIONS
+type AssistantReadModelFacets = {
+  membership?: readonly AssistantChangeDimensions['membership'][keyof AssistantChangeDimensions['membership']][]
+  order?: readonly AssistantChangeDimensions['order'][keyof AssistantChangeDimensions['order']][]
+}
 type AssistantRowWithModelName = {
   assistant: AssistantRow
   modelName: string | null
@@ -52,6 +59,12 @@ function createEmptyRelations(): AssistantRelationIds {
     mcpServerIds: [],
     knowledgeBaseIds: []
   }
+}
+
+function hasRelationChanges(currentIds: string[], requestedIds: string[] | undefined): boolean {
+  if (requestedIds === undefined) return false
+  const desiredIds = new Set(requestedIds)
+  return desiredIds.size !== currentIds.length || currentIds.some((id) => !desiredIds.has(id))
 }
 
 function rowToAssistant(
@@ -94,13 +107,24 @@ function rethrowAssistantOrderError(error: unknown): never {
 }
 
 export class AssistantDataService {
-  notifyReadModelChange(assistantIds: readonly string[], kind: 'membership' | 'projection'): void {
+  notifyReadModelChange(
+    assistantIds: readonly string[],
+    kind: 'membership' | 'projection',
+    facets: AssistantReadModelFacets = {}
+  ): void {
     if (assistantIds.length === 0) return
     const entityIds = [...new Set(assistantIds)]
-    notifyDataApiDataChange([
+    const effects: DataApiDataChangeEffect[] = [
       { endpoint: '/assistants', kind, entityIds },
       { endpoint: '/assistants/:id', entityIds }
-    ])
+    ]
+    for (const dimension of facets.membership ?? []) {
+      effects.push({ endpoint: '/assistants', kind: 'membership', dimension, entityIds })
+    }
+    for (const dimension of facets.order ?? []) {
+      effects.push({ endpoint: '/assistants', kind: 'order', dimension, entityIds })
+    }
+    notifyDataApiDataChange(effects)
   }
 
   private get db() {
@@ -413,6 +437,7 @@ export class AssistantDataService {
     this.validateName(dto.name)
 
     const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+    this.notifyReadModelChange([row.id], 'membership')
 
     logger.info('Created assistant', { id: row.id, name: row.name })
 
@@ -456,6 +481,7 @@ export class AssistantDataService {
     })
 
     logger.info('Duplicated assistant', { id: row.id, sourceId: id })
+    this.notifyReadModelChange([row.id], 'membership')
     if (clonedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
     return rowToAssistant(row, relations, modelName)
   }
@@ -488,6 +514,7 @@ export class AssistantDataService {
     })
 
     logger.info('Imported assistant', { id: row.id, name: row.name })
+    this.notifyReadModelChange([row.id], 'membership')
     if (importedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
 
     return rowToAssistant(row, createEmptyRelations(), modelName)
@@ -522,11 +549,15 @@ export class AssistantDataService {
       updates.settings = { ...current.settings, ...settingsPatch }
     }
     const hasColumnUpdates = Object.keys(updates).length > 0
-    const hasRelationUpdates = mcpServerIds !== undefined || knowledgeBaseIds !== undefined
+    const hasRelationUpdates =
+      hasRelationChanges(current.mcpServerIds, mcpServerIds) ||
+      hasRelationChanges(current.knowledgeBaseIds, knowledgeBaseIds)
 
     if (!hasColumnUpdates && !hasRelationUpdates) {
       return current
     }
+    // Junction writes also modify the aggregate; let the row's timestamp helper record them.
+    if (!hasColumnUpdates) updates.settings = current.settings
 
     const nextRelations: AssistantRelationIds = {
       mcpServerIds: [...new Set(mcpServerIds ?? current.mcpServerIds)],
@@ -549,22 +580,9 @@ export class AssistantDataService {
         this.validateAssistantGroupTx(tx, dto.groupId)
       }
 
-      let next: AssistantRow
-      if (hasColumnUpdates) {
-        const [updated] = tx.update(assistantTable).set(updates).where(aliveFilter).returning().all()
-        if (!updated) {
-          throw DataApiErrorFactory.notFound('Assistant', id)
-        }
-        next = updated
-      } else {
-        // Relation-only edits still need the same liveness guard,
-        // otherwise a concurrent soft-delete would let us write junction rows
-        // against a deleted assistant.
-        const [existing] = tx.select().from(assistantTable).where(aliveFilter).limit(1).all()
-        if (!existing) {
-          throw DataApiErrorFactory.notFound('Assistant', id)
-        }
-        next = existing
+      const [next] = tx.update(assistantTable).set(updates).where(aliveFilter).returning().all()
+      if (!next) {
+        throw DataApiErrorFactory.notFound('Assistant', id)
       }
 
       // Sync junction table rows if relation fields are provided
@@ -579,6 +597,17 @@ export class AssistantDataService {
     })
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+    const nameChanged = dto.name !== undefined && dto.name !== current.name
+    const searchChanged = nameChanged || (dto.description !== undefined && dto.description !== current.description)
+    const dimensions = ASSISTANT_DATA_CHANGE_DIMENSIONS
+    this.notifyReadModelChange([id], 'projection', {
+      membership: [
+        ...(searchChanged ? [dimensions.membership.search] : []),
+        ...(dto.groupId !== undefined && dto.groupId !== current.groupId ? [dimensions.membership.groupId] : []),
+        dimensions.membership.updatedAtFrom
+      ],
+      order: [...(nameChanged ? [dimensions.order.name] : []), dimensions.order.updatedAt]
+    })
 
     return rowToAssistant(row, nextRelations, modelName)
   }
@@ -595,6 +624,10 @@ export class AssistantDataService {
     } catch (error) {
       rethrowAssistantOrderError(error)
     }
+    this.notifyReadModelChange([id], 'projection', {
+      membership: [ASSISTANT_DATA_CHANGE_DIMENSIONS.membership.updatedAtFrom],
+      order: [ASSISTANT_DATA_CHANGE_DIMENSIONS.order.orderKey, ASSISTANT_DATA_CHANGE_DIMENSIONS.order.updatedAt]
+    })
   }
 
   /** Apply multiple assistant moves atomically within the active assistant list. */
@@ -611,6 +644,14 @@ export class AssistantDataService {
     } catch (error) {
       rethrowAssistantOrderError(error)
     }
+    this.notifyReadModelChange(
+      moves.map((move) => move.id),
+      'projection',
+      {
+        membership: [ASSISTANT_DATA_CHANGE_DIMENSIONS.membership.updatedAtFrom],
+        order: [ASSISTANT_DATA_CHANGE_DIMENSIONS.order.orderKey, ASSISTANT_DATA_CHANGE_DIMENSIONS.order.updatedAt]
+      }
+    )
   }
 
   /** Archive by default; active permanent deletion must explicitly select the active state. */

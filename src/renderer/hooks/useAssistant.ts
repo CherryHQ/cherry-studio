@@ -18,7 +18,7 @@
 
 import { useCallback, useRef } from 'react'
 
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -26,6 +26,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { Model } from '@shared/data/types/model'
@@ -53,6 +54,9 @@ export function useAssistantsApi(options: { enabled?: boolean } = {}) {
     enabled: options.enabled ?? true,
     query: { limit: ASSISTANTS_LIST_LIMIT }
   })
+  useDataChange('/assistants', () => {
+    if (options.enabled !== false) void mutate()
+  })
 
   return {
     assistants: data?.items ?? EMPTY_ASSISTANTS,
@@ -75,9 +79,18 @@ export function useAssistantApiById(id: string | undefined) {
     enabled: !!id,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange(
+    '/assistants/:id',
+    (effects) => {
+      if (id && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(id))) {
+        void mutate()
+      }
+    },
+    { routeParams: id ? { id } : undefined }
+  )
 
   return {
-    assistant: data,
+    assistant: error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND ? undefined : data,
     isLoading,
     error,
     refetch,

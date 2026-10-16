@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import {
   ASSISTANTS_MAX_LIMIT,
@@ -27,6 +27,9 @@ function useAssistantList(query?: ResourceListQuery): ResourceListResult<Assista
       ...(query?.search ? { search: query.search } : {}),
       ...(query?.groupId ? { groupId: query.groupId } : {})
     }
+  })
+  useDataChange('/assistants', () => {
+    if (query?.enabled !== false) void refetch()
   })
 
   const items = data?.items ?? []
