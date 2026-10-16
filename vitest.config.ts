@@ -212,8 +212,12 @@ export default defineConfig({
         }
       },
       {
-        extends: 'packages/web-search/vitest.config.ts',
-        test: { name: 'web-search', include: ['packages/web-search/src/**/__tests__/**/*.test.ts'] }
+        extends: true,
+        test: {
+          name: 'web-search',
+          environment: 'node',
+          include: ['packages/web-search/src/**/__tests__/**/*.test.ts']
+        }
       },
       ...[
         ['ai-sdk-provider', 'src'],

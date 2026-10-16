@@ -222,6 +222,14 @@ describe('Exa MCP content contracts', () => {
     expect((await client.execute(search('exa-mcp'))).results[0].content).toBe('First paragraph.\n\nSecond paragraph.')
   })
 
+  it('keeps empty MCP titles from consuming the following URL line', async () => {
+    const text = 'Title: \nURL: https://example.com\nText: Page content'
+    const { client } = setup(exaMcp, JSON.stringify({ result: { content: [{ type: 'text', text }] } }))
+    expect((await client.execute(search('exa-mcp'))).results).toEqual([
+      { title: '', url: 'https://example.com', content: 'Page content', sourceInput: 'hello' }
+    ])
+  })
+
   it('decodes standard multi-line SSE JSON without losing text paragraphs', async () => {
     const text = 'Title: Example\nURL: https://example.com\nText: First paragraph.\n\nSecond paragraph.'
     const result = JSON.stringify({ content: [{ type: 'text', text }] })

@@ -69,12 +69,12 @@ function searchResults(raw: string, input: string): WebSearchResult[] {
     .replace(/\r\n/g, '\n')
     .split(/\n\n(?:---\n\n)?(?=Title:[^\n]*\nURL:)/)
     .flatMap((chunk) => {
-      const url = /^URL:\s*(https?:\/\/[^\s]+)/m.exec(chunk)?.[1]
+      const url = /^URL:[ \t]*(https?:\/\/[^\s]+)/m.exec(chunk)?.[1]
       return url
         ? [
             {
               url,
-              title: /^Title:\s*([^\n]*)/m.exec(chunk)?.[1]?.trim() || '',
+              title: /^Title:[ \t]*([^\n]*)/m.exec(chunk)?.[1]?.trim() || '',
               content: /^(?:Text|Highlights):[ \t]*([\s\S]*)/m.exec(chunk)?.[1]?.trim() || '',
               sourceInput: input
             }

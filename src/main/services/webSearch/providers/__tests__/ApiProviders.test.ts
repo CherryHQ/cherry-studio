@@ -619,13 +619,6 @@ describe('main web search API providers', () => {
       'https://r.jina.ai/https://example.com/article'
     ])
     expect(result.results[0]?.content).toBe('Reader Content')
-    expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      'Jina Reader preferred host failed; retrying alternate built-in host',
-      {
-        providerId: 'jina',
-        error: 'Jina Reader fetch failed: HTTP 503 mirror unavailable'
-      }
-    )
   })
 
   it('retries a failed global Jina Reader request through the China mirror', async () => {

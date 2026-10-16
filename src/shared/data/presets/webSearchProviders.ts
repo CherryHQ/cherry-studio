@@ -122,7 +122,7 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
 }
 
 const remotePresets = Object.fromEntries(
-  REMOTE_PROVIDER_IDS.map((id) => {
+  REMOTE_PROVIDER_IDS.map((id): [RemoteProviderId, WebSearchProviderPresetConfig] => {
     const metadata = WEB_SEARCH_PROVIDER_CATALOG[id]
     return [
       id,
@@ -131,7 +131,7 @@ const remotePresets = Object.fromEntries(
         type: metadata.type,
         capabilities: metadata.capabilities
           .filter((item) => DESKTOP_REMOTE_CAPABILITIES[id].includes(item.capability))
-          .map((item) => ({
+          .map<WebSearchProviderFeatureCapability>((item) => ({
             feature: item.capability,
             requiresApiHost: item.requiresApiHost,
             requiresApiKey: item.apiKey === 'required',
