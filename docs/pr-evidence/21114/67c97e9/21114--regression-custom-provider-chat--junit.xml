@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="21" failures="0" skipped="20">
+  <testsuite name="cherry-regression-macos" tests="21" failures="0" skipped="20">
+    <testcase classname="cherry-regression.macos" name="S-01 Application startup smoke test"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="APP-01 Open a Mini App"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="N-01 Create and save a note"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="M-02 Configure a custom chat provider and send a message" />
+    <testcase classname="cherry-regression.macos" name="M-03 Scroll provider models from outside the list without sticky groups"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="C-01 Create a custom assistant and chat"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="C-03 Preserve a partial chat response after disconnect and restart"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="T-01 Translate text"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="T-02 Translate a PDF file"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="C-02 Ask a question using Quick Assistant"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="K-01 Create a knowledge base, verify persistence, and answer with citations"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="MCP-01 Create and use Everything MCP"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="A-02 Import a Skill from a folder and verify it works"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="CODE-01 Launch Claude Code"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="CODE-02 Launch Codex"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="CODE-03 Launch OpenClaw"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="M-01 Sign in to CherryIN and chat"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="P-01 Generate an image using an image model"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="A-03 Claude Agent Runtime"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="A-04 Pi Runtime"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+    <testcase classname="cherry-regression.macos" name="A-01 Complete a basic file task with the default Agent"><skipped message="Not selected by task custom-provider-chat" /></testcase>
+  </testsuite>
+</testsuites>

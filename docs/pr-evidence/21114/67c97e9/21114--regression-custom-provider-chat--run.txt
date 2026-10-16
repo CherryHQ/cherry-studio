@@ -1,0 +1,2 @@
+PR 21114 task=custom-provider-chat phase=03-models-and-assistants sha=67c97e969 start 2026-10-16 20:30:45
+PR 21114 task=custom-provider-chat rc=0 gate=0 run_dir=/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/runs/regression-21114-custom-provider-chat-67c97e9/run.203137 done 2026-10-16 20:32:21

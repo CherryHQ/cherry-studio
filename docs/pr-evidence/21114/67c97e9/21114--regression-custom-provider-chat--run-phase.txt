@@ -1,0 +1,7 @@
+
+Running 1 test using 1 worker
+
+  ✓  1 [macOS] › tests/e2e/regression/03-models-and-assistants.test.ts:14:5 › [M-02] Configure a custom chat provider and send a message @custom-provider-chat (30.3s)
+End-to-end phase verdict: Passed
+
+  1 passed (30.8s)
