@@ -124,7 +124,8 @@ describe('AiService voice operations through real aiCore', () => {
     class McpCatalogService extends BaseService {}
     class AiStreamManager extends BaseService {}
     class JobManager extends BaseService {}
-    for (const Service of [McpRuntimeService, McpCatalogService, AiStreamManager, JobManager]) {
+    class AutomationReplService extends BaseService {}
+    for (const Service of [McpRuntimeService, McpCatalogService, AiStreamManager, JobManager, AutomationReplService]) {
       container.register(Service)
     }
     container.register(AiService)
@@ -182,4 +183,31 @@ describe('AiService voice operations through real aiCore', () => {
       expect(logs).not.toContain('/private/recording.webm')
     }
   )
+
+  it('delivers canonical PCM WAV through transcribe as audio/wav', async () => {
+    let delivered: { audio: Uint8Array; mediaType: string } | undefined
+    models.transcription = {
+      specificationVersion: 'v3',
+      provider: 'test-local',
+      modelId: APPLE_ASR_MODEL_ID,
+      doGenerate: async ({ audio, mediaType }) => {
+        expect(audio).toBeInstanceOf(Uint8Array)
+        if (!(audio instanceof Uint8Array)) throw new TypeError('expected canonical WAV bytes')
+        delivered = { audio, mediaType }
+        return {
+          text: 'canonical transcript',
+          segments: [],
+          language: undefined,
+          durationInSeconds: undefined,
+          warnings: [],
+          response: { timestamp: new Date(0), modelId: APPLE_ASR_MODEL_ID }
+        }
+      }
+    }
+
+    const result = await new AiService().transcribe(APPLE_ASR_MODEL_ID, wav, {}, new AbortController().signal)
+
+    expect(delivered).toEqual({ audio: wav, mediaType: 'audio/wav' })
+    expect(result).toEqual({ text: 'canonical transcript', segments: [] })
+  })
 })

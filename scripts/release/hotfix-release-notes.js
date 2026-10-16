@@ -111,7 +111,9 @@ function updateHotfixReleaseMetadata({ builderPath, historyPath, prBody, version
     .split('\n')
     .map((line) => (line ? `    ${line}` : ''))
     .join('\n')
-  const updatedBuilder = [...block.lines.slice(0, block.start), replacement, ...block.lines.slice(block.end)].join('\n')
+  const updatedBuilder = [...block.lines.slice(0, block.start), replacement, ...block.lines.slice(block.end)]
+    .join('\n')
+    .replace(/\n*$/, '\n')
   let updatedHistory
 
   if (!version.includes('-')) {

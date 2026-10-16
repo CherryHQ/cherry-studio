@@ -15,7 +15,7 @@ const statusResultSchema: z.ZodType<ApiGatewayStatusResult> = z.union([
 ])
 
 const stopResultSchema: z.ZodType<ApiGatewayStopResult> = z.union([
-  z.object({ success: z.literal(true), outcome: z.enum(['stopped', 'deferred']) }),
+  z.object({ success: z.literal(true), outcome: z.literal('stopped') }),
   z.object({ success: z.literal(false), error: z.string() })
 ])
 
@@ -59,8 +59,5 @@ export const apiGatewayRequestSchemas = {
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
 export type ApiGatewayEventSchemas = {
-  // An agent session could not connect because its model must be bridged through the gateway,
-  // which the user keeps disabled. Broadcast; the owning session's UI filters by `sessionId`.
-  'api_gateway.required': { sessionId: string }
   'api_gateway.remote.pairing_changed': void
 }
