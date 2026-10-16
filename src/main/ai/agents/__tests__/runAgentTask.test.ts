@@ -18,6 +18,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 const {
   mockAbort,
   mockRemoveListener,
+  mockStashWakeChannelListeners,
   mockGetAdapter,
   mockStartRun,
   mockBindTaskSessionReuse,
@@ -32,6 +33,7 @@ const {
   return {
     mockAbort: vi.fn(),
     mockRemoveListener: vi.fn(),
+    mockStashWakeChannelListeners: vi.fn(),
     mockGetAdapter: vi.fn(() => undefined),
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
       captured.listeners = opts.listeners
@@ -53,7 +55,11 @@ vi.mock('@application', async () => {
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
-    AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
+    AiStreamManager: {
+      abort: mockAbort,
+      removeListener: mockRemoveListener,
+      stashWakeChannelListeners: mockStashWakeChannelListeners
+    },
     AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
     // Gate that keeps a reusing fire off a session with a live turn.
     AgentSessionRuntimeService: {
@@ -809,6 +815,45 @@ describe('runAgentTask', () => {
     const removedIds = mockRemoveListener.mock.calls.map(([, listenerId]) => listenerId)
     expect(removedIds).toContain('agent-task:s1')
     expect(removedIds).toContain('channel:ch1:chat-1:unthreaded')
+    // With no work pending the fire owes no wake delivery — it must not feed the stash either.
+    expect(mockStashWakeChannelListeners).not.toHaveBeenCalled()
+  })
+
+  // The stash is the binding between the retained recipients and the background work owing their
+  // delivery. Only the fire knows that obligation, so the retained fire must stash its recipients
+  // itself — a later stream replacement must not guess (an unrelated wake would revive a served
+  // chat, or a still-running work's wake would find its recipients consumed).
+  it('stashes the retained listeners for the settlement wake when background work is pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    mockGetAdapter.mockImplementation(((channelId: string) =>
+      channelId === 'ch1'
+        ? {
+            channelId: 'ch1',
+            connected: true,
+            notifyChatIds: ['chat-1'],
+            sendMessage: vi.fn(async () => {}),
+            onTextUpdate: vi.fn(async () => {}),
+            onStreamComplete: vi.fn(async () => false)
+          }
+        : undefined) as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+
+    const stashedTopicIds = mockStashWakeChannelListeners.mock.calls.map(([topicId]) => topicId)
+    expect(stashedTopicIds).toHaveLength(1)
+    const [topicId, stashed] = mockStashWakeChannelListeners.mock.calls[0]
+    expect(String(topicId)).toContain('session')
+    expect(stashed.map((listener: { id: string }) => listener.id)).toEqual(['channel:ch1:chat-1:unthreaded'])
   })
 
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
