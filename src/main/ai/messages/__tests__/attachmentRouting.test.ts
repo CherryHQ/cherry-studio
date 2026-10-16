@@ -256,14 +256,14 @@ describe('prepareChatMessages — routing', () => {
     expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
   })
 
-  // An AVIF/HEIC image is accepted wildcard-style on the agent surface, yet no ext list
-  // classifies it — the note above would drop the only usable reference to the file.
+  // An image MIME whose extension no catalog lists (GIMP's xcf) is accepted wildcard-style
+  // on the agent surface — the note above would drop the only usable reference to the file.
   it('keeps an unlisted-extension attachment as a file part for a path-forwarding caller', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'avif' })
-    const part = fileWithEntry('e1', 'photo.avif', 'image/avif')
+    getByIdMock.mockResolvedValueOnce({ ext: 'xcf' })
+    const part = fileWithEntry('e1', 'design.xcf', 'image/x-xcf')
 
     const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
-      attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+      attachments: [{ fileEntryId: 'e1', handle: 'design.xcf', displayName: 'design.xcf' }],
       nativeSupport: ALL,
       isToolCapable: true,
       keepUnroutableFileParts: true
@@ -271,6 +271,58 @@ describe('prepareChatMessages — routing', () => {
 
     expect(out.parts).toEqual([part])
     expect(extractMock).not.toHaveBeenCalled()
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  // Catalogued images (AVIF/HEIC since the mime-db grounding) hit the OCR path instead of
+  // the unlisted-extension branch — a path-forwarding caller must still get the part so
+  // its local-path fallback holds, instead of the send aborting on unreadable images.
+  it.each([
+    ['empty', 'avif', (): Promise<string> => Promise.resolve('   ')],
+    ['failed', 'heic', (): Promise<string> => Promise.reject(new Error('no processor configured'))]
+  ] as const)('keeps a %s-OCR image as a file part for a path-forwarding caller', async (_kind, ext, ocr) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+    ocrMock.mockImplementationOnce(ocr)
+    const part = fileWithEntry('e1', `photo.${ext}`, `image/${ext}`)
+
+    const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
+      attachments: [{ fileEntryId: 'e1', handle: `photo.${ext}`, displayName: `photo.${ext}` }],
+      nativeSupport: NONE,
+      isToolCapable: true,
+      keepUnroutableFileParts: true
+    })
+
+    expect(out.parts).toEqual([part])
+  })
+
+  it('still inlines OCR text for a path-forwarding caller when OCR succeeds', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'avif' })
+    ocrMock.mockResolvedValueOnce('ocr body')
+    const part = fileWithEntry('e1', 'photo.avif', 'image/avif')
+
+    const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
+      attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+      nativeSupport: NONE,
+      isToolCapable: true,
+      keepUnroutableFileParts: true
+    })
+
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
+    expect(textOf(out.parts)).toEqual(['Attached file "photo.avif":\nocr body'])
+  })
+
+  // Ordinary chat has no local-path fallback, so the explicit user-facing error stands.
+  it('still rejects an ordinary-chat image when OCR yields no text', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'avif' })
+    ocrMock.mockResolvedValueOnce('   ')
+
+    await expect(
+      prepareChatMessages([userMessage([fileWithEntry('e1', 'photo.avif', 'image/avif')])] as UIMessage[], {
+        attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+        nativeSupport: NONE,
+        isToolCapable: true
+      })
+    ).rejects.toMatchObject({ name: 'NonVisionImageOcrError' })
   })
 
   it('degrades a native file to a note when materialization returns null', async () => {

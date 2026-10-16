@@ -9,13 +9,15 @@
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
  *     unconfigured/failed) stops before the provider call with a user-facing
- *     error.
+ *     error — unless the caller forwards files by local path, which keeps the
+ *     part instead.
  *
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Other failures
  * (missing entry, parse error, native materialization) degrade to a model-visible
  * note rather than silently dropping the file or failing the request. Unreadable
- * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
+ * non-vision images stop the request, except under a path-forwarding caller.
+ * Legacy / gateway parts (no `fileEntryId`)
  * keep the eager materialization path, but their image/audio/video parts remain
  * capability-gated.
  *
@@ -128,10 +130,10 @@ export interface PrepareChatContext {
   /** Shared token pool for inlined text. Absent → every file gets the flat page size. */
   budget?: AttachmentBudget
   /**
-   * Path-forwarding caller (agent runtime): keep a first-party part whose extension is
-   * unlisted (`FILE_TYPE.OTHER` — e.g. an AVIF/HEIC image) as a file part instead of
-   * replacing it with an unsupported-type note, so the caller's local-path fallback still
-   * has the file reference.
+   * Path-forwarding caller (agent runtime): keep a first-party part that routing cannot
+   * turn into model input — an unlisted extension (`FILE_TYPE.OTHER`) or a non-vision
+   * image whose OCR yields no text — as a file part instead of replacing it with a note
+   * or failing the request, so the caller's local-path fallback still has the file reference.
    */
   keepUnroutableFileParts?: boolean
   signal?: AbortSignal
@@ -296,6 +298,12 @@ async function prepareChatMessage<T extends UIMessage>(
             outcome: outcome.kind,
             ...(outcome.kind === 'failed' ? { reason: outcome.reason } : {})
           })
+          // A path-forwarding caller keeps the part for local-path delivery (same
+          // fallback as unlisted extensions); only ordinary chat stops the request.
+          if (ctx.keepUnroutableFileParts) {
+            kept.push(part)
+            continue
+          }
           throw new NonVisionImageOcrError(outcome)
         }
         defer(kept, pending, handle, outcome.text)
