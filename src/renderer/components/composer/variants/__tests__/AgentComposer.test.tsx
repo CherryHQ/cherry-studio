@@ -4810,6 +4810,30 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeTruthy()
   })
 
+  it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('draft A'))
+
+    await act(async () => {
+      const submitted = mocks.surfaceProps?.onSendDraft({ text: 'draft A', tokens: [] })
+      // The editor stays editable while the enqueue write is in flight.
+      mocks.surfaceProps?.onTextChange('draft A plus newer edits')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await submitted
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('draft A plus newer edits')
+  })
+
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },

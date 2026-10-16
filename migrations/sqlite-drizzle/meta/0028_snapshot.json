@@ -3340,6 +3340,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "claim_token": {
+          "name": "claim_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "order_key": {
           "name": "order_key",
           "type": "text",

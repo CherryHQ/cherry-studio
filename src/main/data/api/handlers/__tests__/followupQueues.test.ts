@@ -119,7 +119,7 @@ describe('followupQueueHandlers', () => {
         params: { id: ITEM_ID }
       })
 
-      expect(claimMock).toHaveBeenCalledWith(ITEM_ID)
+      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, undefined)
       expect(result).toEqual({ claimed: true, alreadySent: false })
     })
   })
@@ -132,7 +132,7 @@ describe('followupQueueHandlers', () => {
         body: { scopeKey: SCOPE }
       })
 
-      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE)
+      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, undefined)
       expect(result).toEqual({ claimed: true, id: ITEM_ID, alreadySent: false })
     })
   })

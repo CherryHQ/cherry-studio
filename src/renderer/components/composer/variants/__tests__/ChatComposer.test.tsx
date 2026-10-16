@@ -2221,6 +2221,27 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
+  it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      mocks.surfaceProps?.onTextChange('draft A')
+    })
+
+    await act(async () => {
+      const submitted = mocks.surfaceProps?.onSendDraft({ text: 'draft A', tokens: [] })
+      // The editor stays editable while the enqueue write is in flight.
+      mocks.surfaceProps?.onTextChange('draft A plus newer edits')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await submitted
+    })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('draft A plus newer edits')
+  })
+
   it('restores queued knowledge selection from the user-message parts', async () => {
     const knowledgeBase = {
       id: 'kb-1',

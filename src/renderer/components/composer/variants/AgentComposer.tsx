@@ -991,8 +991,12 @@ const AgentComposerInner = ({
   const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
   })
+  // Bumped synchronously on every user draft edit (text, tokens, attachments). An awaited enqueue only clears
+  // the composer when nothing changed meanwhile, so newer unsent input is never wiped by an older submission.
+  const draftEditRevisionRef = useRef(0)
   const handleTextChange = useCallback(
     (nextText: string) => {
+      draftEditRevisionRef.current += 1
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       setText(nextText)
@@ -1419,6 +1423,7 @@ const AgentComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
+      draftEditRevisionRef.current += 1
       const nextDraftTokens = getAgentDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
@@ -1543,6 +1548,10 @@ const AgentComposerInner = ({
     ]
   )
 
+  // Attachment edits arrive through tool state rather than the editor callbacks.
+  useEffect(() => {
+    draftEditRevisionRef.current += 1
+  }, [files])
   const clearCurrentDraft = useCallback(() => {
     setText('')
     setFiles([])
@@ -1656,8 +1665,11 @@ const AgentComposerInner = ({
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer) {
         const enqueueScope = sessionTopicId
+        const enqueueRevision = draftEditRevisionRef.current
         const queued = await enqueueFollowup(draft, payload)
-        if (queued && queueScopeRef.current === enqueueScope) clearCurrentDraft()
+        if (queued && queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
+          clearCurrentDraft()
+        }
         return
       }
 

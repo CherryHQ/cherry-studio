@@ -285,17 +285,21 @@ export class FollowupQueueService {
    * the cross-window arbitration point. `alreadySent` reports a send recorded
    * before a crash between send and dequeue: dequeue it, don't resend it.
    */
-  claim(id: string): { claimed: boolean; alreadySent: boolean } {
+  claim(id: string, claimToken?: string): { claimed: boolean; alreadySent: boolean } {
     const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
     const [row] = this.db
       .update(followupQueueTable)
-      .set({ status: 'sending' })
+      .set({ status: 'sending', claimToken: claimToken ?? null })
       .where(
         and(
           eq(followupQueueTable.id, id),
           or(
             inArray(followupQueueTable.status, ['pending', 'failed']),
-            and(eq(followupQueueTable.status, 'sending'), lt(followupQueueTable.updatedAt, cutoff))
+            and(eq(followupQueueTable.status, 'sending'), lt(followupQueueTable.updatedAt, cutoff)),
+            // Retry of our own committed claim whose response was lost: re-acquire, don't lose to it.
+            claimToken
+              ? and(eq(followupQueueTable.status, 'sending'), eq(followupQueueTable.claimToken, claimToken))
+              : undefined
           )
         )
       )
@@ -365,7 +369,10 @@ export class FollowupQueueService {
    * Returns the row id with a won claim; `alreadySent` reports a send recorded
    * before a crash between send and dequeue (dequeue it, don't resend it).
    */
-  claimHead(scopeKey: string): { claimed: true; id: string; alreadySent: boolean } | { claimed: false } {
+  claimHead(
+    scopeKey: string,
+    claimToken?: string
+  ): { claimed: true; id: string; alreadySent: boolean } | { claimed: false } {
     const dbService = application.get('DbService')
     const result = dbService.withWriteTx((tx) => {
       const [head] = tx
@@ -373,7 +380,8 @@ export class FollowupQueueService {
           id: followupQueueTable.id,
           status: followupQueueTable.status,
           sentAt: followupQueueTable.sentAt,
-          updatedAt: followupQueueTable.updatedAt
+          updatedAt: followupQueueTable.updatedAt,
+          claimToken: followupQueueTable.claimToken
         })
         .from(followupQueueTable)
         .where(eq(followupQueueTable.scopeKey, scopeKey))
@@ -382,12 +390,17 @@ export class FollowupQueueService {
         .all()
       if (!head) return { claimed: false as const }
       const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
+      // A retry carrying the token of a claim that committed but whose response was lost re-acquires it.
+      const ownRetry = claimToken !== undefined && head.status === 'sending' && head.claimToken === claimToken
       const claimable =
-        head.status === 'pending' || head.status === 'failed' || (head.status === 'sending' && head.updatedAt < cutoff)
+        ownRetry ||
+        head.status === 'pending' ||
+        head.status === 'failed' ||
+        (head.status === 'sending' && head.updatedAt < cutoff)
       if (!claimable) return { claimed: false as const }
       const [updated] = tx
         .update(followupQueueTable)
-        .set({ status: 'sending' })
+        .set({ status: 'sending', claimToken: claimToken ?? null })
         .where(and(eq(followupQueueTable.id, head.id), eq(followupQueueTable.status, head.status)))
         .returning({ id: followupQueueTable.id })
         .all()
@@ -403,7 +416,7 @@ export class FollowupQueueService {
   markFailed(id: string): void {
     const [row] = this.db
       .update(followupQueueTable)
-      .set({ status: 'failed' })
+      .set({ status: 'failed', claimToken: null })
       .where(and(eq(followupQueueTable.id, id), eq(followupQueueTable.status, 'sending')))
       .returning({ id: followupQueueTable.id, scopeKey: followupQueueTable.scopeKey })
       .all()

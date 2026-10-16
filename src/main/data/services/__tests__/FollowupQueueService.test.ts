@@ -125,6 +125,42 @@ describe('FollowupQueueService', () => {
       expect(row?.status).toBe('sending')
     })
 
+    it('should let a retry with the same claim token re-acquire a committed claim whose response was lost', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+      expect(followupQueueService.claim(item.id, 'token-1')).toEqual({ claimed: true, alreadySent: false })
+
+      // The first response timed out client-side; the retry carries the same token.
+      expect(followupQueueService.claim(item.id, 'token-1')).toEqual({ claimed: true, alreadySent: false })
+      // Another window (different token, or none) still loses to the live claim.
+      expect(followupQueueService.claim(item.id, 'token-2')).toEqual({ claimed: false, alreadySent: false })
+      expect(followupQueueService.claim(item.id)).toEqual({ claimed: false, alreadySent: false })
+    })
+
+    it('should let a claim:head retry with the same token re-acquire its committed head claim', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2')).toEqual({ claimed: false })
+    })
+
+    it('should not let a stale token re-acquire a row released by markFailed and reclaimed by another window', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+      followupQueueService.claim(item.id, 'token-1')
+      followupQueueService.markFailed(item.id)
+      expect(followupQueueService.claim(item.id, 'token-2')).toEqual({ claimed: true, alreadySent: false })
+
+      expect(followupQueueService.claim(item.id, 'token-1')).toEqual({ claimed: false, alreadySent: false })
+    })
+
     it('should reclaim failed rows for retry', () => {
       const item = enqueueIn(SCOPE_A, 'a')
       expect(followupQueueService.claim(item.id)).toEqual({ claimed: true, alreadySent: false })

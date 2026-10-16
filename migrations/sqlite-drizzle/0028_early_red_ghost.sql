@@ -12,6 +12,7 @@ CREATE TABLE `followup_queue` (
 	`payload` text NOT NULL,
 	`status` text DEFAULT 'pending' NOT NULL,
 	`sent_at` integer,
+	`claim_token` text,
 	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,

@@ -31,6 +31,8 @@ export function installFakeFollowupQueueBackend() {
     pausedByScope: new Map()
   }
   let counter = 0
+  // Server-side claim tokens (not part of the entity); mirrors production's retry-stable claims.
+  const claimTokens = new Map<string, string | undefined>()
 
   // Production treats a `sending` row as live (owned) until the reclaim
   // lease expires; only stale ones are claimable or reorderable-around.
@@ -168,10 +170,13 @@ export function installFakeFollowupQueueBackend() {
     if (method === 'POST' && path === '/followup-queues/:id/claim') {
       return {
         ...shell,
-        trigger: vi.fn(async ({ params }: { params: { id: string } }) => {
+        trigger: vi.fn(async ({ params, body }: { params: { id: string }; body?: { claimToken?: string } }) => {
           const row = state.rows.find((candidate) => candidate.id === params.id)
-          if (row && isClaimable(row)) {
+          const ownRetry =
+            !!body?.claimToken && row?.status === 'sending' && claimTokens.get(row.id) === body.claimToken
+          if (row && (ownRetry || isClaimable(row))) {
             row.status = 'sending'
+            claimTokens.set(row.id, body?.claimToken)
             row.updatedAt = new Date().toISOString()
             return { claimed: true, alreadySent: row.sentAt != null }
           }
@@ -182,12 +187,15 @@ export function installFakeFollowupQueueBackend() {
     if (method === 'POST' && path === '/followup-queues/claim:head') {
       return {
         ...shell,
-        trigger: vi.fn(async ({ body }: { body: { scopeKey: string } }) => {
+        trigger: vi.fn(async ({ body }: { body: { scopeKey: string; claimToken?: string } }) => {
           // Oldest row only, like production: a live head parks the round
           // instead of handing out the next row.
           const [head] = scopedByOrder(body.scopeKey)
-          if (!head || !isClaimable(head)) return { claimed: false }
+          const ownRetry =
+            !!body.claimToken && head?.status === 'sending' && claimTokens.get(head.id) === body.claimToken
+          if (!head || !(ownRetry || isClaimable(head))) return { claimed: false }
           head.status = 'sending'
+          claimTokens.set(head.id, body.claimToken)
           head.updatedAt = new Date().toISOString()
           return { claimed: true, id: head.id, alreadySent: head.sentAt != null }
         })

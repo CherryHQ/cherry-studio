@@ -50,6 +50,18 @@ export const SetFollowupQueueStateSchema = z.strictObject({
 })
 export type SetFollowupQueueStateDto = z.infer<typeof SetFollowupQueueStateSchema>
 
+/**
+ * Optional client claim token. Retrying a claim with the same token re-acquires a claim that
+ * committed but whose response was lost (e.g. a DataApi timeout), instead of reporting it lost.
+ */
+const FollowupQueueClaimTokenSchema = z.string().min(1).max(128)
+
+/** Body for `POST /followup-queues/:id/claim`. */
+export const ClaimFollowupQueueBodySchema = z.strictObject({
+  claimToken: FollowupQueueClaimTokenSchema.optional()
+})
+export type ClaimFollowupQueueBodyDto = z.infer<typeof ClaimFollowupQueueBodySchema>
+
 /** Response for `POST /followup-queues/:id/claim`. */
 export const ClaimFollowupQueueSchema = z.strictObject({
   claimed: z.boolean(),
@@ -60,7 +72,8 @@ export type ClaimFollowupQueueResult = z.infer<typeof ClaimFollowupQueueSchema>
 
 /** Body for `POST /followup-queues/claim:head` (atomic oldest-row claim). */
 export const ClaimFollowupQueueHeadSchema = z.strictObject({
-  scopeKey: FollowupQueueScopeKeySchema
+  scopeKey: FollowupQueueScopeKeySchema,
+  claimToken: FollowupQueueClaimTokenSchema.optional()
 })
 export type ClaimFollowupQueueHeadDto = z.infer<typeof ClaimFollowupQueueHeadSchema>
 
@@ -120,6 +133,7 @@ export type FollowupQueueSchemas = {
   '/followup-queues/:id/claim': {
     POST: {
       params: { id: string }
+      body?: ClaimFollowupQueueBodyDto
       response: ClaimFollowupQueueResult
     }
   }

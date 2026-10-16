@@ -11,7 +11,7 @@ vi.mock('react-i18next', () => ({
 
 import { FOLLOWUP_QUEUE_LIMIT, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
 
-import { useFollowupQueue } from '../useFollowupQueue'
+import { persistBlobAttachments, useFollowupQueue } from '../useFollowupQueue'
 
 const SCOPE = 's1'
 
@@ -206,7 +206,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(markSeen).toHaveBeenCalled()
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(failTrigger).not.toHaveBeenCalled()
@@ -277,7 +277,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
@@ -390,7 +390,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(steered).toBe(true)
-    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(send).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(failTrigger).not.toHaveBeenCalled()
@@ -506,7 +506,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
@@ -543,7 +543,7 @@ describe('useFollowupQueue', () => {
       result.current.removeId('h')
     })
 
-    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(deleteTrigger).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
@@ -592,7 +592,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
-    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(failTrigger).not.toHaveBeenCalled()
   })
@@ -933,7 +933,7 @@ describe('useFollowupQueue', () => {
     await act(async () => {
       rerender({ scopeKey: SCOPE, isFulfilled: true })
     })
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     await act(async () => {
       rerender({ scopeKey: 's2', isFulfilled: true })
     })
@@ -964,7 +964,7 @@ describe('useFollowupQueue', () => {
     await act(async () => {
       rerender({ isFulfilled: true })
     })
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     await act(async () => {
       unmount()
     })
@@ -1045,7 +1045,7 @@ describe('useFollowupQueue', () => {
       // Repaired, not resent: the row is marked sent and dequeued on the
       // reclaim, while the payload itself went out exactly once.
       expect(onDrain).toHaveBeenCalledTimes(1)
-      expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
       expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
       expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     } finally {
@@ -1743,7 +1743,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
@@ -1822,7 +1822,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(second.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'y' } })
@@ -1915,5 +1915,49 @@ describe('useFollowupQueue', () => {
     MockUseDataApiUtils.emitDataChange([{ endpoint: '/followup-queues', kind: 'membership' }])
 
     expect(refetch).toHaveBeenCalled()
+  })
+})
+
+describe('persistBlobAttachments', () => {
+  it('replaces a pathless screenshot Blob with a durable managed file path that survives JSON persistence', async () => {
+    const createInternalEntry = vi.fn(async () => ({ id: 'entry-1' }))
+    const getPhysicalPath = vi.fn(async () => '/data/files/entry-1.png')
+    const previousApi = (window as any).api
+    ;(window as any).api = { ...previousApi, file: { ...previousApi?.file, createInternalEntry, getPhysicalPath } }
+    try {
+      const blob = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' })
+      // jsdom's Blob lacks arrayBuffer(); the renderer's Chromium Blob has it.
+      Object.defineProperty(blob, 'arrayBuffer', { value: async () => new Uint8Array([1, 2, 3]).buffer })
+      const payload = {
+        text: 'look',
+        userMessageParts: [],
+        attachments: [
+          { id: 'shot', name: 'screenshot.png', origin_name: 'screenshot.png', ext: '.png', blob },
+          { id: 'disk', name: 'a.txt', ext: '.txt', path: '/tmp/a.txt' }
+        ]
+      }
+
+      const persisted = await persistBlobAttachments(payload)
+      const roundTripped = JSON.parse(JSON.stringify(persisted))
+
+      expect(createInternalEntry).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ source: 'bytes', name: 'screenshot.png', ext: 'png' })
+      )
+      expect(roundTripped.attachments[0]).toEqual({
+        id: 'shot',
+        name: 'screenshot.png',
+        origin_name: 'screenshot.png',
+        ext: '.png',
+        path: '/data/files/entry-1.png'
+      })
+      expect(roundTripped.attachments[1]).toEqual(payload.attachments[1])
+    } finally {
+      ;(window as any).api = previousApi
+    }
+  })
+
+  it('returns the payload unchanged when no attachment carries a Blob', async () => {
+    const payload = { text: 'x', userMessageParts: [], attachments: [{ id: 'a', path: '/tmp/a' }] }
+    await expect(persistBlobAttachments(payload as any)).resolves.toBe(payload)
   })
 })

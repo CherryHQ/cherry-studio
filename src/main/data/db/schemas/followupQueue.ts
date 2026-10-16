@@ -33,6 +33,9 @@ export const followupQueueTable = sqliteTable(
     // the new owner dequeues without replaying. Dies with the row — unlike the
     // former client journal it cannot leak or lose cross-window updates.
     sentAt: integer(),
+    // Client-generated token of the current `sending` claim. A retried claim carrying the same
+    // token re-acquires its own committed claim instead of losing to it (lost-response recovery).
+    claimToken: text(),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

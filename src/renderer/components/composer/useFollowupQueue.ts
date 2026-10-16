@@ -15,6 +15,38 @@ import {
 
 import type { ComposerSerializedDraft } from './tokens'
 
+/**
+ * Queued payloads are persisted as JSON over IPC, where a pathless `Blob` (e.g. a screenshot) would
+ * serialize to `{}` and lose its bytes. Write such bytes to a managed file first and keep only its
+ * durable path, so the send-time part build reads the file instead of a dead Blob.
+ */
+export async function persistBlobAttachments(
+  payload: ComposerQueuedMessagePayload
+): Promise<ComposerQueuedMessagePayload> {
+  const attachments = payload.attachments
+  if (!attachments?.some((attachment) => attachment.blob instanceof Blob)) return payload
+  const persisted = await Promise.all(
+    attachments.map(async (attachment) => {
+      const blob = attachment.blob
+      if (!(blob instanceof Blob)) return attachment
+      const name = String(attachment.origin_name || attachment.name || 'attachment')
+      const ext = typeof attachment.ext === 'string' ? attachment.ext.replace(/^\./, '') || null : null
+      const entry = await window.api.file.createInternalEntry({
+        source: 'bytes',
+        data: new Uint8Array(await blob.arrayBuffer()),
+        name,
+        ext,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      const path = await window.api.file.getPhysicalPath({ id: entry.id })
+      const rest = { ...attachment }
+      delete rest.blob
+      return { ...rest, path }
+    })
+  )
+  return { ...payload, attachments: persisted }
+}
+
 export interface FollowupQueueItem {
   id: string
   /** Serialized draft (text + tokens) — drives the dock preview and edit-restore. */
@@ -272,8 +304,10 @@ export function useFollowupQueue({
         // Idempotency key for the transport retry: a POST that commits
         // server-side but times out is retried with the same body, and the
         // service returns the existing row instead of duplicating it.
+        const scopeKey = scopeKeyRef.current
+        const durablePayload = await persistBlobAttachments(payload)
         await enqueueTrigger({
-          body: { id: crypto.randomUUID(), scopeKey: scopeKeyRef.current, draft, payload }
+          body: { id: crypto.randomUUID(), scopeKey, draft, payload: durablePayload }
         })
         return true
       } catch {
@@ -286,11 +320,14 @@ export function useFollowupQueue({
 
   // Conditional pending/failed → sending transition with one retry. Resolves
   // undefined when the request itself keeps failing (no window owns the item).
+  // One claim token spans the retries, so a retry after a committed claim whose
+  // response was lost re-acquires that claim instead of reporting it lost.
   const claimItem = useCallback(
     async (id: string) => {
+      const claimToken = crypto.randomUUID()
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          return await claimTrigger({ params: { id } })
+          return await claimTrigger({ params: { id }, body: { claimToken } })
         } catch {
           // Transient IPC/DB failure — retry once.
         }
@@ -737,9 +774,11 @@ export function useFollowupQueue({
     activeIdsRef.current.add(head.id)
     try {
       let won: ClaimHeadFollowupQueueResult | undefined
+      // Retry-stable: a committed claim whose response timed out is re-acquired by the retry, not lost to it.
+      const claimToken = crypto.randomUUID()
       for (let attempt = 0; attempt < 2 && !won; attempt++) {
         try {
-          won = await claimHeadTrigger({ body: { scopeKey: scope } })
+          won = await claimHeadTrigger({ body: { scopeKey: scope, claimToken } })
         } catch {
           // Transient IPC/DB failure — retry once.
         }

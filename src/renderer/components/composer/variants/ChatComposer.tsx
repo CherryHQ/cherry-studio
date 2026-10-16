@@ -647,8 +647,12 @@ const ChatComposerInner = ({
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
     [actionsRef, navigateHistory]
   )
+  // Bumped synchronously on every user draft edit (text, tokens, attachments). An awaited enqueue only clears
+  // the composer when nothing changed meanwhile, so newer unsent input is never wiped by an older submission.
+  const draftEditRevisionRef = useRef(0)
   const handleTextChange = useCallback(
     (nextText: string) => {
+      draftEditRevisionRef.current += 1
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       skipDraftCacheWriteForHistoryPreviewRef.current = false
@@ -1238,6 +1242,7 @@ const ChatComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
   const handleTokensChange = useCallback(
     (nextDraftTokens: readonly ComposerSerializedToken[]) => {
+      draftEditRevisionRef.current += 1
       reconcileTokens(nextDraftTokens)
       setDraftTokenRevision((revision) => revision + 1)
     },
@@ -1534,6 +1539,10 @@ const ChatComposerInner = ({
     [onSend, saveHistory, t]
   )
 
+  // Attachment edits arrive through tool state rather than the editor callbacks.
+  useEffect(() => {
+    draftEditRevisionRef.current += 1
+  }, [files])
   const clearCurrentDraft = useCallback(() => {
     setText('')
     setDraftTokens(undefined)
@@ -1786,8 +1795,11 @@ const ChatComposerInner = ({
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
         const enqueueScope = selectedKnowledgeBasesScopeKey
+        const enqueueRevision = draftEditRevisionRef.current
         const queued = await enqueueFollowup(draft, payload)
-        if (queued && queueScopeRef.current === enqueueScope) clearCurrentDraft()
+        if (queued && queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
+          clearCurrentDraft()
+        }
         return
       }
 
