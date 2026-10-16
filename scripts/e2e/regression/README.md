@@ -24,6 +24,20 @@ The explicit profile/restart operation prepares Windows connections by closing n
 
 ## Execution contract
 
+Manual runs accept any branch in the current repository or a `v*` release tag as
+the `ref` input. The resolver pins it to an exact commit before either platform
+checks out the application; fork references and raw commit SHAs are not inputs.
+Ambiguous branch/tag names require `refs/heads/...` or `refs/tags/...`.
+
+GitHub's **Use workflow from** selector chooses the controller branch, while `ref`
+chooses the application under test. To validate workflow and test changes before
+merging, select the PR branch for both, or use:
+
+```sh
+gh workflow run e2e-regression-test.yml --repo CherryHQ/cherry-studio \
+  --ref feature/e2e-fix -f ref=feature/e2e-fix -f task=all
+```
+
 Branch runs prepare `rebuild:electron` and `build:utility-process` once after installing
 application dependencies. The controller then launches the development server directly,
 including on profile switches and persistence-test restarts. Local controller runs must

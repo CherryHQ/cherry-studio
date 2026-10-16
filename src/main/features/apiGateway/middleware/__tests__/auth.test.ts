@@ -10,8 +10,11 @@ const { mockPreferenceGet } = vi.hoisted(() => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    PreferenceService: { get: mockPreferenceGet }
-  })
+    PreferenceService: { get: mockPreferenceGet },
+    ApiGatewayService: {
+      isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-key'
+    }
+  } as never)
 })
 
 /**
@@ -19,6 +22,8 @@ vi.mock('@application', async () => {
  * extraction of `bearer` from `Authorization: Bearer …` / `?access_token` is the
  * `@elysia/bearer` plugin's job and is covered by the routes integration test.
  */
+const FORBIDDEN = { status: 403, error: 'Forbidden' }
+
 describe('authorizeApiRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -50,6 +55,22 @@ describe('authorizeApiRequest', () => {
     it('returns 403 when API key is null', () => {
       mockPreferenceGet.mockReturnValue(null)
       expect(authorizeApiRequest('some-key', undefined)).toEqual({ status: 403, error: 'Forbidden' })
+    })
+  })
+
+  describe('Internal consumer key', () => {
+    it('accepts only a header internal key on the internal surface, never the user key', () => {
+      mockPreferenceGet.mockReturnValue('user-key')
+      const headers = new Headers({ authorization: 'Bearer internal-key' })
+      expect(authorizeApiRequest(undefined, 'internal-key', undefined, headers, 'internal')).toBeUndefined()
+      expect(authorizeApiRequest(undefined, 'user-key', undefined, new Headers(), 'internal')).toEqual(FORBIDDEN)
+      expect(authorizeApiRequest(undefined, undefined, 'internal-key', new Headers(), 'internal')).toEqual(FORBIDDEN)
+    })
+
+    it('rejects an internal key on the public surface', () => {
+      mockPreferenceGet.mockReturnValue('user-key')
+      const headers = new Headers({ authorization: 'Bearer internal-key' })
+      expect(authorizeApiRequest(undefined, 'internal-key', undefined, headers)).toEqual(FORBIDDEN)
     })
   })
 

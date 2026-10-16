@@ -61,14 +61,12 @@ jobs:
       - name: "Validation scope: ${{ steps.plan.outputs.scope }}"
         run: ":"
 
-  validation-checks:
+  basic-checks:
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.repository == 'true' || needs.changes.outputs.types == 'true'
-    outputs:
-      repository: ${{ steps.repository-result.outcome }}
-      types: ${{ steps.type-checks.outcome }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     env:
+      TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
       VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
     steps:
       - uses: actions/checkout@v7
@@ -110,7 +108,7 @@ jobs:
 
       - uses: ./.github/actions/setup-validation
         id: dependencies
-        if: "!cancelled()"
+        if: "!cancelled() && (needs.changes.outputs.repository == 'true' || needs.changes.outputs.types == 'true' || needs.changes.outputs.lint == 'true' || needs.changes.outputs.i18n == 'true')"
         with:
           save-cache: ${{ github.event_name != 'pull_request' }}
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
@@ -166,34 +164,14 @@ jobs:
         if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.types == 'true'"
         run: pnpm check --group types
 
-  lint-checks:
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.lint == 'true'
-    env:
-      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-validation
-        id: dependencies
-      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
-        run: ":"
-      - run: pnpm check --group lint
+      - name: Lint checks
+        id: lint-checks
+        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.lint == 'true'"
+        run: pnpm check --group lint
 
-  i18n-checks:
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.i18n == 'true'
-    env:
-      TRANSLATION_BASE_LOCALE: ${{ vars.TRANSLATION_BASE_LOCALE || 'en-us' }}
-      VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-validation
-        id: dependencies
-      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
-        run: ":"
       - name: Check locale synchronization
+        id: i18n-sync
+        if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.i18n == 'true'"
         run: |
           pnpm i18n:sync
           if [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n packages/file-preview/src/locales)" ]; then
@@ -201,7 +179,17 @@ jobs:
             git --no-pager diff -- src/renderer/i18n src/main/i18n packages/file-preview/src/locales
             exit 1
           fi
-      - run: pnpm check --group i18n
+      - name: I18n checks
+        id: i18n-checks
+        if: "!cancelled() && steps.i18n-sync.outcome == 'success' && needs.changes.outputs.i18n == 'true'"
+        run: pnpm check --group i18n
+
+      - name: Verify planned checks
+        if: "!cancelled()"
+        env:
+          VALIDATION_JOBS: ${{ toJSON(needs) }}
+          VALIDATION_STEPS: ${{ toJSON(steps) }}
+        run: node scripts/validation/verify.mjs basic
 
   main-test-shard:
     name: main-test (${{ matrix.shard }}/3)
@@ -281,17 +269,6 @@ jobs:
         env:
           VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
         run: pnpm check --group platform
-
-  basic-checks:
-    runs-on: ubuntu-latest
-    needs: [changes, validation-checks, lint-checks, i18n-checks]
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-    steps:
-      - uses: actions/checkout@v7
-      - name: Verify planned jobs
-        env:
-          VALIDATION_JOBS: ${{ toJSON(needs) }}
-        run: node scripts/validation/verify.mjs basic
 
   general-test:
     runs-on: ubuntu-latest

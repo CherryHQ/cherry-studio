@@ -147,7 +147,15 @@ const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTM
 // --- Sub-Components ---
 
 const BuiltinError = memo(({ error }: { error: SerializedError }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
+  // the raw `message` alone would only repeat the generic headline.
+  const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+  const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
+    | Record<string, string>
+    | undefined
+  const detailFullKey = typeof detailKey === 'string' ? `error.${detailKey}` : ''
+  const hasDetail = detailFullKey !== '' && i18n.exists(detailFullKey)
   return (
     <>
       {error.name && (
@@ -160,6 +168,12 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
           <ErrorDetailValue className="selectable">{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {hasDetail && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('common.detail')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{t(detailFullKey, detailValues)}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.stack && (

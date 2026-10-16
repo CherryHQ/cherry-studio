@@ -6,18 +6,23 @@ import type { TtsModel } from '@cherrystudio/mlx-tts'
 import type { TtsInferenceContract, TtsInitData } from '@main/ai/localModel/capabilities/tts/protocol'
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 
+import { KokoroTts } from './KokoroTts'
+
 let appPath: string
 let runtime: typeof MlxTtsRuntime | undefined
 let cached: { modelDir: string; model: TtsModel } | undefined
+let kokoro: KokoroTts | undefined
 
 export function initializeTts(data: TtsInitData): void {
   appPath = data.appPath
   process.env.NAPI_RS_NATIVE_LIBRARY_PATH = data.bindingPath
+  process.env.CHERRY_SHERPA_ONNX_BINDING_PATH = data.sherpaBindingPath
 }
 
 export async function disposeTts(): Promise<void> {
   const previous = cached
   cached = undefined
+  kokoro = undefined
   await previous?.model.dispose()
 }
 
@@ -38,6 +43,17 @@ async function loadModel(modelDir: string): Promise<TtsModel> {
 
 export const ttsHandlers: UtilityProcessHandlers<TtsInferenceContract> = {
   async synthesize(input, { signal }) {
+    if (input.architecture === 'kokoro') {
+      try {
+        kokoro ??= new KokoroTts(appPath)
+      } catch (cause) {
+        throw Object.assign(new Error('Speech model initialization failed', { cause }), {
+          code: 'TTS_MODEL_LOAD_FAILED'
+        })
+      }
+      await kokoro.synthesize(input, signal)
+      return
+    }
     const model = await loadModel(input.modelDir)
     signal.throwIfAborted()
     const writer = await runtime!.WavWriter.open(
