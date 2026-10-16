@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   getArtifactPaneSelectionPath,
   getCopyableAbsolutePath,
+  getPathBasename,
   resolveArtifactPaneFileSelection
 } from '../artifactPanePath'
 
@@ -214,6 +215,39 @@ describe('artifactPanePath', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('getPathBasename', () => {
+  const BS = String.fromCharCode(0x5c)
+
+  afterEach(() => {
+    platformState.isWin = false
+  })
+
+  // A POSIX `\` is a filename byte, so the title must not keep only the last segment.
+  it('keeps a literal backslash in a POSIX filename', () => {
+    expect(getPathBasename(`/tmp/clip${BS}part.mp4`)).toBe(`clip${BS}part.mp4`)
+    expect(getPathBasename(`clip${BS}part.mp4`)).toBe(`clip${BS}part.mp4`)
+  })
+
+  it('keeps significant filename whitespace', () => {
+    expect(getPathBasename('/tmp/report.md ')).toBe('report.md ')
+    expect(getPathBasename('/tmp/notes /report.md')).toBe('report.md')
+  })
+
+  it('returns the drive and UNC basename', () => {
+    expect(getPathBasename('C:\\work\\notes\\report.md')).toBe('report.md')
+    expect(getPathBasename('\\\\server\\share\\docs\\clip.mp4')).toBe('clip.mp4')
+  })
+
+  it('returns the last slash segment of a normal relative path', () => {
+    expect(getPathBasename('src/notes.md')).toBe('notes.md')
+  })
+
+  it('splits a relative Windows path only when the renderer is Windows', () => {
+    platformState.isWin = true
+    expect(getPathBasename('notes\\report.md')).toBe('report.md')
   })
 })
 

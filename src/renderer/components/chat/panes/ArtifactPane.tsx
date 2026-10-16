@@ -63,6 +63,7 @@ import {
   getArtifactPaneSelectionPath,
   getArtifactPaneSelectionDisplayPath,
   getCopyableAbsolutePath,
+  getPathBasename,
   WORKSPACE_ROOT_ID
 } from './artifactPanePath'
 import {
@@ -121,12 +122,10 @@ const TOOLBAR_SPLIT_BUTTON_GROUP_CLASS = 'h-8 overflow-hidden rounded-md border 
 const TOOLBAR_SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
 const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 
-function getPreviewFileTitle(filePath: string): string {
-  const segments = filePath
-    .trim()
-    .split(/[/\\]+/)
-    .filter(Boolean)
-  return segments.at(-1) ?? filePath
+function getPreviewFileTitle(selection: ArtifactPaneFileSelection): string {
+  // displayName is the attachment filename; filePath may be a managed copy.
+  if (selection.displayName) return selection.displayName
+  return getPathBasename(selection.filePath)
 }
 
 function canCopyFileContent(filePath: string | null, isText: string, fileSize: { status: string; size?: number }) {
@@ -806,7 +805,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   overlaySelection && 'cursor-context-menu'
                 )}
                 title={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : undefined}>
-                {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
+                {overlaySelection ? getPreviewFileTitle(overlaySelection) : props.paneTitle}
               </div>
             </CommandContextMenu>
             {overlaySelection && isEditDirty ? (
@@ -922,7 +921,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 pendingExtraItems={tabActionItems}
                 getExtraItems={getOverlayMenuItems}>
                 <span className="cursor-context-menu truncate" title={getArtifactPaneSelectionPath(overlaySelection)}>
-                  {getPreviewFileTitle(overlaySelection.filePath)}
+                  {getPreviewFileTitle(overlaySelection)}
                 </span>
               </CommandContextMenu>
               {isEditDirty && (

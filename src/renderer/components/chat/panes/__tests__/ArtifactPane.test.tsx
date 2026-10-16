@@ -22,7 +22,7 @@ import ArtifactPane, {
   getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
-import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+import { type ArtifactFileTreeModel, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 /** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
 function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
@@ -1088,6 +1088,108 @@ describe('ArtifactPane', () => {
 
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
+  })
+
+  const BS = String.fromCharCode(0x5c)
+
+  function titleModel(): ArtifactFileTreeModel {
+    return {
+      filteredTree: [],
+      effectiveExpandedIds: new Set(),
+      nodeById: new Map(),
+      isLoading: false,
+      hasLoaded: true,
+      refresh: vi.fn(),
+      reloadExpandedDirectories: vi.fn(),
+      setExpandedIds: vi.fn()
+    }
+  }
+
+  function renderPaneTitle(selection: React.ComponentProps<typeof ArtifactPane>['previewFileSelection']) {
+    return render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath={selection?.workspacePath}
+        previewFileSelection={selection}
+        model={titleModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+      />
+    )
+  }
+
+  // The managed copy is entry-1.mp4; the visible name is the attachment the user sent.
+  it('shows an attachment displayName on both title surfaces', async () => {
+    const displayName = `clip${BS}part.mp4`
+    const selection = {
+      workspacePath: '/managed/message-files',
+      filePath: 'entry-1.mp4',
+      displayName,
+      previewType: 'file' as const,
+      readOnly: true as const
+    }
+
+    const overlayRender = render(<ArtifactPane previewFileSelection={selection} />)
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(overlay.querySelector('.truncate')?.textContent).toBe(displayName)
+    overlayRender.unmount()
+
+    renderPaneTitle(selection)
+    expect(screen.getByTestId('artifact-pane-header-title').textContent).toBe(displayName)
+  })
+
+  // Splitting a POSIX filename on `\` shows part.mp4 for the file clip\part.mp4.
+  it('keeps a literal backslash in a POSIX filename when displayName is absent', async () => {
+    const fileName = `clip${BS}part.mp4`
+    const selection = { workspacePath: '/fixtures', filePath: fileName }
+
+    const overlayRender = render(<ArtifactPane previewFileSelection={selection} />)
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(overlay.querySelector('.truncate')?.textContent).toBe(fileName)
+    overlayRender.unmount()
+
+    renderPaneTitle(selection)
+    expect(screen.getByTestId('artifact-pane-header-title').textContent).toBe(fileName)
+  })
+
+  // trim() drops a trailing space that is part of the filename.
+  it('keeps significant filename whitespace on both title surfaces', async () => {
+    const displayName = 'clip.mp4 '
+    const named = {
+      workspacePath: '/managed/message-files',
+      filePath: 'entry-1.mp4',
+      displayName,
+      previewType: 'file' as const,
+      readOnly: true as const
+    }
+    const overlayRender = render(<ArtifactPane previewFileSelection={named} />)
+    expect((await screen.findByTestId('artifact-file-preview-overlay')).querySelector('.truncate')?.textContent).toBe(
+      displayName
+    )
+    overlayRender.unmount()
+
+    const spaced = { workspacePath: '/fixtures', filePath: 'report.md ' }
+    renderPaneTitle(spaced)
+    expect(screen.getByTestId('artifact-pane-header-title').textContent).toBe('report.md ')
+  })
+
+  it('uses the drive, UNC, and nested basename when displayName is absent', async () => {
+    const cases = [
+      { workspacePath: 'C:/work', filePath: 'C:\\work\\notes\\report.md', title: 'report.md' },
+      { workspacePath: '/fixtures', filePath: '\\\\server\\share\\docs\\clip.mp4', title: 'clip.mp4' },
+      { workspacePath: '/tmp/workspace', filePath: 'src/notes.md', title: 'notes.md' }
+    ] as const
+
+    for (const item of cases) {
+      const view = render(<ArtifactPane previewFileSelection={item} />)
+      const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+      expect(overlay.querySelector('.truncate')?.textContent).toBe(item.title)
+      view.unmount()
+    }
   })
 
   it('loads deeper directory children when folders are expanded', async () => {
