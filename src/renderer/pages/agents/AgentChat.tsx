@@ -33,6 +33,7 @@ import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
@@ -223,6 +224,8 @@ const AgentChat = ({
   // Fail closed while the agent has not resolved: an unknown runtime must not become "every chat
   // model fits", or a plan-approval handoff would target models the agent cannot run.
   const agentModelFilter = useAgentModelFilter(activeAgent?.type, activeAgent !== undefined)
+  // Cloud quota availability gates the handoff target alongside runtime compatibility.
+  const { isModelUnavailable } = useCherryCloudModelAvailability()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
@@ -274,6 +277,7 @@ const AgentChat = ({
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES,
     modelFilter: agentModelFilter,
+    isModelDisabled: isModelUnavailable,
     onPlanModelHandoff: (modelId) => {
       // The respond callback can outlive navigation and hold a stale session: only arm while the
       // session snapshot still matches what is on screen, so a cleared handoff cannot resurrect.
