@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import JSZip from 'jszip'
+import MarkdownIt from 'markdown-it'
 import sharp from 'sharp'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -358,6 +359,115 @@ describe('adjacent emphasis serialization', () => {
         expect.objectContaining({ text: 'space', italic: true })
       ])
     })
+  })
+
+  it('keeps bold-to-italic punctuation, strike punctuation, and emoji through Markdown reimport', () => {
+    const cases = [
+      [{ text: 'pre' }, { text: 'word', bold: true }, { text: '(punct)', italic: true }, { text: 'post' }],
+      [{ text: 'pre' }, { text: 'word' }, { text: '(punct)', strike: true }, { text: 'post' }],
+      [{ text: 'pre' }, { text: '😀' }, { text: '(punct)', bold: true }, { text: 'post' }]
+    ]
+    for (const runs of cases) {
+      const markdown = documentToMarkdown([{ type: 'text', text: '', runs }], (source) => source)
+      const parsed = parseMarkdown(markdown)
+      const output = parsed.flatMap((block) => ('runs' in block ? (block.runs ?? []) : []))
+      const visible = (value: { text: string; bold?: boolean; italic?: boolean; strike?: boolean }[]) =>
+        value.flatMap((run) =>
+          [...run.text]
+            .filter((char) => !/\s/u.test(char))
+            .map((char) => ({ char, bold: !!run.bold, italic: !!run.italic, strike: !!run.strike }))
+        )
+      expect(visible(output)).toEqual(visible(runs))
+      expect(markdown).not.toContain('\u200b')
+      expect(markdown).not.toContain('<strong>')
+    }
+  })
+
+  it('keeps punctuation-bound emphasis as styled text after Markdown reimport', () => {
+    const markdown = documentToMarkdown(
+      [
+        {
+          type: 'text',
+          text: 'before(bold)after',
+          runs: [{ text: 'before' }, { text: '(bold)', bold: true }, { text: 'after' }]
+        },
+        {
+          type: 'text',
+          text: 'before(italic)after',
+          runs: [{ text: 'before' }, { text: '(italic)', italic: true }, { text: 'after' }]
+        },
+        {
+          type: 'text',
+          text: 'bolditalic',
+          runs: [
+            { text: 'bold', bold: true },
+            { text: 'italic', italic: true }
+          ]
+        },
+        {
+          type: 'text',
+          text: 'before(styled)after',
+          runs: [{ text: 'before' }, { text: '(styled)', bold: true, italic: true, strike: true }, { text: 'after' }]
+        },
+        {
+          type: 'text',
+          text: 'see(docs)',
+          runs: [{ text: 'see' }, { text: '(docs)', bold: true, link: 'https://example.org/docs' }, { text: 'now' }]
+        },
+        {
+          type: 'table',
+          title: '',
+          rows: [['a | (cell)']],
+          cells: [[{ runs: [{ text: 'a | ' }, { text: '(cell)', bold: true }] }]]
+        }
+      ],
+      (source) => source
+    )
+    const rendered = new MarkdownIt({ html: false }).render(markdown)
+    expect(rendered).toContain('<strong>(bold)</strong>')
+    expect(rendered).toContain('<em>(italic)</em>')
+    expect(rendered).toContain('<strong>bold</strong>')
+    expect(rendered).toContain('<em>italic</em>')
+    expect(rendered).toContain('(styled)')
+    expect(rendered).not.toContain('**(')
+    const parsed = parseMarkdown(markdown)
+    expect(parsed.map((block) => (block.type === 'text' || block.type === 'table' ? block : {}))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'text',
+          text: 'before(bold)after',
+          runs: expect.arrayContaining([expect.objectContaining({ text: '(bold)', bold: true })])
+        })
+      ])
+    )
+    const blocks = parsed.filter((block) => block.type === 'text' || block.type === 'table')
+    expect(blocks[0]).toMatchObject({ type: 'text', text: 'before(bold)after' })
+    expect(blocks[1]).toMatchObject({
+      type: 'text',
+      text: 'before(italic)after',
+      runs: expect.arrayContaining([expect.objectContaining({ text: '(italic)', italic: true })])
+    })
+    expect(blocks[2]).toMatchObject({
+      runs: [
+        expect.objectContaining({ text: 'bold', bold: true }),
+        expect.objectContaining({ text: 'italic', italic: true })
+      ]
+    })
+    expect(blocks[3]).toMatchObject({
+      text: 'before(styled)after',
+      runs: expect.arrayContaining([
+        expect.objectContaining({ text: '(styled)', bold: true, italic: true, strike: true })
+      ])
+    })
+    expect(blocks[4]).toMatchObject({
+      text: 'see(docs)now',
+      runs: expect.arrayContaining([
+        expect.objectContaining({ text: '(docs)', bold: true, link: 'https://example.org/docs' })
+      ])
+    })
+    expect(blocks[5]).toMatchObject({ type: 'table', rows: [['a | (cell)']] })
+    const cellRuns = blocks[5].type === 'table' ? blocks[5].cells?.[0]?.[0]?.runs : undefined
+    expect(cellRuns).toEqual(expect.arrayContaining([expect.objectContaining({ text: '(cell)', bold: true })]))
   })
 })
 

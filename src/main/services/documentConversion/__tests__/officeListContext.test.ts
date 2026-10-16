@@ -4,6 +4,8 @@ import type * as Anydoc from '@firecrawl/anydoc'
 import {
   AlignmentType,
   Document,
+  ExternalHyperlink,
+  HeadingLevel,
   ImageRun,
   LevelFormat,
   Packer,
@@ -414,6 +416,167 @@ describe('Office list membership', () => {
     expect(items[0]?.querySelector('ol')?.textContent).toContain('Child')
     expect(items[1]?.textContent).toContain('Next')
     expect(items[1]?.querySelector('ol, ul, img')).toBeNull()
+  })
+
+  it('does not append a blank line after the last block in a real Office cell', async () => {
+    const sourceBytes = await Packer.toBuffer(
+      new Document({
+        sections: [
+          {
+            children: [
+              new Table({
+                rows: [
+                  new TableRow({
+                    children: [
+                      new TableCell({ children: [new Paragraph('One')] }),
+                      new TableCell({ children: [new Paragraph('First'), new Paragraph('Second')] })
+                    ]
+                  })
+                ]
+              })
+            ]
+          }
+        ]
+      })
+    )
+    const model = await readDocument({ filePath: 'cells.docx', sourceBytes })
+    const table = model.blocks.find((block) => block.type === 'table')
+    if (!table || table.type !== 'table') throw new Error('expected a table')
+    expect(table.cells?.map((row) => row.map((cell) => cell.runs.map((run) => run.text).join('')))).toEqual([
+      ['One', 'First\nSecond']
+    ])
+    const xml = await JSZip.loadAsync(await convertDocx(model.blocks, new Map(), 'Cells')).then((zip) =>
+      zip.file('word/document.xml')!.async('string')
+    )
+    const cells = [...xml.matchAll(/<w:tc[ >][\s\S]*?<\/w:tc>/g)].map((match) => ({
+      breaks: match[0].match(/<w:br[ />]/g)?.length ?? 0,
+      text: [...match[0].matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((part) => part[1]).join('')
+    }))
+    expect(cells.map((cell) => cell.breaks)).toEqual([0, 1])
+    expect(cells.map((cell) => cell.text)).toEqual(['One', 'FirstSecond'])
+    const html = documentToHtml(model.blocks, (source) => source, 'Cells')
+    expect(html).toContain('One')
+    expect(html).toContain('First')
+    expect(html).toContain('Second')
+    expect(html).not.toContain('First<br><br>')
+  })
+
+  it('reads a hyperlinked picture beside a plain picture, in list order, and inside a heading', async () => {
+    const plain = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    const linked = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'blue' } })
+      .png()
+      .toBuffer()
+    const lead = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'green' } })
+      .png()
+      .toBuffer()
+    const follow = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'yellow' } })
+      .png()
+      .toBuffer()
+    const picture = (data: Buffer, name: string) =>
+      new ImageRun({
+        type: 'png',
+        data,
+        transformation: { width: 2, height: 2 },
+        altText: { title: name, description: name, name }
+      })
+    const bytes = await Packer.toBuffer(
+      new Document({
+        numbering: {
+          config: [
+            {
+              reference: 'items',
+              levels: [0].map((level) => ({
+                level,
+                format: LevelFormat.DECIMAL,
+                text: '%1.',
+                start: 1,
+                alignment: AlignmentType.LEFT,
+                style: { paragraph: { indent: { left: 720, hanging: 360 } } }
+              }))
+            }
+          ]
+        },
+        sections: [
+          {
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun('See '),
+                  picture(plain, 'plain'),
+                  new ExternalHyperlink({
+                    link: 'https://example.org/picture',
+                    children: [new TextRun('link'), picture(linked, 'linked'), new TextRun('tail')]
+                  }),
+                  new TextRun(' end')
+                ]
+              }),
+              new Paragraph({
+                numbering: { reference: 'items', level: 0 },
+                children: [
+                  new ExternalHyperlink({
+                    link: 'https://example.org/lead',
+                    children: [picture(lead, 'lead')]
+                  }),
+                  new TextRun('Lead')
+                ]
+              }),
+              new Paragraph({
+                numbering: { reference: 'items', level: 0 },
+                children: [
+                  new TextRun('Follow'),
+                  new ExternalHyperlink({
+                    link: 'https://example.org/follow',
+                    children: [picture(follow, 'follow')]
+                  })
+                ]
+              }),
+              new Paragraph({
+                heading: HeadingLevel.HEADING_2,
+                children: [
+                  new TextRun('Title'),
+                  new ExternalHyperlink({
+                    link: 'https://example.org/head',
+                    children: [picture(plain, 'head')]
+                  }),
+                  new TextRun('tail')
+                ]
+              })
+            ]
+          }
+        ]
+      })
+    )
+    const model = await readDocument({ filePath: 'linked-picture.docx', sourceBytes: bytes })
+    expect(model.warnings).not.toContain('unsupported_image')
+    expect(model.blocks.map(listShape)).toEqual([
+      { type: 'text', text: 'See ', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      { type: 'image', text: 'plain', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      { type: 'text', text: 'link', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      { type: 'image', text: 'linked', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      { type: 'text', text: 'tail end', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      { type: 'image', text: 'lead', bullet: 1, orderedNumber: 1, listDepth: 1 },
+      { type: 'text', text: 'Lead', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Follow', bullet: 1, orderedNumber: 2, listDepth: 1 },
+      { type: 'image', text: 'follow', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'heading', text: 'Title', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      { type: 'image', text: 'head', bullet: undefined, orderedNumber: undefined, listDepth: undefined },
+      { type: 'text', text: 'tail', bullet: undefined, orderedNumber: undefined, listDepth: undefined }
+    ])
+    expect(model.blocks[2]).toMatchObject({
+      runs: [expect.objectContaining({ text: 'link', link: 'https://example.org/picture' })]
+    })
+    expect(model.blocks[4]).toMatchObject({
+      runs: expect.arrayContaining([
+        expect.objectContaining({ text: 'tail', link: 'https://example.org/picture' }),
+        expect.objectContaining({ text: ' end' })
+      ])
+    })
+    expect(model.blocks[9]).toMatchObject({ type: 'heading', level: 2 })
+    expect(model.blocks[11]).toMatchObject({ type: 'text' })
+    const embedded = [...model.images.values()]
+    expect(embedded).toEqual(expect.arrayContaining([plain, linked, lead, follow]))
   })
 
   it('keeps table-cell images inside the list item that owns the table', async () => {

@@ -1,4 +1,37 @@
+import type { PhrasingContent, Root, Text } from 'mdast'
+import remarkGfm from 'remark-gfm'
+import remarkStringify, { type Options } from 'remark-stringify'
+import { unified } from 'unified'
+
 import type { DocumentBlock, DocumentStyle, DocumentTextRun } from './documentModel'
+
+function attentionNode(node: { type?: string } | undefined): boolean {
+  return node?.type === 'strong' || node?.type === 'emphasis' || node?.type === 'delete'
+}
+
+const handlers = {
+  text(node: Text, parent, state, info) {
+    const chars = Array.from(node.value)
+    if (!chars.length) return ''
+    const siblings = parent && 'children' in parent ? parent.children : undefined
+    const index = siblings?.indexOf(node) ?? -1
+    const inside = attentionNode(parent)
+    const encodeStart = inside || (index > 0 && attentionNode(siblings?.[index - 1]))
+    const encodeEnd = inside || (index >= 0 && attentionNode(siblings?.[index + 1]))
+    if (!encodeStart && !encodeEnd) return state.safe(node.value, info)
+    const encode = (char: string) =>
+      /\s/u.test(char) ? char : `&#x${char.codePointAt(0)!.toString(16).toUpperCase()};`
+    if (chars.length === 1) return encode(chars[0])
+    const middle = chars.slice(encodeStart ? 1 : 0, encodeEnd ? -1 : undefined).join('')
+    return (
+      (encodeStart ? encode(chars[0]) : '') +
+      (middle ? state.safe(middle, info) : '') +
+      (encodeEnd ? encode(chars.at(-1)!) : '')
+    )
+  }
+} satisfies Options['handlers']
+
+const inlineMarkdown = unified().use(remarkStringify, { handlers }).use(remarkGfm)
 
 export function flattenDocumentBlocks(blocks: DocumentBlock[]): DocumentBlock[] {
   return blocks.flatMap((block) => (block.type === 'columns' ? block.columns.flatMap(flattenDocumentBlocks) : [block]))
@@ -29,6 +62,60 @@ function sameMarkdownStyle(left: DocumentTextRun, right: DocumentTextRun): boole
     !!left.strike === !!right.strike &&
     serializedMarkdownLink(left.link) === serializedMarkdownLink(right.link)
   )
+}
+
+function styledPhrasing(value: string, run: DocumentTextRun): PhrasingContent {
+  let node: PhrasingContent = { type: 'text', value }
+  if (run.strike) node = { type: 'delete', children: [node] }
+  if (run.italic) node = { type: 'emphasis', children: [node] }
+  if (run.bold) node = { type: 'strong', children: [node] }
+  const link = serializedMarkdownLink(run.link)
+  if (link) node = { type: 'link', url: link, children: [node] }
+  return node
+}
+
+function wrapperKey(node: PhrasingContent): string | undefined {
+  if (node.type === 'strong' || node.type === 'emphasis' || node.type === 'delete') return node.type
+  if (node.type === 'link') return `link:${node.url}`
+  return undefined
+}
+
+function mergePhrasing(nodes: PhrasingContent[]): PhrasingContent[] {
+  const grouped: PhrasingContent[] = []
+  for (const node of nodes) {
+    const key = wrapperKey(node)
+    const previous = grouped.at(-1)
+    if (key && previous && wrapperKey(previous) === key && 'children' in previous && 'children' in node) {
+      previous.children.push(...node.children)
+      continue
+    }
+    grouped.push(node)
+  }
+  return grouped.map(mergeNode)
+}
+
+function mergeNode(node: PhrasingContent): PhrasingContent {
+  if (!('children' in node)) return node
+  return { ...node, children: mergePhrasing(node.children) }
+}
+
+function runsToMarkdown(runs: DocumentTextRun[]): string {
+  const children: PhrasingContent[] = []
+  for (const run of coalesceRuns(runs)) {
+    const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(run.text)
+    if (!match) continue
+    const [, lead, core, trail] = match
+    if (lead) children.push({ type: 'text', value: lead })
+    if (core) children.push(styledPhrasing(core, run))
+    if (trail) children.push({ type: 'text', value: trail })
+  }
+  const phrasing = mergePhrasing(children)
+  const edgeSpace = (node: PhrasingContent | undefined) => node?.type === 'text' && /^\s+$/.test(node.value)
+  while (edgeSpace(phrasing[0])) phrasing.shift()
+  while (edgeSpace(phrasing.at(-1))) phrasing.pop()
+  if (!phrasing.length) return ''
+  const tree: Root = { type: 'root', children: [{ type: 'paragraph', children: phrasing }] }
+  return String(inlineMarkdown.stringify(tree)).replace(/\n+$/, '')
 }
 
 function coalesceRuns(runs: DocumentTextRun[]): DocumentTextRun[] {
@@ -199,20 +286,7 @@ function markdownDestination(value: string): string {
 }
 
 export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source: string) => string): string {
-  const text = (runs: DocumentTextRun[]) =>
-    coalesceRuns(runs)
-      .map((run) =>
-        run.text.replace(/\S(?:[\s\S]*\S)?/, (content) => {
-          // Boundary whitespace must remain outside Markdown emphasis delimiters.
-          let value = content.replace(/([!-/:-@[-`{-~])/g, '\\$1')
-          if (run.bold) value = `**${value}**`
-          if (run.italic) value = `*${value}*`
-          if (run.strike) value = `~~${value}~~`
-          if (run.link && /^(https?:|mailto:|#)/.test(run.link)) value = `[${value}](${markdownDestination(run.link)})`
-          return value
-        })
-      )
-      .join('')
+  const text = (runs: DocumentTextRun[]) => runsToMarkdown(runs)
   const indentLines = (value: string, spaces: number) => {
     if (spaces <= 0) return value
     const pad = ' '.repeat(spaces)
@@ -245,6 +319,7 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
               return text(runs ?? [{ text: cell }])
                 .trim()
                 .replaceAll('\n', '<br>')
+                .replaceAll('|', '\\|')
             })
             .join(' | ')} |`
       )

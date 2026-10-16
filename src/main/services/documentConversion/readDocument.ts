@@ -169,24 +169,23 @@ function officeBlocks(
   for (const block of blocks) {
     if (block.kind === 'paragraph' || block.kind === 'heading') {
       let pending: Inline[] = []
+      let headingUsed = false
       const flush = () => {
         const runs = officeRuns(pending)
         const text = runs.map((run) => run.text).join('')
         if (text.trim()) {
           const fields = placement(true)
+          const heading = block.kind === 'heading' && !headingUsed
+          if (heading) headingUsed = true
           result.push(
-            block.kind === 'heading'
+            heading
               ? { type: 'heading', level: block.level ?? 1, text, runs, ...fields }
               : { type: 'text', text, runs, ...fields }
           )
         }
         pending = []
       }
-      for (const inline of block.content ?? []) {
-        if (inline.kind !== 'image') {
-          pending.push(inline)
-          continue
-        }
+      const emitImage = (inline: Inline) => {
         flush()
         const source = inline.source
         if (source?.kind === 'asset' && source.assetId !== undefined) {
@@ -200,6 +199,31 @@ function officeBlocks(
           result.push({ type: 'image', source: source.url, text: inline.alt ?? '', ...placement(true) })
         } else warnings.add('unsupported_image')
       }
+      const visit = (inlines: Inline[]) => {
+        for (const inline of inlines) {
+          if (inline.kind !== 'link') {
+            if (inline.kind === 'image') emitImage(inline)
+            else pending.push(inline)
+            continue
+          }
+          let linked: Inline[] = []
+          const flushLinked = () => {
+            if (linked.length) pending.push({ ...inline, content: linked })
+            linked = []
+          }
+          for (const child of inline.content ?? []) {
+            if (child.kind === 'image') {
+              flushLinked()
+              emitImage(child)
+            } else if (child.kind === 'link') {
+              flushLinked()
+              visit([child])
+            } else linked.push(child)
+          }
+          flushLinked()
+        }
+      }
+      visit(block.content ?? [])
       flush()
     } else if (block.kind === 'list') {
       let number = block.list?.start ?? 1
@@ -218,9 +242,11 @@ function officeBlocks(
         row.map((slot): DocumentCell => {
           if (slot.kind === 'covered') return { runs: [], covered: true }
           const content = officeBlocks(slot.cell?.blocks ?? [], document, images, warnings)
-          const runs = content.flatMap((child): DocumentTextRun[] =>
-            'text' in child && child.type !== 'image' ? [...(child.runs ?? [{ text: child.text }]), { text: '\n' }] : []
-          )
+          const textual = content.filter((child) => 'text' in child && child.type !== 'image')
+          const runs = textual.flatMap((child, index) => [
+            ...(index > 0 ? [{ text: '\n' }] : []),
+            ...('runs' in child && child.runs ? child.runs : [{ text: child.text }])
+          ])
           for (const child of content) if (child.type === 'image') cellImages.push(child)
           return { runs, rowSpan: slot.cell?.rowSpan, colSpan: slot.cell?.colSpan }
         })
