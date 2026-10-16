@@ -389,18 +389,22 @@ export function useFollowupQueue({
         // belongs to the old scope — put it back at the end of that scope's
         // queue instead of restoring it into the new composer.
         let restored = false
+        let conversationGone = false
         const restoreId = crypto.randomUUID()
-        for (let attempt = 0; attempt < 3 && !restored; attempt++) {
+        for (let attempt = 0; attempt < 3 && !restored && !conversationGone; attempt++) {
           try {
             await enqueueTrigger({
               body: { id: restoreId, scopeKey: scope, draft: item.draft, payload: item.payload }
             })
             restored = true
-          } catch {
-            // Transient failure — retry inline, then in the background below.
+          } catch (error) {
+            // The old conversation was permanently deleted; the service refuses
+            // to recreate its rows. Otherwise transient — retry inline, then in
+            // the background below.
+            if (isAlreadyResolved(error)) conversationGone = true
           }
         }
-        if (!restored) {
+        if (!restored && !conversationGone) {
           toast.error(t('message.error.operation_unavailable'))
           scheduleReenqueueRetryRef.current(restoreId, scope, item.draft, item.payload)
         }
@@ -542,7 +546,10 @@ export function useFollowupQueue({
         try {
           await enqueueTrigger({ body: { id, scopeKey: scope, draft, payload } })
           if (mountedRef.current) void refetch()
-        } catch {
+        } catch (error) {
+          // The conversation was permanently deleted: the service refuses to
+          // recreate its rows, so there is nothing left to restore into.
+          if (isAlreadyResolved(error)) return
           scheduleReenqueueRetryRef.current(id, scope, draft, payload)
         }
       })()

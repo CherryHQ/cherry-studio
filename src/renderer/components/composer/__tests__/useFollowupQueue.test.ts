@@ -867,6 +867,54 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('stops retrying an orphaned restore once its conversation is permanently deleted', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+      claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
+      let resolveDelete!: () => void
+      takeDeleteTrigger.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveDelete = () => resolve(undefined)
+        })
+      )
+      postTrigger
+        .mockRejectedValueOnce(new Error('db down'))
+        .mockRejectedValueOnce(new Error('db down'))
+        .mockRejectedValueOnce(new Error('db down'))
+        // The conversation is deleted before the background retry: the service refuses the insert.
+        .mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, "Topic with id 's1' not found", 404))
+
+      const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+
+      await act(async () => {
+        void result.current.takeForEdit('h')
+      })
+      await act(async () => {
+        rerender({ scopeKey: 's2' })
+      })
+      await act(async () => {
+        resolveDelete()
+      })
+      await act(async () => {})
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('releases the head claim without sending when the scope moves mid-claim', async () => {
     wireQuery([row('h', 'head')])
     const { claimHeadTrigger, failTrigger } = wireMutations()

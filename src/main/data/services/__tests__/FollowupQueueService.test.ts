@@ -38,8 +38,21 @@ function expectErrorCode(fn: () => unknown, code: string) {
 describe('FollowupQueueService', () => {
   const dbh = setupTestDatabase()
 
-  beforeEach(() => {
+  beforeEach(async () => {
     notifyDataApiDataChangeMock.mockClear()
+    // Enqueue requires the owning conversation to exist (deletion barrier).
+    await dbh.db
+      .insert(topicTable)
+      .values(
+        ['topic-a', 'topic-b', 'topic-c'].map((id, index) => ({
+          id,
+          name: 'Topic',
+          orderKey: `a${index}`,
+          createdAt: 1,
+          updatedAt: 1
+        }))
+      )
+      .onConflictDoNothing()
   })
 
   it('should export a module-level singleton of FollowupQueueService', () => {
@@ -411,9 +424,6 @@ describe('FollowupQueueService', () => {
 
   describe('conversation delete cascade', () => {
     it('should drop queue rows and paused state when the topic is permanently deleted', async () => {
-      await dbh.db
-        .insert(topicTable)
-        .values({ id: 'topic-a', name: 'Topic', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
       enqueueIn('topic-a:assistant-1', 'a1')
       enqueueIn('topic-a:assistant-2', 'a2')
       followupQueueService.setPaused('topic-a:assistant-1', true)
@@ -427,6 +437,27 @@ describe('FollowupQueueService', () => {
       expect(followupQueueService.listByScope('topic-a:assistant-1')).toEqual([])
       expect(await dbh.db.select().from(followupQueueStateTable)).toHaveLength(0)
       expect(followupQueueService.listByScope(SCOPE_B)).toHaveLength(1)
+    })
+
+    it('should refuse an enqueue that lands after the topic was permanently deleted', async () => {
+      enqueueIn('topic-a:assistant-1', 'a1')
+      topicService.delete('topic-a')
+      topicService.delete('topic-a', { permanent: true })
+
+      // e.g. a background restore retry scheduled before the delete
+      expectErrorCode(() => enqueueIn('topic-a:assistant-1', 'late'), ErrorCode.NOT_FOUND)
+      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(0)
+    })
+
+    it('should refuse an enqueue for an agent session that no longer exists', async () => {
+      expectErrorCode(() => enqueueIn('agent-session:gone-session', 'late'), ErrorCode.NOT_FOUND)
+      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(0)
+    })
+
+    it('should still accept follow-ups for a trashed (restorable) topic', () => {
+      topicService.delete('topic-a')
+
+      expect(enqueueIn('topic-a:assistant-1', 'a1')).toMatchObject({ scopeKey: 'topic-a:assistant-1' })
     })
   })
 })

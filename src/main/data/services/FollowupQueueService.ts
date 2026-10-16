@@ -23,12 +23,14 @@ import { and, asc, eq, gte, inArray, like, lt, or } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import {
   type FollowupQueueRow,
   type FollowupQueueStateRow,
   followupQueueStateTable,
   followupQueueTable
 } from '@data/db/schemas/followupQueue'
+import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -38,6 +40,7 @@ import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import {
   FOLLOWUP_QUEUE_LIMIT,
   FOLLOWUP_QUEUE_SCOPE_DIMENSION,
+  FOLLOWUP_SESSION_SCOPE_PREFIX,
   STALE_SENDING_CLAIM_MS,
   type FollowupQueueItem,
   type FollowupQueueState
@@ -47,6 +50,30 @@ import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:FollowupQueueService')
+
+/**
+ * Deletion barrier for inserts. Conversation deletes purge their scope inside the same write
+ * transaction, so checking that the owning conversation row still exists inside the enqueue
+ * transaction is atomic with that purge: a late enqueue (e.g. a background restore retry) can
+ * never recreate rows for a permanently deleted conversation. Trashed rows still exist, so a
+ * restorable conversation keeps accepting follow-ups.
+ */
+function throwIfScopeConversationGoneTx(tx: Pick<DbType, 'select'>, scopeKey: string): void {
+  if (scopeKey.startsWith(FOLLOWUP_SESSION_SCOPE_PREFIX)) {
+    const sessionId = scopeKey.slice(FOLLOWUP_SESSION_SCOPE_PREFIX.length).split(':')[0]
+    const [session] = tx
+      .select({ id: agentSessionTable.id })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, sessionId))
+      .limit(1)
+      .all()
+    if (!session) throw DataApiErrorFactory.notFound('AgentSession', sessionId)
+    return
+  }
+  const topicId = scopeKey.split(':')[0]
+  const [topic] = tx.select({ id: topicTable.id }).from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
+  if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
+}
 
 function rowToItem(row: FollowupQueueRow): FollowupQueueItem {
   return {
@@ -149,6 +176,7 @@ export class FollowupQueueService {
         const [duplicate] = tx.select().from(followupQueueTable).where(eq(followupQueueTable.id, dto.id)).limit(1).all()
         if (duplicate) return rowToItem(duplicate)
       }
+      throwIfScopeConversationGoneTx(tx, dto.scopeKey)
       const existing = tx
         .select({ id: followupQueueTable.id })
         .from(followupQueueTable)
