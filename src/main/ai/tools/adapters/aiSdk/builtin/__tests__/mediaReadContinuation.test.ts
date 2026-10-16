@@ -5,10 +5,6 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { MEDIA_ANALYSIS_VERSION, type MediaAnalysis } from '@shared/types/mediaAnalysis'
 import { formatMediaAnalysisCompact, formatMediaAnalysisFull } from '@shared/utils/mediaAnalysis'
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
-}))
-
 const { getByIdMock, analyzeToCompactText, analyzeToFullText, extractMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
   analyzeToCompactText: vi.fn<(file: { kind: 'entry'; entryId: string }, signal?: AbortSignal) => Promise<string>>(),
@@ -16,14 +12,18 @@ const { getByIdMock, analyzeToCompactText, analyzeToFullText, extractMock } = vi
   extractMock: vi.fn<(entryId: string) => Promise<string | null>>()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'MediaAnalysisService') return { analyzeToCompactText, analyzeToFullText }
-      return { getById: getByIdMock }
-    }
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory({
+    FileManager: { getById: getByIdMock }
+  })
+  const delegated = mocked.application.get.getMockImplementation()
+  mocked.application.get.mockImplementation((name: string) => {
+    if (name === 'MediaAnalysisService') return { analyzeToCompactText, analyzeToFullText }
+    return delegated?.call(mocked.application, name)
+  })
+  return mocked
+})
 
 vi.mock('@main/ai/messages/attachmentTextExtraction', () => ({
   extractDocumentText: extractMock,
