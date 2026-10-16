@@ -13,7 +13,8 @@ export const testProjects = [
   'ai-sdk-provider',
   'remote-protocol',
   'remote-transport',
-  'system-speech'
+  'system-speech',
+  'web-search'
 ]
 
 export const checkTasks = {
@@ -44,6 +45,7 @@ const consumers = {
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
+  'web-search': ['web-search', 'shared', 'main', 'preload', 'renderer'],
   'provider-registry': ['provider-registry', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'extension-table-plus': ['renderer'],
   'remote-protocol': ['remote-protocol', 'remote-transport', 'shared', 'scripts', 'main', 'preload', 'renderer'],

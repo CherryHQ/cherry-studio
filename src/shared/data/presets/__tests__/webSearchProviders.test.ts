@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { WEB_SEARCH_PROVIDER_IDS } from '../../preference/preferenceTypes'
 import {
   PRESETS_WEB_SEARCH_PROVIDERS,
+  WEB_SEARCH_PROVIDER_PRESET_MAP,
   WebSearchProviderIdSchema,
   WebSearchProviderOverrideSchema,
   WebSearchProviderOverridesSchema,
@@ -12,8 +12,22 @@ import {
 
 describe('web search provider schemas', () => {
   it('accepts the current preset list', () => {
-    expect(PRESETS_WEB_SEARCH_PROVIDERS.length).toBeGreaterThan(0)
-    expect(PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)).toEqual(WEB_SEARCH_PROVIDER_IDS)
+    expect(PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)).toEqual([
+      'zhipu',
+      'tavily',
+      'searxng',
+      'exa',
+      'exa-mcp',
+      'bocha',
+      'querit',
+      'fetch',
+      'jina',
+      'firecrawl',
+      'crawl4ai',
+      'parallel',
+      'serply',
+      'duckduckgo'
+    ])
 
     PRESETS_WEB_SEARCH_PROVIDERS.forEach((preset) => {
       expect(WebSearchProviderPresetDefinitionSchema.safeParse(preset).success).toBe(true)
@@ -33,101 +47,137 @@ describe('web search provider schemas', () => {
     expect(result.success).toBe(false)
   })
 
-  it('models Jina as one provider with keyword search and URL fetch capabilities', () => {
-    expect(WEB_SEARCH_PROVIDER_IDS).toContain('jina')
-    expect(WEB_SEARCH_PROVIDER_IDS).not.toContain('jina-reader')
-
-    const jina = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'jina')
-
-    expect(jina).toBeDefined()
-    expect(jina!.capabilities.find((capability) => capability.feature === 'searchKeywords')?.apiHost).toBe(
-      'https://s.jina.ai'
-    )
-    expect(jina!.capabilities.find((capability) => capability.feature === 'fetchUrls')?.apiHost).toBe(
-      'https://r.jina.ai'
-    )
-  })
-
-  it('models Firecrawl as one provider with keyword search and URL fetch capabilities', () => {
-    const firecrawl = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'firecrawl')
-
-    expect(firecrawl).toBeDefined()
-    expect(firecrawl!.capabilities.map((capability) => capability.feature)).toEqual(['searchKeywords', 'fetchUrls'])
-    expect(firecrawl!.capabilities.find((capability) => capability.feature === 'fetchUrls')).toEqual({
-      feature: 'fetchUrls',
-      requiresApiHost: true,
-      requiresApiKey: false,
-      apiHost: 'https://api.firecrawl.dev'
-    })
-  })
-
-  it('requires a user-provided host but permits anonymous Crawl4AI fetching', () => {
-    const crawl4ai = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'crawl4ai')
-
-    expect(crawl4ai?.capabilities).toEqual([
-      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }
-    ])
-    expect(
-      WebSearchProviderOverridesSchema.safeParse({
-        crawl4ai: { capabilities: { fetchUrls: { apiHost: 'http://localhost:11235' } }, apiKeys: [] }
-      }).success
-    ).toBe(true)
-  })
-
-  it('models Parallel as an API-key-authenticated keyword search provider', () => {
-    const parallel = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'parallel')
-
-    expect(parallel).toBeDefined()
-    expect(parallel!.capabilities).toEqual([
-      {
-        feature: 'searchKeywords',
-        requiresApiHost: true,
-        requiresApiKey: true,
-        apiHost: 'https://api.parallel.ai'
+  it('preserves Desktop display names, endpoint properties, requirements and capability allowlists', () => {
+    expect(WEB_SEARCH_PROVIDER_PRESET_MAP).toEqual({
+      zhipu: {
+        name: 'Zhipu',
+        type: 'api',
+        capabilities: [
+          {
+            feature: 'searchKeywords',
+            requiresApiHost: true,
+            requiresApiKey: true,
+            apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search'
+          }
+        ]
+      },
+      tavily: {
+        name: 'Tavily',
+        type: 'api',
+        capabilities: [
+          { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.tavily.com' }
+        ]
+      },
+      searxng: {
+        name: 'Searxng',
+        type: 'api',
+        capabilities: [
+          { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: false, apiHost: 'http://localhost:8080' }
+        ]
+      },
+      exa: {
+        name: 'Exa',
+        type: 'api',
+        capabilities: [
+          { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.exa.ai' }
+        ]
+      },
+      'exa-mcp': {
+        name: 'ExaMCP',
+        type: 'mcp',
+        capabilities: [
+          {
+            feature: 'searchKeywords',
+            requiresApiHost: true,
+            requiresApiKey: false,
+            apiHost: 'https://mcp.exa.ai/mcp'
+          }
+        ]
+      },
+      bocha: {
+        name: 'Bocha',
+        type: 'api',
+        capabilities: [
+          { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.bochaai.com' }
+        ]
+      },
+      querit: {
+        name: 'Querit',
+        type: 'api',
+        capabilities: [
+          { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.querit.ai' },
+          { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.querit.ai' }
+        ]
+      },
+      fetch: {
+        name: 'fetch',
+        type: 'api',
+        capabilities: [{ feature: 'fetchUrls', requiresApiHost: false, requiresApiKey: false }]
+      },
+      jina: {
+        name: 'Jina',
+        type: 'api',
+        capabilities: [
+          { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://s.jina.ai' },
+          { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: 'https://r.jina.ai' }
+        ]
+      },
+      firecrawl: {
+        name: 'Firecrawl',
+        type: 'api',
+        capabilities: [
+          {
+            feature: 'searchKeywords',
+            requiresApiHost: true,
+            requiresApiKey: false,
+            apiHost: 'https://api.firecrawl.dev'
+          },
+          {
+            feature: 'fetchUrls',
+            requiresApiHost: true,
+            requiresApiKey: false,
+            apiHost: 'https://api.firecrawl.dev'
+          }
+        ]
+      },
+      crawl4ai: {
+        name: 'Crawl4AI',
+        type: 'api',
+        capabilities: [{ feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }]
+      },
+      parallel: {
+        name: 'Parallel',
+        type: 'api',
+        capabilities: [
+          {
+            feature: 'searchKeywords',
+            requiresApiHost: true,
+            requiresApiKey: true,
+            apiHost: 'https://api.parallel.ai'
+          }
+        ]
+      },
+      duckduckgo: {
+        name: 'DuckDuckGo',
+        type: 'api',
+        capabilities: [{ feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }]
+      },
+      serply: {
+        name: 'Serply',
+        type: 'api',
+        capabilities: [
+          {
+            feature: 'searchKeywords',
+            requiresApiHost: true,
+            requiresApiKey: true,
+            apiHost: 'https://api.serply.io'
+          }
+        ]
       }
-    ])
-  })
-
-  it('models Serply as an API-key-authenticated keyword search provider', () => {
-    const serply = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'serply')
-
-    expect(serply).toBeDefined()
-    expect(serply!.capabilities).toEqual([
-      {
-        feature: 'searchKeywords',
-        requiresApiHost: true,
-        requiresApiKey: true,
-        apiHost: 'https://api.serply.io'
-      }
-    ])
-  })
-
-  it('models Fetch as a hostless built-in URL fetch provider', () => {
-    const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
-
-    expect(fetch).toBeDefined()
-    expect(fetch!.capabilities.find((capability) => capability.feature === 'fetchUrls')).toEqual({
-      feature: 'fetchUrls',
-      requiresApiHost: false,
-      requiresApiKey: false
     })
-  })
-
-  it('models Searxng with a localhost default host', () => {
-    const searxng = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'searxng')
-
-    expect(searxng).toBeDefined()
-    expect(searxng!.capabilities.find((capability) => capability.feature === 'searchKeywords')?.apiHost).toBe(
-      'http://localhost:8080'
-    )
-  })
-
-  it('models Duckduckgo as a hostless keyless keyword search provider', () => {
-    const duckduckgo = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'duckduckgo')
-
-    expect(duckduckgo).toBeDefined()
-    expect(duckduckgo!.capabilities).toEqual([
-      { feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }
+    expect(Object.hasOwn(WEB_SEARCH_PROVIDER_PRESET_MAP.crawl4ai.capabilities[0], 'apiHost')).toBe(true)
+    expect(WEB_SEARCH_PROVIDER_PRESET_MAP['exa-mcp'].capabilities.map(({ feature }) => feature)).toEqual([
+      'searchKeywords'
     ])
   })
 

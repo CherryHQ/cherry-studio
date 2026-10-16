@@ -4,7 +4,13 @@ import { providerService } from '@main/data/services/ProviderService'
 import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
-import { getProviderById, getProviderForCapability, getResolvedConfig, getRuntimeConfig } from '../config'
+import {
+  getProviderById,
+  getProviderForCapability,
+  getResolvedConfig,
+  getRuntimeConfig,
+  resolveProviders
+} from '../config'
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
@@ -57,6 +63,23 @@ describe('webSearch config utils', () => {
 
     const tavily = resolved.providers.find((provider) => provider.id === 'tavily')
     expect(tavily?.apiKeys).toEqual(['tavily-key'])
+  })
+
+  it('preserves a saved Crawl4AI endpoint through both provider resolution paths', async () => {
+    const overrides = { crawl4ai: { capabilities: { fetchUrls: { apiHost: 'http://localhost:11235' } } } }
+    expect(resolveProviders(overrides).find(({ id }) => id === 'crawl4ai')?.capabilities).toEqual([
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: 'http://localhost:11235' }
+    ])
+    const provider = await getProviderById('crawl4ai', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        return (
+          key === 'chat.web_search.provider_overrides' ? overrides : await mockPreferenceReader.get(key)
+        ) as PreferenceDefaultScopeType[K]
+      }
+    })
+    expect(provider.capabilities).toEqual([
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: 'http://localhost:11235' }
+    ])
   })
 
   it('returns runtime config from flattened preference keys', async () => {

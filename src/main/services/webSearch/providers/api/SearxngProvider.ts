@@ -1,28 +1,14 @@
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { loggerService } from '@logger'
 import { defaultAppHeaders } from '@main/utils/http'
-import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
+import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { isHttpUrl } from '@shared/utils/url'
 
 import { fetchSearchResultContents } from '../../utils/fetchContent'
+import { resolveProviderApiHost } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
-import type { UrlSearchContext } from '../base/context'
-
-const SearxngSearchResponseSchema = z.object({
-  query: z.string().optional(),
-  results: z
-    .array(
-      z.object({
-        title: z.string().optional(),
-        content: z.string().optional(),
-        snippet: z.string().optional(),
-        url: z.string().optional()
-      })
-    )
-    .default([])
-})
+import { executeRemoteProvider } from '../remoteWebSearchClient'
 
 const SearxngConfigResponseSchema = z.object({
   engines: z.array(
@@ -34,25 +20,8 @@ const SearxngConfigResponseSchema = z.object({
   )
 })
 
-type SearxngSearchContext = UrlSearchContext
-type SearxngSearchItem = z.infer<typeof SearxngSearchResponseSchema>['results'][number]
-
-const logger = loggerService.withContext('SearxngProvider')
-
 function trimStringList(values: readonly string[]): string[] {
   return values.map((value) => value.trim()).filter(Boolean)
-}
-
-function toSnippetResult(item: SearxngSearchItem): WebSearchResult | undefined {
-  const url = item.url ?? ''
-  // Engines that carry no summary still emit `content: ''`, so pick the first non-empty field
-  // rather than the first present one.
-  const content = [item.content, item.snippet].map((value) => value?.trim() ?? '').find(Boolean) ?? ''
-  if (!content) {
-    return undefined
-  }
-
-  return { title: item.title || url, url, content, sourceInput: url }
 }
 
 export class SearxngProvider extends BaseWebSearchProvider {
@@ -110,88 +79,34 @@ export class SearxngProvider extends BaseWebSearchProvider {
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
   ): Promise<WebSearchResponse> {
-    const context = await this.prepareSearchContext(query, config, httpOptions)
-    const searchPayload = await this.executeSearch(context)
-    const fetchedResults = await this.fetchResultContents(context, searchPayload)
-
-    return this.buildFinalResponse(context, fetchedResults)
-  }
-
-  private async prepareSearchContext(
-    query: string,
-    config: WebSearchExecutionConfig,
-    httpOptions?: RequestInit
-  ): Promise<SearxngSearchContext> {
     const signal = httpOptions?.signal ?? undefined
     const engines = await this.resolveEngines(signal)
-    const searchParams = new URLSearchParams({
-      q: query,
-      language: 'auto',
-      format: 'json'
-    })
-    searchParams.set('engines', engines.join(','))
-
-    return {
-      query,
-      maxResults: config.maxResults,
-      searchUrl: `${this.resolveApiUrl('searchKeywords', '/search')}?${searchParams.toString()}`,
-      signal
-    }
-  }
-
-  private async executeSearch(context: SearxngSearchContext) {
-    const response = await net.fetch(context.searchUrl, {
-      method: 'GET',
-      headers: {
-        ...defaultAppHeaders(),
-        ...this.getBasicAuthHeaders()
+    const response = await executeRemoteProvider({
+      providerId: 'searxng',
+      capability: 'searchKeywords',
+      input: query,
+      apiHost: resolveProviderApiHost(this.provider, 'searchKeywords'),
+      credentials: {
+        basicAuthUsername: this.provider.basicAuthUsername.trim(),
+        basicAuthPassword: this.provider.basicAuthPassword.trim()
       },
-      signal: context.signal
+      engines,
+      maxResults: config.maxResults,
+      signal
     })
-
-    if (!response.ok) {
-      await this.throwHttpError('Searxng search failed', response)
-    }
-
-    return this.parseJsonResponse(response, SearxngSearchResponseSchema, {
-      operation: 'search',
-      requestUrl: context.searchUrl
-    })
-  }
-
-  private async fetchResultContents(
-    context: SearxngSearchContext,
-    searchPayload: z.infer<typeof SearxngSearchResponseSchema>
-  ) {
-    const validItems = searchPayload.results.filter((item) => isHttpUrl(item.url || '')).slice(0, context.maxResults)
-    if (validItems.length === 0 && searchPayload.results.length > 0) {
-      logger.warn('All Searxng search URLs failed validation', {
-        query: context.query,
-        total: searchPayload.results.length
-      })
-    }
-
-    return fetchSearchResultContents(
-      validItems.map((item) => item.url || ''),
+    const validItems = response.results.filter((item) => isHttpUrl(item.url)).slice(0, config.maxResults)
+    const results = await fetchSearchResultContents(
+      validItems.map((item) => item.url),
       {
-        query: context.query,
+        query,
         providerLabel: 'Searxng',
-        signal: context.signal,
-        getFallbackResult: (_url, index) => toSnippetResult(validItems[index])
+        signal,
+        getFallbackResult: (_url, index) => {
+          const item = validItems[index]
+          return item.content ? { ...item, title: item.title || item.url, sourceInput: item.url } : undefined
+        }
       }
     )
-  }
-
-  private buildFinalResponse(context: SearxngSearchContext, fetchedResults: WebSearchResult[]): WebSearchResponse {
-    return {
-      query: context.query,
-      providerId: this.provider.id,
-      capability: 'searchKeywords',
-      inputs: [context.query],
-      results: fetchedResults.map((result) => ({
-        ...result,
-        sourceInput: context.query
-      }))
-    }
+    return { ...response, results: results.map((result) => ({ ...result, sourceInput: query })) }
   }
 }

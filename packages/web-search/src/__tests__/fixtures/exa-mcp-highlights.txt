@@ -1,0 +1,10 @@
+Title: First
+URL: https://one.test
+Text: First paragraph
+
+Second paragraph
+Highlights: Highlight
+
+Title: Second
+URL: https://two.test
+Highlights: Other highlight

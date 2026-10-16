@@ -238,3 +238,19 @@ describe('PR description workflow configuration', () => {
     expect(selected('synchronize', true)).toBe(false)
   })
 })
+
+describe('web search package validation', () => {
+  it('gates the package consumer check on the planned project', () => {
+    const step = workflow.jobs['package-test'].steps.find(
+      (step: { run?: string }) => step.run === 'pnpm --filter @cherrystudio/web-search test:package'
+    )
+    expect(step.if).toBe("contains(fromJSON(needs.changes.outputs.plan).projects, 'web-search')")
+    expect(createPlan(['packages/web-search/src/client.ts']).projects).toEqual([
+      'main',
+      'preload',
+      'renderer',
+      'shared',
+      'web-search'
+    ])
+  })
+})

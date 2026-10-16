@@ -1,0 +1,3 @@
+data: [DONE]
+data: {"invalid":true}
+data: {"result": {"content": [{"type": "text", "text": "Title: Legacy\nURL: https://legacy.test\nText: Preserved"}]}}

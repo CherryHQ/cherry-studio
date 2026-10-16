@@ -127,11 +127,78 @@ export default defineConfig({
       {
         extends: true,
         resolve: {
-          alias: {
-            '@shared': resolve('src/shared'),
-            '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
-          }
+          alias: [
+            { find: /^@cherrystudio\/web-search$/, replacement: resolve('packages/web-search/src/index.ts') },
+            {
+              find: /^@cherrystudio\/web-search\/catalog$/,
+              replacement: resolve('packages/web-search/src/catalog.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/zhipu$/,
+              replacement: resolve('packages/web-search/src/providers/zhipu.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/tavily$/,
+              replacement: resolve('packages/web-search/src/providers/tavily.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/searxng$/,
+              replacement: resolve('packages/web-search/src/providers/searxng.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/exa$/,
+              replacement: resolve('packages/web-search/src/providers/exa.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/exa-mcp$/,
+              replacement: resolve('packages/web-search/src/providers/exaMcp.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/bocha$/,
+              replacement: resolve('packages/web-search/src/providers/bocha.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/querit$/,
+              replacement: resolve('packages/web-search/src/providers/querit.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/jina$/,
+              replacement: resolve('packages/web-search/src/providers/jina.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/firecrawl$/,
+              replacement: resolve('packages/web-search/src/providers/firecrawl.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/crawl4ai$/,
+              replacement: resolve('packages/web-search/src/providers/crawl4ai.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/parallel$/,
+              replacement: resolve('packages/web-search/src/providers/parallel.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/providers\/serply$/,
+              replacement: resolve('packages/web-search/src/providers/serply.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/tools\/config$/,
+              replacement: resolve('packages/web-search/src/tools/config.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/tools\/url-filter$/,
+              replacement: resolve('packages/web-search/src/tools/urlFilter.ts')
+            },
+            {
+              find: /^@cherrystudio\/web-search\/tools\/content$/,
+              replacement: resolve('packages/web-search/src/tools/content.ts')
+            },
+            ...Object.entries({
+              '@shared': resolve('src/shared'),
+              '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+              '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            }).map(([find, replacement]) => ({ find, replacement }))
+          ]
         },
         test: {
           name: 'shared',
@@ -208,7 +275,8 @@ export default defineConfig({
       ...[
         ['ai-sdk-provider', 'src'],
         ['remote-protocol', 'tests'],
-        ['remote-transport', 'tests']
+        ['remote-transport', 'tests'],
+        ['web-search', 'src']
       ].map(([name, directory]) => ({
         extends: true as const,
         test: {

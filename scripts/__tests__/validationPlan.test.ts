@@ -37,6 +37,7 @@ describe('validation selection', () => {
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
     ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
+    ['packages/web-search/src/client.ts', ['web-search', 'shared', 'main', 'preload', 'renderer']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
@@ -44,6 +45,11 @@ describe('validation selection', () => {
     ['src/shared/types/agent.ts', ['main', 'renderer', 'scripts']]
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
+  })
+  it('selects Desktop typechecks and only the web search consumers for package changes', () => {
+    const plan = createPlan(['packages/web-search/src/client.ts'])
+    expect(plan.projects).toEqual(['main', 'preload', 'renderer', 'shared', 'web-search'])
+    expect(plan.tasks.filter((task: string) => task.startsWith('types-'))).toEqual(['types-node', 'types-web'])
   })
   it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
     const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])

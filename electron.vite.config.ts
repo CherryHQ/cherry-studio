@@ -140,22 +140,90 @@ const miniAppThemeAssetPlugin = (): Plugin => ({
   }
 })
 
+const webSearchAliases = [
+  { find: /^@cherrystudio\/web-search$/, replacement: resolve('packages/web-search/src/index.ts') },
+  { find: /^@cherrystudio\/web-search\/catalog$/, replacement: resolve('packages/web-search/src/catalog.ts') },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/zhipu$/,
+    replacement: resolve('packages/web-search/src/providers/zhipu.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/tavily$/,
+    replacement: resolve('packages/web-search/src/providers/tavily.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/searxng$/,
+    replacement: resolve('packages/web-search/src/providers/searxng.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/exa$/,
+    replacement: resolve('packages/web-search/src/providers/exa.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/exa-mcp$/,
+    replacement: resolve('packages/web-search/src/providers/exaMcp.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/bocha$/,
+    replacement: resolve('packages/web-search/src/providers/bocha.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/querit$/,
+    replacement: resolve('packages/web-search/src/providers/querit.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/jina$/,
+    replacement: resolve('packages/web-search/src/providers/jina.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/firecrawl$/,
+    replacement: resolve('packages/web-search/src/providers/firecrawl.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/crawl4ai$/,
+    replacement: resolve('packages/web-search/src/providers/crawl4ai.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/parallel$/,
+    replacement: resolve('packages/web-search/src/providers/parallel.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/providers\/serply$/,
+    replacement: resolve('packages/web-search/src/providers/serply.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/tools\/config$/,
+    replacement: resolve('packages/web-search/src/tools/config.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/tools\/url-filter$/,
+    replacement: resolve('packages/web-search/src/tools/urlFilter.ts')
+  },
+  {
+    find: /^@cherrystudio\/web-search\/tools\/content$/,
+    replacement: resolve('packages/web-search/src/tools/content.ts')
+  }
+]
+
 /** Shared with the utility-process entries build, which must resolve identically. */
-export const mainResolveAlias = {
-  '@main': resolve('src/main'),
-  '@application': resolve('src/main/core/application/Application'),
-  '@data': resolve('src/main/data'),
-  '@shared': resolve('src/shared'),
-  '@logger': resolve('src/main/core/logger/LoggerService'),
-  '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
-  '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
-  '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
-  '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
-  '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-  '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
-  '@test-mocks': resolve('tests/__mocks__'),
-  '@test-helpers': resolve('tests/helpers')
-}
+export const mainResolveAlias = [
+  ...webSearchAliases,
+  ...Object.entries({
+    '@main': resolve('src/main'),
+    '@application': resolve('src/main/core/application/Application'),
+    '@data': resolve('src/main/data'),
+    '@shared': resolve('src/shared'),
+    '@logger': resolve('src/main/core/logger/LoggerService'),
+    '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
+    '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
+    '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
+    '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+    '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+    '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+    '@test-mocks': resolve('tests/__mocks__'),
+    '@test-helpers': resolve('tests/helpers')
+  }).map(([find, replacement]) => ({ find, replacement }))
+]
 
 export default defineConfig({
   main: {
@@ -179,7 +247,7 @@ export default defineConfig({
     ],
     resolve: {
       alias: [
-        ...Object.entries(mainResolveAlias).map(([find, replacement]) => ({ find, replacement })),
+        ...mainResolveAlias,
         // file-stream-rotator requires Moment's callable CommonJS export, not its ESM namespace.
         { find: /^moment$/, replacement: 'moment/moment.js' }
       ]
@@ -260,25 +328,28 @@ export default defineConfig({
       ...sentrySourceMapPlugins('renderer')
     ],
     resolve: {
-      alias: {
-        '@renderer': resolve('src/renderer'),
-        '@shared': resolve('src/shared'),
-        '@logger': resolve('src/renderer/services/LoggerService'),
-        '@data': resolve('src/renderer/data'),
-        '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
-        '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
-        '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
-        '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
-        '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
-        '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-        '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
-        '@cherrystudio/file-preview/core': resolve('packages/file-preview/src/core.ts'),
-        '@cherrystudio/file-preview/react': resolve('packages/file-preview/src/react.ts'),
-        '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
-        '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
-        '@cherrystudio/ui': resolve('packages/ui/src'),
-        '@test-mocks': resolve('tests/__mocks__')
-      }
+      alias: [
+        ...webSearchAliases,
+        ...Object.entries({
+          '@renderer': resolve('src/renderer'),
+          '@shared': resolve('src/shared'),
+          '@logger': resolve('src/renderer/services/LoggerService'),
+          '@data': resolve('src/renderer/data'),
+          '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
+          '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
+          '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
+          '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
+          '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+          '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+          '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+          '@cherrystudio/file-preview/core': resolve('packages/file-preview/src/core.ts'),
+          '@cherrystudio/file-preview/react': resolve('packages/file-preview/src/react.ts'),
+          '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
+          '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
+          '@cherrystudio/ui': resolve('packages/ui/src'),
+          '@test-mocks': resolve('tests/__mocks__')
+        }).map(([find, replacement]) => ({ find, replacement }))
+      ]
     },
     optimizeDeps: {
       exclude: ['pyodide'],
