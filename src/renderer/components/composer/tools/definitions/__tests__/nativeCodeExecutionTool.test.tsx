@@ -1,7 +1,10 @@
-import { act, render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ComposerToolRuntimeHost, ComposerToolRuntimeProvider } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import * as builtinTools from '@renderer/components/composer/tools/builtinTools'
+import { TopicType } from '@renderer/components/composer/tools/types'
 
 const { useAssistantMock, useProviderMock, updateAssistant } = vi.hoisted(() => ({
   useAssistantMock: vi.fn(),
@@ -39,6 +42,29 @@ describe('server-side code execution toggle', () => {
         endpointConfigs: { 'openai-responses': { adapterFamily: 'xai-responses' } }
       }
     })
+  })
+
+  it('keeps an unlinked chat with a default model usable without assistant tools', () => {
+    const getToolsForScope = builtinTools.getToolsForScope
+    const tools = vi
+      .spyOn(builtinTools, 'getToolsForScope')
+      .mockImplementation((scope, context) =>
+        getToolsForScope(scope, context).filter((tool) => tool.key === nativeCodeExecutionTool.key)
+      )
+    try {
+      render(
+        <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+          <ComposerToolRuntimeHost
+            scope={TopicType.Chat}
+            model={{ id: 'default-model', providerId: 'openai', name: 'Default model' } as any}
+          />
+          <textarea aria-label="Message" />
+        </ComposerToolRuntimeProvider>
+      )
+      expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
+    } finally {
+      tools.mockRestore()
+    }
   })
 
   it('leaves old assistants opted out and persists explicit user opt-in', async () => {

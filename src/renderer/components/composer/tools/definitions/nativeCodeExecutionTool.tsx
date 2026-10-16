@@ -80,6 +80,7 @@ export default defineTool({
   key: 'native_code_execution',
   label: NATIVE_CODE_EXECUTION_TOOLBAR_MANIFEST.label,
   visibleInScopes: NATIVE_CODE_EXECUTION_TOOLBAR_MANIFEST.visibleInScopes,
+  condition: ({ assistant }) => Boolean(assistant),
   composer: {
     runtime: ({ context }) => (
       <NativeCodeExecutionRuntime
