@@ -92,6 +92,18 @@ describe('ask-user extension', () => {
     expect(toolOutputs(calls[1].prompt).ask_1).toEqual({ type: 'text', value: textOf(result) })
   })
 
+  // Breaks when an omitted answer is read through the prototype (`answers.constructor` is a function).
+  it('reports a question named like an Object.prototype member as not answered when its answer is omitted', async () => {
+    const { port } = hostPort(() => ({ status: 'answered', answers: {} }))
+    const questions = [question('constructor'), question('__proto__')]
+    const { session } = await run(port, [[askCall('ask_1', questions), finish('tool-calls')], reply('OK.')])
+    await session.prompt('Set up the app')
+
+    const [result] = toolResults(session)
+    expect(textOf(result)).toContain('"constructor" = (not answered)')
+    expect(textOf(result)).toContain('"__proto__" = (not answered)')
+  })
+
   it.each<{ name: string; response: AskUserResponse; text: RegExp }>([
     {
       name: 'declined with feedback',
