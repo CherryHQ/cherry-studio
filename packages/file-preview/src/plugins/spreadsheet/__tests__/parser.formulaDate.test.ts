@@ -1,15 +1,13 @@
-import ExcelJS from 'exceljs'
 import { beforeAll, describe, expect, it } from 'vitest'
+
+import type * as ExcelJS from '@cherrystudio/spreadsheet'
+import { createWorkbook, writeWorkbook } from '@cherrystudio/spreadsheet'
 
 import type { WorkbookRenderModel } from '../renderModel'
 import { parseWorkbook } from '../worker/parseWorkbook'
 
 async function toArrayBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
-  const buf = await workbook.xlsx.writeBuffer()
-  const view = buf as unknown as Uint8Array
-  const arrayBuffer = new ArrayBuffer(view.byteLength)
-  new Uint8Array(arrayBuffer).set(view)
-  return arrayBuffer
+  return (await writeWorkbook(workbook)).buffer
 }
 
 /**
@@ -21,7 +19,7 @@ describe('parseWorkbook — date cells carry serial semantics into formulas', ()
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
 
     ws.getCell('A1').value = new Date(Date.UTC(2026, 0, 15))
@@ -55,7 +53,7 @@ describe('parseWorkbook — date cells carry serial semantics into formulas', ()
  */
 describe('parseWorkbook — 1904 date system skips uncached formula evaluation', () => {
   it('leaves uncached formulas unevaluated with a warning while dates still render correctly', async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     wb.properties.date1904 = true
     const ws = wb.addWorksheet('S1')
     ws.getCell('A1').value = new Date(Date.UTC(2026, 0, 15))
@@ -74,7 +72,7 @@ describe('parseWorkbook — 1904 date system skips uncached formula evaluation',
   })
 
   it('keeps cached formula results and stays silent when nothing is pending', async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     wb.properties.date1904 = true
     const ws = wb.addWorksheet('S1')
     ws.getCell('A1').value = new Date(Date.UTC(2026, 0, 15))

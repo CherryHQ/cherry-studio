@@ -21,14 +21,21 @@ import { Server } from '@modelcontextprotocol/server'
 import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import { expect, it } from 'vitest'
 
+import { parseConvertedDocumentOutput } from '@shared/ai/documentConversionTool'
+
 import { createPiApprovalExtension } from './approvalExtension'
 import { createPiMcpExtension } from './piMcpExtension'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 
 // Real SDK session + MCP wire + QuickJS: catches bypassed nested policy and lost structured results.
-it.each(['cherry-tools', 'my-server', 'my_server'])(
-  'runs native MCP with binding %s and blocks forbidden nested calls',
-  async (binding) => {
+it.each([
+  ['cherry-tools', false],
+  ['my-server', false],
+  ['my_server', false],
+  ['cherry-tools', true]
+] as const)(
+  'runs native MCP with binding %s (parent failure: %s) without losing child results',
+  async (binding, parentFails) => {
     const shadowId = '87654321-4321-4321-8321-abcdef123456'
     const shadowName = binding === 'my-server' ? 'my_server' : 'my-server'
     const longTool = 'read_' + 'long_name_'.repeat(8)
@@ -51,7 +58,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
     const server = serveMcpTestServer(() => {
       const fixture = new Server({ name: 'fixture', version: '1.0.0' }, { capabilities: { tools: {} } })
       fixture.setRequestHandler('tools/list', async () => ({
-        tools: ['read_value', 'forbidden', longTool].map((name) => ({
+        tools: ['read_value', 'forbidden', longTool, 'convert_to_document'].map((name) => ({
           name,
           description: name,
           inputSchema: { type: 'object' as const }
@@ -59,6 +66,19 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       }))
       fixture.setRequestHandler('tools/call', async (request) => {
         calls.push(request.params.name)
+        if (request.params.name === 'convert_to_document')
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  path: 'report.docx',
+                  format: 'docx',
+                  mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                })
+              }
+            ]
+          }
         return { content: [{ type: 'text', text: 'value' }], structuredContent: { value: 42 } }
       })
       return fixture
@@ -100,7 +120,9 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
                   id: 'script',
                   name: 'codemode',
                   arguments: {
-                    code: `const result = await tools.${nativePrefix}read_value({}); text(result.structuredContent.value); const long = await searchTools("${longTool}", { namespace: "mcp__${serverId.replaceAll('-', '_')}" }); await tools[long[0].name]({}); ${binding === 'cherry-tools' ? '' : `await tools.mcp__${shadowId.replaceAll('-', '_')}__forbidden({});`} try { await tools.${nativePrefix}forbidden({}) } catch (e) { text(e.message) }`
+                    code: parentFails
+                      ? `await tools.${nativePrefix}convert_to_document({}); throw new Error('parent failed after saving')`
+                      : `const result = await tools.${nativePrefix}read_value({}); text(result.structuredContent.value); const long = await searchTools("${longTool}", { namespace: "mcp__${serverId.replaceAll('-', '_')}" }); await tools[long[0].name]({}); ${binding === 'cherry-tools' ? '' : `await tools.mcp__${shadowId.replaceAll('-', '_')}__forbidden({});`} try { await tools.${nativePrefix}forbidden({}) } catch (e) { text(e.message) }`
                   }
                 }
               ]
@@ -195,9 +217,32 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       await session.prompt('Run the native tools')
       await mkdir('.context/cherry-electron-dev', { recursive: true })
       await writeFile(
-        `.context/cherry-electron-dev/pi-native-${binding}-events.json`,
+        `.context/cherry-electron-dev/pi-native-${binding}${parentFails ? '-parent-failure' : ''}-events.json`,
         JSON.stringify({ events, chunks }, null, 2)
       )
+      if (parentFails) {
+        expect(calls).toEqual(['convert_to_document'])
+        const child = chunks.find(
+          (chunk) =>
+            typeof chunk === 'object' &&
+            chunk !== null &&
+            'toolCallId' in chunk &&
+            chunk.toolCallId === 'script/1' &&
+            'output' in chunk
+        )
+        expect(child).toMatchObject({ type: 'tool-output-available', toolCallId: 'script/1' })
+        const receipt =
+          child && typeof child === 'object' && 'output' in child ? parseConvertedDocumentOutput(child.output) : null
+        expect(receipt).toMatchObject({ path: 'report.docx', format: 'docx' })
+        expect(chunks).toContainEqual(
+          expect.objectContaining({
+            type: 'tool-output-error',
+            toolCallId: 'script',
+            errorText: expect.stringContaining('parent failed after saving')
+          })
+        )
+        return
+      }
       expect(calls).toEqual(['read_value', longTool, ...(binding === 'cherry-tools' ? [] : ['shadow:forbidden'])])
       expect(chunks).toContainEqual(
         expect.objectContaining({

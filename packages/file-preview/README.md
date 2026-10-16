@@ -223,7 +223,8 @@ pnpm --dir packages/file-preview pack --pack-destination /path/to/artifacts
 `pack` runs the production build first, so the tarball never carries a stale `dist`.
 
 The library build uses Vite to process native worker URLs and Tailwind CSS, plus
-`rolldown-plugin-dts` for declaration bundles. Every third-party library except `zod`
+`rolldown-plugin-dts` for declaration bundles. The internal `@cherrystudio/spreadsheet` package owns ExcelJS workbook I/O and is bundled into
+the XLSX worker. Every third-party library except `zod`
 is bundled, including UI components and the patched docx-preview and pptx-renderer, so they are dev
 dependencies; consumers install only `zod` and the React peers. CSS excludes Tailwind preflight
 and scopes selectors to `.file-preview-root`.

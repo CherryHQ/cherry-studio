@@ -1,0 +1,16 @@
+/** Document-export error codes shared by the converter, IPC boundary and renderer. */
+export const exportErrorCodes = {
+  SOURCE_UNREADABLE: 'SOURCE_UNREADABLE',
+  INVALID_SOURCE: 'INVALID_SOURCE',
+  RESOURCE_UNAVAILABLE: 'RESOURCE_UNAVAILABLE',
+  TARGET_EXISTS: 'TARGET_EXISTS',
+  PDF_OCR_REQUIRED: 'PDF_OCR_REQUIRED',
+  EMPTY_DOCUMENT: 'EMPTY_DOCUMENT',
+  DOCUMENT_TOO_LARGE: 'DOCUMENT_TOO_LARGE',
+  INVALID_TABLE: 'INVALID_TABLE',
+  INVALID_IMAGE: 'INVALID_IMAGE',
+  DOCUMENT_SAVE_FAILED: 'DOCUMENT_SAVE_FAILED',
+  CONVERSION_FAILED: 'CONVERSION_FAILED'
+} as const
+
+export type ExportErrorCode = (typeof exportErrorCodes)[keyof typeof exportErrorCodes]

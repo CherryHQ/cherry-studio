@@ -2,9 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import type * as ReactI18next from 'react-i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import i18n, { initI18n } from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
@@ -14,6 +16,8 @@ import { MessageReportArtifacts } from '../ReportArtifacts'
 
 // The global UI mock does not implement DropdownMenuTrigger's asChild contract,
 // so use the real menu primitives for these interaction tests.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 const { externalOpenTargets, mockOpenTarget, mockUseExternalOpenTargets } = vi.hoisted(() => {
@@ -96,6 +100,10 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
 }
 
 describe('MessageReportArtifacts', () => {
+  beforeAll(async () => {
+    await initI18n()
+    await i18n.changeLanguage('en-US')
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     setInlineFilePathHomePath(undefined)
@@ -193,6 +201,34 @@ describe('MessageReportArtifacts', () => {
     await waitFor(() => {
       expect(mockOpenTarget).toHaveBeenCalledWith('/workspace/dist/report.md', externalOpenTargets[0])
     })
+  })
+
+  it('converts an artifact using its session workspace for sibling image resources', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockResolvedValueOnce(null)
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'conversion',
+            toolCallId: 'conversion',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: { artifacts: [{ path: 'reports/report.md' }] }
+          }
+        ]}
+      />,
+      { resolvePath: (filePath) => (filePath === '.' ? '/workspace' : `/workspace/${filePath}`) }
+    )
+    await user.click(screen.getByRole('button', { name: 'Open with report.md' }))
+    await user.hover(await screen.findByRole('menuitem', { name: 'document_export.convert_to' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export as Word (.docx)' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'export.document.convert_and_save',
+        expect.objectContaining({ filePath: '/workspace/reports/report.md', assetRoot: '/workspace', format: 'docx' })
+      )
+    )
   })
 
   it('resolves home-relative artifact paths before previewing or opening externally', async () => {

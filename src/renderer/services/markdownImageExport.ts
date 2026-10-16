@@ -140,8 +140,7 @@ type GenerateImageItem = { key: string; entryId?: string; url?: string; filename
 
 function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
   const output = (part as { output?: unknown }).output
-  // An error result carries its explanation as content — check before the unwrap,
-  // because extractOutputMetadata may drop the envelope (and its isError flag).
+  // Error results can contain diagnostic images rather than generated artifacts.
   if (
     typeof output === 'object' &&
     output !== null &&
@@ -155,8 +154,7 @@ function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
   if (parsed.success) {
     return parsed.data.map((item) => ({ key: item.id, entryId: item.id, filename: item.name }))
   }
-  // extractOutputMetadata unwraps `{content: [...]}` into the array itself unless
-  // mcp metadata keeps the envelope — accept both shapes.
+  // Accept both direct image arrays and MCP result envelopes.
   const content = Array.isArray(response) ? response : (response as { content?: unknown } | null | undefined)?.content
   if (!Array.isArray(content)) return []
   return content.flatMap((item) => {

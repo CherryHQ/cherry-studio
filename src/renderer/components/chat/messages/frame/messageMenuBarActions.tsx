@@ -29,6 +29,7 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { getDocumentExportLabel } from '@renderer/services/documentExport'
 import { readMessageAloud } from '@renderer/services/voice'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -333,6 +334,17 @@ registerCommand('message.exportWord', async ({ actions, messageForExport }) => {
   await actions.exportToWord?.(markdown, title)
 })
 
+for (const format of ['pdf', 'pptx', 'xlsx', 'html'] as const) {
+  registerCommand(`message.export.${format}`, async ({ actions, messageForExport }) => {
+    const { getMessageTitle, messageToMarkdown } = await import('@renderer/services/ExportService')
+    const [markdown, title] = await Promise.all([
+      messageToMarkdown(messageForExport),
+      getMessageTitle(messageForExport)
+    ])
+    await actions.exportToDocument?.(markdown, title, format)
+  })
+}
+
 registerCommand('message.exportNotion', async ({ actions, messageForExport }) => {
   await actions.exportToNotion?.(messageForExport)
 })
@@ -610,6 +622,16 @@ registerAction({
       availability: ({ actions, menuConfig }: MessageMenuBarActionContext) =>
         menuConfig.exportMenuOptions[option] && !!actions[action]
     })),
+    ...(['pdf', 'pptx', 'xlsx', 'html'] as const).map(
+      (format, index): ActionDescriptor<MessageMenuBarActionContext> => ({
+        id: `export.${format}`,
+        commandId: `message.export.${format}`,
+        label: () => getDocumentExportLabel(format),
+        group: 'file',
+        order: 41 + index,
+        availability: ({ actions }) => !!actions.exportToDocument
+      })
+    ),
     {
       id: 'export.copy-plain-text',
       commandId: 'message.copyPlainText',
