@@ -30,17 +30,13 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const SubWindowAppShell = () => {
-  const { tabs, activeTabId, updateTab, openTab } = useTabs()
+  const { tabs, activeTabId, updateTab, attachTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
   const isFullscreen = useNativeFullscreen()
-
-  // A sub-window hosts a single detached tab and draws no tab bar, so the tab-close
-  // shortcut keeps the meaning it had before the tab bar claimed Command+W: close this window.
   const handleCloseTab = useCallback(() => {
     void ipcApi.request('window.close')
   }, [])
-
   useCommandHandler('tab.close', handleCloseTab)
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
@@ -50,15 +46,16 @@ export const SubWindowAppShell = () => {
     if (!init || initialized.current) return
     initialized.current = true
 
-    openTab(init.url, {
+    attachTab({
       id: init.tabId,
-      title: init.title,
+      url: init.url,
+      title: init.title ?? '',
       icon: init.icon,
-      type: init.type || 'route',
+      type: init.type ?? 'route',
       isPinned: init.isPinned,
-      forceNew: true
+      metadata: init.metadata
     })
-  }, [init, openTab])
+  }, [init, attachTab])
 
   // Sync internal navigation back to tab state. Mirror the main AppShell:
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
@@ -114,10 +111,7 @@ export const SubWindowAppShell = () => {
               <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
             ))}
 
-          {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
-              route tabs, same as the main AppShell. The cache backing the pool
-              is per-window (Memory tier) so this sub-window manages its own
-              list independently of the main window. */}
+          {/* Keep window-local guests outside route Activities so page dormancy does not release them. */}
           <MiniAppTabsPool />
         </main>
       </div>

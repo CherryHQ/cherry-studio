@@ -81,7 +81,12 @@ Upload identity is scoped to device and Agent grant, independent of sockets and 
 A durable `committedOffset` is the only resume position. `resume` uses an idempotent resume ID
 and expected writer epoch; old writers cannot advance a replaced upload. DATA carries raw bytes authenticated by Noise AEAD, with a durable ACK after each block.
 Desktop computes the full-file SHA-256 before publishing a ready managed reference.
-The mobile reuses an immutable source snapshot on resume; it does not pre-scan the file.
+The optional `agentUploadChecksum: 'sha256'` hello capability supports independent source verification:
+prepare fixes `checksumAlgorithm`, complete supplies `expectedSha256`, and ready returns the actual
+`sha256`. A mismatch becomes durable failed state with `CHECKSUM_MISMATCH`; disk/publication errors
+use `VERIFICATION_FAILED`. Changing a recorded digest or mode is an idempotency conflict.
+Absent-mode uploads retain legacy behavior. New mobile hashes its retained immutable source natively
+in parallel with normal DATA transfer; recovery compares the saved digest before resumed writes.
 
 Limits: 1 GiB/file, 2 GiB/message, eight files, 1 MiB blocks and two outstanding blocks.
 Staging expires after 24 hours idle or seven days total, with 4 GiB/device and 8 GiB/global

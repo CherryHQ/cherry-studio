@@ -54,6 +54,13 @@ export function isMainFrame(value: unknown): value is MainFrame {
       return (
         isRequestId(frame.requestId) && typeof frame.method === 'string' && frame.method.length > 0 && 'input' in frame
       )
+    case 'host-reply':
+      return (
+        isRequestId(frame.requestId) &&
+        isRequestId(frame.callId) &&
+        isRecord(frame.outcome) &&
+        ('value' in frame.outcome || isRemoteError(frame.outcome.error))
+      )
     case 'cancel':
       return isRequestId(frame.requestId)
     case 'shutdown':
@@ -69,6 +76,13 @@ export function isChildFrame(value: unknown): value is ChildFrame {
   switch (frame.kind) {
     case 'ready':
       return true
+    case 'host-call':
+      return (
+        isRequestId(frame.requestId) &&
+        isRequestId(frame.callId) &&
+        typeof frame.method === 'string' &&
+        'input' in frame
+      )
     case 'event':
       return isRequestId(frame.requestId) && 'event' in frame
     case 'result':

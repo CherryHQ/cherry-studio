@@ -1,5 +1,11 @@
 # @cherrystudio/remote-protocol
 
+## 0.5.0
+
+### Minor Changes
+
+- [#21527](https://github.com/CherryHQ/cherry-studio/pull/21527) [`755f06d`](https://github.com/CherryHQ/cherry-studio/commit/755f06d1a367aaef741e35e6e9896e1300682af5) Thanks [@DeJeune](https://github.com/DeJeune)! - Advertise optional source SHA-256 verification for Agent uploads and persist verified completion outcomes.
+
 ## 0.4.0
 
 ### Minor Changes

@@ -13,6 +13,7 @@ const claudeWebToolModels = [
 const geminiWebToolModels = [
   'gemini-2',
   'gemini-3',
+  'gemini-4-argon',
   'gemini-flash-latest',
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
@@ -145,6 +146,7 @@ export default defineProvider({
   ],
   metadata: {
     website: {
+      billing: 'https://open.cherryin.ai/console/topup',
       apiKey: 'https://open.cherryin.ai/console/token',
       docs: 'https://open.cherryin.ai',
       models: 'https://open.cherryin.ai/pricing',

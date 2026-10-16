@@ -710,6 +710,7 @@ vi.mock('react-i18next', () => ({
         'selector.common.sort_label': 'Sort',
         'selector.common.unpin': 'Unpin'
       }
+      if (key === 'agent.session.hover.last_activity') return `Last activity: ${options?.time ?? ''}`
       return labels[key] ?? key
     }
   })
@@ -982,6 +983,9 @@ describe('Sessions', () => {
       if (route === 'ai.agent.workspace.delete') {
         return dataApiMocks.deleteWorkspace({ params: { workspaceId: input.workspaceId } })
       }
+      if (route === 'ai.agent.workspace.register') {
+        return dataApiMocks.findOrCreateWorkspace({ body: { path: input.path as string } })
+      }
       return Promise.resolve(undefined)
     })
     conversationOwnerPopupMocks.show.mockImplementation(
@@ -1051,6 +1055,95 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().workdir).toContain('session:workspace:ws-b')
     view.rerender(<SessionsForTest key="expanded-project-a-workspace" />)
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('shows the full name, last activity and work directory on a task hover card', async () => {
+    const user = userEvent.setup()
+    const source = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'A task name long enough that the truncated row can never show it in full',
+          createdAt: '2026-01-02T08:15:00.000Z',
+          updatedAt: '2026-01-03T09:20:00.000Z',
+          lastActivityAt: '2026-03-05T06:30:00.000Z'
+        })
+      ]
+    }
+    render(<SessionsForTest agentSessionsSource={source} />)
+
+    await user.hover(screen.getByText('A task name long enough that the truncated row can never show it in full'))
+    const activity = await screen.findByText(/Last activity:/, undefined, { timeout: 3000 })
+    const hoverCard = activity.closest('[data-slot="hover-card-content"]')!
+
+    expect(hoverCard).toHaveTextContent('A task name long enough that the truncated row can never show it in full')
+    expect(hoverCard).toHaveTextContent('Last activity: 2026-03-05 06:30')
+    // Last activity, not creation or last update.
+    expect(hoverCard).not.toHaveTextContent('2026-01-02')
+    expect(hoverCard).not.toHaveTextContent('2026-01-03')
+    expect(hoverCard).toHaveTextContent('Embedded Project A')
+
+    await user.click(hoverCard)
+    expect(cacheMocks.setActiveSessionId).not.toHaveBeenCalled()
+
+    fireEvent.doubleClick(
+      within(screen.getByTestId('agent-session-row')).getByText(
+        'A task name long enough that the truncated row can never show it in full'
+      )
+    )
+    expect(hoverCard).not.toBeInTheDocument()
+  })
+
+  it('switches an open preview immediately between sessions and resets after scrolling', async () => {
+    const user = userEvent.setup()
+    const source = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [
+        createSession({ id: 'first', name: 'First preview' }),
+        createSession({ id: 'second', name: 'Second preview' })
+      ]
+    }
+    render(<SessionsForTest agentSessionsSource={source} />)
+    const first = screen.getByText('First preview')
+    const second = screen.getByText('Second preview')
+    await user.hover(first)
+    expect(screen.queryByText(/Last activity:/)).not.toBeInTheDocument()
+    await screen.findByText(/Last activity:/, undefined, { timeout: 3000 })
+    // Native pointer transitions include relatedTarget (user-event currently omits it).
+    fireEvent(first, new MouseEvent('pointerout', { bubbles: true, relatedTarget: second }))
+    fireEvent(second, new MouseEvent('pointerover', { bubbles: true, relatedTarget: first }))
+    const card = screen.getByText(/Last activity:/).closest('[data-slot="hover-card-content"]')!
+    expect(card).toHaveTextContent('Second preview')
+    expect(document.querySelectorAll('[data-slot="hover-card-content"]')).toHaveLength(1)
+    fireEvent.scroll(second.parentElement!)
+    expect(screen.queryByText(/Last activity:/)).not.toBeInTheDocument()
+    fireEvent(second, new MouseEvent('pointerout', { bubbles: true, relatedTarget: first }))
+    fireEvent(first, new MouseEvent('pointerover', { bubbles: true, relatedTarget: second }))
+    expect(screen.queryByText(/Last activity:/)).not.toBeInTheDocument()
+    await screen.findByText(/Last activity:/, undefined, { timeout: 3000 })
+  })
+
+  it('drops the work directory line when a task runs without one', async () => {
+    const user = userEvent.setup()
+    const source = {
+      ...(sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource']),
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'System workspace task',
+          workspace: makeWorkspace('', { id: 'ws-system', name: '', type: 'system' })
+        })
+      ]
+    }
+    render(<SessionsForTest agentSessionsSource={source} />)
+
+    await user.hover(screen.getByText('System workspace task'))
+    const activity = await screen.findByText(/Last activity:/, undefined, { timeout: 3000 })
+    const hoverCard = activity.closest('[data-slot="hover-card-content"]')!
+
+    expect(hoverCard).toHaveTextContent('System workspace task')
+    expect(hoverCard.querySelector('svg')).toBeNull()
   })
 
   it('never paints a workdir group as selected, collapsed or not', () => {
@@ -1530,23 +1623,37 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
   })
 
-  it('keeps a pinned session in its expanded agent group', () => {
+  it.each([false, true])('keeps a pinned session above its agent group (collapsed: %s)', (collapsed) => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: collapsed ? ['session:agent:agent-a'] : []
+    })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
       isLoading: false,
       error: undefined
     })
     setupSessions({
-      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a' })],
+      sessions: [
+        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a' }),
+        createSession({ id: 'session-regular', name: 'Regular session', agentId: 'agent-a' })
+      ],
       pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
     })
 
     render(<SessionsForTest />)
 
-    expect(screen.queryByRole('button', { name: 'Pinned' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
-    expect(screen.getByText('Pinned session')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+    const agentGroup = screen.getByRole('button', { name: 'Alpha agent' })
+    const pinnedSession = screen.getByText('Pinned session')
+    expect(screen.getAllByText('Pinned session')).toHaveLength(1)
+    expect(pinnedSession.compareDocumentPosition(agentGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    if (collapsed) {
+      expect(screen.queryByText('Regular session')).not.toBeInTheDocument()
+    } else {
+      expect(screen.getByText('Regular session')).toBeInTheDocument()
+    }
     expect(screen.queryByText('No tasks')).not.toBeInTheDocument()
   })
 
@@ -1566,6 +1673,25 @@ describe('Sessions', () => {
     expect(
       within(unlinkedAgentGroupRow as HTMLElement).queryByRole('button', { name: 'New task' })
     ).not.toBeInTheDocument()
+  })
+
+  it('labels an all-pinned orphan session list', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-orphan', name: 'Orphan session', agentId: null })],
+      pinIdBySessionId: new Map([['session-orphan', 'pin-session-orphan']])
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+    expect(screen.getByText('Orphan session')).toBeInTheDocument()
   })
 
   it('defaults agent display groups to collapsed before the user changes expansion', () => {
@@ -2367,7 +2493,7 @@ describe('Sessions', () => {
     expect(menuContent).toHaveTextContent('Open in New Window')
   })
 
-  it('keeps a pinned session aligned with its agent icon', () => {
+  it('does not reserve an agent icon slot for a pinned session', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }]
     setupSessions({
@@ -2378,11 +2504,10 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
-    // The leading slot is the horizontal alignment contract shared with the agent header icon.
-    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
   })
 
-  it('keeps the leading slot when agent icons are hidden', () => {
+  it('does not reserve a leading slot for a pinned session when agent icons are hidden', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     preferenceMocks.values.set('agent.icon_type', 'none')
     dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }]
@@ -2394,7 +2519,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
-    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
   })
 
   it('hides the inline delete action for pinned sessions', () => {

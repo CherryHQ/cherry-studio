@@ -1320,6 +1320,29 @@ export class AgentSessionService {
     return this.listIdsByAgentTx(application.get('DbService').getDb(), agentId)
   }
 
+  listSystemWorkspaceSessions(ids?: readonly string[]) {
+    if (ids?.length === 0) return []
+    return application
+      .get('DbService')
+      .getDb()
+      .select({
+        id: sessionsTable.id,
+        path: agentWorkspaceTable.path,
+        deletedAt: sessionsTable.deletedAt,
+        agentDeletedAt: agentsTable.deletedAt
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+      .where(
+        and(
+          eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM),
+          ids ? inArray(sessionsTable.id, [...ids]) : undefined
+        )
+      )
+      .all()
+  }
+
   listIdsByWorkspace(workspaceId: string): string[] {
     return application
       .get('DbService')

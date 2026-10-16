@@ -49,3 +49,53 @@ export async function fetchWebSearchContent(url: string, httpOptions: RequestIni
     throw error
   }
 }
+
+/** Fetch content for validated search-result URLs, keeping successes and surfacing aborts/total failure. */
+export async function fetchSearchResultContents(
+  urls: string[],
+  options: {
+    query: string
+    providerLabel: string
+    signal?: AbortSignal
+    getFallbackResult?: (url: string, index: number) => WebSearchResult | undefined
+  }
+): Promise<WebSearchResult[]> {
+  const { query, providerLabel, signal, getFallbackResult } = options
+
+  const settledResults = await Promise.allSettled(urls.map((url) => fetchWebSearchContent(url, { signal })))
+
+  const rejectedResults = settledResults.filter((item): item is PromiseRejectedResult => item.status === 'rejected')
+
+  const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
+
+  if (abortResult && signal?.aborted) {
+    throw abortResult.reason
+  }
+
+  if (rejectedResults.length > 0) {
+    logger.warn(`Some ${providerLabel} content fetches failed`, {
+      query,
+      failedCount: rejectedResults.length,
+      totalCount: urls.length
+    })
+  }
+
+  const fulfilledResults = settledResults.filter(
+    (item): item is PromiseFulfilledResult<WebSearchResult> => item.status === 'fulfilled'
+  )
+
+  const results = settledResults.flatMap((item, index) => {
+    if (item.status === 'fulfilled' && item.value.content.trim().length > 0) {
+      return [item.value]
+    }
+
+    const fallbackResult = getFallbackResult?.(urls[index], index)
+    return fallbackResult ? [fallbackResult] : []
+  })
+
+  if ((getFallbackResult ? results.length === 0 : fulfilledResults.length === 0) && rejectedResults.length > 0) {
+    throw rejectedResults[0].reason
+  }
+
+  return results
+}

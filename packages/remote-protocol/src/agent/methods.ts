@@ -21,7 +21,7 @@ import {
   uploadReferencesSchema,
   uploadStateSchema,
   uploadResumeSchema,
-  uploadWriterSchema
+  uploadCompleteSchema
 } from './uploads'
 
 const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
@@ -102,7 +102,7 @@ export const agentMethods = {
   'agent.uploads.prepare': method(uploadMetadataSchema, uploadStateSchema),
   'agent.uploads.get': method(uploadReferenceSchema, uploadStateSchema),
   'agent.uploads.resume': method(uploadResumeSchema, uploadStateSchema),
-  'agent.uploads.complete': method(uploadWriterSchema, uploadStateSchema),
+  'agent.uploads.complete': method(uploadCompleteSchema, uploadStateSchema),
   'agent.uploads.cancel': method(uploadReferenceSchema, z.looseObject({ cancelled: z.literal(true) })),
   'agent.messages.send': method(
     z
