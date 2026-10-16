@@ -76,6 +76,13 @@ import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
 
+/** Error-chunk text keeps its `StreamError` identity while gaining request-scoped serialization context. */
+function streamChunkError(errorText: string): Error {
+  const error = new Error(errorText)
+  error.name = 'StreamError'
+  return error
+}
+
 function serializeStreamError(error: unknown, exec: StreamExecution, request: ManagedAiStreamRequest) {
   return serializeError(error, exec.streamErrorSerialization ?? request.streamErrorSerialization)
 }
@@ -2055,7 +2062,7 @@ export class AiStreamManager extends BaseService {
       }
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow)
-          ? serializeStreamError(new Error(result.streamErrorText), exec, request)
+          ? serializeStreamError(streamChunkError(result.streamErrorText), exec, request)
           : fromThrow
       await this.onExecutionError(topicId, modelId, serialized, exec)
       return
@@ -2072,7 +2079,7 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionError(
         topicId,
         modelId,
-        serializeStreamError(new Error(result.streamErrorText), exec, request),
+        serializeStreamError(streamChunkError(result.streamErrorText), exec, request),
         exec
       )
     } else if (result.accumulationError !== undefined) {

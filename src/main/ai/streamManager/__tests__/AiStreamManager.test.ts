@@ -3169,7 +3169,7 @@ describe('AiStreamManager', () => {
   // A provider can emit a terminal `{ type: 'error', errorText }` chunk
   // instead of throwing. `pipeStreamLoop` captures it as `streamErrorText`,
   // and `runExecutionLoop` routes it through `onExecutionError` with the
-  // chunk text serialized via `serializeStreamError` (plain Error name/message).
+  // chunk text serialized via `serializeStreamError` (name: 'StreamError').
 
   describe('stream errors', () => {
     it.each(['clean', 'provider-error', 'source-error', 'abort'] as const)(

@@ -1827,19 +1827,19 @@ describe('AiService tool approval', () => {
       fileAttachments: []
     })
 
+    const streamErrorSerialization = {}
     const managedRequest = {
       conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message' as const,
-      messages: []
+      messages: [],
+      streamErrorSerialization
     }
-    const streamErrorSerialization = {}
-    managedRequest.streamErrorSerialization = streamErrorSerialization
 
     await service.streamText({
       ...managedRequest,
       streamErrorSerialization,
       requestOptions: { signal: new AbortController().signal }
-    } as never)
+    })
 
     const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
       onFallbackActivated: (fallback: { streamErrorSerialization: { ollamaNumCtx: object } }) => void
