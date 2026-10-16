@@ -46,7 +46,8 @@ const VISION_BATCH_SIZE = 6
 const RECOVERABLE_ANALYSIS_WARNINGS = new Set<MediaAnalysisWarningCode>([
   'audio_transcription_failed',
   'ocr_failed',
-  'vision_failed'
+  'vision_failed',
+  'visual_analysis_failed'
 ])
 
 export class MediaAnalysisError extends Error {
