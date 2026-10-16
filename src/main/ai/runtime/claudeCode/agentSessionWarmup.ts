@@ -13,6 +13,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { assertAgentGatewayModelAvailable } from '@main/ai/runtime/agentGatewayModelAvailability'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
@@ -717,6 +718,15 @@ function deriveRouteFacts(
   )
 
   if (shouldUseGateway) {
+    // Fail fast on stale/disabled/unroutable Agent models: every slot routes through the gateway.
+    // Agent traffic carries internal usage headers, so agent-only providers are allowed.
+    for (const ref of modelRefs) {
+      const address = `${ref.providerId}:${ref.apiModelId}`
+      if (!ref.provider || !ref.model) {
+        throw new Error(`Agent model "${address}" is not available: the configured provider or model no longer exists.`)
+      }
+      assertAgentGatewayModelAvailable(ref.provider, ref.model, address)
+    }
     return {
       branch: 'gateway',
       baseUrl: application.get('ApiGatewayService').getInternalGatewayOrigin(),

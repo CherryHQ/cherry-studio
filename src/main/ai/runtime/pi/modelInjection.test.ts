@@ -717,6 +717,17 @@ describe('Cherry Cloud Pi injection', () => {
     })
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
+
+  // #20285: stale gateway models fail fast with a configuration error, not a late gateway 400.
+  it('rejects disabled or unroutable gateway models before materialization', () => {
+    expect(() => buildPiGatewayInjection({ ...provider, isEnabled: false }, model, GATEWAY)).toThrow('is disabled')
+    expect(() => buildPiGatewayInjection(provider, { ...model, isEnabled: false }, GATEWAY)).toThrow(
+      'the model is disabled'
+    )
+    expect(() => buildPiGatewayInjection(provider, { ...model, capabilities: ['embedding'] }, GATEWAY)).toThrow(
+      'not available through the API gateway'
+    )
+  })
 })
 
 describe('Pi gateway fallback', () => {
@@ -747,7 +758,9 @@ describe('Pi gateway fallback', () => {
     serviceMocks.getByKey.mockReturnValue(cliModel)
     serviceMocks.getCurrentConfig.mockReturnValue({ enabled })
     await expect(assertPiProviderUsable('claude-code::claude')).rejects.toBeInstanceOf(PiUnsupportedProviderError)
-    expect(() => buildPiGatewayInjection(cliProvider, cliModel, GATEWAY)).toThrow(PiUnsupportedProviderError)
+    expect(() => buildPiGatewayInjection(cliProvider, cliModel, GATEWAY)).toThrow(
+      'not available through the API gateway'
+    )
     await expect(resolvePiProviderInjectionForSession('session-1', cliProvider, cliModel)).rejects.toBeInstanceOf(
       PiUnsupportedProviderError
     )
@@ -871,6 +884,16 @@ describe('modelInjection service resolution', () => {
     })
     serviceMocks.getByKey.mockReturnValueOnce(makeModel({ capabilities: ['embedding'] }))
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
+  })
+
+  // #20285: a disabled provider/model must surface as a configuration error before generation,
+  // not a late gateway 400.
+  it('rejects disabled providers and models with an actionable error', async () => {
+    serviceMocks.getByProviderId.mockReturnValueOnce({ id: 'p', isEnabled: false })
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow('provider "p" is disabled')
+
+    serviceMocks.getByKey.mockReturnValueOnce({ id: 'p::m', providerId: 'p', apiModelId: 'm', isEnabled: false })
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow('the model is disabled')
   })
 
   it('validates app-managed OAuth through its live session', async () => {

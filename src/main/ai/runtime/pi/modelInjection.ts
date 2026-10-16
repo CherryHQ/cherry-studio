@@ -17,6 +17,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { assertAgentGatewayModelAvailable } from '@main/ai/runtime/agentGatewayModelAvailability'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { isPiGatewayCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
@@ -252,6 +253,8 @@ export function buildPiGatewayInjection(
   model: Model,
   gateway: { baseUrl: string; apiKey: string; usageHeaders: Record<string, string> }
 ): PiGatewayProviderInjection {
+  const modelAddress = `${provider.id}:${getRawModelId(model)}`
+  assertAgentGatewayModelAvailable(provider, model, modelAddress)
   const resolvedEndpoint = resolvePiEndpoint(provider, model)
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
@@ -373,6 +376,15 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
 
+  const modelAddress = `${providerId}:${model.apiModelId ?? modelId}`
+  if (provider.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: provider "${providerId}" is disabled.`)
+  }
+  if (model.isEnabled === false) {
+    throw new Error(`Agent model "${modelAddress}" is not available: the model is disabled.`)
+  }
+
+  // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
   if (usesPiGateway(provider, model)) {
     if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(providerId)
     return
