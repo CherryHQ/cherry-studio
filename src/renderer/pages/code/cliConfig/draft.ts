@@ -18,7 +18,7 @@ import type {
   CliConfigWriteArgs,
   ResolvedCliConfigContext
 } from './types'
-import { firstApiKey } from './values'
+import { modelApiKey } from './values'
 
 const logger = loggerService.withContext('writeCliConfigDraft')
 
@@ -86,7 +86,7 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     throw new Error(`Provider not found: ${providerId}`)
   }
 
-  const apiKey = firstApiKey(apiKeysRes?.keys)
+  const apiKey = modelApiKey(apiKeysRes?.keys, modelRecord?.apiKeyId)
   // Keyless local servers (authOptional, e.g. Ollama, oMLX) need no real credential,
   // but the CLI SDKs still require a non-empty auth token — same per-provider
   // stand-in OpenClaw injects. Ollama-endpoint custom providers keep the

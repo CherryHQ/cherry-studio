@@ -159,7 +159,8 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'isEnabled',
       'isHidden',
       'isDeprecated',
-      'notes'
+      'notes',
+      'apiKeyId'
     ]
 
     const mappedDtoKeys = UPDATE_MODEL_FIELD_MAP.map((entry) => (Array.isArray(entry) ? entry[0] : entry))
@@ -458,6 +459,74 @@ describe('ModelService.update', () => {
 
     expect(row.name).toBe('GPT-4o')
     expect(row.isEnabled).toBe(false)
+  })
+
+  it('persists per-model api key routing on the user model row', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('openai', 'OpenAI'),
+      apiKeys: [
+        { id: 'key-a', key: 'sk-a', isEnabled: true },
+        { id: 'key-b', key: 'sk-b', isEnabled: true }
+      ]
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: ['function-call'],
+        supportsStreaming: true
+      })
+    )
+
+    const updated = modelService.update('openai', 'gpt-4o', { apiKeyId: 'key-b' })
+    expect(updated.apiKeyId).toBe('key-b')
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+    expect(row.apiKeyId).toBe('key-b')
+
+    const cleared = modelService.update('openai', 'gpt-4o', { apiKeyId: null })
+    expect(cleared.apiKeyId).toBeUndefined()
+  })
+
+  it('rejects an empty apiKeyId string', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('openai', 'OpenAI'),
+      apiKeys: [{ id: 'key-a', key: 'sk-a', isEnabled: true }]
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: ['function-call'],
+        supportsStreaming: true
+      })
+    )
+
+    expect(() => modelService.update('openai', 'gpt-4o', { apiKeyId: '' })).toThrow(
+      expect.objectContaining({ code: ErrorCode.INVALID_OPERATION })
+    )
+  })
+
+  it('rejects apiKeyId values that are not stored on the provider', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('openai', 'OpenAI'),
+      apiKeys: [{ id: 'key-a', key: 'sk-a', isEnabled: true }]
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: ['function-call'],
+        supportsStreaming: true
+      })
+    )
+
+    expect(() => modelService.update('openai', 'gpt-4o', { apiKeyId: 'missing-key' })).toThrow(
+      expect.objectContaining({ code: ErrorCode.INVALID_OPERATION })
+    )
   })
 
   it('updates isDeprecated without touching sparse deltas', async () => {
