@@ -1,4 +1,6 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
@@ -28,7 +30,7 @@ const {
     opts: undefined as
       | {
           listener?: StreamListener
-          callOverrides?: { providerOptions?: Record<string, Record<string, unknown>> }
+          callOverrides?: { providerOptions?: ProviderOptions }
           headers?: Record<string, string>
         }
       | undefined
@@ -110,10 +112,7 @@ beforeEach(() => {
   })
 })
 
-async function resolveRequest(
-  stream = false,
-  requestHeaders = new Headers()
-): Promise<Record<string, Record<string, unknown>> | undefined> {
+async function resolveRequest(stream = false, requestHeaders = new Headers()): Promise<ProviderOptions | undefined> {
   captured.opts = undefined
   const promise = processMessage({
     params: { model: `${PROVIDER_ID}:${MODEL_ID}`, messages: [], stream },
@@ -209,6 +208,55 @@ describe('processMessage internal Agent OpenRouter session routing', () => {
     mockExtractProviderOptions.mockReturnValue({ openrouter: { session_id: 'caller-session' } })
     expect((await resolveRequest())?.openrouter?.session_id).toBe('caller-session')
   })
+
+  it.each([
+    [false, 'x-session-id', false],
+    [true, 'x-session-id', false],
+    [false, 'X-Session-Id', false],
+    [true, 'X-Session-Id', false],
+    [false, 'x-session-id', true],
+    [true, 'x-session-id', true],
+    [false, 'X-Session-Id', true],
+    [true, 'X-Session-Id', true]
+  ] as const)(
+    'preserves Chat routing overrides: stream=%s provider=%s body=%s',
+    async (stream, headerName, explicitBody) => {
+      const extraHeaders = { [headerName]: 'provider-chosen' }
+      mockGetProvider().settings = { extraHeaders }
+      mockGetAgentSessionId.mockReturnValue('agent-session-1')
+      mockExtractProviderOptions.mockReturnValue({
+        openrouter: { reasoning: { effort: 'high' }, ...(explicitBody ? { session_id: 'caller-session' } : {}) }
+      })
+      const providerOptions = await resolveRequest(stream)
+
+      let upstreamHeaders: Headers | undefined
+      let upstreamBody: Record<string, unknown> | undefined
+      const model = createOpenRouter({
+        apiKey: 'test-key',
+        headers: extraHeaders,
+        fetch: async (_url, init) => {
+          upstreamHeaders = new Headers(init?.headers)
+          upstreamBody = JSON.parse(init?.body as string)
+          return stream
+            ? new Response('', { headers: { 'content-type': 'text/event-stream' } })
+            : Response.json({
+                id: 'gen-test',
+                created: 1,
+                model: MODEL_ID,
+                choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+              })
+        }
+      }).chat(MODEL_ID)
+      const options = { prompt: [], providerOptions }
+      if (stream) await model.doStream(options)
+      else await model.doGenerate(options)
+
+      expect(upstreamHeaders?.get('x-session-id')).toBe('provider-chosen')
+      expect(upstreamBody?.session_id).toBe(explicitBody ? 'caller-session' : undefined)
+      expect(upstreamBody?.reasoning).toEqual({ effort: 'high' })
+    }
+  )
 
   it('adds no session_id for sessionless requests or unrelated providers', async () => {
     expect((await resolveRequest())?.openrouter?.session_id).toBeUndefined()

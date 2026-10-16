@@ -39,6 +39,9 @@ export function applyAgentPromptCacheKey(
   const providerOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
   const namespace = providerOptions[providerOptionsKey]
   if (namespace?.[optionName] !== undefined) return providerOptions
+  if (optionName === 'session_id' && new Headers(provider.settings?.extraHeaders).has('x-session-id')) {
+    return providerOptions
+  }
 
   return {
     ...providerOptions,
