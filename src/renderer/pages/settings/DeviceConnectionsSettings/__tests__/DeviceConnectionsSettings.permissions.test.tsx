@@ -74,9 +74,12 @@ describe('Device connection capability revocation', () => {
       '{{capability}}',
       enUS['deviceConnections.capabilities.assistant']
     )
-    await userEvent.setup().click(await screen.findByRole('button', { name: label }))
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: enUS['common.more'] }))
+    await user.click(await screen.findByRole('menuitem', { name: label }))
     expect(screen.getByText('My phone')).toBeVisible()
     expect(screen.getByText(enUS['deviceConnections.capabilities.agent'])).toBeVisible()
-    expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: enUS['common.more'] }))
+    expect(screen.queryByRole('menuitem', { name: label })).not.toBeInTheDocument()
   })
 })
