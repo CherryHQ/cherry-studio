@@ -47,6 +47,7 @@ type Props = {
   openBrowserUrl?: MessageListActions['openBrowserUrl']
   openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  previewInputFile?: MessageListActions['previewInputFile']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
@@ -72,6 +73,7 @@ const AgentSessionMessages = ({
   openBrowserUrl,
   openExternalUrl,
   openDiagnosticReport,
+  previewInputFile,
   deleteMessage,
   startEditing,
   editBusy,
@@ -155,6 +157,7 @@ const AgentSessionMessages = ({
     openExternalUrl,
     openDiagnosticReport,
     diagnosticReport,
+    previewInputFile,
     deleteMessage,
     startEditing,
     editBusy,
