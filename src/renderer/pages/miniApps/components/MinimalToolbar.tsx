@@ -8,6 +8,7 @@ import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { MiniAppDebuggingIndicator } from '@renderer/components/MiniApp/MiniAppDebuggingIndicator'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
@@ -258,6 +259,7 @@ const MinimalToolbar: FC<Props> = ({
         </form>
       )}
 
+      <MiniAppDebuggingIndicator appId={app.appId} />
       <div className="ml-auto flex shrink-0 items-center">
         <div className="flex items-center gap-0.5">
           <Tooltip content={t(splitLabelKey)} placement="bottom">

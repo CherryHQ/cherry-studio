@@ -29,6 +29,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://open.cherryin.ai/console/token",
+          "billing": "https://open.cherryin.ai/console/topup",
           "docs": "https://open.cherryin.ai",
           "models": "https://open.cherryin.ai/pricing",
           "official": "https://open.cherryin.ai"
@@ -295,6 +296,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.deepseek.com/api_keys",
+          "billing": "https://platform.deepseek.com/top_up",
           "docs": "https://api-docs.deepseek.com/",
           "models": "https://api-docs.deepseek.com/",
           "official": "https://deepseek.com/"
@@ -876,6 +878,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://console.anthropic.com/settings/keys",
+          "billing": "https://platform.claude.com/settings/billing",
           "docs": "https://docs.anthropic.com/en/docs",
           "models": "https://docs.anthropic.com/en/docs/about-claude/models",
           "official": "https://anthropic.com/"
@@ -1177,6 +1180,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.openai.com/api-keys",
+          "billing": "https://platform.openai.com/settings/organization/billing/overview",
           "docs": "https://platform.openai.com/docs",
           "models": "https://platform.openai.com/docs/models",
           "official": "https://openai.com/"
@@ -2513,6 +2517,10 @@
           "adapterFamily": "anthropic",
           "baseUrl": "https://router.huggingface.co/v1/"
         },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.huggingface.co/v1"
+        },
         "openai-responses": {
           "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
@@ -2718,5 +2726,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "932c0006165e4fcb"
+  "version": "1b44511badb438e6"
 }

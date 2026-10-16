@@ -212,6 +212,11 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
       }
     ]
   },
+  duckduckgo: {
+    name: 'DuckDuckGo',
+    type: 'api',
+    capabilities: [{ feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }]
+  },
   serply: {
     name: 'Serply',
     type: 'api',

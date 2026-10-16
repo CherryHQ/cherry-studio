@@ -207,6 +207,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // meituan
   { pattern: '^longcat-2[.-]0$', toggle: true },
   // meta
+  { pattern: '^muse-spark-open(?:-|$)', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
   { pattern: '^muse-spark' },
   // minimax
   { pattern: '^minimax-m3[.-]1-flash-preview$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
