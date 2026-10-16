@@ -13,7 +13,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { getSessionEffectivePermissionMode } from '@main/ai/agentSession/sessionPermissionOverrides'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
