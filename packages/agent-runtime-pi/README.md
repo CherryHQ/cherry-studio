@@ -238,9 +238,11 @@ handles.
   call for). The host sees a withdrawal as a run that ends aborted (`turn-complete` with
   `aborted: true`) right after that round's prompt, its reply `stopReason: 'error'` with the
   message `This operation was aborted`; it should show it as a withdrawn round, not as a failure or
-  a stop the user made. A round prompt Pi committed but never sent on (another extension vetoed the
-  continuation, or the run was aborted at the settle) stays in the transcript and is left out of
-  later model requests and of the verifier's conversation; the compaction summarizer still reads it.
+  a stop the user made. A round has run once a snapshot names its id (`admittedRound`, the round
+  message's `details.id`). A round prompt no snapshot names (another extension vetoed the
+  continuation, the run was aborted at the settle, or the round was withdrawn) stays in the
+  transcript and is left out of later model requests and of the verifier's conversation; the
+  compaction summarizer still reads it.
   `update_goal(complete)` passes the host's `GoalVerifier` (it
   gets the full current context, after compaction, and the call's `signal`; the package sets no
   timeout) or, without one, needs evidence and a round that changed something. An accepted
