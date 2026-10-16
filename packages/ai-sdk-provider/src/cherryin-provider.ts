@@ -15,6 +15,7 @@ import {
   APICallError,
   type EmbeddingModelV3,
   type ImageModelV3,
+  type JSONObject,
   type JSONValue,
   type LanguageModelV3,
   type ProviderV3,
@@ -296,7 +297,9 @@ function extractSingleImage(item: unknown): string | undefined {
   return undefined
 }
 
-function extractImageStrings(raw: unknown): string[] {
+type ExtractedImage = { image: string; item: unknown }
+
+function extractImageEntries(raw: unknown): ExtractedImage[] {
   const containers = Array.isArray(raw)
     ? [raw]
     : raw && typeof raw === 'object'
@@ -307,14 +310,86 @@ function extractImageStrings(raw: unknown): string[] {
           return []
         })
       : []
-  const images: string[] = []
+  const images: ExtractedImage[] = []
   for (const items of containers) {
     for (const item of items) {
       const single = extractSingleImage(item)
-      if (single) images.push(single)
+      if (single) images.push({ image: single, item })
     }
   }
   return images
+}
+
+/** Per-image OpenAI metadata for leniently recovered images, mirroring the strict SDK shape. */
+function recoveredImageMetadata(raw: unknown, entries: ExtractedImage[]): JSONObject[] {
+  const record = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
+  const shared: JSONObject = {}
+  for (const [key, value] of [
+    ['created', record.created],
+    ['size', record.size],
+    ['quality', record.quality],
+    ['background', record.background],
+    ['outputFormat', record.output_format ?? record.outputFormat]
+  ] as const) {
+    if (typeof value === 'string' || typeof value === 'number') shared[key] = value
+  }
+  return entries.map(({ item }) => {
+    const itemRecord = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+    const revisedPrompt = itemRecord.revised_prompt ?? itemRecord.revisedPrompt
+    return {
+      ...(typeof revisedPrompt === 'string' && revisedPrompt ? { revisedPrompt } : {}),
+      ...shared
+    }
+  })
+}
+
+/**
+ * Call-setting warnings the strict OpenAI image model emits before its request. A strict-parser
+ * failure throws them away with the result, so a recovered result re-derives them.
+ */
+function openAIImageCallWarnings(options: Parameters<ImageModelV3['doGenerate']>[0]): TolerantImageWarnings {
+  const warnings: TolerantImageWarnings = []
+  if (options.aspectRatio != null) {
+    warnings.push({
+      type: 'unsupported',
+      feature: 'aspectRatio',
+      details: 'This model does not support aspect ratio. Use `size` instead.'
+    })
+  }
+  if (options.seed != null) warnings.push({ type: 'unsupported', feature: 'seed' })
+  return warnings
+}
+
+/**
+ * Read a response body as text, giving up once it exceeds `maxBytes` so an oversized body is
+ * never fully buffered. Returns `undefined` when the cap was exceeded.
+ */
+async function readCappedText(
+  response: Response,
+  maxBytes: number
+): Promise<{ text: string } | { skippedBytes: number }> {
+  const body = response.body
+  if (!body) return { text: await response.text() }
+  const reader = body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      return { skippedBytes: total }
+    }
+    chunks.push(value)
+  }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return { text: new TextDecoder().decode(bytes) }
 }
 
 function summarizeImageBody(parsed: unknown): Record<string, unknown> {
@@ -359,6 +434,7 @@ function extractImageUsage(
 }
 
 type TolerantImageResult = Awaited<ReturnType<ImageModelV3['doGenerate']>>
+type TolerantImageWarnings = TolerantImageResult['warnings']
 
 // CherryIN fronts several image backends, so a 200 can carry pixels under a key
 // the strict SDK schema rejects; retain the body and re-parse leniently.
@@ -379,6 +455,7 @@ function withTolerantOpenAIImageResponse(
       let capture: Promise<string> | undefined
       let captureHeaders: Record<string, string> = {}
       let captureUrl = ''
+      let captureStatus = 200
       let skippedBytes: number | undefined
       const capturingFetch: FetchFunction = async (input, init) => {
         const response = await (config.fetch ?? fetch)(input, init)
@@ -387,6 +464,7 @@ function withTolerantOpenAIImageResponse(
           return response
         }
         captureUrl = urlText
+        captureStatus = response.status
         try {
           captureHeaders = Object.fromEntries(response.headers.entries())
         } catch {
@@ -398,19 +476,18 @@ function withTolerantOpenAIImageResponse(
             skippedBytes = declared
             return response
           }
-          capture = response
-            .clone()
-            .text()
-            .then(
-              (text) => {
-                if (text.length > MAX_IMAGE_RESPONSE_CAPTURE_BYTES) {
-                  skippedBytes = text.length
-                  return ''
-                }
-                return text
-              },
-              () => ''
-            )
+          // Stream the clone with a running byte count so an undeclared oversized body is
+          // abandoned at the cap instead of being fully buffered first.
+          capture = readCappedText(response.clone(), MAX_IMAGE_RESPONSE_CAPTURE_BYTES).then(
+            (read) => {
+              if ('skippedBytes' in read) {
+                skippedBytes = read.skippedBytes
+                return ''
+              }
+              return read.text
+            },
+            () => ''
+          )
         } catch {
           // Capture is best-effort; the SDK response stays usable without it.
         }
@@ -423,8 +500,8 @@ function withTolerantOpenAIImageResponse(
         cause: unknown
       ): APICallError =>
         new APICallError({
-          message: `CherryIN image response (HTTP 200) contained no recognizable image data ${JSON.stringify(shape)}. The upstream generation may have been billed; retrying starts a new billable generation.`,
-          statusCode: 200,
+          message: `CherryIN image response (HTTP ${captureStatus}) contained no recognizable image data ${JSON.stringify(shape)}. The upstream generation may have been billed; retrying starts a new billable generation.`,
+          statusCode: captureStatus,
           url: captureUrl,
           responseHeaders: captureHeaders,
           ...(rawText && rawText.length <= 2000 ? { responseBody: rawText } : {}),
@@ -433,13 +510,13 @@ function withTolerantOpenAIImageResponse(
           ...(cause === undefined ? {} : { cause: cause instanceof Error ? cause : new Error(String(cause)) })
         })
       const recoveredResult = (
-        images: string[],
+        entries: ExtractedImage[],
         raw: unknown,
-        warnings: TolerantImageResult['warnings']
+        warnings: TolerantImageWarnings
       ): TolerantImageResult => {
         const usage = extractImageUsage(raw)
         return {
-          images,
+          images: entries.map((entry) => entry.image),
           warnings,
           ...(usage
             ? {
@@ -451,26 +528,29 @@ function withTolerantOpenAIImageResponse(
               }
             : {}),
           response: { timestamp: currentDate(), modelId, headers: captureHeaders },
-          providerMetadata: { openai: { images: images.map(() => ({})) } }
+          providerMetadata: { openai: { images: recoveredImageMetadata(raw, entries) } }
         }
       }
-      const parseCapturedBody = async (): Promise<{ rawText: string; parsed: unknown } | undefined> => {
+      const parseCapturedBody = async (): Promise<
+        { rawText: string; parsed: unknown } | { rawText: string; unparsable: true } | undefined
+      > => {
         const rawText = capture ? await capture : ''
         if (!rawText) return undefined
         try {
           return { rawText, parsed: JSON.parse(rawText) }
         } catch {
-          return undefined
+          return { rawText, unparsable: true }
         }
       }
-      const recoverOrThrow = async (
-        cause: unknown,
-        warnings: TolerantImageResult['warnings']
-      ): Promise<TolerantImageResult> => {
+      const recoverOrThrow = async (cause: unknown, warnings: TolerantImageWarnings): Promise<TolerantImageResult> => {
         const captured = await parseCapturedBody()
+        if (captured && 'unparsable' in captured) {
+          // A successful status with a non-JSON body may still have been billed.
+          throw noImageError({ capture: 'unparsable', length: captured.rawText.length }, captured.rawText, cause)
+        }
         if (captured) {
-          const images = extractImageStrings(captured.parsed)
-          if (images.length > 0) return recoveredResult(images, captured.parsed, warnings)
+          const entries = extractImageEntries(captured.parsed)
+          if (entries.length > 0) return recoveredResult(entries, captured.parsed, warnings)
           throw noImageError(summarizeImageBody(captured.parsed), captured.rawText, cause)
         }
         if (skippedBytes !== undefined) {
@@ -479,20 +559,37 @@ function withTolerantOpenAIImageResponse(
         if (cause !== undefined) throw cause
         throw noImageError({ capture: 'unavailable' }, undefined, cause)
       }
+      let result: TolerantImageResult
       try {
-        const result = await delegate.doGenerate(options)
-        // The strict schema accepts any string as `b64_json`, including a
-        // non-image `data:` URI; empty results and those both carry no pixels.
-        const images = (result.images as unknown[]).filter(
-          (image) =>
-            typeof image !== 'string' || !image.startsWith('data:') || image.toLowerCase().startsWith('data:image/')
-        ) as typeof result.images
-        if (images.length === 0) return await recoverOrThrow(undefined, result.warnings)
-        if (images.length !== result.images.length) return { ...result, images }
-        return result
+        result = await delegate.doGenerate(options)
       } catch (error) {
         if (!isImageResponseError(error)) throw error
-        return await recoverOrThrow(error, [])
+        return await recoverOrThrow(error, openAIImageCallWarnings(options))
+      }
+      // Outside the try: a terminal no-image error from recovery must not be caught and re-parsed.
+      // The strict schema accepts any string as `b64_json`, including a non-image `data:` URI;
+      // empty results and those both carry no pixels.
+      const keep = (result.images as unknown[]).map(
+        (image) =>
+          typeof image !== 'string' || !image.startsWith('data:') || image.toLowerCase().startsWith('data:image/')
+      )
+      const keptCount = keep.filter(Boolean).length
+      if (keptCount === 0) return await recoverOrThrow(undefined, result.warnings)
+      if (keptCount === result.images.length) return result
+      const images = (result.images as unknown[]).filter((_, index) => keep[index]) as typeof result.images
+      // Drop the filtered images' metadata at the same indices so the two stay aligned.
+      const openaiMetadata = result.providerMetadata?.openai
+      const metadataImages = openaiMetadata?.images
+      if (!openaiMetadata || !Array.isArray(metadataImages) || metadataImages.length !== keep.length) {
+        return { ...result, images }
+      }
+      return {
+        ...result,
+        images,
+        providerMetadata: {
+          ...result.providerMetadata,
+          openai: { ...(openaiMetadata as JSONObject), images: metadataImages.filter((_, index) => keep[index]) }
+        }
       }
     }
   }

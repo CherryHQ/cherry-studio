@@ -204,6 +204,134 @@ describe('CherryIN OpenAI image responses', () => {
     expect((error as { isRetryable?: boolean }).isRetryable).toBe(false)
   })
 
+  it('stops buffering an undeclared oversized body at the capture cap', async () => {
+    const chunk = new TextEncoder().encode('a'.repeat(1024 * 1024))
+    const totalChunks = 40
+    let pulled = 0
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(
+      fetchReturning(
+        () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              pull(controller) {
+                if (pulled >= totalChunks) return controller.close()
+                pulled++
+                controller.enqueue(chunk)
+              }
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+      )
+    )
+
+    const error = await Promise.resolve(imageModel(fetchMock).doGenerate(generateOptions('a cat'))).catch(
+      (cause: unknown) => cause
+    )
+
+    expect((error as Error).message).toMatch('may have been billed')
+    expect((error as Error).message).toMatch('skipped-over-cap')
+  })
+
+  it('throws the terminal no-image error once instead of re-parsing it as a strict-parser failure', async () => {
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(fetchReturning(() => jsonResponse({ data: [] })))
+
+    const error = await Promise.resolve(imageModel(fetchMock).doGenerate(generateOptions('a cat'))).catch(
+      (cause: unknown) => cause
+    )
+
+    expect((error as Error).message).toMatch('no recognizable image data')
+    // A re-entered recovery would wrap the first no-image error as the cause of a second one.
+    expect((error as { cause?: unknown }).cause).toBeUndefined()
+  })
+
+  it('keeps OpenAI image metadata on a leniently recovered image', async () => {
+    const payload = `${toB64('metadata-image-bytes-')}${'a'.repeat(200)}`
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(
+      fetchReturning(() =>
+        jsonResponse({
+          created: 1700000000,
+          size: '1024x1024',
+          quality: 'high',
+          output_format: 'png',
+          data: [{ base64_json: payload, revised_prompt: 'a fluffy cat' }]
+        })
+      )
+    )
+
+    const result = await imageModel(fetchMock).doGenerate(generateOptions('a cat'))
+
+    expect(result.providerMetadata?.openai).toEqual({
+      images: [
+        { revisedPrompt: 'a fluffy cat', created: 1700000000, size: '1024x1024', quality: 'high', outputFormat: 'png' }
+      ]
+    })
+  })
+
+  it('keeps call-setting warnings when recovery follows a strict-parser failure', async () => {
+    const url = 'https://cdn.example.com/generated.png'
+    const fetchMock = vi
+      .fn<FetchFunction>()
+      .mockImplementation(fetchReturning(() => jsonResponse({ images: [{ url }] })))
+
+    const result = await imageModel(fetchMock).doGenerate({ ...generateOptions('a cat'), aspectRatio: '16:9', seed: 1 })
+
+    expect(result.images).toEqual([url])
+    expect(result.warnings).toEqual([
+      expect.objectContaining({ type: 'unsupported', feature: 'aspectRatio' }),
+      { type: 'unsupported', feature: 'seed' }
+    ])
+  })
+
+  it('drops metadata together with a filtered non-image entry so the two stay aligned', async () => {
+    const payload = toB64('kept-image-bytes')
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(
+      fetchReturning(() =>
+        jsonResponse({
+          data: [
+            { b64_json: 'data:text/plain,upstream error', revised_prompt: 'dropped' },
+            { b64_json: payload, revised_prompt: 'kept' }
+          ]
+        })
+      )
+    )
+
+    const result = await imageModel(fetchMock).doGenerate({ ...generateOptions('two cats'), n: 2 })
+
+    expect(result.images).toEqual([payload])
+    const images = result.providerMetadata?.openai?.images as Array<{ revisedPrompt?: string }> | undefined
+    expect(images).toHaveLength(1)
+    expect(images?.[0]?.revisedPrompt).toBe('kept')
+  })
+
+  it('reports the actual successful status in the billing-aware error', async () => {
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(fetchReturning(() => jsonResponse({ data: [] }, 201)))
+
+    const error = await Promise.resolve(imageModel(fetchMock).doGenerate(generateOptions('a cat'))).catch(
+      (cause: unknown) => cause
+    )
+
+    expect((error as { statusCode?: number }).statusCode).toBe(201)
+    expect((error as Error).message).toMatch('HTTP 201')
+  })
+
+  it('raises the billing-aware error for an unparsable successful body', async () => {
+    const fetchMock = vi
+      .fn<FetchFunction>()
+      .mockImplementation(
+        fetchReturning(
+          () => new Response('<html>ok</html>', { status: 200, headers: { 'content-type': 'application/json' } })
+        )
+      )
+
+    const error = await Promise.resolve(imageModel(fetchMock).doGenerate(generateOptions('a cat'))).catch(
+      (cause: unknown) => cause
+    )
+
+    expect((error as Error).message).toMatch('may have been billed')
+    expect((error as Error).message).toMatch('unparsable')
+    expect((error as { isRetryable?: boolean }).isRetryable).toBe(false)
+  })
+
   it('leaves a 504 gateway timeout untouched', async () => {
     const fetchMock = vi
       .fn<FetchFunction>()
