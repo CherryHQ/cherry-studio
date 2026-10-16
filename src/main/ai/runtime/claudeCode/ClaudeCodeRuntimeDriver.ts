@@ -367,8 +367,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // the model captured when that turn was created, even if the agent was edited since. The same
     // holds for the agent identity — a turn already accepted under this connection's agent keeps
     // that agent's instructions/tools even if the session row was re-pointed meanwhile.
-    // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
-    // also serves best-effort prewarm, which must never surface UI.
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
@@ -377,12 +375,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
       this.input.agentId
-    ).catch((error) => {
-      if (error instanceof ApiGatewayNotRunningError) {
-        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-      }
-      throw error
-    })
+    )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
