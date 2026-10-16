@@ -277,7 +277,13 @@ describe('pairing-time capability authorization', () => {
     await request(connection, 'connection.hello', { protocolVersions: [2] })
     await request(connection, 'connection.authenticate', { deviceId: approved.device.id })
     const intakeWrite = vi.mocked(application.get('FileIntakeService').write)
-    intakeWrite.mockResolvedValue({ uploadId: 'upload', writerEpoch: '0', committedOffset: '1' })
+    intakeWrite.mockResolvedValue({
+      uploadId: 'upload',
+      writerEpoch: '0',
+      committedOffset: '1',
+      state: 'receiving',
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
     const chunk = {
       kind: 'upload' as const,
       uploadId: 'upload',

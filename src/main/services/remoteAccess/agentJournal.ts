@@ -929,7 +929,7 @@ export class RemoteAgentHub {
     }
   }
 
-  private enforceReplayBudget(maxBytes = remoteLimits.globalReplayBytes): void {
+  private enforceReplayBudget(maxBytes: number = remoteLimits.globalReplayBytes): void {
     const journals = [...this.journals.values()].sort((a, b) => a.oldestReplayAt - b.oldestReplayAt)
     let excess = journals.reduce((bytes, journal) => bytes + journal.replayBytes, 0) - maxBytes
     for (const journal of journals) {

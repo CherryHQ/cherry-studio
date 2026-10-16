@@ -245,7 +245,7 @@ export class TopicJournal implements StreamListener {
           replaced = true
         }
       } else this.append({ kind: 'part.updated', messageId, afterPartId, part })
-      if (replaced && 'content' in part && 'ref' in part.content)
+      if (replaced && part.kind !== 'file' && 'ref' in part.content)
         this.pins.set(`${partId}:${part.revision}`, { bytes: utf8(text), seq: this.seq })
       this.parts.set(partId, { messageId, part, text })
       this.trimReplay(remoteLimits.replayBytes)
@@ -358,7 +358,7 @@ export class TopicJournal implements StreamListener {
       items.push({ kind: 'message', value: { ...message, partIds: [] } })
       for (const partId of message.partIds) {
         const { part, text } = this.parts.get(partId)!
-        if ('content' in part && 'ref' in part.content) content.set(`${part.partId}:${part.revision}`, utf8(text))
+        if (part.kind !== 'file' && 'ref' in part.content) content.set(`${part.partId}:${part.revision}`, utf8(text))
         items.push({ kind: 'part', messageId: message.messageId, value: part })
       }
     }
@@ -486,7 +486,7 @@ export class RemoteAssistantHub {
       }
     }
   }
-  private enforceBudget(maxBytes = remoteLimits.globalReplayBytes): void {
+  private enforceBudget(maxBytes: number = remoteLimits.globalReplayBytes): void {
     let excess = [...this.journals.values()].reduce((bytes, journal) => bytes + journal.replayBytes, 0) - maxBytes
     for (const journal of this.journals.values()) {
       if (excess <= 0) break

@@ -232,8 +232,7 @@ export function readAssistantContent(params: AssistantParams<'assistant.content.
   const messageId = params.contentId.split(':')[0]
   const message = getBranchMessage(params.topicId, messageId)
   const approval = message.data.parts?.find(
-    (part) =>
-      isToolUIPart(part) && 'approval' in part && `${message.id}:approval:${part.approval.id}` === params.contentId
+    (part) => isToolUIPart(part) && part.approval && `${message.id}:approval:${part.approval.id}` === params.contentId
   )
   if (approval && isToolUIPart(approval)) return utf8(JSON.stringify(approval.input ?? null))
   const projected = projectPersistedParts(message, params.revision).find(({ part }) => part.partId === params.contentId)

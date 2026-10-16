@@ -21,6 +21,7 @@ import { FileIntakeError } from '@main/services/file'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { createAssistantSubscriptions, registerAssistantMethods } from '../assistantHandlers'
 import { RemoteAssistantHub } from '../assistantJournal'
@@ -58,6 +59,8 @@ function seedAssistant(db: ReturnType<typeof setupTestDatabase>['db']) {
       providerId: 'openai',
       modelId: 'gpt-4o',
       name: 'GPT-4o',
+      capabilities: [],
+      supportsStreaming: true,
       isEnabled: true,
       orderKey: 'a0'
     })
@@ -262,7 +265,7 @@ describe('Remote Assistant attachments', () => {
     const root = await mkdtemp(path.join(tmpdir(), 'assistant-attachment-'))
     const { topic, call, send, dispose } = setup()
     try {
-      const physical = path.join(root, 'report.txt')
+      const physical = AbsoluteFilePathSchema.parse(path.join(root, 'report.txt'))
       await writeFile(physical, bytes)
       vi.mocked(application.get('FileManager').getPhysicalPath).mockReturnValue(physical)
       vi.mocked(application.get('FileIntakeService').withEntries).mockImplementation(
@@ -288,7 +291,7 @@ describe('Remote Assistant attachments', () => {
         ref: { sha256: entry.sha256, byteLength: String(bytes.length) }
       })
       const stored = messageService.getById(user.messageId).data.parts?.[1]
-      expect(stored && readCherryMeta(stored)?.fileEntryId).toBe(entry.entryId)
+      expect(stored?.type === 'file' && readCherryMeta(stored)?.fileEntryId).toBe(entry.entryId)
 
       const read = { ...scope, contentId: parts[1].ref.contentId, offset: '0', maxBytes: 24576 }
       const page = (await call('assistant.content.read', { ...read, revision: parts[1].ref.revision })).result

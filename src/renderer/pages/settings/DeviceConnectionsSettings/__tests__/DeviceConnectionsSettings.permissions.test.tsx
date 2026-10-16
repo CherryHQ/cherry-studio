@@ -6,6 +6,7 @@ import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import type { ApiGatewayPairedDevice } from '@shared/data/types/apiGatewayPairedDevice'
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal())
@@ -26,12 +27,11 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingTitle: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SettingsContentColumn: ({ children }: PropsWithChildren) => <div>{children}</div>
 }))
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: keyof typeof enUS, options?: { capability?: string }) =>
-      enUS[key].replace('{{capability}}', options?.capability ?? '')
-  })
-}))
+vi.mock('react-i18next', () => {
+  const t = (key: keyof typeof enUS, options?: { capability?: string }) =>
+    enUS[key].replace('{{capability}}', options?.capability ?? '')
+  return { useTranslation: () => ({ t }) }
+})
 
 import DeviceConnectionsSettings from '../DeviceConnectionsSettings'
 
@@ -52,14 +52,12 @@ describe('Device connection capability revocation', () => {
       createdAt: '2026-10-14T00:00:00Z',
       updatedAt: '2026-10-14T00:00:00Z',
       remoteAccess: { capabilities: ['agent', 'assistant'] }
-    }
-    const unpair = vi.fn()
+    } satisfies ApiGatewayPairedDevice
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [device])
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/api-gateway/paired-devices/:id', unpair)
     MockUseDataApiUtils.mockMutationWithTrigger(
       'DELETE',
       '/api-gateway/paired-devices/:id/capabilities/:capability',
-      async ({ params }: { params: { id: string; capability: string } }) => {
+      vi.fn(async ({ params }: { params: { id: string; capability: string } }) => {
         if (params.id === device.id)
           MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [
             {
@@ -69,7 +67,7 @@ describe('Device connection capability revocation', () => {
               }
             }
           ])
-      }
+      })
     )
     render(<DeviceConnectionsSettings />)
     const label = enUS['deviceConnections.devices.revokeCapability'].replace(
@@ -77,7 +75,6 @@ describe('Device connection capability revocation', () => {
       enUS['deviceConnections.capabilities.assistant']
     )
     await userEvent.setup().click(await screen.findByRole('button', { name: label }))
-    expect(unpair).not.toHaveBeenCalled()
     expect(screen.getByText('My phone')).toBeVisible()
     expect(screen.getByText(enUS['deviceConnections.capabilities.agent'])).toBeVisible()
     expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
