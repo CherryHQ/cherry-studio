@@ -166,11 +166,13 @@ export function extractHtmlDocument(): DocumentModel {
         warnings.add('complex_layout')
       return Array.from(element.children).flatMap((child) => {
         const blocks = walk(child, listDepth + 1)
-        if (tag === 'OL') {
-          if (child.hasAttribute('value')) number = Number(child.getAttribute('value'))
-          const first = blocks.find((block) => block.type !== 'columns' && block.bullet === listDepth + 1)
-          if (first && first.type !== 'columns') first.orderedNumber = number++
-        }
+        const style = getComputedStyle(child)
+        if (tag !== 'OL' || child.tagName !== 'LI' || style.display === 'none' || style.visibility === 'hidden')
+          return blocks
+        if (child.hasAttribute('value')) number = Number(child.getAttribute('value'))
+        const first = findMarker(blocks, listDepth + 1)
+        if (first) first.orderedNumber = number
+        number++
         return blocks
       })
     }
@@ -178,13 +180,14 @@ export function extractHtmlDocument(): DocumentModel {
       const inner = contained(element, listDepth)
       if (!listDepth) return inner
       let opened = false
-      return inner.map((block) => {
-        if (block.type === 'columns') return block
+      const visit = (block: DocumentBlock): DocumentBlock => {
+        if (block.type === 'columns') return { ...block, columns: block.columns.map((column) => column.map(visit)) }
         if ((block.listDepth ?? 0) > listDepth || (block.bullet ?? 0) > listDepth) return block
         const itemStart = !opened
         opened = true
         return place(block, listDepth, itemStart)
-      })
+      }
+      return inner.map(visit)
     }
     if (['absolute', 'fixed', 'sticky'].includes(css.position) || css.transform !== 'none' || css.filter !== 'none')
       warnings.add('complex_layout')
@@ -211,6 +214,23 @@ export function extractHtmlDocument(): DocumentModel {
     } else if (/^H[1-6]$/.test(tag) && (css.display === 'flex' || css.display === 'grid'))
       warnings.add('complex_layout')
     return contained(element, listDepth)
+
+    function findMarker(
+      blocks: DocumentBlock[],
+      depth: number
+    ): Exclude<DocumentBlock, { type: 'columns' }> | undefined {
+      for (const block of blocks) {
+        if (block.type === 'columns') {
+          for (const column of block.columns) {
+            const found = findMarker(column, depth)
+            if (found) return found
+          }
+          continue
+        }
+        if (block.bullet === depth) return block
+      }
+      return undefined
+    }
 
     function place(block: DocumentBlock, depth: number, itemStart: boolean): DocumentBlock {
       if (block.type === 'columns') return block

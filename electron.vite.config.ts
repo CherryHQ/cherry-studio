@@ -186,7 +186,8 @@ export default defineConfig({
     },
     build: {
       externalizeDeps: {
-        include: mainExternalModules
+        include: mainExternalModules,
+        exclude: ['@cherrystudio/spreadsheet']
       },
       lib: { entry: resolve(__dirname, 'src/main/main.ts') },
       rolldownOptions: {

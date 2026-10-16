@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import JSZip from 'jszip'
+import sharp from 'sharp'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { readWorkbook } from '@cherrystudio/spreadsheet'
@@ -253,7 +254,102 @@ describe('HTML layout text extraction', () => {
     expect(runs.find((run) => run.text === 'tail')).toMatchObject({ bold: true })
     expect(runs.some((run) => run.text.includes('\n') && run.bold)).toBe(false)
   })
+
+  it.each([
+    [
+      'columns then a normal item',
+      '<ol start="4"><li><div style="display:flex"><div>Left</div><div>Right</div></div></li><li>Next</li></ol>',
+      [
+        { type: 'text', text: 'Left', bullet: 1, orderedNumber: 4, listDepth: 1 },
+        { type: 'text', text: 'Right', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+        { type: 'text', text: 'Next', bullet: 1, orderedNumber: 5, listDepth: 1 }
+      ]
+    ],
+    [
+      'nested columns',
+      '<ol start="4"><li><div style="display:flex"><div><div style="display:flex"><div>A</div><div>B</div></div></div><div>C</div></div></li><li>Next</li></ol>',
+      [
+        { type: 'text', text: 'A', bullet: 1, orderedNumber: 4, listDepth: 1 },
+        { type: 'text', text: 'B', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+        { type: 'text', text: 'C', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+        { type: 'text', text: 'Next', bullet: 1, orderedNumber: 5, listDepth: 1 }
+      ]
+    ]
+  ])('numbers %s on the first column leaf', async (_label, html, leaves) => {
+    document.body.innerHTML = html
+    const blocks = extractHtmlDocument().blocks
+    expect(blocks[0]).toMatchObject({ type: 'columns', widths: [expect.any(Number), expect.any(Number)] })
+    expect(listLeaves(blocks).map(blockShape)).toEqual(leaves)
+    expect(parseMarkdown(documentToMarkdown(blocks, (source) => source)).map(blockShape)).toEqual(leaves)
+    await expectOrderedStarts(blocks, [4, 5])
+  })
+
+  it('numbers an image-first column item before the following item', async () => {
+    const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: { r: 1, g: 2, b: 3 } } })
+      .png()
+      .toBuffer()
+    document.body.innerHTML = `<ol start="4"><li><div style="display:flex"><div><img alt="chart" src="data:image/png;base64,${png.toString('base64')}"></div><div>Right</div></div></li><li>Next</li></ol>`
+    const blocks = extractHtmlDocument().blocks
+    const image = listLeaves(blocks).find((block) => block.type === 'image')
+    if (!image || image.type !== 'image') throw new Error('expected an image')
+    expect(listLeaves(blocks).map(blockShape)).toEqual([
+      { type: 'image', text: 'chart', bullet: 1, orderedNumber: 4, listDepth: 1 },
+      { type: 'text', text: 'Right', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: 5, listDepth: 1 }
+    ])
+    await expectOrderedStarts(blocks, [4, 5], new Map([[image.source, png]]))
+  })
+
+  it('advances past an empty item', async () => {
+    document.body.innerHTML = '<ol start="4"><li></li><li>Next</li></ol>'
+    const blocks = extractHtmlDocument().blocks
+    expect(listLeaves(blocks).map(blockShape)).toEqual([
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: 5, listDepth: 1 }
+    ])
+    expect(parseMarkdown(documentToMarkdown(blocks, (source) => source)).map(blockShape)).toEqual([
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: 5, listDepth: 1 }
+    ])
+    await expectOrderedStarts(blocks, [5])
+  })
+
+  it('resets numbering from an explicit item value', async () => {
+    document.body.innerHTML = '<ol start="4"><li>First</li><li value="9">Jump</li><li>After</li></ol>'
+    const blocks = extractHtmlDocument().blocks
+    const leaves = [
+      { type: 'text', text: 'First', bullet: 1, orderedNumber: 4, listDepth: 1 },
+      { type: 'text', text: 'Jump', bullet: 1, orderedNumber: 9, listDepth: 1 },
+      { type: 'text', text: 'After', bullet: 1, orderedNumber: 10, listDepth: 1 }
+    ]
+    expect(listLeaves(blocks).map(blockShape)).toEqual(leaves)
+    await expectOrderedStarts(blocks, [4, 9, 10])
+  })
 })
+
+function listLeaves(blocks: ReturnType<typeof extractHtmlDocument>['blocks']) {
+  const leaves: typeof blocks = []
+  const visit = (items: typeof blocks) => {
+    for (const block of items) {
+      if (block.type === 'columns') block.columns.forEach(visit)
+      else leaves.push(block)
+    }
+  }
+  visit(blocks)
+  return leaves
+}
+
+async function expectOrderedStarts(
+  blocks: ReturnType<typeof extractHtmlDocument>['blocks'],
+  markers: number[],
+  images = new Map<string, Buffer>()
+) {
+  const xml = await JSZip.loadAsync(await convertDocx(blocks, images, 'List')).then((zip) =>
+    zip.file('word/numbering.xml')!.async('string')
+  )
+  const starts = [...xml.matchAll(/<w:start w:val="(\d+)"/g)]
+    .map((match) => Number(match[1]))
+    .filter((start) => start >= 4)
+  expect(starts).toEqual(markers)
+}
 
 function blockShape(block: ReturnType<typeof extractHtmlDocument>['blocks'][number]) {
   if (block.type === 'columns') return { type: block.type }
