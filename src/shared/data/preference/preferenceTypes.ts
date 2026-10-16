@@ -34,6 +34,12 @@ export type PreferenceShortcutType = {
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
 
+export type SkillLibraryTags = {
+  custom: Array<{ id: string; name: string; color: number }>
+  assignments: Record<string, string[]>
+  removedDefaults?: string[]
+}
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
