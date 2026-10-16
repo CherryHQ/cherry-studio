@@ -15,7 +15,8 @@ type ManagerCounts = { active: number; capSlots: number }
 function mockManagers(
   counts: ManagerCounts,
   evictOldestWarmQuery = vi.fn(() => false),
-  preflightReservations = { value: 0 }
+  preflightReservations = { value: 0 },
+  waitForActiveProcessBelowCap: (max: number, timeoutMs: number) => Promise<void> = vi.fn(async () => undefined)
 ) {
   mocks.applicationGetExisting.mockImplementation((name: string) => {
     if (name === 'ClaudeCodeProcessManager') {
@@ -28,7 +29,7 @@ function mockManagers(
           preflightReservations.value++
           return true
         },
-        waitForActiveProcessBelowCap: vi.fn(async () => undefined)
+        waitForActiveProcessBelowCap
       }
     }
     if (name === 'ClaudeCodeWarmQueryManager') return { evictOldestWarmQuery }
@@ -111,5 +112,53 @@ describe('claudeCodeSpawnCapacity', () => {
 
     expect(await ensureClaudeCodeSpawnCapacity('live')).toBe(true)
     expect(preflightReservations.value).toBe(1)
+  })
+
+  it('re-evicts while waiting when a competing cold start takes the slot an eviction freed', async () => {
+    vi.useFakeTimers()
+    try {
+      // Six CLI children (five parked warm + one live) fill the cap.
+      const counts: ManagerCounts = { active: 6, capSlots: 6 }
+      const preflightReservations = { value: 0 }
+      let evictions = 0
+      const evictOldestWarmQuery = vi.fn(() => {
+        if (counts.capSlots === 0) return false
+        counts.capSlots -= 1
+        const first = evictions++ === 0
+        setTimeout(() => {
+          counts.active -= 1
+          // Another waiter reserves the freed slot before this waiter's poll observes it.
+          if (first) {
+            preflightReservations.value += 1
+          }
+        }, 100)
+        return true
+      })
+      const activeCount = () => counts.active + preflightReservations.value
+      const waitBelowCap = (max: number, timeoutMs: number) =>
+        new Promise<void>((resolve) => {
+          const start = Date.now()
+          const tick = () => {
+            if (activeCount() < max || Date.now() - start >= timeoutMs) resolve()
+            else setTimeout(tick, 50)
+          }
+          tick()
+        })
+      mockManagers(counts, evictOldestWarmQuery, preflightReservations, waitBelowCap)
+
+      let admitted: boolean | undefined
+      void ensureClaudeCodeSpawnCapacity('live').then((result) => {
+        admitted = result
+      })
+      // Far below the 30 s deadline: the waiter must not idle until it expires.
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      expect(admitted).toBe(true)
+      expect(evictOldestWarmQuery).toHaveBeenCalledTimes(2)
+      // Four children plus the competitor's and this waiter's reservations: cap never exceeded.
+      expect(activeCount()).toBe(6)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

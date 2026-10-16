@@ -40,6 +40,11 @@ export function prepareClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPriority
 }
 
 const LIVE_SPAWN_CAPACITY_WAIT_MS = 30_000
+/**
+ * Competing waiters can take the slot an eviction freed, so a waiter re-runs eviction on this
+ * cadence instead of blocking until the active count drops on its own.
+ */
+const LIVE_SPAWN_CAPACITY_RECHECK_MS = 250
 
 /** Live cold starts may wait for evicted warm children to exit so the physical process cap holds. */
 export async function ensureClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPriority): Promise<boolean> {
@@ -60,7 +65,10 @@ export async function ensureClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPri
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now()
     if (remaining <= 0) break
-    await processManager.waitForActiveProcessBelowCap(MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES, remaining)
+    await processManager.waitForActiveProcessBelowCap(
+      MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES,
+      Math.min(remaining, LIVE_SPAWN_CAPACITY_RECHECK_MS)
+    )
     if (tryAdmitLive()) return true
   }
   return false
