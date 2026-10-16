@@ -3,7 +3,25 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { isLinux, isWin } from '@main/core/platform'
-import { isPathInside } from '@main/utils/file'
+import { isOutsidePath } from '@main/utils/file'
+
+/**
+ * Canonical on-disk spelling of an existing path. `realpath.native` returns the stored case on
+ * case-insensitive volumes and leaves case-sensitive volumes untouched, so an exact comparison on its
+ * result follows the actual filesystem instead of a per-platform case-folding guess.
+ */
+function canonicalPath(target: string): string {
+  try {
+    return fs.realpathSync.native(target)
+  } catch {
+    return path.resolve(target)
+  }
+}
+
+function isSameOrInsideCanonical(candidate: string, container: string): boolean {
+  const relative = path.relative(container, candidate)
+  return relative === '' || !isOutsidePath(relative)
+}
 
 /**
  * Shared acceptance policy for `feature.notes.path` — used by folder pickers,
@@ -26,16 +44,19 @@ export function isNotesDirectoryAcceptedForLoading(dirPath: string): boolean {
       return false
     }
 
-    const appDataPath = path.resolve(application.getPath('sys.appdata'))
-    const filesDir = path.resolve(application.getPath('feature.files.data'))
-    const currentNotesDir = path.resolve(application.getPath('feature.notes.data'))
+    // Check both the lexical spelling and the canonical path (exact case each): symlinked aliases can't
+    // sneak into or out of protected roots, and a distinct directory on a case-sensitive volume
+    // (e.g. `…/library/…` vs `…/Library/…`) stays accepted. Canonicalization supplies the case folding
+    // on case-insensitive volumes.
+    const protectedRoots = (['sys.appdata', 'feature.files.data'] as const).map((key) => application.getPath(key))
+    const notesRoot = application.getPath('feature.notes.data')
+    const isProtected = (candidate: string, resolveRoot: (root: string) => string) =>
+      protectedRoots.some((root) => isSameOrInsideCanonical(candidate, resolveRoot(root))) ||
+      candidate === resolveRoot(notesRoot)
 
     if (
-      normalizedPath === filesDir ||
-      isPathInside(normalizedPath, filesDir) ||
-      normalizedPath === currentNotesDir ||
-      normalizedPath === appDataPath ||
-      isPathInside(normalizedPath, appDataPath)
+      isProtected(normalizedPath, (root) => path.resolve(root)) ||
+      isProtected(canonicalPath(normalizedPath), canonicalPath)
     ) {
       return false
     }

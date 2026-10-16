@@ -145,3 +145,27 @@ describe('notesFileEditFlush structural writes', () => {
     unlockNotesEditsForRelocation()
   })
 })
+
+describe('notesFileEditFlush failed departing writes', () => {
+  it('keeps rejecting repeated flushes after a departing save fails', async () => {
+    vi.resetModules()
+    const flushModule = await import('../notesFileEditFlush')
+    const failed = Promise.reject(new Error('departing save failed'))
+    failed.catch(() => undefined)
+    flushModule.trackDepartingNotesFileWrite(failed)
+
+    await expect(flushModule.flushAllNotesEdits()).rejects.toThrow('departing save failed')
+    // A retried migration must not proceed past the unresolved failure.
+    await expect(flushModule.flushAllNotesEdits()).rejects.toThrow('departing save failed')
+  })
+
+  it('drops a departing write once it has succeeded', async () => {
+    vi.resetModules()
+    const flushModule = await import('../notesFileEditFlush')
+    const departing = vi.fn(async () => undefined)
+    flushModule.trackDepartingNotesFileWrite(departing())
+
+    await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
+    await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
+  })
+})

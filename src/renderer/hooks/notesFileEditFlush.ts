@@ -157,7 +157,12 @@ export async function flushAllNotesEdits(): Promise<void> {
   for (const preFlush of preFlushCallbacks) {
     await preFlush()
   }
-  const departing = [...departingWriteChains]
-  departingWriteChains.clear()
+  // A departing chain leaves the set only once it has succeeded. A failed departing save stays tracked and
+  // keeps rejecting every later flush, so a retried migration can't proceed past unsaved content.
+  const departing = [...departingWriteChains].map((chain) =>
+    chain.then(() => {
+      departingWriteChains.delete(chain)
+    })
+  )
   await Promise.all([...[...flushCallbacks].map((flush) => flush()), ...departing])
 }
