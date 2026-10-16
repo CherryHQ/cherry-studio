@@ -30,7 +30,7 @@ vi.mock('@cherrystudio/ui', () => {
   const AccordionItemContext = React.createContext<string | null>(null)
 
   return {
-    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
+    BlurCancelPointerSensor: require('@dnd-kit/core').PointerSensor,
     Accordion: ({
       children,
       defaultValue,
@@ -475,6 +475,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   itemCount: 0,

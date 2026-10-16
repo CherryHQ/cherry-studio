@@ -1,6 +1,6 @@
 import { Check, Copy, LoaderCircle, X } from 'lucide-react'
 import type { KeyboardEvent, Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Scrollbar } from '@cherrystudio/ui'
@@ -12,8 +12,9 @@ import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import DictationControls from '@renderer/components/DictationControls'
 import { useDrag } from '@renderer/hooks/useDrag'
-import { voiceTargetManager } from '@renderer/services/voice'
+import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { VoiceReplaceRange } from '@renderer/services/voice'
+import { cn } from '@renderer/utils/style'
 
 import IconButton from './IconButton'
 
@@ -54,6 +55,10 @@ const TranslateInputPane = ({
 }: Props) => {
   const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isDictationIdle = useSyncExternalStore(
+    dictationService.subscribe,
+    () => dictationService.getSnapshot().phase === 'idle'
+  )
 
   useEffect(() => {
     if (disabled) return
@@ -102,7 +107,7 @@ const TranslateInputPane = ({
     if (!textarea) return
     textarea.style.height = 'auto'
     textarea.style.height = `${textarea.scrollHeight}px`
-  }, [text])
+  }, [text, isDictationIdle])
 
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
 
@@ -114,7 +119,11 @@ const TranslateInputPane = ({
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDropEvent}>
-      <div className="flex shrink-0 items-center justify-end gap-1 px-3 pt-3">
+      <div
+        className={cn(
+          'flex items-center justify-end gap-1',
+          isDictationIdle ? 'absolute top-4 right-3 z-1' : 'shrink-0 px-3 pt-3'
+        )}>
         <div className="min-w-0">
           <DictationControls targetId={TARGET_ID} disabled={disabled} focusInput={() => textareaRef.current?.focus()} />
         </div>
@@ -135,7 +144,10 @@ const TranslateInputPane = ({
             disabled={disabled}
             spellCheck={false}
             placeholder={t('translate.input.placeholder')}
-            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground"
+            className={cn(
+              'min-h-full w-full resize-none overflow-hidden bg-transparent p-4 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground',
+              isDictationIdle && 'pr-20'
+            )}
           />
         </Scrollbar>
       </div>

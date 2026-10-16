@@ -4,6 +4,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
+  KOKORO_TTS_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
@@ -26,7 +27,7 @@ describe('local voice model facts and default resolution', () => {
     expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'x64' })).toBe(FUNASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'linux', arch: 'arm64' })).toBe(FUNASR_MODEL_ID)
     expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'x64' })).toBe(WINDOWS_ASR_MODEL_ID)
-    expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'arm64' })).toBeUndefined()
+    expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'arm64' })).toBe(FUNASR_MODEL_ID)
   })
 
   it('preserves explicit selection regardless of platform availability', () => {
@@ -55,9 +56,10 @@ describe('local voice model facts and default resolution', () => {
 describe('default system speech model', () => {
   it('selects Windows only for x64 and preserves supported Apple versions', () => {
     expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'x64' })).toBe(WINDOWS_TTS_MODEL_ID)
-    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'arm64' })).toBeUndefined()
+    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'arm64' })).toBe(KOKORO_TTS_MODEL_ID)
     expect(resolveDefaultSpeechModel({ platform: 'darwin', arch: 'arm64', majorVersion: 13 })).toBe(APPLE_TTS_MODEL_ID)
-    expect(resolveDefaultSpeechModel({ platform: 'darwin', arch: 'x64', majorVersion: 12 })).toBeUndefined()
-    expect(resolveDefaultSpeechModel({ platform: 'linux', arch: 'x64' })).toBeUndefined()
+    expect(resolveDefaultSpeechModel({ platform: 'darwin', arch: 'x64', majorVersion: 12 })).toBe(KOKORO_TTS_MODEL_ID)
+    expect(resolveDefaultSpeechModel({ platform: 'linux', arch: 'x64' })).toBe(KOKORO_TTS_MODEL_ID)
+    expect(resolveDefaultSpeechModel({ platform: 'linux', arch: 'arm64' })).toBe(KOKORO_TTS_MODEL_ID)
   })
 })
