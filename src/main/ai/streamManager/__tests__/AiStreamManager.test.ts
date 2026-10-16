@@ -1458,6 +1458,62 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('error')
     })
 
+    // The queued submission's identity must survive the downgrade conversion, or the renderer
+    // cannot match the emitted `ai.stream.error` to the queued user row and its error toast is lost.
+    it('keeps the queued submission identity when persistence downgrades a success terminal', async () => {
+      const topicId = 'agent-session:s1'
+      const modelId = 'provider-a::model-a'
+      const wc = { id: 1, isDestroyed: () => false, send: vi.fn() }
+      const old = mgr.startRuntimeTurn({
+        topicId,
+        modelId,
+        request: req(topicId),
+        listeners: [new WebContentsListener(wc as unknown as Electron.WebContents, topicId)]
+      })
+      const persistence = new FakeListener('persistence:a', 'persistence')
+      persistence.onDoneImpl = (result: StreamDoneResult) => {
+        result.persistence = {
+          status: 'saved',
+          message: { messageId: 'm', messageRevision: '1', historyRevision: '2' }
+        }
+        result.downgradedTo = {
+          error: { name: 'AgentRuntimeError', message: 'This turn produced no output.', stack: null },
+          failure: {
+            message: 'This turn produced no output.',
+            retryable: false,
+            failure: { version: 1, reasonCode: 'internal', source: { layer: 'runtime' }, context: {} }
+          }
+        }
+      }
+      const current = mgr.startRuntimeTurn({
+        topicId,
+        modelId,
+        request: {
+          ...req(topicId),
+          messageId: 'queued-assistant',
+          runtime: { kind: 'agent-session', sessionId: 's1', turnId: 'queued-turn' },
+          messages: [
+            { id: 'queued-user', role: 'user', parts: [] },
+            { id: 'queued-assistant', role: 'assistant', parts: [] }
+          ]
+        },
+        listeners: [persistence]
+      })
+      expect(current.activeExecutions[0].attemptId).not.toBe(old.activeExecutions[0].attemptId)
+
+      await mgr.onExecutionDone(topicId, modelId)
+
+      expect(wc.send).toHaveBeenCalledWith(
+        expect.anything(),
+        'ai.stream.error',
+        expect.objectContaining({
+          topicId,
+          executionId: modelId,
+          userMessageId: 'queued-user'
+        })
+      )
+    })
+
     // A downgraded empty completion is dispatched on the ERROR path, and that path has to carry the
     // downgrade claim forward. `isTopicDone=false` here is the chaining decision the stream manager
     // took on the SDK's clean finish, not evidence the turn is still being continued — a listener

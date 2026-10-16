@@ -2148,6 +2148,7 @@ export class AiStreamManager extends BaseService {
       error: downgradedTo.error,
       failure: downgradedTo.failure,
       finalMessage: result.finalMessage,
+      userMessageId: result.userMessageId,
       status: 'error',
       modelId: result.modelId,
       attemptId: result.attemptId,
