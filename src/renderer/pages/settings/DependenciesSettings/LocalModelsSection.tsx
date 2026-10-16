@@ -1,4 +1,4 @@
-import { Boxes, Download, RefreshCw, ScanText, Mic, Trash2, X } from 'lucide-react'
+import { Boxes, Download, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,24 +23,34 @@ const CARD_NOTICE_KEYS = {
 
 type CardNotice = keyof typeof CARD_NOTICE_KEYS
 
-/** How each capability presents itself. A bundle for a new capability adds one entry here. */
-const CAPABILITY_CARDS = {
-  asr: {
+/** Display metadata belongs to the installed model, not its capability. */
+const MODEL_CARDS = {
+  'kokoro-multi-lang-v1.1': {
+    icon: <Volume2 className="size-5" />,
+    nameKey: 'settings.voice.model.kokoro_tts',
+    sources: ['csukuangfj/kokoro-multi-lang-v1_1']
+  },
+  'qwen3-tts-0.6b-customvoice-8bit': {
+    icon: <Volume2 className="size-5" />,
+    nameKey: 'settings.voice.model.qwen3_tts',
+    sources: ['Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice']
+  },
+  'funasr-nano-int8': {
     icon: <Mic className="size-5" />,
     nameKey: 'settings.voice.model.funasr',
     sources: ['csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30']
   },
-  embedding: {
+  'qwen3-embedding-0.6b': {
     icon: <Boxes className="size-5" />,
     nameKey: 'settings.dependencies.localModels.embedding.name',
     sources: ['onnx-community/Qwen3-Embedding-0.6B-ONNX']
   },
-  ocr: {
+  'pp-ocrv6-medium': {
     icon: <ScanText className="size-5" />,
     nameKey: 'settings.dependencies.localModels.ocr.name',
     sources: ['PaddlePaddle/PP-OCRv6_medium_det_onnx', 'PaddlePaddle/PP-OCRv6_medium_rec_onnx']
   }
-} as const satisfies Record<LocalModelCapability, { icon: ReactNode; nameKey: string; sources: readonly string[] }>
+} as const satisfies Record<LocalModelBundleId, { icon: ReactNode; nameKey: string; sources: readonly string[] }>
 
 /**
  * Settings-specific notice state layered over the shared local-model lifecycle.
@@ -101,7 +111,7 @@ interface ModelCardProps {
 const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   const { t } = useTranslation()
   const { status, percent, notice, download, cancel, remove } = useLocalModelCard(id)
-  const { icon, nameKey, sources } = CAPABILITY_CARDS[capability]
+  const { icon, nameKey, sources } = MODEL_CARDS[id]
 
   useEffect(() => {
     onStatusChange(id, status)
@@ -113,7 +123,7 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
 
   return (
     <div
-      id={capability === 'asr' ? 'voice-resources' : undefined}
+      id={id === 'funasr-nano-int8' ? 'voice-resources' : id}
       role="listitem"
       className="flex flex-col rounded-xl border border-border p-4 transition-colors duration-200 ease-in-out hover:border-border-strong"
       style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>

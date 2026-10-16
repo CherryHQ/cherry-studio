@@ -15,6 +15,7 @@ import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import { createDashScopeProvider } from '../../../../provider/custom/dashscope/dashscopeProvider'
 
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
 import { createBrowserToolEntries } from '../../../../tools/adapters/aiSdk/builtin/BrowserTools'
@@ -733,6 +734,65 @@ describe('buildAgentParams standard model parameters', () => {
     })
 
     expect(result.options.maxOutputTokens).toBe(32_000)
+  })
+
+  describe('DashScope serialized temperatures', () => {
+    it.each([
+      { apiModelId: 'qwen-long', source: 'assistant', temperature: 2, expected: 1.9 },
+      { apiModelId: 'qwen-long', source: 'assistant', temperature: 1.5, expected: 1.5 },
+      { apiModelId: 'qwen-long', source: 'gateway', temperature: 2, expected: 1.9 },
+      { apiModelId: 'qwen-long', source: 'gateway namespace', temperature: 2, expected: 1.9 },
+      { apiModelId: 'deepseek-v3', source: 'assistant', temperature: 2, expected: 2 }
+    ])(
+      'sends $expected for $apiModelId with $source temperature $temperature',
+      async ({ apiModelId, source, temperature, expected }) => {
+        let serializedBody: string | undefined
+        const providerSettings = {
+          apiKey: 'sk-test',
+          baseURL: 'https://provider.test/compatible-mode/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            serializedBody = String(init?.body)
+            throw new Error('request captured')
+          }
+        }
+        resolveProviderAiSdkConfigMock.mockResolvedValue({
+          config: { providerId: 'dashscope', providerSettings },
+          credentialReceipt: { attribution: 'unknown' }
+        })
+        const result = await buildAgentParams({
+          request: {
+            conversation: CONVERSATION,
+            ...(source === 'gateway' && { callOverrides: { temperature } }),
+            ...(source === 'gateway namespace' && {
+              callOverrides: { providerOptions: { dashscope: { temperature } } }
+            })
+          },
+          signal: undefined,
+          provider: makeProvider({
+            id: 'dashscope',
+            defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+            endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' } }
+          }),
+          model: makeModel({ id: `dashscope::${apiModelId}`, providerId: 'dashscope', apiModelId }),
+          assistant: source.startsWith('gateway')
+            ? undefined
+            : makeAssistant({ settings: { enableTemperature: true, temperature } })
+        })
+        const sdkModel = createDashScopeProvider({
+          ...providerSettings,
+          fetch: result.sdkConfig.providerSettings.fetch
+        }).languageModel(apiModelId)
+        await expect(
+          sdkModel.doGenerate({
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+            temperature: result.options.temperature,
+            providerOptions: result.options.providerOptions
+          })
+        ).rejects.toThrow('request captured')
+        expect(serializedBody).toBeDefined()
+        expect(JSON.parse(serializedBody!).temperature).toBe(expected)
+      }
+    )
   })
 
   describe('sampling constraints across request inputs', () => {

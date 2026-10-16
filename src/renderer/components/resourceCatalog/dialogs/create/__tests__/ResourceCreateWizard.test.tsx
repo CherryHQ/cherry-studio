@@ -11,7 +11,8 @@ const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
   defaultProvider: { id: 'provider', name: 'Provider', isEnabled: true } as Provider | undefined,
   useDefaultModel: vi.fn(),
-  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true)
+  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true),
+  unavailableModelIds: new Set<string>()
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -39,14 +40,21 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] })
 }))
 
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({
+    isModelHidden: () => false,
+    isModelUnavailable: (model: Model) => modelHook.unavailableModelIds.has(model.id),
+    getModelDescription: () => undefined
+  })
+}))
+
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderById: () => ({ provider: modelHook.defaultProvider })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
-    modelHook.agentModelFilter(agentType, model, provider),
-  useAgentModelDisabled: () => () => false
+    modelHook.agentModelFilter(agentType, model, provider)
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -132,6 +140,7 @@ afterEach(() => {
   modelHook.useDefaultModel.mockReset()
   modelHook.agentModelFilter.mockReset()
   modelHook.agentModelFilter.mockReturnValue(true)
+  modelHook.unavailableModelIds.clear()
 })
 
 describe('ResourceCreateWizard', () => {
@@ -243,6 +252,23 @@ describe('ResourceCreateWizard', () => {
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
     expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+  })
+
+  it('does not prefill, and retracts, a default model the selector would not offer', async () => {
+    modelHook.defaultModel = makeModel()
+    modelHook.unavailableModelIds.add(modelHook.defaultModel.id)
+    const props = { kind: 'agent' as const, open: true, onOpenChange: vi.fn(), onSubmit: vi.fn() }
+    const { rerender } = render(<ResourceCreateWizard {...props} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+
+    modelHook.unavailableModelIds.clear()
+    rerender(<ResourceCreateWizard {...props} />)
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+
+    modelHook.unavailableModelIds.add(modelHook.defaultModel.id)
+    rerender(<ResourceCreateWizard {...props} />)
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
 
   it('gates Next on a valid name + model, then walks assistant steps to a mapped submit', async () => {

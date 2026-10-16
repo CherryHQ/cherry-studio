@@ -1,5 +1,11 @@
 # @cherrystudio/ai-core
 
+## 2.4.1
+
+### Patch Changes
+
+- [#20281](https://github.com/CherryHQ/cherry-studio/pull/20281) [`efa7600`](https://github.com/CherryHQ/cherry-studio/commit/efa760045a932ba7c709112839d7036977d5d227) Thanks [@Dante-dan](https://github.com/Dante-dan)! - Restore tool result names from their originating tool calls when rebuilding saved conversation history.
+
 ## 2.4.0
 
 ### Minor Changes

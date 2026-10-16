@@ -113,7 +113,10 @@ export const GeminiModelsResponseSchema = z.object({
       supportedGenerationMethods: z.array(z.string()).optional()
     })
   ),
-  nextPageToken: z.string().optional()
+  nextPageToken: z
+    .string()
+    .nullish()
+    .transform((token) => token ?? undefined)
 })
 
 // === Vertex AI Model Garden ===

@@ -10,7 +10,7 @@ import type {
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 
 import { capabilityHooksFor } from './capabilities/capabilityHooks'
-import { ALL_MODEL_BUNDLE_IDS, bundleForCapability, getModelBundle } from './catalog/catalog'
+import { ALL_MODEL_BUNDLE_IDS, defaultBundleForCapability, getModelBundle } from './catalog/catalog'
 import type { SharedArtifactId } from './catalog/types'
 import { BundleInstaller, type ResolveDownloadSourcePreference } from './installation/BundleInstaller'
 import { localModelStorageService } from './installation/LocalModelStorageService'
@@ -28,7 +28,7 @@ export class LocalModelService extends BaseService {
         id,
         new BundleInstaller(
           bundle,
-          capabilityHooksFor(bundle.capability),
+          capabilityHooksFor(bundle.capability, id),
           (snapshot) => this.publishStatus(id, snapshot),
           () => this.gcSharedArtifacts()
         )
@@ -75,8 +75,12 @@ export class LocalModelService extends BaseService {
     return this.installerFor(id).remove()
   }
 
-  isCapabilityReady(capability: LocalModelCapability): boolean {
-    return this.installerFor(bundleForCapability(capability).id).getStatus() === 'ready'
+  isDefaultModelReady(capability: LocalModelCapability): boolean {
+    return this.isModelReady(defaultBundleForCapability(capability).id)
+  }
+
+  isModelReady(modelId: LocalModelBundleId): boolean {
+    return this.installerFor(modelId).getStatus() === 'ready'
   }
 
   isHardwareAccelerationSupported(): boolean {

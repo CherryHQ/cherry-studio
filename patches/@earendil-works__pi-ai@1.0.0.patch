@@ -55,3 +55,35 @@ diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-respon
      reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
      serviceTier?: ResponseCreateParamsStreaming["service_tier"];
      textVerbosity?: "low" | "medium" | "high";
+diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
+--- a/dist/api/google-generative-ai.js
++++ b/dist/api/google-generative-ai.js
+@@ -33,14 +33,11 @@ export const stream = (model, context, options) => {
+             timestamp: Date.now(),
+         };
+         try {
+-            if (options?.fetch && options.fetch !== globalThis.fetch) {
+-                throw new Error("Custom fetch is not supported by the Google Generative AI adapter");
+-            }
+             const apiKey = options?.apiKey;
+             if (!apiKey) {
+                 throw new Error(`No API key for provider: ${model.provider}`);
+             }
+-            const client = createClient(model, apiKey, options?.headers);
++            const client = createClient(model, apiKey, options?.headers, options?.fetch);
+             let params = buildParams(model, normalizedContext, options);
+             const nextParams = await options?.onPayload?.(params, model);
+             if (nextParams !== undefined) {
+@@ -267,8 +264,11 @@ export const streamSimple = (model, context, options) => {
+         },
+     });
+ };
+-function createClient(model, apiKey, optionsHeaders) {
++function createClient(model, apiKey, optionsHeaders, fetch) {
+     const httpOptions = {};
++    if (fetch) {
++        httpOptions.fetch = fetch;
++    }
+     if (model.baseUrl) {
+         httpOptions.baseUrl = model.baseUrl;
+         httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
