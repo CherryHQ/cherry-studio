@@ -1,7 +1,10 @@
+import path from 'node:path'
+
 import { normalizeContext } from '@earendil-works/pi-ai'
 import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
@@ -25,6 +28,13 @@ vi.mock('@data/services/ProviderService', () => ({
   }
 }))
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: serviceMocks.getByKey } }))
+vi.mock('@data/services/utils/registryDataPaths', () => ({
+  resolveRegistryPaths: () => ({
+    models: path.resolve('packages/provider-registry/data/models.json'),
+    providers: path.resolve('packages/provider-registry/data/providers.json'),
+    providerModels: path.resolve('packages/provider-registry/data/provider-models.json')
+  })
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
@@ -126,7 +136,7 @@ describe('buildPiProviderInjection', () => {
     const injection = buildPiProviderInjection(provider, model, REAL_KEY)
 
     expect(injection.providerConfig.api).toBe('anthropic-messages')
-    expect(injection.providerConfig.models?.[0]?.compat).toEqual({ allowEmptySignature: true })
+    expect(injection.providerConfig.models?.[0]?.compat).toMatchObject({ allowEmptySignature: true })
   })
 
   it('prefers Anthropic Messages when a Pi model also supports OpenAI Chat', () => {
@@ -911,6 +921,126 @@ describe('modelInjection service resolution', () => {
       )
     ).toThrow('Pi provider credentials changed during materialization: p')
   })
+})
+
+describe('Pi Anthropic reasoning wire', () => {
+  const providerFor = (id: string) =>
+    makeProvider({
+      id,
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://relay.example.com' } }
+    })
+  const modelFor = (providerId: string, apiModelId = 'claude-opus-5-5') =>
+    makeModel({
+      id: `${providerId}::${apiModelId}`,
+      providerId,
+      apiModelId,
+      capabilities: ['reasoning'],
+      maxOutputTokens: 32_000,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max'] }
+    })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each([
+    ['custom', 'claude-opus-5-5', 'high', true, false],
+    ['custom', 'anthropic/claude-opus-5.5', 'xhigh', true, false],
+    ['cherryin', 'claude-opus-5-5', 'max', true, false],
+    ['custom', 'claude-opus-5-5', undefined, true, false],
+    ['custom', 'claude-opus-4-5', 'high', false, false],
+    ['fireworks', 'kimi-k2-7-code', 'high', false, false],
+    ['custom', 'claude-opus-5-5', 'high', true, true]
+  ] as const)(
+    'serializes %s/%s effort=%s adaptive=%s gateway=%s through the native SDK',
+    async (providerId, modelId, effort, adaptive, gateway) => {
+      const { InMemoryCredentialStore } = await import('@earendil-works/pi-ai')
+      const { ModelRuntime, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+      const anthropic = await import('@earendil-works/pi-ai/api/anthropic-messages')
+      const provider = providerFor(providerId)
+      const model = modelFor(providerId, modelId)
+      const injection = gateway
+        ? buildPiGatewayInjection(provider, model, GATEWAY)
+        : buildPiProviderInjection(provider, model, REAL_KEY)
+      const runtime = await ModelRuntime.create({
+        credentials: new InMemoryCredentialStore(),
+        modelsPath: null,
+        refreshOnCreate: false,
+        allowModelNetwork: false
+      })
+      const registry = new ModelRegistry(runtime)
+      registry.registerProvider(providerId, injection.providerConfig)
+      const registered = registry.find(providerId, injection.modelId)
+      if (registered?.api !== 'anthropic-messages') throw new Error('Expected an Anthropic model')
+      const resolved = registered as PiModel<'anthropic-messages'>
+
+      for (const simple of [true, false]) {
+        let body: any
+        const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+          body = JSON.parse(String(init?.body))
+          return new Response(JSON.stringify({ error: { message: 'Expected capture rejection' } }), {
+            status: 400,
+            headers: { 'content-type': 'application/json' }
+          })
+        })
+        const context = normalizeContext({ messages: [{ role: 'user', content: 'Reply OK.', timestamp: 1 }] })
+        const options = { apiKey: REAL_KEY, fetch, maxRetries: 0 }
+        const stream = simple
+          ? anthropic.streamSimple(resolved, context, {
+              ...options,
+              reasoning: effort
+            })
+          : anthropic.stream(resolved, context, {
+              ...options,
+              thinkingEnabled: effort !== undefined,
+              effort
+            })
+        await stream.result()
+
+        expect(fetch).toHaveBeenCalledTimes(1)
+        expect(body.model).toBe(injection.modelId)
+        if (!effort) {
+          expect(body.thinking).toBeUndefined()
+          expect(body.output_config).toBeUndefined()
+        } else if (adaptive) {
+          expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+          expect(body.output_config).toEqual({ effort })
+        } else {
+          expect(body.thinking.type).toBe('enabled')
+          expect(body.thinking.budget_tokens).toBeGreaterThan(0)
+          expect(body.thinking.budget_tokens).toBeLessThan(body.max_tokens)
+          expect(body.output_config).toBeUndefined()
+        }
+      }
+      if (providerId === 'cherryin') expect(resolved.compat?.allowEmptySignature).toBe(true)
+    }
+  )
+
+  it('does not force adaptive thinking for a disabled reasoning wire', () => {
+    vi.spyOn(providerRegistryService, 'resolveReasoningProfile').mockReturnValue({
+      format: 'none',
+      wire: {
+        disabled: true,
+        effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }] }
+      }
+    })
+    const injection = buildPiProviderInjection(providerFor('custom'), modelFor('custom'), REAL_KEY)
+
+    expect(injection.providerConfig.models?.[0]?.compat ?? {}).not.toHaveProperty('forceAdaptiveThinking', true)
+  })
+
+  it.each(['openai-chat-completions', 'openai-responses', 'google-generate-content'] as const)(
+    'does not attach Anthropic compatibility to %s',
+    (endpoint) => {
+      const provider = makeProvider({
+        id: 'custom',
+        defaultChatEndpoint: endpoint,
+        endpointConfigs: { [endpoint]: { baseUrl: 'https://relay.example.com' } }
+      })
+      const injection = buildPiProviderInjection(provider, modelFor('custom'), REAL_KEY)
+
+      expect(injection.providerConfig.models?.[0]?.compat ?? {}).not.toHaveProperty('forceAdaptiveThinking')
+    }
+  )
 })
 
 // pi defaults its thinking level to `medium` and clamps it against the model's ladder. Cherry used to

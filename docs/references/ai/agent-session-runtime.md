@@ -736,6 +736,12 @@ the live gate applies newly disabled tools immediately, while the spawn-time
 a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`
 after any applicable live tightening has landed.
 
+Pi model injection projects the registry's effective Anthropic effort wire into
+`compat.forceAdaptiveThinking`. Adaptive models keep their selected effort;
+budget-based models and provider budget overrides retain legacy thinking.
+The flag coexists with CherryIN's empty-signature replay compatibility and is
+not applied to other Pi API families.
+
 ### Pi conversation compaction
 
 Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.

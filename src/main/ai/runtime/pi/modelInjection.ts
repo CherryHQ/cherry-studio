@@ -15,6 +15,7 @@ import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-cod
 import { application } from '@application'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -141,9 +142,8 @@ function resolvePiEndpoint(provider: Provider, model: Model) {
 }
 
 /**
- * Pure mapping: build the pi provider injection from an already-resolved Cherry
- * `Provider`, `Model`, and API key. Kept free of service/IO so it is unit
- * testable in isolation.
+ * Build the pi provider injection from a resolved Cherry `Provider`, `Model`,
+ * and API key, using the registry's effective reasoning wire contract.
  *
  * @throws PiUnsupportedProviderError when the provider's endpoint has no pi mapping.
  */
@@ -443,12 +443,25 @@ function buildPiModelConfig(
     input.push('image')
   }
   const thinkingLevelMap = buildThinkingLevelMap(model)
+  const reasoning = model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined
+  const anthropicWire =
+    api === 'anthropic-messages' && reasoning
+      ? providerRegistryService.resolveReasoningProfile(provider, model, endpointType).wire
+      : undefined
+  const forceAdaptiveThinking =
+    !anthropicWire?.disabled &&
+    anthropicWire?.effort?.operations.some(
+      (operation) =>
+        operation.target === 'thinking.type' &&
+        operation.value.source === 'literal' &&
+        operation.value.value === 'adaptive'
+    )
 
   return {
     id,
     name: model.name,
     api,
-    reasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined,
+    reasoning,
     ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
     input,
     // pi tracks per-token cost for its own UI; Cherry owns cost accounting, so
@@ -462,8 +475,13 @@ function buildPiModelConfig(
       ? { compat: { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole } }
       : {}),
     // CherryIN requires replaying its thinking block even when the compatible endpoint omits a signature delta.
-    ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
-    // thinkingLevelMap intentionally omitted: Cherry does not wire pi
-    // thinking-level control in v1 (see capability matrix).
+    ...(api === 'anthropic-messages' && (forceAdaptiveThinking || provider.id === 'cherryin')
+      ? {
+          compat: {
+            ...(forceAdaptiveThinking ? { forceAdaptiveThinking: true } : {}),
+            ...(provider.id === 'cherryin' ? { allowEmptySignature: true } : {})
+          }
+        }
+      : {})
   }
 }
