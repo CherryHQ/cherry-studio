@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 
 import type { Browser } from '@e2e-dev/web'
 import type { Agent, Screen } from 'e2e'
@@ -8,7 +9,15 @@ import { expect, unique } from 'e2e'
 import type * as mockChatServer from '../../helpers/http/mockChatServer'
 
 const require = createRequire(import.meta.url)
-export const { startMockChatServer } = require('../../helpers/http/mockChatServer.ts') as typeof mockChatServer
+const mock = require('../../helpers/http/mockChatServer.ts') as typeof mockChatServer
+export async function startMockChatServer() {
+  const server = await mock.startMockChatServer()
+  writeFileSync(
+    join(dirname(process.env.AGENTIC_CASE_DATA!), 'fixture.json'),
+    JSON.stringify({ pid: process.pid, port: Number(new URL(server.baseUrl).port) })
+  )
+  return server
+}
 export const phase = process.env.AGENTIC_STAGE ?? 'write'
 export const data = JSON.parse(readFileSync(process.env.AGENTIC_CASE_DATA!, 'utf8')) as {
   marker: string

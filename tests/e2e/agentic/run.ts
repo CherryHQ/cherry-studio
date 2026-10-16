@@ -4,6 +4,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
+import { release } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
@@ -30,6 +31,7 @@ const { values } = parseArgs({
     case: { type: 'string' },
     'no-cache': { type: 'boolean' },
     'run-dir': { type: 'string' },
+    'evidence-dir': { type: 'string' },
     'inject-failure': { type: 'boolean' }
   }
 })
@@ -41,11 +43,15 @@ const runDirectory = values['run-dir'] ? resolve(values['run-dir']) : mkdtempSyn
 if (existsSync(runDirectory) && readdirSync(runDirectory).length > 0)
   throw new Error('Run directory must be empty; previous evidence is never overwritten')
 mkdirSync(runDirectory, { recursive: true })
-const evidenceDirectory = join(
-  repository,
-  '.context/agentic-e2e',
-  `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`
-)
+const evidenceDirectory = values['evidence-dir']
+  ? resolve(values['evidence-dir'])
+  : join(
+      repository,
+      '.context/agentic-e2e',
+      `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`
+    )
+if (existsSync(evidenceDirectory) && readdirSync(evidenceDirectory).length > 0)
+  throw new Error('Evidence directory must be empty; previous evidence is never overwritten')
 mkdirSync(evidenceDirectory, { recursive: true })
 const trackingFile = join(repository, '.context/cherry-electron-dev/instance.json')
 const previousTracking = existsSync(trackingFile) ? readFileSync(trackingFile, 'utf8') : undefined
@@ -53,9 +59,17 @@ const metadata = {
   sha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim(),
   dirty: execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim().length > 0,
   platform: process.platform,
+  arch: process.arch,
+  osRelease: release(),
+  runner: process.env.RUNNER_NAME,
   startedAt: new Date().toISOString(),
   runDirectory,
-  versions: { e2e: '0.21.1', web: '0.15.1', node: process.version },
+  versions: {
+    e2e: '0.21.1',
+    web: '0.15.1',
+    node: process.version,
+    electron: JSON.parse(readFileSync(join(repository, 'node_modules/electron/package.json'), 'utf8')).version as string
+  },
   preflight: undefined as { modelCalls: number; modelTokens: number } | undefined,
   cache: values['no-cache'] ? 'off' : 'read-write'
 }
@@ -280,7 +294,7 @@ async function main() {
         result.phases.push({
           phase,
           exitCode,
-          report: report ? reportPath : undefined,
+          report: report ? join(name, phase, 'report.json') : undefined,
           modelCalls: steps.reduce((n, step) => n + (step.metrics?.modelCalls ?? 0), 0),
           modelTokens: report?.run.usage.modelTokens,
           replayed: steps.filter((step) => step.cache?.mode === 'self-finalized').length,
@@ -308,6 +322,8 @@ async function main() {
       }
       activePaths = undefined
       cpSync(paths.output, join(evidenceDirectory, name), { recursive: true })
+      for (const file of readdirSync(paths.root).filter((file) => /^(identity-.*|case|fixture)\.json$/.test(file)))
+        writeFileSync(join(evidenceDirectory, name, file), redact(readFileSync(join(paths.root, file), 'utf8')))
       for (const file of readdirSync(paths.logs))
         writeFileSync(join(evidenceDirectory, `${name}-${file}`), redact(readFileSync(join(paths.logs, file), 'utf8')))
       saveSummary()

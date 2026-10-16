@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "ci": "tsx ci.ts",
     "test": "tsx run.ts",
+    "test:ci": "tsx --test ciReport.test.ts",
     "test:connection": "tsx --test connection.test.ts",
     "typecheck": "tsc --noEmit"
   },
