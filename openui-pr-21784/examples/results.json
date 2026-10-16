@@ -1,0 +1,69 @@
+[
+  {
+    "id": "01-hosting-comparison",
+    "status": "passed",
+    "checks": [
+      "expected heading",
+      "expected cells",
+      "no preview error after content assertions",
+      "exact metric values"
+    ]
+  },
+  {
+    "id": "02-travel-budget",
+    "status": "passed",
+    "checks": [
+      "expected heading",
+      "expected cells",
+      "no preview error after content assertions",
+      "exact metric values"
+    ]
+  },
+  {
+    "id": "03-reference-and-text",
+    "status": "passed",
+    "checks": [
+      "expected heading",
+      "expected cells",
+      "no preview error after content assertions",
+      "exact metric values",
+      "forward references",
+      "quotes and backslashes",
+      "visible line breaks"
+    ]
+  },
+  {
+    "id": "04-large-table",
+    "status": "passed",
+    "checks": [
+      "expected heading",
+      "expected cells",
+      "no preview error after content assertions",
+      "all 40 data rows",
+      "last row scrolls into view"
+    ]
+  },
+  {
+    "id": "05-literal-text",
+    "status": "passed",
+    "checks": [
+      "expected heading",
+      "expected cells",
+      "no preview error after content assertions",
+      "exact metric values",
+      "empty cell retained",
+      "inert HTML-like text",
+      "no script execution"
+    ]
+  },
+  {
+    "id": "06-error-recovery",
+    "status": "passed",
+    "checks": [
+      "unknown component error",
+      "source correction through the real editor",
+      "persisted correction",
+      "preview recovery after switching modes"
+    ]
+  }
+]
