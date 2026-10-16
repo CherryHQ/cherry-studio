@@ -1,0 +1,106 @@
+$ vitest run --project renderer --reporter=verbose src/renderer/pages/settings/ProviderSettings/ModelList/ModelDrawer/ModelApiKeyField.test.tsx src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (electron.vite.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/piVccBundle.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/types/appEdition.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/releaseNotes.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/claudeCodeBinaryManifest.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/build-theme-css.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/checkChunkExports.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/sentry.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/vitePlugin.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/redaction.ts:4:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/scan.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/semanticId.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/theme-contract.ts:12:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/transform.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(node:77454) Warning: Accessing non-existent property 'replaceRouteChunk' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/conversation-entry.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/-conversation-entry.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/profile.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-profile.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/about.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-about.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/search.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-search.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/skills.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-skills.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+
+ RUN  v5.0.1 /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src
+
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > per-model API key binding in direct CLI config > writes the enabled key the model is bound to 1ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > per-model API key binding in direct CLI config > falls back to the first enabled key for a missing or disabled binding 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > formatCliConfigDraftFile > pretty-prints JSON drafts (2-space indent, trailing newline) 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > formatCliConfigDraftFile > leaves non-JSON (toml/dotenv) drafts untouched 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > applies a new config blob while preserving the connection 1ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > clears a managed flag when it is dropped from the blob 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves OpenCode provider headers during a config-only update 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves OpenCode model limits during a config-only update 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves OpenCode compaction settings during a config-only update 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > returns the files unchanged when there is no managed connection 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves the connection and applies config for claude 1ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves the connection and applies config for codex 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves the connection and applies config for opencode 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves the connection and applies config for gemini 1ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves the connection and applies config for qwen 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves the connection and applies config for kimi 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > opencode: keeps the model display name across a config-only update 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > preserves the gateway sentinel + API version through a config-only edit for gemini 0ms
+ ✓ |renderer| src/renderer/pages/code/cliConfig/__tests__/draftUpdater.test.ts > updateCliConfigDraftConfig > leaves a non-gateway gemini draft bare (no sentinel, no forced API version) through a config-only edit 0ms
+stderr | src/renderer/pages/settings/ProviderSettings/ModelList/ModelDrawer/ModelApiKeyField.test.tsx > ModelApiKeyField > shows the bound key label as the current selection
+React does not recognize the `emptyText` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `emptytext` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+React does not recognize the `popoverClassName` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `popoverclassname` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+Received `false` for a non-boolean attribute `searchable`.
+
+If you want to write it to the DOM, pass a string instead: searchable="false" or searchable={value.toString()}.
+
+If you used to conditionally omit it with searchable={condition && value}, pass searchable={condition ? value : undefined} instead.
+React does not recognize the `searchPlaceholder` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `searchplaceholder` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
+
+ ✓ |renderer| src/renderer/pages/settings/ProviderSettings/ModelList/ModelDrawer/ModelApiKeyField.test.tsx > ModelApiKeyField > shows the bound key label as the current selection 13ms
+ ✓ |renderer| src/renderer/pages/settings/ProviderSettings/ModelList/ModelDrawer/ModelApiKeyField.test.tsx > ModelApiKeyField > shows automatic selection when the bound key no longer exists 2ms
+ ✓ |renderer| src/renderer/pages/settings/ProviderSettings/ModelList/ModelDrawer/ModelApiKeyField.test.tsx > ModelApiKeyField > shows automatic selection when no key is bound 1ms
+
+ Test Files  2 passed (2)
+      Tests  22 passed (22)
+   Start at  12:28:22
+   Duration  813ms (environment 40%, transform 19%, import 19%, tests 11%, setup 11%)
+
