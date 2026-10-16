@@ -680,6 +680,53 @@ describe('ChatMigrator.prepareTopicData', () => {
       expect(collected.get('t1')?.prompt).toBe('First write wins.')
     })
 
+    it('replaces a Redux-only seed with the merged topic metadata once the topic transforms', async () => {
+      const migrator = seedMigrator({ id: 't1', name: '', prompt: 'Meta prompt wins.' })
+      const m = migrator as unknown as Record<string, unknown>
+      const collected = m['collectedTopicPrompts'] as Map<string, TopicPromptCandidate>
+      // What prepare() seeds from Redux meta before any Dexie row is read: stale name, no assistant.
+      collected.set('t1', {
+        topicId: 't1',
+        topicName: '',
+        prompt: 'Meta prompt wins.',
+        assistantId: '',
+        createdAt: undefined,
+        updatedAt: undefined
+      })
+      const oldTopic: OldTopic = {
+        id: 't1',
+        assistantId: 'ast-1',
+        name: 'Dexie name',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+        messages: []
+      }
+
+      await callPrepare(migrator, oldTopic)
+
+      expect(collected.get('t1')).toMatchObject({
+        topicName: 'Dexie name',
+        prompt: 'Meta prompt wins.',
+        assistantId: 'ast-1',
+        createdAt: Date.parse('2025-01-01T00:00:00.000Z')
+      })
+    })
+
+    it('keeps a topic whose Redux prompt is a falsy non-string value', async () => {
+      const b1 = block('b1', 'u1')
+      const oldTopic = topic('t1', [msg('u1', 'user', ['b1'])])
+      oldTopic.prompt = 'Dexie prompt.'
+
+      const { result, collected } = await collectPrompts(oldTopic, [b1], {
+        id: 't1',
+        name: 'Meta name',
+        prompt: 0 as unknown as string
+      })
+
+      expect(result).not.toBeNull()
+      expect(collected.get('t1')).toMatchObject({ prompt: 'Dexie prompt.' })
+    })
+
     it('stores an empty assistant id for orphan topics (PromptMigrator maps it to global)', async () => {
       const b1 = block('b1', 'u1')
       const oldTopic = topic('t1', [msg('u1', 'user', ['b1'])])

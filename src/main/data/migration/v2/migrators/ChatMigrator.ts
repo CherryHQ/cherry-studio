@@ -268,6 +268,9 @@ export class ChatMigrator extends BaseMigrator {
   // sharedData for PromptMigrator at the end of execute. Keyed by topic id so
   // each topic contributes exactly one candidate.
   private collectedTopicPrompts: Map<string, TopicPromptCandidate> = new Map()
+  // Topics whose staged prompt already carries merged (Dexie + Redux) metadata.
+  // A Redux-only seed is replaced once its topic transforms; a duplicate Dexie row is not.
+  private mergedTopicPromptIds: Set<string> = new Set()
 
   override reset(): void {
     this.topicCount = 0
@@ -292,6 +295,7 @@ export class ChatMigrator extends BaseMigrator {
     this.fileRefInsertCount = 0
     this.reservedMessageIds = new Set()
     this.collectedTopicPrompts = new Map()
+    this.mergedTopicPromptIds = new Set()
   }
 
   /**
@@ -424,7 +428,8 @@ export class ChatMigrator extends BaseMigrator {
         warnings.push('No assistant data found - topics will have null assistantId and missing names')
       }
 
-      // Seed topic prompts from Redux meta; Dexie rows merge later without overwriting these.
+      // Seed topic prompts from Redux meta so Redux-only topics still hand off; a topic that
+      // transforms later replaces its seed with the merged topic metadata.
       for (const [topicId, meta] of this.topicMetaLookup) {
         if (
           typeof meta.prompt === 'string' &&
@@ -1043,7 +1048,8 @@ export class ChatMigrator extends BaseMigrator {
       oldTopic.name = topicMeta.name || oldTopic.name
       oldTopic.pinned = topicMeta.pinned ?? oldTopic.pinned
       // A blank Redux prompt means absent (same rule as name above), so it falls back to Dexie.
-      oldTopic.prompt = topicMeta.prompt?.trim() ? topicMeta.prompt : oldTopic.prompt
+      oldTopic.prompt =
+        typeof topicMeta.prompt === 'string' && topicMeta.prompt.trim() ? topicMeta.prompt : oldTopic.prompt
       oldTopic.isNameManuallyEdited = topicMeta.isNameManuallyEdited ?? oldTopic.isNameManuallyEdited
       if (topicMeta.createdAt && !oldTopic.createdAt) oldTopic.createdAt = topicMeta.createdAt
       if (topicMeta.updatedAt && !oldTopic.updatedAt) oldTopic.updatedAt = topicMeta.updatedAt
@@ -1052,7 +1058,9 @@ export class ChatMigrator extends BaseMigrator {
     // Drop empty topics (abandoned "new topic" clicks). `name` is not a signal — v1 auto-names on creation.
     const hasMessages = Array.isArray(oldTopic.messages) && oldTopic.messages.length > 0
     const hasUserIntent = Boolean(
-      oldTopic.pinned || oldTopic.isNameManuallyEdited || (oldTopic.prompt && oldTopic.prompt.trim())
+      oldTopic.pinned ||
+      oldTopic.isNameManuallyEdited ||
+      (typeof oldTopic.prompt === 'string' && oldTopic.prompt.trim())
     )
     if (!hasMessages && !hasUserIntent) {
       logger.info('Skipping empty topic (no messages, no user-intent metadata)', { topicId: oldTopic.id })
@@ -1225,14 +1233,16 @@ export class ChatMigrator extends BaseMigrator {
 
     // No v2 topic field holds prompt: stage the merged value for
     // PromptMigrator. Runs only on success, so failed topics leave no orphans.
+    // Overrides a Redux-only seed so the handoff carries the merged topic metadata.
     if (
       typeof oldTopic.prompt === 'string' &&
       oldTopic.prompt.trim().length > 0 &&
-      !this.collectedTopicPrompts.has(oldTopic.id)
+      !this.mergedTopicPromptIds.has(oldTopic.id)
     ) {
+      this.mergedTopicPromptIds.add(oldTopic.id)
       this.collectedTopicPrompts.set(oldTopic.id, {
         topicId: oldTopic.id,
-        topicName: oldTopic.name ?? '',
+        topicName: newTopic.name,
         prompt: oldTopic.prompt,
         assistantId: resolvedAssistantId ?? '',
         createdAt: parseDateToMillis(oldTopic.createdAt),

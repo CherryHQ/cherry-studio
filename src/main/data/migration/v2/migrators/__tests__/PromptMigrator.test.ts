@@ -414,6 +414,38 @@ describe('PromptMigrator', () => {
       expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 0, skippedCount: 1 })
     })
 
+    it('should report a topic entry whose prompt is missing or not text', async () => {
+      const ctx = topicCtx([
+        topicEntry({ topicId: 'topic-2', topicName: 'No prompt', prompt: undefined }),
+        topicEntry({ topicId: 'topic-3', topicName: 'Numeric prompt', prompt: 42 })
+      ])
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      const validateResult = await migrator.validate(ctx)
+
+      expect(prepareResult.itemCount).toBe(0)
+      expect(prepareResult.warnings).toHaveLength(2)
+      expect(prepareResult.warnings?.[0]).toContain('No prompt')
+      expect(prepareResult.warnings?.[1]).toContain('Numeric prompt')
+      expect(validateResult.stats).toMatchObject({ sourceCount: 2, skippedCount: 2 })
+    })
+
+    it('should identify each malformed topic entry that has no topic id', async () => {
+      const ctx = topicCtx([
+        topicEntry({ topicId: undefined, topicName: 'Lost topic' }),
+        topicEntry({ topicId: '  ', topicName: undefined })
+      ])
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+
+      expect(prepareResult.warnings).toHaveLength(2)
+      expect(prepareResult.warnings?.[0]).toContain('entry 1, topic "Lost topic"')
+      expect(prepareResult.warnings?.[1]).toContain('entry 2')
+      expect(prepareResult.warnings?.[0]).not.toBe(prepareResult.warnings?.[1])
+    })
+
     it('should ignore blank topic prompts without counting them', async () => {
       const ctx = topicCtx([topicEntry({ prompt: '   ' })])
       const migrator = new PromptMigrator()

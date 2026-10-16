@@ -492,8 +492,11 @@ function collectTopicPromptCandidates(
     const topicId = isRecord(entry) && typeof entry.topicId === 'string' ? entry.topicId : undefined
     const source = topicId !== undefined ? `topic:${topicId}` : `topic[${index}]`
     if (topicId === undefined || topicId.trim().length === 0) {
+      const topicName =
+        isRecord(entry) && typeof entry.topicName === 'string' && entry.topicName.trim() ? entry.topicName : undefined
+      const label = topicName !== undefined ? `entry ${index + 1}, topic "${topicName}"` : `entry ${index + 1}`
       warnings.push(
-        'A topic prompt without a topic id was not migrated. Copy it manually from the V1 backup to keep using it.'
+        `A topic prompt without a topic id (${label}) was not migrated. Copy it manually from the V1 backup to keep using it.`
       )
       candidates.push({ phrase: entry, source, visibility: 'global', invalidReason: 'missing topic id' })
       continue
@@ -508,7 +511,21 @@ function collectTopicPromptCandidates(
     }
     seenTopicIds.add(topicId)
 
-    if (typeof candidate.prompt !== 'string' || candidate.prompt.trim().length === 0) continue
+    // ChatMigrator stages only non-blank strings, so a missing or non-string prompt is malformed
+    // handoff data and must be reported; a blank string has nothing to recover.
+    if (typeof candidate.prompt !== 'string') {
+      warnings.push(
+        `Topic prompt for "${displayName}" was not migrated (missing or non-text prompt). Copy it manually from the V1 backup to keep using it.`
+      )
+      candidates.push({
+        phrase: candidate.prompt,
+        source,
+        visibility: 'global',
+        invalidReason: 'missing or non-string prompt'
+      })
+      continue
+    }
+    if (candidate.prompt.trim().length === 0) continue
 
     if (!PromptContentSchema.safeParse(candidate.prompt).success) {
       const reason = promptContentRejectionReason(candidate.prompt)
