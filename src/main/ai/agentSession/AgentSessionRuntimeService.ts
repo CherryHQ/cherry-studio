@@ -970,7 +970,15 @@ export class AgentSessionRuntimeService extends BaseService {
     const interruptedLaunch = interruption ? this.inFlightTurnStarts.get(entry.sessionId) : undefined
     try {
       this.closeConnectionAsync(entry)
-      if (!interruption) return
+      if (!interruption) {
+        // No turn minted yet — a pending receive-only launch is the only settlement left. Abandon
+        // the execution so the deferred input returns to the execution slot and the stale launch
+        // finds no autonomous machine to mint its zombie turn on.
+        if (entry.runtimeState.execution.kind === 'autonomous-turn') {
+          this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-abandoned' })
+        }
+        return
+      }
       // The abort only requests settlement: A's execution loop still has to unwind, hand its last
       // chunks to `PersistenceListener`, and let that listener write the row. Terminalizing
       // synchronously here would hand B's deferred input back first, and B's `startRuntimeTurn`
@@ -3267,14 +3275,17 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
       .finally(() => {
-        if (
-          !this.isCurrentEntry(entry) ||
-          entry.runtimeState.execution.kind !== 'autonomous-turn' ||
-          entry.runtimeState.execution.deferredTurn !== turn
-        ) {
+        if (!this.isCurrentEntry(entry)) return
+        const execution = entry.runtimeState.execution
+        if (execution.kind === 'autonomous-turn' && execution.deferredTurn === turn) {
+          this.requestRuntimeLaunch(entry, 'receive-only')
           return
         }
-        this.requestRuntimeLaunch(entry, 'receive-only')
+        // The suspension outlived the autonomous execution — the retained connection died before
+        // the receive-only launch was requested. Hand the suspended input back now.
+        if (execution.kind === 'turn' && execution.turn === turn && this.isTurnLive(entry, turn)) {
+          this.requestRuntimeLaunch(entry, 'deferred-turn')
+        }
       })
   }
 

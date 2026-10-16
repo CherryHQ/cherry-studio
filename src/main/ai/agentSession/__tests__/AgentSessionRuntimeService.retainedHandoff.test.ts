@@ -385,4 +385,106 @@ describe('retained-reply interruption hands B back only after A persists', () =>
 
     void service.closeSession('session-1')
   })
+
+  /**
+   * Pre-registration gap: the retained reconcile verdict lands while the receive-only launch is
+   * still pending its turn creation (B's input suspended, `execution.turn` not yet minted). The
+   * teardown's settlement is turn-keyed, so an `invalid`/`failed` verdict skipped it entirely and
+   * the stale launch later minted a zombie receive-only turn on a reconnect — B's deferred input
+   * stayed parked forever. The `current` control is the healthy handoff that must keep working.
+   */
+  describe('reconcile verdict lands before the receive-only turn exists', () => {
+    async function suspendInputAndArmRetainedReconcile(verdict: 'invalid' | 'failed' | 'current') {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = entryOf(service)
+      const retained = {
+        agentId: 'agent-1',
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue(verdict)
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection: retained, occupancy: {} }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, retained)
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
+      service.beginTurn({
+        ...baseTurnInput,
+        agentId: 'agent-2',
+        modelId: switchedModelId,
+        assistantMessageId: 'assistant-2',
+        messageSnapshot: { agentName: 'Agent B' } as any,
+        userMessage: userMessage('user-2')
+      })
+
+      mocks.saveMessage.mockClear()
+      ;(service as any).handleRuntimeEvent(
+        entry,
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        retained
+      )
+      // B's input suspension has started, but the receive-only launch has not minted its turn —
+      // the exact window the verdict can land in.
+      expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', ownership: 'active' })
+      expect(entry.runtimeState.execution.turn).toBeUndefined()
+      return { service, entry, retained }
+    }
+
+    it.each(['invalid', 'failed'] as const)(
+      'resumes the deferred input when retained reconciliation reports %s before the receive-only turn exists',
+      async (verdict) => {
+        const { service, entry, retained } = await suspendInputAndArmRetainedReconcile(verdict)
+
+        await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+        await flush()
+
+        expect(retained.close).toHaveBeenCalled()
+        // The dead connection must not mint a receive-only turn: no placeholder row, and the
+        // autonomous execution is gone.
+        expect(mocks.saveMessage).not.toHaveBeenCalled()
+        await vi.waitFor(() => {
+          expect(entry.runtimeState.execution).toMatchObject({
+            kind: 'turn',
+            turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+          })
+        })
+        // The resume is real: B's runtime execution is registered on the topic stream.
+        const managerInternals = manager as unknown as {
+          activeStreams: Map<string, { executions: Map<string, unknown> }>
+        }
+        expect([...(managerInternals.activeStreams.get('agent-session:session-1')?.executions.keys() ?? [])]).toEqual([
+          switchedModelId
+        ])
+
+        void service.closeSession('session-1')
+      }
+    )
+
+    it('current control: the receive-only turn is still created and B resumes after it settles', async () => {
+      const { service, entry, retained } = await suspendInputAndArmRetainedReconcile('current')
+
+      await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+      await flush()
+
+      expect(retained.close).not.toHaveBeenCalled()
+      const receiveOnlyTurn = entry.runtimeState.execution.turn
+      expect(receiveOnlyTurn).toBeDefined()
+      expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
+
+      // A's generation ends on its own, then the turn settles — the healthy handoff sequence.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' }, retained)
+      service.markTurnTerminal('session-1', 'paused', receiveOnlyTurn!.turnId)
+      await vi.waitFor(() => {
+        expect(entry.runtimeState.execution).toMatchObject({
+          kind: 'turn',
+          turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+        })
+      })
+
+      void service.closeSession('session-1')
+    })
+  })
 })
