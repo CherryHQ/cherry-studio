@@ -1056,6 +1056,9 @@ function wrappedLinkLabel(
   definitionSource: string,
   container: DefinitionContainer
 ): { text: string; tail: string; lines: number } | null {
+  // A label opens at a bracket: prose that only carries the closing `]:` is a paragraph the way it
+  // stands, and reading a label from its second character would hoist it as one.
+  if (definitionSource[0] !== '[') return null
   let counted = 0
   const parts: string[] = []
   let span = 1
@@ -1070,10 +1073,15 @@ function wrappedLinkLabel(
       // paragraph, the way a label closed without one does.
       const after = /^[ \t]*:([ \t]*)([\s\S]*)$/.exec(run.rest)
       if (!after) return null
+      // The closing line's bracket and destination are appended below, so only its label content
+      // survives it — the raw line still ends in `]: destination`, and joining it in whole would
+      // write the closing syntax twice.
+      const labelLines = [definitionSource.slice(1), ...parts]
+      labelLines[labelLines.length - 1] = content.slice(0, run.counted)
       return {
         // The label is carried the way it was written, line endings included — the parser reads
         // and normalizes it whole again wherever the definition lands.
-        text: `[${[definitionSource.slice(1), ...parts].join('\n')}]:${after[1]}${after[2]}`,
+        text: `[${labelLines.join('\n')}]:${after[1]}${after[2]}`,
         tail: after[2],
         lines: span
       }
@@ -1435,22 +1443,33 @@ export function splitMarkdownChunks(
   // Heading ids must match what the unsplit document would assign, so slugs are numbered in
   // document order as the walk meets the headings — behind quote or list markers a heading still
   // counts, inside a fence or an HTML block it does not — and each chunk receives the slugs of the
-  // headings its lines render. One entry per line, keyed by the line the heading's text sits on.
+  // headings its lines render. The entries are keyed by the line the heading's text sits on, and a
+  // line may render more than one heading, so each holds every occurrence in document order.
   const slugOrder = new Map<string, string[]>()
-  const lineHeadings = new Array<{ base: string; slug: string } | undefined>(lines.length).fill(undefined)
+  const lineHeadings = new Array<{ base: string; slug: string }[] | undefined>(lines.length).fill(undefined)
   const recordHeading = (line: number, text: string): void => {
     const base = normalizeHeadingText(text)
     const seen = slugOrder.get(base) ?? []
     const slug = seen.length === 0 ? base : `${base}-${seen.length}`
     seen.push(slug)
     slugOrder.set(base, seen)
-    lineHeadings[line] = { base, slug }
+    ;(lineHeadings[line] ??= []).push({ base, slug })
   }
-  // A raw HTML block's lines are the tags the renderer parses into elements, so a heading tag on
-  // one of them numbers the document's ids the same way an ATX heading does. The content past the
-  // container markers is what the parser reads.
+  // A raw HTML block's lines are the tags the renderer parses into elements, so a complete heading
+  // tag anywhere in the block numbers the document's ids the same way an ATX heading does — one a
+  // single line may hold several of. The block is scanned whole, since its tag, text and closing
+  // tag may sit on different lines.
   const recordHtmlHeadings = (line: number, content: string): void => {
     for (const match of content.matchAll(HTML_HEADING_TAG)) recordHeading(line, htmlHeadingText(match[2]))
+  }
+  // The raw text of the open HTML block, gathered line by line to scan once the block closes: a
+  // heading counted line by line would miss one whose tag spans lines, and counting it on the line
+  // its tag opens keeps it in the chunk that renders the element.
+  let htmlBlockStart = 0
+  let htmlBlockContent: string[] = []
+  const closeHtmlBlock = (): void => {
+    recordHtmlHeadings(htmlBlockStart, htmlBlockContent.join('\n'))
+    htmlBlockContent = []
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -1476,9 +1495,10 @@ export function splitMarkdownChunks(
       const stripped =
         htmlBlockContainer === null ? line : stripDefinitionContainer(line, containerParams(htmlBlockContainer))
       if (stripped !== null && !blank) {
-        recordHtmlHeadings(i, stripped)
+        htmlBlockContent.push(stripped)
         continue
       }
+      closeHtmlBlock()
       htmlBlankBlock = false
     }
     if (mathRun) {
@@ -1574,7 +1594,8 @@ export function splitMarkdownChunks(
       // The block lives in the container it was opened behind, so its lines have to keep that
       // container: the marker chain the opening line carried, and an item's content column.
       htmlBlockContainer = container?.[0] ?? null
-      recordHtmlHeadings(i, uncontained)
+      htmlBlockStart = i
+      htmlBlockContent = [uncontained]
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -1766,6 +1787,8 @@ export function splitMarkdownChunks(
       bufferChars = 0
     }
   }
+  // A block still open at the end of the document closes here, its headings counted with the rest.
+  if (htmlBlankBlock) closeHtmlBlock()
 
   const prefix = definitions.length > 0 ? `${definitions.join('\n')}\n\n` : ''
   const prefixLines = definitionLines > 0 ? definitionLines + 1 : 0
@@ -1775,11 +1798,11 @@ export function splitMarkdownChunks(
     if (end <= start) continue
     const chunkSlugs = new Map<string, string[]>()
     for (let i = start; i < end; i++) {
-      const heading = lineHeadings[i]
-      if (!heading) continue
-      const assigned = chunkSlugs.get(heading.base) ?? []
-      assigned.push(heading.slug)
-      chunkSlugs.set(heading.base, assigned)
+      for (const heading of lineHeadings[i] ?? []) {
+        const assigned = chunkSlugs.get(heading.base) ?? []
+        assigned.push(heading.slug)
+        chunkSlugs.set(heading.base, assigned)
+      }
     }
     chunks.push({
       text: prefix + lines.slice(start, end).join('\n'),
