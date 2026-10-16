@@ -562,6 +562,7 @@ export function AgentResourceList({
     [
       handleDeleteAgent,
       handleToggleAgentPin,
+      isGroupGrouping,
       openAgentEditor,
       removeSidebarShortcut,
       setAgentSortType,
