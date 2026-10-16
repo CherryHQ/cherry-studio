@@ -1,0 +1,150 @@
+$ vitest run --project renderer --reporter=verbose src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (electron.vite.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/piVccBundle.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/vitePlugin.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/sentry.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/checkChunkExports.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/types/appEdition.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/claudeCodeBinaryManifest.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/build-theme-css.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/releaseNotes.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/scan.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/transform.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/semanticId.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/redaction.ts:4:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/theme-contract.ts:12:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(node:80929) Warning: Accessing non-existent property 'replaceRouteChunk' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/conversation-entry.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/-conversation-entry.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/search.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-search.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/about.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-about.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/skills.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-skills.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+
+ RUN  v5.0.1 /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src
+
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps requested live item keys mounted and resolves their index after prepends 7ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps selection-survival indexes local to their owning virtual list 10ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > drops a stale selection-survival index when the virtual list shrinks 2ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps scroll handlers stable across parent rerenders 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not recreate resize observers on unrelated parent rerenders 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not read scroll metrics on unrelated parent rerenders 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > returns keyed top-level elements so virtua can keep item measurements stable 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > enables shift only for renders that add or remove items at the start 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not claim shift support for an equal-length sliding window 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not treat mixed removals as a start shift 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > checks reach-top from the scroll path 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > shows the scroll-to-bottom button only when more than one viewport from bottom 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps the scroll-to-bottom button visible during reading navigation while still far from bottom 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > shows the scroll-to-bottom button when content growth leaves more than one viewport below 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > hides the scroll-to-bottom button after programmatic scroll to bottom 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > scrolls to top instantly 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > scrolls to top smoothly with the RAF-driven runtime scroller 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > tracks the top navigation base through growth until the user scrolls 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > tracks the a message key navigation base through growth until the user scrolls 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not resurrect an explicit navigation target after leaving and returning to a topic 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not resurrect an explicit navigation target after its item disappears and returns 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > jumps instantly to a key more than a few viewports away 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > scrolls smoothly to a nearby key within a few viewports 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > scrolls smoothly when the raw offset overshoots the reachable bottom but the real movement is short 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > jumps instantly when even the clamped movement exceeds a few viewports 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps the requested heading anchored when content before it grows inside a block wrapper 2ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > measures an exact range once and completes its navigation immediately 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps key navigation aimed at the same message when history is prepended mid-animation 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > replaces an in-flight smooth scroll when scrolling to top 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > replaces an in-flight smooth scroll when scrolling to bottom 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > auto-sticks to the new bottom after the user scrolls back down mid-stream 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > sticks exactly to the live edge for visible single-line growth 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > follows streaming text mutations before resize measurement catches up 52ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps following when a message is appended at the live bottom 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps the reading position when history and a local turn are appended together 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps reading mode through branch shrink and subsequent growth 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps the pre-fork reading position when a non-scrolling interaction follows the branch shrink 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps the reading position when a sent message and streamed content are appended 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > lets non-wheel upward scrolling take over during bottom-follow 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > stops following and freezes the viewport when the user takes control during bottom-follow 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps reading after a disclosure takes over at the restored bottom 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps reading after a disclosure takes over at the wheel bottom 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps disclosure reading intent when shrink creates freeze slack 15ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps reading mode when disclosure shrink passes the viewport 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > restores a frozen reading viewport when shrink clamps scroll before resize observation 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > re-asserts the frozen viewport when a programmatic nudge drifts it 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > passes the scroller-relative offset to virtua when capturing with a start margin 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > resolves a frozen item by stable key after older items are prepended 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps updating the freeze anchor throughout a long user scroll gesture 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > follows new content after a multi-frame scrollbar scroll reaches the bottom 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > follows new content after a multi-frame wheel scroll reaches the bottom 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps native scrollbar ownership while the held thumb reverses direction 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > uses the interacted DOM element to survive reflow inside one virtual item 4ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > falls back to the message item when the semantic anchor is hidden 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > anchors to the nested scroll container instead of an element inside its scrolled content 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > adds temporary bottom slack so a frozen viewport survives content shrink 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps user ownership across rerenders so late layout stays anchored 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > cancels an in-flight smooth scroll when the user takes control 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > cancels read navigation on wheel input with deltaY -40 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > cancels read navigation on wheel input with deltaY 40 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > owns forwarded wheel scrolling and bounds deltaY -480 to -200 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > owns forwarded wheel scrolling and bounds deltaY 480 to 200 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps following the real bottom when the viewport becomes shorter 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > hands the wheel back when the user returns to the bottom after a takeover 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps reading intent through small streaming growth near the live edge 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > resumes following after an explicit scroll-to-bottom ends a takeover 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > ignores a large programmatic backward jump during bottom-follow (no input) and keeps following 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > yields to an upward pointer scroll afte… 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > resumes following on a downward scroll … 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps following when a scroll event aft… 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > reasserts bottom when virtua drifts backward just after a downward return gesture 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > ignores programmatic upward jitter during bottom-follow and keeps following 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > sticks straight to the live bottom for one-shot growth 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > cancels read navigation when a real downward scroll interrupts the animation 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > resumes following when a real jump lands on the live bottom mid-navigation 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not resume following when compensation lands on the bottom after expired input 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not resume following when compensation lands on the bottom after settled input 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps the navigation target anchored after virtua reports scroll-end 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > suppresses reassertFreeze during fresh keyboard intent so arrow-key scroll lands without jitter 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not claim a scroll that moves opposite to fresh keyboard intent 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > keeps the settled viewport anchored after repeated keyboard scrolling 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > treats a later resize as programmatic when keydown intent expires without a scroll 0ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not reassert the reading anchor during confirmed middle-click autoscroll 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > resumes the reading freeze after the autoscroll idle window expires 1ms
+ ✓ |renderer| src/renderer/components/chat/messages/list/__tests__/chatVirtualizerRuntime.test.tsx > useChatVirtualizerRuntime > does not treat a stale candidate plus programmatic scroll as autoscroll 1ms
+
+ Test Files  1 passed (1)
+      Tests  85 passed (85)
+   Start at  12:29:14
+   Duration  618ms (tests 40%, environment 22%, transform 19%, import 14%, setup 5%)
+
