@@ -45,12 +45,21 @@ export class ChannelAdapterListener implements StreamListener {
      * deliver a richer `[Task failed] …` summary themselves (see `runAgentTask`), so
      * leaving this on would double-notify every subscribed channel.
      */
-    private readonly suppressErrorMessage = false,
+    private suppressErrorMessage = false,
     /** Response context for the inbound message, including thread placement where supported. */
     private readonly responseOptions?: SendMessageOptions
   ) {
     const responseKey = this.responseOptions?.replyToMessageId ?? 'unthreaded'
     this.id = `channel:${adapter.channelId}:${this.platformChatId}:${responseKey}`
+  }
+
+  /**
+   * Hand error reporting back to the stream. A listener retained across a foreground settle outlives
+   * the handler that owned failure notices, so a later failure reaching it must be delivered
+   * normally instead of suppressed behind a reporter that can no longer run.
+   */
+  enableErrorDelivery(): void {
+    this.suppressErrorMessage = false
   }
 
   /** Deliver a final message using the inbound message's response context. */

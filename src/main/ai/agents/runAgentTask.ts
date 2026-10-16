@@ -251,7 +251,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     .map((channel) => ({ id: channel.id, type: channel.type }))
     .sort((left, right) => left.id.localeCompare(right.id))
   const channelManager = application.get('ChannelManager')
-  const channelListeners: StreamListener[] = subscribedChannels.flatMap((channel) => {
+  const channelListeners: ChannelAdapterListener[] = subscribedChannels.flatMap((channel) => {
     const adapter = channelManager.getAdapter(channel.id)
     if (!adapter) return []
     // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
@@ -282,6 +282,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     application.get('AiStreamManager').removeListener(topicId, `agent-task:${scheduleId ?? ctx.jobId}`)
     if (!application.get('AgentSessionRuntimeService').hasPendingBackgroundWork(session.id)) {
       for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
+    } else {
+      // The retained listeners outlive this handler, which owned failure notices; hand error
+      // reporting to the wake so a failed wake still reaches the subscribed chats.
+      for (const listener of channelListeners) listener.enableErrorDelivery()
     }
     settle()
   }
