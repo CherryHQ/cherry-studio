@@ -82,7 +82,7 @@ host session because it is also the prompt-cache routing key.
 
 | Kind | Holds | Pi entry |
 | --- | --- | --- |
-| `message` | AI SDK `ModelMessage` (`user`, `assistant`, `tool` with one `tool-result`), plus `modelKey`, `usage`, `stopReason`, `errorMessage`, `responseId` (assistant) and `details` (tool) | `message` |
+| `message` | AI SDK `ModelMessage` (`user`, `assistant`, `tool` with one `tool-result`), plus `modelKey`, `usage` (token counts and `cost`, the USD the reply was billed at; absent reads as 0), `stopReason`, `errorMessage`, `responseId` (assistant) and `details` (tool) | `message` |
 | `message` with `custom` | a `user` message an extension added (`pi.sendMessage`), with its type, display flag and details | `custom_message` |
 | `compaction` | `summary`, `firstKeptEntryId`, `tokensBefore`, `details` | `compaction` |
 | `context-edit` | an omitted message (`replacement: null`) | `context_edit` |

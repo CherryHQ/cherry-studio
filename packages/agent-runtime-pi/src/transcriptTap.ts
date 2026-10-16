@@ -147,13 +147,20 @@ export class TranscriptTap {
           case 'assistant': {
             const fromModel =
               message.api === AI_SDK_API && message.provider === this.model.provider && message.model === this.model.id
-            const { input, output, cacheRead, cacheWrite, reasoning } = message.usage
+            const { input, output, cacheRead, cacheWrite, reasoning, cost } = message.usage
             return {
               ...at,
               kind: 'message',
               message: toModelMessage(message)!,
               ...(fromModel ? { modelKey: this.model.key } : {}),
-              usage: { input, output, cacheRead, cacheWrite, ...(reasoning === undefined ? {} : { reasoning }) },
+              usage: {
+                input,
+                output,
+                cacheRead,
+                cacheWrite,
+                ...(reasoning === undefined ? {} : { reasoning }),
+                cost: cost.total
+              },
               stopReason: message.stopReason as TranscriptStopReason,
               ...(message.errorMessage === undefined ? {} : { errorMessage: message.errorMessage }),
               ...(message.responseId === undefined ? {} : { responseId: message.responseId })
