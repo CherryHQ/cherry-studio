@@ -28,6 +28,7 @@ import { MockMainPreferenceServiceExport } from './PreferenceService'
 
 /** Minimal MainWindowService mock for tests that access application.get('MainWindowService') */
 const mockMainWindowService = {
+  onMainWindowCreated: vi.fn(() => ({ dispose: vi.fn() })),
   getMainWindow: vi.fn(() => null),
   openWebsite: vi.fn(async () => undefined),
   openBrowserTab: vi.fn(),

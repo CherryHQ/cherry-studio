@@ -70,16 +70,11 @@ describe('floating chat mode', () => {
 
   it('treats Main as the foreground app once it is shown or focused during a handoff', () => {
     let attach: ((window: BrowserWindow) => void) | undefined
-    const windowService = application.get('MainWindowService') as unknown as Record<string, unknown>
-    windowService.onMainWindowCreated = (listener: (window: BrowserWindow) => void) => {
+    vi.spyOn(application.get('MainWindowService'), 'onMainWindowCreated').mockImplementation((listener) => {
       attach = listener
-      return () => {}
-    }
-    try {
-      ;(service as any).subscribeMainWindowLifecycle()
-    } finally {
-      delete windowService.onMainWindowCreated
-    }
+      return { dispose: vi.fn() }
+    })
+    ;(service as any).subscribeMainWindowLifecycle()
     const mainWindow = new EventEmitter()
     attach!(mainWindow as unknown as BrowserWindow)
 

@@ -108,6 +108,7 @@ const logger = loggerService.withContext('QuickAssistantService')
 @DependsOn(['MainWindowService', 'WindowManager'])
 export class QuickAssistantService extends BaseService implements Activatable {
   private windowId: string | null = null
+  private cancelPendingShow: (() => void) | null = null
   private isPinnedQuickAssistant = false
   private isFloatingChat = false
   // Fallback poll for the macOS NSPanel blur-event bug — see the
@@ -137,6 +138,17 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.QuickAssistant, ({ window }) => {
         this.setupQuickAssistant(window)
+      })
+    )
+
+    this.registerDisposable(
+      wm.onWindowDestroyedByType(WindowType.QuickAssistant, ({ id }) => {
+        if (id !== this.windowId) return
+        this.cancelPendingShow?.()
+        this.windowId = null
+        this.isFloatingChat = false
+        this.isPinnedQuickAssistant = false
+        this.stopPostUnpinFocusPoll()
       })
     )
 
@@ -192,6 +204,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   private releaseActivationResources(): void {
+    this.cancelPendingShow?.()
     if (this.windowId) {
       // QuickAssistant is a singleton — wm.close() falls through to destroyWindow()
       // just like wm.destroy() would, but stays in the Consumer API layer. The
@@ -305,7 +318,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * closed, show) are attached. We then assign this.windowId and proceed.
    */
   private createQuickAssistant() {
-    if (this.windowId) return
+    if (this.getQuickAssistant()) return
 
     const wm = application.get('WindowManager')
     this.windowId = wm.open(WindowType.QuickAssistant)
@@ -380,7 +393,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     if (!this.isActivated) return
 
     // Wayland dismisses by destroying the window (see dismissWindow), so recreate it on demand.
-    if (isLinuxWayland) this.createQuickAssistant()
+    this.createQuickAssistant()
     const window = this.getQuickAssistant()
     if (!window) return
 
@@ -417,8 +430,17 @@ export class QuickAssistantService extends BaseService implements Activatable {
     // [Linux Wayland] A fresh window is mapped once its first page load finishes so the
     // compositor places it at its real size instead of an empty surface (no blank flash).
     // isLoading() can still report true inside did-finish-load, hence the `loaded` flag.
+    this.cancelPendingShow?.()
     if (isLinuxWayland && !loaded && window.webContents.isLoading()) {
-      window.webContents.once('did-finish-load', () => this.proceedShow(centerOnDisplay, true))
+      const onLoaded = () => {
+        this.cancelPendingShow = null
+        if (this.getQuickAssistant() === window) this.proceedShow(centerOnDisplay, true)
+      }
+      this.cancelPendingShow = () => {
+        window.webContents.removeListener('did-finish-load', onLoaded)
+        this.cancelPendingShow = null
+      }
+      window.webContents.once('did-finish-load', onLoaded)
       return
     }
 
@@ -450,6 +472,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
     window.setOpacity(1)
     window.show()
+    window.focus()
   }
 
   /**
@@ -474,6 +497,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   public hideQuickAssistant() {
+    this.cancelPendingShow?.()
     const window = this.getQuickAssistant()
     if (!window) return
 
@@ -512,6 +536,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * A fresh window gets the compositor's normal placement every time it opens.
    */
   private dismissWindow(window: BrowserWindow) {
+    this.cancelPendingShow?.()
     if (!isLinuxWayland || !this.windowId) {
       window.hide()
       return
@@ -520,15 +545,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.windowId = null
   }
 
-  /**
-   * Hides the quick window rather than destroying it. The quick window is a
-   * high-frequency toggle surface; destroy + recreate would cause a blank-flash
-   * on next show (loadURL is async and ready-to-show races the show() call) and
-   * waste the preload work. The renderer call sites (settings panel toggles)
-   * only need the window to disappear — hide() satisfies that. True teardown
-   * happens in onDeactivate() when the feature preference is turned off, and
-   * as a final fallback in WindowManager.onDestroy() at app quit.
-   */
+  /** Dismiss the window using the platform's hide or destroy policy. */
   public closeQuickAssistant() {
     const window = this.getQuickAssistant()
     if (window) this.dismissWindow(window)
@@ -536,7 +553,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   public toggleQuickAssistant() {
     const window = this.getQuickAssistant()
-    if (window?.isVisible()) {
+    if (window?.isVisible() || this.cancelPendingShow) {
       this.hideQuickAssistant()
       return
     }

@@ -43,8 +43,9 @@ as a temporary chat: Main labels it "Temporary chat · auto-deletes 24 hours aft
 with a **Save** action, and Cherry deletes it with its messages 24 hours after it was created
 (checked at startup and while running). Minimizing a temporary chat waits until generation finishes.
 **Open in Cherry Studio** does the same and then shows the chat in Main.
-**X** asks before deleting the conversation; Cancel keeps it open. Delete moves saved chats
-to the Recycle Bin and permanently removes stored temporary chats.
+**X** in a saved chat acts like Minimize and keeps its history. In a temporary chat,
+**X** asks before deleting; Cancel keeps it open. Confirming deletes the temporary conversation,
+including its stored copy if it was previously minimized.
 The launcher works while Cherry runs in the background with its main window closed,
 including after the main window has been destroyed. Saved follow-up turns continue
 the active conversation branch, including after a temporary chat is saved.

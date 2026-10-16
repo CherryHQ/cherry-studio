@@ -599,8 +599,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     const confirmed = await popup.confirm({ title: t('common.delete'), content: t('common.delete_confirm') })
     if (!confirmed) return
     try {
-      if (isSavedChat) await ipcApi.request('trash.topic.archive', { topicIds: [temporaryTopicId] })
-      else if (isStoredChat) await ipcApi.request('trash.topic.delete_permanently', { topicIds: [temporaryTopicId] })
+      if (isStoredChat) await ipcApi.request('trash.topic.delete_permanently', { topicIds: [temporaryTopicId] })
       resetConversation()
       setRoute('home')
       setUserInputText('')
@@ -721,7 +720,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               void ipcApi.request('quick_assistant.chat.open', { prompt: '', temporary: true, submit: false })
             }
             onOpenInMainWindow={() => void openInMainWindow()}
-            onDelete={() => void deleteConversation()}
+            onClose={() => void (isSavedChat || saveOnSend ? minimizeConversation() : deleteConversation())}
             minimizeDisabled={(!isStoredChat && isLoading) || !isTopicReady || pendingLaunch !== null}
             onMinimize={() => void minimizeConversation()}
           />

@@ -8,7 +8,7 @@ interface QuickChatToolbarProps {
   loading: boolean
   onNewTemporaryChat: () => void
   onOpenInMainWindow: () => void
-  onDelete: () => void
+  onClose: () => void
   minimizeDisabled: boolean
   onMinimize: () => void
 }
@@ -18,12 +18,13 @@ export default function QuickChatToolbar({
   loading,
   onNewTemporaryChat,
   onOpenInMainWindow,
-  onDelete,
+  onClose,
   minimizeDisabled,
   onMinimize
 }: QuickChatToolbarProps) {
   const { t } = useTranslation()
   const openLabel = t('quickAssistant.chat.open_in_app')
+  const closeLabel = t(saved ? 'common.close' : 'common.delete')
 
   return (
     <div className="flex items-center justify-between gap-2 border-b border-border pb-3 [-webkit-app-region:drag]">
@@ -58,8 +59,8 @@ export default function QuickChatToolbar({
             <Minus className="size-4" />
           </Button>
         </Tooltip>
-        <Tooltip content={t('common.delete')}>
-          <Button variant="ghost" size="icon-sm" disabled={loading} aria-label={t('common.delete')} onClick={onDelete}>
+        <Tooltip content={closeLabel}>
+          <Button variant="ghost" size="icon-sm" disabled={loading} aria-label={closeLabel} onClick={onClose}>
             <X className="size-4" />
           </Button>
         </Tooltip>

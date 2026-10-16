@@ -452,7 +452,7 @@ describe('HomeWindow', () => {
     expect(state.persistTemporaryTopic).toHaveBeenCalledTimes(1)
   })
 
-  it('archives a saved launcher conversation through the existing Recycle Bin command', async () => {
+  it('closing a saved launcher conversation minimizes it without deleting history', async () => {
     const user = userEvent.setup()
     state.launchRequest = {
       kind: 'chat',
@@ -468,10 +468,11 @@ describe('HomeWindow', () => {
     view.rerender(<HomeWindow draggable={false} />)
     state.isPending = false
     view.rerender(<HomeWindow draggable={false} />)
-    await user.click(screen.getByRole('button', { name: 'common.delete' }))
-    await waitFor(() =>
-      expect(ipcApi.request).toHaveBeenCalledWith('trash.topic.archive', { topicIds: ['fresh-topic'] })
-    )
+    await user.click(screen.getByRole('button', { name: 'common.close' }))
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('quick_assistant.hide'))
+    expect(ipcApi.request).not.toHaveBeenCalledWith('trash.topic.archive', expect.anything())
+    expect(ipcApi.request).not.toHaveBeenCalledWith('trash.topic.delete_permanently', expect.anything())
+    expect(popup.confirm).not.toHaveBeenCalled()
   })
 
   it('does not send when saving fails and retains the prompt for retry', async () => {
@@ -596,6 +597,27 @@ describe('HomeWindow', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('quickAssistant.chat.temporary'))
   })
 
+  it('closing a previously minimized temporary chat deletes its stored copy', async () => {
+    state.launchRequest = {
+      kind: 'chat',
+      requestId: 'minimize-then-delete',
+      prompt: 'private retained chat',
+      temporary: true,
+      submit: false
+    }
+    render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('private retained chat'))
+    await userEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    await waitFor(() => expect(state.persistTemporaryTopic).toHaveBeenCalledWith('private retained chat', true))
+    await userEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('trash.topic.delete_permanently', {
+        topicIds: ['fresh-topic']
+      })
+    )
+    expect(ipcApi.request).not.toHaveBeenCalledWith('trash.topic.archive', expect.anything())
+  })
+
   it('a failed minimize keeps the temporary conversation visible for retry', async () => {
     state.launchRequest = {
       kind: 'chat',
@@ -699,7 +721,7 @@ describe('HomeWindow', () => {
     }
     const view = render(<HomeWindow />)
     await waitFor(() => expect(screen.getByTestId('quick-input')).toHaveValue('keep this draft'))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'common.delete' })).not.toBeDisabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.close' })).not.toBeDisabled())
     expect(state.sendMessage).not.toHaveBeenCalled()
     expect(state.persistTemporaryTopic).not.toHaveBeenCalled()
     state.assistantModel = state.quickModel
