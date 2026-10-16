@@ -85,7 +85,7 @@ describe('lifecycle', () => {
     await expect(localModelService._doInit()).resolves.toBeUndefined()
 
     const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
-    expect(swept).toEqual([EMBEDDING, OCR, ASR, 'qwen3-tts-0.6b-customvoice-8bit'].sort())
+    expect(swept).toEqual([EMBEDDING, OCR, ASR, 'qwen3-tts-0.6b-customvoice-8bit', 'kokoro-multi-lang-v1.1'].sort())
   })
 
   it('cancels an in-flight download on stop instead of leaving it to die with the process', async () => {

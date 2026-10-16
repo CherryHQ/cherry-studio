@@ -148,6 +148,7 @@ export function buildPathRegistry() {
     'feature.asr.funasr': path.join(appUserDataRuntime, 'models', 'funasr-nano'),
     'feature.mlx.binary': path.join(appUserDataToolchain, 'mlx-node'),
     'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),
+    'feature.tts.kokoro': path.join(appUserDataRuntime, 'models', 'kokoro-multi-lang-v1.1'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
     'feature.pdf_translation.babeldoc': path.join(appUserDataRuntime, 'models', 'babeldoc'),

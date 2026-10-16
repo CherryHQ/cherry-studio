@@ -10,11 +10,15 @@ export interface TtsSynthesizeInput {
 
 export type TtsInferenceContract = {
   methods: {
-    synthesize: UtilityProcessMethod<TtsSynthesizeInput & { modelDir: string }, void>
+    synthesize: UtilityProcessMethod<
+      TtsSynthesizeInput & { modelDir: string; architecture: 'qwen3-tts' | 'kokoro' },
+      void
+    >
   }
 }
 
 export interface TtsInitData {
   appPath: string
   bindingPath: string
+  sherpaBindingPath: string
 }

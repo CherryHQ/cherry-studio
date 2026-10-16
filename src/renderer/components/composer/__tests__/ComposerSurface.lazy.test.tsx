@@ -1,7 +1,7 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
@@ -73,7 +73,8 @@ vi.mock('../ComposerSurfaceRuntime', () => {
   }: ComposerSurfaceProps) => {
     mocks.runtimeIntent = deferredIntent
     mocks.runtimeTokens = tokens.map((token) => ({ id: token.id, kind: token.kind, label: token.label }))
-    useEffect(() => {
+    // Match the runtime's adapter handoff before the mounted editor can receive dictation.
+    useLayoutEffect(() => {
       onInputAdapterChange?.(mocks.runtimeInputAdapter as never)
       return () => onInputAdapterChange?.(undefined)
     }, [onInputAdapterChange])

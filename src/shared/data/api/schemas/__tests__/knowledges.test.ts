@@ -289,6 +289,7 @@ describe('Knowledge base schemas', () => {
   it('rejects invalid numeric tuning fields in entity schema', () => {
     const result = KnowledgeBaseSchema.safeParse({
       id: KNOWLEDGE_BASE_ID,
+      orderKey: 'a0',
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
@@ -308,6 +309,7 @@ describe('Knowledge base schemas', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
         id: KNOWLEDGE_BASE_ID,
+        orderKey: 'a0',
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -328,6 +330,7 @@ describe('Knowledge base schemas', () => {
   it('accepts documentCount 0 for empty knowledge bases', () => {
     const result = KnowledgeBaseSchema.safeParse({
       id: KNOWLEDGE_BASE_ID,
+      orderKey: 'a0',
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
@@ -352,6 +355,7 @@ describe('Knowledge base schemas', () => {
   it('accepts nullable groupId and requires persisted defaults in entity schema', () => {
     const result = KnowledgeBaseSchema.safeParse({
       id: KNOWLEDGE_BASE_ID,
+      orderKey: 'a0',
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
@@ -373,6 +377,7 @@ describe('Knowledge base schemas', () => {
   it('requires completed bases to have positive dimensions and allows failed bases with unknown dimensions', () => {
     const failedBase = {
       id: KNOWLEDGE_BASE_ID,
+      orderKey: 'a0',
       name: 'KB',
       embeddingModelId: null,
       groupId: null,
@@ -403,6 +408,7 @@ describe('Knowledge base schemas', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
         id: KNOWLEDGE_BASE_ID,
+        orderKey: 'a0',
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -416,6 +422,7 @@ describe('Knowledge base schemas', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
         id: KNOWLEDGE_BASE_ID,
+        orderKey: 'a0',
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -558,6 +565,7 @@ describe('Knowledge base schemas', () => {
 it('accepts failed knowledge bases with a null embedding model id', () => {
   const result = KnowledgeBaseSchema.safeParse({
     id: SECOND_KNOWLEDGE_BASE_ID,
+    orderKey: 'a0',
     name: 'KB nullable model',
     dimensions: 1024,
     embeddingModelId: null,
@@ -578,6 +586,7 @@ it('accepts failed knowledge bases with a null embedding model id', () => {
 it('rejects invalid knowledge base status error combinations', () => {
   const validBase = {
     id: KNOWLEDGE_BASE_ID,
+    orderKey: 'a0',
     name: 'KB',
     dimensions: 1024,
     groupId: null,
@@ -703,6 +712,7 @@ it('accepts only null or a non-blank groupId in knowledge patches', () => {
 describe('isCompletedKnowledgeBase', () => {
   const completedBase = KnowledgeBaseSchema.parse({
     id: KNOWLEDGE_BASE_ID,
+    orderKey: 'a0',
     name: 'KB',
     groupId: null,
     dimensions: 768,
@@ -756,6 +766,7 @@ describe('isCompletedKnowledgeBase', () => {
 describe('isCompletedVectorKnowledgeBase', () => {
   const vectorBase = KnowledgeBaseSchema.parse({
     id: KNOWLEDGE_BASE_ID,
+    orderKey: 'a0',
     name: 'KB',
     groupId: null,
     dimensions: 768,
