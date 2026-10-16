@@ -18,6 +18,7 @@ import {
   resolveEndpointProviderOptionsKey
 } from '@main/ai/provider/endpoint'
 import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
+import { getUserReasoningEffortMap } from '@main/ai/utils/reasoningEffortPreferences'
 import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { nearestEffortForBudget } from '@shared/ai/reasoning'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
@@ -38,14 +39,16 @@ function resolveProviderReasoningContext(
 ) {
   const { endpointType } = resolvedEndpoint
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
+  const invocationModel = reasoningProfile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
+    : model
   return {
     aiSdkProviderId: resolveAiSdkProviderId(provider, endpointType),
     endpointType,
-    invocationModel: reasoningProfile.support
-      ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
-      : model,
+    invocationModel,
     providerOptionsKey: resolveEndpointProviderOptionsKey(provider, resolvedEndpoint),
-    reasoningProfile
+    reasoningProfile,
+    userEffortMap: getUserReasoningEffortMap(provider, invocationModel)
   }
 }
 
@@ -60,7 +63,8 @@ function buildProviderOptions(
     selection: effort,
     model: context.invocationModel,
     profile: context.reasoningProfile.wire,
-    maxTokens
+    maxTokens,
+    userEffortMap: context.userEffortMap
   })
   return buildResolvedReasoningProviderOptions({
     aiSdkProviderId: context.aiSdkProviderId,
@@ -84,7 +88,8 @@ function resolveNativeAnthropicEffort(
     selection: effort,
     model: context.invocationModel,
     profile: context.reasoningProfile.wire,
-    maxTokens
+    maxTokens,
+    userEffortMap: context.userEffortMap
   })
   const emission = invocation.emissions.find((candidate) => candidate.target === 'effort')
   return typeof emission?.value === 'string' ? (emission.value as GatewayReasoningEffort) : undefined
