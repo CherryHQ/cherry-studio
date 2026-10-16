@@ -11,16 +11,11 @@ import {
   artifactStagingDir,
   installArtifact,
   isArtifactInstalled,
+  isArtifactSupported,
   removeArtifact
 } from '../acquisition/tarballArtifact'
 import { getSharedArtifact } from '../catalog/catalog'
-import {
-  type BundleFile,
-  currentPlatformKey,
-  type InstallState,
-  type ModelBundle,
-  type SharedArtifactId
-} from '../catalog/types'
+import { type BundleFile, type InstallState, type ModelBundle, type SharedArtifactId } from '../catalog/types'
 
 const logger = loggerService.withContext('LocalModelStorageService')
 
@@ -200,7 +195,7 @@ export class LocalModelStorageService {
   }
 
   isArtifactSupported(id: SharedArtifactId): boolean {
-    return getSharedArtifact(id).platforms[currentPlatformKey()] !== undefined
+    return isArtifactSupported(getSharedArtifact(id))
   }
 
   isBundleSupported(bundle: ModelBundle): boolean {

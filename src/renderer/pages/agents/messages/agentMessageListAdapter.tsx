@@ -124,6 +124,7 @@ interface AgentMessageListParams {
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
+  afterMessages?: MessageListState['afterMessages']
 }
 
 /**
@@ -186,7 +187,8 @@ export function useAgentMessageListProviderValue({
   imageActionConsumer,
   messageNavigation,
   workspacePath,
-  messageTail
+  messageTail,
+  afterMessages
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
@@ -283,13 +285,15 @@ export function useAgentMessageListProviderValue({
     selectAllPagination
   })
 
+  // Raw path to main, which resolves workspace-relative input against the session's workspace: the
+  // renderer must never join paths, and nothing unresolved may reach `shell.openPath`.
   const openPath = useCallback(
-    (path: string) => {
-      return window.api.file.openPath(requireWorkspaceFilePath(workspacePath, path))
-    },
-    [workspacePath]
+    (path: string) => ipcApi.request('ai.agent.session.open_path', { sessionId, path }),
+    [sessionId]
   )
 
+  // Still renderer-side: the open-target menu needs an absolute path to describe, and it is not a
+  // file-opening call.
   const resolvePath = useMemo<MessageListActions['resolvePath']>(
     () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
     [workspacePath]
@@ -427,6 +431,7 @@ export function useAgentMessageListProviderValue({
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
       messageTail: normalInteractionsEnabled ? messageTail : undefined,
+      afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
@@ -451,6 +456,7 @@ export function useAgentMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageTail,
+      afterMessages,
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,

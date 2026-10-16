@@ -1110,6 +1110,22 @@ export class AgentSessionService {
     })
   }
 
+  /**
+   * Restore the sessions trashed together with their agent inside the caller's
+   * transaction: `trashByAgentIdTx` stamps them with the agent's own `deletedAt`,
+   * so that timestamp scopes the operation. Individually archived sessions carry
+   * a different one and stay in the Recycle Bin.
+   */
+  restoreTrashedWithAgentTx(tx: DbOrTx, agentId: string, trashedAt: number): string[] {
+    return tx
+      .update(sessionsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, trashedAt)))
+      .returning({ id: sessionsTable.id })
+      .all()
+      .map((row) => row.id)
+  }
+
   restore(id: string): AgentSessionEntity {
     const db = application.get('DbService').getDb()
 
@@ -1302,6 +1318,29 @@ export class AgentSessionService {
 
   listIdsByAgent(agentId: string): string[] {
     return this.listIdsByAgentTx(application.get('DbService').getDb(), agentId)
+  }
+
+  listSystemWorkspaceSessions(ids?: readonly string[]) {
+    if (ids?.length === 0) return []
+    return application
+      .get('DbService')
+      .getDb()
+      .select({
+        id: sessionsTable.id,
+        path: agentWorkspaceTable.path,
+        deletedAt: sessionsTable.deletedAt,
+        agentDeletedAt: agentsTable.deletedAt
+      })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+      .where(
+        and(
+          eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM),
+          ids ? inArray(sessionsTable.id, [...ids]) : undefined
+        )
+      )
+      .all()
   }
 
   listIdsByWorkspace(workspaceId: string): string[] {

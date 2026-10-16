@@ -10,7 +10,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { BaseService, Signal } from '@main/core/lifecycle'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { WindowId } from '@shared/ipc/types'
+import type { EventPayload, WindowId } from '@shared/ipc/types'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserSessionService } from '../BrowserSessionService'
@@ -47,7 +47,7 @@ describe('topic browser ownership and cancellation', () => {
     vi.restoreAllMocks()
   })
 
-  function attachTopicGuest() {
+  function attachTopicGuest(profile: WebviewSecurityProfile = WebviewSecurityProfile.AgentBrowser, guestId = 71) {
     const host = { getZoomFactor: () => 1 } as Electron.WebContents
     vi.mocked(application.get('WindowManager').getWindow).mockReturnValue({
       webContents: host,
@@ -57,17 +57,203 @@ describe('topic browser ownership and cancellation', () => {
       isFocused: () => true,
       isMinimized: () => false
     } as unknown as Electron.BrowserWindow)
-    const fixture = createGuest(71)
+    const fixture = createGuest(guestId)
     Object.assign(fixture.mock, {
       getType: () => 'webview',
       getZoomFactor: () => 1,
       hostWebContents: host,
-      session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+      session: session.fromPartition(getWebviewPartition(profile))
     })
     vi.mocked(webContents.fromId).mockReturnValue(fixture.guest)
-    const { tabId } = service.topicBrowser.attach(topicId, 71, windowId)
+    const { tabId } = service.topicBrowser.attach(topicId, guestId, windowId)
     return { fixture, tabId }
   }
+
+  it.each(['focused', 'background'] as const)(
+    'accepts %s keyboard input after a topic changes assistant',
+    async (status) => {
+      vi.useRealTimers()
+      const { fixture, tabId } = attachTopicGuest()
+      const oldControl = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })
+      const newOwner = '44444444-4444-4444-8444-444444444444'
+      dbh.db
+        .insert(assistantTable)
+        .values({ id: newOwner, name: 'New owner', emoji: '', orderKey: 'a1', settings: DEFAULT_ASSISTANT_SETTINGS })
+        .run()
+      dbh.db.update(topicTable).set({ assistantId: newOwner }).where(eq(topicTable.id, topicId)).run()
+      const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: newOwner })
+      let input = ''
+      const send = fixture.mock.debugger.sendCommand.getMockImplementation()!
+      fixture.mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+        if (method === 'Input.dispatchKeyEvent' && (params as { type: string }).type === 'char')
+          input += (params as { text: string }).text
+        return send(method, params)
+      })
+      vi.mocked(application.get('IpcApiService').send).mockImplementation((eventWindow, event, payload) => {
+        if (event !== 'browser.input.focus_requested') return
+        const request = payload as EventPayload<'browser.input.focus_requested'>
+        service.topicBrowser.inputFocused(request.sessionId, request.tabId, request.requestId, status, eventWindow)
+      })
+      try {
+        await expect(
+          oldControl.execute('pressKey', { key: 'x' }, tabId, new AbortController().signal)
+        ).rejects.toMatchObject({ code: 'not_allowed' })
+        expect(input).toBe('')
+        await control.execute('pressKey', { key: 'x' }, tabId, new AbortController().signal)
+        expect(input).toBe('x')
+        expect(service.topicBrowser.get({ sessionId: topicId, ownerId: newOwner })?.tabId).toBe(tabId)
+      } finally {
+        await oldControl.close()
+        await control.close()
+      }
+    }
+  )
+
+  it.each(['cancel', 'owner-change', 'detach', 'unavailable'] as const)(
+    'rejects keyboard input when %s occurs during focus acknowledgement',
+    async (failure) => {
+      vi.useRealTimers()
+      const { fixture, tabId } = attachTopicGuest()
+      const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })
+      const abort = new AbortController()
+      let inputs = 0
+      const send = fixture.mock.debugger.sendCommand.getMockImplementation()!
+      fixture.mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+        if (method.startsWith('Input.')) inputs++
+        return send(method, params)
+      })
+      vi.mocked(application.get('IpcApiService').send).mockImplementation((eventWindow, event, payload) => {
+        if (event !== 'browser.input.focus_requested') return
+        const request = payload as EventPayload<'browser.input.focus_requested'>
+        if (failure === 'cancel') abort.abort(new Error('cancelled'))
+        if (failure === 'detach') service.topicBrowser.detach(topicId, tabId, windowId)
+        if (failure === 'owner-change') {
+          const next = '44444444-4444-4444-8444-444444444444'
+          dbh.db
+            .insert(assistantTable)
+            .values({ id: next, name: 'Next', emoji: '', orderKey: 'a1', settings: DEFAULT_ASSISTANT_SETTINGS })
+            .run()
+          dbh.db.update(topicTable).set({ assistantId: next }).where(eq(topicTable.id, topicId)).run()
+        }
+        service.topicBrowser.inputFocused(
+          request.sessionId,
+          request.tabId,
+          request.requestId,
+          failure === 'unavailable' ? 'unavailable' : 'background',
+          eventWindow
+        )
+      })
+      try {
+        await expect(control.execute('pressKey', { key: 'x' }, tabId, abort.signal)).rejects.toThrow()
+        expect(inputs).toBe(0)
+      } finally {
+        await control.close()
+      }
+    }
+  )
+
+  it('returns a usable tab handle when the first observation opens a dialog', async () => {
+    vi.useRealTimers()
+    const { fixture, tabId } = attachTopicGuest()
+    const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })
+    let opened = false
+    let accepted: boolean | undefined
+    fixture.mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'document-1' } } }
+      if (method === 'Accessibility.getFullAXTree') {
+        if (!opened) {
+          opened = true
+          fixture.mock.debugger.emit('message', {}, 'Page.javascriptDialogOpening', {
+            type: 'confirm',
+            message: 'Continue?'
+          })
+        }
+        return { nodes: [] }
+      }
+      if (method === 'DOMSnapshot.captureSnapshot')
+        return {
+          strings: ['main'],
+          documents: [
+            {
+              frameId: 0,
+              nodes: { backendNodeId: [], nodeName: [], attributes: [] },
+              layout: { nodeIndex: [], bounds: [], styles: [] }
+            }
+          ]
+        }
+      if (method === 'Runtime.evaluate') return { result: { value: { x: 0, y: 0, w: 800, h: 600 } } }
+      if (method === 'Page.handleJavaScriptDialog') accepted = (params as { accept: boolean }).accept
+      return {}
+    })
+    const signal = new AbortController().signal
+    try {
+      const initial = await control.execute('getTab', {}, undefined, signal)
+      expect(initial).toMatchObject({
+        observation: true,
+        value: { tabId, complete: false, dialog: { type: 'confirm', message: 'Continue?' } }
+      })
+      await control.execute('handleDialog', { accept: false }, initial.value.tabId as string, signal)
+      expect(accepted).toBe(false)
+      const recovered = await control.execute('getAXState', {}, initial.value.tabId as string, signal)
+      expect(recovered.value).toMatchObject({ tabId, complete: true })
+      expect(recovered.value).not.toHaveProperty('dialog')
+    } finally {
+      await control.close()
+    }
+  })
+
+  it('completes artifact-to-web navigation while invalidating the old handle', async () => {
+    const old = attachTopicGuest(WebviewSecurityProfile.AgentHtmlArtifact)
+    const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })
+    let replacement: ReturnType<typeof attachTopicGuest> | undefined
+    let navigatedUrl = 'about:blank'
+    vi.mocked(application.get('IpcApiService').broadcast).mockImplementation((event) => {
+      if (event !== 'browser.guest.ensure_requested') return
+      replacement = attachTopicGuest(WebviewSecurityProfile.AgentBrowser, 72)
+      const next = replacement.fixture.mock
+      next.getURL.mockImplementation(() => navigatedUrl)
+      next.debugger.sendCommand.mockImplementation(async (method, params) => {
+        if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'document-1' } } }
+        if (method === 'Page.navigate') {
+          navigatedUrl = (params as { url: string }).url
+          next.debugger.emit('message', {}, 'Page.frameStartedLoading', { frameId: 'main' })
+          next.debugger.emit('message', {}, 'Page.loadEventFired', {})
+        }
+        return {}
+      })
+    })
+    const signal = new AbortController().signal
+    try {
+      const result = await control.execute('goto', { url: 'https://example.com' }, old.tabId, signal)
+      expect(navigatedUrl).toBe('https://example.com/')
+      expect(result.value).toMatchObject({ tabId: replacement?.tabId, handleInvalidated: true })
+      expect(signal.aborted).toBe(false)
+      await expect(control.execute('goto', { url: 'https://example.org' }, old.tabId, signal)).rejects.toMatchObject({
+        code: 'not_found'
+      })
+      expect(navigatedUrl).toBe('https://example.com/')
+    } finally {
+      await control.close()
+    }
+  })
+
+  it('preserves caller cancellation while waiting for a replacement guest', async () => {
+    const old = attachTopicGuest(WebviewSecurityProfile.AgentHtmlArtifact)
+    const control = service.createControl({ kind: 'topic', sessionId: topicId, ownerId: assistantId })
+    const abort = new AbortController()
+    const cancelled = new Error('cancelled by user')
+    vi.mocked(application.get('IpcApiService').broadcast).mockImplementation((event) => {
+      if (event === 'browser.guest.ensure_requested') abort.abort(cancelled)
+    })
+    try {
+      await expect(control.execute('goto', { url: 'https://example.com' }, old.tabId, abort.signal)).rejects.toBe(
+        cancelled
+      )
+      expect(service.topicBrowser.get({ sessionId: topicId, ownerId: assistantId })?.tabId).toBe(old.tabId)
+    } finally {
+      await control.close()
+    }
+  })
 
   it('confines targets to their topic and window while allowing the topic to move between assistants', async () => {
     const { fixture, tabId } = attachTopicGuest()

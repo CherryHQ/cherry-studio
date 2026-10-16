@@ -1,3 +1,4 @@
+import { normalizeContext } from '@earendil-works/pi-ai'
 import type { ProviderConfig } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -53,7 +54,7 @@ describe('withTransportStream', () => {
     const model = { id: 'grok-cli/grok-build', api: 'openai-responses' }
     const context = { messages: [] }
     const piOnPayload = vi.fn().mockResolvedValue({ pi: 'touched' })
-    config.streamSimple!(model as never, context, {
+    config.streamSimple!(model as never, normalizeContext(context), {
       apiKey: 'placeholder',
       headers: { authorization: 'Bearer placeholder', 'x-pi': 'keep' },
       onPayload: piOnPayload as never
@@ -82,7 +83,7 @@ describe('withTransportStream', () => {
     const { fns, apiStreamSimple } = makeFns()
     const config = withTransportStream(BASE_CONFIG, adapter, fns)
 
-    config.streamSimple!({ id: 'm', api: 'openai-responses' } as never, { messages: [] }, {})
+    config.streamSimple!({ id: 'm', api: 'openai-responses' } as never, normalizeContext({ messages: [] }), {})
     await vi.waitFor(() => expect(apiStreamSimple).toHaveBeenCalled())
 
     const [, , options] = apiStreamSimple.mock.calls[0]

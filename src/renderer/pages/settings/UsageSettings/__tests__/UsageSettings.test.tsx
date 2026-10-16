@@ -144,4 +144,10 @@ describe('UsageSettings', () => {
     expect(screen.getByText('用量最高模型')).toBeInTheDocument()
     expect(screen.getByText('日均')).toBeInTheDocument()
   })
+
+  it('shows usage analytics without the personal profile editor', () => {
+    render(<UsageSettings />)
+    expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '头像' })).not.toBeInTheDocument()
+  })
 })
