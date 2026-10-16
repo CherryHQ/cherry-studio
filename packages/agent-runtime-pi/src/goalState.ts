@@ -355,15 +355,17 @@ export function unadmittedRounds(entries: readonly SessionEntry[]): Set<string> 
 
 const requestTokens = (usage: Usage) => usage.input + usage.output + usage.cacheRead + usage.cacheWrite
 
-/** The id of the subagent whose background run a result started: a launch, a move or a continuation. */
-function backgroundRunId(result: ToolResultMessage): string | undefined {
+const runKey = (sessionId: string, run: number) => `${sessionId}:${run}`
+
+/** The background run a result started: a launch or a move (a subagent's first run), or a continuation. */
+function backgroundRun(result: ToolResultMessage): { sessionId: string; run: number } | undefined {
   if (result.toolName === SUBAGENT_TOOL_NAME) {
     const details = result.details as SubagentDetails | undefined
-    return details?.background === true ? details.sessionId : undefined
+    return details?.background === true ? { sessionId: details.sessionId, run: 1 } : undefined
   }
   if (result.toolName !== MESSAGE_SUBAGENT_TOOL_NAME) return undefined
   const details = result.details as SubagentMessageDetails | undefined
-  return details?.continued === true ? details.sessionId : undefined
+  return details?.continued === true ? { sessionId: details.sessionId, run: details.run } : undefined
 }
 
 /** The run a `stop_subagent` result stopped, with its usage; no notification follows to carry it. */
@@ -375,10 +377,15 @@ function stoppedRun(result: ToolResultMessage): Extract<SubagentStopDetails, { s
 interface GoalBranch {
   /** Usage the branch shows, each piece with the goal it counts toward. */
   counted: Array<GoalUsage & { goalId: string }>
-  /** Background subagents by the goal whose round started them. */
+  /** Background runs, by `runKey`, that a goal's round started, with that goal's id. */
   owners: Map<string, string>
-  /** Finished background runs whose result reached the model (a notification, a `stop_subagent` result). */
-  deliveries: Array<{ sessionId: string; usage: Usage }>
+  /** The latest background run each subagent started. */
+  latestRuns: Map<string, number>
+  /**
+   * Finished background runs whose result reached the model, by `runKey`: each run once, however
+   * many results carried it (a notification, `stop_subagent` results, overlapping stops).
+   */
+  deliveries: Map<string, Usage>
 }
 
 /**
@@ -386,10 +393,14 @@ interface GoalBranch {
  * rebuild agree. A request counts toward goal G when G was active then and the request was made in
  * one of G's admitted rounds or, with G armed, in a turn a subagent notification started (one that
  * rode with a person's message or a round's start belongs to that turn). A tool result's usage counts
- * with the request that made its call, and a background subagent that call started in G's round is G's.
+ * with the request that made its call, and a background run that call started in G's round is G's.
  */
 function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
-  const branch: GoalBranch = { counted: [], owners: new Map(), deliveries: [] }
+  const branch: GoalBranch = { counted: [], owners: new Map(), latestRuns: new Map(), deliveries: new Map() }
+  const deliver = (sessionId: string, run: number, usage: Usage) => {
+    const key = runKey(sessionId, run)
+    if (!branch.deliveries.has(key)) branch.deliveries.set(key, usage)
+  }
   const stale = unadmittedRounds(entries)
   let goal: GoalSnapshot | undefined
   let turn: 'human' | 'round' | 'notification' = 'human'
@@ -415,7 +426,7 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
         starting = true
       }
       for (const item of (entry.details as SubagentNotificationDetails).subagents)
-        branch.deliveries.push({ sessionId: item.sessionId, usage: item.usage })
+        deliver(item.sessionId, item.run, item.usage)
     } else if (entry.type === 'message') {
       const { message } = entry
       if (message.role === 'user') {
@@ -435,13 +446,14 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
         if (goalId) branch.counted.push({ goalId, tokens: requestTokens(message.usage), usd: message.usage.cost.total })
       } else if (message.role === 'toolResult') {
         const stopped = stoppedRun(message)
-        if (stopped) branch.deliveries.push({ sessionId: stopped.sessionId, usage: stopped.usage })
+        if (stopped) deliver(stopped.sessionId, stopped.run, stopped.usage)
+        const started = backgroundRun(message)
+        if (started) branch.latestRuns.set(started.sessionId, started.run)
         const call = calls.get(message.toolCallId)
         if (!call?.goalId) continue
         if (message.usage)
           branch.counted.push({ goalId: call.goalId, tokens: message.usage.totalTokens, usd: message.usage.cost.total })
-        const started = call.inRound ? backgroundRunId(message) : undefined
-        if (started) branch.owners.set(started, call.goalId)
+        if (started && call.inRound) branch.owners.set(runKey(started.sessionId, started.run), call.goalId)
       }
     }
   }
@@ -457,14 +469,16 @@ export function goalUsage(entries: readonly SessionEntry[], goalId: string): Goa
     used.usd += usd
   }
   for (const item of counted) if (item.goalId === goalId) add(item.tokens, item.usd)
-  for (const { sessionId, usage } of deliveries)
-    if (owners.get(sessionId) === goalId) add(usage.totalTokens, usage.cost.total)
+  for (const [key, usage] of deliveries) if (owners.get(key) === goalId) add(usage.totalTokens, usage.cost.total)
   return used
 }
 
-/** The background subagents goal `goalId`'s rounds started (spec §11.4: they stop with its budget). */
+/** The subagents whose latest background run goal `goalId`'s rounds started (spec §11.4: they stop with its budget). */
 export function goalSubagents(entries: readonly SessionEntry[], goalId: string): string[] {
-  return [...readGoalBranch(entries).owners].flatMap(([sessionId, owner]) => (owner === goalId ? [sessionId] : []))
+  const { owners, latestRuns } = readGoalBranch(entries)
+  return [...latestRuns].flatMap(([sessionId, run]) =>
+    owners.get(runKey(sessionId, run)) === goalId ? [sessionId] : []
+  )
 }
 
 export function assistantText(message: AssistantMessage): string {
