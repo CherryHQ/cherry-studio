@@ -188,11 +188,13 @@ export function restoreSubagents(
       for (const item of (entry.details as SubagentNotificationDetails).subagents)
         delivered.add(`${item.sessionId}:${item.run}`)
   }
+  // A run cut off as the user's stop wound it down ended as the user's stop.
+  const cutOffEnd = (state: SubagentState) => (state.stoppedBy === 'user' ? 'stopped' : 'interrupted')
   for (const state of last.values()) {
     if (state.status !== 'running') continue
     const record = records.get(state.sessionId)!
     record.status = 'finished'
-    record.outcome = 'interrupted'
+    record.outcome = cutOffEnd(state)
   }
   const undelivered: PendingDelivery[] = []
   for (const [run, state] of runs) {
@@ -201,7 +203,7 @@ export function restoreSubagents(
       sessionId: state.sessionId,
       run: state.run,
       description: state.description,
-      outcome: state.status === 'running' ? 'interrupted' : state.outcome!,
+      outcome: state.status === 'running' ? cutOffEnd(state) : state.outcome!,
       ...(state.stoppedBy === undefined ? {} : { stoppedBy: state.stoppedBy }),
       ...(state.report === undefined ? {} : { report: state.report }),
       ...(state.reason === undefined ? {} : { reason: state.reason }),
@@ -253,7 +255,11 @@ export class SubagentRegistry {
     const record = this.records.get(sessionId)
     if (!run || !record || record.status === 'finished') return undefined
     // A run the user stopped stays theirs while it winds down: it must not become continuable.
-    if (record.stoppedBy !== 'user') record.stoppedBy = by
+    if (record.stoppedBy !== 'user') {
+      record.stoppedBy = by
+      // Written at once: the app may close before the run winds down and records its end.
+      if (by === 'user') this.host.appendState(snapshot(record))
+    }
     if (by === 'model') record.modelStopped = true
     run.controller.abort()
     return run.done
