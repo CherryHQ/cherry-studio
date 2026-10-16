@@ -13,6 +13,11 @@ const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?
 /** Bucket for text whose chunks carried no attempt id (direct feeds outside the stream manager). */
 const UNTAGGED_ATTEMPT = -1
 
+/** One queued live-update slot per attempt; a newer delta supersedes it. */
+interface PendingUpdate {
+  superseded: boolean
+}
+
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
@@ -29,6 +34,8 @@ export class ChannelAdapterListener implements StreamListener {
   private delivered = false
   /** Attempt ids whose terminal was already handed to the adapter. */
   private readonly deliveredAttempts = new Set<number>()
+  /** Live-update slot per attempt bucket; the newest delta for an attempt supersedes the rest. */
+  private readonly liveUpdates = new Map<number, PendingUpdate>()
   /**
    * Tail of this listener's channel-update chain. A chain-hold gap and a background wake can both
    * carry one listener into a successor execution while its predecessor's finalize is still
@@ -84,6 +91,9 @@ export class ChannelAdapterListener implements StreamListener {
       if (key !== UNTAGGED_ATTEMPT && key !== attemptId) continue
       text += value
       this.pendingTextByAttempt.delete(key)
+      // The terminal consumes this attempt's buffer, so its queued draft is already obsolete.
+      const slot = this.liveUpdates.get(key)
+      if (slot) slot.superseded = true
     }
     return text
   }
@@ -119,10 +129,20 @@ export class ChannelAdapterListener implements StreamListener {
       // be redacted before they leave. Queued behind `updateChain` like the terminal: the
       // adapter keeps ONE live controller per chat, so an update emitted while a predecessor's
       // finalize is still awaited would rewrite that predecessor's card content.
-      const { text } = sanitizeChannelOutput(this.ownedText(attemptId))
-      const update = this.updateChain.then(() =>
-        this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
-      )
+      //
+      // One live slot per attempt: a superseded slot skips without touching the adapter and the
+      // snapshot text is read from the buffer when the slot runs — so generation faster than the
+      // network leaves one draft, not one per delta. Different attempts keep their queue order
+      // and their own buckets, so the chain never merges or reorders across attempts.
+      const previous = this.liveUpdates.get(key)
+      if (previous) previous.superseded = true
+      const slot: PendingUpdate = { superseded: false }
+      this.liveUpdates.set(key, slot)
+      const update = this.updateChain.then(() => {
+        if (slot.superseded) return
+        const { text } = sanitizeChannelOutput(this.ownedText(attemptId))
+        return this.updateStream(text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
+      })
       this.updateChain = update.catch(() => undefined)
     }
   }
@@ -185,11 +205,17 @@ export class ChannelAdapterListener implements StreamListener {
     if (!this.owesDelivery(result.attemptId)) return
     this.delivered = true
     if (result.attemptId !== undefined) this.deliveredAttempts.add(result.attemptId)
-    try {
-      const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
-      const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
+    const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
+    // Append the terminal to the chain like `completeStream` does: a wake reusing this listener
+    // while the error card is still being written must queue behind it, not overwrite it.
+    const terminal = this.updateChain.then(() =>
+      this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
         suppressDelivery: this.suppressErrorMessage
       })
+    )
+    this.updateChain = terminal.catch(() => undefined)
+    try {
+      const handled = await terminal
       if (!handled && !this.suppressErrorMessage) {
         await this.deliver(t('common.channel_error', { error }))
       }

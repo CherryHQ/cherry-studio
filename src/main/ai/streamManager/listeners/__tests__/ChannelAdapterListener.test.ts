@@ -62,19 +62,23 @@ describe('ChannelAdapterListener', () => {
     expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toContain('[REDACTED]')
   })
 
-  it('withholds an incomplete citation marker from live updates', async () => {
+  it('withholds an incomplete citation marker from the coalesced live snapshot', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta('Claim '))
     listener.onChunk(delta('[ci'))
-    listener.onChunk(delta('te:source-'))
-    listener.onChunk(delta('1]'))
-    listener.onChunk(delta(' confirmed'))
+    listener.onChunk(delta('te:src-1'))
     await flushLiveUpdate()
 
+    // The one live snapshot withholds the trailing half-written marker; once the marker closes,
+    // the sanitizer strips it entirely like any complete citation.
     const updates = vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)
-    expect(updates).toEqual(['Claim ', 'Claim', 'Claim', 'Claim', 'Claim confirmed'])
+    expect(updates).toEqual(['Claim'])
+
+    listener.onChunk(delta('] confirmed'))
+    await flushLiveUpdate()
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)).toEqual(['Claim', 'Claim confirmed'])
   })
 
   it('does not withhold a trailing bracket sequence once it is ruled out as a citation', async () => {
@@ -423,6 +427,115 @@ describe('ChannelAdapterListener', () => {
     expect([...sentFirst].sort()).toEqual(['foreground', 'wake'])
     expect([...sentSecond].sort()).toEqual(['foreground', 'wake'])
     expect(sentSecond).not.toContain('foregroundwake')
+  })
+
+  // Telegram's onTextUpdate awaits a network round-trip per draft. One queued update per delta
+  // strands the final answer behind every stale draft when generation outruns the network —
+  // superseded snapshots must collapse into the one live draft instead.
+  it('coalesces superseded live snapshots instead of queueing one update per delta', async () => {
+    const pending: Array<() => void> = []
+    const adapter = makeAdapter({
+      onTextUpdate: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            pending.push(resolve)
+          })
+      )
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    for (let i = 0; i < 100; i++) listener.onChunk(delta(`d${i} `))
+    await flushLiveUpdate()
+
+    // The adapter holds one live draft carrying the latest accumulated text — not a backlog of
+    // 100 obsolete snapshots the terminal would have to wait behind.
+    expect(adapter.onTextUpdate).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls[0][1]).toContain('d99')
+
+    // Once that draft's round-trip completes, no stale draft is still owed to the network.
+    pending.shift()!()
+    await flushLiveUpdate()
+    expect(adapter.onTextUpdate).toHaveBeenCalledTimes(1)
+    expect(adapter.onStreamComplete).not.toHaveBeenCalled()
+
+    await listener.onDone({ status: 'success' })
+    expect(vi.mocked(adapter.onStreamComplete).mock.calls[0][1]).toContain('d0 ')
+    expect(vi.mocked(adapter.onStreamComplete).mock.calls[0][1]).toContain('d99')
+  })
+
+  // Coalescing is scoped to one attempt: a later attempt's snapshot must neither merge another
+  // attempt's text into itself nor overtake it in the chat's single update chain.
+  it('keeps coalescing per attempt: another attempt’s snapshot neither merges nor reorders', async () => {
+    const pending: Array<() => void> = []
+    const adapter = makeAdapter({
+      onTextUpdate: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            pending.push(resolve)
+          })
+      )
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('a1 '), undefined, undefined, 1)
+    listener.onChunk(delta('a2 '), undefined, undefined, 1)
+    listener.onChunk(delta('b1 '), undefined, undefined, 2)
+    listener.onChunk(delta('b2 '), undefined, undefined, 2)
+    await flushLiveUpdate()
+
+    expect(adapter.onTextUpdate).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls[0][1]).toBe('a1 a2 ')
+
+    pending.shift()!()
+    await flushLiveUpdate()
+    expect(adapter.onTextUpdate).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls[1][1]).toBe('b1 b2 ')
+  })
+
+  // FeishuStreamSession.error() stays writable until removal: if a wake's live update runs while
+  // onStreamError is still finalizing the predecessor, the successor's draft overwrites the
+  // predecessor's error card. The error terminal must join the update chain like completeStream.
+  it('serializes a terminal persistence failure with the updates a wake queues behind it', async () => {
+    const events: string[] = []
+    let releaseError!: () => void
+    const errorGate = new Promise<void>((resolve) => {
+      releaseError = resolve
+    })
+    const adapter = makeAdapter({
+      onStreamError: vi.fn(async (_chatId: string, message: string) => {
+        events.push(`error:start:${message}`)
+        await errorGate
+        events.push('error:end')
+        return true
+      }),
+      onTextUpdate: vi.fn(async (_chatId: string, text: string) => {
+        events.push(`update:${text}`)
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'), undefined, undefined, 1)
+    const errored = listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'boom' },
+      isTopicDone: false,
+      attemptId: 1
+    })
+    await vi.waitFor(() => expect(events).toContain('error:start:boom'))
+
+    // A background wake reuses the carried listener while the error finalization is still parked.
+    listener.onChunk(delta('wake report'), undefined, undefined, 2)
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(events).not.toContain('update:wake report')
+
+    releaseError()
+    await errored
+    await flushLiveUpdate()
+    // The wake's draft reached the adapter only after the error card settled.
+    expect(events.indexOf('error:end')).toBeLessThan(events.indexOf('update:wake report'))
   })
 
   it('keeps two channel listeners’ terminal text separate when the first finalizes slowly', async () => {
