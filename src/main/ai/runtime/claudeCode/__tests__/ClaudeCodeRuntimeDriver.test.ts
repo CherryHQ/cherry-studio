@@ -4256,6 +4256,20 @@ describe('ClaudeCodeRuntimeDriver', () => {
       await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('invalid')
     })
 
+    it('rebuilds instead of invalidating when the model was disabled on a warm connection', async () => {
+      const { connection } = await connectWithSnapshot()
+
+      mocks.deriveConfig.mockResolvedValue({
+        ok: false,
+        reason: 'model-unavailable',
+        error: new Error('Agent model "p:m" is not available: the model is disabled.')
+      })
+
+      // 'invalid' closes the session silently; 'rebuild' reconnects through the cold build, whose
+      // availability check reports the configuration error to the turn.
+      await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+    })
+
     it('serializes concurrent reconciles instead of interleaving them', async () => {
       const { connection } = await connectWithSnapshot()
 

@@ -6,6 +6,8 @@ import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '
 import type { Provider } from '@shared/data/types/provider'
 import { computeLanguageCost } from '@shared/utils/usagePricing'
 
+import { AgentModelUnavailableError } from '../../agentModelUnavailableError'
+
 const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
@@ -712,6 +714,35 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.objectContaining({ apiModelId: 'deepseek-v4-pro' }),
       'opencode:deepseek-v4-pro'
     )
+  })
+
+  it('reports a disabled gateway model as model-unavailable rather than unroutable during reconcile', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'opencode::deepseek-v4-pro' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'opencode',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://opencode.ai/zen/go/v1' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://opencode.ai/zen/go/v1' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-v4-pro',
+      apiModelId: 'deepseek-v4-pro',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    const failure = new AgentModelUnavailableError(
+      'Agent model "opencode:deepseek-v4-pro" is not available: provider "opencode" is disabled.'
+    )
+    mocks.assertGatewayModelAvailable.mockImplementationOnce(() => {
+      throw failure
+    })
+
+    await expect(deriveConnectionConfig('session-1')).resolves.toEqual({
+      ok: false,
+      reason: 'model-unavailable',
+      error: failure
+    })
   })
 
   it('routes a model that declares Anthropic Messages behind another dialect directly', async () => {

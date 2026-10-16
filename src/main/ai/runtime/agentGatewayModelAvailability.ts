@@ -3,6 +3,8 @@ import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
+import { AgentModelUnavailableError } from './agentModelUnavailableError'
+
 /**
  * Actionable pre-flight check for Agent runtimes holding an already-resolved
  * `Provider` + `Model` pair. Mirrors the availability contract the API gateway
@@ -13,15 +15,17 @@ import { isExternalCliProvider } from '@shared/utils/provider'
  */
 export function assertAgentGatewayModelAvailable(provider: Provider, model: Model, modelAddress: string): void {
   if (provider.isEnabled === false) {
-    throw new Error(`Agent model "${modelAddress}" is not available: provider "${provider.id}" is disabled.`)
+    throw new AgentModelUnavailableError(
+      `Agent model "${modelAddress}" is not available: provider "${provider.id}" is disabled.`
+    )
   }
   if (model.isEnabled === false) {
-    throw new Error(`Agent model "${modelAddress}" is not available: the model is disabled.`)
+    throw new AgentModelUnavailableError(`Agent model "${modelAddress}" is not available: the model is disabled.`)
   }
   if (isExternalCliProvider(provider)) {
-    throw new Error(`Agent model "${modelAddress}" is not available through the API gateway.`)
+    throw new AgentModelUnavailableError(`Agent model "${modelAddress}" is not available through the API gateway.`)
   }
   if (!isGatewayRoutableModel(model)) {
-    throw new Error(`Agent model "${modelAddress}" is not available through the API gateway.`)
+    throw new AgentModelUnavailableError(`Agent model "${modelAddress}" is not available through the API gateway.`)
   }
 }
