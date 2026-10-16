@@ -216,4 +216,39 @@ describe('getPermissionRiskEffects', () => {
       'network'
     )
   })
+  it('flags git clean with f anywhere in a short-option bundle', () => {
+    for (const command of ['git clean -df', 'git clean -xdf', 'git clean -fd', 'git clean --force -d']) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual(
+        expect.arrayContaining(['destructive', 'irreversible'])
+      )
+    }
+  })
+
+  it('scopes preview flags to their own newline-separated command', () => {
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, {
+        command: 'git push origin main\ngit push --dry-run origin preview'
+      })
+    ).toContain('irreversible')
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'git clean -fd\ngit clean -n' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, { command: 'Remove-Item ./dist\nRemove-Item ./x -WhatIf' })
+    ).toEqual(expect.arrayContaining(['destructive', 'irreversible']))
+  })
+
+  it('only treats enabled -WhatIf forms as PowerShell previews', () => {
+    for (const command of ['Remove-Item -Recurse ./dist -WhatIf:$false', 'Remove-Item ./dist -WhatIf:$flag']) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual(
+        expect.arrayContaining(['destructive', 'irreversible'])
+      )
+    }
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'Move-Item a b -WhatIf:$false' })).toContain(
+      'destructive'
+    )
+    for (const command of ['Remove-Item ./dist -WhatIf', 'Remove-Item ./dist -WhatIf:$true']) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual([])
+    }
+  })
 })

@@ -50,7 +50,7 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   }
   // `find ... -delete` removes matching files in batch, scoped to one simple
   // command so a later `-delete` past `&&`/`;`/`|` can't leak in.
-  if (/\bfind\b[^;&|]*\s-delete(\s|$)/.test(text)) {
+  if (/\bfind\b[^;&|\n]*\s-delete(\s|$)/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
@@ -64,20 +64,22 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
   }
   // `pwsh` normalizes to Bash before this runs, so cover PowerShell verbs here too.
-  // `-WhatIf` previews change nothing, scoped to one simple command.
-  if (/\b(Remove-Item|Clear-Content|Clear-Item)\b(?![^;&|]*\s-WhatIf\b)/i.test(text)) {
+  // `-WhatIf` / `-WhatIf:$true` previews change nothing, scoped to one simple command (newlines included);
+  // `-WhatIf:$false` or an unresolved value disables preview, so it must not suppress the warning.
+  if (/\b(Remove-Item|Clear-Content|Clear-Item)\b(?![^;&|\n]*\s-WhatIf(?::\$true)?(?=[\s;&|]|$))/i.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
-  if (/\bMove-Item\b(?![^;&|]*\s-WhatIf\b)/i.test(text)) {
+  if (/\bMove-Item\b(?![^;&|\n]*\s-WhatIf(?::\$true)?(?=[\s;&|]|$))/i.test(text)) {
     effects.add('destructive')
   }
   // Git work-discarders, scoped to one simple command so flags past `&&`/`;`/`|`
-  // can't leak. `-f` skips `-n`/`--dry-run` previews; `-D` skips safe `-d`.
+  // (or newline) can't leak. `f` anywhere in a short-option bundle (`-df`, `-xdf`) or `--force`
+  // counts, skipping `-n`/`--dry-run` previews; `-D` skips safe `-d`.
   if (
-    /\bgit\s+clean(?![^;&|]*--dry-run)(?![^;&|]*\s-[a-zA-Z]*n)[^;&|]*-f/.test(text) ||
-    /\bgit\s+reset[^;&|]*--hard/.test(text) ||
-    /\bgit\s+branch[^;&|]*-D/.test(text)
+    /\bgit\s+clean(?![^;&|\n]*--dry-run)(?![^;&|\n]*\s-[a-zA-Z]*n)[^;&|\n]*\s(?:-[a-zA-Z]*f|--force\b)/.test(text) ||
+    /\bgit\s+reset[^;&|\n]*--hard/.test(text) ||
+    /\bgit\s+branch[^;&|\n]*-D/.test(text)
   ) {
     effects.add('destructive')
     effects.add('irreversible')
@@ -95,7 +97,7 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('network')
   }
   // Dry runs contact the remote but change nothing, so they keep `network` above.
-  if (/\bgit\s+push\b(?![^;&|]*--dry-run)(?![^;&|]*\s-[a-zA-Z]*n)/i.test(text)) {
+  if (/\bgit\s+push\b(?![^;&|\n]*--dry-run)(?![^;&|\n]*\s-[a-zA-Z]*n)/i.test(text)) {
     effects.add('irreversible')
   }
 
