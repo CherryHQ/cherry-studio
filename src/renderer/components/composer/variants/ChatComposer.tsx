@@ -1578,9 +1578,12 @@ const ChatComposerInner = ({
   )
   const isQueuedFollowupSteerDisabled = useCallback(
     (item: FollowupQueueItem) =>
-      item.id === drainingFollowupId ||
+      // One queue send at a time: while any send is live (including a claim that
+      // survived a remount) every row's steer would be rejected by tryClaimSend.
+      drainingFollowupId !== null ||
+      hasLiveFollowupSend() ||
       ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
-    [awaitingApproval, drainingFollowupId, isPending]
+    [awaitingApproval, drainingFollowupId, hasLiveFollowupSend, isPending]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 

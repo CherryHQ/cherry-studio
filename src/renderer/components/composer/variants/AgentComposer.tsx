@@ -1916,7 +1916,7 @@ const AgentComposerInner = ({
                   isFailureDraining={
                     failedFollowupId != null && (failedFollowupId === drainingFollowupId || hasLiveFollowupSend())
                   }
-                  isSteerDisabled={(item) => item.id === drainingFollowupId}
+                  isSteerDisabled={() => drainingFollowupId !== null || hasLiveFollowupSend()}
                 />
               ) : undefined}
             </>

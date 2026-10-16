@@ -344,12 +344,13 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toHaveLength(1)
   })
 
-  it('removing the failed head from the dock resolves the failure and resumes', async () => {
+  it('removing the failed head from the dock resolves the failure without sending the next item', async () => {
     const onDrain = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const markSeen = vi.fn()
     seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
       { initialProps: { isFulfilled: false } }
     )
 
@@ -362,12 +363,77 @@ describe('useFollowupQueue', () => {
       result.current.removeId('h1')
     })
 
-    // Deleting the failed head re-arms the queue like Skip does: the next message
-    // drains immediately even though the completion edge was already consumed.
-    expect(onDrain).toHaveBeenCalledTimes(2)
+    // Unlike Skip, X only clears the failure and unpauses: the next message waits
+    // for the next completion edge instead of sending now.
+    expect(onDrain).toHaveBeenCalledTimes(1)
     expect(result.current.failedItemId).toBeNull()
     expect(result.current.paused).toBe(false)
+    expect(result.current.items.map((i) => i.id)).toEqual(['h2'])
+
+    await act(async () => {
+      rerender({ isFulfilled: false })
+    })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenLastCalledWith(payload('second'))
     expect(result.current.items).toEqual([])
+  })
+
+  it('a failed manual steer reconciles a completion that arrived while its claim was held', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    // Stable like production: the drain effect re-fires only on a new completion edge.
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    act(() => {
+      expect(result.current.tryClaimSend('h2')).toBe(true)
+    })
+    // The current turn completes while the steer of h2 is pending: auto-drain must wait.
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).not.toHaveBeenCalled()
+
+    // The steer attempt fails, so its claim is released with h2 still queued.
+    await act(async () => {
+      result.current.releaseSend('h2')
+    })
+
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(onDrain).toHaveBeenCalledWith(payload('first'))
+    expect(result.current.items.map((i) => i.id)).toEqual(['h2'])
+  })
+
+  it('a successful manual steer does not drain the next item on release', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    // Stable like production: the drain effect re-fires only on a new completion edge.
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    act(() => {
+      expect(result.current.tryClaimSend('h2')).toBe(true)
+    })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    await act(async () => {
+      result.current.removeId('h2')
+      result.current.releaseSend('h2')
+    })
+
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(result.current.items.map((i) => i.id)).toEqual(['h1'])
   })
 
   it('clear during an in-flight drain drops the resolution instead of resurrecting failure state', async () => {
@@ -672,19 +738,14 @@ describe('useFollowupQueue', () => {
     // The fulfilled edge must not start a second send for the claimed item.
     expect(onDrain).not.toHaveBeenCalled()
 
-    act(() => {
+    // Releasing a claim whose item is still queued (the manual send failed)
+    // reconciles the completion edge that arrived meanwhile: it drains now.
+    await act(async () => {
       result.current.releaseSend(headId)
     })
-    expect(result.current.drainingId).toBeNull()
-
-    // A fresh completion edge drains normally once the claim is released.
-    await act(async () => {
-      rerender({ isFulfilled: false })
-    })
-    await act(async () => {
-      rerender({ isFulfilled: true })
-    })
     expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(result.current.drainingId).toBeNull()
+    expect(result.current.items).toEqual([])
   })
 
   it('removing the failed head while its retry is in flight does not start a second send', async () => {

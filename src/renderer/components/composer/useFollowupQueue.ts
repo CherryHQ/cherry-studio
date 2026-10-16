@@ -152,11 +152,6 @@ function loadState(scopeKey: string): FollowupQueueState {
  * which is exactly when pending sends die too. */
 const liveSends = new Set<string>()
 
-type RemoveIdOptions = {
-  /** When false, dequeue after a successful send must not immediately drain the next head. */
-  continueAfterFailedHead?: boolean
-}
-
 type ScopeListener = () => void
 const scopeListeners = new Map<string, Set<ScopeListener>>()
 
@@ -265,7 +260,7 @@ export interface FollowupQueueController {
    * Only `ok` means the caller may clear the draft.
    */
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => EnqueueResult
-  removeId: (id: string, options?: RemoveIdOptions) => void
+  removeId: (id: string) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
   /** Drop every pending message (and any failure state) and resume auto-drain. */
   clear: () => void
@@ -434,7 +429,7 @@ export function useFollowupQueue({
   // Read by removeId/releaseSend below.
   const manualClaimsRef = useRef(new Map<string, string>())
 
-  const removeIdRef = useRef<(id: string, options?: RemoveIdOptions) => void>(() => {})
+  const removeIdRef = useRef<(id: string) => void>(() => {})
   const drainHeadRef = useRef<(head: FollowupQueueItem | undefined) => void>(() => {})
 
   // Resolution for a send whose queue moved on before it settled (scope switch /
@@ -456,7 +451,7 @@ export function useFollowupQueue({
           // Back on (or never left) the sent scope with the same head live:
           // dequeue it so the sent payload can never be redelivered.
           if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
-          removeIdRef.current(head.id, { continueAfterFailedHead: false })
+          removeIdRef.current(head.id)
         } else {
           removeIdFromScope(drainScope, head.id)
           if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
@@ -541,7 +536,7 @@ export function useFollowupQueue({
           // A successful send opens a new turn, so dequeue without re-arming: the
           // next head waits for that turn's completion edge instead of sending
           // into the still-streaming turn. removeId clears the draining claim.
-          if (sent) removeIdRef.current(head.id, { continueAfterFailedHead: false })
+          if (sent) removeIdRef.current(head.id)
           else {
             setDraining(null)
             drainNextAfterGhostSend(head)
@@ -705,7 +700,7 @@ export function useFollowupQueue({
   }, [persist, setDraining])
 
   const removeId = useCallback(
-    (id: string, options?: RemoveIdOptions) => {
+    (id: string) => {
       // A manual-steer success routes by its own claim scope first: after a scope
       // switch, an unmount, or both, the live ref scope is stale, but the per-send
       // claim record still names the scope the item was sent from. Dequeue it there
@@ -741,16 +736,10 @@ export function useFollowupQueue({
       failedItemIdRef.current = nextFailedId
       if (wasFailed) setFailedItemId(null)
       setState(next)
-      // Deleting the failed head unpauses with the completion edge already consumed,
-      // so continue with the next message immediately instead of stalling the queue —
-      // unless the deleted item still has a send in flight (removal during a retry):
-      // that send may yet open a turn whose completion drains the next item, so
-      // starting another send now would put two sends in flight.
-      if (wasFailed && remaining.length > 0 && !wasDraining && options?.continueAfterFailedHead !== false) {
-        drainHead(remaining[0])
-      }
+      // Removing the failed head only clears the failure and unpauses; the next head
+      // waits for the next completion edge. Skip is the explicit continue-now action.
     },
-    [persist, drainHead, setDraining, dropExpiredLiveState]
+    [persist, setDraining, dropExpiredLiveState]
   )
   removeIdRef.current = removeId
 
@@ -831,8 +820,28 @@ export function useFollowupQueue({
       } else if (pendingDrainIdRef.current === id) {
         pendingDrainIdRef.current = null
       }
+      // A failed manual steer leaves its item queued. While the claim was held the
+      // drain effect skipped any completion edge that arrived, and releasing the claim
+      // changes no effect dependency — so reconcile that outstanding completion here.
+      // A successful steer already dequeued its item and opened a new turn, so it
+      // must not drain the next head into that turn.
+      if (
+        mountedRef.current &&
+        claimScope === scopeKeyRef.current &&
+        stateRef.current.items.some((item) => item.id === id) &&
+        isFulfilledRef.current &&
+        !stateRef.current.paused &&
+        !failedItemIdRef.current &&
+        drainingIdRef.current === null
+      ) {
+        const head = stateRef.current.items[0]
+        if (head && !inflightRef.current.has(head.id)) {
+          markSeenRef.current()
+          drainHead(head)
+        }
+      }
     },
-    [setDraining]
+    [setDraining, drainHead]
   )
 
   const retryFailed = useCallback(() => {
