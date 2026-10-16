@@ -7,6 +7,9 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { GroupService, groupService } from '@data/services/GroupService'
+// Side-effect import: the delete path resolves KnowledgeBaseService through the
+// registry, and this module registers it at load time.
+import '@data/services/KnowledgeBaseService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { DEFAULT_KNOWLEDGE_BASE_STATUS } from '@shared/data/types/knowledge'
@@ -418,6 +421,7 @@ describe('GroupService', () => {
       await dbh.db.insert(knowledgeBaseTable).values({
         id: 'kb-broadcast-1',
         name: 'Knowledge Base',
+        orderKey: 'kb-broadcast-1',
         groupId: group.id,
         status: DEFAULT_KNOWLEDGE_BASE_STATUS,
         chunkSize: 512,
