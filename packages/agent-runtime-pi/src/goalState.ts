@@ -377,7 +377,7 @@ function stoppedRun(result: ToolResultMessage): Extract<SubagentStopDetails, { s
 interface GoalBranch {
   /** Usage the branch shows, each piece with the goal it counts toward. */
   counted: Array<GoalUsage & { goalId: string }>
-  /** Background runs, by `runKey`, that a goal's round started, with that goal's id. */
+  /** Background runs, by `runKey`, started by a call that counted toward a goal, with that goal's id. */
   owners: Map<string, string>
   /** The latest background run each subagent started. */
   latestRuns: Map<string, number>
@@ -393,7 +393,7 @@ interface GoalBranch {
  * rebuild agree. A request counts toward goal G when G was active then and the request was made in
  * one of G's admitted rounds or, with G armed, in a turn a subagent notification started (one that
  * rode with a person's message or a round's start belongs to that turn). A tool result's usage counts
- * with the request that made its call, and a background run that call started in G's round is G's.
+ * with the request that made its call, and so does the background run that call starts: it is G's.
  */
 function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
   const branch: GoalBranch = { counted: [], owners: new Map(), latestRuns: new Map(), deliveries: new Map() }
@@ -408,7 +408,8 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
   let round: string | undefined
   // No reply since the turn started: a notification now rides with that start.
   let starting = false
-  const calls = new Map<string, { goalId: string | undefined; inRound: boolean }>()
+  // The goal each call's request counted toward, if any.
+  const calls = new Map<string, string | undefined>()
   for (const entry of entries) {
     if (isGoalState(entry)) {
       const data = entry.data as GoalSnapshot | GoalCleared
@@ -441,19 +442,18 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
           goal?.phase === 'active' &&
           ((turn === 'round' && round === goal.id) || (turn === 'notification' && goal.armed))
         const goalId = counts ? goal!.id : undefined
-        for (const block of message.content)
-          if (block.type === 'toolCall') calls.set(block.id, { goalId, inRound: turn === 'round' })
+        for (const block of message.content) if (block.type === 'toolCall') calls.set(block.id, goalId)
         if (goalId) branch.counted.push({ goalId, tokens: requestTokens(message.usage), usd: message.usage.cost.total })
       } else if (message.role === 'toolResult') {
         const stopped = stoppedRun(message)
         if (stopped) deliver(stopped.sessionId, stopped.run, stopped.usage)
         const started = backgroundRun(message)
         if (started) branch.latestRuns.set(started.sessionId, started.run)
-        const call = calls.get(message.toolCallId)
-        if (!call?.goalId) continue
+        const goalId = calls.get(message.toolCallId)
+        if (!goalId) continue
         if (message.usage)
-          branch.counted.push({ goalId: call.goalId, tokens: message.usage.totalTokens, usd: message.usage.cost.total })
-        if (started && call.inRound) branch.owners.set(runKey(started.sessionId, started.run), call.goalId)
+          branch.counted.push({ goalId, tokens: message.usage.totalTokens, usd: message.usage.cost.total })
+        if (started) branch.owners.set(runKey(started.sessionId, started.run), goalId)
       }
     }
   }
@@ -473,7 +473,7 @@ export function goalUsage(entries: readonly SessionEntry[], goalId: string): Goa
   return used
 }
 
-/** The subagents whose latest background run goal `goalId`'s rounds started (spec §11.4: they stop with its budget). */
+/** The subagents whose latest background run is goal `goalId`'s (spec §11.4: they stop with its budget). */
 export function goalSubagents(entries: readonly SessionEntry[], goalId: string): string[] {
   const { owners, latestRuns } = readGoalBranch(entries)
   return [...latestRuns].flatMap(([sessionId, run]) =>
