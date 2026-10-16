@@ -188,9 +188,9 @@ independently; renaming a configuration preserves its login. Interactive flows
 queue for the loopback callback port, while challenges for the same account are
 coalesced. Removing a configuration clears only its own credentials.
 At startup, URL-only credentials migrate when exactly one saved configuration
-owns the URL. Ambiguous shared credentials are retired and those configurations
-must authorize again. Browser account selection remains controlled by the
-authorization service.
+owns the URL. Shared or unowned URL-only credentials are retired; configurations
+without their own credentials must authorize again. Browser account selection
+remains controlled by the authorization service.
 
 The built-in sequential-thinking tool creates a `chainId` for thought 1.
 Subsequent thoughts must provide that ID; completed chains and closed server

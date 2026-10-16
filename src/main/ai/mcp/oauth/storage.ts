@@ -57,15 +57,21 @@ export async function migrateOAuthStorage(
   servers: readonly { id: string; baseUrl?: string }[],
   configDir: string
 ): Promise<void> {
-  const byUrl = Map.groupBy(
+  const files = await fs.readdir(configDir, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return []
+    throw error
+  })
+  const byLegacyKey = Map.groupBy(
     servers.filter((server) => server.baseUrl),
-    (server) => server.baseUrl!
+    (server) => oauthServerUrlHash(server.baseUrl!)
   )
-  for (const [url, owners] of byUrl) {
-    const legacyKey = oauthServerUrlHash(url)
+  for (const file of files) {
+    if (!file.isFile() || !/^[a-f0-9]{32}_oauth\.json$/.test(file.name)) continue
+    const legacyKey = file.name.slice(0, 32)
+    const owners = byLegacyKey.get(legacyKey) ?? []
     const legacyPath = storagePath(configDir, legacyKey)
     if (owners.length === 1) {
-      const target = storagePath(configDir, oauthServerKey(owners[0].id, url))
+      const target = storagePath(configDir, oauthServerKey(owners[0].id, owners[0].baseUrl!))
       try {
         await fs.copyFile(legacyPath, target, fs.constants.COPYFILE_EXCL)
         const secrets = volatileSecrets.get(legacyPath)
@@ -75,7 +81,7 @@ export async function migrateOAuthStorage(
         if (code !== 'ENOENT' && code !== 'EEXIST') throw error
       }
     }
-    // A shared legacy login has no identifiable owner. Require each configuration to authorize again.
+    // Shared and orphaned logins must not become eligible for a future configuration.
     await deleteOAuthStorage(legacyKey, configDir)
   }
 }
