@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { SegmentedControl } from '../segmented-control'
 
@@ -10,6 +10,14 @@ const options = [
   { value: 'window', label: 'Window' },
   { value: 'disabled', label: 'Disabled', disabled: true }
 ] as const
+
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+})
 
 afterEach(() => {
   cleanup()
@@ -40,9 +48,11 @@ describe('SegmentedControl', () => {
     expect(screen.getByRole('radio', { name: 'App' })).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('keeps localized labels on one line without shrinking the options', () => {
-    render(<SegmentedControl defaultValue="app" options={options} />)
+  it('names the radiogroup from the caller and each option from its visible label', () => {
+    render(<SegmentedControl aria-label="Preview mode" value="app" options={options} />)
 
-    expect(screen.getByRole('radio', { name: 'Window' })).toHaveClass('shrink-0', 'whitespace-nowrap')
+    expect(screen.getByRole('radiogroup', { name: 'Preview mode' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'App' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Window' })).toHaveAttribute('aria-checked', 'false')
   })
 })

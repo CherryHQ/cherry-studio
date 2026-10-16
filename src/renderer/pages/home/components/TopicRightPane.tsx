@@ -96,7 +96,6 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
 const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallbacks | null>(null)
-
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
   if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane.Scope>')
