@@ -2391,6 +2391,9 @@ export class AgentSessionRuntimeService extends BaseService {
     // occupancy already gone) and releases the stream through the normal terminal lifecycle.
     if (isAgentSessionRuntimeBusy(entry.runtimeState)) return
     if (willAgentSessionRuntimeContinue(entry.runtimeState)) return
+    // The stashed wake recipients were owed THIS work's delivery; it just drained without a wake,
+    // so no future wake may inherit them on this still-warm connection.
+    application.get('AiStreamManager').clearPendingChannelListeners(entry.topicId)
     void application
       .get('AiStreamManager')
       .finalizeHeldTopicStream(entry.topicId, entry.modelId)
@@ -2798,6 +2801,9 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.flowMessageIdsByToolCallId?.clear()
     entry.persistedFlowMessageIds?.clear()
     entry.pendingBackgroundFlowChunks?.clear()
+    // Children are connection-owned: the crash that detached this connection killed them, and a
+    // successor reconnect must not fail-closed on their stale bindings (same-session turns keep them).
+    entry.nativeChildOrigins?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })

@@ -840,8 +840,18 @@ export class AiStreamManager extends BaseService {
       return { mode: 'injected', activeExecutions: [] }
     }
 
-    // Evict any grace-period stream so two streams never coexist on one topic.
-    if (existing) this.evictStream(input.topicId)
+    // Evict any grace-period stream so two streams never coexist on one topic. A held stream still
+    // owes its channel recipients a delivery — stash them for the settlement wake, the same binding
+    // a runtime-turn replacement keeps.
+    if (existing) {
+      if (existing.heldForContinuation) {
+        this.stashPendingChannelListeners(
+          input.topicId,
+          [...existing.listeners.values()].filter((listener) => listener.id.startsWith('channel:'))
+        )
+      }
+      this.evictStream(input.topicId)
+    }
 
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
@@ -953,6 +963,14 @@ export class AiStreamManager extends BaseService {
     })
   }
 
+  /** Keep channel recipients owed a delivery across a stream replacement that dropped them. */
+  private stashPendingChannelListeners(topicId: string, listeners: StreamListener[]): void {
+    if (listeners.length === 0) return
+    const pending = new Map(this.pendingChannelListeners.get(topicId)?.map((l) => [l.id, l]))
+    for (const listener of listeners) pending.set(listener.id, listener)
+    this.pendingChannelListeners.set(topicId, [...pending.values()])
+  }
+
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
     const detachedChannelListeners = existing
@@ -972,10 +990,8 @@ export class AiStreamManager extends BaseService {
 
     // A turn that drops the recipients must not strand them: detached work can still be running,
     // and its wake is the only route its result has to those chats.
-    if (!input.carryChannelListeners && detachedChannelListeners.length > 0) {
-      const pending = new Map(this.pendingChannelListeners.get(input.topicId)?.map((l) => [l.id, l]))
-      for (const listener of detachedChannelListeners) pending.set(listener.id, listener)
-      this.pendingChannelListeners.set(input.topicId, [...pending.values()])
+    if (!input.carryChannelListeners) {
+      this.stashPendingChannelListeners(input.topicId, detachedChannelListeners)
     }
     const owedChannelListeners = input.carryChannelListeners
       ? (this.pendingChannelListeners.get(input.topicId) ?? [])

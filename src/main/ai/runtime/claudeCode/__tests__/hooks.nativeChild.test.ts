@@ -29,7 +29,8 @@ const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, a
     broadcastTopicError: vi.fn(),
     resolveToolApproval: vi.fn(),
     terminateHeldTopicStream: vi.fn(),
-    finalizeHeldTopicStream: vi.fn(async () => undefined)
+    finalizeHeldTopicStream: vi.fn(async () => undefined),
+    clearPendingChannelListeners: vi.fn()
   },
   windowManager: { getWindow: vi.fn(() => undefined) },
   cacheService: { setShared: vi.fn(), getShared: vi.fn(), deleteShared: vi.fn() },
