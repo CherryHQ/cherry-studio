@@ -216,6 +216,10 @@ export class ComputerUseService extends BaseService {
     }
   }
 
+  validateAppSession(context: ComputerUseTask, appSessionId: string): void {
+    this.getApp(this.getTask(context), appSessionId)
+  }
+
   async getAppState(
     context: ComputerUseTask,
     input: ObserveInput & { includeScreenshot?: boolean },

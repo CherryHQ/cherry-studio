@@ -3243,6 +3243,51 @@ describe('ComposerSurface', () => {
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
   })
 
+  it('activates the original mounted file token with the current preview action', async () => {
+    const fileToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'notes.md',
+      payload: {
+        id: 'file-1',
+        name: 'notes.md',
+        origin_name: 'notes.md',
+        path: '/tmp/notes.md'
+      }
+    }
+    const outcomes: string[] = []
+    const selectFile = vi.fn(() => {
+      outcomes.push('select')
+    })
+    const confirmLeave = vi.fn((input: { displayName: string; previewPath: string }) => {
+      outcomes.push(`confirm:${input.displayName}:${input.previewPath}`)
+    })
+    const nodeViewProps = { selected: false, nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } } }
+    const view = render(
+      <ComposerSurface {...baseProps} previewInputFile={selectFile} tokens={[fileToken]} managedTokenKinds={['file']} />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    const retainedRenderToken = mocks.editorPresetOptions.renderToken
+    render(<>{retainedRenderToken(fileToken, nodeViewProps)}</>)
+    const chip = screen.getByRole('button', { name: 'notes.md' })
+
+    view.rerender(
+      <ComposerSurface
+        {...baseProps}
+        previewInputFile={confirmLeave}
+        tokens={[fileToken]}
+        managedTokenKinds={['file']}
+      />
+    )
+    expect(chip.isConnected).toBe(true)
+
+    fireEvent.click(chip)
+
+    expect(outcomes).toEqual(['confirm:notes.md:/tmp/notes.md'])
+    expect(selectFile).not.toHaveBeenCalled()
+  })
+
   it('renders image file tokens as chips with icon-sized thumbnails inside the editable composer', async () => {
     const imageToken = {
       id: 'file:image-1',

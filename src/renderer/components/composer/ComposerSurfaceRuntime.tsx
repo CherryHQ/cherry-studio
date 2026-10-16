@@ -56,6 +56,7 @@ import {
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import type { ComposerInputFilePreviewAction } from './filePreview'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
@@ -164,6 +165,7 @@ export interface ComposerSurfaceProps {
   onPause: () => void | Promise<void>
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
+  previewInputFile?: ComposerInputFilePreviewAction
   filesCount: number
   isExpanded: boolean
   onExpandedChange: (expanded: boolean) => void
@@ -503,6 +505,7 @@ export default function ComposerSurfaceRuntime({
   onPause,
   supportedExts,
   setFiles,
+  previewInputFile,
   filesCount,
   isExpanded,
   onExpandedChange,
@@ -1415,6 +1418,16 @@ export default function ComposerSurfaceRuntime({
     [enableQuickPanel, rootSuggestionSources, quickPanelSuggestionSources]
   )
 
+  // Tiptap keeps the node view created with the first renderToken. The activation
+  // function itself stays stable and reads the latest preview action at click time.
+  const previewInputFileRef = useRef(previewInputFile)
+  useLayoutEffect(() => {
+    previewInputFileRef.current = previewInputFile
+  }, [previewInputFile])
+  const activateFilePreview = useCallback<ComposerInputFilePreviewAction>((input) => {
+    return previewInputFileRef.current?.(input)
+  }, [])
+
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
     (token, { selected, nodeViewProps }) => {
       const currentToken = tokenByIdRef.current.get(token.id) ?? token
@@ -1427,6 +1440,7 @@ export default function ComposerSurfaceRuntime({
           token={fileToken}
           selected={selected}
           imageIconPreview
+          onFilePreviewActivate={previewInputFile ? activateFilePreview : undefined}
           onRemove={() => removeToken(fileToken.id)}
           removeLabel={t('common.delete')}
           tooltipActions={
@@ -1452,7 +1466,7 @@ export default function ComposerSurfaceRuntime({
         />
       )
     },
-    [handleShowPastedTextFileInInput, removeToken, t]
+    [activateFilePreview, handleShowPastedTextFileInInput, previewInputFile, removeToken, t]
   )
 
   const editorExtensions = useMemo(
