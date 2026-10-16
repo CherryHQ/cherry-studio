@@ -400,6 +400,58 @@ describe('prepareChatMessages — routing', () => {
       expect(mediaAnalysisMock).not.toHaveBeenCalled()
     })
 
+    const openAiChatAudio: NativeFileSupport = {
+      image: false,
+      pdf: false,
+      audio: true,
+      video: false,
+      audioMediaTypes: ['audio/wav', 'audio/mp3', 'audio/mpeg']
+    }
+
+    it('analyzes audio-only WebM when the converter rejects that MIME', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce(audioOnly)
+      mediaAnalysisMock.mockResolvedValueOnce('transcript')
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], openAiChatAudio)
+
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(out.parts.some((part) => part.type === 'file')).toBe(false)
+      expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\ntranscript')
+    })
+
+    it('keeps probed MPEG audio native for an OpenAI chat converter', async () => {
+      materializerMode.real = true
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce({ ...audioOnly, mime: 'audio/mpeg' })
+      readMock.mockResolvedValueOnce({ content: 'TVBH', mime: 'video/webm' })
+
+      const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], openAiChatAudio)
+
+      expect(out.parts).toEqual([
+        expect.objectContaining({
+          type: 'file',
+          filename: 'clip.webm',
+          mediaType: 'audio/mpeg',
+          url: 'data:audio/mpeg;base64,TVBH'
+        })
+      ])
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps an unprobed mp3 native when the converter lists MPEG', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'mp3' })
+      resolveMock.mockImplementation(async (part) => part)
+
+      const [out] = await run([fileWithEntry('e1', 'song.mp3', 'audio/mpeg')], openAiChatAudio)
+
+      expect(probeMock).not.toHaveBeenCalled()
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+      expect(out.parts).toEqual([
+        expect.objectContaining({ type: 'file', filename: 'song.mp3', mediaType: 'audio/mpeg' })
+      ])
+    })
+
     it('does not deliver audio-only WebM as native video', async () => {
       getByIdMock.mockResolvedValueOnce({ ext: '.webm' })
       probeMock.mockResolvedValueOnce(audioOnly)
@@ -574,6 +626,18 @@ describe('prepareChatMessages — routing', () => {
     extractMock.mockResolvedValueOnce('   ')
     const [out] = await run([fileWithEntry('e1', 'a.pdf', 'application/pdf')], NONE)
     expect(textOf(out.parts)[0]).toBe('Attached file "a.pdf":\nNo text in a.pdf')
+  })
+
+  it('advertises offset zero when a media analysis is truncated', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockResolvedValueOnce('0123456789')
+
+    const [out] = await run([fileWithEntry('e1', 'clip.mp4', 'video/mp4')], NONE, { isToolCapable: true, cap: 5 })
+    const text = textOf(out.parts)[0]
+
+    expect(text).toContain('01234')
+    expect(text).toContain('read_file("clip.mp4", offset=0)')
+    expect(text).not.toContain('offset=5')
   })
 
   it('caps long text with a read_file pointer for tool models', async () => {
