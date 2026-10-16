@@ -1,7 +1,7 @@
 ---
 name: cherry-computer
 description: Operate native desktop applications through Cherry Studio Computer Use. Use for opening an application, reading its accessibility state, typing, clicking, or capturing its window. Requires enabled Computer Use and OS permissions; never bypass user stop or application ownership.
-version: 1.0.0
+version: 1.0.1
 ---
 
 # Cherry Computer
@@ -30,6 +30,13 @@ The runtime emits this same reference on first binding and through `documentatio
    keyboard input can continue while the host validates the same target window.
 5. Verify the final result through fresh AX state or a screenshot before reporting
    success. Observation methods emit automatically; do not print their result again.
+
+Read AX content from `tree.elements` (`role`, `name`, `value`, `actions`); use each
+node's `id` as its ref. Never regex or split the display `text` to extract nodes.
+Read one page per cell using `getAXState({ cursor: page.nextCursor })`. Pages share
+a captured snapshot; actions and fresh observations invalidate its cursors. Zero
+matches on one page do not prove absence: inspect roles, remaining pages and native
+`tree.truncated` before concluding. Do not print the whole accumulated tree.
 
 On macOS, `typeText` sends keyboard text to the bound app, including calculators;
 it does not require an editable AX field. Newlines can submit forms. `setValue` is
