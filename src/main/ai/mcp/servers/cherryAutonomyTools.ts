@@ -1208,7 +1208,16 @@ async function startBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTa
       notifyBackgroundTaskCompletion(ctx.agentId, task)
     }
   })
-  indexBackgroundTask(ctx.agentId, (await getDetachedBackgroundTask(storageDir, record.id)) ?? record)
+  // The process has spawned and its record is persisted; this read only refreshes the index with
+  // reconciled evidence, so a strict-read failure here must not fail a start that already
+  // succeeded — the caller would retry and duplicate work that is in fact running.
+  let indexed = record
+  try {
+    indexed = (await getDetachedBackgroundTask(storageDir, record.id)) ?? record
+  } catch (error) {
+    logger.warn('Failed to refresh the background task record after start', { taskId: record.id, error })
+  }
+  indexBackgroundTask(ctx.agentId, indexed)
   return {
     content: [{ type: 'text', text: JSON.stringify(record, null, 2) }]
   }

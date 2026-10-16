@@ -9,6 +9,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isPidAlive } from '@main/ai/agents/backgroundTasks'
+import * as backgroundTasks from '@main/ai/agents/backgroundTasks'
 import type * as ChannelsModule from '@main/ai/channels'
 
 // Mock TaskService before importing CherryAutonomyTools
@@ -2135,6 +2136,28 @@ describe('cherry-tools autonomy tools', () => {
       await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalledTimes(1), { timeout: 10_000 })
       expect(mockSendMessage.mock.calls[0][0]).toBe('100')
       expect(mockSendMessage.mock.calls[0][1]).toContain('finished with exit code 0')
+    })
+
+    it('returns the startup record when the post-launch refresh cannot read the task', async () => {
+      // The process has spawned and its record is persisted before this optional refresh runs; a
+      // strict read failure here must not escape as a tool error, or the agent retries `start`
+      // and duplicates non-idempotent work that is in fact running.
+      const refresh = vi
+        .spyOn(backgroundTasks, 'getDetachedBackgroundTask')
+        .mockRejectedValue(Object.assign(new Error('EIO: i/o error, read'), { code: 'EIO' }))
+      try {
+        const result = await callTool(
+          createServer('agent_test', workspaceDir),
+          { action: 'start', command: `${nodeBin} -e "setTimeout(() => {}, 300)"` },
+          'background_task'
+        )
+        expect(result.isError).toBeFalsy()
+        const record = JSON.parse(result.content[0].text)
+        expect(record.id).toMatch(/^bt-/)
+        expect(record.status).toBe('running')
+      } finally {
+        refresh.mockRestore()
+      }
     })
 
     it('keeps the completion notice inside the starting turn’s recipients', async () => {
