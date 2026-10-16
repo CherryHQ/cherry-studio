@@ -32,6 +32,43 @@ export interface AISDKMessage extends ContextMessage {
   _toolName?: string
 }
 
+/** Restore each result name from its originating call before name-keyed processing. */
+export function repairToolResultNames(prompt: LanguageModelV3Prompt): LanguageModelV3Prompt {
+  const toolCallNames = new Map<string, string>()
+
+  return prompt.map((msg) => {
+    if (msg.role === 'assistant') {
+      for (const part of msg.content) {
+        if (part.type === 'tool-call') toolCallNames.set(part.toolCallId, part.toolName)
+      }
+
+      let changed = false
+      const content = msg.content.map((part) => {
+        if (part.type !== 'tool-result') return part
+        const toolName = toolCallNames.get(part.toolCallId)
+        if (toolName === undefined || toolName === part.toolName) return part
+        changed = true
+        return { ...part, toolName }
+      })
+      return changed ? { ...msg, content } : msg
+    }
+
+    if (msg.role === 'tool') {
+      let changed = false
+      const content = msg.content.map((part) => {
+        if (part.type !== 'tool-result') return part
+        const toolName = toolCallNames.get(part.toolCallId)
+        if (toolName === undefined || toolName === part.toolName) return part
+        changed = true
+        return { ...part, toolName }
+      })
+      return changed ? { ...msg, content } : msg
+    }
+
+    return msg
+  })
+}
+
 /**
  * Converts an AI SDK V3 prompt to IR messages.
  *
@@ -47,7 +84,7 @@ export interface AISDKMessage extends ContextMessage {
 export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
   const messages: AISDKMessage[] = []
 
-  for (const msg of prompt) {
+  for (const msg of repairToolResultNames(prompt)) {
     if (msg.role === 'system') {
       messages.push({
         role: 'system',
@@ -177,7 +214,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
   // Cast is safe — ensureValidHistory only inserts plain user/tool messages without
   // _userContent/_toolContent fields; toAISDK falls back to constructing from IR fields
   // for any message lacking those (see toAISDK below).
-  return ensureValidHistory(messages) as AISDKMessage[]
+  return ensureValidHistory(messages)
 }
 
 /**

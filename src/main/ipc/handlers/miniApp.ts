@@ -1,3 +1,5 @@
+import { dialog } from 'electron'
+
 import { application } from '@application'
 import { miniAppActivityLog } from '@main/features/miniApp/activityLog'
 import { uninstallMiniApp } from '@main/features/miniApp/install/installer'
@@ -21,7 +23,6 @@ import {
 import { setMiniAppLogo } from '@main/services/entityLogo'
 import type { miniAppRequestSchemas } from '@shared/ipc/schemas/miniApp'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
-import { dialog } from 'electron'
 
 function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
   if (senderId == null) return undefined

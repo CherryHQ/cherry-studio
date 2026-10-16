@@ -1,5 +1,6 @@
-import { application } from '@application'
 import type { StopCondition, ToolSet } from 'ai'
+
+import { application } from '@application'
 
 import { isAgentSessionTopic } from '../../../../agentSession/topic'
 import { trackSteerYieldStopCondition } from '../../loop/toolLoopTermination'

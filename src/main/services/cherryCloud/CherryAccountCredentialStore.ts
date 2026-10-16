@@ -2,14 +2,16 @@ import { randomUUID } from 'node:crypto'
 import { chmodSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('CherryAccountCredentialStore')
 
 const sessionSchema = z
   .object({
+    apiOrigin: z.url().optional(),
     accountId: z.string().min(1),
     sessionId: z.string().min(1),
     refreshToken: z.string().min(1),

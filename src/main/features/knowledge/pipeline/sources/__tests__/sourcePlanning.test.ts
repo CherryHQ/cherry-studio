@@ -1,11 +1,13 @@
+import { describe, expect, it } from 'vitest'
+
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { describe, expect, it } from 'vitest'
 
 import { planKnowledgeItemSource } from '../sourcePlanning'
 
 function createBase(fileProcessorId: string | null = 'doc2x'): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id: 'kb-1',
     name: 'KB',
     groupId: null,

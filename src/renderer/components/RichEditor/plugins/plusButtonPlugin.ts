@@ -155,7 +155,7 @@ export const PlusButtonPlugin = ({
             currentNode = outerNode
             currentNodePos = outerNodePos
 
-            repositionPlusButton(domNode as Element)
+            repositionPlusButton(domNode)
             showButton()
           },
 
@@ -213,7 +213,7 @@ export const PlusButtonPlugin = ({
             onNodeChange?.({ editor, node: currentNode, pos: currentNodePos })
 
             // 重新定位按钮并显示
-            repositionPlusButton(domNode as Element)
+            repositionPlusButton(domNode)
             showButton()
 
             return false // 继续向下传播其它 mousemove 处理器

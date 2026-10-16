@@ -2,13 +2,14 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { applyMigrations } from '@data/db/applyMigrations'
-import { snapshotTo } from '@data/db/restore/snapshot'
-import { appStateTable } from '@data/db/schemas/appState'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { applyMigrations } from '@data/db/applyMigrations'
+import { snapshotTo } from '@data/db/restore/snapshot'
+import { appStateTable } from '@data/db/schemas/appState'
 
 describe('snapshotTo', () => {
   let tempDir: string

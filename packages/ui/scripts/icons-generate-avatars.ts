@@ -16,6 +16,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+
 import { type Config, optimize } from 'svgo'
 
 import {
@@ -194,7 +195,7 @@ function detectBackgroundByArea(svgCode: string): boolean {
  * Strategy 2: Area-based heuristic fallback (handles vectorized rects,
  *   medium-luminance backgrounds, CSS-styled fills).
  */
-function detectHasBackground(svgPath: string): boolean {
+export function detectHasBackground(svgPath: string): boolean {
   const svgCode = fs.readFileSync(svgPath, 'utf-8')
   if (isImageBased(svgCode)) return false
 

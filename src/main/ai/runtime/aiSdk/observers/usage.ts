@@ -21,8 +21,10 @@
  * each step (see the invariant on `CherryUIMessageMetadata`).
  */
 
-import type { MessageStats } from '@shared/data/types/message'
 import type { LanguageModelUsage } from 'ai'
+
+import { getContextTokens } from '@cherrystudio/ai-core'
+import type { MessageStats } from '@shared/data/types/message'
 
 import type { Agent } from '../Agent'
 
@@ -74,7 +76,7 @@ function compact<T extends Record<string, number | undefined>>(obj: T): { [K in 
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'number') out[key] = value
   }
-  return Object.keys(out).length > 0 ? (out as { [K in keyof T]?: number }) : undefined
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 /** Project cumulative AI SDK usage into the live `MessageStats` UI shape. */
@@ -114,7 +116,7 @@ export function attachUsageObserver(agent: Agent): void {
     // provider reported inputTokens. Otherwise totalTokens collapses to output-only
     // (addTokenCounts(undefined, out) === out) — a bogus anchor that would suppress
     // durable compaction — so leave it undefined and let estimateContext fall back to tokenx.
-    lastStepTotalTokens = typeof step.usage.inputTokens === 'number' ? step.usage.totalTokens : undefined
+    lastStepTotalTokens = getContextTokens(step.usage, step.providerMetadata)
     agent.write({
       type: 'message-metadata',
       messageMetadata: {

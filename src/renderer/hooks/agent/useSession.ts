@@ -1,11 +1,15 @@
 /**
- * DataApi-backed session queries and mutations.
+ * DataApi-backed session queries and data mutations; lifecycle commands use IpcApi.
  *
  * Sessions are pure agent instances — only `id / agentId / name / description /
  * orderKey / timestamps` live here. For config (model / instructions /
  * configuration / ...) call {@link import('./useAgent').useAgent}
  * with `session.agentId`.
  */
+
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import {
@@ -14,7 +18,8 @@ import {
   useInfiniteQuery,
   useInvalidateCache,
   useMutation,
-  useQuery
+  useQuery,
+  useWriteCache
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
@@ -31,10 +36,6 @@ import type {
   SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
-import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const logger = loggerService.withContext('useSession')
@@ -43,6 +44,13 @@ type UseSessionsOptions = {
   pageSize?: number
   loadAll?: boolean
   enabled?: boolean
+}
+
+export type SessionDeleteOutcome = { status: 'succeeded' } | { status: 'stale' } | { status: 'failed'; error: string }
+
+type DeleteSessionOutcomeOptions = {
+  showFeedback?: boolean
+  permanent?: boolean
 }
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
@@ -219,6 +227,7 @@ export const useSessions = (
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
+  const writeCache = useWriteCache()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
@@ -321,23 +330,56 @@ export const useSessions = (
     [agentId, createTrigger, refresh, t]
   )
 
-  const deleteSession = useCallback(
-    async (id: string): Promise<boolean> => {
+  const deleteSessionWithOutcome = useCallback(
+    async (
+      id: string,
+      { showFeedback = true, permanent = false }: DeleteSessionOutcomeOptions = {}
+    ): Promise<SessionDeleteOutcome> => {
       try {
-        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
-        closeConversationTabs('agents', result.deletedIds)
+        const result = await ipcApi.request(
+          permanent ? 'ai.agent.session.delete_permanently' : 'ai.agent.session.delete',
+          { sessionIds: [id] }
+        )
+        const deleted = result.deletedIds.includes(id)
+        if (deleted) closeConversationTabs('agents', result.deletedIds)
         try {
           await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
           logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
         }
-        return true
+        if (!deleted) {
+          if (showFeedback) toast.info(t('recycle_bin.already_moved'))
+          return { status: 'stale' }
+        }
+        return { status: 'succeeded' }
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
-        return false
+        if (showFeedback) toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
+        return { status: 'failed', error: getErrorMessage(error) }
       }
     },
     [closeConversationTabs, invalidate, t]
+  )
+
+  const deleteSession = useCallback(
+    async (id: string, options?: DeleteSessionOutcomeOptions): Promise<boolean> =>
+      (await deleteSessionWithOutcome(id, options)).status === 'succeeded',
+    [deleteSessionWithOutcome]
+  )
+
+  const restoreSession = useCallback(
+    async (id: string): Promise<AgentSessionEntity> => {
+      const session = await ipcApi.request('ai.agent.session.restore', { sessionId: id })
+      try {
+        // Inactive detail queries cannot revalidate a cached NOT_FOUND after undo.
+        await writeCache(`/agent-sessions/${id}`, session)
+        await invalidate(['/agent-sessions', `/agent-sessions/${id}`, '/agents/*'])
+      } catch (error) {
+        logger.warn('Failed to refresh after restoring Agent Session', error as Error, { sessionId: id })
+      }
+      logger.info('Restored Agent Session', { sessionId: id })
+      return session
+    },
+    [invalidate, writeCache]
   )
 
   const deleteSessions = useCallback(
@@ -364,7 +406,7 @@ export const useSessions = (
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
       try {
-        await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
+        await applyReorderedList(reorderedList)
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
       }
@@ -425,7 +467,9 @@ export const useSessions = (
     loadMore,
     createSession,
     deleteSession,
+    deleteSessionWithOutcome,
     deleteSessions,
+    restoreSession,
     reorderSession,
     reorderSessions,
     togglePin,
@@ -449,16 +493,12 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`]
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
-    refresh: ({ args }) => [
-      '/agent-sessions',
-      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
-      '/agent-workspaces'
-    ]
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`, '/agent-workspaces']
   })
 
   const updateSession = useCallback(

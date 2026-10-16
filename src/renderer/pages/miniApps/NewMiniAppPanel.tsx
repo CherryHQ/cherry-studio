@@ -1,3 +1,8 @@
+import { ExternalLink, Globe, Package, Upload } from 'lucide-react'
+import type { ChangeEvent, FC } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -23,10 +28,6 @@ import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/i
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { ExternalLink, Globe, Package, Upload } from 'lucide-react'
-import type { ChangeEvent, FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { InstallMiniAppPicker } from './InstallMiniAppPanel'
 
@@ -252,7 +253,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined} className="sm:max-w-md">
+      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{t(isEditing ? 'settings.miniApps.custom.edit_title' : 'miniApp.add.title')}</DialogTitle>
         </DialogHeader>
@@ -260,7 +261,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
         {isEditing ? (
           siteForm
         ) : (
-          <Tabs value={tab} onValueChange={(value) => setTab(value as AddTab)}>
+          <Tabs value={tab} onValueChange={(value) => setTab(value as AddTab)} className="min-w-0">
             <TabsList className="w-full">
               <TabsTrigger value="site" className="flex-1">
                 <Globe className="size-4" />

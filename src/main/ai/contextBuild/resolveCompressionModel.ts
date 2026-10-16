@@ -8,6 +8,8 @@
  * null as "compression off" so a misconfigured model never breaks the chat.
  */
 import type { LanguageModelV3 } from '@ai-sdk/provider'
+import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
+
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
@@ -16,7 +18,6 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
 import type { ConversationRef } from '../types'
 import { resolveContextWindow } from './resolveContextWindow'

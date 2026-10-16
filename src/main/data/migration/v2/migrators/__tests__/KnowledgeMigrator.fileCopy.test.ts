@@ -12,11 +12,12 @@ import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { FileItemDataSchema } from '@shared/data/types/knowledge'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import { setupTestDatabase } from '@test-helpers/db'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeMigrator } from '../KnowledgeMigrator'
 

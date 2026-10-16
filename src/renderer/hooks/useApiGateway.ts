@@ -1,10 +1,11 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const API_GATEWAY_PREFERENCE_KEYS = {
   enabled: 'feature.api_gateway.enabled',
@@ -74,11 +75,7 @@ export const useApiGateway = () => {
     try {
       const result = await ipcApi.request('api_gateway.stop')
       if (result.success) {
-        if (result.outcome === 'deferred') {
-          toast.info(t('apiGateway.messages.stopDeferred'))
-        } else {
-          toast.success(t('apiGateway.messages.stopSuccess'))
-        }
+        toast.success(t('apiGateway.messages.stopSuccess'))
       } else {
         toast.error(t('apiGateway.messages.stopError') + result.error)
       }

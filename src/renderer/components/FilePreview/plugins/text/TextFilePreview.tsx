@@ -1,14 +1,15 @@
-import { EmptyState } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import CodeViewer from '@renderer/components/CodeViewer'
-import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
+import { EmptyState } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import CodeViewer from '@renderer/components/CodeViewer'
+import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('TextFilePreview')
@@ -26,7 +27,7 @@ function TextPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>

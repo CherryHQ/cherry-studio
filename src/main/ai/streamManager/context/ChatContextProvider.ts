@@ -6,6 +6,7 @@
  */
 
 import type { Span } from '@opentelemetry/api'
+
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
@@ -72,6 +73,8 @@ export interface DispatchContext {
   requireIdle?: boolean
   /** Internal callers may require the session's agent ownership at the message-write boundary. */
   expectedAgentId?: string
+  /** Assert caller admission preconditions inside the message reservation transaction. */
+  beforePersist?: () => void
 }
 
 export interface ChatContextProvider {

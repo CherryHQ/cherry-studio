@@ -1,5 +1,6 @@
-import type { ConversationNotification, Notification } from '@shared/types/notification'
 import * as z from 'zod'
+
+import type { ConversationNotification, Notification } from '@shared/types/notification'
 
 import { defineRoute } from '../define'
 

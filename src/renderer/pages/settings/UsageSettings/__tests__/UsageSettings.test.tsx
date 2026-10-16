@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import UsageSettings from '../UsageSettings'
 
@@ -142,5 +143,11 @@ describe('UsageSettings', () => {
     expect(screen.getByText('高峰日')).toBeInTheDocument()
     expect(screen.getByText('用量最高模型')).toBeInTheDocument()
     expect(screen.getByText('日均')).toBeInTheDocument()
+  })
+
+  it('shows usage analytics without the personal profile editor', () => {
+    render(<UsageSettings />)
+    expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '头像' })).not.toBeInTheDocument()
   })
 })

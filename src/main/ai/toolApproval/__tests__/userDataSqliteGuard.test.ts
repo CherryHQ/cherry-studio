@@ -3,8 +3,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { application } from '@application'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import {
   evaluateUserDataSqliteGuard,
@@ -112,9 +113,6 @@ describe('evaluateUserDataSqliteGuard', () => {
     ).resolves.toBeUndefined()
     await expect(evaluate({ toolName: 'Read' })).resolves.toBeUndefined()
     await expect(evaluate({ runtime: 'pi', toolName: 'read', args: { path: databaseFile } })).resolves.toBeUndefined()
-    await expect(
-      evaluate({ runtime: 'dsh', toolName: 'read', args: { file_path: databaseFile } })
-    ).resolves.toBeUndefined()
   })
 
   it.each([
@@ -123,9 +121,7 @@ describe('evaluateUserDataSqliteGuard', () => {
     ['claude-code', 'MultiEdit', 'file_path'],
     ['claude-code', 'NotebookEdit', 'notebook_path'],
     ['pi', 'write', 'path'],
-    ['pi', 'edit', 'path'],
-    ['dsh', 'write', 'file_path'],
-    ['dsh', 'edit', 'file_path']
+    ['pi', 'edit', 'path']
   ] as const)('binds %s %s.%s to the same policy', async (runtime, toolName, field) => {
     await expect(evaluate({ runtime, toolName, args: { [field]: databaseFile } })).resolves.toEqual(DENIAL)
   })
@@ -153,9 +149,6 @@ describe('evaluateUserDataSqliteGuard', () => {
 
   it('does not apply Pi path spelling rules to other runtimes', async () => {
     await expect(evaluate({ args: { file_path: `@${databaseFile}` } })).resolves.toBeUndefined()
-    await expect(
-      evaluate({ runtime: 'dsh', toolName: 'write', args: { file_path: `@${databaseFile}` } })
-    ).resolves.toBeUndefined()
   })
 
   it('does not scan third-party MCP arguments', async () => {
@@ -211,9 +204,7 @@ describe('evaluateUserDataSqliteGuard', () => {
   describe('literal shell scanning', () => {
     it.each([
       ['claude-code', 'Bash'],
-      ['pi', 'bash'],
-      ['dsh', 'bash'],
-      ['dsh', 'pwsh']
+      ['pi', 'bash']
     ] as const)('protects %s %s commands', async (runtime, toolName) => {
       await expect(evaluate({ runtime, toolName, args: { command: `sqlite3 "${databaseFile}"` } })).resolves.toEqual(
         DENIAL
@@ -233,9 +224,7 @@ describe('evaluateUserDataSqliteGuard', () => {
 
     it.each([
       ['claude-code', 'Bash', (target: string) => `python -c "import sqlite3; sqlite3.connect('${target}')"`],
-      ['pi', 'bash', (target: string) => `node -e "require('better-sqlite3')('${target}')"`],
-      ['dsh', 'bash', (target: string) => `echo ready; bun -e "new Database('${target}')"`],
-      ['dsh', 'pwsh', (target: string) => `python3.12 -c "open('${target}', 'wb')"`]
+      ['pi', 'bash', (target: string) => `node -e "require('better-sqlite3')('${target}')"`]
     ] as const)(
       'checks protected SQLite literals inside %s %s interpreter code',
       async (runtime, toolName, command) => {

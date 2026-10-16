@@ -1,14 +1,15 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { loggerService } from '@logger'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { isNonChatModel } from '@shared/utils/model'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { AgentEditDialog } from './AgentEditDialog'
 import { AssistantEditDialog } from './AssistantEditDialog'
@@ -109,7 +110,6 @@ function AgentEditDialogHost({
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
   const modelFilter = useAgentModelFilter(agent?.type)
-  const isModelDisabled = useAgentModelDisabled(open)
 
   useEffect(() => {
     if (!error) return
@@ -124,7 +124,6 @@ function AgentEditDialogHost({
       resource={agent ?? null}
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
-      isModelDisabled={isModelDisabled}
       initialTab={target.initialTab}
     />
   )

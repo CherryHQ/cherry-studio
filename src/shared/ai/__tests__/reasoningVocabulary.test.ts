@@ -1,5 +1,6 @@
-import type { Model, RuntimeReasoning } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import type { Model, RuntimeReasoning } from '@shared/data/types/model'
 
 import { deriveThinkingOptions, nearestThinkingOption } from '../reasoning'
 

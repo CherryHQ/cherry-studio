@@ -1,3 +1,6 @@
+import { useEffect, useEffectEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
@@ -8,8 +11,6 @@ import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
 import { AUTO_BACKUP_TYPES, type AutoBackupEvent } from '@shared/types/backup'
-import { useEffect, useEffectEvent } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useAutoBackupEvents')
 const STATE_KEYS = AUTO_BACKUP_TYPES.map((type) => `backup.auto_sync.state.${type}` as const)

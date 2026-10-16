@@ -8,6 +8,9 @@
 
 import path from 'node:path'
 
+import { eq } from 'drizzle-orm'
+import { session, webContents } from 'electron'
+
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
@@ -17,8 +20,6 @@ import { getAppLanguage } from '@main/i18n'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 import { MINI_APP_BRIDGE_CHANNEL, MINI_APP_STREAM_CHANNEL } from '@shared/ipc/schemas/miniAppBridge'
 import { MINI_APP_SCHEME, MiniAppManifestSchema, resolveLocalizedText } from '@shared/types/miniAppManifest'
-import { eq } from 'drizzle-orm'
-import { session, webContents } from 'electron'
 
 import { ACTIVITY_COUNT_FLUSH_MS, miniAppActivityLog } from '../activityLog'
 import { aiCapability } from '../capabilities/ai'
@@ -251,7 +252,7 @@ export class MiniAppRuntimeService extends BaseService {
    *      trip whose only product is a chance to disagree.
    *
    * It is also the ONLY preload a local guest gets: `WebviewService` skips mini-app
-   * partitions, so the keyboard relay in `preload/miniApp.ts` never loads for one and host
+   * partitions, so the keyboard relay in `preload/webview.ts` never loads for one and host
    * shortcuts do not reach the host while a local guest has focus. Known gap; why it cannot
    * simply be composed in is written at that filter.
    */

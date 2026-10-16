@@ -16,6 +16,8 @@
  */
 
 import { isAbortError, type ToolResultOutput } from '@ai-sdk/provider-utils'
+import { type InferToolInput, type InferToolOutput, tool } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
@@ -33,7 +35,6 @@ import {
 } from '@shared/ai/builtinTools'
 import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
 import { makeTextFieldCodec } from '../../../outputCodec'
 import { getToolCallContext } from '../context'
@@ -100,10 +101,6 @@ export async function readFile(
 
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
       return textResult(`Cannot read ${fileType} file "${entry.handle}" as text.`)
-    }
-    if (fileType === FILE_TYPE.OTHER && bareExt) {
-      // Binary / unsupported — don't auto-decode it into mojibake.
-      return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
 
     const text =

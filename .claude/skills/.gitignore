@@ -4,7 +4,7 @@
 !.gitignore
 !README*.md
 !cherry-electron-dev
-!cherry-pr-test
+!cherry-regression-test
 !create-skill
 !gh-create-issue
 !gh-create-pr

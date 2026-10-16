@@ -1,13 +1,14 @@
 import path from 'node:path'
 
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import type * as SdkConfig from '@main/ai/provider/sdkConfig'
 import { messageTable } from '@main/data/db/schemas/message'
 import { topicTable } from '@main/data/db/schemas/topic'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { buildAgentParams } from '../buildAgentParams'

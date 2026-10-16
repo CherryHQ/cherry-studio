@@ -1,6 +1,7 @@
-import { cacheService } from '@data/CacheService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
 
 vi.mock('@data/hooks/useCache', async (importOriginal) => importOriginal())
 

@@ -10,7 +10,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
+    if (name === 'LocalModelService') return { isDefaultModelReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   return result
@@ -39,8 +39,9 @@ vi.mock('../defaultImageToTextProcessor', () => ({
   resolveDefaultImageToTextProcessor: resolveDefaultImageToTextProcessorMock
 }))
 
-import { MB } from '@shared/utils/constants'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
+import { MB } from '@shared/utils/constants'
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from '../resolveProcessorConfig'
 

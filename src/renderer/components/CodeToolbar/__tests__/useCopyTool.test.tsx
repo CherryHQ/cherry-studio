@@ -1,9 +1,10 @@
-import type { ActionTool } from '@renderer/components/ActionTools'
-import { useCopyTool } from '@renderer/components/CodeToolbar/hooks/useCopyTool'
-import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { act, renderHook } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { useCopyTool } from '@renderer/components/CodeToolbar/hooks/useCopyTool'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 
 const mocks = vi.hoisted(() => ({
   t: (key: string) => key

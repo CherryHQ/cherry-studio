@@ -1,3 +1,6 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -13,8 +16,6 @@ import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ENTITY_SEARCH_MAX_LIMIT_PER_TYPE, EntitySearchQuerySchema } from '@shared/data/api/schemas/search'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('EntitySearchService', () => {
   const dbh = setupTestDatabase()
@@ -89,6 +90,7 @@ describe('EntitySearchService', () => {
       orderKey: 'a0'
     })
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id: '55555555-5555-4555-8555-555555555555',
       name: 'Needle Knowledge',
       dimensions: 1536,

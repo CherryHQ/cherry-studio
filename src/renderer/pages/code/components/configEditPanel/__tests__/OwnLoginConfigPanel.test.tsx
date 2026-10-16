@@ -1,9 +1,10 @@
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
-import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import { CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import { CodeCli } from '@shared/types/codeCli'
 
 import { OwnLoginConfigPanel } from '../OwnLoginConfigPanel'
 
@@ -73,7 +74,7 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   validateCliConfigDraftForWrite: vi.fn()
 }))
 
-vi.mock('../../CliIcon', () => ({
+vi.mock('@renderer/components/icons/CliIcon', () => ({
   CliIcon: () => <span data-testid="cli-icon" />
 }))
 

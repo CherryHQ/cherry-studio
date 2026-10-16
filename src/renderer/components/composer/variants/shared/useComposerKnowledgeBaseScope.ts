@@ -1,5 +1,6 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef } from 'react'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { ComposerDraftToken } from '../../tokens'
 import { composerKnowledgeBaseTokenId, knowledgeBaseToComposerToken } from './composerTokens'

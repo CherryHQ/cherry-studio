@@ -1,9 +1,10 @@
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import { readUIMessageStream } from 'ai'
+import { describe, expect, it } from 'vitest'
+
 import { webSearchOutputSchema } from '@shared/ai/builtinTools'
 import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
-import { readUIMessageStream } from 'ai'
-import { describe, expect, it } from 'vitest'
 
 import { PI_TRANSPORT, PiStreamAdapter } from './piStreamAdapter'
 
@@ -44,14 +45,14 @@ describe('PiStreamAdapter', () => {
         toolCallId: 't1',
         toolName: 'bash',
         args: { command: 'ls' }
-      } as AgentSessionEvent,
+      },
       {
         type: 'tool_execution_end',
         toolCallId: 't1',
         toolName: 'bash',
         result: 'file.txt',
         isError: false
-      } as AgentSessionEvent,
+      },
       {
         type: 'turn_end',
         message: {
@@ -97,14 +98,14 @@ describe('PiStreamAdapter', () => {
 
   it('stamps the pi transport on tool error output', () => {
     const chunks = collect([
-      { type: 'tool_execution_start', toolCallId: 'e1', toolName: 'edit', args: {} } as AgentSessionEvent,
+      { type: 'tool_execution_start', toolCallId: 'e1', toolName: 'edit', args: {} },
       {
         type: 'tool_execution_end',
         toolCallId: 'e1',
         toolName: 'edit',
         result: { message: 'boom' },
         isError: true
-      } as AgentSessionEvent
+      }
     ])
     const err = chunks.find((chunk) => chunk.type === 'tool-output-error')
     expect(err).toMatchObject({
@@ -168,14 +169,14 @@ describe('PiStreamAdapter', () => {
       assistantEvent({ type: 'text_start', contentIndex: 0 }),
       assistantEvent({ type: 'text_delta', contentIndex: 0, delta: 'done' }),
       assistantEvent({ type: 'text_end', contentIndex: 0 }),
-      { type: 'tool_execution_start', toolCallId: 't1', toolName: 'read', args: { path: 'a' } } as AgentSessionEvent,
+      { type: 'tool_execution_start', toolCallId: 't1', toolName: 'read', args: { path: 'a' } },
       {
         type: 'tool_execution_end',
         toolCallId: 't1',
         toolName: 'read',
         result: 'contents',
         isError: false
-      } as AgentSessionEvent
+      }
     ])
     const message = await accumulate(chunks)
     const text = message.parts.find((part) => part.type === 'text')
@@ -214,14 +215,14 @@ describe('PiStreamAdapter', () => {
     }
     const message = await accumulate(
       collect([
-        { type: 'tool_execution_start', toolCallId: 'artifact-1', toolName, args: input } as AgentSessionEvent,
+        { type: 'tool_execution_start', toolCallId: 'artifact-1', toolName, args: input },
         {
           type: 'tool_execution_end',
           toolCallId: 'artifact-1',
           toolName,
           result: 'Recorded 1 artifact(s).',
           isError: false
-        } as AgentSessionEvent
+        }
       ])
     )
 
@@ -234,14 +235,14 @@ describe('PiStreamAdapter', () => {
 
   it('stamps MCP tools with type mcp, name, and serverName from the tool name', () => {
     const chunks = collect([
-      { type: 'tool_execution_start', toolCallId: 'm1', toolName: 'mcp__exa__search', args: {} } as AgentSessionEvent,
+      { type: 'tool_execution_start', toolCallId: 'm1', toolName: 'mcp__exa__search', args: {} },
       {
         type: 'tool_execution_end',
         toolCallId: 'm1',
         toolName: 'mcp__exa__search',
         result: { content: [{ type: 'text', text: 'results' }] },
         isError: false
-      } as AgentSessionEvent
+      }
     ])
     const toolOutput = chunks.find((chunk) => chunk.type === 'tool-output-available')
     expect(toolOutput).toMatchObject({
@@ -249,6 +250,46 @@ describe('PiStreamAdapter', () => {
         cherry: { transport: PI_TRANSPORT, tool: { type: 'mcp', name: 'search', serverName: 'exa' } }
       }
     })
+  })
+
+  it('keeps automation REPL content blocks that pi nests in structuredContent', async () => {
+    const mcpResult = {
+      content: [
+        { type: 'text', text: '649' },
+        { type: 'text', text: 'REPL_CONTEXT {}', annotations: { audience: ['assistant'] } }
+      ],
+      structuredContent: { replContext: { cell: 'c1' } }
+    }
+    const message = await accumulate(
+      collect([
+        { type: 'tool_execution_start', toolCallId: 'a1', toolName: 'mcp__automation__js', args: { code: '1' } },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'a1',
+          toolName: 'mcp__automation__js',
+          result: { content: [{ type: 'text', text: '649\nREPL_CONTEXT {}' }], structuredContent: mcpResult },
+          isError: false
+        }
+      ] as AgentSessionEvent[])
+    )
+    const output = (message.parts.find((part) => part.type === 'dynamic-tool') as { output?: unknown }).output
+    expect(output).toEqual(mcpResult)
+  })
+
+  it("reports a failed automation REPL cell with its MCP content, not pi's wrapper", () => {
+    const mcpResult = { isError: true, content: [{ type: 'text', text: 'TypeError: boom' }] }
+    const chunks = collect([
+      { type: 'tool_execution_start', toolCallId: 'a2', toolName: 'mcp__automation__js', args: { code: '1' } },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'a2',
+        toolName: 'mcp__automation__js',
+        result: { content: [{ type: 'text', text: 'TypeError: boom' }], structuredContent: mcpResult, isError: true },
+        isError: true
+      }
+    ] as AgentSessionEvent[])
+    const error = chunks.find((chunk) => chunk.type === 'tool-output-error') as { errorText: string }
+    expect(JSON.parse(error.errorText)).toEqual(mcpResult)
   })
 
   /**

@@ -1,6 +1,7 @@
+import type { ComponentProps, ReactNode } from 'react'
+
 import { DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentProps, ReactNode } from 'react'
 
 export const KnowledgeDialogHeader = ({ children, className }: { children: ReactNode; className?: string }) => {
   return (

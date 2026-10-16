@@ -23,9 +23,15 @@ with shell commands.
 If a search returns nothing useful, **refine the query before fetching** anything. Don't
 fetch low-relevance URLs just because they came back.
 
-## Browser limitation (important)
+## Browser interaction
 
-Cherry's web built-ins **search and fetch only**. They cannot:
+Load the bundled `cherry-browser` skill for the live Automation REPL. Bind with
+`var tab = await browser.getTab()` and read the emitted documentation before acting.
+It controls the current conversation’s visible browser pane when Browser control is
+enabled, independently of Code Mode. See [automation.md](automation.md) for entry
+points and recovery. History and login-data imports are managed in Browser settings.
+
+The separate web search/fetch tools cannot:
 
 - click, hover, or otherwise interact with a page,
 - fill or submit forms,

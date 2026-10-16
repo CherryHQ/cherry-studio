@@ -10,9 +10,10 @@
  *
  */
 
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfigOverride, ProviderSettings } from '@shared/data/types/provider'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex } from './_columnHelpers'
 

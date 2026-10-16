@@ -1,6 +1,7 @@
+import { useCallback } from 'react'
+
 import { useProviderActions } from '@renderer/hooks/useProvider'
 import type { Provider } from '@shared/data/types/provider'
-import { useCallback } from 'react'
 
 export function useProviderDelete() {
   const { deleteProviderById } = useProviderActions()

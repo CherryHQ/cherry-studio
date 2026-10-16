@@ -7,13 +7,15 @@
  *   4. multiple markers on path → deepest wins
  */
 
-import type * as AiCore from '@cherrystudio/ai-core'
-import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { MockLanguageModelV3 } from 'ai/test'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as AiCore from '@cherrystudio/ai-core'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { makeAssistant, makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
@@ -282,6 +284,7 @@ async function makeHistory(
 describe('PersistentChatContextProvider — durable compaction integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainCacheServiceUtils.resetMocks()
     capturedChunks = []
     mockSummarizeModelMessages.mockResolvedValue('SUMMARY_TEXT')
     // Default: an endpoint that sends no max_tokens, so the input room is the
@@ -703,27 +706,6 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
   })
 
-  it('2h. hands a settled fold to the manager without sending unidentified chunks', async () => {
-    const BIG = 'token '.repeat(700)
-    mockGetPathToNode.mockReturnValue([
-      fakeMsg('u1', 'user', BIG),
-      fakeMsg('a1', 'assistant', BIG),
-      fakeMsg('u2', 'user', BIG),
-      fakeMsg('a2', 'assistant', BIG),
-      fakeMsg('u3', 'user', BIG)
-    ])
-    compressionOn()
-
-    const { prepared } = await makeHistory('u3')
-    expect(capturedChunks).toEqual([])
-    expect(prepared.compactionAnchors).toEqual([
-      {
-        id: expect.any(String),
-        data: expect.objectContaining({ status: 'done', phase: 'turn-start' })
-      }
-    ])
-  })
-
   const fiveBigTurns = () => {
     const BIG = 'token '.repeat(700)
     mockGetPathToNode.mockReturnValue([
@@ -735,31 +717,40 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     ])
   }
 
-  it('2i. settles the anchor as skipped when the summarizer returns nothing (no false marker)', async () => {
+  it.each([
+    { outcome: 'success', status: 'done', messageIds: ['compaction:a2', 'u3'] },
+    { outcome: 'empty', status: 'skipped', messageIds: ['u1', 'a1', 'u2', 'a2', 'u3'] },
+    { outcome: 'error', status: 'failed', messageIds: ['u1', 'a1', 'u2', 'a2', 'u3'] }
+  ])('keeps live progress separate from execution anchors after $outcome', async ({ outcome, status, messageIds }) => {
     fiveBigTurns()
     compressionOn()
-    mockSummarizeModelMessages.mockResolvedValueOnce('')
+    const summary = Promise.withResolvers<string>()
+    mockSummarizeModelMessages.mockReturnValueOnce(summary.promise)
+    const preparation = makeHistory('u3', [DEFAULT_MODEL_ID, createUniqueModelId('openai', 'other-model')])
+    const keys = ['message.context.compacting.ph0', 'message.context.compacting.ph1'] as const
 
-    const { prepared, messages } = await makeHistory('u3')
-    expect(prepared.compactionAnchors?.map((anchor) => anchor.data.status)).toEqual(['skipped'])
-    expect(messages.map((message) => message.id)).toEqual(['u1', 'a1', 'u2', 'a2', 'u3'])
-  })
+    try {
+      await vi.waitFor(() => {
+        for (const key of keys) expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toBe(true)
+      })
+      expect(capturedChunks).toEqual([])
+    } finally {
+      if (outcome === 'error') summary.reject(new Error('summarizer failed'))
+      else summary.resolve(outcome === 'success' ? 'SUMMARY_TEXT' : '')
+    }
 
-  it('2i2. settles the anchor as failed when the summarizer throws', async () => {
-    fiveBigTurns()
-    compressionOn()
-    mockSummarizeModelMessages.mockRejectedValueOnce(new Error('summarizer failed'))
+    const { prepared, messages } = await preparation
 
-    const { messages, prepared } = await makeHistory('u3')
+    for (const key of keys) expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toBeUndefined()
     expect(capturedChunks).toEqual([])
     expect(prepared.compactionAnchors).toEqual([
       {
         id: expect.any(String),
-        data: expect.objectContaining({ status: 'failed', phase: 'turn-start' })
+        data: expect.objectContaining({ status, phase: 'turn-start' })
       }
     ])
-    expect(messages.map((message) => message.id)).toEqual(['u1', 'a1', 'u2', 'a2', 'u3'])
-    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    expect(messages.map((message) => message.id)).toEqual(messageIds)
+    if (outcome !== 'success') expect(mockSetCompactionSummary).not.toHaveBeenCalled()
   })
 
   it('2d. blobs of compacted-away tool outputs stay on the request allow-list', async () => {
@@ -868,7 +859,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     // factory default so later tests are unaffected.
     vi.mocked(resolveAssistantModelId).mockReturnValueOnce({
       assistantId: 'asst-1',
-      defaultModelId: 'openai::gpt-4o' as UniqueModelId
+      defaultModelId: 'openai::gpt-4o'
     })
     mockGetAssistantById.mockReturnValue({
       id: 'asst-1',
@@ -1152,6 +1143,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainCacheServiceUtils.resetMocks()
     capturedChunks = []
     mockSummarizeModelMessages.mockResolvedValue('SUMMARY_TEXT')
     // Default: the compactor returns a DISTINCT compacted array (so the hook would emit an

@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { recognizeMock, isLocalModelReadyMock } = vi.hoisted(() => ({
   recognizeMock: vi.fn(),
@@ -13,7 +14,7 @@ vi.mock('@application', async () => {
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
     if (name === 'OcrInferenceService') return { recognize: recognizeMock }
-    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
+    if (name === 'LocalModelService') return { isDefaultModelReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   return result

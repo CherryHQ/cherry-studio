@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
-import { describe, expect, it } from 'vitest'
 
 import {
   getWebSearchFallbackProviderIds,
@@ -26,6 +27,10 @@ describe('client web provider readiness', () => {
     expect(isWebSearchProviderReady(provider('exa-mcp'), 'searchKeywords')).toBe(true)
     expect(isWebSearchProviderReady(provider('searxng'), 'searchKeywords')).toBe(true)
     expect(isWebSearchProviderReady(provider('firecrawl'), 'searchKeywords')).toBe(true)
+  })
+
+  it('accepts hostless keyless keyword search providers without any configuration', () => {
+    expect(isWebSearchProviderReady(provider('duckduckgo'), 'searchKeywords')).toBe(true)
   })
 
   it('requires an API key for providers that authenticate every search request', () => {

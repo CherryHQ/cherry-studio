@@ -1,8 +1,9 @@
-import type { Message } from '@shared/data/types/message'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Message } from '@shared/data/types/message'
 
 import { useTopicMessages } from '../useTopicMessages'
 
@@ -109,7 +110,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate
-    } as never)
+    })
 
     renderHook(() => useTopicMessages('topic-1'))
 
@@ -161,7 +162,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate
-    } as never)
+    })
 
     renderHook(() => useTopicMessages('topic-1'))
 
@@ -252,7 +253,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
+    })
 
     const { result } = renderHook(() => useTopicMessages('topic-1'))
 
@@ -264,5 +265,37 @@ describe('useTopicMessages', () => {
     ])
     expect(Object.keys(result.current.siblingsMap).sort()).toEqual(['reply-c-1', 'reply-c-2'])
     expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
+  })
+
+  it('clears a retained query error and resumes pagination when select-all is retried', async () => {
+    // A previous page fetch failed and SWR still holds its error.
+    let error: Error | undefined = new Error('page fetch failed')
+    const loadNext = vi.fn()
+    const mutate = vi.fn(async () => {
+      error = undefined
+    })
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages: [{ items: [], nextCursor: 'cursor', activeNodeId: null }],
+          isLoading: false,
+          isRefreshing: false,
+          error,
+          hasNext: true,
+          loadNext,
+          refresh: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+          mutate
+        }) as never
+    )
+
+    const { result } = renderHook(() => useTopicMessages('topic-1'))
+
+    await act(async () => {
+      result.current.selectAllPagination.start()
+      await mutate.mock.results[0].value
+    })
+
+    expect(loadNext).toHaveBeenCalledOnce()
   })
 })

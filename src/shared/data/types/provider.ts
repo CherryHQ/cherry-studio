@@ -11,7 +11,9 @@
  * Zod schemas are the single source of truth — all types derived via z.infer<>
  */
 
-import type { EndpointType, ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
+import * as z from 'zod'
+
+import type { ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
 import {
   CURRENCY,
   ENDPOINT_TYPE,
@@ -20,7 +22,8 @@ import {
   ProviderEditionSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
-import * as z from 'zod'
+
+import { ProviderBillingSchema } from './providerBilling'
 
 export type { ServerTool, ServerToolConfig }
 
@@ -47,6 +50,7 @@ export type EndpointDialect = z.infer<typeof EndpointDialectSchema>
 /** Provider website schema (type used for catalog ProviderWebsite type) */
 const ProviderWebsiteSchema = z.object({
   website: z.object({
+    billing: z.url().optional(),
     official: z.url().optional(),
     docs: z.url().optional(),
     apiKey: z.url().optional(),
@@ -141,6 +145,7 @@ export type ProviderWebsite = z.infer<typeof ProviderWebsiteSchema>
 
 /** Flat website links schema for runtime Provider (without the catalog wrapper) */
 export const ProviderWebsitesSchema = z.object({
+  billing: z.string().optional(),
   official: z.string().optional(),
   apiKey: z.string().optional(),
   docs: z.string().optional(),
@@ -154,6 +159,7 @@ const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
 export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
 
 export const ProviderSettingsSchema = z.object({
+  billing: ProviderBillingSchema.optional(),
   streamOptions: z
     .object({
       includeUsage: z.boolean().optional()
@@ -263,9 +269,7 @@ export const ProviderSchema = z.object({
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type connection configuration */
-  endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
-    z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>
-  >,
+  endpointConfigs: z.partialRecord(EndpointTypeSchema, EndpointConfigSchema).optional(),
   /** Default text generation endpoint type */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
   /**
@@ -274,6 +278,8 @@ export const ProviderSchema = z.object({
    * the registry; absent/`'api'` for normal providers.
    */
   modelListSource: z.enum(['api', 'registry']).optional(),
+  /** Registry-owned opt-in to append models missing from the API list. Absent means API-only. */
+  supplementModelsFromRegistry: z.boolean().optional(),
   /** Provider-native (server-executed) built-in tools resolved from the registry. */
   serverTools: z.array(ServerToolConfigSchema).optional(),
   /**

@@ -1,3 +1,6 @@
+import { isFileUIPart } from 'ai'
+import { takeRight } from 'es-toolkit/compat'
+
 /**
  * Renderer helpers that call the AI (`ai.text.generate`) to produce short text:
  * generic text generation plus topic/note auto-naming. Stateless request/response.
@@ -17,8 +20,6 @@ import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model } from '@shared/data/types/model'
-import { isFileUIPart } from 'ai'
-import { takeRight } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('aiGeneration')
 

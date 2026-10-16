@@ -4,7 +4,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 
 export function projectStreamMessageForRenderer(topicId: string, message: CherryUIMessage): CherryUIMessage {
   const parts = projectMessagePartsForRenderer(message.parts, topicId, message.id)
-  return parts === message.parts ? message : ({ ...message, parts } as CherryUIMessage)
+  return parts === message.parts ? message : { ...message, parts }
 }
 
 export function projectStreamChunkPayloadForRenderer(payload: StreamChunkPayload): StreamChunkPayload {

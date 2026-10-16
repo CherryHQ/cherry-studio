@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 
-import { isMainExternalModule, mainResolveAlias } from './electron.vite.config'
+import { mainExternalModules, mainResolveAlias } from './electron.vite.config'
 import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
 
 /**
@@ -19,20 +19,24 @@ export default {
     plugins: [hermeticEntryGuardPlugin()],
     resolve: { alias: mainResolveAlias },
     build: {
+      externalizeDeps: { include: mainExternalModules },
       emptyOutDir: true,
       outDir: resolve(__dirname, 'out/utility-process'),
       lib: {
         // Keys become `<entry>.js`, which is what a definition's `entry` resolves to.
         entry: {
+          'automation-repl': resolve(__dirname, 'src/main/services/automation/utilityEntries/automationRepl.ts'),
+          'inference-tts': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceTts.ts'),
+          'inference-asr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceAsr.ts'),
           'inference-embedding': resolve(
             __dirname,
             'src/main/ai/localModel/runtime/utilityEntries/inferenceEmbedding.ts'
           ),
-          'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts')
+          'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts'),
+          'voice-audio': resolve(__dirname, 'src/main/ai/voice/localAdapters/utilityEntries/voiceAudio.ts')
         }
       },
-      rollupOptions: {
-        external: isMainExternalModule,
+      rolldownOptions: {
         output: {
           entryFileNames: '[name].js',
           chunkFileNames: '[name]-[hash].js',

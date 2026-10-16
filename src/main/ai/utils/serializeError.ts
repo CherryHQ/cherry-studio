@@ -1,8 +1,9 @@
+import { APICallError, RetryError } from 'ai'
+
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
-import { APICallError, RetryError } from 'ai'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -74,13 +75,21 @@ export function serializeError(error: unknown): SerializedError {
     if ('reason' in e) serialized.reason = e.reason as string
     if ('lastError' in e) serialized.lastError = serializeNestedProviderError(e.lastError)
     if ('errors' in e) serialized.errors = (e.errors as unknown[]).map(serializeNestedProviderError)
-    if ('originalError' in e) serialized.originalError = serializeError(e.originalError) as Serializable
+    if ('originalError' in e) serialized.originalError = serializeError(e.originalError)
     if ('functionality' in e) serialized.functionality = e.functionality as string
     if ('provider' in e) serialized.provider = e.provider as string
     if ('responses' in e) serialized.responses = e.responses as string[]
     if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
     if ('values' in e) serialized.values = (e.values as unknown[]).map((v) => toSerializable(v))
     if ('i18nKey' in e && typeof e.i18nKey === 'string') serialized.i18nKey = e.i18nKey
+    // App-owned OCR diagnostic detail (attachmentRouting): the localized "why"
+    // and its interpolation values must survive the IPC boundary, or the
+    // renderer cannot tell empty OCR output from a failing processor.
+    if ('detailI18nKey' in e && typeof e.detailI18nKey === 'string') serialized.detailI18nKey = e.detailI18nKey
+    if ('detailI18nValues' in e) serialized.detailI18nValues = toSerializable(e.detailI18nValues)
+    if ('providerErrorCategory' in e && isErrorCategory(e.providerErrorCategory)) {
+      serialized.providerErrorCategory = e.providerErrorCategory
+    }
     if ('claudeCodeExitCategory' in e && isErrorCategory(e.claudeCodeExitCategory)) {
       serialized.claudeCodeExitCategory = e.claudeCodeExitCategory
     }
@@ -94,9 +103,10 @@ export function serializeError(error: unknown): SerializedError {
 
     return serialized
   }
+  const safeMessage = getSafeProviderErrorMessage({ data: error })
   return {
     name: null,
-    message: String(error),
+    message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
     stack: null
   }
 }

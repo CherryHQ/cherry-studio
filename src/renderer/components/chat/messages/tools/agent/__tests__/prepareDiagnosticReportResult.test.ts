@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { buildToolResponseFromPart } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import { getPrepareDiagnosticReportResult, parsePrepareDiagnosticReportResult } from '../prepareDiagnosticReportResult'
 
@@ -53,6 +54,13 @@ describe('prepareDiagnosticReportResult', () => {
     expect(
       parsePrepareDiagnosticReportResult({ isError: true, structuredContent: result('Misleading draft') })
     ).toBeUndefined()
+  })
+
+  it('normalizes a safe renderer draft and rejects descriptions beyond the IPC limit', () => {
+    expect(parsePrepareDiagnosticReportResult(result('  First line\r\nSecond line  '))).toEqual(
+      result('First line\r\nSecond line')
+    )
+    expect(parsePrepareDiagnosticReportResult(result('a'.repeat(4_097)))).toBeUndefined()
   })
 
   it('accepts only a completed assistant prepare_diagnostic_report tool', () => {

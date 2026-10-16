@@ -75,7 +75,7 @@ function pickFallbackCallOptions(options: AgentOptions): FallbackCallOptions | u
   const entries = FALLBACK_CALL_OPTION_KEYS.flatMap((key) =>
     options[key] === undefined ? [] : ([[key, options[key]]] as const)
   )
-  return entries.length > 0 ? (Object.fromEntries(entries) as FallbackCallOptions) : undefined
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
 export function buildFallbackModels(args: BuildFallbackModelsArgs): FallbackResolver[] {
@@ -125,6 +125,13 @@ async function resolveFallback(
   const configured = resolveConfiguredFallback(uniqueModelId)
   if (!configured) return null
   const { provider, model } = configured
+
+  // The API gateway refuses a disabled provider's models, so routing here only
+  // buys an opaque 404 instead of advancing to the next fallback (issue #20547).
+  if (!provider.isEnabled) {
+    logger.info('skipping fallback whose provider is disabled', { uniqueModelId })
+    return null
+  }
 
   const required = args.requiredNativeFileSupport
   if (required.image && !isVisionModel(model)) {

@@ -1,7 +1,8 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 // Stub the leaf cards so we can assert ONLY which branch chooseTool routes to.
 vi.mock('../meta/MessageMetaTool', () => ({
@@ -20,8 +21,6 @@ vi.mock('../agent/AgentExecutionTimeline', () => ({
 vi.mock('../painting/MessageGenerateImage', () => ({
   MessageGenerateImageToolTitle: () => <div data-testid="image-card" />
 }))
-// Empty enum → isAgentTool only matches the `mcp__` prefix, not our builtin names.
-vi.mock('../shared/agentToolTypes', () => ({ AgentToolsType: {}, isAskUserQuestionToolName: () => false }))
 
 const { chooseTool } = await import('../chooseTool')
 const { buildToolResponseFromPart } = await import('../toolResponse')

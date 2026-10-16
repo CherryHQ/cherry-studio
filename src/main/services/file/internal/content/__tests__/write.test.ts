@@ -2,14 +2,15 @@ import { mkdtemp, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { hashContent } from '@main/utils/file'
-import { ContentHashSchema } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { hashContent } from '@main/utils/file'
+import { ContentHashSchema } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')

@@ -59,10 +59,15 @@ vi.mock('@application', async () => {
 })
 
 // Mock electron modules that are commonly used in main process
-vi.mock('electron', () => {
-  const partitionSessions = new Map<string, Record<string, unknown>>()
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events')
+  const partitionSessions = new Map<string, object>()
   const mock = {
     app: {
+      commandLine: {
+        hasSwitch: vi.fn(() => false),
+        getSwitchValue: vi.fn(() => '')
+      },
       getPath: vi.fn((key: string) => {
         switch (key) {
           case 'userData':
@@ -96,6 +101,10 @@ vi.mock('electron', () => {
       removeListener: vi.fn(),
       removeAllListeners: vi.fn()
     },
+    powerMonitor: {
+      on: vi.fn(),
+      removeListener: vi.fn()
+    },
     BrowserWindow: vi.fn(),
     dialog: {
       showErrorBox: vi.fn(),
@@ -123,7 +132,8 @@ vi.mock('electron', () => {
       fromPartition: vi.fn((partition: string) => {
         const cached = partitionSessions.get(partition)
         if (cached) return cached
-        const created = {
+        const created = Object.assign(new EventEmitter(), {
+          fetch: vi.fn(),
           clearCache: vi.fn(),
           clearStorageData: vi.fn(),
           clearCodeCaches: vi.fn(),
@@ -138,7 +148,7 @@ vi.mock('electron', () => {
             onBeforeSendHeaders: vi.fn(),
             onHeadersReceived: vi.fn()
           }
-        }
+        })
         partitionSessions.set(partition, created)
         return created
       })
@@ -197,23 +207,27 @@ vi.mock('winston', () => ({
 
 // Mock winston-daily-rotate-file
 vi.mock('winston-daily-rotate-file', () => {
-  return vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    log: vi.fn()
-  }))
+  return vi.fn().mockImplementation(function DailyRotateFileMock() {
+    return {
+      on: vi.fn(),
+      log: vi.fn()
+    }
+  })
 })
 
 // Mock electron-store to avoid file system operations
 vi.mock('electron-store', () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
-      set: vi.fn(),
-      delete: vi.fn(),
-      clear: vi.fn(),
-      has: vi.fn(() => false),
-      store: {}
-    }))
+    default: vi.fn().mockImplementation(function ElectronStoreMock() {
+      return {
+        get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
+        set: vi.fn(),
+        delete: vi.fn(),
+        clear: vi.fn(),
+        has: vi.fn(() => false),
+        store: {}
+      }
+    })
   }
 })
 

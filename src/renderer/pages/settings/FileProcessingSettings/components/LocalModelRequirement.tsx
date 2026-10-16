@@ -1,20 +1,23 @@
+import { Download, RefreshCw, SquareCheckBig, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { LocalModelDownloadProgress } from '@renderer/components/LocalModelDownloadProgress'
 import { SettingHelpText, SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { toast } from '@renderer/services/toast'
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelCapability } from '@shared/data/presets/localModel'
-import { Download, RefreshCw, SquareCheckBig, X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
+import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelCapability } from '@shared/data/presets/localModel'
+
+type FileProcessingLocalModelCapability = Extract<LocalModelCapability, 'embedding' | 'ocr'>
 
 const SUBTITLE_KEY = {
   embedding: 'settings.dependencies.localModels.embedding.subtitle',
   ocr: 'settings.dependencies.localModels.ocr.subtitle'
-} as const satisfies Record<LocalModelCapability, string>
+} as const satisfies Record<FileProcessingLocalModelCapability, string>
 
 type LocalModelRequirementProps = {
-  capability: LocalModelCapability
+  capability: FileProcessingLocalModelCapability
   /** The processor's own description, shown either way. */
   description: string
   /** Commits a pending processor selection once this panel observes a ready model. */
@@ -32,7 +35,7 @@ type LocalModelRequirementProps = {
  */
 export function LocalModelRequirement({ capability, description, onReady }: LocalModelRequirementProps) {
   const { t } = useTranslation()
-  const { status, percent, download, cancel } = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY[capability])
+  const { status, percent, download, cancel } = useLocalModel(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY[capability])
   const onReadyRef = useRef(onReady)
 
   useEffect(() => {

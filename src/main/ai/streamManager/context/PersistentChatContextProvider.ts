@@ -5,6 +5,9 @@
  * per-execution `PersistenceListener`s.
  */
 
+import { type Span, SpanStatusCode } from '@opentelemetry/api'
+import type { ModelMessage, UIMessage } from 'ai'
+
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -21,7 +24,6 @@ import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/
 import { messageService } from '@main/data/services/MessageService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
@@ -35,7 +37,6 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
-import type { ModelMessage, UIMessage } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
@@ -65,6 +66,18 @@ import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerCon
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
+
+function toCompactionProgressSink(messageIds: string[]): CompactionSink {
+  return (_anchorId, data) => {
+    // Preparation has no execution identity yet; only the shared cache carries live progress.
+    const cache = application.get('CacheService')
+    for (const messageId of messageIds) {
+      const key = `message.context.compacting.${messageId}` as const
+      if (data.status === 'compacting') cache.setShared(key, true)
+      else cache.deleteShared(key)
+    }
+  }
+}
 
 /** Media cost table for the turn. Unreachable provider row → the openai table. */
 function resolveRowDialect(model: Model | undefined): TokenDialect {
@@ -189,6 +202,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       parentId: message.parentId,
       siblingsGroupId: message.siblingsGroupId || undefined,
       modelId: message.modelId ?? undefined,
+      modelSelection: message.data.modelSelection,
       messageSnapshot: message.messageSnapshot ?? undefined,
       status: message.status,
       turnOptions: message.data.turnOptions,
@@ -220,6 +234,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
+    if (req.trigger === 'edit-agent-message') throw new Error('Agent editing requires an Agent session')
     assertUniqueMentionedModelIds('mentionedModelIds' in req ? req.mentionedModelIds : undefined)
 
     // 1. Resolve context
@@ -296,6 +311,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
+    // Single-model submits also carry the composer's current model snapshot.
+    const modelSelection =
+      models.length > 1 || (isRegenerate && req.appendToLiveGroupMessageId !== undefined) ? 'explicit' : 'default'
     const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
@@ -398,7 +416,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         preserveActiveNode: Boolean(liveGroupSourceAnchorMessageId),
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
-          data: { parts: [], turnOptions },
+          data: { parts: [], turnOptions, modelSelection },
           status: 'pending',
           modelId: model.id,
           messageSnapshot: buildAssistantMessageSnapshot(model, assistantIdentity)
@@ -459,7 +477,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
         assistantId,
-        contextSettingsOverride
+        contextSettingsOverride,
+        toCompactionProgressSink(assistantPlaceholders.map(({ placeholder }) => placeholder.id))
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
@@ -551,7 +570,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         messages: history,
         retainedContext,
         compactionAnchors
-      } = await this.resolveCompactedHistory(parent.id, req.topicId, [model], assistantId, contextSettingsOverride)
+      } = await this.resolveCompactedHistory(
+        parent.id,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionProgressSink([target.id])
+      )
       const request = this.buildStreamRequest(
         req.topicId,
         assistantId,
@@ -695,7 +721,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         messages: history,
         retainedContext,
         compactionAnchors
-      } = await this.resolveCompactedHistory(anchor.id, req.topicId, [model], assistantId, contextSettingsOverride)
+      } = await this.resolveCompactedHistory(
+        anchor.id,
+        req.topicId,
+        [model],
+        assistantId,
+        contextSettingsOverride,
+        toCompactionProgressSink([anchor.id])
+      )
       return {
         topicId: req.topicId,
         compactionAnchors,
@@ -799,7 +832,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         req.topicId,
         [model],
         assistantId,
-        contextSettingsOverride
+        contextSettingsOverride,
+        toCompactionProgressSink([placeholder.id])
       )
       const history = withSteerReminder(compactedHistory)
       return {
@@ -836,7 +870,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return {
       id: m.id,
       role: m.role,
-      parts: (m.data?.parts ?? []) as CompactionRow['parts'],
+      parts: m.data?.parts ?? [],
       compactionSummary: m.compactionSummary ?? undefined,
       contextTokens: m.stats?.contextTokens ?? undefined
     }
@@ -888,7 +922,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     topicId: string,
     models: Model[],
     assistantId: string | undefined,
-    assistantContextOverride?: ContextSettingsOverride | null
+    assistantContextOverride?: ContextSettingsOverride | null,
+    compactionProgressSink?: CompactionSink
   ): Promise<{
     messages: CherryUIMessage[]
     retainedContext: RetainedContext
@@ -899,6 +934,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const at = compactionAnchors.findIndex((anchor) => anchor.id === id)
       if (at >= 0) compactionAnchors[at] = { id, data }
       else compactionAnchors.push({ id, data })
+      compactionProgressSink?.(id, data)
     }
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.

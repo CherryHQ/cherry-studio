@@ -1,5 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
+
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { logger, validatePath } from '../types'
@@ -12,7 +14,6 @@ export const WriteToolSchema = z.object({
 
 // Tool definition with detailed description
 export const writeToolDefinition = {
-  name: 'write',
   description: `Writes a file to the local filesystem.
 
 - This tool will overwrite the existing file if one exists at the path
@@ -21,17 +22,12 @@ export const writeToolDefinition = {
 - NEVER proactively create documentation files unless explicitly requested
 - Parent directories will be created automatically if they don't exist
 - The file_path must resolve within the configured workspace root`,
-  inputSchema: z.toJSONSchema(WriteToolSchema)
+  inputSchema: WriteToolSchema
 }
 
 // Handler implementation
-export async function handleWriteTool(args: unknown, baseDir: string) {
-  const parsed = WriteToolSchema.safeParse(args)
-  if (!parsed.success) {
-    throw new Error(`Invalid arguments for write: ${parsed.error}`)
-  }
-
-  const filePath = parsed.data.file_path
+export async function handleWriteTool(args: z.infer<typeof WriteToolSchema>, baseDir: string): Promise<CallToolResult> {
+  const filePath = args.file_path
   const validPath = await validatePath(filePath, baseDir)
 
   // Create parent directory if it doesn't exist
@@ -55,7 +51,7 @@ export async function handleWriteTool(args: unknown, baseDir: string) {
 
   // Write the file
   try {
-    await fs.writeFile(validPath, parsed.data.content, 'utf-8')
+    await fs.writeFile(validPath, args.content, 'utf-8')
   } catch (error: any) {
     throw new Error(`Failed to write file: ${error.message}`)
   }
@@ -64,19 +60,19 @@ export async function handleWriteTool(args: unknown, baseDir: string) {
   logger.info('File written', {
     path: validPath,
     overwrite: isOverwrite,
-    size: parsed.data.content.length
+    size: args.content.length
   })
 
   // Format output
   const relativePath = path.relative(baseDir, validPath)
   const action = isOverwrite ? 'Updated' : 'Created'
-  const lines = parsed.data.content.split('\n').length
+  const lines = args.content.split('\n').length
 
   return {
     content: [
       {
         type: 'text',
-        text: `${action} file: ${relativePath}\n` + `Size: ${parsed.data.content.length} bytes\n` + `Lines: ${lines}`
+        text: `${action} file: ${relativePath}\n` + `Size: ${args.content.length} bytes\n` + `Lines: ${lines}`
       }
     ]
   }

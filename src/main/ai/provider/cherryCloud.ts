@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type UniqueModelId } from '@shared/data/types/model'
 
 import type { ProviderConfig } from '../types'
 
@@ -27,6 +27,13 @@ const UNSAFE_FORWARD_HEADERS = new Set([
   'x-cherry-internal-usage-token'
 ])
 
+export class ModelUnavailableError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'ModelUnavailableError'
+  }
+}
+
 function forwardedHeaders(source: Headers): Headers {
   const headers = new Headers()
   for (const [name, value] of source) {
@@ -39,7 +46,8 @@ function forwardedHeaders(source: Headers): Headers {
 
 export function buildCherryCloudProviderConfig(
   endpointType: EndpointType | undefined,
-  endpoint?: string
+  endpoint: string | undefined,
+  uniqueModelId: UniqueModelId
 ): ProviderConfig {
   const service = application.get('CherryCloudService')
   const apiOrigin = new URL(service.getApiOrigin()).origin
@@ -59,6 +67,19 @@ export function buildCherryCloudProviderConfig(
       const url = new URL(request.url)
       if (url.origin !== apiOrigin || url.pathname !== requestPath) {
         throw new Error('Cherry Cloud requests must stay on the configured Cherry Cloud API origin')
+      }
+
+      let availability
+      try {
+        availability = await service.syncEntitledModelsIfStale()
+      } catch (error) {
+        throw new ModelUnavailableError('Cherry Cloud model availability could not be refreshed', { cause: error })
+      }
+      if (
+        !availability.entitledModelIds.includes(uniqueModelId) ||
+        availability.quotaExhaustedModelIds.includes(uniqueModelId)
+      ) {
+        throw new ModelUnavailableError('Cherry Cloud model is unavailable')
       }
 
       return service.authenticatedFetch(`${url.pathname}${url.search}`, {

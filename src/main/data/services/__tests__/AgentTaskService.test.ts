@@ -4,8 +4,9 @@
  * covered by its integration suite.
  */
 
-import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -26,6 +27,8 @@ vi.mock('@data/services/JobScheduleService', () => ({
 vi.mock('@data/services/JobService', () => ({
   jobService: { getRunStatesByScheduleIds: vi.fn(), list: vi.fn() }
 }))
+
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -102,6 +105,16 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
 
 describe('AgentTaskService (read side)', () => {
   beforeEach(() => {
+    MockMainDbServiceUtils.resetMocks()
+    MockMainDbServiceUtils.setDb({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            all: () => [{ id: AGENT_ID }, { id: 'other-agent' }, { id: 'other' }]
+          })
+        })
+      })
+    })
     notifyDataApiDataChangeMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])
@@ -129,9 +142,32 @@ describe('AgentTaskService (read side)', () => {
       { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
       { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
       { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] }
+      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] },
+      { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
   })
+
+  it.each(['membership', 'projection'] as const)(
+    'publishes task and run-log effects in one %s notification',
+    (kind) => {
+      agentTaskService.notifyRunChange(TASK_ID, 'job-1', kind)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] },
+        {
+          endpoint: '/agents/:agentId/tasks/:taskId/logs',
+          kind,
+          routeParams: { taskId: TASK_ID },
+          entityIds: ['job-1']
+        }
+      ])
+    }
+  )
 
   describe('getTask', () => {
     it('returns a task by id without requiring the owning agent id', () => {
@@ -196,6 +232,19 @@ describe('AgentTaskService (read side)', () => {
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(null)
 
       expect(agentTaskService.getTask(AGENT_ID, TASK_ID)).toBeNull()
+    })
+
+    it('hides a heartbeat row from the by-id lookups, including the v1-migrated shape', () => {
+      // The list side excludes heartbeat rows; a known schedule id must not
+      // let ordinary task commands reach the row the heartbeat sync owns.
+      vi.mocked(jobScheduleService.getById).mockReturnValue(makeHeartbeatSnapshot())
+
+      try {
+        expect(agentTaskService.getTaskById(TASK_ID)).toBeNull()
+        expect(agentTaskService.getTask(AGENT_ID, TASK_ID)).toBeNull()
+      } finally {
+        vi.mocked(jobScheduleService.getById).mockReset()
+      }
     })
 
     it('derives status=paused when the schedule is disabled', () => {

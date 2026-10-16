@@ -1,9 +1,10 @@
-import type { ActionTool } from '@renderer/components/ActionTools'
-import type { ViewMode } from '@renderer/components/CodeBlockView/types'
-import { useViewSourceTool } from '@renderer/components/CodeToolbar/hooks/useViewSourceTool'
 import { act, renderHook } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { ActionTool } from '@renderer/components/ActionTools'
+import type { ViewMode } from '@renderer/components/CodeBlockView/types'
+import { useViewSourceTool } from '@renderer/components/CodeToolbar/hooks/useViewSourceTool'
 
 const mocks = vi.hoisted(() => ({
   t: (key: string) => key

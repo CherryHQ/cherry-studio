@@ -1,3 +1,17 @@
+import { Pin, Plus, SquarePen } from 'lucide-react'
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  memo,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+
 import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
@@ -12,19 +26,7 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
-import { Pin, Plus, SquarePen } from 'lucide-react'
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  memo,
-  type ReactElement,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -373,7 +375,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const wasOpenRef = useRef(false)
   useEffect(() => {
     if (open && !wasOpenRef.current) {
-      void onOpenRef.current?.()
+      onOpenRef.current?.()
     }
     wasOpenRef.current = open
   }, [open])
@@ -405,7 +407,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     if (query) {
       filtered = filtered.filter(
         (item) =>
-          item.name.toLowerCase().includes(query) ||
+          matchesSearchText(item.name, query) ||
           (item.description ? item.description.toLowerCase().includes(query) : false)
       )
     }
@@ -468,9 +470,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         if (isItemType) {
           const byId = new Map<string, T>(items.map((item) => [item.id, item]))
           const mapped = ids.map((id) => byId.get(id)).filter(Boolean) as T[]
-          ;(props.onChange as (value: T[]) => void)(mapped)
+          props.onChange(mapped)
         } else {
-          ;(props.onChange as (value: string[]) => void)(ids)
+          props.onChange(ids)
         }
         return
       }
@@ -478,9 +480,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const id = ids[0] ?? null
       if (isItemType) {
         const item = id ? (items.find((candidate) => candidate.id === id) ?? null) : null
-        ;(props.onChange as (value: T | null) => void)(item)
+        props.onChange(item)
       } else {
-        ;(props.onChange as (value: string | null) => void)(id)
+        props.onChange(id)
       }
     },
     [isItemType, isMulti, items, props.onChange]
@@ -645,9 +647,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const firstId = valueIds[0]
       if (isItemType) {
         const firstItem = items.find((item) => item.id === firstId) ?? null
-        ;(props.onChange as (value: T[]) => void)(firstItem ? [firstItem] : [])
+        props.onChange(firstItem ? [firstItem] : [])
       } else {
-        ;(props.onChange as (value: string[]) => void)([firstId])
+        props.onChange([firstId])
       }
     },
     [isItemType, isMulti, items, props.onChange, valueIds]

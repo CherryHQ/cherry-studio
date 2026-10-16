@@ -16,6 +16,8 @@
  *   scope inference and enforces "batch stays within one entityType".
  */
 
+import { and, asc, eq } from 'drizzle-orm'
+
 import { application } from '@application'
 import { groupTable } from '@data/db/schemas/group'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -26,8 +28,8 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateGroupDto, UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Group } from '@shared/data/types/group'
-import { and, asc, eq } from 'drizzle-orm'
 
+import { getDataService } from './dataServiceRegistry'
 import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
@@ -175,11 +177,14 @@ export class GroupService {
    * Delete a group.
    */
   delete(id: string): void {
-    const [row] = this.db.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id }).all()
-
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Group', id)
-    }
+    application.get('DbService').withWriteTx((tx) => {
+      const group = this.findByIdTx(tx, id)
+      if (!group) throw DataApiErrorFactory.notFound('Group', id)
+      if (group.entityType === 'knowledge') {
+        getDataService('KnowledgeBaseService').ungroupTx(tx, id)
+      }
+      tx.delete(groupTable).where(eq(groupTable.id, id)).run()
+    })
 
     logger.info('Deleted group', { id })
   }

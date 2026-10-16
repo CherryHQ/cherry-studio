@@ -1,3 +1,10 @@
+import { useNavigate } from '@tanstack/react-router'
+import { isEmpty } from 'es-toolkit/compat'
+import { Activity, ArrowRight, ExternalLink, List, Loader2 } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   InfoTooltip,
@@ -36,12 +43,6 @@ import type {
   WebSearchProviderOverride,
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { useNavigate } from '@tanstack/react-router'
-import { isEmpty } from 'es-toolkit/compat'
-import { Activity, ArrowRight, ExternalLink, List, Loader2 } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
@@ -166,7 +167,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const apiKeyWebsite = getWebSearchProviderApiKeyWebsite(provider.id)
   const officialWebsite = getWebSearchProviderOfficialWebsite(provider.id)
   const usesLlmProviderApiKey = provider.id === 'zhipu'
-  const showApiKeySettings = provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng'
+  const showApiKeySettings =
+    provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng' && provider.id !== 'duckduckgo'
   const showInlineApiKeySettings = showApiKeySettings && !usesLlmProviderApiKey
   const supportsBasicAuth = provider.id === 'searxng'
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)
@@ -405,7 +407,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
         {showApiHostSetting && (
           <div
             className={`flex flex-col gap-2 ${
-              usesLlmProviderApiKey || showInlineApiKeySettings ? 'border-border-subtle border-t pt-3' : ''
+              usesLlmProviderApiKey || showInlineApiKeySettings ? 'border-t border-border-subtle pt-3' : ''
             }`}>
             <SettingRowTitle className="font-medium">{t('settings.provider.api_host')}</SettingRowTitle>
             <div className="flex min-w-0 items-center gap-2">
