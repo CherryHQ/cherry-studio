@@ -769,6 +769,19 @@
       "description": "Command shortcut: quick_assistant.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.resource.delete_permanently",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Backspace"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: resource.delete_permanently (unified command system)"
+    },
+    {
       "targetKey": "shortcut.selection.capture_text",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {

@@ -3,9 +3,13 @@ import { lazy, memo, type RefObject, Suspense, useCallback, useEffect, useMemo, 
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
-import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
+import {
+  deleteConversationOwnerPopup,
+  permanentDeletePopup
+} from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import {
   remapResourceListCollapsedGroupIds,
   renderAgentEntityIcon,
@@ -38,6 +42,7 @@ import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@rende
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -61,6 +66,23 @@ import {
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { classifyTurn } from '@shared/ai/transport'
+
+const getAgentSessionStreamStatusCacheKey = (sessionId: string) =>
+  `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
+
+function isAgentSessionBusy(sessionId: string): boolean {
+  const entry = cacheService.getShared(getAgentSessionStreamStatusCacheKey(sessionId))
+  const flags = classifyTurn(entry?.status)
+  return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors?.length ?? 0) > 0
+}
+
+function permanentAgentDeleteError(err: unknown, message: (key: string) => string): Error {
+  if (isAgentNotFoundError(err)) return new Error(message('recycle_bin.delete.stale'))
+  if (isAgentSessionArchiveBusyError(err)) return new Error(message('recycle_bin.delete.busy'))
+  if (err instanceof Error) return err
+  return new Error(message('agent.delete.error.failed'))
+}
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
@@ -102,7 +124,11 @@ import {
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import {
+  isAgentNotFoundError,
+  isAgentSessionArchiveBusyError,
+  isAgentSessionNotFoundError
+} from '@shared/ipc/errors/ai'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import {
@@ -173,9 +199,11 @@ function AgentGroupMoreMenu({
   pinned,
   onDeleteAgent,
   onEdit,
+  onPermanentDeleteAgent,
   onSetAgentIconType,
   onTogglePin,
   onToggleSidebar,
+  permanentDeleteShortcut,
   sidebarPinned
 }: {
   agentId: string
@@ -187,9 +215,11 @@ function AgentGroupMoreMenu({
   sidebarPinned: boolean
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
+  onPermanentDeleteAgent?: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   onToggleSidebar: (agentId: string) => void | Promise<void>
+  permanentDeleteShortcut?: string
 }) {
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
@@ -199,9 +229,11 @@ function AgentGroupMoreMenu({
     deleteSessionsOnly,
     onDeleteAgent,
     onEdit,
+    onPermanentDeleteAgent,
     onSetAgentIconType,
     onTogglePin,
     onToggleSidebar,
+    permanentDeleteShortcut,
     pinDisabled,
     pinned,
     sidebarPinned,
@@ -419,6 +451,7 @@ const Sessions = ({
     error,
     refreshError,
     deleteSession,
+    deleteSessionWithOutcome,
     hasMore,
     isLoadingMore,
     isValidating,
@@ -436,6 +469,7 @@ const Sessions = ({
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
     name: string
     workspaceId: string
@@ -508,6 +542,9 @@ const Sessions = ({
   const activeSessionIdRef = useRef(activeSessionId)
   const togglePinRef = useRef(togglePin)
   const requestFileNavigation = useOptionalAgentFileNavigation()
+  const permanentDeleteLockRef = useRef(false)
+  const agentPermanentDeleteLockRef = useRef(false)
+  const { shortcutLabel: permanentDeleteShortcut } = useResolvedCommand('resource.delete_permanently')
 
   useEffect(() => {
     sessionItemsRef.current = sessionItems
@@ -623,6 +660,10 @@ const Sessions = ({
     return orderedAgents
   }, [agents, optimisticAgentOrderIds])
   const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
+  const agentByIdRef = useRef(agentById)
+  useEffect(() => {
+    agentByIdRef.current = agentById
+  }, [agentById])
   const getSessionExportOptions = useCallback(
     (session: AgentSessionEntity): AgentSessionExportOptions => ({
       modelFallback: getAgentModelFallbackSnapshot(session.agentId ? agentById.get(session.agentId) : undefined)
@@ -851,12 +892,11 @@ const Sessions = ({
     [displayMode, isRightPanel, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
 
-  const handleDeleteSession = useCallback(
-    async (id: string) => {
+  const planSessionRemoval = useCallback(
+    (id: string) => {
       const deletedSession =
         filteredGroupedSessions.find((session) => session.id === id) ??
         sessionItemsRef.current.find((session) => session.id === id)
-
       const deletedGroupId = deletedSession ? sessionGroupBy(deletedSession)?.id : undefined
       const sameGroupSessions = deletedGroupId
         ? filteredGroupedSessions.filter((session) => sessionGroupBy(session)?.id === deletedGroupId)
@@ -865,6 +905,23 @@ const Sessions = ({
       const replacement =
         sameGroupNext ?? findLatestActive(sessionItemsRef.current.filter((candidate) => candidate.id !== id))
       const wasActive = activeSessionIdRef.current === id
+      const activeSession = activeSessionIdRef.current
+        ? sessionItemsRef.current.find((session) => session.id === activeSessionIdRef.current)
+        : null
+      const preservesFileWorkspace = Boolean(
+        activeSession &&
+        replacement &&
+        buildAgentFileWorkspaceKey(activeSession.workspaceId, activeSession.workspace?.path) ===
+          buildAgentFileWorkspaceKey(replacement.workspaceId, replacement.workspace?.path)
+      )
+      return { deletedSession, replacement, wasActive, preservesFileWorkspace }
+    },
+    [filteredGroupedSessions, sessionGroupBy]
+  )
+
+  const handleDeleteSession = useCallback(
+    async (id: string) => {
+      const { deletedSession, replacement, wasActive, preservesFileWorkspace } = planSessionRemoval(id)
 
       const performDelete = async () => {
         const success = await deleteSession(id)
@@ -896,14 +953,6 @@ const Sessions = ({
           setTrackedActiveSessionId(replacement.id, replacement)
           void performDelete()
         }
-        const activeSession = activeSessionIdRef.current
-          ? sessionItemsRef.current.find((session) => session.id === activeSessionIdRef.current)
-          : null
-        const preservesFileWorkspace =
-          activeSession &&
-          replacement &&
-          buildAgentFileWorkspaceKey(activeSession.workspaceId, activeSession.workspace?.path) ===
-            buildAgentFileWorkspaceKey(replacement.workspaceId, replacement.workspace?.path)
         if (!preservesFileWorkspace && requestFileNavigation) {
           requestFileNavigation(transition)
           return
@@ -916,15 +965,87 @@ const Sessions = ({
     },
     [
       deleteSession,
-      filteredGroupedSessions,
+      planSessionRemoval,
       requestFileNavigation,
       reload,
       restoreSession,
-      sessionGroupBy,
       setActiveSessionId,
       setTrackedActiveSessionId,
       t
     ]
+  )
+
+  const runPermanentDelete = useCallback(
+    async (id: string) => {
+      const latest = sessionItemsRef.current.find((session) => session.id === id)
+      if (!latest) {
+        await reload().catch(() => undefined)
+        throw new Error(t('recycle_bin.delete.stale'))
+      }
+      if (latest.pinned) throw new Error(t('recycle_bin.delete.pinned'))
+      if (isAgentSessionBusy(id)) throw new Error(t('recycle_bin.delete.busy'))
+
+      const { replacement, wasActive } = planSessionRemoval(id)
+      const outcome = await deleteSessionWithOutcome(id, { permanent: true, showFeedback: false })
+      if (outcome.status === 'failed') {
+        await reload().catch(() => undefined)
+        throw new Error(outcome.error || t('agent.session.delete.error.failed'))
+      }
+      if (outcome.status !== 'succeeded') {
+        await reload().catch(() => undefined)
+        throw new Error(t('recycle_bin.delete.stale'))
+      }
+      // Tabs close inside deleteSessionWithOutcome only when this id was actually deleted.
+      // Invalidation can clear the current id while the user is still on the deleted session.
+      const current = activeSessionIdRef.current
+      if (current !== null && current !== id) return
+      if (current !== id && !(current === null && wasActive)) return
+      if (replacement) {
+        setTrackedActiveSessionId(replacement.id, replacement)
+        return
+      }
+      setTrackedActiveSessionId(null, null)
+    },
+    [deleteSessionWithOutcome, planSessionRemoval, reload, setTrackedActiveSessionId, t]
+  )
+
+  const openPermanentDelete = useCallback(
+    (id: string) => {
+      const start = () => {
+        if (permanentDeleteLockRef.current) return Promise.resolve()
+        permanentDeleteLockRef.current = true
+        setDeletingSessionId(id)
+        const current = sessionItemsRef.current.find((session) => session.id === id)
+        return permanentDeletePopup
+          .show({
+            kind: 'conversation',
+            name: current?.name || t('common.unnamed'),
+            action: () => runPermanentDelete(id)
+          })
+          .then(() => undefined)
+          .finally(() => {
+            permanentDeleteLockRef.current = false
+            setDeletingSessionId((currentId) => (currentId === id ? null : currentId))
+          })
+      }
+
+      const plan = planSessionRemoval(id)
+      // Last active session has no replacement; leaving it still changes the file workspace.
+      if (plan.wasActive && !plan.preservesFileWorkspace && requestFileNavigation) {
+        let pending: Promise<void> | undefined
+        let synchronous = true
+        requestFileNavigation(() => {
+          if (pending) return
+          const request = start()
+          pending = request
+          if (!synchronous) void request.catch(() => undefined)
+        })
+        synchronous = false
+        return pending ?? Promise.resolve()
+      }
+      return start()
+    },
+    [planSessionRemoval, requestFileNavigation, runPermanentDelete, t]
   )
 
   const handleRenameSession = useCallback(
@@ -1293,30 +1414,64 @@ const Sessions = ({
   }, [refetchAgents, reload])
 
   const handleDeleteAgent = useCallback(
-    async (agentId: string) => {
+    async (agentId: string, mode: 'archive' | 'permanent' = 'archive') => {
+      const permanent = mode === 'permanent'
       if (deletingAgentId) return
+      if (permanent && agentPermanentDeleteLockRef.current) return
 
       const agent = agentById.get(agentId)
-      const deleteSessionsOnly = isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
+      const protectedAgent = isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
+      if (permanent && (!agent || protectedAgent || agentId === SESSION_UNKNOWN_AGENT_GROUP_ID)) return
+
+      const deleteSessionsOnly = !permanent && protectedAgent
 
       const performDelete = async (deleteSessions: boolean) => {
-        const currentActiveSessionId = activeSessionIdRef.current
+        if (permanent) {
+          const liveAgent = agentByIdRef.current.get(agentId)
+          if (!liveAgent || isProtectedBuiltinAgentRole(liveAgent.configuration?.builtin_role)) {
+            await refreshAgentResources()
+            throw new Error(t('recycle_bin.delete.stale'))
+          }
+          if (
+            deleteSessions &&
+            sessionItemsRef.current.some((session) => session.agentId === agentId && isAgentSessionBusy(session.id))
+          ) {
+            throw new Error(t('recycle_bin.delete.busy'))
+          }
+        }
+
+        const activeSessionIdAtStart = activeSessionIdRef.current
         setDeletingAgentId(agentId)
+        let deletionCommitted = false
         try {
           let deletedSessionIds: string[] = []
           let deletionChangedState = false
-          if (deleteSessionsOnly) {
-            const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
-            deletedSessionIds = result.deletedIds
-            deletionChangedState = deletedSessionIds.length > 0
-          } else {
-            const result = await ipcApi.request('ai.agent.delete', {
-              agentId,
-              deleteSessions
-            })
-            deletionChangedState = result.deleted
-            deletedSessionIds = result.deletedSessionIds ?? []
+          try {
+            if (deleteSessionsOnly) {
+              const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
+              deletedSessionIds = result.deletedIds
+              deletionChangedState = deletedSessionIds.length > 0
+            } else if (permanent) {
+              const result = await ipcApi.request('ai.agent.delete_permanently', {
+                agentId,
+                deleteSessions
+              })
+              deletionChangedState = result.deleted
+              deletedSessionIds = result.deletedSessionIds ?? []
+            } else {
+              const result = await ipcApi.request('ai.agent.delete', {
+                agentId,
+                deleteSessions
+              })
+              deletionChangedState = result.deleted
+              deletedSessionIds = result.deletedSessionIds ?? []
+            }
+          } catch (err) {
+            if (!permanent) throw err
+            await refreshAgentResources()
+            throw permanentAgentDeleteError(err, t)
           }
+          if (permanent && deletionChangedState) deletionCommitted = true
           if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
 
           const invalidateOutcomes = await Promise.allSettled(
@@ -1337,11 +1492,22 @@ const Sessions = ({
           }
           if (!deletionChangedState) {
             await reloadResources()
+            if (permanent) throw new Error(t('recycle_bin.delete.stale'))
             toast.info(t('recycle_bin.already_moved'))
             return
           }
 
-          if (currentActiveSessionId && deletedSessionIds.includes(currentActiveSessionId)) {
+          const latestActiveSessionId = activeSessionIdRef.current
+          const deletedSetHas = (sessionId: string | null) => !!sessionId && deletedSessionIds.includes(sessionId)
+          const userSwitchedAway =
+            latestActiveSessionId !== null &&
+            latestActiveSessionId !== activeSessionIdAtStart &&
+            !deletedSetHas(latestActiveSessionId)
+          const stillOnDeleted =
+            !userSwitchedAway &&
+            (deletedSetHas(latestActiveSessionId) ||
+              (latestActiveSessionId === null && deletedSetHas(activeSessionIdAtStart)))
+          if (stillOnDeleted) {
             try {
               if (onActiveAgentDeleted) {
                 await onActiveAgentDeleted(agentId)
@@ -1358,6 +1524,7 @@ const Sessions = ({
           }
 
           await reloadResources()
+          if (permanent) return
           if (deleteSessionsOnly) {
             if (deletedSessionIds.length > 0) {
               const restoredIds = [...deletedSessionIds]
@@ -1397,8 +1564,12 @@ const Sessions = ({
             })
           }
         } catch (err) {
+          if (deletionCommitted) {
+            logger.warn('Agent deletion succeeded but a follow-up failed from session group', { agentId, err })
+            return
+          }
           logger.error('Failed to delete agent from session group', { agentId, err })
-          if (!deleteSessionsOnly) throw err
+          if (permanent || !deleteSessionsOnly) throw err
           toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
         } finally {
           setDeletingAgentId(null)
@@ -1407,6 +1578,21 @@ const Sessions = ({
 
       if (deleteSessionsOnly) {
         await performDelete(true)
+        return
+      }
+
+      if (permanent) {
+        agentPermanentDeleteLockRef.current = true
+        try {
+          await permanentDeletePopup.show({
+            kind: 'owner',
+            type: 'agent',
+            name: agent?.name || t('common.unnamed'),
+            action: performDelete
+          })
+        } finally {
+          agentPermanentDeleteLockRef.current = false
+        }
         return
       }
 
@@ -1427,6 +1613,21 @@ const Sessions = ({
       setActiveSessionId,
       t
     ]
+  )
+
+  const handlePermanentDeleteAgent = useCallback(
+    (agentId: string) => handleDeleteAgent(agentId, 'permanent'),
+    [handleDeleteAgent]
+  )
+
+  const isAgentGroupPermanentDeleteEligible = useCallback(
+    (agentId: string | undefined) => {
+      if (!agentId || deletingAgentId !== null || agentPermanentDeleteLockRef.current) return false
+      const agent = agentById.get(agentId)
+      if (!agent || isProtectedBuiltinAgentRole(agent.configuration?.builtin_role)) return false
+      return true
+    },
+    [agentById, deletingAgentId]
   )
 
   const handleDeleteWorkdirGroup = useCallback(
@@ -1817,6 +2018,10 @@ const Sessions = ({
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
+                onPermanentDeleteAgent={
+                  isAgentGroupPermanentDeleteEligible(agentGroupId) ? handlePermanentDeleteAgent : undefined
+                }
+                permanentDeleteShortcut={permanentDeleteShortcut}
                 onEdit={openAgentEditor}
                 onSetAgentIconType={setAssistantIconType}
                 onTogglePin={handleToggleAgentPin}
@@ -1868,6 +2073,8 @@ const Sessions = ({
       displayMode,
       createSessionSeedIndex,
       handleDeleteAgent,
+      handlePermanentDeleteAgent,
+      isAgentGroupPermanentDeleteEligible,
       handleToggleAgentPin,
       handleToggleAgentSidebar,
       handleDeleteWorkdirGroup,
@@ -1878,6 +2085,7 @@ const Sessions = ({
       openAgentEditor,
       onCreateSession,
       onShowMissingAgentSelection,
+      permanentDeleteShortcut,
       requestCreateSessionFromSeed,
       setAssistantIconType,
       sidebarAgentFavoriteIdSet,
@@ -1984,6 +2192,8 @@ const Sessions = ({
           deleteAgentDisabled: deletingAgentId !== null,
           deleteSessionsOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
           onDeleteAgent: handleDeleteAgent,
+          onPermanentDeleteAgent: isAgentGroupPermanentDeleteEligible(agentId) ? handlePermanentDeleteAgent : undefined,
+          permanentDeleteShortcut,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
           onTogglePin: handleToggleAgentPin,
@@ -2031,6 +2241,9 @@ const Sessions = ({
       deletingWorkspaceGroupId,
       displayMode,
       handleDeleteAgent,
+      handlePermanentDeleteAgent,
+      isAgentGroupPermanentDeleteEligible,
+      permanentDeleteShortcut,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
@@ -2148,7 +2361,19 @@ const Sessions = ({
       onRenameItem={handleRenameSession}
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
-      onCollapsedStateChange={handleSessionCollapsedStateChange}>
+      onCollapsedStateChange={handleSessionCollapsedStateChange}
+      onDeletePermanently={(item) => openPermanentDelete(item.id)}
+      isPermanentDeleteEligible={(item) =>
+        !item.pinned && item.id !== deletingSessionId && !isAgentSessionBusy(item.id)
+      }
+      onGroupHeaderDeletePermanently={(group) => {
+        const agentId = getAgentIdFromSessionGroupId(group.id)
+        if (!agentId || !isAgentGroupPermanentDeleteEligible(agentId)) return
+        return handlePermanentDeleteAgent(agentId)
+      }}
+      isGroupHeaderPermanentDeleteEligible={(group) =>
+        isAgentGroupPermanentDeleteEligible(getAgentIdFromSessionGroupId(group.id))
+      }>
       <ResourceList.Header>
         {isRightPanel ? (
           <ResourceList.Search
@@ -2197,6 +2422,9 @@ const Sessions = ({
           isValidating={listValidating}
           listRef={listRef}
           onDeleteSession={handleDeleteSession}
+          onDeletePermanently={openPermanentDelete}
+          permanentDeleteShortcut={permanentDeleteShortcut}
+          deletingSessionId={deletingSessionId}
           onOpenInNewTab={isWindowFrame ? undefined : openSessionInNewTab}
           onOpenInNewWindow={openSessionInNewWindow}
           onOpenRenameDialog={handleOpenRenameSessionDialog}
@@ -2263,6 +2491,9 @@ interface SessionListBodyProps {
   isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
+  onDeletePermanently: (id: string) => Promise<void>
+  permanentDeleteShortcut: string
+  deletingSessionId: string | null
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
@@ -2285,6 +2516,9 @@ function SessionListBody({
   isValidating,
   listRef,
   onDeleteSession,
+  onDeletePermanently,
+  permanentDeleteShortcut,
+  deletingSessionId,
   onOpenInNewTab,
   onOpenInNewWindow,
   onOpenRenameDialog,
@@ -2314,6 +2548,9 @@ function SessionListBody({
         onTogglePin={onTogglePin}
         onToggleSidebar={onToggleSidebar}
         onDelete={onDeleteSession}
+        onDeletePermanently={() => onDeletePermanently(session.id)}
+        permanentDeleteShortcut={permanentDeleteShortcut}
+        isDeleting={deletingSessionId === session.id}
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
         onOpenRenameDialog={onOpenRenameDialog}
@@ -2328,7 +2565,10 @@ function SessionListBody({
       activeSessionId,
       channelTypeMap,
       displayMode,
+      deletingSessionId,
+      onDeletePermanently,
       onDeleteSession,
+      permanentDeleteShortcut,
       onOpenInNewTab,
       onOpenInNewWindow,
       onOpenRenameDialog,

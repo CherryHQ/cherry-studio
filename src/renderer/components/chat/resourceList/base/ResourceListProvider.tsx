@@ -42,7 +42,7 @@ const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = [
 const EMPTY_GROUP_SEEDS: readonly ResourceListGroupSeed[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
-const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
+const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '', synthetic: true }
 const UNSECTIONED_RESOURCE_SECTION: ResourceListSection = { id: 'resource-list:section:unsectioned', label: '' }
 
 type ResourceListGroupHeaderClickBehaviorResolver =
@@ -91,7 +91,7 @@ function getResourceListGroup<T extends ResourceListItemBase>(
 }
 
 function getResourceListGroupFromSeed(group: ResourceListGroupSeed): ResourceListGroup {
-  return { id: group.id, label: group.label, count: group.count }
+  return { id: group.id, label: group.label, count: group.count, synthetic: group.synthetic }
 }
 
 function normalizeCollapsedIds(collapsedIds: readonly string[] | unknown): readonly string[] {
@@ -143,7 +143,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
   const collapsedIdSet = new Set(collapsedIds)
 
   if (!groupBy) {
-    const group = { id: 'all', label: '' }
+    const group = { id: 'all', label: '', synthetic: true }
     return [
       {
         group,
@@ -381,6 +381,8 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   onRenameItem?: (id: string, name: string) => void
   onGroupHeaderSelectItem?: (id: string) => void
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
+  onGroupHeaderDeletePermanently?: (group: ResourceListGroup) => void | Promise<void>
+  isGroupHeaderPermanentDeleteEligible?: (group: ResourceListGroup) => boolean
   onOpenContextMenu?: (id: string) => void
   onReorder?: (payload: ResourceListReorderPayload) => void
   onCollapsedStateChange?: (collapsedIds: string[]) => void
@@ -577,6 +579,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   onRenameItem,
   onGroupHeaderSelectItem,
   onEmptyGroupHeaderClick,
+  onGroupHeaderDeletePermanently,
+  isGroupHeaderPermanentDeleteEligible,
   onOpenContextMenu,
   onReorder,
   onCollapsedStateChange
@@ -939,6 +943,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderTooltip,
       getGroupHeaderClickBehavior,
       getGroupHeaderKind,
+      onGroupHeaderDeletePermanently,
+      isGroupHeaderPermanentDeleteEligible,
       onEmptyGroupHeaderClick,
       sortOptions,
       filterOptions,
@@ -974,6 +980,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderAction,
       getGroupHeaderClickBehavior,
       getGroupHeaderKind,
+      onGroupHeaderDeletePermanently,
+      isGroupHeaderPermanentDeleteEligible,
       getGroupHeaderContextMenu,
       getGroupHeaderIcon,
       getGroupHeaderLeadingAction,

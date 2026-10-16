@@ -1,5 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -245,6 +245,11 @@ const { confirmActionShow } = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
+const permanentDeletePopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => ({
+  permanentDeletePopup: permanentDeletePopupMocks
+}))
+
 vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
@@ -283,6 +288,8 @@ vi.mock('react-i18next', () => {
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
+        'common.delete_permanently': 'Delete Permanently',
+        'common.select': 'Select',
         'common.more': 'More',
         'common.name': 'Name',
         'common.rename': 'Rename',
@@ -294,6 +301,10 @@ vi.mock('react-i18next', () => {
         'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
         'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
         'recycle_bin.already_moved': 'Already in Recycle Bin',
+        'recycle_bin.delete.busy': 'Stop generation before permanently deleting this conversation.',
+        'recycle_bin.delete.pinned': 'Unpin this conversation before permanently deleting it.',
+        'recycle_bin.delete.stale': 'This item has already been deleted or archived. Refresh the list and try again.',
+        'agent.session.delete.error.failed': 'Failed to delete the session',
         'recycle_bin.move_failed': 'Could not move to Recycle Bin',
         'history.records.bulkArchive': 'Batch Archive',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
@@ -330,6 +341,8 @@ vi.mock('react-i18next', () => {
     useTranslation: () => translation
   }
 })
+
+import { CommandProvider } from '@renderer/components/command'
 
 import HistoryRecordsView from '../HistoryRecordsView'
 
@@ -410,11 +423,13 @@ function setupAgentHistory({
       orderKey: 'b'
     })
   ],
-  pinIdBySessionId = new Map<string, string>()
+  pinIdBySessionId = new Map<string, string>(),
+  requestRecordRemoval
 }: {
   activeRecordId?: string | null
   agents?: AgentEntity[]
   pinIdBySessionId?: Map<string, string>
+  requestRecordRemoval?: (nextSessionId: string | null, transition: () => void) => void
   sessions?: AgentSessionEntity[]
 } = {}) {
   hookMocks.useAgents.mockReturnValue({ agents, error: undefined, isLoading: false })
@@ -434,7 +449,7 @@ function setupAgentHistory({
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
   const onActiveRecordChange = vi.fn()
-  render(
+  const view = render(
     <HistoryRecordsView
       mode="agent"
       open
@@ -442,10 +457,24 @@ function setupAgentHistory({
       onClose={onClose}
       onRecordSelect={onRecordSelect}
       onActiveRecordChange={onActiveRecordChange}
+      requestRecordRemoval={requestRecordRemoval}
     />
   )
+  const rerender = (nextActiveRecordId: string | null = activeRecordId) => {
+    view.rerender(
+      <HistoryRecordsView
+        mode="agent"
+        open
+        activeRecordId={nextActiveRecordId}
+        onClose={onClose}
+        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
+        requestRecordRemoval={requestRecordRemoval}
+      />
+    )
+  }
 
-  return { onClose, onRecordSelect, onActiveRecordChange }
+  return { onClose, onRecordSelect, onActiveRecordChange, rerender }
 }
 
 let agentHistoryLoaded = false
@@ -459,6 +488,8 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.deleteSession.mockResolvedValue(true)
     hookMocks.deleteSessionWithOutcome.mockReset()
     hookMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'succeeded' })
+    permanentDeletePopupMocks.show.mockReset()
+    permanentDeletePopupMocks.show.mockResolvedValue(false)
     hookMocks.restoreSession.mockReset()
     hookMocks.restoreSession.mockResolvedValue(undefined)
     hookMocks.deleteSessions.mockReset()
@@ -1261,6 +1292,411 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  function permanentDeleteButton(name: string) {
+    const menu = screen.getByText(name).closest('[data-testid="context-menu"]')
+    const content = menu?.querySelector('[data-testid="context-menu-content"]')
+    return within(content as HTMLElement).getByRole('button', { name: /Delete Permanently/ })
+  }
+
+  it('opens the shared permanent-delete confirmation from the focused history row shortcut', async () => {
+    cleanup()
+    setupAgentHistory({ activeRecordId: 'session-alpha' })
+    cleanup()
+    render(
+      <CommandProvider>
+        <HistoryRecordsView mode="agent" open activeRecordId="session-alpha" onClose={vi.fn()} />
+      </CommandProvider>
+    )
+    const title = screen.getByRole('button', { name: 'Alpha session' })
+    act(() => {
+      title.focus()
+    })
+    const event = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'Backspace',
+      code: 'Backspace',
+      ctrlKey: true
+    })
+    act(() => {
+      title.dispatchEvent(event)
+    })
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    expect(event.defaultPrevented).toBe(true)
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'conversation', name: 'Alpha session', action: expect.any(Function) })
+    )
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+  })
+
+  it('offers permanent deletion beside Archive and does not delete before confirm or on cancel', async () => {
+    const user = userEvent.setup()
+    setupAgentHistory()
+
+    expect(permanentDeleteButton('Alpha session')).toBeEnabled()
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'conversation',
+        name: 'Alpha session',
+        action: expect.any(Function)
+      })
+    )
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('permanently deletes the confirmed session, keeps the pre-delete neighbor, and offers no Undo', async () => {
+    const user = userEvent.setup()
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledExactlyOnceWith('session-alpha', {
+      permanent: true,
+      showFeedback: false
+    })
+    expect(onActiveRecordChange).toHaveBeenCalledWith('session-beta')
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(hookMocks.reload).not.toHaveBeenCalled()
+  })
+
+  it('clears the active session after permanently deleting the last history session', async () => {
+    const user = userEvent.setup()
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    const { onActiveRecordChange } = setupAgentHistory({
+      activeRecordId: 'session-alpha',
+      sessions: [createSession()]
+    })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('keeps a selection the user changed while permanent delete was in flight', async () => {
+    const user = userEvent.setup()
+    const view = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    hookMocks.deleteSessionWithOutcome.mockImplementation(async () => {
+      view.onActiveRecordChange.mockClear()
+      await act(async () => {
+        view.rerender('session-beta')
+      })
+      return { status: 'succeeded' }
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledOnce()
+    expect(view.onActiveRecordChange).not.toHaveBeenCalled()
+  })
+
+  it('selects the pre-delete neighbor when NOT_FOUND recovery clears the active session during delete', async () => {
+    const user = userEvent.setup()
+    const view = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    hookMocks.deleteSessionWithOutcome.mockImplementation(async () => {
+      view.onActiveRecordChange.mockClear()
+      await act(async () => {
+        view.rerender(null)
+      })
+      return { status: 'succeeded' }
+    })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledOnce()
+    expect(view.onActiveRecordChange).toHaveBeenCalledWith('session-beta')
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+  })
+
+  it('defers the permanent-delete confirmation until file navigation allows it', async () => {
+    const user = userEvent.setup()
+    let transition: (() => void) | undefined
+    const requestRecordRemoval = vi.fn((next: string | null, run: () => void) => {
+      expect(next).toBe('session-beta')
+      transition = run
+    })
+    setupAgentHistory({ activeRecordId: 'session-alpha', requestRecordRemoval })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(requestRecordRemoval).toHaveBeenCalledOnce()
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+
+    const guard = document.createElement('div')
+    guard.setAttribute('role', 'dialog')
+    document.body.append(guard)
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    expect(requestRecordRemoval).toHaveBeenCalledOnce()
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+    guard.remove()
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    expect(requestRecordRemoval).toHaveBeenCalledTimes(2)
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    hookMocks.deleteSessionWithOutcome.mockResolvedValueOnce({ status: 'succeeded' })
+    transition?.()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledOnce()
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledOnce()
+  })
+
+  it('retries permanent delete after a cancelled guard leaves a hidden dialog', async () => {
+    const user = userEvent.setup()
+    const requestRecordRemoval = vi.fn()
+    setupAgentHistory({ activeRecordId: 'session-alpha', requestRecordRemoval })
+    const guard = document.createElement('div')
+    guard.setAttribute('role', 'dialog')
+    document.body.append(guard)
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    expect(requestRecordRemoval).toHaveBeenCalledTimes(1)
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    expect(requestRecordRemoval).toHaveBeenCalledTimes(1)
+
+    guard.style.display = 'none'
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    expect(requestRecordRemoval).toHaveBeenCalledTimes(2)
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    guard.remove()
+  })
+
+  it('passes a null neighbor through the file guard for the last active session and still waits for confirmation', async () => {
+    const user = userEvent.setup()
+    let transition: (() => void) | undefined
+    const requestRecordRemoval = vi.fn((next: string | null, run: () => void) => {
+      expect(next).toBeNull()
+      transition = run
+    })
+    const { onActiveRecordChange } = setupAgentHistory({
+      activeRecordId: 'session-alpha',
+      requestRecordRemoval,
+      sessions: [createSession()]
+    })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    expect(permanentDeletePopupMocks.show).not.toHaveBeenCalled()
+
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    transition?.()
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledExactlyOnceWith('session-alpha', {
+      permanent: true,
+      showFeedback: false
+    })
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
+  })
+
+  it('hides permanent delete for a pinned session and rejects a pin that lands before confirm', async () => {
+    const user = userEvent.setup()
+    setupAgentHistory({ pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']]) })
+    const menu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const content = menu?.querySelector('[data-testid="context-menu-content"]')
+    expect(within(content as HTMLElement).queryByRole('button', { name: /Delete Permanently/ })).not.toBeInTheDocument()
+    cleanup()
+
+    let confirm: (() => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation((params: { action: () => Promise<void> }) => {
+      confirm = params.action
+      return new Promise(() => undefined)
+    })
+    const view = setupAgentHistory()
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    hookMocks.useSessions.mockReturnValue({
+      sessions: hookMocks.useSessions().sessions,
+      pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']]),
+      error: undefined,
+      isLoading: false,
+      deleteSession: hookMocks.deleteSession,
+      deleteSessionWithOutcome: hookMocks.deleteSessionWithOutcome,
+      deleteSessions: hookMocks.deleteSessions,
+      reload: hookMocks.reload,
+      restoreSession: hookMocks.restoreSession,
+      togglePin: hookMocks.togglePin
+    })
+    view.rerender(null)
+    await expect(confirm?.()).rejects.toThrow('Unpin this conversation before permanently deleting it.')
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+  })
+
+  it('disables permanent delete while the session is generating and rechecks the latest stream on confirm', async () => {
+    const user = userEvent.setup()
+    cacheService.setShared(
+      'topic.stream.statuses.agent-session:session-alpha' as never,
+      { status: 'pending', awaitingApprovalAnchors: [] } as never
+    )
+    setupAgentHistory()
+    expect(permanentDeleteButton('Alpha session')).toBeDisabled()
+    cleanup()
+
+    cacheService.deleteShared('topic.stream.statuses.agent-session:session-alpha' as never)
+    let confirm: (() => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation((params: { action: () => Promise<void> }) => {
+      confirm = params.action
+      return new Promise(() => undefined)
+    })
+    setupAgentHistory()
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    cacheService.setShared(
+      'topic.stream.statuses.agent-session:session-alpha' as never,
+      { status: 'streaming', awaitingApprovalAnchors: [] } as never
+    )
+    await expect(confirm?.()).rejects.toThrow('Stop generation before permanently deleting this conversation.')
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('refreshes and rejects when permanent session deletion is stale or fails, without Undo', async () => {
+    const user = userEvent.setup()
+    let failure: unknown
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      try {
+        await action()
+      } catch (error) {
+        failure = error
+        return false
+      }
+      return true
+    })
+    hookMocks.deleteSessionWithOutcome.mockResolvedValueOnce({ status: 'stale' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const openPermanentDelete = async () => {
+      await user.click(permanentDeleteButton('Alpha session'))
+      await act(async () => {
+        await flushCommandMenuAction()
+      })
+    }
+
+    await openPermanentDelete()
+    expect(failure).toEqual(
+      expect.objectContaining({
+        message: 'This item has already been deleted or archived. Refresh the list and try again.'
+      })
+    )
+    expect(hookMocks.reload).toHaveBeenCalledOnce()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+
+    failure = undefined
+    hookMocks.reload.mockClear()
+    hookMocks.deleteSessionWithOutcome.mockResolvedValueOnce({ status: 'failed', error: 'Delete failed' })
+    await openPermanentDelete()
+    expect(failure).toEqual(expect.objectContaining({ message: 'Delete failed' }))
+    expect(hookMocks.reload).toHaveBeenCalledOnce()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('still throws the stale error when refreshing after a failed permanent delete also fails', async () => {
+    const user = userEvent.setup()
+    let failure: unknown
+    hookMocks.reload.mockRejectedValueOnce(new Error('refresh down'))
+    hookMocks.deleteSessionWithOutcome.mockResolvedValueOnce({ status: 'stale' })
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      try {
+        await action()
+      } catch (error) {
+        failure = error
+        return false
+      }
+      return true
+    })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(failure).toEqual(
+      expect.objectContaining({
+        message: 'This item has already been deleted or archived. Refresh the list and try again.'
+      })
+    )
     expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })

@@ -22,7 +22,9 @@ export async function runSessionMenuAction(
   await executeSessionMenuAction(action, actionContext)
 }
 
-export type SessionMenuActionContextOverride = Partial<Pick<SessionActionContext, 'startEdit'>>
+export type SessionMenuActionContextOverride = Partial<
+  Pick<SessionActionContext, 'isDeleting' | 'onDeletePermanently' | 'permanentDeleteShortcut' | 'startEdit'>
+>
 
 export interface SessionMenuPreset<TItem> {
   getActions: (item: TItem, contextOverride?: SessionMenuActionContextOverride) => readonly ResolvedAction[]

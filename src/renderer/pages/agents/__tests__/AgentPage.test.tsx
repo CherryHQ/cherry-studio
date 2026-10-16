@@ -14,6 +14,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 const agentPageMocks = vi.hoisted(() => ({
+  historyRemovalNullRanSync: false,
   workspace: {
     id: 'workspace-a',
     name: 'Workspace A',
@@ -702,10 +703,12 @@ vi.mock('../components/Sessions', () => ({
 vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({
     open,
-    onActiveRecordChange
+    onActiveRecordChange,
+    requestRecordRemoval
   }: {
     open?: boolean
     onActiveRecordChange?: (sessionId: string | null) => void
+    requestRecordRemoval?: (nextSessionId: string | null, transition: () => void) => void
   }) =>
     open ? (
       <div data-testid="history-records-view">
@@ -714,6 +717,17 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
         </button>
         <button type="button" onClick={() => onActiveRecordChange?.(null)}>
           Clear history session
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            let ran = false
+            requestRecordRemoval?.(null, () => {
+              ran = true
+            })
+            agentPageMocks.historyRemovalNullRanSync = ran
+          }}>
+          Probe history removal
         </button>
       </div>
     ) : null
@@ -2249,6 +2263,15 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-next'))
     expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-active-session-id', 'session-next')
+  })
+
+  it('passes session navigation into history before a permanent delete leaves the active session', async () => {
+    const user = userEvent.setup()
+    agentPageMocks.historyRemovalNullRanSync = false
+    render(<AgentPage />)
+    await user.click(screen.getByRole('button', { name: 'Open history records' }))
+    await user.click(screen.getByRole('button', { name: 'Probe history removal' }))
+    expect(agentPageMocks.historyRemovalNullRanSync).toBe(true)
   })
 
   it('keeps history open after replacing or clearing the active session without creating one', async () => {

@@ -31,6 +31,8 @@ type ResolvedResourceEntityMenuActionParams<TContext = unknown> = {
   group?: string
   icon?: ResolvedAction<TContext>['icon']
   order?: number
+  /** Configured command label. Empty omits the hint. */
+  shortcut?: string
 }
 
 export function buildResolvedResourceEntityMenuAction<TContext = unknown>({

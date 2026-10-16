@@ -1,12 +1,15 @@
-import { Archive, Pin, PinOff, Plus, Smile, SquarePen } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { Archive, Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
+import {
+  deleteConversationOwnerPopup,
+  permanentDeletePopup
+} from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import {
@@ -16,6 +19,7 @@ import {
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useResolvedCommand } from '@renderer/hooks/command'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
@@ -34,7 +38,11 @@ import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@ren
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import {
+  isAgentNotFoundError,
+  isAgentSessionArchiveBusyError,
+  isAgentSessionNotFoundError
+} from '@shared/ipc/errors/ai'
 
 import {
   buildResolvedIconTypeMenuAction,
@@ -52,7 +60,15 @@ const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_ARCHIVE_ACTION_ID = 'agent-entity.archive'
+const AGENT_ENTITY_PERMANENT_DELETE_ACTION_ID = 'agent-entity.delete-permanently'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
+
+function permanentAgentDeleteError(err: unknown, message: (key: string) => string): Error {
+  if (isAgentNotFoundError(err)) return new Error(message('recycle_bin.delete.stale'))
+  if (isAgentSessionArchiveBusyError(err)) return new Error(message('recycle_bin.delete.busy'))
+  if (err instanceof Error) return err
+  return new Error(message('agent.delete.error.failed'))
+}
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
@@ -93,6 +109,7 @@ export function AgentResourceList({
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
+  const permanentDeleteShortcut = useResolvedCommand('resource.delete_permanently').shortcutLabel
   // Agent rail icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
@@ -126,6 +143,11 @@ export function AgentResourceList({
   )
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const agentsRef = useRef(agents)
+  const activeSessionIdRef = useRef(activeSessionId)
+  const deleteAgentPromptLockRef = useRef(false)
+  agentsRef.current = agents
+  activeSessionIdRef.current = activeSessionId
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const agentIdSet = useMemo(() => new Set(agents.map((agent) => agent.id)), [agents])
   const hasLoadedAgentMetadata = !isAgentsLoading && !agentsError
@@ -297,33 +319,21 @@ export function AgentResourceList({
   }, [refetchAgents, reload])
 
   const handleDeleteAgent = useCallback(
-    async (agentId: string) => {
-      if (deletingAgentId) return
+    async (agentId: string, mode: 'archive' | 'permanent' = 'archive') => {
+      if (deleteAgentPromptLockRef.current || deletingAgentId) return
 
-      const deleteSessionsOnly = isProtectedBuiltinAgentRole(
-        agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
-      )
-      const agentName = agents.find((agent) => agent.id === agentId)?.name ?? t('common.unnamed')
+      const permanent = mode === 'permanent'
+      const currentAgent = agentsRef.current.find((agent) => agent.id === agentId)
+      const protectedAgent = isProtectedBuiltinAgentRole(currentAgent?.configuration?.builtin_role)
+      if (permanent && (agentId === SESSION_UNKNOWN_AGENT_GROUP_ID || !currentAgent || protectedAgent)) {
+        return
+      }
+
+      const deleteSessionsOnly = !permanent && protectedAgent
+      const agentName = currentAgent?.name ?? t('common.unnamed')
 
       const performDelete = async (deleteSessions: boolean) => {
-        setDeletingAgentId(agentId)
-        try {
-          let deletedSessionIds: string[] = []
-          let deletionChangedState = false
-          if (deleteSessionsOnly) {
-            const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
-            deletedSessionIds = result.deletedIds
-            deletionChangedState = deletedSessionIds.length > 0
-          } else {
-            const result = await ipcApi.request('ai.agent.delete', {
-              agentId,
-              deleteSessions
-            })
-            deletionChangedState = result.deleted
-            deletedSessionIds = result.deletedSessionIds ?? []
-          }
-          if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
-
+        const invalidateAgentResources = async () => {
           const invalidateOutcomes = await Promise.allSettled(
             ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
               invalidate(key)
@@ -332,28 +342,102 @@ export function AgentResourceList({
           if (invalidateOutcomes.some((outcome) => outcome.status === 'rejected')) {
             logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId })
           }
-          const reloadResources = async () => {
-            try {
-              await Promise.all([...(deleteSessionsOnly ? [] : [refetchAgents()]), reload()])
-            } catch (err) {
-              logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
-            }
+        }
+        const reloadAgentResources = async () => {
+          try {
+            await Promise.all([...(deleteSessionsOnly ? [] : [refetchAgents()]), reload()])
+          } catch (err) {
+            logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
           }
+        }
+        const refreshAgentResources = async () => {
+          await invalidateAgentResources()
+          await reloadAgentResources()
+        }
+        const reconcileDeletedSelection = async (
+          deletedSessionIds: string[],
+          sessionIdAtStart: string | null | undefined
+        ) => {
+          const activeSessionIdNow = activeSessionIdRef.current
+          const currentSessionWasDeleted = !!activeSessionIdNow && deletedSessionIds.includes(activeSessionIdNow)
+          // Empty selection only reconciles when the session active at mutation start was deleted.
+          const closedTargetRace =
+            !activeSessionIdNow && !!sessionIdAtStart && deletedSessionIds.includes(sessionIdAtStart)
+          if (!currentSessionWasDeleted && !closedTargetRace) return
+
+          try {
+            await onActiveAgentDeleted?.(agentId)
+          } catch (err) {
+            logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
+          }
+        }
+
+        if (permanent) {
+          const liveAgent = agentsRef.current.find((agent) => agent.id === agentId)
+          if (
+            agentId === SESSION_UNKNOWN_AGENT_GROUP_ID ||
+            !liveAgent ||
+            isProtectedBuiltinAgentRole(liveAgent.configuration?.builtin_role)
+          ) {
+            await refreshAgentResources()
+            throw new Error(t('recycle_bin.delete.stale'))
+          }
+        }
+
+        const activeSessionIdWhenMutationStarted = activeSessionIdRef.current
+        setDeletingAgentId(agentId)
+        let deletionCommitted = false
+        try {
+          let deletedSessionIds: string[] = []
+          let deletionChangedState = false
+          try {
+            if (deleteSessionsOnly) {
+              const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
+              deletedSessionIds = result.deletedIds
+              deletionChangedState = deletedSessionIds.length > 0
+            } else if (permanent) {
+              const result = await ipcApi.request('ai.agent.delete_permanently', {
+                agentId,
+                deleteSessions
+              })
+              deletionChangedState = result.deleted
+              deletedSessionIds = result.deletedSessionIds ?? []
+            } else {
+              const result = await ipcApi.request('ai.agent.delete', {
+                agentId,
+                deleteSessions
+              })
+              deletionChangedState = result.deleted
+              deletedSessionIds = result.deletedSessionIds ?? []
+            }
+          } catch (err) {
+            if (!permanent) throw err
+            await refreshAgentResources()
+            throw permanentAgentDeleteError(err, t)
+          }
+
+          if (permanent) {
+            if (!deletionChangedState) {
+              await refreshAgentResources()
+              throw new Error(t('recycle_bin.delete.stale'))
+            }
+            deletionCommitted = true
+            if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
+            await reconcileDeletedSelection(deletedSessionIds, activeSessionIdWhenMutationStarted)
+            await refreshAgentResources()
+            return
+          }
+
+          if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
+          await invalidateAgentResources()
           if (!deletionChangedState) {
-            await reloadResources()
+            await reloadAgentResources()
             toast.info(t('recycle_bin.already_moved'))
             return
           }
 
-          if (activeSessionId && deletedSessionIds.includes(activeSessionId)) {
-            try {
-              await onActiveAgentDeleted?.(agentId)
-            } catch (err) {
-              logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
-            }
-          }
-
-          await reloadResources()
+          await reconcileDeletedSelection(deletedSessionIds, activeSessionIdWhenMutationStarted)
+          await reloadAgentResources()
           if (deleteSessionsOnly) {
             showRecycleBinBatchUndo({
               itemCount: deletedSessionIds.length,
@@ -390,24 +474,41 @@ export function AgentResourceList({
             })
           }
         } catch (err) {
+          if (deletionCommitted) {
+            logger.warn('Agent deletion succeeded but a follow-up failed from classic-layout rail', { agentId, err })
+            return
+          }
           logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
-          if (!deleteSessionsOnly) throw err
+          if (permanent || !deleteSessionsOnly) throw err
           toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
         } finally {
           setDeletingAgentId(null)
         }
       }
 
-      if (deleteSessionsOnly) {
-        await performDelete(true)
-        return
-      }
+      deleteAgentPromptLockRef.current = true
+      try {
+        if (deleteSessionsOnly) {
+          await performDelete(true)
+          return
+        }
 
-      await deleteConversationOwnerPopup.show({ type: 'agent', action: performDelete })
+        if (permanent) {
+          await permanentDeletePopup.show({
+            kind: 'owner',
+            type: 'agent',
+            name: agentName,
+            action: performDelete
+          })
+          return
+        }
+
+        await deleteConversationOwnerPopup.show({ type: 'agent', action: performDelete })
+      } finally {
+        deleteAgentPromptLockRef.current = false
+      }
     },
     [
-      activeSessionId,
-      agents,
       closeConversationTabs,
       deletingAgentId,
       invalidate,
@@ -421,15 +522,24 @@ export function AgentResourceList({
     ]
   )
 
+  const canPermanentDeleteAgent = useCallback(
+    (agentId: string) => {
+      if (deleteAgentPromptLockRef.current || deletingAgentId !== null) return false
+      if (agentId === SESSION_UNKNOWN_AGENT_GROUP_ID) return false
+      const owner = agentsRef.current.find((agent) => agent.id === agentId)
+      return !!owner && !isProtectedBuiltinAgentRole(owner.configuration?.builtin_role)
+    },
+    [deletingAgentId]
+  )
+
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return []
 
       const pinned = agentPinnedIdSet.has(item.id)
       const sidebarPinned = sidebarAgentFavoriteIdSet.has(item.id)
-      const deleteSessionsOnly = isProtectedBuiltinAgentRole(
-        agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
-      )
+      const owner = agentsRef.current.find((agent) => agent.id === item.id)
+      const deleteSessionsOnly = isProtectedBuiltinAgentRole(owner?.configuration?.builtin_role)
 
       return [
         buildResolvedResourceEntityMenuAction({
@@ -466,15 +576,30 @@ export function AgentResourceList({
           group: 'danger',
           order: 30,
           availability: { visible: true, enabled: deletingAgentId === null }
-        })
+        }),
+        ...(owner && !deleteSessionsOnly
+          ? [
+              buildResolvedResourceEntityMenuAction({
+                id: AGENT_ENTITY_PERMANENT_DELETE_ACTION_ID,
+                label: t('common.delete_permanently'),
+                icon: <Trash2 size={14} />,
+                danger: true,
+                group: 'danger',
+                order: 32,
+                ...(permanentDeleteShortcut ? { shortcut: permanentDeleteShortcut } : {}),
+                availability: { visible: true, enabled: canPermanentDeleteAgent(item.id) }
+              })
+            ]
+          : [])
       ]
     },
     [
       agentPinnedIdSet,
-      agents,
       assistantIconType,
+      canPermanentDeleteAgent,
       deletingAgentId,
       isAgentPinActionDisabled,
+      permanentDeleteShortcut,
       sidebarAgentFavoriteIdSet,
       t
     ]
@@ -502,6 +627,10 @@ export function AgentResourceList({
       }
       if (action.id === AGENT_ENTITY_ARCHIVE_ACTION_ID) {
         void handleDeleteAgent(item.id)
+        return
+      }
+      if (action.id === AGENT_ENTITY_PERMANENT_DELETE_ACTION_ID) {
+        void handleDeleteAgent(item.id, 'permanent')
       }
     },
     [
@@ -547,6 +676,10 @@ export function AgentResourceList({
             onOpenHistoryRecords={onOpenHistoryRecords}
           />
         }
+        permanentDelete={{
+          isItemEligible: (item) => canPermanentDeleteAgent(item.id),
+          onDelete: (item) => handleDeleteAgent(item.id, 'permanent')
+        }}
         onSelect={handleSelect}
         onSelectedClick={handleSelectedEntityClick}
         onReorder={handleReorder}

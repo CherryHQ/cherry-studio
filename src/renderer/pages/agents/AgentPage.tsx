@@ -1059,6 +1059,7 @@ const AgentPage = () => {
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsSessionSelect}
             onActiveRecordChange={handleHistoryActiveSessionChange}
+            requestRecordRemoval={requestSessionNavigation}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton

@@ -127,12 +127,35 @@ export function useAssistantMutations() {
       options: { deleteTopics?: boolean; permanent?: boolean } = {}
     ): Promise<DeleteAssistantResult> => {
       const deleteTopics = options.deleteTopics === true
-      const result = await ipcApi.request(
-        options.permanent ? 'trash.assistant.delete_permanently' : 'trash.assistant.archive',
-        { assistantId: id, deleteTopics }
-      )
-      await invalidate(deleteTopics ? [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics'] : ASSISTANTS_REFRESH_KEYS)
-      logger.info('Deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+      // Keeping children unlinks active topics onto the unassociated list, so that
+      // list must refresh too. Cascade still drops pins with the removed topics.
+      const refreshKeys = deleteTopics
+        ? [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics']
+        : [...ASSISTANTS_REFRESH_KEYS, '/topics']
+      const refreshAfterDelete = (phase: 'failed' | 'completed') =>
+        invalidate(refreshKeys).catch((refreshError) => {
+          logger.warn(
+            phase === 'failed'
+              ? 'Failed to refresh assistants after delete failed'
+              : 'Failed to refresh assistants after delete succeeded',
+            refreshError as Error,
+            { assistantId: id }
+          )
+        })
+
+      let result: DeleteAssistantResult
+      try {
+        result = await ipcApi.request(
+          options.permanent ? 'trash.assistant.delete_permanently' : 'trash.assistant.archive',
+          { assistantId: id, deleteTopics }
+        )
+      } catch (error) {
+        await refreshAfterDelete('failed')
+        throw error
+      }
+
+      await refreshAfterDelete('completed')
+      logger.info('Deleted assistant', { id, deleteTopics, deleted: result.deleted })
       return result
     },
     [invalidate]

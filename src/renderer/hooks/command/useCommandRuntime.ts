@@ -10,7 +10,11 @@ const logger = loggerService.withContext('useCommandRuntime')
 export type CommandHandler = (args?: unknown) => void | Promise<void>
 
 export interface CommandHandlerOptions {
-  enabled?: boolean
+  /**
+   * Static flag, or a getter read when a keybinding is resolved.
+   * A getter sees focus and other event-time state; a boolean captured at registration can be stale.
+   */
+  enabled?: boolean | (() => boolean)
 }
 
 export interface CommandRuntime {
@@ -43,11 +47,16 @@ export function useCommandHandler(command: CommandId, handler: CommandHandler, o
   const runtime = useCommandRuntime()
   const handlerRef = useRef(handler)
   handlerRef.current = handler
-  const enabled = options?.enabled !== false
+  const enabledRef = useRef(options?.enabled)
+  enabledRef.current = options?.enabled
 
   useEffect(() => {
-    return runtime.registerHandler(command, (args) => handlerRef.current(args), { enabled })
-  }, [command, enabled, runtime])
+    return runtime.registerHandler(command, (args) => handlerRef.current(args), {
+      get enabled() {
+        return enabledRef.current
+      }
+    })
+  }, [command, runtime])
 }
 
 /**

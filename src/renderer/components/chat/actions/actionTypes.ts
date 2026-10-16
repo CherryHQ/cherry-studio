@@ -57,7 +57,7 @@ export interface ActionDescriptor<TContext> {
   order?: number
   surface?: ActionSurfaceSpec
   danger?: boolean
-  shortcut?: string
+  shortcut?: ActionText<TContext>
   children?: ActionChildren<TContext>
   confirm?: ActionConfirm<TContext> | ((context: TContext) => ActionConfirm<TContext> | undefined)
   availability?: ActionAvailabilityResolver<TContext>
