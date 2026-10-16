@@ -163,7 +163,7 @@ describe('ScheduledTaskToolInline', () => {
     renderCard()
 
     await userEvent.click(screen.getByRole('button', { name: 'common.edit' }))
-    await userEvent.click(screen.getByRole('button', { name: 'save-edit' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'save-edit' }))
 
     expect(taskMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Renamed' })
   })

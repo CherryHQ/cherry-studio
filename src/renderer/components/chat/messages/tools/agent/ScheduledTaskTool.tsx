@@ -1,5 +1,5 @@
 import { CalendarClock, CalendarX2, MoreHorizontal, PencilLine, Play } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -13,7 +13,6 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
-import { TaskFormDialog } from '@renderer/components/ScheduledTask/TaskFormDialog'
 import { TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
@@ -32,6 +31,12 @@ import type { AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ScheduledTaskResult } from './scheduledTaskResult'
+
+// Loaded on first edit: the editor pulls in selectors and lists that most cards never open.
+const TaskFormDialog = lazy(async () => {
+  const module = await import('@renderer/components/ScheduledTask/TaskFormDialog')
+  return { default: module.TaskFormDialog }
+})
 
 function formatNextRun(value: string) {
   const date = new Date(value)
@@ -94,6 +99,7 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
   const { logs } = useTaskLogs(task.agentId, task.id)
   const lastRun = toRunSummary(logs[0])
   const [editOpen, setEditOpen] = useState(false)
+  const [editorRequested, setEditorRequested] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -164,7 +170,15 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
         ) : null}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {!isCompleted ? (
-            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setEditOpen(true)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setEditorRequested(true)
+                setEditOpen(true)
+              }}>
               <PencilLine size={14} />
               {t('common.edit')}
             </Button>
@@ -199,7 +213,17 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
         </div>
       </div>
 
-      <TaskFormDialog open={editOpen} task={task} agents={agents} onOpenChange={setEditOpen} onUpdate={handleUpdate} />
+      {editorRequested ? (
+        <Suspense fallback={null}>
+          <TaskFormDialog
+            open={editOpen}
+            task={task}
+            agents={agents}
+            onOpenChange={setEditOpen}
+            onUpdate={handleUpdate}
+          />
+        </Suspense>
+      ) : null}
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
