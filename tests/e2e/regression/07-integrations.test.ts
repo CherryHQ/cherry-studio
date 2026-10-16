@@ -148,7 +148,7 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   if (await startGateway.isVisible()) await startGateway.click()
   await expect(stopGateway).toBeVisible({ timeout: 30_000 })
   await closeSettings(page)
-  await startNewAgentTask(page, 'Cherry Assistant')
+  await startNewAgentTask(page)
   const agentView = page.locator('[data-ui~="agent.view"]:visible')
   await agentView
     .getByRole('button', { name: 'Select Model', exact: true })

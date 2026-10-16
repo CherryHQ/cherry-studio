@@ -50,7 +50,7 @@ test(...caseDefinition('A-04'), async ({ app, mainWindow: page }) => {
 test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
   test.setTimeout(10 * 60_000)
   const modelName = await ensureAgentModel(app, page)
-  await startNewAgentTask(page, 'Cherry Assistant')
+  await startNewAgentTask(page)
 
   const agentView = page.locator('[data-ui="agent.view"]:visible').first()
   const model = agentView

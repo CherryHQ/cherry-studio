@@ -11,6 +11,7 @@ import type { Platform } from './types'
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
 let activeWindowsTextFixturePid: number | undefined
 let activeMacTextFixturePath: string | undefined
+let macProductMajor: number | undefined
 
 export function closeExternalText(platform: Platform): void {
   if (platform === 'macos' && activeMacTextFixturePath) {
@@ -220,7 +221,7 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)
   const electronPid = readAppRecord(paths).electronPid
   if (platform === 'macos') {
-    const script = [
+    const legacyScript = [
       'on run argv',
       'tell application "System Events"',
       'tell (first application process whose unix id is (item 2 of argv as integer))',
@@ -253,10 +254,125 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
       'end tell',
       'end run'
     ].join('\n')
-    execFileSync('osascript', ['-e', script, '--', filePath, String(electronPid)], {
-      stdio: 'ignore',
-      timeout: 45_000
-    })
+    macProductMajor ??= Number.parseInt(
+      execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8', timeout: 5_000 }).trim(),
+      10
+    )
+    if (!Number.isInteger(macProductMajor)) throw new Error('Could not determine macOS product version')
+    // macOS 27 measurements show an app-owned panel whose localized accept button must be identified positionally.
+    const script =
+      macProductMajor >= 27
+        ? [
+            'on run argv',
+            'set startedAt to current date',
+            'set deadline to startedAt + 35',
+            'set stage to "panel"',
+            'set observed to "process or panel unavailable"',
+            'try',
+            'tell application "System Events"',
+            'tell (first application process whose unix id is (item 2 of argv as integer))',
+            'set frontmost to true',
+            ...[
+              {
+                stage: 'panel',
+                cap: 10,
+                action: [],
+                condition: '(exists splitter group 1 of window 1)',
+                extra: 'if (count of buttons of splitter group 1 of window 1) ≥ 2 then set reached to true',
+                detail: 'panel splitter group missing or fewer than two direct buttons'
+              },
+              {
+                stage: 'go-to-folder',
+                cap: 5,
+                action: ['keystroke "g" using {command down, shift down}'],
+                condition: 'exists text field 1 of sheet 1 of window 1',
+                detail: 'path text field missing'
+              },
+              {
+                stage: 'path-entry',
+                cap: 5,
+                action: [
+                  'set fallbackAt to (current date) + 2',
+                  'set typedFallback to false',
+                  'try',
+                  'set value of text field 1 of sheet 1 of window 1 to (item 1 of argv)',
+                  'end try'
+                ],
+                condition: '(value of text field 1 of sheet 1 of window 1 as text) equals (item 1 of argv)',
+                poll: [
+                  'if not typedFallback and (current date) ≥ fallbackAt then',
+                  'keystroke "a" using command down',
+                  'keystroke (item 1 of argv)',
+                  'set typedFallback to true',
+                  'end if'
+                ],
+                detail: 'path readback did not equal requested path'
+              },
+              {
+                stage: 'commit',
+                cap: 5,
+                action: ['key code 36'],
+                condition: 'not (exists sheet 1 of window 1)',
+                detail: 'Go to Folder sheet still present'
+              },
+              {
+                stage: 'accept-disabled',
+                cap: 5,
+                action: [],
+                condition: 'enabled of last button of splitter group 1 of window 1',
+                detail: 'last direct button is not enabled'
+              },
+              {
+                stage: 'completion',
+                cap: 5,
+                action: [
+                  'set previousWindowCount to count of windows',
+                  'click last button of splitter group 1 of window 1'
+                ],
+                condition: '(count of windows) < previousWindowCount',
+                detail: 'panel window count did not decrease'
+              }
+            ].flatMap(({ stage, cap, action, condition, extra, poll, detail }) => [
+              `set stage to "${stage}"`,
+              `set observed to "${detail}"`,
+              `set stageDeadline to (current date) + ${cap}`,
+              'if (current date) ≥ deadline then error observed',
+              ...action,
+              'set reached to false',
+              'repeat',
+              'if (current date) ≥ deadline or (current date) ≥ stageDeadline then error observed',
+              'try',
+              `if ${condition} then`,
+              extra ?? 'set reached to true',
+              'end if',
+              'on error observationError',
+              'set observed to observationError',
+              'end try',
+              'if reached then exit repeat',
+              ...(poll ?? []),
+              'delay 0.1',
+              'end repeat'
+            ]),
+            'end tell',
+            'end tell',
+            'on error failureDetail',
+            'error "macOS 27 native file panel did not reach stage " & stage & " for pid " & (item 2 of argv) & " after " & ((current date) - startedAt) & "s: " & failureDetail',
+            'end try',
+            'end run'
+          ].join('\n')
+        : legacyScript
+    try {
+      execFileSync('osascript', ['-e', script, '--', filePath, String(electronPid)], {
+        stdio: ['ignore', 'ignore', 'pipe'],
+        timeout: 45_000
+      })
+    } catch (error) {
+      const stderr = (error as { stderr?: Buffer | string }).stderr
+      throw new Error(
+        `macOS native file selection failed for pid ${electronPid}: ${String(error)}${stderr ? `\n${String(stderr)}` : ''}`,
+        { cause: error }
+      )
+    }
   } else {
     const isDirectory = statSync(filePath).isDirectory()
     const script = [
