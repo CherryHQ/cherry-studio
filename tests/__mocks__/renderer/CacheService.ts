@@ -282,6 +282,8 @@ export const createMockCacheService = (
       return persistCache.has(key)
     }),
 
+    flushPersist: vi.fn((): void => {}),
+
     // ============ Hook Reference Management ============
 
     registerHook: vi.fn((key: string): void => {
@@ -489,6 +491,10 @@ export const MockCacheService = {
 
     hasPersist(key: RendererPersistCacheKey): boolean {
       return mockCacheService.hasPersist(key)
+    }
+
+    flushPersist(): void {
+      return mockCacheService.flushPersist()
     }
 
     // ============ Hook Reference Management ============

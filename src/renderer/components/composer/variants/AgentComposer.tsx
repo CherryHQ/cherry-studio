@@ -1580,13 +1580,19 @@ const AgentComposerInner = ({
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
+  // Live queue scope for the async enqueue below: clearing the editor after
+  // the POST must not wipe the newly selected session's draft.
+  const queueScopeRef = useRef(sessionTopicId)
+  queueScopeRef.current = sessionTopicId
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    steer: steerFollowup,
+    takeForEdit: takeFollowupForEdit
   } = useFollowupQueue({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
     isFulfilled: !sendDisabled && !launchOptions?.editing && sessionFulfilled,
@@ -1649,8 +1655,9 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer) {
-        enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        const enqueueScope = sessionTopicId
+        const queued = await enqueueFollowup(draft, payload)
+        if (queued && queueScopeRef.current === enqueueScope) clearCurrentDraft()
         return
       }
 
@@ -1672,6 +1679,7 @@ const AgentComposerInner = ({
       model,
       sendDisabled,
       sendQueuedPayload,
+      sessionTopicId,
       t,
       workspaceWarning
     ]
@@ -1870,18 +1878,17 @@ const AgentComposerInner = ({
                   paused={followupPaused}
                   onTogglePause={() => setFollowupPaused(!followupPaused)}
                   onSteer={async (id) => {
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    // Only drop the item once the send actually succeeds; a failed manual
-                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                    const sent = await sendQueuedPayload(item.payload)
-                    if (sent) removeFollowup(id)
+                    // Claim-guarded send: only the window whose claim wins sends,
+                    // so a manual steer racing another window's auto-drain cannot
+                    // deliver the same queued message twice.
+                    await steerFollowup(id, sendQueuedPayload)
                   }}
-                  onEdit={(id) => {
-                    const item = queuedFollowups.find((entry) => entry.id === id)
+                  onEdit={async (id) => {
+                    // Atomic take: undefined when the item is owned by an
+                    // in-flight drain, so an edit can never race its send.
+                    const item = await takeFollowupForEdit(id)
                     if (!item) return
                     restoreFollowupDraft(item)
-                    removeFollowup(id)
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
