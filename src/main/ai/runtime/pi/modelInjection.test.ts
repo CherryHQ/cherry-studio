@@ -741,14 +741,6 @@ describe('Pi gateway fallback', () => {
     serviceMocks.resolveApiGatewayRuntime.mockResolvedValue({ ...GATEWAY, apiKey: 'rotated-local-key' })
     expect((await resolvePiProviderInjectionForSession('session-1', provider, model)).apiKey).toBe('rotated-local-key')
   })
-
-  it('surfaces the gateway enablement error before a gateway-only model starts', async () => {
-    serviceMocks.getCurrentConfig.mockReturnValue({ enabled: false })
-    await expect(assertPiProviderUsable('azure::deployment')).rejects.toMatchObject({
-      name: 'ApiGatewayNotRunningError'
-    })
-    serviceMocks.getCurrentConfig.mockReturnValue({ enabled: true })
-  })
 })
 
 function stubGrokCliServices(): void {

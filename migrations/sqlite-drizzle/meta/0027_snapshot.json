@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4d4b1de5-87ca-4bb6-a1e3-0db1684c94f2",
+  "id": "d7821b2f-98c4-4781-a3fb-0afaea036bdb",
   "prevId": "ba5e70d9-757c-413b-85b9-073af609895f",
   "tables": {
     "agent": {
@@ -1661,13 +1661,6 @@
         },
         "agent_grant_id": {
           "name": "agent_grant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "assistant_grant_id": {
-          "name": "assistant_grant_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3702,6 +3695,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "group_id": {
           "name": "group_id",
           "type": "text",
@@ -3810,7 +3810,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "knowledge_base_group_id_order_key_idx": {
+          "name": "knowledge_base_group_id_order_key_idx",
+          "columns": [
+            "group_id",
+            "order_key"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "knowledge_base_group_id_group_id_fk": {
           "name": "knowledge_base_group_id_group_id_fk",
@@ -5382,13 +5391,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "topic_id": {
-          "name": "topic_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "execution_id": {
           "name": "execution_id",
           "type": "text",
@@ -5629,14 +5631,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "remote_history_revision": {
-          "name": "remote_history_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
         },
         "trace_id": {
           "name": "trace_id",
