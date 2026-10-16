@@ -1195,8 +1195,16 @@ async function materializeUserContent(
   let preparedParts = routedParts
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
   if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
-    turnAttachments = collectAssistantFileAttachments([{ id: message.id, role: 'user', parts: firstPartyFileParts }])
+    const composerTextParts = parts.filter((part) => part.type === 'text')
+    turnAttachments = collectAssistantFileAttachments([
+      { id: message.id, role: 'user', parts: [...composerTextParts, ...firstPartyFileParts] }
+    ])
   }
+  const emittedReadOnlyMediaEntryIds = new Set(
+    turnAttachments.flatMap((attachment) =>
+      readOnlyMediaEntryIds.has(attachment.fileEntryId) ? [attachment.fileEntryId] : []
+    )
+  )
   if (firstPartyImageParts.length > 0) {
     const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
@@ -1236,7 +1244,7 @@ async function materializeUserContent(
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
     if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
-      if (fileEntryId && readOnlyMediaEntryIds.has(fileEntryId)) continue
+      if (fileEntryId && emittedReadOnlyMediaEntryIds.has(fileEntryId)) continue
       routeWithoutImage(originalPart)
       continue
     }
@@ -1276,7 +1284,7 @@ async function materializeUserContent(
   let textContent = appendAgentAttachmentPaths(text, resolvedPaths.files)
   textContent = appendReadOnlyMediaPrompt(
     textContent,
-    turnAttachments.filter((attachment) => readOnlyMediaEntryIds.has(attachment.fileEntryId))
+    turnAttachments.filter((attachment) => emittedReadOnlyMediaEntryIds.has(attachment.fileEntryId))
   )
   if (supportsAttachmentReads) {
     textContent = appendAttachmentManifest(
