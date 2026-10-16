@@ -1,0 +1,198 @@
+name: Sherpa Windows ARM64 runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the verified runtime (main branch in CherryHQ/cherry-studio only)"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/sherpa-win-arm64.yml
+      - scripts/voice-runtime-smoke/sherpa-arm64-*
+      - scripts/voice-runtime-smoke/sherpa-node-addon-win32.patch
+      - src/main/ai/localModel/catalog/**
+      - patches/sherpa-onnx-node@*.patch
+      - package.json
+      - .node-version
+      - tsconfig.node.json
+  pull_request:
+    paths:
+      - .github/workflows/sherpa-win-arm64.yml
+      - scripts/voice-runtime-smoke/sherpa-arm64-*
+      - scripts/voice-runtime-smoke/sherpa-node-addon-win32.patch
+      - src/main/ai/localModel/catalog/**
+      - patches/sherpa-onnx-node@*.patch
+      - package.json
+      - .node-version
+      - tsconfig.node.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sherpa-win-arm64-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-test:
+    runs-on: windows-11-arm
+    timeout-minutes: 40
+    outputs:
+      tag: ${{ steps.config.outputs.tag }}
+      archive: ${{ steps.config.outputs.archive }}
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CHERRY_SHERPA_ONNX_BINDING_PATH: ${{ github.workspace }}\runtime\sherpa-onnx.node
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Read the pinned runtime configuration
+        id: config
+        run: |
+          $taskConfig = Get-Content scripts/voice-runtime-smoke/sherpa-arm64-runtime.json -Raw | ConvertFrom-Json
+          $taskPackage = Get-Content package.json -Raw | ConvertFrom-Json
+          if ($taskConfig.version -ne $taskPackage.dependencies.'sherpa-onnx-node') { throw 'Sherpa JavaScript and native versions must match' }
+          "SHERPA_VERSION=$($taskConfig.version)" >> $env:GITHUB_ENV
+          "SHERPA_REVISION=$($taskConfig.sourceRevision)" >> $env:GITHUB_ENV
+          "SDK_SHA256=$($taskConfig.sdkSha256)" >> $env:GITHUB_ENV
+          "CMAKE_JS_VERSION=$($taskConfig.cmakeJsVersion)" >> $env:GITHUB_ENV
+          "NODE_ADDON_API_VERSION=$($taskConfig.nodeAddonApiVersion)" >> $env:GITHUB_ENV
+          "tag=sherpa-runtime-v$($taskConfig.version)-r$($taskConfig.runtimeRevision)" >> $env:GITHUB_OUTPUT
+          "archive=sherpa-onnx-$($taskConfig.version)-win-arm64.tgz" >> $env:GITHUB_OUTPUT
+      - uses: actions/checkout@v7
+        with:
+          repository: k2-fsa/sherpa-onnx
+          ref: ${{ env.SHERPA_REVISION }}
+          path: sherpa
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          architecture: arm64
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: arm64
+      - name: Verify native tools
+        run: |
+          node -e "if(process.platform!=='win32'||process.arch!=='arm64')throw Error('Native ARM64 Node required');process.stdout.write(JSON.stringify(process.versions))"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --version
+          Get-Command cl | Format-List Source
+      - name: Verify and extract the official ARM64 SDK
+        run: |
+          $taskSdk = "sherpa-onnx-v$env:SHERPA_VERSION-win-arm64-shared-MT-Release.tar.bz2"
+          Invoke-WebRequest "https://github.com/k2-fsa/sherpa-onnx/releases/download/v$env:SHERPA_VERSION/$taskSdk" -OutFile $taskSdk
+          if ((Get-FileHash $taskSdk -Algorithm SHA256).Hash.ToLower() -ne $env:SDK_SHA256) { throw 'SDK checksum mismatch' }
+          New-Item -ItemType Directory sherpa-install | Out-Null
+          tar -xjf $taskSdk -C sherpa-install --strip-components 1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build Node-API binding
+        run: |
+          git -C sherpa apply ../scripts/voice-runtime-smoke/sherpa-node-addon-win32.patch
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $env:SHERPA_ONNX_INSTALL_DIR = "$env:GITHUB_WORKSPACE/sherpa-install"
+          Set-Location sherpa/scripts/node-addon-api
+          npm install --ignore-scripts --no-audit --no-fund --save-exact "cmake-js@$env:CMAKE_JS_VERSION" "node-addon-api@$env:NODE_ADDON_API_VERSION"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $taskRc = (Get-Command rc.exe -ErrorAction Stop).Source.Replace('\', '/')
+          npx --no-install cmake-js compile --arch arm64 --generator Ninja --CDCMAKE_STATIC_LINKER_FLAGS=/machine:ARM64 --CDCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded "--CDCMAKE_RC_COMPILER=$taskRc"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Assemble runtime and inspect DLL dependencies
+        run: |
+          New-Item -ItemType Directory runtime | Out-Null
+          Copy-Item sherpa/scripts/node-addon-api/build/sherpa-onnx.node runtime/
+          Copy-Item sherpa-install/lib/*.dll runtime/
+          Copy-Item sherpa/LICENSE runtime/LICENSE
+          Get-ChildItem runtime -File | Where-Object Extension -In '.node','.dll' | ForEach-Object {
+            dumpbin /headers $_.FullName
+            if ($LASTEXITCODE) { throw 'Unable to inspect native binary headers' }
+            $taskDependencies = dumpbin /dependents $_.FullName
+            if ($LASTEXITCODE) { throw 'Unable to inspect native binary dependencies' }
+            $taskDependencies
+            if ($taskDependencies -match '(?i)\b(?:MSVCP|VCRUNTIME)\d[^\s]*\.dll') { throw 'Unexpected dynamic MSVC runtime dependency' }
+          } *> runtime/dependencies.txt
+          @{ version = $env:SHERPA_VERSION; sourceRevision = $env:SHERPA_REVISION; sdkSha256 = $env:SDK_SHA256; platform = 'win32-arm64'; crt = 'MT'; node = (node --version); buildCommit = '${{ github.sha }}'; buildRun = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'; patchSha256 = (Get-FileHash scripts/voice-runtime-smoke/sherpa-node-addon-win32.patch -Algorithm SHA256).Hash.ToLower() } |
+            ConvertTo-Json | Set-Content runtime/build-info.json
+      - name: Install the matching JavaScript wrapper and Electron
+        run: |
+          $taskElectron = (Get-Content package.json -Raw | ConvertFrom-Json).devDependencies.electron
+          npm install --prefix smoke --ignore-scripts --no-audit --no-fund "sherpa-onnx-node@$env:SHERPA_VERSION" "electron@$taskElectron" tsx@4.20.3
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git apply --unidiff-zero --directory=smoke/node_modules/sherpa-onnx-node "patches/sherpa-onnx-node@$env:SHERPA_VERSION.patch"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node smoke/node_modules/electron/install.js
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/cache@v6
+        with:
+          path: .native-models
+          key: sherpa-arm64-models-${{ hashFiles('src/main/ai/localModel/catalog/**') }}
+      - name: Download and verify the application models
+        run: |
+          ./smoke/node_modules/.bin/tsx.cmd --tsconfig tsconfig.node.json scripts/voice-runtime-smoke/sherpa-arm64-models.ts
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Run native Node ASR and TTS
+        run: |
+          $env:PATH = "$env:GITHUB_WORKSPACE/runtime;$env:PATH"
+          node scripts/voice-runtime-smoke/sherpa-arm64-smoke.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Run ASR and TTS in an Electron utility process
+        run: |
+          $env:PATH = "$env:GITHUB_WORKSPACE/runtime;$env:PATH"
+          $taskElectron = node -p "require('./smoke/node_modules/electron')"
+          $taskProcess = Start-Process -FilePath $taskElectron -ArgumentList scripts/voice-runtime-smoke/sherpa-arm64-electron.cjs -WorkingDirectory $env:GITHUB_WORKSPACE -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput runtime/electron-stdout.log -RedirectStandardError runtime/electron-stderr.log
+          Get-Content runtime/electron-stdout.log
+          Get-Content runtime/electron-stderr.log
+          if ($taskProcess.ExitCode) { exit $taskProcess.ExitCode }
+          $taskResult = Get-Content runtime/electron-result.json -Raw | ConvertFrom-Json
+          if ($taskResult.host -ne 'electron' -or $taskResult.arch -ne 'arm64') { throw 'Electron inference result missing' }
+      - name: Package the verified runtime
+        env:
+          RUNTIME_ARCHIVE: ${{ steps.config.outputs.archive }}
+        run: |
+          $taskFiles = @(Get-ChildItem runtime -File | Where-Object { $_.Extension -in '.node','.dll' -or $_.Name -in 'LICENSE','build-info.json' } | ForEach-Object { 'runtime/' + $_.Name })
+          tar -czf $env:RUNTIME_ARCHIVE @taskFiles
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $taskHash = (Get-FileHash $env:RUNTIME_ARCHIVE -Algorithm SHA256).Hash.ToLower()
+          "$taskHash  $env:RUNTIME_ARCHIVE`n" | Set-Content "$env:RUNTIME_ARCHIVE.sha256" -NoNewline
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sherpa-win-arm64-runtime
+          path: |
+            runtime/
+            sherpa-onnx-*-win-arm64.tgz*
+          if-no-files-found: warn
+
+  publish:
+    needs: build-and-test
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' && github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: sherpa-win-arm64-runtime
+      - name: Publish a separately versioned runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BUILD_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ needs.build-and-test.outputs.tag }}
+          RUNTIME_ARCHIVE: ${{ needs.build-and-test.outputs.archive }}
+          BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          sha256sum --check "$RUNTIME_ARCHIVE.sha256"
+          gh api --method POST "repos/$REPO/git/refs" -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$BUILD_SHA"
+          printf 'Windows ARM64 Sherpa runtime. Node and Electron utility-process ASR/TTS smoke tests passed.\n\nBuild: %s\n' "$BUILD_URL" > runtime-notes.md
+          gh release create "$RELEASE_TAG" "$RUNTIME_ARCHIVE" "$RUNTIME_ARCHIVE.sha256" \
+            --repo "$REPO" --verify-tag --prerelease --latest=false \
+            --title "$RELEASE_TAG" --notes-file runtime-notes.md

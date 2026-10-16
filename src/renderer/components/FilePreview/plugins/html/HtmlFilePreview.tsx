@@ -4,6 +4,7 @@ import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import HtmlPreviewFrame, {
@@ -16,7 +17,6 @@ import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
-import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePreviewToolbar'
 

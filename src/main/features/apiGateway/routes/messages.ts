@@ -2,7 +2,7 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { Elysia } from 'elysia'
 
 import { application } from '@application'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER } from '@main/ai/constants'
 
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
@@ -28,9 +28,7 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     '/',
     // `model` is "providerId:apiModelId"; ProxyStreamService resolves it.
     ({ body, request, headers }) => {
-      const isInternalRequest = application
-        .get('ApiGatewayService')
-        .isInternalRequestToken(headers[CHERRY_INTERNAL_REQUEST_TOKEN_HEADER.toLowerCase()])
+      const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
       return processMessage({
         params: body,
         inputFormat: 'anthropic',
@@ -49,8 +47,13 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     '/count_tokens',
     async ({ body, status, request }) => {
       if (!body.model) return status(400, invalidRequest('model parameter is required'))
+      const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
       return {
-        input_tokens: await estimateAnthropicRequestTokens(body as unknown as MessageCreateParams, request.signal)
+        input_tokens: await estimateAnthropicRequestTokens(
+          body as unknown as MessageCreateParams,
+          request.signal,
+          isInternalRequest
+        )
       }
     },
     {
