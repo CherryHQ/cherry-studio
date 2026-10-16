@@ -53,7 +53,9 @@ describe('buildFilePartsForAttachments', () => {
       url: 'file:///p/fe-1.png',
       mediaType: 'image/png',
       filename: 'image.png',
-      providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
+      providerMetadata: {
+        cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1', originalPath: '/tmp/image.png' }
+      }
     })
   })
 
@@ -136,6 +138,7 @@ describe('buildFilePartsForAttachments', () => {
     expect(part.providerMetadata?.cherry).toEqual({
       fileEntryId: 'fe-1',
       fileTokenSourceId: 'source-1',
+      originalPath: '/tmp/pasted_text.txt',
       composerFileKind: 'pasted-text'
     })
   })
