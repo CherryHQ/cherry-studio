@@ -4,13 +4,15 @@ sources:
   - src/renderer/components/Preview/OpenUiPreview.tsx
   - src/renderer/components/Preview/openUiLibrary.tsx
   - src/renderer/components/CodeBlockView/constants.ts
+  - src/renderer/components/RichEditor/extensions/codeBlockShiki/CodeBlockNodeView.tsx
 ---
 
 # OpenUI POC
 
 This POC renders `openui` Markdown code fences with `@openuidev/react-lang` 1.0.1.
 It uses the existing code-block preview, source view, and split view. The runtime
-loads only when an OpenUI preview is opened.
+loads only when an OpenUI preview is opened. Rich-text code blocks contain the
+lazy preview in a local Suspense boundary so loading cannot unmount the editor.
 
 ## Integration
 

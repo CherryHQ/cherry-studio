@@ -1,7 +1,7 @@
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
 import { Code, Copy, Eye } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Combobox, Tooltip } from '@cherrystudio/ui'
@@ -100,7 +100,9 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           </div>
         </div>
         <div className="special-preview-wrapper">
-          <SpecialComponent>{codeContent}</SpecialComponent>
+          <Suspense fallback={null}>
+            <SpecialComponent>{codeContent}</SpecialComponent>
+          </Suspense>
         </div>
         <pre className={`language-${language}`} style={{ display: 'none' }}>
           <NodeViewContent<'code'> as="code" />
