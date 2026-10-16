@@ -465,12 +465,15 @@ describe('prepareChatMessages — routing', () => {
         mime: 'application/octet-stream',
         kind: 'unknown'
       })
+      // Unknown probe is FILE_TYPE.OTHER. Null is the conservative decoder rejecting binary bytes.
+      extractMock.mockResolvedValueOnce(null)
 
       const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], ALL)
 
       expect(probeMock).toHaveBeenCalledOnce()
       expect(resolveMock).not.toHaveBeenCalled()
       expect(mediaAnalysisMock).not.toHaveBeenCalled()
+      expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
       expect(textOf(out.parts)[0]).toBe(
         'Attached file "clip.webm":\nCannot read the attached file "clip.webm" as text (unsupported file type).'
       )
