@@ -14,7 +14,6 @@ import {
   isHumanTurn,
   isProgressResult,
   phaseForStop,
-  recordUsage,
   renderRoundPrompt,
   resumeGoal,
   stopGoal,
@@ -23,6 +22,7 @@ import {
 } from '../src/goalState'
 
 const limits = { maxGoalRounds: 100, maxGoalRoundsCeiling: 1000 }
+const unused = { tokens: 0, usd: 0 }
 
 describe('goal state transitions', () => {
   it('creates an active goal with the default cap and trimmed objective', () => {
@@ -54,7 +54,7 @@ describe('goal state transitions', () => {
     expect(() => createGoal('g', limits, { maxGoalRounds: 0 }, 1)).toThrow(
       expect.objectContaining({ code: 'invalid_limit' })
     )
-    expect(() => editGoal(createGoal('g', limits, {}, 1), { maxGoalRounds: 1001 }, 1000, 2)).toThrow(
+    expect(() => editGoal(createGoal('g', limits, {}, 1), { maxGoalRounds: 1001 }, 1000, 2, unused)).toThrow(
       expect.objectContaining({ code: 'invalid_limit' })
     )
   })
@@ -86,6 +86,7 @@ describe('goal state transitions', () => {
       phase: 'blocked',
       revision: 3,
       roundsStarted: 1,
+      armed: false,
       lastStop: { code: 'no_progress', at: 3 }
     })
   })
@@ -93,11 +94,11 @@ describe('goal state transitions', () => {
   it('admits rounds up to the cap, marks the wrap-up, then reports no capacity', () => {
     let goal = createGoal('g', limits, { maxGoalRounds: 2 }, 1)
     goal = admitRound(goal, 'work', 2)
-    expect(hasCapacity(goal)).toBe(true)
+    expect(hasCapacity(goal, unused)).toBe(true)
     goal = admitRound(goal, 'wrap-up', 3)
     expect(goal).toMatchObject({ roundsStarted: 2, wrapUpDone: true })
-    expect(hasCapacity(goal)).toBe(false)
-    expect(() => resumeGoal(stopGoal(goal, { code: 'round_limit' }, 4), 5)).toThrow(
+    expect(hasCapacity(goal, unused)).toBe(false)
+    expect(() => resumeGoal(stopGoal(goal, { code: 'round_limit' }, 4), 5, unused)).toThrow(
       expect.objectContaining({ code: 'no_capacity' })
     )
   })
@@ -105,29 +106,32 @@ describe('goal state transitions', () => {
   it('raising the cap after round_limit re-activates the goal and clears the wrap-up flag', () => {
     let goal = admitRound(createGoal('g', limits, { maxGoalRounds: 1 }, 1), 'wrap-up', 2)
     goal = stopGoal(goal, { code: 'round_limit' }, 3)
-    goal = editGoal(goal, { maxGoalRounds: 3 }, 1000, 4)
+    goal = editGoal(goal, { maxGoalRounds: 3 }, 1000, 4, unused)
     expect(goal).toMatchObject({ phase: 'active', wrapUpDone: false, maxGoalRounds: 3 })
     expect(goal.lastStop).toBeUndefined()
-    expect(hasCapacity(goal)).toBe(true)
+    expect(hasCapacity(goal, unused)).toBe(true)
   })
 
-  it('budget in tokens or usd ends capacity once crossed, and usage counts progress rounds', () => {
-    let goal = createGoal('g', limits, { budget: { tokens: 50 } }, 1)
-    goal = recordUsage(goal, { tokens: 30, usd: 0 }, true)
-    expect(hasCapacity(goal)).toBe(true)
-    goal = recordUsage(goal, { tokens: 30, usd: 0 }, false)
-    expect(goal).toMatchObject({ tokensUsed: 60, progressRounds: 1 })
-    expect(hasCapacity(goal)).toBe(false)
-    const priced = recordUsage(createGoal('g', limits, { budget: { usd: 0.01 } }, 1), { tokens: 1, usd: 0.02 }, true)
-    expect(hasCapacity(priced)).toBe(false)
+  it('budget in tokens or usd ends capacity once the usage crosses it', () => {
+    const goal = createGoal('g', limits, { budget: { tokens: 50 } }, 1)
+    expect(hasCapacity(goal, { tokens: 30, usd: 0 })).toBe(true)
+    expect(hasCapacity(goal, { tokens: 60, usd: 0 })).toBe(false)
+    expect(hasCapacity(createGoal('g', limits, { budget: { usd: 0.01 } }, 1), { tokens: 1, usd: 0.02 })).toBe(false)
   })
 
   it('resume only re-activates paused or blocked goals that still have capacity', () => {
     const paused = stopGoal(createGoal('g', limits, {}, 1), { code: 'paused_by_user' }, 2)
-    expect(resumeGoal(paused, 3).phase).toBe('active')
-    expect(resumeGoal(paused, 3).lastStop).toBeUndefined()
+    expect(resumeGoal(paused, 3, unused)).toMatchObject({ phase: 'active', armed: true, revision: 3 })
+    expect(resumeGoal(paused, 3, unused).lastStop).toBeUndefined()
     const done = stopGoal(createGoal('g', limits, {}, 1), { code: 'complete' }, 2)
-    expect(() => resumeGoal(done, 3)).toThrow(expect.objectContaining({ code: 'invalid_action' }))
+    expect(() => resumeGoal(done, 3, unused)).toThrow(expect.objectContaining({ code: 'invalid_action' }))
+  })
+
+  // Breaks when arming a restored (disarmed) active goal leaves no snapshot, or makes the model's revision stale.
+  it('resume arms an active goal without a new revision, and leaves an armed one as it is', () => {
+    const armed = createGoal('g', limits, {}, 1)
+    expect(resumeGoal(armed, 2, unused)).toBe(armed)
+    expect(resumeGoal({ ...armed, armed: false }, 2, unused)).toEqual(armed)
   })
 })
 
@@ -148,46 +152,48 @@ describe('goal limit rules', () => {
   it.each(invalidValues)('refuses a tokens or usd budget of %s on create and on edit', (value) => {
     for (const budget of [{ tokens: value }, { usd: value }]) {
       expect(() => createGoal('g', limits, { budget }, 1)).toThrow(invalidLimit)
-      expect(() => editGoal(createGoal('g', limits, {}, 1), { budget }, 1000, 2)).toThrow(invalidLimit)
+      expect(() => editGoal(createGoal('g', limits, {}, 1), { budget }, 1000, 2, unused)).toThrow(invalidLimit)
     }
   })
 
   it('raising a crossed budget above the usage re-activates a budget_exhausted goal', () => {
-    const spent = (budget: { tokens?: number; usd?: number }, usage: { tokens: number; usd: number }) => {
-      let goal = admitRound(createGoal('g', limits, { budget }, 1), 'wrap-up', 2)
-      goal = recordUsage(goal, usage, true)
-      return stopGoal(goal, { code: 'budget_exhausted' }, 3)
-    }
+    const spent = (budget: { tokens?: number; usd?: number }) =>
+      stopGoal(admitRound(createGoal('g', limits, { budget }, 1), 'wrap-up', 2), { code: 'budget_exhausted' }, 3)
 
-    const byTokens = editGoal(spent({ tokens: 50 }, { tokens: 60, usd: 0 }), { budget: { tokens: 100 } }, 1000, 4)
+    const tokens = { tokens: 60, usd: 0 }
+    const byTokens = editGoal(spent({ tokens: 50 }), { budget: { tokens: 100 } }, 1000, 4, tokens)
     expect(byTokens).toMatchObject({ phase: 'active', wrapUpDone: false, budget: { tokens: 100 } })
-    expect(hasCapacity(byTokens)).toBe(true)
+    expect(hasCapacity(byTokens, tokens)).toBe(true)
 
-    const byCost = editGoal(spent({ usd: 0.01 }, { tokens: 1, usd: 0.02 }), { budget: { usd: 0.05 } }, 1000, 4)
+    const byCost = editGoal(spent({ usd: 0.01 }), { budget: { usd: 0.05 } }, 1000, 4, { tokens: 1, usd: 0.02 })
     expect(byCost).toMatchObject({ phase: 'active', wrapUpDone: false, budget: { usd: 0.05 } })
   })
 
   it('raising a budget that is still crossed leaves the goal blocked with its wrap-up flag', () => {
+    const used = { tokens: 120, usd: 0 }
     let goal = admitRound(createGoal('g', limits, { budget: { tokens: 50 } }, 1), 'wrap-up', 2)
-    goal = stopGoal(recordUsage(goal, { tokens: 120, usd: 0 }, true), { code: 'budget_exhausted' }, 3)
-    const edited = editGoal(goal, { budget: { tokens: 100 } }, 1000, 4)
+    goal = stopGoal(goal, { code: 'budget_exhausted' }, 3)
+    const edited = editGoal(goal, { budget: { tokens: 100 } }, 1000, 4, used)
     expect(edited).toMatchObject({ phase: 'blocked', wrapUpDone: true, budget: { tokens: 100 } })
-    expect(hasCapacity(edited)).toBe(false)
+    expect(hasCapacity(edited, used)).toBe(false)
   })
 
   it.each(['no_progress', 'model_blocked', 'provider_error'] as const)(
     'raising the cap does not re-activate a goal blocked by %s',
     (code) => {
       const goal = stopGoal(admitRound(createGoal('g', limits, { maxGoalRounds: 1 }, 1), 'work', 2), { code }, 3)
-      expect(editGoal(goal, { maxGoalRounds: 3 }, 1000, 4)).toMatchObject({ phase: 'blocked', maxGoalRounds: 3 })
+      expect(editGoal(goal, { maxGoalRounds: 3 }, 1000, 4, unused)).toMatchObject({
+        phase: 'blocked',
+        maxGoalRounds: 3
+      })
     }
   )
 
   // Breaks when editGoal re-activates on any raised limit: the goal would be active without capacity.
   it('raising only the cap leaves a budget_exhausted goal blocked while the budget stays crossed', () => {
     let goal = admitRound(createGoal('g', limits, { maxGoalRounds: 1, budget: { tokens: 50 } }, 1), 'wrap-up', 2)
-    goal = stopGoal(recordUsage(goal, { tokens: 60, usd: 0 }, true), { code: 'budget_exhausted' }, 3)
-    expect(editGoal(goal, { maxGoalRounds: 5 }, 1000, 4)).toMatchObject({
+    goal = stopGoal(goal, { code: 'budget_exhausted' }, 3)
+    expect(editGoal(goal, { maxGoalRounds: 5 }, 1000, 4, { tokens: 60, usd: 0 })).toMatchObject({
       phase: 'blocked',
       lastStop: { code: 'budget_exhausted' }
     })
@@ -195,8 +201,8 @@ describe('goal limit rules', () => {
 
   it('raising only the budget leaves a round_limit goal blocked while no round is left', () => {
     let goal = admitRound(createGoal('g', limits, { maxGoalRounds: 1, budget: { tokens: 50 } }, 1), 'wrap-up', 2)
-    goal = stopGoal(recordUsage(goal, { tokens: 60, usd: 0 }, true), { code: 'round_limit' }, 3)
-    expect(editGoal(goal, { budget: { tokens: 100 } }, 1000, 4)).toMatchObject({
+    goal = stopGoal(goal, { code: 'round_limit' }, 3)
+    expect(editGoal(goal, { budget: { tokens: 100 } }, 1000, 4, { tokens: 60, usd: 0 })).toMatchObject({
       phase: 'blocked',
       lastStop: { code: 'round_limit' }
     })
@@ -206,9 +212,11 @@ describe('goal limit rules', () => {
   it.each([{ maxGoalRounds: 5 }, { budget: { tokens: 100 } }])(
     'raising only one of two crossed limits keeps an active goal wrapped up (%o)',
     (patch) => {
-      let goal = admitRound(createGoal('g', limits, { maxGoalRounds: 1, budget: { tokens: 50 } }, 1), 'wrap-up', 2)
-      goal = recordUsage(goal, { tokens: 60, usd: 0 }, true)
-      expect(editGoal(goal, patch, 1000, 3)).toMatchObject({ phase: 'active', wrapUpDone: true })
+      const goal = admitRound(createGoal('g', limits, { maxGoalRounds: 1, budget: { tokens: 50 } }, 1), 'wrap-up', 2)
+      expect(editGoal(goal, patch, 1000, 3, { tokens: 60, usd: 0 })).toMatchObject({
+        phase: 'active',
+        wrapUpDone: true
+      })
     }
   )
 
@@ -216,7 +224,10 @@ describe('goal limit rules', () => {
     'raising the cap does not re-activate a goal paused by %s',
     (code) => {
       const goal = stopGoal(admitRound(createGoal('g', limits, { maxGoalRounds: 1 }, 1), 'work', 2), { code }, 3)
-      expect(editGoal(goal, { maxGoalRounds: 3 }, 1000, 4)).toMatchObject({ phase: 'paused', maxGoalRounds: 3 })
+      expect(editGoal(goal, { maxGoalRounds: 3 }, 1000, 4, unused)).toMatchObject({
+        phase: 'paused',
+        maxGoalRounds: 3
+      })
     }
   )
 })
@@ -359,9 +370,13 @@ describe('progress and prompts', () => {
   })
 
   it('exposes the view the tools return', () => {
-    expect(goalView(undefined, false)).toEqual({ goal: null })
-    const view = goalView(createGoal('g', limits, {}, 1), true)
-    expect(view).toMatchObject({ activation: 'armed', goal: { objective: 'g', phase: 'active' } })
+    expect(goalView(undefined, unused)).toEqual({ goal: null })
+    const view = goalView(createGoal('g', limits, {}, 1), { tokens: 12, usd: 0.5 })
+    expect(view).toMatchObject({
+      activation: 'armed',
+      goal: { objective: 'g', phase: 'active', tokensUsed: 12, costUsed: 0.5 }
+    })
     expect('wrapUpDone' in (view as any).goal).toBe(false)
+    expect('armed' in (view as any).goal).toBe(false)
   })
 })

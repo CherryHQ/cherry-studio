@@ -3,8 +3,10 @@ import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { type LanguageModel, simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
+import { expect, onTestFinished } from 'vitest'
 
 import {
+  createAgentRuntimeSession,
   createGoalExtension,
   GOAL_NOTICE_TYPE,
   GOAL_ROUND_TYPE,
@@ -21,8 +23,10 @@ import {
   createTestSession,
   finish,
   hostStore,
+  MODEL,
   plain,
   streamTextPort,
+  tempDir,
   type TestSessionOptions,
   textParts
 } from './support'
@@ -124,9 +128,41 @@ type GoalSessionOptions = Omit<TestSessionOptions<undefined>, 'port' | 'onEvent'
   hostSignal?: AbortSignal
 }
 
+/** The goal and usage a session's own `get_goal` reports, read without a model request. */
+async function goalViewOf(session: AgentSession): Promise<unknown> {
+  const tool = session.getToolDefinition('get_goal')
+  if (!tool) return undefined
+  const result = await tool.execute('rebuild-check', {}, undefined, undefined, undefined as never)
+  return JSON.parse(result.content.map((part) => (part.type === 'text' ? part.text : '')).join(''))
+}
+
+/**
+ * Spec §6.1: goal state and usage are a function of the branch. Rebuilds a session from `transcript`
+ * and expects it to report what the live session reported then; a rebuilt goal is always disarmed.
+ */
+async function expectRebuildAgrees(transcript: TranscriptEntry[], live: unknown, port: GoalPort) {
+  const rebuilt = await createAgentRuntimeSession({
+    cwd: tempDir('cwd'),
+    agentDir: tempDir('agent'),
+    model: MODEL,
+    systemPrompt: 'You are Cherry.',
+    requestOptions: undefined,
+    port: streamTextPort(goalModel([() => say('unused')]).model).port,
+    transcript,
+    extensionFactories: [createGoalExtension({ ...port, onApproval: undefined })]
+  })
+  try {
+    const view = live as { goal: unknown; activation?: string }
+    expect(await goalViewOf(rebuilt.session)).toEqual(view.goal === null ? view : { ...view, activation: 'disarmed' })
+  } finally {
+    await rebuilt.dispose()
+  }
+}
+
 /**
  * A session on `model` with the goal extension loaded between `extra.extensionFactories` and
- * `extra.laterExtensions`, and a host store.
+ * `extra.laterExtensions`, and a host store. After the test, a session rebuilt from the transcript of
+ * each settled run, and of the end, must report the goal the live session reported then.
  */
 export async function openGoalSession(
   model: LanguageModel,
@@ -135,6 +171,13 @@ export async function openGoalSession(
 ) {
   const host = hostStore()
   const modelPort = streamTextPort(model).port
+  const prefix = extra.transcript ?? []
+  const checkpoints: { transcript: TranscriptEntry[]; view: Promise<unknown> }[] = []
+  const live: { session?: AgentSession } = {}
+  const checkpoint = () => {
+    if (live.session)
+      checkpoints.push({ transcript: plain([...prefix, ...host.entries]), view: goalViewOf(live.session) })
+  }
   const runtime = await createTestSession({
     ...extra,
     port: hostSignal
@@ -147,7 +190,18 @@ export async function openGoalSession(
         }
       : modelPort,
     extensionFactories: [...(extra.extensionFactories ?? []), createGoalExtension(port), ...laterExtensions],
-    onEvent: host.onEvent
+    onEvent: (event) => {
+      host.onEvent(event)
+      if (event.type === 'turn-complete') checkpoint()
+    }
+  })
+  live.session = runtime.session
+  onTestFinished(async () => {
+    checkpoint()
+    for (const { transcript, view } of checkpoints) {
+      const reported = await view
+      if (reported !== undefined) await expectRebuildAgrees(transcript, reported, port)
+    }
   })
   return { ...runtime, host }
 }
