@@ -4476,6 +4476,10 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(connect).toHaveBeenCalledTimes(1)
       expect(service.inspect('session-1')).toBeUndefined()
+
+      // The failed prime left nothing cached, so the next open connects again.
+      await service.primeConnection('session-1')
+      expect(connect).toHaveBeenCalledTimes(2)
     })
 
     it('keeps a live turn when priming fails after the turn takes over the entry', async () => {
