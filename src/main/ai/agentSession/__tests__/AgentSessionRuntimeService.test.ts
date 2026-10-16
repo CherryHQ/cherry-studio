@@ -642,6 +642,21 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-2')
   })
 
+  it('keeps scheduled provenance through queued work and clears it for a fresh interactive turn', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, sourceJobId: 'scheduled-job' })
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+    service.markTurnTerminal('session-1', 'success')
+    expect(service.getWorkSnapshot('session-1')).toMatchObject({ busy: true, sourceJobId: 'scheduled-job' })
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(service.getWorkSnapshot('session-1')).toMatchObject({ busy: true, sourceJobId: 'scheduled-job' })
+    service.markTurnTerminal('session-1', 'success')
+    service.beginTurn({ ...baseTurnInput, assistantMessageId: 'interactive-message' })
+    expect(service.getWorkSnapshot('session-1')?.sourceJobId).toBeUndefined()
+  })
+
   it('aborts live streams before shutdown clears their pending approvals', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -1507,6 +1522,57 @@ describe('AgentSessionRuntimeService', () => {
     expect(second.abortController.signal.aborted).toBe(false)
   })
 
+  it.each([false, true])(
+    'reports Stop before teardown without inheriting a previous success (%s)',
+    async (previousSuccess) => {
+      const service = new AgentSessionRuntimeService()
+      if (previousSuccess) {
+        service.beginTurn(baseTurnInput)
+        service.markTurnTerminal('session-1', 'success')
+      }
+      const handle = service.beginTurn({ ...baseTurnInput, assistantMessageId: 'current-assistant' })
+      expect(service.getWorkSnapshot('session-1')?.terminalStatus).toBeUndefined()
+      getEntry(service).connection = { close: vi.fn(), reconcile: vi.fn().mockResolvedValue('current') }
+      const outcomes: Array<string | undefined> = []
+      service.onWorkChanged((sessionId) => {
+        const snapshot = service.getWorkSnapshot(sessionId)
+        if (snapshot && !snapshot.busy) outcomes.push(snapshot.terminalStatus)
+      })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: handle.abortController.signal
+        })
+        .getReader()
+
+      handle.abortController.abort('user-requested')
+
+      expect(outcomes).toEqual(['paused'])
+      expect(service.getWorkSnapshot('session-1')).toBeUndefined()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      terminalListener(handle).onPaused({ status: 'paused', isTopicDone: true })
+      expect(outcomes).toEqual(['paused'])
+    }
+  )
+
+  it('reports an interrupted fresh turn as an error after a successful warm turn', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success')
+    service.beginTurn({ ...baseTurnInput, assistantMessageId: 'current-assistant' })
+    const outcomes: Array<string | undefined> = []
+    service.onWorkChanged((sessionId) => {
+      const snapshot = service.getWorkSnapshot(sessionId)
+      if (snapshot && !snapshot.busy) outcomes.push(snapshot.terminalStatus)
+    })
+
+    await service.closeSession('session-1')
+
+    expect(outcomes).toEqual(['error'])
+  })
+
   it('marks the runtime idle when the terminal listener observes done', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)
@@ -1518,6 +1584,7 @@ describe('AgentSessionRuntimeService', () => {
       pendingMessageCount: 0,
       lastTerminalStatus: 'success'
     })
+    expect(service.getWorkSnapshot('session-1')).toMatchObject({ busy: false, terminalStatus: 'success' })
   })
 
   it('hands an idle session with a resume token to the driver onSessionIdle hook', () => {

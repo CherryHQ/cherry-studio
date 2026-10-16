@@ -61,6 +61,7 @@ export type AgentTaskInput = {
 export type AgentTaskOutput = {
   /** First 200 chars of the assistant reply, or a status marker for skipped runs. */
   result: string
+  skipped?: true
 }
 
 /** Combine the JobManager-provided abort signal with an optional per-task timeout. */
@@ -165,7 +166,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   if (isHeartbeat) {
     if (!isHeartbeatEnabled(config)) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
-      return { result: 'Skipped (disabled)' }
+      return { result: 'Skipped (disabled)', skipped: true }
     }
     // Runtime changes may bypass heartbeat configuration events; recheck capabilities at execution.
     const capabilities = Object.hasOwn(AGENT_RUNTIME_CAPABILITIES, agent.type)
@@ -173,7 +174,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       : undefined
     if (capabilities?.heartbeat !== true) {
       logger.debug('Heartbeat skipped (runtime lacks the capability)', { agentId, scheduleId, type: agent.type })
-      return { result: 'Skipped (capability)' }
+      return { result: 'Skipped (capability)', skipped: true }
     }
     const agentsDataRoot = application.getPath('feature.agents.data')
     const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
@@ -206,12 +207,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
             logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
           })
       }
-      return { result: 'Skipped (untrusted agent data path)' }
+      return { result: 'Skipped (untrusted agent data path)', skipped: true }
     }
     const content = await readHeartbeat(agentDataPath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
-      return { result: 'Skipped (no file)' }
+      return { result: 'Skipped (no file)', skipped: true }
     }
     effectivePrompt = [
       '[Heartbeat]',
@@ -332,6 +333,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       await ctx.patchMetadata({ sessionId: session.id })
       const started = await startAgentSessionRun({
         sessionId: session.id,
+        sourceJobId: ctx.jobId,
         userParts: [{ type: 'text', text: effectivePrompt }],
         listeners: [sentinel, ...channelListeners],
         headless: true,
@@ -346,7 +348,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (started.reason === 'busy') {
         completionActive = false
-        return { result: 'Skipped (session busy)' }
+        return { result: 'Skipped (session busy)', skipped: true }
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true

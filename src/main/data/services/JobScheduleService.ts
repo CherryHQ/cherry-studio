@@ -4,6 +4,7 @@ import { application } from '@application'
 import { type InsertJobScheduleRow, type JobScheduleRow, jobScheduleTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentTaskRunService } from '@data/services/AgentTaskRunService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -244,13 +245,16 @@ export class JobScheduleService {
   }
 
   deleteTx(tx: DbOrTx, id: string): boolean {
+    agentTaskRunService.reviewDeletedTx(tx, { taskId: id })
     const result = tx.delete(jobScheduleTable).where(eq(jobScheduleTable.id, id)).run()
     logger.info('JobSchedule deleted', { id, deleted: result.changes > 0 })
     return result.changes > 0
   }
 
   delete(id: string): boolean {
-    return this.deleteTx(application.get('DbService').getDb(), id)
+    const deleted = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
+    if (deleted) agentTaskRunService.notifyChanged()
+    return deleted
   }
 
   /**

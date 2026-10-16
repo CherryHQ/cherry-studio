@@ -17,6 +17,7 @@ import { agentChannelHandlers } from './agentChannels'
 import { agentHandlers } from './agents'
 import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
+import { agentTaskDashboardHandlers } from './agentTaskDashboard'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
 import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
@@ -54,6 +55,7 @@ import { translateHandlers } from './translate'
 export const apiHandlers: ApiImplementation = {
   ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
+  ...agentTaskDashboardHandlers,
   ...archiveHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,

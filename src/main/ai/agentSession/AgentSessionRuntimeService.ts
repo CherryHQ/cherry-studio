@@ -156,6 +156,7 @@ export type AgentSessionTurnTerminalEvent = {
 
 export interface BeginAgentSessionTurnInput {
   sessionId: string
+  sourceJobId?: string
   topicId: string
   agentId: string
   agentType: string
@@ -277,6 +278,7 @@ type RuntimeStateEvent = AgentSessionRuntimeStateEvent<
 type AgentSessionRuntimeEntry = {
   interactionWindowId?: string
   sessionId: string
+  sourceJobId?: string
   topicId: string
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
   sessionTraceId?: string
@@ -286,6 +288,7 @@ type AgentSessionRuntimeEntry = {
   /** Author snapshot (agent + nested model) for assistant rows the runtime opens this session. */
   messageSnapshot?: MessageSnapshot
   runtimeState: RuntimeState
+  closingTerminalStatus?: AgentSessionRuntimeTerminalStatus
   /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
   usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
@@ -447,6 +450,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+  private readonly workChanged = this.registerDisposable(new Emitter<string>())
+  readonly onWorkChanged = this.workChanged.event
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
@@ -553,6 +558,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
+    if (event.type !== 'buffer-chunk') this.workChanged.fire(entry.sessionId)
   }
 
   private applyRuntimeStateEffect(
@@ -624,6 +630,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // connection's baked settings no longer vary by headless mode and never need a mismatch rebuild.
       this.clearIdleTimer(existing)
       existing.topicId = input.topicId
+      existing.sourceJobId = input.sourceJobId
       existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
       existing.agentId = input.agentId
       existing.agentType = input.agentType
@@ -648,6 +655,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const entry: AgentSessionRuntimeEntry = {
       sessionId: input.sessionId,
+      sourceJobId: input.sourceJobId,
       topicId: input.topicId,
       sessionTraceId: input.traceId,
       agentId: input.agentId,
@@ -657,6 +665,7 @@ export class AgentSessionRuntimeService extends BaseService {
       runtimeState: createAgentSessionRuntimeState(turn)
     }
     this.entries.set(input.sessionId, entry)
+    this.workChanged.fire(input.sessionId)
 
     return {
       listeners: [
@@ -908,7 +917,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
           // A user Stop is the only abort source now (steer no longer interrupts) — tear the
           // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => void this.closeSession(entry.sessionId)
+          const onAbort = () => void this.closeSession(entry.sessionId, 'paused')
           if (input.signal.aborted) {
             onAbort()
             return
@@ -1067,10 +1076,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  closeSession(sessionId: string): Promise<void> {
+  closeSession(sessionId: string, terminalStatus?: AgentSessionRuntimeTerminalStatus): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
+    entry.closingTerminalStatus ??= terminalStatus ?? (this.getWorkSnapshot(sessionId)?.busy ? 'error' : undefined)
+    if (entry.closingTerminalStatus) this.workChanged.fire(sessionId)
     const fallbackConnection = this.currentConnection(entry)
     const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
     let closing: Promise<void>
@@ -1085,6 +1096,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
+      this.workChanged.fire(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
     }
     return barrier
@@ -1331,6 +1343,22 @@ export class AgentSessionRuntimeService extends BaseService {
       lastTerminalStatus: entry.runtimeState.lastTerminal,
       resumeToken: entry.lastResumeToken,
       activeToolCount: turn?.activeToolIds.size ?? 0
+    }
+  }
+
+  getWorkSnapshot(sessionId: string) {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return undefined
+    const turn = this.currentTurn(entry)
+    const { execution, lastTerminal } = entry.runtimeState
+    return {
+      agentId: entry.agentId,
+      ...(entry.sourceJobId !== undefined ? { sourceJobId: entry.sourceJobId } : {}),
+      busy: isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState),
+      turnId: turn?.turnId,
+      messageAnchor: turn?.assistantMessageId,
+      terminalStatus:
+        entry.closingTerminalStatus ?? (execution.kind === 'idle' ? lastTerminal : execution.terminal?.status)
     }
   }
 

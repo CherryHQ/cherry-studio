@@ -8,6 +8,11 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentTaskRunTable } from '@data/db/schemas/agentTaskRun'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
 import type { DbType } from '@data/db/types'
 
@@ -68,6 +73,68 @@ describe('applyMigrations over a populated database', () => {
   afterEach(() => {
     sqlite.close()
     rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it('adds an empty dashboard without backfill and preserves run snapshots when owners are deleted', () => {
+    sqlite.pragma('foreign_keys = ON')
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0028_easy_eternity'))
+    db.insert(agentTable)
+      .values({ id: 'agent', name: 'Agent', type: 'claude-code', instructions: '', orderKey: 'a0' })
+      .run()
+    db.insert(agentWorkspaceTable)
+      .values({ id: 'workspace', name: 'Workspace', type: 'user', path: '/tmp/dashboard-migration', orderKey: 'a0' })
+      .run()
+    db.insert(agentSessionTable)
+      .values({ id: 'session', name: 'Existing session', agentId: 'agent', workspaceId: 'workspace', orderKey: 'a0' })
+      .run()
+    db.insert(jobScheduleTable)
+      .values({
+        id: 'task',
+        name: 'Task',
+        type: 'agent.task',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      .run()
+    applyMigrations(db, resolveMigrationsPath())
+    expect(db.select().from(agentSessionTable).all()).toMatchObject([{ id: 'session', name: 'Existing session' }])
+    expect(db.select().from(agentTaskRunTable).all()).toEqual([])
+    db.insert(agentTaskRunTable)
+      .values({
+        id: 'run',
+        source: 'scheduled',
+        runId: 'job',
+        taskId: 'task',
+        sessionId: 'session',
+        agentId: 'agent',
+        nameSnapshot: 'Task',
+        agentNameSnapshot: 'Agent',
+        status: 'succeeded',
+        endedAt: 2000
+      })
+      .run()
+    db.delete(agentSessionTable).run()
+    db.delete(agentTable).run()
+    db.delete(jobScheduleTable).run()
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    db = drizzle({ client: sqlite, casing: 'snake_case' })
+    applyMigrations(db, resolveMigrationsPath())
+    expect(db.select().from(agentTaskRunTable).all()).toMatchObject([
+      {
+        id: 'run',
+        taskId: null,
+        sessionId: null,
+        agentId: null,
+        nameSnapshot: 'Task',
+        agentNameSnapshot: 'Agent',
+        status: 'succeeded',
+        viewedAt: null
+      }
+    ])
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
 
   it('adds diagnostic history to a populated database and retains it after reopening', () => {

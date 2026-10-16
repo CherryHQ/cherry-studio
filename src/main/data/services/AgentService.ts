@@ -12,6 +12,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskRunService } from '@data/services/AgentTaskRunService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
@@ -864,6 +865,7 @@ export class AgentService {
         .limit(1)
         .all()
       if (!agent) return { rowsAffected: 0, sessionImpact: undefined }
+      agentTaskRunService.reviewDeletedTx(tx, { agentId: id })
 
       if (permanent) {
         const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
@@ -933,6 +935,7 @@ export class AgentService {
 
   notifyDeleted(id: string, impact: ReturnType<AgentService['deleteAgentStateTx']>): void {
     if (!impact.deleted) return
+    agentTaskRunService.notifyChanged()
     agentTaskService.notifyReadModelChange(impact.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(impact.deliveryResults)
     agentSessionService.notifyReadModelChange(impact.affectedSessionIds, impact.changeKind)

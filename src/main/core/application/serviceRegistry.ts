@@ -4,6 +4,7 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
+import { AgentTaskDashboardService } from '@main/ai/agents/AgentTaskDashboardService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
@@ -174,6 +175,7 @@ export const services = {
   AgentSessionRuntimeService,
   AgentSessionDeliveryService,
   AgentJobsService,
+  AgentTaskDashboardService,
   AgentLifecycleService,
   ChannelManager,
   AiService,
