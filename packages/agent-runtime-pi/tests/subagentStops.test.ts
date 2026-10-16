@@ -14,7 +14,7 @@ import {
   toolResultOf,
   toolResults
 } from './subagentSupport'
-import { createTestSession, finish, lastAssistant, streamTextPort, textParts } from './support'
+import { createTestSession, finish, lastAssistant, MODEL, streamTextPort, textParts } from './support'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const upstreamError = { type: 'error' as const, error: new Error('upstream exploded') }
@@ -209,6 +209,62 @@ describe('subagent stops', () => {
     const result = toolResultOf(session, 'call_a')
     expect(result.isError).toBe(true)
     expect(result.details).toMatchObject({ outcome: 'limit_reached' })
+  })
+
+  // Breaks when only agent turns are counted: Pi's summarizer makes its own requests through the port.
+  it('stops a subagent after 200 model requests, compaction summaries included', { timeout: 60_000 }, async () => {
+    let next = 0
+    const page = 'x'.repeat(9_000)
+    const pageTool = defineTool({
+      name: 'fetch_page',
+      label: 'Fetch page',
+      description: 'Fetch a page',
+      parameters: Type.Object({}),
+      async execute() {
+        return { content: [{ type: 'text', text: page }], details: undefined }
+      }
+    })
+    // Reports the prompt's real size so Pi's context accounting crosses the threshold every few pages.
+    const sized = (unified: 'stop' | 'tool-calls', prompt: unknown): LanguageModelV3StreamPart => {
+      const input = Math.ceil(JSON.stringify(prompt).length / 3.5)
+      return {
+        type: 'finish',
+        usage: {
+          inputTokens: { total: input, noCache: input, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 20, text: 20, reasoning: undefined }
+        },
+        finishReason: { unified, raw: unified }
+      }
+    }
+    const { model } = routedModel(({ userText, lastRole, options }) => {
+      // Pi's summary requests carry no tools.
+      if ((options.tools ?? []).length === 0)
+        return [...textParts('s', 'Summary: paging through TASK-A.'), sized('stop', options.prompt)]
+      if (userText.includes('TASK-A'))
+        return [toolCallPart(`page_${++next}`, 'fetch_page'), sized('tool-calls', options.prompt)]
+      return lastRole === 'user'
+        ? [subagentCall('call_a', TASK_A), finish('tool-calls')]
+        : [...textParts('d', 'Done'), finish('stop')]
+    })
+    const { port, requests } = streamTextPort(model)
+    const { session } = await createTestSession({
+      port,
+      model: { ...MODEL, contextWindow: 9_000 },
+      tools: [pageTool],
+      compaction: { reserveTokens: 2_000, keepRecentTokens: 3_000 },
+      subagents: recordingSubagentPort().port
+    })
+
+    await session.prompt('Delegate the check')
+
+    // Pi gives each summary request a fresh session id; the parent itself never compacts here.
+    const parentId = session.sessionManager.getSessionId()
+    const subagentRequests = requests.filter((request) => request.sessionId !== parentId)
+    expect(subagentRequests.filter((request) => Object.keys(request.tools ?? {}).length === 0).length).toBeGreaterThan(
+      0
+    )
+    expect(subagentRequests).toHaveLength(200)
+    expect(toolResultOf(session, 'call_a').details).toMatchObject({ outcome: 'limit_reached' })
   })
 
   it('stops a subagent after 200 model requests that bring no tool results', { timeout: 60_000 }, async () => {

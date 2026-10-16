@@ -113,6 +113,11 @@ export interface SubagentSessionOverrides {
   onEvent: ((event: AgentRuntimeEvent) => void) | undefined
   /** A fork keeps `subagent` registered so its tools match the parent's. */
   fork: boolean
+  /**
+   * Called before each model request the session makes (its turns and the compaction summaries made
+   * for it); a throw refuses the request before it reaches the port or the summarizer.
+   */
+  beforeModelRequest: () => void
 }
 
 /** What the session that registers `subagent` lends it. */
@@ -215,12 +220,34 @@ function addUsage(sum: Usage, usage: Usage): Usage {
   }
 }
 
+/**
+ * The request cap of one subagent session, counted where its requests are made. Past the cap a
+ * request is refused before it goes out and the run stops with `limit_reached`.
+ */
+class RequestLimit {
+  private requests = 0
+  private onLimit: (() => void) | undefined
+
+  readonly beforeModelRequest = () => {
+    if (this.requests >= MAX_SUBAGENT_REQUESTS) {
+      this.onLimit?.()
+      throw new Error(`The subagent reached its limit of ${MAX_SUBAGENT_REQUESTS} model requests`)
+    }
+    this.requests++
+  }
+
+  whenReached(onLimit: () => void) {
+    this.onLimit = onLimit
+  }
+}
+
 /** Runs the task to settlement; the result carries the subagent's final message and the sum of its usage. */
 async function run(
   child: AgentRuntimeSession,
   prompt: string,
   signal: AbortSignal | undefined,
-  base: Omit<SubagentDetails, 'outcome'>
+  base: Omit<SubagentDetails, 'outcome'>,
+  limit: RequestLimit
 ): Promise<AgentToolResult<SubagentDetails>> {
   const { session } = child
   let stopped: 'aborted' | 'limit_reached' | undefined
@@ -228,14 +255,11 @@ async function run(
     stopped ??= reason
     void session.abort()
   }
+  limit.whenReached(() => stop('limit_reached'))
   // Not read from `session.messages`: Pi swaps it for the compacted context, dropping folded replies.
   const replies: AssistantMessage[] = []
-  let requests = 0
   const unsubscribe = session.subscribe((event) => {
     if (event.type === 'message_end' && event.message.role === 'assistant') replies.push(event.message)
-    if (event.type === 'turn_end') requests++
-    // Checked as the next turn starts: tool results, follow-ups and continuations all lead to another request.
-    if (event.type === 'turn_start' && requests >= MAX_SUBAGENT_REQUESTS) stop('limit_reached')
     // An abort before the run starts is a no-op in Pi, and the run clears it; repeat it once the run is live.
     if (event.type === 'agent_start' && stopped) void session.abort()
   })
@@ -294,16 +318,18 @@ export function subagentExtension({ port, createSession, parentTranscript }: Sub
         const options = await port.configure(subagent)
         const base = { sessionId: subagent.sessionId, fork }
         if (signal?.aborted) return notStarted(base)
+        const limit = new RequestLimit()
         const child = await createSession({
           sessionId: subagent.sessionId,
           transcript,
           fork,
           extensionFactories: options.extensionFactories ?? [],
-          onEvent: options.onEvent
+          onEvent: options.onEvent,
+          beforeModelRequest: limit.beforeModelRequest
         })
         try {
           options.onSessionCreated?.(child.session)
-          return await run(child, prompt, signal, base)
+          return await run(child, prompt, signal, base, limit)
         } finally {
           await child.dispose()
         }
