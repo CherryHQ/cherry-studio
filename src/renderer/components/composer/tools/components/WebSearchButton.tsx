@@ -142,21 +142,27 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const clientFetchAvailable = Boolean(effectiveFetchProvider)
   // Same resolver as the main process; MCP mode stands in for the request's
   // eventual function tools, which only exist at build time.
-  const { webSearch: webSearchRoute, reasons } =
-    model && assistant
-      ? resolveWebToolRoutes(model, modelProvider, {
-          webSearchEnabled: true,
-          clientSearchAvailable,
-          clientFetchAvailable,
-          modelToolsPreferred,
-          clientSearchPreferred: Boolean(assistant.settings.searchKeywordsProviderId),
-          clientFetchPreferred: Boolean(assistant.settings.fetchUrlsProviderId),
-          endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
-          hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
-          reasoningEffort: assistant.settings.reasoning_effort
-        })
-      : { webSearch: 'none' as const, reasons: undefined }
-  const searchUnavailableReason = webSearchRoute === 'none' ? (reasons?.webSearch ?? 'no-backend') : undefined
+  const {
+    webSearch: webSearchRoute,
+    webFetch: webFetchRoute,
+    reasons
+  } = model && assistant
+    ? resolveWebToolRoutes(model, modelProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable,
+        clientFetchAvailable,
+        modelToolsPreferred,
+        clientSearchPreferred: Boolean(assistant.settings.searchKeywordsProviderId),
+        clientFetchPreferred: Boolean(assistant.settings.fetchUrlsProviderId),
+        endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
+        hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
+        reasoningEffort: assistant.settings.reasoning_effort
+      })
+    : { webSearch: 'none' as const, webFetch: 'none' as const, reasons: undefined }
+  const unavailableReason =
+    webSearchRoute === 'none' && webFetchRoute === 'none'
+      ? (reasons?.webSearch ?? reasons?.webFetch ?? 'no-backend')
+      : undefined
   const activeProviderId = effectiveSearchProvider?.id
   const activeProviderName = effectiveSearchProvider?.name
 
@@ -164,7 +170,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     enableWebSearch && webSearchRoute === 'client' && activeProviderId
       ? getWebSearchProviderIconRef(activeProviderId)
       : undefined
-  const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
+  const reasonMessageKey = unavailableReason ? REASON_MESSAGE_KEYS[unavailableReason] : undefined
   const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
   const isDisabled = isLoadingWebSearchProviders || Boolean(disabledReason)
 
@@ -179,7 +185,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         return
       }
 
-      if (searchUnavailableReason === 'no-backend') {
+      if (unavailableReason === 'no-backend') {
         let navigatedAway = false
 
         const confirmed = await popup.confirm({
@@ -210,7 +216,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, searchUnavailableReason]
+    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, unavailableReason]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
