@@ -79,6 +79,47 @@ describe('goal and background subagents', () => {
     expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 2, lastStop: { code: 'round_limit' } })
   })
 
+  // Breaks when the abort that withdraws a stale round is taken for a user's stop: results would be
+  // held back until the user speaks, and a goal waiting on its background subagents would stall.
+  it('still delivers a background result after the goal withdrew a stale round, and goes on', async () => {
+    const held = gate()
+    let settling!: () => void
+    const awaiting = new Promise<void>((resolve) => (settling = resolve))
+    let releaseSettle!: () => void
+    const settleGate = new Promise<void>((resolve) => (releaseSettle = resolve))
+    const slowSettle: ExtensionFactory = (pi) => {
+      let settles = 0
+      pi.on('agent_before_settle', async () => {
+        if (settles++ > 0) return undefined
+        settling()
+        await settleGate
+        return undefined
+      })
+    }
+    const { model, calls } = routedModel((call) => {
+      if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
+      if (isNotice(call)) return reply('Read the report.')
+      if (round(call) === 2) return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      return reply(`working ${calls.length}`)
+    })
+    const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 3 } }), {
+      subagents: recordingSubagentPort().port,
+      laterExtensions: [slowSettle]
+    })
+    const run = promptIdle(s, '/goal Check A')
+    await awaiting
+    // Round 2 was reserved; this edit makes it stale, so it is withdrawn and a fresh round 2 runs.
+    await s.prompt('/goal edit Check A carefully')
+    releaseSettle()
+    await run
+    await waitFor(() => calls.some((call) => call.userText.includes('TASK-A')))
+
+    held.open()
+    await waitFor(() => lastSnapshot(host.entries)?.phase === 'blocked')
+    expect(calls.filter(isNotice)).toHaveLength(1)
+    expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 3, lastStop: { code: 'round_limit' } })
+  })
+
   // Breaks when a request carries a goal round and a notification together (two starts in one request).
   it('lets the notification turn settle before the next round when both are due at one settle', async () => {
     const held = gate()

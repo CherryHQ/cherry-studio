@@ -601,6 +601,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       // A command changed the goal while a later settle handler ran: the round must not reach the model.
       if (!stillReserved(runtime.goal, reserved)) {
         runtime.withdrawn = true
+        subagents?.withdrawingRound()
         ctx.abort()
         return
       }
