@@ -377,7 +377,7 @@ Background subagent update (automatic message, not from the user):
 
 ### 7.6 中止后的抑制期
 
-父代理一轮被用户中止后，到下一个人类回合开始之前不自动开轮。两种中止都算：`session.abort()`（`agent_settled { aborted: true }`），以及宿主经自己的请求 signal 中止（`agent_before_settle` 的 `outcome: 'aborted'`，`agent_settled` 报 `aborted: false`，见 L5 的 I1）。用户按停止往往是想插话，立刻开一轮会和用户抢。期间结束的子代理照常进队列，随用户下一条消息一起送达（父会话 `before_agent_start` 返回的 `message`，见 7.5），之后恢复自动开轮。
+父代理一轮被用户中止后，到下一个人类回合开始之前不自动开轮。两种中止都算：`session.abort()`（`agent_settled { aborted: true }`），以及宿主经自己的请求 signal 中止（`agent_before_settle` 的 `outcome: 'aborted'`，`agent_settled` 报 `aborted: false`，见 L5 的 I1）。用户按停止往往是想插话，立刻开一轮会和用户抢。期间结束的子代理照常进队列，随用户下一条消息一起送达（父会话 `before_agent_start` 返回的 `message`，见 7.5），之后恢复自动开轮。goal 为撤回过期轮而中止运行（L5 spec 6.3）不是用户停止：goal 在中止前经包内的 goal 链接告诉投递，这次 `aborted` 的 settle 不进入抑制期，照常投递。
 
 ### 7.7 重建后的未送达通知
 
@@ -443,7 +443,7 @@ Pi 不会替扩展取消工具返回之后仍在跑的工作，父会话 dispose
 
 goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunningSubagents` → `blocked / waiting_subagents` 一条改为：
 
-- 有后台子代理在运行（含等审批）且没有其他停止条件：**不续跑，也不停**，goal 保持 `active`、已武装，不写快照。`/goal` 状态显示 `Waiting for N background subagents`。
+- 有后台子代理在运行（含等审批）且没有其他停止条件：**不续跑，也不停**，goal 保持 `active`、已武装，不写停止快照（本轮有进展时照常写一条快照落盘，见 L5 spec 6.1）。`/goal` 状态显示 `Waiting for N background subagents`。
 - 子代理结束、通知开出自动轮；那一轮 settle 时 goal 照常判断是否续跑。
 
 `waiting_subagents` 停止码删除。
@@ -597,3 +597,4 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 2026-10-16，按第三轮修复的复审修订：
 
 17. 11.4：运行归属与用量用同一口径。原来只有 goal 轮里开出的运行归 goal，已武装时通知轮里派出的后台运行不受预算约束；现在请求计入 goal 的回合（含已武装的通知轮）开出的运行都归 goal，用量照计，预算用完时一起停。
+18. 7.6、11.1：goal 撤回过期轮的中止经 goal 链接告诉投递，不再被当成用户停止而进入抑制期（原来在 Pi 1.1.0 下，等待后台子代理的 goal 会卡到用户下一条消息）；11.1 改为"不写停止快照、进展照常落盘"。
