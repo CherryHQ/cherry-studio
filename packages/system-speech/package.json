@@ -21,6 +21,7 @@
   "scripts": {
     "build": "tsdown",
     "build:native": "node scripts/build-native.cjs",
+    "prepare:native": "node scripts/prepare-native.cjs",
     "smoke:packaged": "node scripts/smoke-packaged.cjs",
     "smoke:packaged:windows": "node scripts/smoke-windows.cjs --tts --packaged",
     "smoke:windows": "node scripts/smoke-windows.cjs",

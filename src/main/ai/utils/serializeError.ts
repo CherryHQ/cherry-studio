@@ -82,6 +82,14 @@ export function serializeError(error: unknown): SerializedError {
     if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
     if ('values' in e) serialized.values = (e.values as unknown[]).map((v) => toSerializable(v))
     if ('i18nKey' in e && typeof e.i18nKey === 'string') serialized.i18nKey = e.i18nKey
+    // App-owned OCR diagnostic detail (attachmentRouting): the localized "why"
+    // and its interpolation values must survive the IPC boundary, or the
+    // renderer cannot tell empty OCR output from a failing processor.
+    if ('detailI18nKey' in e && typeof e.detailI18nKey === 'string') serialized.detailI18nKey = e.detailI18nKey
+    if ('detailI18nValues' in e) serialized.detailI18nValues = toSerializable(e.detailI18nValues)
+    if ('providerErrorCategory' in e && isErrorCategory(e.providerErrorCategory)) {
+      serialized.providerErrorCategory = e.providerErrorCategory
+    }
     if ('claudeCodeExitCategory' in e && isErrorCategory(e.claudeCodeExitCategory)) {
       serialized.claudeCodeExitCategory = e.claudeCodeExitCategory
     }

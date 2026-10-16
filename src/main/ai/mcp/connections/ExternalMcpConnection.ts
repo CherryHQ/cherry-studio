@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { AsyncLocalStorage } from 'node:async_hooks'
 
 import {
+  SdkErrorCode,
   SdkHttpError,
   SSEClientTransport,
   SseError,
@@ -54,7 +55,48 @@ function isTransportFallbackError(error: unknown): boolean {
   return false
 }
 
-function createClient(appVersion: string, events: McpConnectionEvents): ClientMcpConnection {
+/**
+ * `@modelcontextprotocol/client` verdicts every 5xx from the `server/discover`
+ * probe as `EraNegotiationFailed` without reading the body, so a server that
+ * rejects the unknown method with a JSON-RPC error never reaches the legacy
+ * fallback. Only a body carrying a JSON-RPC protocol error is evidence of that
+ * rejection: an outage page (HTML, empty, non-protocol body) must keep failing.
+ */
+function isLegacyProbeRejection(error: unknown): error is SdkHttpError {
+  if (!SdkHttpError.isInstance(error) || error.code !== SdkErrorCode.EraNegotiationFailed || !(error.status >= 500)) {
+    return false
+  }
+  if (typeof error.data.text !== 'string') return false
+
+  let body: unknown
+  try {
+    body = JSON.parse(error.data.text)
+  } catch {
+    return false
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return false
+
+  const candidates = [
+    body,
+    ...Object.values(body).filter((value) => value && typeof value === 'object' && !Array.isArray(value))
+  ]
+  return candidates.some((candidate) => {
+    const { code, message } = candidate as Record<string, unknown>
+    return (
+      typeof code === 'number' &&
+      Number.isInteger(code) &&
+      code >= -32768 &&
+      code <= -32000 &&
+      typeof message === 'string'
+    )
+  })
+}
+
+function createClient(
+  appVersion: string,
+  events: McpConnectionEvents,
+  versionMode: 'auto' | 'legacy' = 'auto'
+): ClientMcpConnection {
   return new ClientMcpConnection(
     { name: 'Cherry Studio', version: appVersion },
     {
@@ -63,10 +105,8 @@ function createClient(appVersion: string, events: McpConnectionEvents): ClientMc
         sampling: {},
         roots: {}
       },
-      versionNegotiation: {
-        mode: 'auto',
-        probe: { timeoutMs: 10_000, maxRetries: 0 }
-      }
+      versionNegotiation:
+        versionMode === 'auto' ? { mode: 'auto', probe: { timeoutMs: 10_000, maxRetries: 0 } } : { mode: 'legacy' }
     },
     events
   )
@@ -320,6 +360,29 @@ export async function createExternalMcpConnection({
         }
 
         await connection.close().catch(() => undefined)
+        if (
+          isLegacyProbeRejection(error) &&
+          (transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport)
+        ) {
+          log.warn('Server rejected probe; retrying in legacy mode', {
+            status: error.status,
+            statusText: error.statusText
+          })
+          const legacy = createClient(appVersion, events, 'legacy')
+          activeConnection = legacy
+          try {
+            const retryTransport = await createTransport(candidate)
+            await authProvider.withAuthorizationFlow(() =>
+              legacy.connect(retryTransport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
+            )
+            log.info('Server connected', { era: legacy.era, serverVersion: legacy.serverVersion })
+            return finishConnection(legacy)
+          } catch (legacyError) {
+            await legacy.close().catch(() => undefined)
+            log.warn('Legacy retry failed', legacyError)
+            throw error
+          }
+        }
         if (candidate && candidate !== candidates.at(-1) && isTransportFallbackError(error)) {
           log.warn('Transport mismatch; trying fallback', { candidate })
           continue
@@ -341,6 +404,7 @@ export async function createExternalMcpConnection({
 }
 
 export const externalMcpConnectionInternals = {
+  isLegacyProbeRejection,
   isTransportFallbackError,
   transportCandidates
 }
