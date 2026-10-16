@@ -9,6 +9,8 @@ import {
   type LanguageModelUsage,
   type ModelMessage,
   APICallError,
+  JSONParseError,
+  TypeValidationError,
   NoImageGeneratedError,
   RetryError,
   NoTranscriptGeneratedError,
@@ -376,11 +378,26 @@ function isEmptyImageResponseError(error: unknown): boolean {
   return false
 }
 
+/**
+ * True when an HTTP-200 APICallError reports that the body could not be parsed/validated, as opposed to an
+ * explicit provider rejection carried in a 200 body (e.g. MiniMax `base_resp.status_code` errors), whose
+ * actionable message must reach the user unchanged.
+ */
+function isResponseProcessingFailure(error: APICallError): boolean {
+  const cause = error.cause
+  if (JSONParseError.isInstance(cause) || TypeValidationError.isInstance(cause) || cause instanceof SyntaxError) {
+    return true
+  }
+  return /^Invalid JSON response\b/i.test(error.message)
+}
+
 /** Find an HTTP-success rejection the SDK could not use — a response-contract failure, never a retryable timeout. */
 function findUnusableSuccessResponseError(error: unknown): APICallError | undefined {
   let current: unknown = error
   for (let depth = 0; depth < MAX_IMAGE_ERROR_CAUSE_DEPTH && current instanceof Error; depth++) {
-    if (APICallError.isInstance(current) && current.statusCode === 200) return current
+    if (APICallError.isInstance(current) && current.statusCode === 200 && isResponseProcessingFailure(current)) {
+      return current
+    }
     current = nextImageErrorLink(current)
   }
   return undefined

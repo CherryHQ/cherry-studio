@@ -870,6 +870,54 @@ describe('AiService', () => {
     expect('url' in (rejection as object)).toBe(false)
   })
 
+  it('reports a contract failure when the HTTP-200 body fails JSON parsing', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    const sdkFailure = new APICallError({
+      message: 'Invalid JSON response from MiniMax',
+      cause: new SyntaxError('Unexpected token < in JSON'),
+      url: 'https://provider.example/v1/image_generation',
+      requestBodyValues: {},
+      statusCode: 200,
+      responseBody: '<html>'
+    })
+    mockGenerateImage.mockRejectedValueOnce(sdkFailure)
+
+    const rejection = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect((rejection as Error).message).toMatch(/could not be processed.*HTTP 200/s)
+    expect((rejection as Error).cause).toBe(sdkFailure)
+  })
+
+  it('preserves explicit provider rejections returned with HTTP 200', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    const providerRejection = new APICallError({
+      message: 'insufficient balance',
+      url: 'https://provider.example/v1/image_generation',
+      requestBodyValues: {},
+      statusCode: 200,
+      responseBody: '{"base_resp":{"status_code":1008,"status_msg":"insufficient balance"}}'
+    })
+    mockGenerateImage.mockRejectedValueOnce(providerRejection)
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+    ).rejects.toBe(providerRejection)
+  })
+
   it('passes retryable image failures through without the contract message', async () => {
     const service = createService()
     stubImageTransport(service)
