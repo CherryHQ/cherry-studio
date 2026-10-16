@@ -243,6 +243,11 @@ export function withUsage(goal: GoalSnapshot, usage: GoalUsage): GoalSnapshot {
 }
 
 export interface RoundDetails {
+  /**
+   * This reservation's own id: a round reserved again with the same goal, revision and number (a
+   * resume after a crash left the first one unstarted) is still a different round.
+   */
+  id: string
   goalId: string
   revision: number
   round: number
@@ -301,10 +306,8 @@ export function tailRound(entries: readonly SessionEntry[]): RoundDetails | unde
   return undefined
 }
 
-export const roundKey = (details: RoundDetails) => `${details.goalId}:${details.revision}:${details.round}`
-
 /**
- * Keys of the round messages Pi committed but never sent on (a continuation another extension
+ * Ids of the round messages Pi committed but never sent on (a continuation another extension
  * vetoed, a run aborted or cut off at the settle). A round ran once a snapshot of its goal counts
  * it: the snapshot before it (a command's round) or the first one after it (a settle's round).
  */
@@ -315,19 +318,19 @@ export function unadmittedRounds(entries: readonly SessionEntry[]): Set<string> 
   for (const entry of entries) {
     if (entry.type === 'custom_message' && isRoundMessage(entry)) {
       const details = entry.details as RoundDetails
-      if ((started.get(details.goalId) ?? 0) < details.round) undecided.set(roundKey(details), details)
+      if ((started.get(details.goalId) ?? 0) < details.round) undecided.set(details.id, details)
     } else if (isGoalState(entry)) {
       const data = entry.data as GoalSnapshot | GoalCleared
       const roundsStarted = 'cleared' in data ? 0 : data.roundsStarted
-      for (const [key, details] of undecided) {
+      for (const [id, details] of undecided) {
         if (details.goalId !== data.id) continue
-        if (roundsStarted < details.round) stale.add(key)
-        undecided.delete(key)
+        if (roundsStarted < details.round) stale.add(id)
+        undecided.delete(id)
       }
       started.set(data.id, roundsStarted)
     }
   }
-  for (const key of undecided.keys()) stale.add(key)
+  for (const id of undecided.keys()) stale.add(id)
   return stale
 }
 
@@ -351,7 +354,7 @@ function* countedUsage(entries: readonly SessionEntry[]): Generator<GoalUsage & 
       if (goal?.id !== round) round = undefined
     } else if (isRoundMessage(entry)) {
       const details = entry.details as RoundDetails
-      round = stale.has(roundKey(details)) ? undefined : details.goalId
+      round = stale.has(details.id) ? undefined : details.goalId
     } else if (entry.type === 'message') {
       const { message } = entry
       if (message.role === 'user') round = undefined

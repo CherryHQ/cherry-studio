@@ -265,7 +265,7 @@ const roundEntry = (id: string, round: number): SessionEntry => ({
   customType: GOAL_ROUND_TYPE,
   content: 'go',
   display: false,
-  details: { goalId: 'g1', revision: 2, round, kind: 'work' }
+  details: { id, goalId: 'g1', revision: 2, round, kind: 'work' }
 })
 const otherMessage = (id: string): SessionEntry => ({
   ...base(id),
@@ -357,14 +357,14 @@ describe('progress and prompts', () => {
 
   it('renders the objective as untrusted data with round, cap and the blocked threshold', () => {
     const goal = createGoal('Fix <docs>', limits, { maxGoalRounds: 5 }, 1)
-    const text = renderRoundPrompt(goal, { goalId: goal.id, revision: 1, round: 2, kind: 'work' }, 3, 0)
+    const text = renderRoundPrompt(goal, { id: 'r', goalId: goal.id, revision: 1, round: 2, kind: 'work' }, 3, 0)
     expect(text).toContain('<untrusted_objective>Fix <docs></untrusted_objective>')
     expect(text).toContain('Round: 2/5')
     expect(text).toContain('3 consecutive')
-    expect(renderRoundPrompt(goal, { goalId: goal.id, revision: 1, round: 3, kind: 'hint' }, 3, 2)).toMatch(
+    expect(renderRoundPrompt(goal, { id: 'r', goalId: goal.id, revision: 1, round: 3, kind: 'hint' }, 3, 2)).toMatch(
       /previous 2 rounds made no observable progress/
     )
-    expect(renderRoundPrompt(goal, { goalId: goal.id, revision: 1, round: 5, kind: 'wrap-up' }, 3, 0)).toMatch(
+    expect(renderRoundPrompt(goal, { id: 'r', goalId: goal.id, revision: 1, round: 5, kind: 'wrap-up' }, 3, 0)).toMatch(
       /Do not start new work/
     )
   })

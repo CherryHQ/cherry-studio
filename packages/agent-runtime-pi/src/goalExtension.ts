@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { StringEnum, Type } from '@earendil-works/pi-ai'
 import {
   type AgentBeforeSettleEvent,
@@ -35,7 +37,6 @@ import {
   renderRoundPrompt,
   resumeGoal,
   type RoundDetails,
-  roundKey,
   stopGoal,
   tailRound,
   toolCallKey,
@@ -123,7 +124,7 @@ function withoutUnadmittedRounds(messages: ContextMessage[], ctx: ExtensionConte
     (message) =>
       message.role !== 'custom' ||
       message.customType !== GOAL_ROUND_TYPE ||
-      !stale.has(roundKey(message.details as RoundDetails))
+      !stale.has((message.details as RoundDetails).id)
   )
 }
 
@@ -545,7 +546,13 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
           : runtime.noProgressRounds === HINT_AFTER_ROUNDS
             ? 'hint'
             : 'work'
-      runtime.reservation = { goalId: goal.id, revision: goal.revision, round: goal.roundsStarted + 1, kind }
+      runtime.reservation = {
+        id: randomUUID(),
+        goalId: goal.id,
+        revision: goal.revision,
+        round: goal.roundsStarted + 1,
+        kind
+      }
       return runtime.reservation
     }
     /** Spec §6.0: a command that arms the goal on an idle session starts the first round itself. */
@@ -565,13 +572,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     /** Spec §6.3: a reserved round counts once Pi sends its message on, if it is still valid then. */
     const admit = (details: RoundDetails | undefined, ctx: ExtensionContext) => {
       const reserved = runtime.reservation
-      if (!runtime.goal || !reserved || !details) return
-      if (
-        details.goalId !== reserved.goalId ||
-        details.revision !== reserved.revision ||
-        details.round !== reserved.round
-      )
-        return
+      if (!runtime.goal || !reserved || details?.id !== reserved.id) return
       runtime.reservation = undefined
       // A command changed the goal while a later settle handler ran: the round must not reach the model.
       if (!stillReserved(runtime.goal, reserved)) {
