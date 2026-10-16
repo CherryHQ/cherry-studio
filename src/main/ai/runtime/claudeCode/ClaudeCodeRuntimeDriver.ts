@@ -468,7 +468,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
-  async send(input: AgentRuntimeUserInput): Promise<void> {
+  async send(input: AgentRuntimeUserInput): Promise<boolean> {
     this.lastMainAssistantUuid = undefined
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
@@ -482,7 +482,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     })
     // Attachment materialization is async, so a Stop can land in that window. The stopped prompt
     // never reached the CLI — admitting it now would execute it inside the settlement window.
-    if (sendId !== this.sendSequence) return
+    if (sendId !== this.sendSequence) return false
     // Claim the session-scoped adapter only once the prompt is actually on its way to the CLI, so
     // a stop arriving before then sees an idle turn instead of one that never started. A generation
     // the adapter opened on its own during materialization must not be reset: wait it out, then claim.
@@ -494,9 +494,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     ) {
       await new Promise((resolve) => setTimeout(resolve, GRACEFUL_TURN_SETTLE_POLL_MS))
     }
-    if (sendId !== this.sendSequence) return
+    if (sendId !== this.sendSequence) return false
     this.adapter?.beginTurn()
     this.sdkInputQueue.push(sdkMessage)
+    return true
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -671,7 +672,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const query = this.query
     if (!query) return false
     // Invalidate any send still materializing attachments: its prompt is not in the CLI yet, so it
-    // must never be admitted behind this stop.
+    // must never be admitted behind this stop. The discarded send resolves `false` so the host can
+    // demote the turn's admission instead of letting it claim another turn's completion.
     this.sendSequence++
     const adapter = this.adapter
     // A warm connection whose turn already settled has nothing to interrupt: report success so

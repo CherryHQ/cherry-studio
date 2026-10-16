@@ -2834,8 +2834,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
-    this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
-    // A fresh request starts clean — drop status left over from the previous turn.
+    this.applyRuntimeStateEvent(entry, { type: 'turn-submitting', turn })
+    // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
     const cache = application.get('CacheService')
     if (cache.getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))?.status === 'failed') {
@@ -2844,10 +2844,36 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.refreshTurnTraceContext(entry, turn)
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
-    await connection.send({
+    const submitted = await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
     })
+    // The driver discarded the prompt (a stop fence invalidated it mid-preparation): it never
+    // reached the runtime, so admission is demoted instead of letting the turn claim a result.
+    if (submitted === false) {
+      this.handleDiscardedSubmission(entry, turn)
+      return
+    }
+    this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+  }
+
+  /**
+   * A discarded submission leaves the prompt unconsumed: demote its admission back to `pending`
+   * and re-drive the admission when the turn still owns the execution, so it stays submittable
+   * rather than inheriting another turn's completion.
+   */
+  private handleDiscardedSubmission(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+    if (!this.isCurrentEntry(entry)) return
+    this.applyRuntimeStateEvent(entry, { type: 'turn-send-discarded', turn })
+    if (this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+    if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
+    if (hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) {
+      void this.admitTurn(entry, turn).catch((error) => {
+        logger.warn('Re-admission after a discarded submission failed', { sessionId: entry.sessionId, error })
+      })
+      return
+    }
+    this.requestRuntimeLaunch(entry, 'deferred-turn')
   }
 
   private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {

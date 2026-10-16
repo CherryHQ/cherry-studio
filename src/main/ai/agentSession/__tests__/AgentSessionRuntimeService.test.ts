@@ -5386,6 +5386,76 @@ describe('AgentSessionRuntimeService', () => {
     void service.closeSession('session-1')
   })
 
+  it('keeps a stop-discarded prompt submittable instead of letting it inherit the stopped generation', async () => {
+    const service = new AgentSessionRuntimeService()
+    const promptA = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const events = createAsyncQueue<any>()
+    const sendGate = createDeferred<boolean>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(async () => true),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      abortTurn: vi.fn(async () => true)
+    }
+    // The prompt is still materializing attachments inside the driver when the stop lands.
+    connection.send.mockImplementationOnce(() => sendGate.promise)
+    entry.connection = connection
+    mocks.startRuntimeTurn.mockClear()
+
+    const readerA = service
+      .openTurnStream({ sessionId: 'session-1', turnId: promptA.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(readerA.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+    // Autonomous turn R opens: the host defers the still-submitting prompt behind the generation.
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' }
+    })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+    const receiveOnlyHandle = mocks.startRuntimeTurn.mock.calls[0][0]
+
+    // The user stops R; the driver's send fence invalidates the prepared prompt mid-materialization.
+    void service.handleUserStop('session-1')
+    await vi.waitFor(() => expect(connection.abortTurn).toHaveBeenCalledOnce())
+    sendGate.resolve(false)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // R's paused stream persists before its SDK result arrives, then `finished` restores A.
+    terminalListener(receiveOnlyHandle).onDone({ status: 'paused', isTopicDone: false })
+    ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
+    await vi.waitFor(() =>
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: expect.objectContaining({ turnId: promptA.turnId })
+      })
+    )
+
+    // R's trailing result must not settle the prompt it never submitted.
+    ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+    expect(entry.runtimeState.execution).toMatchObject({ kind: 'turn' })
+    expect((entry.runtimeState.execution as { terminal?: unknown }).terminal).toBeUndefined()
+
+    // The discarded prompt stays submittable: reopening its stream admits it for real.
+    const readerA2 = service
+      .openTurnStream({ sessionId: 'session-1', turnId: promptA.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(readerA2.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+    expect(entry.runtimeState.execution).toMatchObject({ kind: 'turn', admission: 'admitted' })
+
+    // And a genuine completion settles it normally.
+    ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+    await expect(readerA2.read()).resolves.toMatchObject({ done: true })
+    terminalListener(mocks.startRuntimeTurn.mock.calls[1][0]).onDone({ status: 'success', isTopicDone: false })
+    expect(entry.runtimeState.execution).toMatchObject({ kind: 'idle', lastTurn: { turnId: promptA.turnId } })
+    void service.closeSession('session-1')
+  })
+
   it('ends the stream when the turn is opened with its stop already aborted', async () => {
     const connection = {
       events: createAsyncQueue<any>().iterable,

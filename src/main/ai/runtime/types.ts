@@ -195,7 +195,12 @@ export interface AgentRuntimeConnection {
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
   readonly usageCapture?: AgentSessionUsageCapture
-  send(input: AgentRuntimeUserInput): void | Promise<void>
+  /**
+   * Submit a user prompt to the runtime. Returns/resolves `false` when the driver discarded the
+   * prompt before submission (a stop invalidated it mid-preparation) — the host must not treat it
+   * as admitted. Any other result means the prompt was handed to the runtime.
+   */
+  send(input: AgentRuntimeUserInput): boolean | Promise<boolean> | void
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
    * when the message was stashed for injection (a turn is live) — the host then folds it into the
