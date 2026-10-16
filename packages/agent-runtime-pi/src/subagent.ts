@@ -194,6 +194,8 @@ export interface SubagentControls {
   stopSubagent(sessionId: string): boolean
   /** The user moves a running foreground subagent to the background; false for any other. */
   backgroundSubagent(sessionId: string): boolean
+  /** The host's `abort()` is stopping the parent's running run for the user. */
+  userAbort(): void
 }
 
 const DESCRIPTION = [
@@ -340,7 +342,8 @@ export function createSubagentExtension({
     hold: () => main?.delivery.hold() ?? (() => {}),
     stopSubagent: (sessionId) =>
       main?.registry.get(sessionId)?.background === true && main.registry.stop(sessionId, 'user') !== undefined,
-    backgroundSubagent: (sessionId) => main?.registry.moveToBackground(sessionId) ?? false
+    backgroundSubagent: (sessionId) => main?.registry.moveToBackground(sessionId) ?? false,
+    userAbort: () => main?.delivery.expectUserAbort()
   }
   const extension: ExtensionFactory = (pi) => {
     let ctx: ExtensionContext | undefined
