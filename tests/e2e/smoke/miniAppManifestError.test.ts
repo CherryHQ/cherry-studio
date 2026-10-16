@@ -4,12 +4,30 @@ import path from 'node:path'
 
 import JSZip from 'jszip'
 
-import { expect, test } from './fixtures/electron.fixture'
+import type { ElectronFixtures } from './fixtures/electron.fixture'
+import { expect, test as base } from './fixtures/electron.fixture'
 
-// This spec installs a real app, so it must not share the application profile.
-const previousProfileRoot = process.env.CS_DEV_PROFILE_ROOT
-const profileRoot = path.join(os.tmpdir(), `miniapp-21756-profile-${process.pid}`)
-process.env.CS_DEV_PROFILE_ROOT = profileRoot
+const test = base.extend<ElectronFixtures & { profileRoot: string }>({
+  profileRoot: async ({}, use) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'miniapp-21756-profile-'))
+    const previous = process.env.CS_DEV_PROFILE_ROOT
+    process.env.CS_DEV_PROFILE_ROOT = dir
+    try {
+      await use(dir)
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CS_DEV_PROFILE_ROOT
+      } else {
+        process.env.CS_DEV_PROFILE_ROOT = previous
+      }
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  },
+  electronApp: async ({ profileRoot, electronApp }, use) => {
+    void profileRoot
+    await use(electronApp)
+  }
+})
 
 const invalidCases = [
   {
@@ -61,12 +79,6 @@ test.beforeAll(async () => {
 
 test.afterAll(() => {
   if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true })
-  fs.rmSync(profileRoot, { recursive: true, force: true })
-  if (previousProfileRoot === undefined) {
-    delete process.env.CS_DEV_PROFILE_ROOT
-  } else {
-    process.env.CS_DEV_PROFILE_ROOT = previousProfileRoot
-  }
 })
 
 test('mini app package errors are readable and valid boundary manifests install', async ({
