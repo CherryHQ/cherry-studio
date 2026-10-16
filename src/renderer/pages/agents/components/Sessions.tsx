@@ -103,6 +103,7 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import {
   type AgentSessionImageActionRequest,
@@ -718,6 +719,9 @@ const Sessions = ({
     setOptimisticAgentOrderIds(null)
   }, [agentOrderSignature])
 
+  const hasAgentSection =
+    displayMode === 'agent' &&
+    (agentsForDisplay.length > 0 || filteredGroupedSessions.some((session) => !session.pinned))
   const sessionGroupBy = useMemo(
     () =>
       createSessionDisplayGroupResolver({
@@ -739,10 +743,10 @@ const Sessions = ({
         },
         mode: displayMode,
         now: groupNow,
-        pinnedAsSection: displayMode === 'workdir',
+        pinnedAsSection: displayMode !== 'time' && (displayMode !== 'agent' || hasAgentSection),
         workdirDisplay
       }),
-    [agentById, displayMode, groupNow, t, workdirDisplay]
+    [agentById, displayMode, groupNow, hasAgentSection, t, workdirDisplay]
   )
   // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
   const sessionGroupByForDisplay = useMemo(
@@ -772,7 +776,7 @@ const Sessions = ({
     if (displayMode === 'time') return undefined
 
     return (session: SessionListItem): ResourceListSection => {
-      if (displayMode === 'workdir' && session.pinned) {
+      if (session.pinned) {
         return { id: SESSION_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
 
@@ -1176,9 +1180,6 @@ const Sessions = ({
     [handleSessionImageAction]
   )
 
-  const { trigger: findOrCreateWorkspace } = useMutation('POST', '/agent-workspaces', {
-    refresh: ['/agent-workspaces']
-  })
   const { trigger: updateWorkspace, isLoading: isUpdatingWorkspace } = useMutation(
     'PATCH',
     '/agent-workspaces/:workspaceId',
@@ -1187,6 +1188,16 @@ const Sessions = ({
     }
   )
   const invalidate = useInvalidateCache()
+  const findOrCreateWorkspace = useCallback(
+    async (workspacePath: string) => {
+      const workspace = await ipcApi.request('ai.agent.workspace.register', {
+        path: AbsoluteFilePathSchema.parse(workspacePath)
+      })
+      await invalidate('/agent-workspaces')
+      return workspace
+    },
+    [invalidate]
+  )
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const restoreAgent = useCallback((agentId: string) => ipcApi.request('ai.agent.restore', { agentId }), [])
@@ -1201,7 +1212,7 @@ const Sessions = ({
           (seed?.workspacePath
             ? ({
                 type: AGENT_WORKSPACE_TYPE.USER,
-                workspaceId: (await findOrCreateWorkspace({ body: { path: seed.workspacePath } })).id
+                workspaceId: (await findOrCreateWorkspace(seed.workspacePath)).id
               } satisfies AgentSessionWorkspaceSource)
             : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
         const requestedAgentId = seed?.agentId
@@ -2297,7 +2308,7 @@ function SessionListBody({
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
         reserveLeadingIconSlot={
-          displayMode === 'agent' ||
+          (displayMode === 'agent' && !session.pinned) ||
           (displayMode === 'workdir' && !session.pinned && !isSystemWorkspaceSession(session))
         }
         onTogglePin={onTogglePin}

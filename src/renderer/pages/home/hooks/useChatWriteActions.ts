@@ -97,6 +97,7 @@ interface Params {
 
 interface Result {
   actions: ChatWriteActions
+  retryFailedMessage: (message: CherryUIMessage, modelId: UniqueModelId) => Promise<void>
   /** Capability flags the send path needs to mirror — exposed so
    *  `handleSend` builds the same body shape. */
   capabilityBody: Record<string, unknown>
@@ -292,8 +293,11 @@ export function useChatWriteActions(params: Params): Result {
 
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
-    async (messageId?: string, options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions }) => {
-      const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
+    async (
+      messageId?: string,
+      options?: { modelId?: UniqueModelId; turnOptions?: AssistantTurnOptions; sourceMessage?: CherryUIMessage }
+    ) => {
+      const target = options?.sourceMessage ?? (messageId ? uiMessages.find((m) => m.id === messageId) : undefined)
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
@@ -557,5 +561,15 @@ export function useChatWriteActions(params: Params): Result {
     ]
   )
 
-  return { actions, capabilityBody }
+  const retryFailedMessage = useCallback(
+    (message: CherryUIMessage, modelId: UniqueModelId) =>
+      regenerateWithCapabilities(message.id, {
+        modelId,
+        turnOptions: message.metadata?.turnOptions,
+        sourceMessage: { ...message, metadata: { ...message.metadata, status: 'error' } }
+      }),
+    [regenerateWithCapabilities]
+  )
+
+  return { actions, capabilityBody, retryFailedMessage }
 }

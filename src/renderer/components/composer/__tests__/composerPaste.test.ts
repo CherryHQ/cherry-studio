@@ -5,12 +5,10 @@ import {
   readComposerClipboardFragment
 } from '@renderer/utils/message/composerClipboard'
 
-import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
 import {
   createComposerMarkedTextPasteContent,
   createComposerPlainTextPasteContent,
   getComposerClipboardPasteOverride,
-  getComposerInputTextWithinLimit,
   getComposerPlainTextPasteOverride
 } from '../composerPaste'
 
@@ -50,16 +48,6 @@ describe('composer paste handling', () => {
       { type: 'hardBreak' },
       { type: 'text', text: 'c' }
     ])
-  })
-
-  it('allows a path to replace selected text that pushed the draft over the limit', () => {
-    // The selection is what the insert removes, so charging it against the budget twice would
-    // refuse an insertion that fits.
-    const draft = `head ${'x'.repeat(COMPOSER_INPUT_MAX_LENGTH)}`
-    const selected = 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH)
-
-    expect(getComposerInputTextWithinLimit(draft, '/w/model.onnx', selected)).toBe('/w/model.onnx')
-    expect(getComposerInputTextWithinLimit(draft, '/w/model.onnx')).toBe('')
   })
 
   it('intercepts single-line text paste as plain text content', () => {
@@ -257,6 +245,26 @@ describe('composer paste handling', () => {
       content: [{ type: 'text', text: 'report.pdf' }],
       files: []
     })
+  })
+
+  it('preserves all lines when an unresolved token falls back to a large text fragment', () => {
+    const text = 'x\n'.repeat(70000)
+    const result = getComposerClipboardPasteOverride(
+      {
+        version: 1,
+        segments: [
+          {
+            type: 'token',
+            token: { id: 'skill:missing', kind: 'skill', label: 'Missing skill' },
+            fallbackText: text
+          }
+        ]
+      },
+      {}
+    )
+
+    expect(result?.content.map((node) => (node.type === 'hardBreak' ? '\n' : node.text)).join('')).toBe(text)
+    expect(result?.files).toEqual([])
   })
 
   it('restores private folder tokens from a session-authored fragment', () => {

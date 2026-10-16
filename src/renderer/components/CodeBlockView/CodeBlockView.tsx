@@ -13,7 +13,7 @@ import React, {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import { type CodeEditorHandles } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ActionTool } from '@renderer/components/ActionTools'
@@ -30,6 +30,7 @@ import {
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
@@ -325,7 +326,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const sourceView = useMemo(
     () =>
       isEditing ? (
-        <CodeEditor
+        <LazyCodeEditor
           className="source-view"
           ref={sourceViewRef}
           theme={activeCmTheme}

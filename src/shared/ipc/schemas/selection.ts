@@ -62,6 +62,7 @@ export const selectionRequestSchemas = {
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──
 export type SelectionEventSchemas = {
+  'selection.action_dismissed': { sessionId: string }
   'selection.text_selected': TextSelectionData
   'selection.toolbar_visibility_change': boolean
 }

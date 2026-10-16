@@ -111,6 +111,7 @@ describe('fetchResolvedProviderModels', () => {
     } = await fetchResolvedProviderModels('ollama')
 
     expect(model).toMatchObject({
+      name: 'Qwen3 32B',
       presetModelId: 'qwen3-32b',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
       reasoning: {
@@ -145,7 +146,10 @@ describe('fetchResolvedProviderModels', () => {
     expect(models[0].name).toBe('Qwen1.5 1.8b Chat')
   })
 
-  it('keeps a provider display name for an unmatched custom model', async () => {
+  it.each([
+    { kind: 'custom', presetModelId: undefined },
+    { kind: 'preset', presetModelId: 'custom-model' }
+  ])('keeps a provider display name for a $kind model', async ({ presetModelId }) => {
     listModelsMock.mockResolvedValueOnce({
       models: [
         {
@@ -161,6 +165,7 @@ describe('fetchResolvedProviderModels', () => {
         id: 'custom::custom-model',
         providerId: 'custom',
         apiModelId: 'custom-model',
+        presetModelId,
         name: 'Custom Model'
       }
     ])
