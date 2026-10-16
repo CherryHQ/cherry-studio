@@ -38,7 +38,10 @@ export const CreateKnowledgeBaseRequestSchema = z.union([
 const RawTextDocumentSchema = z.object({
   title: z.string().trim().min(1, 'Document title is required'),
   content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX),
-  group_id: z.string().trim().min(1).nullable().optional()
+  group_id: z
+    .null()
+    .optional()
+    .describe('Only root-level documents are supported; directory placement is not accepted.')
 })
 
 /** `POST /:id/documents` body. The existing workflow preserves name collisions by renaming. */

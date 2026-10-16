@@ -640,6 +640,17 @@ describe('KnowledgeService', () => {
     expect(getIndexStoreMock).toHaveBeenCalledWith(base)
   })
 
+  it('keeps filesystem artifacts when the base does not exist', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('KnowledgeBase', 'missing')
+    })
+
+    await expect(service.deleteBase('missing')).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(deleteStoreMock).not.toHaveBeenCalled()
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+  })
+
   it('deletes base jobs before vector artifacts and SQLite base', async () => {
     const service = new KnowledgeService()
 

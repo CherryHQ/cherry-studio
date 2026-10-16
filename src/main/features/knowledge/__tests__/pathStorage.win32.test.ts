@@ -28,6 +28,14 @@ vi.mock('@logger', () => ({
 const brand = (value: string) => value as PosixRelativeFilePath
 
 describe('getKnowledgeBaseFilePath on a Windows host', () => {
+  it.each(['..', '../victim', '..\\victim', 'C:relative', 'C:\\victim', '\\\\server\\share'])(
+    'rejects unsafe base directory ID %j on Windows',
+    async (baseId) => {
+      const { getKnowledgeBaseDir } = await import('../pathStorage')
+      expect(() => getKnowledgeBaseDir(baseId)).toThrow()
+    }
+  )
+
   it.each([
     ['a climb out of raw/', '..\\outside.pdf'],
     ['a climb past the base dir', '..\\..\\..\\evil.pdf'],

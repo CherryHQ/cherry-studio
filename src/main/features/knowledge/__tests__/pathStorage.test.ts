@@ -50,6 +50,7 @@ vi.mock('@main/utils/file', () => ({
 }))
 
 const {
+  getKnowledgeBaseDir,
   getKnowledgeMaterialDir,
   getKnowledgeBaseFilePath,
   getKnowledgeSourceRelativePath,
@@ -72,6 +73,13 @@ function enoent(): NodeJS.ErrnoException {
 }
 
 describe('pathStorage relative-path safety', () => {
+  it.each(['', '.', '..', '../victim', '..\\victim', '/victim', 'C:relative', 'folder/child', 'folder\\child'])(
+    'rejects unsafe base directory ID %j before deriving artifact paths',
+    (baseId) => {
+      expect(() => getKnowledgeBaseDir(baseId)).toThrow()
+    }
+  )
+
   describe('getKnowledgeBaseFilePath', () => {
     it.each([
       ['parent traversal', '../escape.md'],

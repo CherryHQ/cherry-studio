@@ -192,19 +192,28 @@ describe('knowledge routes (v2)', () => {
     })
 
     const { status, body } = await call('POST', '/knowledge-bases/kb-1/documents', {
-      documents: [{ title: 'joplin:42', content: '# Updated', group_id: 'folder-1' }]
+      documents: [{ title: 'joplin:42', content: '# Updated' }]
     })
 
     expect(status).toBe(202)
     expect(mockAddItemsWithAdmission).toHaveBeenCalledWith(
       'kb-1',
-      [{ type: 'note', groupId: 'folder-1', data: { source: 'joplin:42', content: '# Updated' } }],
+      [{ type: 'note', groupId: undefined, data: { source: 'joplin:42', content: '# Updated' } }],
       'rename'
     )
     expect(body).toEqual({
       status: 'accepted',
       documents: [{ id: 'note-1', status: 'processing', error: null }]
     })
+  })
+
+  it('rejects directory placement before admitting notes that refresh would delete', async () => {
+    const { status } = await call('POST', '/knowledge-bases/kb-1/documents', {
+      documents: [{ title: 'independent note', content: 'Keep this text', group_id: 'imported-directory' }]
+    })
+
+    expect(status).toBe(422)
+    expect(mockAddItemsWithAdmission).not.toHaveBeenCalled()
   })
 
   it('POST /knowledge-bases/:id/documents rejects an oversized body before JSON parsing', async () => {

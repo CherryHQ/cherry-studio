@@ -178,7 +178,7 @@ guard, described below.
 | `GET /v1/knowledge-bases/:id` | Cherry REST | single base |
 | `DELETE /v1/knowledge-bases/:id` | Cherry REST | delete a base and its owned artifacts |
 | `GET /v1/knowledge-bases/:id/documents` | Cherry REST | list document and directory records |
-| `POST /v1/knowledge-bases/:id/documents` | Cherry REST | add raw-text documents, optionally under an existing directory |
+| `POST /v1/knowledge-bases/:id/documents` | Cherry REST | add root-level raw-text documents (directory placement is rejected) |
 | `DELETE /v1/knowledge-bases/:id/documents/:documentId` | Cherry REST | enqueue document subtree deletion |
 | `POST /v1/knowledge-bases/:id/documents/:documentId/reindex` | Cherry REST | enqueue document subtree reindexing |
 | `GET /v1/mcps` | Cherry REST | active MCP server catalog with gateway URLs |

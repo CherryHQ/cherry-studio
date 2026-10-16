@@ -44,7 +44,13 @@ const VECTOR_STORE_FILE = 'index.sqlite'
 const MATERIAL_ROOT_DIR = 'raw'
 
 export function getKnowledgeBaseDir(baseId: string): AbsoluteFilePath {
-  return AbsoluteFilePathSchema.parse(path.join(application.getPath('feature.knowledgebase.data'), baseId))
+  if (!/^[a-zA-Z0-9_-]+$/.test(baseId)) {
+    throw new Error(`Invalid knowledge base directory ID: ${baseId}`)
+  }
+  const storageDir = application.getPath('feature.knowledgebase.data')
+  const baseDir = path.join(storageDir, baseId)
+  assertResolvesBelow(storageDir, baseDir, baseId)
+  return AbsoluteFilePathSchema.parse(baseDir)
 }
 
 /** The material root (`{baseDir}/raw`) under which every `relativePath` resolves. */
