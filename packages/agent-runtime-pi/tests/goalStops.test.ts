@@ -428,7 +428,8 @@ describe('goal stops for people, errors and aborts', () => {
     await s.prompt('/goal')
 
     expect(calls).toHaveLength(1)
-    expect(snapshots(host.entries)).toEqual([])
+    // The session's start disarms the restored goal; nothing else changes it.
+    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(transcript)!, armed: false }])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
   })
 
@@ -445,7 +446,8 @@ describe('goal stops for people, errors and aborts', () => {
     await s.prompt('/goal')
 
     expect(held.aborted(1)).toBe(true)
-    expect(snapshots(host.entries)).toEqual([])
+    // The session's start disarms the restored goal; nothing else changes it.
+    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(transcript)!, armed: false }])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
   })
 
@@ -480,7 +482,9 @@ describe('goal stops for people, errors and aborts', () => {
     await atWork
     await promptIdle(s, '/goal pause')
     // The parent's request (10 + 2 cached + 5) and the subagent's (5000 + 2 cached), both made before the pause.
-    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'paused', tokensUsed: 5_019 })
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'paused' })
+    await s.prompt('/goal')
+    expect(notices(host.entries).at(-1)).toContain('· disarmed\nRounds: 1/100 · Tokens: 5019 ·')
 
     const sent = calls.length
     await promptIdle(s, '/goal resume')
@@ -563,7 +567,8 @@ describe('goal stops for people, errors and aborts', () => {
     await s.prompt('/goal')
 
     expect(lastAssistant(s).stopReason).toBe('aborted')
-    expect(snapshots(host.entries)).toEqual([])
+    // The session's start disarms the restored goal; nothing else changes it.
+    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(transcript)!, armed: false }])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
   })
 
@@ -670,7 +675,7 @@ describe('goal self-reports', () => {
 
     const [completed] = updates(s)
     expectCompletion(completed)
-    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete', roundsStarted: 1, progressRounds: 0 })
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete', roundsStarted: 1, progressRounds: 1 })
   })
 
   // Breaks when the fallback reads the round state outside a goal round: an aborted round's work, never
@@ -752,6 +757,39 @@ describe('goal self-reports', () => {
   })
 
   // Breaks when a verifier that throws lets the completion through.
+  // Breaks when usage lives in memory until the next snapshot: a session rebuilt after a request
+  // ended but before its tool call returned would resume a goal whose budget that request used up.
+  it('a rebuild while a tool call runs keeps the request that made it, so resume honors the budget', async () => {
+    let reached!: () => void
+    const atWork = new Promise<void>((resolve) => (reached = resolve))
+    const stuck = defineTool({
+      name: 'stuck',
+      label: 'Stuck',
+      description: 'Runs until stopped',
+      parameters: Type.Object({}),
+      async execute(_id, _params, signal) {
+        reached()
+        await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), { once: true }))
+        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
+      }
+    })
+    const port = goalPort({ defaults: { budget: { tokens: 30 } } })
+    const cwd = tempDir('cwd')
+    const { session: crashed, host } = await goalSession(
+      [() => [toolCallPart('s', 'stuck'), finish('tool-calls', 30, 5)]],
+      port,
+      { cwd, tools: [stuck] }
+    )
+    void crashed.prompt('/goal Keep working')
+    await atWork
+    const transcript = plain(host.entries)
+
+    const rebuilt = await goalSession([working], port, { cwd, transcript })
+    await promptIdle(rebuilt.session, '/goal resume')
+    expect(notices(rebuilt.host.entries).at(-1)).toBe('raise max_goal_rounds or the budget before resuming')
+    expect(rebuilt.calls).toHaveLength(0)
+  })
+
   it('a verifier that throws does not pass the completion', async () => {
     const port = goalPort({
       defaults: { maxGoalRounds: 1 },

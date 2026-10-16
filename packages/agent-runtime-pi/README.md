@@ -224,13 +224,17 @@ handles.
   a row within a round is blocked, five times ends the goal), a denied approval, an approval nobody
   can give or a dismissed question in a goal round, background subagents the host reports as
   running, a round another extension's settle handler overrides, and a failed request or an abort
-  (`session.abort()` or the host's own request signal) while the goal is armed. A stop's snapshot
-  counts tokens, cost and progress up to the stop, the request whose tool call stopped the goal
-  included; a tool call already running then (a foreground subagent under `/goal pause`) adds its
-  usage when it ends, and requests after the stop (the summary after `complete`) are never counted.
-  A round prompt Pi committed but never sent on (another extension vetoed the continuation, or the
-  run was aborted at the settle) stays in the transcript and is left out of later model requests
-  and of the verifier's conversation; the compaction summarizer still reads it.
+  (`session.abort()` or the host's own request signal) while the goal is armed. Usage is never
+  kept: every check (the budget, `resume`, `/goal`, `get_goal`) reads it from the transcript, so a
+  rebuilt session sees what the live one saw. It is every request made in one of the goal's
+  admitted rounds while the goal was active, the request whose tool call stopped it included and
+  requests after a stop (the summary after `complete`) never, priced at each entry's stored `cost`,
+  plus the `usage` a tool result reports when the request that made its call counted (a foreground
+  subagent still running under `/goal pause` counts when it returns). Snapshots record that usage
+  when written (`tokensUsed`, `costUsed`) for display only, and a stop's snapshot the progress up to
+  the stop. A round prompt Pi committed but never sent on (another extension vetoed the
+  continuation, or the run was aborted at the settle) stays in the transcript and is left out of
+  later model requests and of the verifier's conversation; the compaction summarizer still reads it.
   `update_goal(complete)` passes the host's `GoalVerifier` (it
   gets the full current context, after compaction, and the call's `signal`; the package sets no
   timeout) or, without one, needs evidence and a round that changed something. An accepted
@@ -248,8 +252,8 @@ handles.
   goal for that run's settle. `/goal pause` and `/goal clear` abort the running turn only when the
   goal drives it (active and armed). `session.prompt('/goal …')` returns once the command is
   handled: a command that starts a round ends with `turn-complete` as usual, the others (the
-  status, a pause while idle, …) produce none. A rebuilt session restores the goal disarmed;
-  `/goal resume` continues it. The budget also counts the `usage` a tool result carries, so a
+  status, a pause while idle, …) produce none. A rebuilt session restores the goal disarmed and
+  writes that down (`armed: false` in a snapshot of the same revision); `/goal resume` continues it. The budget also counts the `usage` a tool result carries, so a
   `subagent` call's requests count toward it. When `port.modelSupportsTools()` is false, no tools
   or command are registered and an active goal is blocked with `unsupported_model`. In a
   subagent's session the goal tools fail with `in_subagent`, nothing continues and
