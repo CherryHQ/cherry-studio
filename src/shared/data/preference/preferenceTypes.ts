@@ -39,6 +39,12 @@ export type MenuPresentationMode = 'native' | 'cherry'
 /** Side of a wide Agent file pane that holds the file tree. */
 export type AgentFilePaneTreePosition = 'left' | 'right'
 
+export type SkillLibraryTags = {
+  custom: Array<{ id: string; name: string; color: number }>
+  assignments: Record<string, string[]>
+  removedDefaults?: string[]
+}
+
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId

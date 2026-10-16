@@ -5,6 +5,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { removeLibraryTagAssignments } from '@data/services/utils/libraryTags'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -432,6 +433,7 @@ export class AgentLifecycleService extends BaseService {
         reclaimHeartbeatWorkspacesTx(tx, deletedSchedules)
         return { result, scheduleIds }
       })
+      if (permanent && result.deleted) await removeLibraryTagAssignments([`agent:${agentId}`])
       agentService.notifyDeleted(agentId, result)
       this.syncSchedules(scheduleIds)
       application.get('ChannelManager').reconcileAgent(agentId, true)

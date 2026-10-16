@@ -80,8 +80,13 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   usePromptMutationsById: () => ({ deletePrompt: mocks.deletePrompt, updatePrompt: mocks.updatePrompt })
 }))
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
-  PromptEditDialog: ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', async () => ({
+  PromptEditDialogHost: (await import('@renderer/components/resourceCatalog/dialogs/edit/PromptEditDialogHost'))
+    .PromptEditDialogHost
+}))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit/PromptEditDialog', () => ({
+  default: ({
     onSave,
     open,
     prompt

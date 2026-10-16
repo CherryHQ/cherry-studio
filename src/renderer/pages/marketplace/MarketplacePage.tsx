@@ -1,8 +1,9 @@
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Bot, Layers, Network, Settings2, Sparkles } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Activity, lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, Spinner } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useAgentCatalogPresets } from '@renderer/hooks/useAgentCatalogPresets'
 import { buildAssistantCatalogTabs, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
@@ -18,6 +19,8 @@ import { SkillsShCatalog, SKILLS_SH_SOURCE_ID } from './SkillsShCatalog'
 import { SkillSubscriptionBar } from './SkillSubscriptionBar'
 import { useMarketplace } from './useMarketplace'
 
+// The personal library is not released yet; keep the "My Resources" navigation entry hidden.
+const MyResourcesPage = lazy(() => import('./MyResourcesPage'))
 const RESOURCE_TYPES = [
   { id: 'all', label: 'common.all', icon: Layers },
   { id: 'skill', label: 'marketplace.type.skill', icon: Sparkles },
@@ -27,6 +30,24 @@ const RESOURCE_TYPES = [
 const OVERVIEW_TYPES = ['skill', 'agent', 'mcp'] as const
 
 export default function MarketplacePage() {
+  const { t } = useTranslation()
+  const { view } = useSearch({ from: '/app/marketplace' })
+  const navigate = useNavigate({ from: '/app/marketplace' })
+  return (
+    <>
+      <Activity mode={view === 'mine' ? 'hidden' : 'visible'}>
+        <MarketplaceCatalog active={view !== 'mine'} />
+      </Activity>
+      <Activity mode={view === 'mine' ? 'visible' : 'hidden'}>
+        <Suspense fallback={<Spinner text={t('common.loading')} />}>
+          <MyResourcesPage onBrowseTemplates={() => void navigate({ search: {} })} />
+        </Suspense>
+      </Activity>
+    </>
+  )
+}
+
+function MarketplaceCatalog({ active }: { active: boolean }) {
   const { t, i18n } = useTranslation()
   const [resourceType, setResourceType] = useState<MarketplaceView>('all')
   const [sourceId, setSourceId] = useState<string | null>(null)
@@ -43,11 +64,11 @@ export default function MarketplacePage() {
   const isSkillsSh = skillSourceId === SKILLS_SH_SOURCE_ID
   const skills = useMarketplace(
     isSkillsSh ? null : skillSourceId,
-    !isSkillsSh && (resourceType === 'all' || resourceType === 'skill')
+    active && !isSkillsSh && (resourceType === 'all' || resourceType === 'skill')
   )
-  const agents = useAgentCatalogPresets({ enabled: resourceType === 'all' || resourceType === 'agent' })
+  const agents = useAgentCatalogPresets({ enabled: active && (resourceType === 'all' || resourceType === 'agent') })
   const assistants = useAssistantCatalogPresets({
-    enabled: resourceType === 'all' || resourceType === 'agent'
+    enabled: active && (resourceType === 'all' || resourceType === 'agent')
   })
   const mcp = useBuiltinMcpCatalog()
   const templates = useMemo(
@@ -82,18 +103,24 @@ export default function MarketplacePage() {
     setResourceType(type)
   }
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
-    if (type === 'skill' && !preview && isSkillsSh) return <SkillsShCatalog query={query} active />
-    if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active />
+    if (type === 'skill' && !preview && isSkillsSh) return <SkillsShCatalog query={query} active={active} />
+    if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active={active} />
     if (type === 'mcp')
       return (
-        <MarketplaceMcp catalog={mcp} query={query} preview={preview} moreSources={!preview && moreMcpSources} active />
+        <MarketplaceMcp
+          catalog={mcp}
+          query={query}
+          preview={preview}
+          moreSources={!preview && moreMcpSources}
+          active={active}
+        />
       )
     return (
       <MarketplaceTemplates
         items={templates}
         query={query}
         preview={preview}
-        active
+        active={active}
         loading={agents.isLoading || assistants.isLoading}
         error={agents.error || assistants.error}
         retry={() => {
@@ -144,7 +171,7 @@ export default function MarketplacePage() {
           {resourceType === 'skill' ? (
             <SkillSubscriptionBar
               sourceId={sourceId}
-              active
+              active={active}
               refreshing={skills.catalog.isValidating}
               onSelect={setSourceId}
               onRefresh={() => void skills.catalog.mutate().catch(() => {})}
