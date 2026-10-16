@@ -186,6 +186,8 @@ export class SubagentDelivery {
   private holds = 0
   /** After the user stops a turn, nothing starts until they speak again. */
   private suppressed = false
+  /** The next aborted settle is the runtime's own, not a stop by the user. */
+  private runtimeAbort = false
   private closed = false
   /** The running run began with a prompt, whose start took everything queued before it. */
   private promptRun = false
@@ -221,8 +223,15 @@ export class SubagentDelivery {
 
   settled(aborted: boolean): void {
     this.promptRun = false
-    if (aborted) this.suppressed = true
+    const userStop = aborted && !this.runtimeAbort
+    this.runtimeAbort = false
+    if (userStop) this.suppressed = true
     else this.deliverIfIdle()
+  }
+
+  /** The run is about to be aborted by the runtime itself (the goal withdraws a round): no user stop. */
+  expectRuntimeAbort(): void {
+    this.runtimeAbort = true
   }
 
   /** `before_agent_start`, a prompt about to run: everything still queued rides with it. */

@@ -182,6 +182,8 @@ export interface SubagentGoalLink {
   stopForBudget(sessionIds: Iterable<string>): void
   /** While `refusal()` returns a message, background launches and continuations fail with it. */
   guardBackground(refusal: () => string | undefined): void
+  /** The goal aborts the run to withdraw a stale round: delivery must not take it for a user's stop. */
+  withdrawingRound(): void
 }
 
 /** What the parent's `AgentRuntimeSession` reaches through to its subagents. */
@@ -392,7 +394,8 @@ export function createSubagentExtension({
         stopForBudget: (sessionIds) => {
           for (const sessionId of sessionIds) void registry.stop(sessionId, 'budget')
         },
-        guardBackground: (refusal) => (backgroundRefusal = refusal)
+        guardBackground: (refusal) => (backgroundRefusal = refusal),
+        withdrawingRound: () => delivery.expectRuntimeAbort()
       }
       pi.events.emit(SUBAGENT_GOAL_LINK, link)
     })
