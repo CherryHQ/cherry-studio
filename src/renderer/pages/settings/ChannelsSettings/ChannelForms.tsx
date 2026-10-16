@@ -67,9 +67,9 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
   const selectedCard = permissionModeCards.find((card) => card.mode === channel.permissionMode)
   const [fullAccessPending, setFullAccessPending] = useState(false)
 
-  // A newer selection wins; confirming must never apply a stale dialog.
+  // Any newer mode (local or from another window) wins; confirming must never apply a stale dialog.
   useEffect(() => {
-    if (channel.permissionMode === 'bypassPermissions') setFullAccessPending(false)
+    setFullAccessPending(false)
   }, [channel.permissionMode])
 
   return (
@@ -81,7 +81,8 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
           // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
           if (!value) return
           if (value === 'bypassPermissions') {
-            setFullAccessPending(true)
+            // Already Full Access: nothing to confirm.
+            if (channel.permissionMode !== 'bypassPermissions') setFullAccessPending(true)
             return
           }
           setFullAccessPending(false)

@@ -311,6 +311,28 @@ describe('ChannelDetail', () => {
     })
   })
 
+  it('drops a pending Full Access confirmation when another window changes the mode', async () => {
+    const user = userEvent.setup()
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    const { rerender } = render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    await user.click(editButton)
+
+    await screen.findByDisplayValue('Telegram channel')
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.bypassPermissions.title'))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'plan' }]
+    rerender(<ChannelDetail channelDef={channelDef} />)
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(channelMocks.updateChannel).not.toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
+  })
+
   it('drops a pending Full Access confirmation when another mode is chosen', async () => {
     const user = userEvent.setup()
     channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]

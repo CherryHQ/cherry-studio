@@ -215,9 +215,9 @@ export function PermissionModeSelect({
   const selectedCard = cards.find((card) => card.mode === value)
   const [fullAccessPending, setFullAccessPending] = useState(false)
 
-  // A newer selection wins; confirming must never apply a stale dialog.
+  // Any newer mode (local or from another window) wins; confirming must never apply a stale dialog.
   useEffect(() => {
-    if (value === 'bypassPermissions') setFullAccessPending(false)
+    setFullAccessPending(false)
   }, [value])
 
   return (
