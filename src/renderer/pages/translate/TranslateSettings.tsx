@@ -30,6 +30,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
+import { useUserReasoningEffortMap } from '@renderer/hooks/useUserReasoningEffortMap'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
@@ -238,6 +239,7 @@ const TranslateSettingsCoreContent: FC = () => {
 const TranslateModelParameters: FC = () => {
   const { t } = useTranslation()
   const { model, effort, selectEffort, supportsReasoning } = useTranslateReasoningEffort()
+  const userEffortMap = useUserReasoningEffortMap(model)
   const [enableTemperature, setEnableTemperature] = usePreference('feature.translate.enable_temperature')
   const [temperature, setTemperature] = usePreference('feature.translate.temperature')
   const [enableTopP, setEnableTopP] = usePreference('feature.translate.enable_top_p')
@@ -261,7 +263,14 @@ const TranslateModelParameters: FC = () => {
         {supportsReasoning && model && (
           <PageSidePanelItem
             title={t('assistants.settings.reasoning_effort.label')}
-            action={<ModelSpeedControl model={model} reasoningEffort={effort} onReasoningEffortChange={selectEffort} />}
+            action={
+              <ModelSpeedControl
+                model={model}
+                reasoningEffort={effort}
+                onReasoningEffortChange={selectEffort}
+                userEffortMap={userEffortMap}
+              />
+            }
           />
         )}
 

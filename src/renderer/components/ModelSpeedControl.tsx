@@ -11,16 +11,10 @@ import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef } fro
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
-import {
-  previewMappedReasoningEffort,
-  resolveEffectiveUserEffortMap,
-  sanitizeUserReasoningEffortMap
-} from '@shared/ai/reasoningEffortMappings'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { previewMappedReasoningEffort, type UserReasoningEffortMap } from '@shared/ai/reasoningEffortMappings'
 import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
@@ -79,6 +73,11 @@ interface ModelSpeedControlProps {
   onServiceTierChange?: (tier: ServiceTierSelection) => void
   /** Omitting the handler hides the fast toggle — a surface with nowhere to persist it. */
   onFastModeChange?: (enabled: boolean) => void
+  /**
+   * The user's effective effort mapping for this model (see `useUserReasoningEffortMap`), used only
+   * to preview the mapped effort. The caller owns the preference read; omit for no preview.
+   */
+  userEffortMap?: UserReasoningEffortMap
 }
 
 interface WheelStepControlProps {
@@ -182,19 +181,10 @@ export function ModelSpeedControl({
   onReasoningEffortChange,
   onReasoningSummaryChange,
   onServiceTierChange,
-  onFastModeChange
+  onFastModeChange,
+  userEffortMap
 }: ModelSpeedControlProps) {
   const { t } = useTranslation()
-  const [effortMappings] = usePreference('feature.reasoning.effort_mappings')
-  const userEffortMap = useMemo(() => {
-    const raw = resolveEffectiveUserEffortMap(effortMappings, {
-      providerId: model.providerId,
-      modelId: isUniqueModelId(model.id) ? parseUniqueModelId(model.id).modelId : model.id,
-      modelFamily: model.family,
-      uniqueModelId: isUniqueModelId(model.id) ? model.id : undefined
-    })
-    return sanitizeUserReasoningEffortMap(raw, model.reasoning?.selectableEfforts)
-  }, [effortMappings, model.family, model.id, model.providerId, model.reasoning?.selectableEfforts])
   const reasoningOptions = useMemo(() => {
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
