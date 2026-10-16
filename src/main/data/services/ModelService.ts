@@ -13,6 +13,8 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -481,6 +483,34 @@ function createPresetFallback(
 ): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
   return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
+}
+
+/**
+ * Sessions whose override points at one of `modelIds`. Read before the delete: `ON DELETE SET NULL`
+ * clears `agent_session.model` silently, so mounted conversations must be told to refetch.
+ */
+function selectSessionsUsingModelsTx(tx: Pick<DbType, 'select'>, modelIds: readonly string[]): string[] {
+  const sessionIds: string[] = []
+  for (let i = 0; i < modelIds.length; i += SQLITE_INARRAY_CHUNK) {
+    const chunk = modelIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+    for (const row of tx
+      .select({ id: agentSessionTable.id })
+      .from(agentSessionTable)
+      .where(inArray(agentSessionTable.model, chunk))
+      .all()) {
+      sessionIds.push(row.id)
+    }
+  }
+  return sessionIds
+}
+
+/** Publish model-deletion effects so model caches and affected session overrides refresh in every window. */
+function notifyModelsDeleted(modelIds: readonly string[], sessionIds: readonly string[]): void {
+  if (modelIds.length === 0) return
+  notifyDataApiDataChange([
+    { endpoint: '/models', kind: 'membership', entityIds: [...modelIds] },
+    ...(sessionIds.length > 0 ? [{ endpoint: '/agent-sessions/:sessionId' as const, entityIds: [...sessionIds] }] : [])
+  ])
 }
 
 class ModelService {
@@ -1208,9 +1238,11 @@ class ModelService {
     const uniqueModelId = createUniqueModelId(providerId, modelId)
     assertModelNotUsedAsDefaultModel(uniqueModelId, `delete model ${uniqueModelId}`)
 
+    let affectedSessionIds: string[] = []
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          affectedSessionIds = selectSessionsUsingModelsTx(tx, [uniqueModelId])
           const rows = tx
             .delete(userModelTable)
             .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
@@ -1226,6 +1258,7 @@ class ModelService {
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
     pinService.notifyPurged()
+    notifyModelsDeleted([uniqueModelId], affectedSessionIds)
 
     logger.info('Deleted model', { providerId, modelId })
   }
@@ -1253,6 +1286,7 @@ class ModelService {
     }
 
     const ids = [...uniqueItems.keys()]
+    let affectedSessionIds: string[] = []
 
     withSqliteErrors(
       () =>
@@ -1273,6 +1307,7 @@ class ModelService {
             throw DataApiErrorFactory.notFound('Model', missingId)
           }
 
+          affectedSessionIds = selectSessionsUsingModelsTx(tx, ids)
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
             const deletedRows = tx
@@ -1293,6 +1328,7 @@ class ModelService {
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
     pinService.notifyPurged()
+    notifyModelsDeleted(ids, affectedSessionIds)
 
     logger.info('Bulk deleted models', {
       count: ids.length,

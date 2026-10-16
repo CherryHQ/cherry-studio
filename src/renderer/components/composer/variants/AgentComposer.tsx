@@ -1300,7 +1300,14 @@ const AgentComposerInner = ({
         })
         return
       }
-      if (pendingReasoningEdit) {
+      // Replay only if no newer reasoning edit or model switch superseded this one while the session update was
+      // in flight; otherwise this stale effort would overwrite the newer selection.
+      const pendingEditStillCurrent =
+        pendingReasoningEdit !== null &&
+        reasoningMutationVersionRef.current === version &&
+        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
+        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
+      if (pendingReasoningEdit && pendingEditStillCurrent) {
         await updateAgent(
           { id: agent.id, configuration: { reasoning_effort: pendingReasoningEdit.effort } },
           { showSuccessToast: false }
