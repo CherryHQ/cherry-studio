@@ -1,6 +1,8 @@
+import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createGoalExtension } from '../src'
+import { createGoalExtension, type TranscriptEntry } from '../src'
 import {
   approvals,
   crashedTranscript,
@@ -12,6 +14,7 @@ import {
   promptIdle,
   readGoal,
   rounds,
+  roundStart,
   snapshots,
   working
 } from './goalSupport'
@@ -42,6 +45,38 @@ describe('goal across sessions', () => {
     // The cap is stored on the goal, so the rebuilt session keeps 3 although its port says 100.
     expect(rounds(host.entries).map((round) => round.round)).toEqual([2, 3])
     expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 3, lastStop: { code: 'round_limit' } })
+  })
+
+  // Breaks when a round is known by its goal, revision and number: after a crash between a settle
+  // committing a round and that round starting, resume reserves one with the same key, both are
+  // judged never run, the request loses its prompt and the round's usage goes uncounted.
+  it('a round resumed after a crash between its commit and its start is sent once and counted', async () => {
+    const cwd = tempDir('cwd')
+    const store: { entries?: TranscriptEntry[] } = {}
+    let crashed: TranscriptEntry[] | undefined
+    let turns = 0
+    // Loaded before the goal extension, so it sees round 2 committed but not yet admitted.
+    const crashAtSecondTurn: ExtensionFactory = (pi) => {
+      pi.on('turn_start', () => {
+        if (++turns === 2 && store.entries) crashed = plain(store.entries)
+      })
+    }
+    const live = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 3 } }), {
+      cwd,
+      extensionFactories: [crashAtSecondTurn]
+    })
+    store.entries = live.host.entries
+    await promptIdle(live.session, '/goal Keep working')
+    expect(rounds(crashed!).map((round) => round.round)).toEqual([1, 2])
+
+    const { session: s, host, calls } = await goalSession([working], goalPort(), { cwd, transcript: crashed })
+    await promptIdle(s, '/goal resume')
+    const roundsSent = (prompt: LanguageModelV3Prompt) => prompt.flatMap((message) => roundStart([message]) ?? [])
+    expect(roundStart(calls[0].prompt)).toBe(2)
+    expect(roundsSent(calls[0].prompt)).toEqual([1, 2])
+    await s.prompt('/goal')
+    // Three rounds of one 17-token request each.
+    expect(notices(host.entries).at(-1)).toContain('Rounds: 3/3 · Tokens: 51')
   })
 
   // Breaks when a model without tool calling still gets the goal tools or the command, or the goal is left looking runnable.
