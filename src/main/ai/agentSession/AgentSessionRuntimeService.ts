@@ -459,7 +459,10 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
-  private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
+  private readonly connectionAttempts = new Map<
+    string,
+    { id: string; promise: Promise<boolean>; abortController: AbortController }
+  >()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
     string,
@@ -1817,7 +1820,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
       const attemptId = crypto.randomUUID()
       this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
-      const connecting = this.connect(entry, target, attemptId).finally(() => {
+      const attemptAbortController = new AbortController()
+      const connecting = this.connect(entry, target, attemptId, attemptAbortController.signal).finally(() => {
         if (this.connectionAttempts.get(entry.sessionId)?.id === attemptId) {
           this.connectionAttempts.delete(entry.sessionId)
         }
@@ -1829,7 +1833,11 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected' })
         }
       })
-      this.connectionAttempts.set(entry.sessionId, { id: attemptId, promise: connecting })
+      this.connectionAttempts.set(entry.sessionId, {
+        id: attemptId,
+        promise: connecting,
+        abortController: attemptAbortController
+      })
       const connected = await connecting
       if (connected) return true
     }
@@ -1840,7 +1848,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private async connect(
     entry: AgentSessionRuntimeEntry,
     target: AgentSessionConnectionTarget,
-    attemptId: string
+    attemptId: string,
+    signal?: AbortSignal
   ): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
@@ -1859,7 +1868,8 @@ export class AgentSessionRuntimeService extends BaseService {
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId),
-      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
+      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs),
+      signal
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.sessionId)
@@ -3501,7 +3511,11 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
     application.get('CacheService').deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId))
 
-    const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
+    const pendingAttempt = this.connectionAttempts.get(entry.sessionId)
+    // Cancel an attempt still blocked before returning its connection (e.g. a process-cap wait) so
+    // the close it joins below settles promptly instead of waiting out the admission timeout.
+    pendingAttempt?.abortController.abort('agent-session-closed')
+    const connectionAttempt = pendingAttempt?.promise
     const connection = this.closeConnection(entry, false)
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
     this.inFlightTurnStarts.delete(entry.sessionId)

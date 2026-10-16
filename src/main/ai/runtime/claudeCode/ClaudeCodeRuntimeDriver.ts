@@ -433,7 +433,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.spawnOptions = consumedWarmQuery
       ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
       : options
-    if (!consumedWarmQuery && !(await ensureClaudeCodeSpawnCapacity('live'))) {
+    if (!consumedWarmQuery && !(await ensureClaudeCodeSpawnCapacity('live', this.input.signal))) {
+      if (this.input.signal?.aborted) throw new Error('Claude Code connection cancelled before spawn')
       throw new Error('Claude Code CLI process cap reached')
     }
     if (!consumedWarmQuery) this.liveSpawnPreflightReserved = true

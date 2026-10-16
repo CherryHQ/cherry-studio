@@ -29,6 +29,9 @@ function mockManagers(
           preflightReservations.value++
           return true
         },
+        releaseLiveSpawnPreflight: () => {
+          preflightReservations.value = Math.max(0, preflightReservations.value - 1)
+        },
         waitForActiveProcessBelowCap
       }
     }
@@ -160,5 +163,78 @@ describe('claudeCodeSpawnCapacity', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('stops waiting without admitting when the connection attempt is cancelled at a full cap', async () => {
+    const counts: ManagerCounts = { active: 6, capSlots: 6 }
+    const reservations = { value: 0 }
+    const controller = new AbortController()
+    let waits = 0
+    mockManagers(
+      counts,
+      vi.fn(() => false),
+      reservations,
+      async () => {
+        waits++
+        if (waits === 2) controller.abort('closed')
+        await new Promise((resolve) => setTimeout(resolve, 1))
+      }
+    )
+
+    const startedAt = Date.now()
+    await expect(ensureClaudeCodeSpawnCapacity('live', controller.signal)).resolves.toBe(false)
+    expect(Date.now() - startedAt).toBeLessThan(5_000)
+    expect(waits).toBe(2)
+    expect(reservations.value).toBe(0)
+  })
+
+  it('releases a reservation acquired while the attempt was being cancelled', async () => {
+    const counts: ManagerCounts = { active: 6, capSlots: 6 }
+    const reservations = { value: 0 }
+    const controller = new AbortController()
+    mockManagers(
+      counts,
+      vi.fn(() => false),
+      reservations,
+      async () => {
+        counts.active = 5
+        counts.capSlots = 5
+        await Promise.resolve()
+      }
+    )
+    const reserve = vi.fn()
+    const original = mocks.applicationGetExisting.getMockImplementation()!
+    mocks.applicationGetExisting.mockImplementation((name: string) => {
+      const service = original(name)
+      if (name !== 'ClaudeCodeProcessManager') return service
+      return {
+        ...service,
+        tryReserveLiveSpawnPreflight: () => {
+          reserve()
+          const reserved = service.tryReserveLiveSpawnPreflight()
+          // The session closes in the same tick the freed slot is reserved.
+          if (reserved) controller.abort('closed')
+          return reserved
+        }
+      }
+    })
+
+    await expect(ensureClaudeCodeSpawnCapacity('live', controller.signal)).resolves.toBe(false)
+    expect(reserve).toHaveBeenCalled()
+    expect(reservations.value).toBe(0)
+  })
+
+  it('refuses immediately for an already-cancelled attempt', async () => {
+    const reservations = { value: 0 }
+    mockManagers(
+      { active: 0, capSlots: 0 },
+      vi.fn(() => false),
+      reservations
+    )
+    const controller = new AbortController()
+    controller.abort('closed')
+
+    await expect(ensureClaudeCodeSpawnCapacity('live', controller.signal)).resolves.toBe(false)
+    expect(reservations.value).toBe(0)
   })
 })

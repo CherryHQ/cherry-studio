@@ -46,8 +46,15 @@ const LIVE_SPAWN_CAPACITY_WAIT_MS = 30_000
  */
 const LIVE_SPAWN_CAPACITY_RECHECK_MS = 250
 
-/** Live cold starts may wait for evicted warm children to exit so the physical process cap holds. */
-export async function ensureClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPriority): Promise<boolean> {
+/**
+ * Live cold starts may wait for evicted warm children to exit so the physical process cap holds.
+ * An aborted `signal` stops the wait without admitting, and never leaves a reservation behind.
+ */
+export async function ensureClaudeCodeSpawnCapacity(
+  priority: ClaudeCodeSpawnPriority,
+  signal?: AbortSignal
+): Promise<boolean> {
+  if (signal?.aborted) return false
   const processManager = application.getExisting('ClaudeCodeProcessManager')
   if (priority === 'warm') {
     return prepareClaudeCodeSpawnCapacity('warm')
@@ -55,6 +62,7 @@ export async function ensureClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPri
   if (!processManager) return prepareClaudeCodeSpawnCapacity('live')
 
   const tryAdmitLive = (): boolean => {
+    if (signal?.aborted) return false
     if (!prepareClaudeCodeSpawnCapacity('live')) return false
     return processManager.tryReserveLiveSpawnPreflight()
   }
@@ -64,12 +72,19 @@ export async function ensureClaudeCodeSpawnCapacity(priority: ClaudeCodeSpawnPri
   const deadline = Date.now() + LIVE_SPAWN_CAPACITY_WAIT_MS
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now()
-    if (remaining <= 0) break
+    if (remaining <= 0 || signal?.aborted) break
     await processManager.waitForActiveProcessBelowCap(
       MAX_CONCURRENT_CLAUDE_CODE_CLI_PROCESSES,
       Math.min(remaining, LIVE_SPAWN_CAPACITY_RECHECK_MS)
     )
-    if (tryAdmitLive()) return true
+    if (tryAdmitLive()) {
+      // Cancellation can land between the wait settling and the reservation: hand the slot back.
+      if (signal?.aborted) {
+        processManager.releaseLiveSpawnPreflight()
+        return false
+      }
+      return true
+    }
   }
   return false
 }

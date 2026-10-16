@@ -4876,6 +4876,40 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).runtimeState.execution).toMatchObject({ kind: 'turn', stream: 'awaiting-persistence' })
   })
 
+  it('cancels a pending connection attempt when the session closes so the close does not wait on admission', async () => {
+    let attemptSignal: AbortSignal | undefined
+    const connect = vi.fn(
+      (input: { signal?: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          attemptSignal = input.signal
+          // Simulates a driver blocked on process-cap admission until it is cancelled.
+          input.signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })
+        })
+    )
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    expect(attemptSignal?.aborted).toBe(false)
+
+    await service.closeSession('session-1')
+
+    expect(attemptSignal?.aborted).toBe(true)
+  })
+
   it('passes trace context to the runtime driver and keeps the connection warm across turns', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
@@ -4916,6 +4950,7 @@ describe('AgentSessionRuntimeService', () => {
         fastMode: false,
         resumeToken: undefined,
         onSteerInjected: expect.any(Function),
+        signal: expect.any(AbortSignal),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -5030,6 +5065,7 @@ describe('AgentSessionRuntimeService', () => {
         fastMode: false,
         resumeToken: 'resume-db',
         onSteerInjected: expect.any(Function),
+        signal: expect.any(AbortSignal),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),

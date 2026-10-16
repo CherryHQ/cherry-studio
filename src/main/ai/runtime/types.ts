@@ -80,6 +80,11 @@ export interface AgentRuntimeConnectInput {
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
   onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  /**
+   * Aborted when the host closes the session before this connection attempt returns, so a driver
+   * blocked on admission (e.g. a process-cap wait) can give up instead of holding the close open.
+   */
+  signal?: AbortSignal
 }
 
 export interface AgentRuntimeUserInput {
