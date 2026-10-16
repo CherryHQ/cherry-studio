@@ -604,6 +604,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    carriedDisabledTools?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -616,6 +617,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    carriedDisabledTools?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -638,7 +640,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const midTurn = this.session?.isStreaming === true || this.replayTurnPending
     const applicablePermissionMode = midTurn ? this.permissionMode : nextPermissionMode
     const nextDisabledTools = normalizeDisabledTools(agent.disabledTools, snapshot)
-    const applicableDisabledTools = midTurn ? new Set([...this.disabledTools, ...nextDisabledTools]) : nextDisabledTools
+    // Tools carried from a replaced connection were applied to this live turn; the row may already
+    // reflect a later re-enable, so they union in regardless of what the snapshot derives.
+    const applicableDisabledTools = midTurn
+      ? new Set([...this.disabledTools, ...nextDisabledTools, ...(input.carriedDisabledTools ?? [])])
+      : new Set([...nextDisabledTools, ...(input.carriedDisabledTools ?? [])])
     const policyChanged =
       applicablePermissionMode !== this.permissionMode || !setsEqual(applicableDisabledTools, this.disabledTools)
     this.permissionMode = applicablePermissionMode

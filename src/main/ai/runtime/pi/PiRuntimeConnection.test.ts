@@ -1979,6 +1979,24 @@ describe('PiRuntimeConnection', () => {
     await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
   })
 
+  it('keeps a restriction carried across the fallback swap disabled after the row re-enables it', async () => {
+    // The startup window disabled Bash and a later save re-enabled it; the fallback carried the
+    // applied restriction across the swap. The row this replay re-derives no longer names Bash, so
+    // only the carried set can keep the turn's live restriction in force.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'f::m', disabledTools: [], configuration: {} })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      modelId: 'f::m',
+      permissionPolicy: { permissionMode: 'default', disabledTools: [] }
+    }).start()
+    try {
+      await expect(conn.reconcile({ modelId: 'f::m', carriedDisabledTools: ['bash'] })).resolves.toBe('patched')
+      expect(conn.getPermissionPolicy?.()).toEqual({ permissionMode: 'default', disabledTools: ['bash'] })
+    } finally {
+      await conn.close()
+    }
+  })
+
   // A manual `/compact` settles its host turn without ever calling finishPromptRun(), so a replayed
   // compaction used to leak `replayTurnPending`. Permission mode is excluded from the connection
   // signature, so the host kept reusing that connection and the next ordinary turn kept the frozen

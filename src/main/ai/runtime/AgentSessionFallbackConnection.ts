@@ -153,6 +153,13 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private replacementPolicyFailed = false
   /** Replacement reconciles whose verdict still decides whether the swap may publish it. */
   private readonly pendingReplacementReconciles = new Set<Promise<unknown>>()
+  /** Every restriction the startup window's saves applied to the live turn, unioned as each lands:
+   *  the old connection's final policy misses earlier ones when a later save re-enables them, and
+   *  the replacement re-derives only that final row. */
+  private readonly retainedDisabledTools = new Set<string>()
+  /** Serializes the window's forwarded saves so each capture reads the state its own save left —
+   *  a later re-enable would otherwise erase the restriction recorded before it. */
+  private replacementReconcileChain: Promise<unknown> = Promise.resolve()
   /** The prompt the live turn was admitted with; a replay re-materializes it, never a later save. */
   private turnPrompt?: AgentRuntimePromptPolicy
 
@@ -216,6 +223,16 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       )
     } else if (this.replacementInFlight) {
       this.retainedReconcile = input
+      const forwarded = this.replacementReconcileChain.then(async () => {
+        const verdict = await this.current.reconcile(input)
+        this.rememberAppliedRestrictions()
+        return verdict
+      })
+      this.replacementReconcileChain = forwarded.then(
+        () => undefined,
+        () => undefined
+      )
+      return forwarded
     }
     return this.current.reconcile(input)
   }
@@ -405,21 +422,39 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       this.handoff = undefined
       this.pendingModelId = undefined
       this.retainedReconcile = undefined
+      this.retainedDisabledTools.clear()
       this.replacementPolicyFailed = false
     }
   }
 
   /**
-   * Re-apply the reconciles the replacement could not see, naming the model it now serves. Drained
+   * Re-apply the reconciles the replacement could not see, naming the model it now serves and
+   * carrying every restriction the window applied: the replacement re-derives the agent's current
+   * row, so a restriction a later save re-enabled survives only in this accumulated union. Drained
    * to exhaustion: a save can land while an earlier one is still being applied (that apply awaits
    * skill discovery), and the replay must not be admitted under a restriction already saved.
    */
   private async applyRetainedReconcile(connection: AgentRuntimeConnection, modelId: UniqueModelId): Promise<void> {
     while (this.retainedReconcile) {
+      // A save still being captured has not finished recording what it applied; wait it out so the
+      // carried union is complete before the replay is admitted under it.
+      await this.replacementReconcileChain
       const retained = this.retainedReconcile
       this.retainedReconcile = undefined
-      const verdict = await connection.reconcile({ ...retained, modelId })
+      const verdict = await connection.reconcile({
+        ...retained,
+        modelId,
+        ...(this.retainedDisabledTools.size > 0 ? { carriedDisabledTools: [...this.retainedDisabledTools] } : {})
+      })
       this.recordReplacementVerdict(verdict)
+    }
+  }
+
+  /** Folds what the window's save left applied on the old connection into the carried union. */
+  private rememberAppliedRestrictions(): void {
+    if (!this.replacementInFlight) return
+    for (const tool of this.current.getPermissionPolicy?.()?.disabledTools ?? []) {
+      this.retainedDisabledTools.add(tool)
     }
   }
 
