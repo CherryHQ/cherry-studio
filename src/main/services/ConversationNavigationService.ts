@@ -100,11 +100,16 @@ export class ConversationNavigationService extends BaseService {
   public async isActiveInFocusedWindow(target: ConversationNavigationTarget): Promise<boolean> {
     const focused = getFullChromeWindowInfos().find((window) => window.isFocused)
     if (!focused || this.isStopping) return false
-    const snapshot = await this.queryOwners([focused], target, true)
-    return (
-      !!snapshot?.ownerWindowIds.includes(focused.id) &&
-      getFullChromeWindowInfos().some((window) => window.id === focused.id && window.isFocused)
-    )
+    const deadline = Date.now() + NAVIGATION_DISCOVERY_TIMEOUT_MS
+    while (!this.isStopping && Date.now() < deadline) {
+      const snapshot = await this.queryOwners([focused], target, true)
+      if (!snapshot || !getFullChromeWindowInfos().some((window) => window.id === focused.id && window.isFocused))
+        return false
+      if (snapshot.respondingWindowIds.includes(focused.id)) return snapshot.ownerWindowIds.includes(focused.id)
+      if (Date.now() >= deadline) return false
+      await this.waitBeforeOwnershipRetry(deadline, target)
+    }
+    return false
   }
 
   protected onStop(): void {

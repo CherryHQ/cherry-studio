@@ -89,12 +89,29 @@ describe('ConversationNavigationService', () => {
     await expect(service.isActiveInFocusedWindow(target)).resolves.toBe(false)
   })
 
-  it('does not suppress a completion when the focused renderer fails to answer', async () => {
+  it('waits for a busy focused renderer instead of treating a missing reply as an inactive task', async () => {
+    vi.useFakeTimers()
+    try {
+      const active = service.isActiveInFocusedWindow(target)
+      const firstRequestId = ownershipRequestId('sub-1')
+      const outcomes: boolean[] = []
+      void active.then((value) => outcomes.push(value))
+      await vi.advanceTimersByTimeAsync(600)
+      expect(outcomes).toEqual([])
+      service.reportOwnership(firstRequestId, 'sub-1', false)
+      service.reportOwnership(ownershipRequestId('sub-1'), 'sub-1', true)
+      await expect(active).resolves.toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds the wait when the focused renderer never answers', async () => {
     vi.useFakeTimers()
     try {
       const active = service.isActiveInFocusedWindow(target)
       service.reportOwnership(ownershipRequestId('sub-1'), 'unrelated-window', true)
-      await vi.advanceTimersByTimeAsync(200)
+      await vi.advanceTimersByTimeAsync(10_200)
       await expect(active).resolves.toBe(false)
     } finally {
       vi.useRealTimers()
