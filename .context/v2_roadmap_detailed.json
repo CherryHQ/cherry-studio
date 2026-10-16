@@ -1,99 +1,294 @@
 {
-  "generated_at": "2026-10-14T18:00:00Z",
-  "date": "2026-10-14",
+  "generated_at": "2026-10-16T17:50:57.434421+00:00",
   "v2_branch_status": {
-    "open_prs_targeting_v2": 0,
-    "note": "No open PRs targeting v2 branch — all v2 work is in feature branches merging to main"
+    "open_prs": 0,
+    "merged_prs_30d": 43,
+    "note": "v2 branch merged into main; both v1 and v2 code coexist on main during refactor."
   },
-  "active_feature_branches": [
-    "feature/agent-runtime-goal (PRs: 1)",
-    "feature/agent-runtime-subagent (PRs: 1)",
-    "feature/agent-runtime-todo-ask-user (PRs: 1)",
-    "codex/generated-attachments (PRs: 1)",
-    "codex/voice-renderer-foundation (PRs: 1)",
-    "orca/media-analysis-integration (PRs: 2)",
-    "SiinXu/media-ffmpeg-linux-runtime (PRs: 2)",
-    "DeJeune/native-tool-search-code-mode (PRs: 2)",
-    "orca/chat-media-fallback-integration (PRs: 1)"
-  ],
-  "v2_tagged_p1_bugs_open": [
-    {
-      "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart, backup archive corrupted (v6→v7)",
-      "labels": ["bug", "p1", "windows", "data", "v2"],
-      "updated_at": "2026-10-13T11:31:36Z"
+  "merged_by_track": {
+    "other": {
+      "count": 11,
+      "prs": [
+        {
+          "number": 15265,
+          "title": "feat(translate): refresh translate page and shared drawer composition",
+          "mergedAt": "2026-05-25T09:45:25Z"
+        },
+        {
+          "number": 15263,
+          "title": "feat(settings): redesign settings navigation",
+          "mergedAt": "2026-05-27T08:53:22Z"
+        },
+        {
+          "number": 15238,
+          "title": "fix(sidebar): align resize thresholds with layouts",
+          "mergedAt": "2026-05-23T11:45:28Z"
+        },
+        {
+          "number": 15216,
+          "title": "chore(lint): suppress legacy css var warnings in lint scripts",
+          "mergedAt": "2026-05-20T13:16:54Z"
+        },
+        {
+          "number": 15205,
+          "title": "feat(mini-apps): refresh mini app page and icons",
+          "mergedAt": "2026-05-21T03:35:05Z"
+        },
+        {
+          "number": 15006,
+          "title": "feat(code-tools): refresh launch experience",
+          "mergedAt": "2026-05-13T07:42:59Z"
+        },
+        {
+          "number": 14442,
+          "title": "feat(library): add v2 resource library page",
+          "mergedAt": "2026-05-10T12:14:46Z"
+        },
+        {
+          "number": 14862,
+          "title": "chore(style-reminders): add Tailwind canonical checks",
+          "mergedAt": "2026-05-11T06:48:55Z"
+        },
+        {
+          "number": 14689,
+          "title": "fix(assistant-api): align patch defaults with entity schema",
+          "mergedAt": "2026-04-29T12:19:04Z"
+        },
+        {
+          "number": 14632,
+          "title": "fix(draggable-list): bind scroll node via callback ref",
+          "mergedAt": "2026-04-30T12:59:34Z"
+        },
+        {
+          "number": 14627,
+          "title": "feat(topics): migrate ordering + pin to canonical fractional-indexing pattern",
+          "mergedAt": "2026-04-30T13:18:26Z"
+        }
+      ]
     },
-    {
-      "number": 21085,
-      "title": "[Bug]: File/KB scopes inline large builtin tool schemas and can overflow context",
-      "labels": ["bug", "p1", "rag", "assistant", "performance", "v2", "chat"],
-      "updated_at": "2026-09-27T21:15:39Z"
+    "data": {
+      "count": 8,
+      "prs": [
+        {
+          "number": 15186,
+          "title": "refactor(notes): migrate notes UI and data to v2",
+          "mergedAt": "2026-05-25T11:52:52Z"
+        },
+        {
+          "number": 14993,
+          "title": "refactor(web-search-settings): migrate settings to v2 data path",
+          "mergedAt": "2026-05-12T06:16:19Z"
+        },
+        {
+          "number": 14941,
+          "title": "Migrate OpenClaw page to v2 data storage",
+          "mergedAt": "2026-05-08T14:48:45Z"
+        },
+        {
+          "number": 14631,
+          "title": "refactor(provider-settings): migrate to v2 data layer and UI",
+          "mergedAt": "2026-05-14T09:01:33Z"
+        },
+        {
+          "number": 14609,
+          "title": "fix(migration): preserve default assistant data and clean up topic noise",
+          "mergedAt": "2026-05-06T02:28:11Z"
+        },
+        {
+          "number": 14431,
+          "title": "refactor(agents): migrate renderer agent hooks from HTTP to DataApi",
+          "mergedAt": "2026-05-01T11:13:37Z"
+        },
+        {
+          "number": 14428,
+          "title": "refactor(agents-data-api): migrate agents domain to DataApi",
+          "mergedAt": "2026-04-24T10:23:18Z"
+        },
+        {
+          "number": 14359,
+          "title": "refactor(data-api): use greedy :uniqueModelId* for model route",
+          "mergedAt": "2026-04-18T11:15:03Z"
+        }
+      ]
     },
-    {
-      "number": 20941,
-      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "labels": ["bug", "p1", "v2", "agent", "chat"],
-      "updated_at": "2026-09-22T17:31:00Z"
+    "knowledge": {
+      "count": 6,
+      "prs": [
+        {
+          "number": 15371,
+          "title": "refactor(knowledge): knowledge workflow jobs round2",
+          "mergedAt": "2026-05-28T12:33:18Z"
+        },
+        {
+          "number": 15356,
+          "title": "refactor(file-entry): use file entries for knowledge and processing",
+          "mergedAt": "2026-05-27T14:52:07Z"
+        },
+        {
+          "number": 15309,
+          "title": "refactor(knowledge): knowledge v2 rfc and implement round 1",
+          "mergedAt": "2026-05-27T03:54:26Z"
+        },
+        {
+          "number": 15213,
+          "title": "refactor(knowledge): migrate to JobManager",
+          "mergedAt": "2026-05-21T02:54:59Z"
+        },
+        {
+          "number": 14734,
+          "title": "feat(v2): knowledge ui migration",
+          "mergedAt": "2026-05-11T03:56:59Z"
+        },
+        {
+          "number": 14719,
+          "title": "refactor(knowledge-data): adjust knowledge v2 data and service",
+          "mergedAt": "2026-05-01T11:24:48Z"
+        }
+      ]
     },
-    {
-      "number": 20940,
-      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": ["bug", "p1", "models", "v2", "chat"],
-      "updated_at": "2026-09-22T16:32:21Z"
+    "ui": {
+      "count": 6,
+      "prs": [
+        {
+          "number": 15091,
+          "title": "refactor(ui): refresh shared dialog styling",
+          "mergedAt": "2026-05-18T05:43:25Z"
+        },
+        {
+          "number": 14995,
+          "title": "docs(design-system): update design token guide",
+          "mergedAt": "2026-05-11T08:01:48Z"
+        },
+        {
+          "number": 14982,
+          "title": "docs(gh-pr-review): add Cherry-specific review guidance",
+          "mergedAt": "2026-05-11T01:29:28Z"
+        },
+        {
+          "number": 14940,
+          "title": "refactor(renderer-components): replace legacy antd and styled UI usage",
+          "mergedAt": "2026-05-09T15:10:23Z"
+        },
+        {
+          "number": 14567,
+          "title": "feat(settings): refactor settings UI and add settings window",
+          "mergedAt": "2026-05-08T10:09:26Z"
+        },
+        {
+          "number": 14669,
+          "title": "refactor(agent-schemas): migrate agent/session/task IDs to UUID v4",
+          "mergedAt": "2026-05-01T12:34:10Z"
+        }
+      ]
     },
-    {
-      "number": 20937,
-      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": ["bug", "p1", "windows", "v2", "agent"],
-      "updated_at": "2026-09-22T16:32:14Z"
+    "file": {
+      "count": 4,
+      "prs": [
+        {
+          "number": 15330,
+          "title": "feat(file): register chat_message FileRefSourceType and backfill file_ref in ChatMigrator",
+          "mergedAt": "2026-05-27T04:23:50Z"
+        },
+        {
+          "number": 15214,
+          "title": "refactor(file-processing): migrate to JobManager",
+          "mergedAt": "2026-05-21T02:54:40Z"
+        },
+        {
+          "number": 15067,
+          "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination",
+          "mergedAt": "2026-05-26T06:00:50Z"
+        },
+        {
+          "number": 14991,
+          "title": "refactor(file-processing-settings): migrate settings to v2 data",
+          "mergedAt": "2026-05-11T15:15:36Z"
+        }
+      ]
     },
-    {
-      "number": 20374,
-      "title": "Unable to read Word and PDF documents",
-      "labels": ["bug", "p1", "needs-repro", "data", "v2"],
-      "updated_at": "2026-09-11T08:00:58Z"
+    "provider": {
+      "count": 4,
+      "prs": [
+        {
+          "number": 15088,
+          "title": "feat(provider-settings): grouping + mode-based editor follow-up",
+          "mergedAt": "2026-05-18T12:57:26Z"
+        },
+        {
+          "number": 15087,
+          "title": "feat(icons): light/dark dual-source architecture for provider/model logos",
+          "mergedAt": "2026-05-18T05:44:22Z"
+        },
+        {
+          "number": 14856,
+          "title": "refactor(web-search): split provider capabilities and add Fetch/Jina",
+          "mergedAt": "2026-05-08T09:08:20Z"
+        },
+        {
+          "number": 14443,
+          "title": "refactor(websearch-settings): remove local providers and use v2 preferences",
+          "mergedAt": "2026-05-06T05:53:41Z"
+        }
+      ]
     },
-    {
-      "number": 20027,
-      "title": "Explain and recover when all generated images are filtered as invalid",
-      "labels": ["bug", "p1", "ui-ux", "models", "v2"],
-      "updated_at": "2026-09-05T09:56:26Z"
+    "agent": {
+      "count": 3,
+      "prs": [
+        {
+          "number": 14929,
+          "title": "feat(agents): add mock todo list panel preview",
+          "mergedAt": "2026-05-08T09:03:29Z"
+        },
+        {
+          "number": 14740,
+          "title": "fix(agents-migrator): coalesce legacy NULLs to schema defaults",
+          "mergedAt": "2026-05-01T00:33:14Z"
+        },
+        {
+          "number": 14556,
+          "title": "feat(selector-v2): assistant & agent selectors on the EntitySelector composite",
+          "mergedAt": "2026-04-30T04:11:14Z"
+        }
+      ]
     },
-    {
-      "number": 20021,
-      "title": "Local OCR and embedding fail (onnxruntime_binding.node cannot initialize on Windows)",
-      "labels": ["bug", "p1", "windows", "rag", "v2", "ocr"],
-      "updated_at": "2026-09-14T11:02:08Z"
-    },
-    {
-      "number": 19929,
-      "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM",
-      "labels": ["bug", "p1", "windows", "v2", "agent"],
-      "updated_at": "2026-09-20T07:39:25Z"
-    },
-    {
-      "number": 19753,
-      "title": "[Bug]: DeepSeek Harness runtime repeatedly crashes during Agent sessions",
-      "labels": ["bug", "p1", "windows", "needs-repro", "v2", "agent"],
-      "updated_at": "2026-09-29T02:10:41Z"
-    },
-    {
-      "number": 19625,
-      "title": "[Bug]: Windows in-app update exits but leaves old 1.9.x version installed",
-      "labels": ["bug", "p1", "windows", "needs-repro", "needs-triage", "v2"],
-      "updated_at": "2026-08-28T04:52:26Z"
+    "file-manager": {
+      "count": 1,
+      "prs": [
+        {
+          "number": 15363,
+          "title": "feat(file-manager): unified DirectoryTreeBuilder primitive for Notes",
+          "mergedAt": "2026-05-28T15:33:49Z"
+        }
+      ]
     }
-  ],
-  "v2_theme_inferred": [
-    "Voice/Media pipeline: FFmpeg runtime packaging, audio preprocessing, FunASR, voice renderer",
-    "Agent Runtime: subagent orchestration, background execution, transcript context, AI SDK bridge",
-    "Chat media fallback: orca integration",
-    "P1 v2 bugs: Restore/data corruption, KB context overflow, empty responses, DSH bridge failures"
-  ],
-  "notes": [
-    "v2 branch has no open PRs — development continues on main with feature branches",
-    "11 open P1 bugs tagged v2 (down from 10 yesterday if #21418 resolved, still at 11)",
-    "Voice and media pipeline remains primary active feature area",
-    "New: agent-runtime-goal branch added today with background subagent execution feature"
+  },
+  "open_prs": [],
+  "active_tracks": [
+    {
+      "track": "Data Layer",
+      "status": "in_progress",
+      "replacing": [
+        "Redux",
+        "Dexie",
+        "ElectronStore"
+      ],
+      "adopting": [
+        "Cache",
+        "Preference",
+        "DataApi (SQLite + Drizzle)"
+      ]
+    },
+    {
+      "track": "UI Layer",
+      "status": "in_progress",
+      "replacing": [
+        "antd",
+        "HeroUI",
+        "styled-components"
+      ],
+      "adopting": [
+        "@cherrystudio/ui (Tailwind CSS + Shadcn UI)"
+      ]
+    }
   ]
 }
