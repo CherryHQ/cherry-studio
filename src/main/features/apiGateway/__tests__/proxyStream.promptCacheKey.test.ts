@@ -1,3 +1,4 @@
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
@@ -109,13 +110,16 @@ beforeEach(() => {
   })
 })
 
-async function resolveRequest(stream = false): Promise<Record<string, Record<string, unknown>> | undefined> {
+async function resolveRequest(
+  stream = false,
+  requestHeaders = new Headers()
+): Promise<Record<string, Record<string, unknown>> | undefined> {
   captured.opts = undefined
   const promise = processMessage({
     params: { model: `${PROVIDER_ID}:${MODEL_ID}`, messages: [], stream },
     inputFormat: 'openai',
     outputFormat: 'openai',
-    requestHeaders: new Headers()
+    requestHeaders
   })
   await vi.waitFor(() => expect(captured.opts).toBeDefined())
   const providerOptions = captured.opts!.callOverrides?.providerOptions
@@ -266,4 +270,60 @@ describe('processMessage internal Agent OpenRouter session routing', () => {
     void explicitOptions!.listener!.onDone({} as any)
     await promise
   })
+  it.each([
+    [false, 'x-session-id', false],
+    [true, 'x-session-id', false],
+    [false, 'X-Session-Id', false],
+    [true, 'X-Session-Id', false],
+    [false, 'x-session-id', true],
+    [true, 'x-session-id', true],
+    [false, 'X-Session-Id', true],
+    [true, 'X-Session-Id', true]
+  ] as const)(
+    'preserves session header precedence: stream=%s provider=%s incoming=%s',
+    async (stream, headerName, incoming) => {
+      const extraHeaders = { [headerName]: 'provider-chosen' }
+      const provider = mockGetProvider()
+      provider.settings = { extraHeaders }
+      provider.endpointConfigs = {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://openrouter.ai/api', adapterFamily: 'anthropic' }
+      }
+      mockListModels.mockReturnValue([
+        {
+          id: createUniqueModelId(PROVIDER_ID, MODEL_ID),
+          providerId: PROVIDER_ID,
+          apiModelId: MODEL_ID,
+          capabilities: [],
+          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        }
+      ])
+      mockGetAgentSessionId.mockReturnValue('agent-session-1')
+      await resolveRequest(stream, new Headers(incoming ? { 'X-Session-ID': 'request-chosen' } : {}))
+
+      let upstreamHeaders: Headers | undefined
+      const model = createAnthropic({
+        apiKey: 'test-key',
+        headers: extraHeaders,
+        fetch: async (_url, init) => {
+          upstreamHeaders = new Headers(init?.headers)
+          return stream
+            ? new Response('', { headers: { 'content-type': 'text/event-stream' } })
+            : Response.json({
+                id: 'msg-test',
+                type: 'message',
+                role: 'assistant',
+                model: MODEL_ID,
+                content: [{ type: 'text', text: 'ok' }],
+                stop_reason: 'end_turn',
+                stop_sequence: null,
+                usage: { input_tokens: 1, output_tokens: 1 }
+              })
+        }
+      })(MODEL_ID)
+      const options = { prompt: [], maxOutputTokens: 1, headers: captured.opts?.headers }
+      if (stream) await model.doStream(options)
+      else await model.doGenerate(options)
+      expect(upstreamHeaders?.get('x-session-id')).toBe(incoming ? 'request-chosen' : 'provider-chosen')
+    }
+  )
 })

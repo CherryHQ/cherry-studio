@@ -228,11 +228,19 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const providerOptions = agentSessionId
     ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
     : fastModeProviderOptions
+  const providerSessionHeader = Object.keys(provider.settings?.extraHeaders ?? {}).find(
+    (name) => name.toLowerCase() === 'x-session-id'
+  )
   const agentSessionRoutingHeaders =
     agentSessionId &&
     resolvedEndpoint.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
     usesOpenRouterSessionRouting(provider, resolvedEndpoint.endpointType)
-      ? { 'x-session-id': config.requestHeaders?.get('x-session-id') ?? deriveAgentSessionRoutingKey(agentSessionId) }
+      ? {
+          [providerSessionHeader ?? 'x-session-id']:
+            config.requestHeaders?.get('x-session-id') ??
+            new Headers(provider.settings?.extraHeaders).get('x-session-id') ??
+            deriveAgentSessionRoutingKey(agentSessionId)
+        }
       : undefined
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
