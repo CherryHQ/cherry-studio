@@ -1,4 +1,4 @@
-import { getCurrentTools, type ImageContent, type Message, type TextContent } from '@earendil-works/pi-ai'
+import { getCurrentTools, type ImageContent, type Message, type TextContent, type Usage } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
   buildSessionContext,
@@ -16,7 +16,8 @@ import {
   TOOL_LOADOUT_STATE,
   type TranscriptEntry,
   type TranscriptMessageEntry,
-  type TranscriptStopReason
+  type TranscriptStopReason,
+  type TranscriptUsage
 } from './transcript'
 
 export type CompactionReason = 'manual' | 'threshold' | 'overflow'
@@ -31,6 +32,15 @@ export type AgentRuntimeEvent =
   | { type: 'turn-complete'; headEntryId: string | undefined; aborted: boolean }
 
 type Listener = (event: AgentRuntimeEvent) => void
+
+const transcriptUsage = ({ input, output, cacheRead, cacheWrite, reasoning, cost }: Usage): TranscriptUsage => ({
+  input,
+  output,
+  cacheRead,
+  cacheWrite,
+  ...(reasoning === undefined ? {} : { reasoning }),
+  cost: cost.total
+})
 
 const sameNames = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((n, i) => n === b[i])
 // Emitted entries are copies in plain JSON, so the host can neither see nor mutate Pi's objects.
@@ -142,25 +152,19 @@ export class TranscriptTap {
             const transcript: TranscriptMessageEntry = { ...at, kind: 'message', message: toModelMessage(message)! }
             if (message.role === 'toolResult' && message.details !== undefined)
               transcript.details = message.details as JSONValue
+            if (message.role === 'toolResult' && message.usage !== undefined)
+              transcript.usage = transcriptUsage(message.usage)
             return transcript
           }
           case 'assistant': {
             const fromModel =
               message.api === AI_SDK_API && message.provider === this.model.provider && message.model === this.model.id
-            const { input, output, cacheRead, cacheWrite, reasoning, cost } = message.usage
             return {
               ...at,
               kind: 'message',
               message: toModelMessage(message)!,
               ...(fromModel ? { modelKey: this.model.key } : {}),
-              usage: {
-                input,
-                output,
-                cacheRead,
-                cacheWrite,
-                ...(reasoning === undefined ? {} : { reasoning }),
-                cost: cost.total
-              },
+              usage: transcriptUsage(message.usage),
               stopReason: message.stopReason as TranscriptStopReason,
               ...(message.errorMessage === undefined ? {} : { errorMessage: message.errorMessage }),
               ...(message.responseId === undefined ? {} : { responseId: message.responseId })

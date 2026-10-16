@@ -156,6 +156,7 @@ export function rebuildSessionEntries(
                 role: 'toolResult',
                 ...result,
                 ...(entry.details === undefined ? {} : { details: entry.details as JsonValue }),
+                ...(entry.usage === undefined ? {} : { usage: toPiUsage(entry.usage, id) }),
                 timestamp: entry.timestamp
               }
             })
