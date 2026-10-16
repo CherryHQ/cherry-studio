@@ -17,6 +17,12 @@ export interface FollowupQueueItem {
 const QUEUE_TTL = 24 * 60 * 60 * 1000
 const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
 const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
+const editKeyFor = (scopeKey: string) => `followup-queue-edit.${scopeKey}`
+
+interface FollowupQueueEdit {
+  item: FollowupQueueItem
+  index: number
+}
 
 /** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
 function loadQueue(scopeKey: string): FollowupQueueItem[] {
@@ -45,6 +51,8 @@ export interface FollowupQueueController {
   items: FollowupQueueItem[]
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
   removeId: (id: string) => void
+  takeForEdit: (id: string) => FollowupQueueItem | undefined
+  completeEdit: () => void
   reorder: (nextItems: FollowupQueueItem[]) => void
   paused: boolean
   setPaused: (paused: boolean) => void
@@ -75,8 +83,10 @@ export function useFollowupQueue({
   const onDrainFailedRef = useRef(onDrainFailed)
   onDrainFailedRef.current = onDrainFailed
 
-  const persist = useCallback((next: FollowupQueueItem[]) => {
+  const updateItems = useCallback((next: FollowupQueueItem[]) => {
+    itemsRef.current = next
     cacheService.setCasual(keyFor(scopeKeyRef.current), next, QUEUE_TTL)
+    setItems(next)
   }, [])
 
   // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
@@ -92,34 +102,47 @@ export function useFollowupQueue({
     setPausedState(nextPaused)
   }, [])
 
+  const completeEdit = useCallback(() => {
+    cacheService.deleteCasual(editKeyFor(scopeKey))
+  }, [scopeKey])
+
+  const takeForEdit = useCallback(
+    (id: string) => {
+      const item = itemsRef.current.find((entry) => entry.id === id)
+      if (!item) return undefined
+      const editKey = editKeyFor(scopeKeyRef.current)
+      const previous = cacheService.getCasual<FollowupQueueEdit>(editKey)
+      const next = [...itemsRef.current]
+      if (previous) next.splice(previous.index, 0, previous.item)
+      const index = next.findIndex((entry) => entry.id === id)
+      next.splice(index, 1)
+      // Keep the original snapshot until submission so switching edits cancels without losing the queued turn.
+      cacheService.setCasual(editKey, { item, index } satisfies FollowupQueueEdit, QUEUE_TTL)
+      updateItems(next)
+      return item
+    },
+    [updateItems]
+  )
+
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      setItems((prev) => {
-        const next = [...prev, { id: crypto.randomUUID(), draft, payload }]
-        persist(next)
-        return next
-      })
+      completeEdit()
+      updateItems([...itemsRef.current, { id: crypto.randomUUID(), draft, payload }])
     },
-    [persist]
+    [completeEdit, updateItems]
   )
 
   const removeId = useCallback(
     (id: string) => {
-      setItems((prev) => {
-        const next = prev.filter((item) => item.id !== id)
-        persist(next)
-        return next
-      })
+      const index = itemsRef.current.findIndex((item) => item.id === id)
+      const editKey = editKeyFor(scopeKeyRef.current)
+      const editing = cacheService.getCasual<FollowupQueueEdit>(editKey)
+      if (editing && index >= 0 && index < editing.index) {
+        cacheService.setCasual(editKey, { ...editing, index: editing.index - 1 }, QUEUE_TTL)
+      }
+      updateItems(itemsRef.current.filter((item) => item.id !== id))
     },
-    [persist]
-  )
-
-  const reorder = useCallback(
-    (nextItems: FollowupQueueItem[]) => {
-      setItems(nextItems)
-      persist(nextItems)
-    },
-    [persist]
+    [updateItems]
   )
 
   // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
@@ -136,5 +159,5 @@ export function useFollowupQueue({
     }, reportDrainFailure)
   }, [isFulfilled, paused, markSeen, removeId])
 
-  return { items, enqueue, removeId, reorder, paused, setPaused }
+  return { items, enqueue, removeId, takeForEdit, completeEdit, reorder: updateItems, paused, setPaused }
 }

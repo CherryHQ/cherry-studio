@@ -1,8 +1,10 @@
 import { basename } from 'node:path'
 
+import { createMockCacheService } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,6 +38,7 @@ import AgentComposerImpl, {
 } from '../AgentComposer'
 
 const mocks = vi.hoisted(() => ({
+  renderQueue: false,
   screenshotEnabled: false,
   screenshotListeners: new Map<string, (payload: any) => void>(),
   draftText: 'hello',
@@ -293,22 +296,6 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-// useAgentSessionSlashCommands now observes the shared slash-command catalog via
-// useSharedCacheValue (globally mocked); with no catalog seeded the composer
-// falls back to the builtin list. This inline cacheService only serves the
-// remaining typed-draft, casual queue, and subscribe consumers.
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    get: vi.fn(() => undefined),
-    has: vi.fn(() => false),
-    set: vi.fn(),
-    getCasual: vi.fn(() => ''),
-    hasCasual: vi.fn(() => false),
-    setCasual: vi.fn(),
-    subscribe: vi.fn(() => () => {})
-  }
-}))
-
 vi.mock('@renderer/components/OpenTarget', () => ({
   OpenTargetButton: ({ targetPath, primaryContent }: { targetPath: string; primaryContent?: ReactNode }) => (
     <div data-testid="workspace-open-button" data-workdir={targetPath}>
@@ -365,6 +352,21 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         : props.sendAccessory
     return (
       <div>
+        {mocks.renderQueue && (
+          <>
+            {props.queueContent}
+            <textarea
+              aria-label="Message draft"
+              value={props.text}
+              onChange={(event) => props.onTextChange(event.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => props.onSendDraft({ text: props.text, tokens: [...(props.draftTokens ?? [])] })}>
+              Send draft
+            </button>
+          </>
+        )}
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
         <div data-testid="composer-compact-controls">
           {props.compactWhenSingleLine ? props.renderCompactControls?.(inputAdapter, unifiedPanelControl) : null}
@@ -843,11 +845,11 @@ describe('AgentComposer', () => {
     vi.mocked(cacheService.has).mockReset()
     vi.mocked(cacheService.has).mockReturnValue(false)
     vi.mocked(cacheService.set).mockReset()
-    vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
-    vi.mocked(cacheService.hasCasual).mockReset()
-    vi.mocked(cacheService.hasCasual).mockReturnValue(false)
-    vi.mocked(cacheService.setCasual).mockReset()
+    const queueCache = createMockCacheService()
+    vi.mocked(cacheService.getCasual).mockReset().mockImplementation(queueCache.getCasual)
+    vi.mocked(cacheService.hasCasual).mockReset().mockImplementation(queueCache.hasCasual)
+    vi.mocked(cacheService.setCasual).mockReset().mockImplementation(queueCache.setCasual)
+    vi.mocked(cacheService.deleteCasual).mockReset().mockImplementation(queueCache.deleteCasual)
     mocks.createInternalEntry.mockReset()
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
     mocks.getPhysicalPath.mockReset()
@@ -922,6 +924,7 @@ describe('AgentComposer', () => {
     mocks.availableSkillsError = null
     mocks.availableSkillsRefresh.mockReset()
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
+    mocks.renderQueue = false
     mocks.surfaceProps = undefined
     mocks.speedControlProps = undefined
     mocks.derivedToolState = undefined
@@ -1122,6 +1125,66 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).not.toContainEqual(
       expect.objectContaining({ type: 'data-knowledge-scope' })
     )
+  })
+
+  it.each([false, true])(
+    'restores the previous queued message when switching edits (modified=%s)',
+    async (modified) => {
+      mocks.renderQueue = true
+      const send = mocks.sendMessage
+      render(<AgentComposer agentId="agent-1" sessionId="session-1" sendMessage={send} stop={mocks.stop} isStreaming />)
+      const user = userEvent.setup()
+      const input = screen.getByRole('textbox', { name: 'Message draft' })
+      const submit = screen.getByRole('button', { name: 'Send draft' })
+      for (const text of ['message A', 'message B']) {
+        await user.type(input, text)
+        await user.click(submit)
+      }
+      await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.title' }))
+      await user.click(screen.getAllByRole('button', { name: 'chat.input.followup_queue.edit' })[0])
+      expect(input).toHaveValue('message A')
+      if (modified) await user.type(input, ' edited')
+      await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.edit' }))
+      expect(input).toHaveValue('message B')
+      expect(screen.getByText('message A')).toBeVisible()
+      expect(screen.queryByText('message A edited')).not.toBeInTheDocument()
+      expect(send).not.toHaveBeenCalled()
+      await user.click(submit)
+      await user.click(screen.getAllByRole('button', { name: 'chat.input.followup_queue.edit' })[0])
+      expect(input).toHaveValue('message A')
+      expect(screen.getAllByText('message B')).toHaveLength(1)
+    }
+  )
+
+  it.each([false, true])('retains the queued original until its direct send is accepted (%s)', async (accepted) => {
+    mocks.renderQueue = true
+    const pendingSend = createDeferred<boolean>()
+    const send = mocks.sendMessage.mockReturnValue(pendingSend.promise)
+    const view = render(
+      <AgentComposer agentId="agent-1" sessionId="session-1" sendMessage={send} stop={mocks.stop} isStreaming />
+    )
+    const user = userEvent.setup()
+    const input = screen.getByRole('textbox', { name: 'Message draft' })
+    const submit = screen.getByRole('button', { name: 'Send draft' })
+    for (const text of ['message A', 'message B']) {
+      await user.type(input, text)
+      await user.click(submit)
+    }
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.title' }))
+    await user.click(screen.getAllByRole('button', { name: 'chat.input.followup_queue.edit' })[0])
+    view.rerender(
+      <AgentComposer agentId="agent-1" sessionId="session-1" sendMessage={send} stop={mocks.stop} isStreaming={false} />
+    )
+    await user.click(submit)
+    await waitFor(() => expect(send).toHaveBeenCalledOnce())
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.edit' }))
+    expect(input).toHaveValue('message A')
+    expect(screen.getByText('message B')).toBeVisible()
+    await act(async () => pendingSend.resolve(accepted))
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.edit' }))
+    expect(input).toHaveValue('message B')
+    if (accepted) expect(screen.queryByText('message A')).not.toBeInTheDocument()
+    else expect(screen.getByText('message A')).toBeVisible()
   })
 
   it('restores a queued Agent message knowledge scope when editing it', async () => {

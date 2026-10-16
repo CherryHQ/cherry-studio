@@ -1590,6 +1590,8 @@ const AgentComposerInner = ({
     items: queuedFollowups,
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
+    takeForEdit: takeFollowupForEdit,
+    completeEdit: completeFollowupEdit,
     reorder: reorderFollowups,
     paused: followupPaused,
     setPaused: setFollowupPaused
@@ -1607,8 +1609,7 @@ const AgentComposerInner = ({
       .catch((error) => logger.warn('Failed to publish pending input count', { error }))
   }, [launchOptions?.editing, queuedFollowups.length, sessionId])
 
-  // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
-  // state and the managed file/knowledge/skill selections before dropping it from the queue.
+  // Restore the whole queued draft together with its managed file/knowledge/skill selections.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
@@ -1664,7 +1665,10 @@ const AgentComposerInner = ({
       setIsDirectSending(true)
       try {
         const sent = await sendQueuedPayload(payload)
-        if (sent) clearCurrentDraft()
+        if (sent) {
+          completeFollowupEdit()
+          clearCurrentDraft()
+        }
       } finally {
         directSendInFlightRef.current = false
         setIsDirectSending(false)
@@ -1673,6 +1677,7 @@ const AgentComposerInner = ({
     [
       buildQueuedPayload,
       clearCurrentDraft,
+      completeFollowupEdit,
       enqueueFollowup,
       isStreaming,
       model,
@@ -1884,10 +1889,10 @@ const AgentComposerInner = ({
                     if (sent) removeFollowup(id)
                   }}
                   onEdit={(id) => {
-                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (directSendInFlightRef.current) return
+                    const item = takeFollowupForEdit(id)
                     if (!item) return
                     restoreFollowupDraft(item)
-                    removeFollowup(id)
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}

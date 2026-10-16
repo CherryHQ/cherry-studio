@@ -1,4 +1,4 @@
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { createMockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -25,6 +25,7 @@ import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
+  renderQueue: false,
   createTopic: vi.fn(),
   updateTopic: vi.fn(),
   setModel: vi.fn(),
@@ -208,6 +209,21 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         : props.sendAccessory
     return (
       <div>
+        {mocks.renderQueue && (
+          <>
+            {props.queueContent}
+            <textarea
+              aria-label="Message draft"
+              value={props.text}
+              onChange={(event) => props.onTextChange(event.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => props.onSendDraft({ text: props.text, tokens: [...(props.draftTokens ?? [])] })}>
+              Send draft
+            </button>
+          </>
+        )}
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
         <div data-testid="composer-below-controls">
           {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
@@ -710,9 +726,10 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.set).mockReset()
-    vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
-    vi.mocked(cacheService.setCasual).mockReset()
+    const queueCache = createMockCacheService()
+    vi.mocked(cacheService.getCasual).mockReset().mockImplementation(queueCache.getCasual)
+    vi.mocked(cacheService.setCasual).mockReset().mockImplementation(queueCache.setCasual)
+    vi.mocked(cacheService.deleteCasual).mockReset().mockImplementation(queueCache.deleteCasual)
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
@@ -799,6 +816,7 @@ describe('ChatComposer', () => {
     mocks.modelSelectorProps = []
     mocks.topicPending = false
     mocks.awaitingApproval = false
+    mocks.renderQueue = false
     mocks.surfaceProps = undefined
     mocks.realSurface = undefined
     mocks.derivedToolState = undefined
@@ -2215,6 +2233,65 @@ describe('ChatComposer', () => {
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+  })
+
+  it.each([false, true])(
+    'restores the previous queued message when switching edits (modified=%s)',
+    async (modified) => {
+      mocks.renderQueue = true
+      mocks.topicPending = true
+      const send = vi.fn()
+      render(<ChatComposer topic={topic} onSend={send} />)
+      const user = userEvent.setup()
+      const input = screen.getByRole('textbox', { name: 'Message draft' })
+      const submit = screen.getByRole('button', { name: 'Send draft' })
+      for (const text of ['message A', 'message B']) {
+        await user.type(input, text)
+        await user.click(submit)
+      }
+      await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.title' }))
+      await user.click(screen.getAllByRole('button', { name: 'chat.input.followup_queue.edit' })[0])
+      expect(input).toHaveValue('message A')
+      if (modified) await user.type(input, ' edited')
+      await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.edit' }))
+      expect(input).toHaveValue('message B')
+      expect(screen.getByText('message A')).toBeVisible()
+      expect(screen.queryByText('message A edited')).not.toBeInTheDocument()
+      expect(send).not.toHaveBeenCalled()
+      await user.click(submit)
+      await user.click(screen.getAllByRole('button', { name: 'chat.input.followup_queue.edit' })[0])
+      expect(input).toHaveValue('message A')
+      expect(screen.getAllByText('message B')).toHaveLength(1)
+    }
+  )
+
+  it.each([false, true])('retains the queued original until its direct send is accepted (%s)', async (accepted) => {
+    mocks.renderQueue = true
+    mocks.topicPending = true
+    const pendingSend = createDeferred<boolean>()
+    const send = vi.fn().mockReturnValue(pendingSend.promise)
+    const view = render(<ChatComposer topic={topic} onSend={send} />)
+    const user = userEvent.setup()
+    const input = screen.getByRole('textbox', { name: 'Message draft' })
+    const submit = screen.getByRole('button', { name: 'Send draft' })
+    for (const text of ['message A', 'message B']) {
+      await user.type(input, text)
+      await user.click(submit)
+    }
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.title' }))
+    await user.click(screen.getAllByRole('button', { name: 'chat.input.followup_queue.edit' })[0])
+    mocks.topicPending = false
+    view.rerender(<ChatComposer topic={topic} onSend={send} />)
+    await user.click(submit)
+    await waitFor(() => expect(send).toHaveBeenCalledOnce())
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.edit' }))
+    expect(input).toHaveValue('message A')
+    expect(screen.getByText('message B')).toBeVisible()
+    await act(async () => pendingSend.resolve(accepted))
+    await user.click(screen.getByRole('button', { name: 'chat.input.followup_queue.edit' }))
+    expect(input).toHaveValue('message B')
+    if (accepted) expect(screen.queryByText('message A')).not.toBeInTheDocument()
+    else expect(screen.getByText('message A')).toBeVisible()
   })
 
   it('restores queued knowledge selection from the user-message parts', async () => {

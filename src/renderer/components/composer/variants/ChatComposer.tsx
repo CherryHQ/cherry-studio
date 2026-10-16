@@ -1554,6 +1554,8 @@ const ChatComposerInner = ({
     items: queuedFollowups,
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
+    takeForEdit: takeFollowupForEdit,
+    completeEdit: completeFollowupEdit,
     reorder: reorderFollowups,
     paused: followupPaused,
     setPaused: setFollowupPaused
@@ -1572,8 +1574,7 @@ const ChatComposerInner = ({
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
-  // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
-  // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.
+  // Atomic replacement preserves unmanaged tokens even when the queued text is unchanged.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       resetHistoryIndex()
@@ -1796,7 +1797,10 @@ const ChatComposerInner = ({
         }
 
         const sent = await sendQueuedPayload(payload)
-        if (sent) clearCurrentDraft()
+        if (sent) {
+          completeFollowupEdit()
+          clearCurrentDraft()
+        }
       } finally {
         directSendInFlightRef.current = false
         setIsDirectSending(false)
@@ -1806,6 +1810,7 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       canSteer,
       clearCurrentDraft,
+      completeFollowupEdit,
       commitEditedMessage,
       editingMessageForCurrentTopic,
       enqueueFollowup,
@@ -1978,10 +1983,10 @@ const ChatComposerInner = ({
                   if (sent) removeFollowup(id)
                 }}
                 onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (directSendInFlightRef.current) return
+                  const item = takeFollowupForEdit(id)
                   if (!item) return
                   restoreFollowupDraft(item)
-                  removeFollowup(id)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
