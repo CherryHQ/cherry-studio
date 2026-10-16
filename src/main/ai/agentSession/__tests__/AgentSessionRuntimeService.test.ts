@@ -789,6 +789,51 @@ describe('AgentSessionRuntimeService', () => {
       expect(getSessionEffectivePermissionMode('session-1')).toBe('acceptEdits')
     })
 
+    it('keeps the approved permission when the pause aborts the turn stream through its real listener', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-abort',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-abort',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const realCloseSession = service.closeSession.bind(service)
+      const closeSession = vi
+        .spyOn(service, 'closeSession')
+        .mockImplementation((sessionId: string) => realCloseSession(sessionId))
+      const handle = service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-abort' })
+      // In production the stream manager owns this controller: `pauseRuntimeTurn` aborts the
+      // execution whose signal is the turn stream's input signal, and the stream's own abort
+      // listener tears the session down. Mirror exactly that here — no closeSession shortcut.
+      const turnStreamAbort = new AbortController()
+      service.openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: turnStreamAbort.signal })
+      mocks.pauseRuntimeTurn.mockImplementation((_topicId: string, reason: string) => {
+        turnStreamAbort.abort(reason)
+        return true
+      })
+
+      const result = service.respondToolApproval('approval-plan-abort', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      await vi.waitFor(() => expect(closeSession).toHaveBeenCalledWith('session-1'))
+      await closeSession.mock.results[0]?.value
+      // The abort listener's close retired the override with the entry; the approved execution must
+      // be carried back or the replacement connection respawns under `plan` (settingsBuilder/warmup
+      // read this registry first).
+      expect(getSessionEffectivePermissionMode('session-1')).toBe('acceptEdits')
+    })
+
     it('retires the session-scoped permission when the user edits the agent permission mode', async () => {
       setSessionEffectivePermissionMode('session-1', 'acceptEdits')
       const agent = {

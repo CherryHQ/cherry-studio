@@ -1627,8 +1627,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // never pause a successor turn's stream.
     if (!this.isCurrentEntry(entry)) return
     if (this.liveTurn(entry) && this.liveTurn(entry) !== turn) return
-    streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
+    // Capture before pausing: the pause aborts the stream whose listener runs `closeSession`, which
+    // retires the override synchronously — reading afterwards would hand the restart `plan` again.
     const approvedPermission = getSessionEffectivePermissionMode(entry.sessionId)
+    streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
     await this.closeSession(entry.sessionId)
     if (approvedPermission && agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan') {
       setSessionEffectivePermissionMode(entry.sessionId, approvedPermission)
