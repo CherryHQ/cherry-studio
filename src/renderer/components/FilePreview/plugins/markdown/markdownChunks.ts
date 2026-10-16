@@ -1137,13 +1137,16 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   const past = pastDestination(tail)
   if (past === null) {
     if (!/^[ \t]*$/.test(tail)) return null
-    const next = continuation(lines[index + 1], quotes, quoteColumns, labelColumn)
+    // The span counts the lines the label itself consumed, so the destination sits `span` lines
+    // below the opening one: reading the line below it instead re-read a wrapped label's closing
+    // line, and the `]:` it ends in became a destination that shadowed the real one.
+    const next = continuation(lines[index + span], quotes, quoteColumns, labelColumn)
     if (next === undefined) return null
     const nextPast = pastDestination(next)
     if (nextPast === null) return null
     tail = nextPast
     body.push(next)
-    span = 2
+    span += 1
   } else {
     tail = past
   }
@@ -1398,6 +1401,12 @@ export function splitMarkdownChunks(
   let dollarFence = 0
   let mathRun: MathRun | null = null
   let htmlTerminator: RegExp | null = null
+  /**
+   * The container the open terminator block's lines have to carry on reproducing, or null at the
+   * top level. The block belongs to the quote or list item it was written in, so a line that
+   * drops those markers ends it — with the container — and is read again outside it.
+   */
+  let htmlTerminatorContainer: string | null = null
   // A block-level HTML block (a type-6 tag or a type-7 one, the raw types having their own
   // terminator above) runs to the next blank line, and everything it holds is HTML the parser reads
   // as text — no definition opens inside it and nothing else opens there either.
@@ -1483,8 +1492,22 @@ export function splitMarkdownChunks(
       continue
     }
     if (htmlTerminator) {
-      if (htmlTerminator.test(line)) htmlTerminator = null
-      continue
+      if (htmlTerminator.test(line)) {
+        htmlTerminator = null
+        htmlTerminatorContainer = null
+        continue
+      }
+      // A line that drops the block container's markers ends the block as the terminator would —
+      // the quote or item it belongs to is over — so it is read again below, where the top level
+      // it now sits at may open a definition. Blank lines, and lines that reproduce the markers,
+      // stay inside: the raw types run to their terminator across both.
+      const stripped =
+        htmlTerminatorContainer === null
+          ? line
+          : stripDefinitionContainer(line, containerParams(htmlTerminatorContainer))
+      if (stripped !== null) continue
+      htmlTerminator = null
+      htmlTerminatorContainer = null
     }
     if (htmlBlankBlock) {
       // A line that drops the container's markers ends the HTML block as a blank line would, so it
@@ -1546,7 +1569,10 @@ export function splitMarkdownChunks(
       container !== null && (leadingColumns(line) >= 4 || containerWhitespaceOpensCode(container[0]))
     const htmlEnd = containerHoldsCode ? null : htmlBlockTerminator(uncontained)
     if (htmlEnd) {
-      if (!htmlEnd.test(line)) htmlTerminator = htmlEnd
+      if (!htmlEnd.test(line)) {
+        htmlTerminator = htmlEnd
+        htmlTerminatorContainer = container?.[0] ?? null
+      }
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -1612,8 +1638,10 @@ export function splitMarkdownChunks(
     // walk reaches here only for lines the containers above did not take, so `    code` lands on
     // the branch that sets paragraph state, and without this test it would hold one open. Four
     // columns are the parser's own floor: one to three leave the line a paragraph, and the state
-    // a definition-shaped line below it has to meet is that paragraph's.
-    const indentedCode = !blank && leadingColumns(line) >= 4 && !startsBlock(line)
+    // a definition-shaped line below it has to meet is that paragraph's. Code also cannot
+    // interrupt a paragraph — the indent under one is its own lazy line — so only a line free of
+    // an open paragraph may open it.
+    const indentedCode = !blank && previousStatus === 'block' && leadingColumns(line) >= 4 && !startsBlock(line)
     const indentedContinuation =
       definitionContainer && insideContainer !== null
         ? // A marker-only line behind the definition's container (`>` on its own) is blank the way

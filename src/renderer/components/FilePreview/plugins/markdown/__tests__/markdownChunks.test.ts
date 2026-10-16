@@ -59,8 +59,8 @@ const resolvedReferenceUrls = (source: string): string[] => {
     }
     for (const child of node.children ?? []) walk(child as never, phase)
   }
-  walk(parsed(source) as never, 'definitions')
-  walk(parsed(source) as never, 'references')
+  walk(parsed(source), 'definitions')
+  walk(parsed(source), 'references')
   return urls
 }
 
@@ -449,6 +449,24 @@ describe('splitMarkdownChunks', () => {
     expect(chunks[0].text.startsWith('hello')).toBe(true)
   })
 
+  it('carries a wrapped label whose destination sits a line below the closing one', () => {
+    // The label spans two lines and the second carries the colon, so the destination is the line
+    // below it. Reading that line from the first line's index rebuilt `[foo\nbar]:\nbar]:`, whose
+    // `bar]:` destination shadowed the real `/url` — the reference rendered `bar%5D:` instead.
+    const content = ['[foo', 'bar]:', '/url', '', 'filler paragraph that spends the budget', '', 'see [foo bar]'].join(
+      '\n'
+    )
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(referenceTarget(content, 'foo bar')).toBe('/url')
+    expect(referenceTarget(joined(chunks), 'foo bar')).toBe('/url')
+    for (const chunk of chunks) {
+      if (chunk.text.includes('see [foo bar]')) expect(resolvedReferenceUrls(chunk.text)).toEqual(['/url'])
+    }
+  })
+
   it('does not carry the quoted text that follows a block-quoted definition', () => {
     // Only the definition travels; `visible tail` is a paragraph of the quote and would be repeated.
     const content = ['> [label]: https://example.com', '> "the title"', '> visible tail', '', 'see [label]'].join('\n')
@@ -741,6 +759,22 @@ describe('splitMarkdownChunks', () => {
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[label]: https://example.com/target')
     }
+  })
+
+  it('keeps paragraph state behind the indented line a paragraph continues', () => {
+    // Indented code cannot interrupt a paragraph, so `    continuation` is the open paragraph's
+    // own line and `[label]: /wrong` under it is paragraph text. Reading the indent as code reset
+    // paragraph state, hoisted the wrong definition, and it shadowed the real `/right`.
+    const content = ['paragraph', '    continuation', '[label]: /wrong', '', '[label]: /right', '', 'see [label]'].join(
+      '\n'
+    )
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(referenceTarget(content, 'label')).toBe('/right')
+    expect(referenceTarget(joined(chunks), 'label')).toBe('/right')
+    expect(chunks.filter((chunk) => chunk.text.includes('/wrong'))).toHaveLength(1)
   })
 
   it('still carries a definition-shaped line a quote marker opens behind a paragraph', () => {
@@ -1818,6 +1852,30 @@ describe('definitions inside blocks the parser reads as raw', () => {
     ].join('\n')
 
     expect(parsed('> <div>\n[label]: https://example.com/target').children[1].type).toBe('definition')
+
+    const chunks = chunksOf(content, 40)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const chunk of chunks) {
+      expect(chunk.text).toContain('[label]: https://example.com/target')
+    }
+  })
+
+  it('collects a definition an unquoted line writes below a quoted raw HTML block', () => {
+    // `> <script>` opens a raw block the quote holds, and the unquoted line below it leaves both:
+    // the parser takes the definition at the top level. Held open to its closing tag, the block
+    // swallowed the definition and left `see [label]` literal in every chunk but the first.
+    const content = [
+      '> <script>',
+      '[label]: https://example.com/target',
+      '</script>',
+      '',
+      ...Array.from({ length: 6 }, (_, index) => ['', `para ${index}`]).flat(),
+      '',
+      'see [label]'
+    ].join('\n')
+
+    expect(parsed('> <script>\n[label]: https://example.com/target').children[1].type).toBe('definition')
 
     const chunks = chunksOf(content, 40)
 
