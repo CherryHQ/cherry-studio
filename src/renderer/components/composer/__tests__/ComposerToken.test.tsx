@@ -1004,6 +1004,24 @@ describe('ComposerToken', () => {
     expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
   })
 
+  it('gives every wrapper in the icon chain a size', () => {
+    // A glyph that fills "100% of its parent" resolves against an auto-sized box when any wrapper in
+    // the chain is unsized, and then falls back to the glyph's own intrinsic size (lucide draws at
+    // 24px), which is what made the folder token look oversized. Every wrapper must carry `size-full`.
+    const { container } = render(
+      <ComposerToken token={{ id: 'folder:2', kind: 'folder', label: 'docs' }} onRemove={vi.fn()} />
+    )
+
+    const iconBox = container.querySelector('[data-folder-token-icon]')
+    const slot = iconBox?.firstElementChild
+    const iconWrapper = slot?.firstElementChild
+
+    expect(iconBox).toHaveClass('size-[0.9em]')
+    expect(slot).toHaveClass('size-full')
+    expect(iconWrapper).toHaveClass('size-full')
+    expect(iconWrapper?.querySelector('svg')).toHaveClass('size-full')
+  })
+
   it('shows quoted content in a tooltip for quote tokens', () => {
     render(
       <ComposerToken

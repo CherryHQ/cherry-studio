@@ -212,7 +212,10 @@ function InlineTokenIconSlot({
   // collapsing and to keep the button keyboard-focusable.
   return (
     <span className={cn('relative inline-flex shrink-0', slotClassName)}>
-      <span className="inline-flex shrink-0 transition-opacity group-focus-within/composer-token:opacity-0 group-hover/composer-token:opacity-0">
+      {/* The icon wrapper must own a size too: every glyph inside fills "100% of its parent", so
+          without it the box stays auto-sized and the glyph falls back to its intrinsic size (a
+          lucide icon defaults to 24px, which is what made the folder token look oversized). */}
+      <span className="inline-flex size-full shrink-0 transition-opacity group-focus-within/composer-token:opacity-0 group-hover/composer-token:opacity-0">
         {icon}
       </span>
       <InlineTokenRemoveButton
@@ -934,6 +937,9 @@ export function FolderComposerToken(props: ComposerTokenProps) {
       data-composer-token-kind={props.token.kind}
       onMouseDown={props.onMouseDown}>
       <span className={composerChipIconBoxClassName} data-folder-token-icon="">
+        {/* The slot must carry the size: the default glyph and the provided-icon wrapper both fill
+            "100% of the slot", which without it resolves against an auto-sized box and falls back to
+            the glyph's own 24px lucide default. */}
         <InlineTokenIconSlot
           icon={
             props.token.icon ? (
@@ -944,6 +950,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
           }
           removeLabel={removeLabel}
           onRemove={props.onRemove}
+          slotClassName="size-full items-center justify-center"
           removeButtonClassName={composerChipRemoveButtonClassName}
           removeIconClassName={composerChipRemoveIconClassName}
         />
@@ -994,6 +1001,7 @@ export function KnowledgeComposerToken(props: ComposerTokenProps) {
           }
           removeLabel={removeLabel}
           onRemove={props.onRemove}
+          slotClassName="size-full items-center justify-center"
           removeButtonClassName={composerChipRemoveButtonClassName}
           removeIconClassName={composerChipRemoveIconClassName}
         />
