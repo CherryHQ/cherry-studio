@@ -51,7 +51,7 @@ export interface TranscriptMessageEntry extends TranscriptEntryBase {
    * to the same key; other models get it as plain text.
    */
   modelKey?: string
-  /** Assistant. */
+  /** Assistant: the reply's usage. Tool: the usage the tool reported for its own work (a subagent's requests). */
   usage?: TranscriptUsage
   /** Assistant; `stop` when absent. Pi leaves `error`/`aborted` replies out of requests. */
   stopReason?: TranscriptStopReason

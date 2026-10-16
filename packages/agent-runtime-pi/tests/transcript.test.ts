@@ -136,6 +136,52 @@ describe('session transcript', () => {
     expect(costs).toEqual([billed, 0])
   })
 
+  // Breaks when the usage a tool reports (a subagent's requests) is dropped from the transcript, so a
+  // rebuilt session no longer knows what that work cost.
+  it('keeps the usage a tool result reports through a rebuild', async () => {
+    const reported = {
+      input: 300,
+      output: 40,
+      cacheRead: 10,
+      cacheWrite: 0,
+      totalTokens: 350,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.25 }
+    }
+    const metered = defineTool({
+      name: 'metered',
+      label: 'Metered',
+      description: 'Does work that costs tokens',
+      parameters: Type.Object({}),
+      async execute() {
+        return { content: [{ type: 'text', text: 'done' }], details: undefined, usage: reported }
+      }
+    })
+    const live = scriptedModel([
+      [{ type: 'tool-call', toolCallId: 'call_m', toolName: 'metered', input: '{}' }, finish('tool-calls')],
+      [...textParts('a', 'Done.'), finish('stop')]
+    ])
+    const host = hostStore()
+    const cwd = tempDir('cwd')
+    const liveRuntime = await createTestSession({
+      cwd,
+      port: streamTextPort(live.model).port,
+      tools: [metered],
+      onEvent: host.onEvent
+    })
+    await liveRuntime.session.prompt('Do the work')
+
+    const rebuilt = await createTestSession({
+      cwd,
+      port: streamTextPort(scriptedModel([]).model).port,
+      tools: [metered],
+      transcript: plain(host.entries)
+    })
+    const usageOf = (messages: typeof rebuilt.session.messages) =>
+      messages.flatMap((message) => (message.role === 'toolResult' ? [message.usage] : []))
+    expect(usageOf(liveRuntime.session.messages)).toEqual([reported])
+    expect(usageOf(rebuilt.session.messages)).toEqual([reported])
+  })
+
   it('emits each entry once, in Pi order, and reports the head when a turn settles', async () => {
     const { model } = scriptedModel([
       [
