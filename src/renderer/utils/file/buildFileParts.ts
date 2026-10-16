@@ -20,13 +20,14 @@ import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 export function withComposerFilePartMeta(
   part: FileUIPart,
-  attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind'>,
+  attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind' | 'path'>,
   fileEntryId?: string
 ): FileUIPart {
   return withCherryMeta(part, {
     ...(fileEntryId ? { fileEntryId } : {}),
     fileTokenSourceId: attachment.fileTokenSourceId,
-    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {})
+    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {}),
+    ...(attachment.path ? { originalPath: attachment.path } : {})
   })
 }
 
