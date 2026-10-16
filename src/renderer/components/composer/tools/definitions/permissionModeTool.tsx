@@ -51,9 +51,9 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     [applyMode, currentMode]
   )
 
-  // A newer selection wins; confirming must never apply a stale dialog.
+  // Any newer mode (local or incoming) wins; confirming must never apply a stale dialog over it.
   useEffect(() => {
-    if (currentMode === 'bypassPermissions') setFullAccessPending(false)
+    setFullAccessPending(false)
   }, [currentMode])
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)

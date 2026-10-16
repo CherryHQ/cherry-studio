@@ -159,6 +159,23 @@ describe('permissionModeTool submenu', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('drops a pending Full Access confirmation when a newer restrictive mode arrives', async () => {
+    mocks.permissionMode = 'auto'
+    const Runtime = permissionModeTool.composer!.runtime!
+    const context = { t, launcher: { registerLaunchers: mocks.registerLaunchers }, session: { agentId: 'agent-1' } }
+    const { rerender } = render(<Runtime context={context as any} />)
+    const submenu = mocks.registerLaunchers.mock.calls.at(-1)?.[0]?.[0]?.submenu ?? []
+    submenu.find((item) => item.id === 'permission-mode-bypassPermissions')?.action?.({} as any)
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    mocks.permissionMode = 'plan'
+    rerender(<Runtime context={context as any} />)
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Enable Full Access' })).not.toBeInTheDocument()
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
+  })
+
   it('keeps the confirmation open when there is no agent to apply it to', async () => {
     const user = userEvent.setup()
     mocks.agent = undefined
