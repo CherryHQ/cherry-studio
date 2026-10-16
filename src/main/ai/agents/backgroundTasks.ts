@@ -211,15 +211,74 @@ export interface StartDetachedBackgroundTaskInput {
  * never hands its stdio to the processes it starts, while an attached task dies with the app.
  * Running the command from a detached Node process keeps the shell ordinary, so both hold.
  * The command travels as `argv[1]` so a long one cannot overflow the Windows environment block.
+ *
+ * The runner is also this task's only Windows anchor: it is the process this app records, signals
+ * through, and inventories, so it may not exit just because its shell did — a backgrounded job
+ * (`start "" /b ping -t …`) outlives the shell that started it. Only once the process table shows
+ * nothing left behind by the runner or the shell does the runner exit with the shell's own status.
  */
-export const WINDOWS_DETACHED_TASK_RUNNER = [
-  `const { spawn } = require('node:child_process')`,
-  `const env = { ...process.env }`,
-  `delete env.ELECTRON_RUN_AS_NODE`,
-  `const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })`,
-  `task.on('error', () => process.exit(1))`,
-  `task.on('exit', (code) => process.exit(code ?? 1))`
-].join(';')
+export const WINDOWS_DETACHED_TASK_RUNNER = `
+const { spawn, execFileSync } = require('node:child_process')
+const env = { ...process.env }
+delete env.ELECTRON_RUN_AS_NODE
+const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })
+task.on('error', () => process.exit(1))
+task.on('exit', (code, signal) => {
+  const status = signal ? 1 : (code == null ? 1 : code)
+  let emptyReadings = 0
+  let timer = null
+  const settle = () => {
+    if (timer) clearInterval(timer)
+    process.exit(status)
+  }
+  const probe = () => {
+    let table
+    try {
+      table = execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Csv -NoTypeInformation'
+        ],
+        { encoding: 'utf8', timeout: 5000, windowsHide: true }
+      )
+    } catch (error) {
+      // A probe that cannot run at all will never read evidence, so it cannot hold the anchor
+      // open; a read that failed or timed out proves nothing and keeps waiting.
+      if (error.code === 'ENOENT') settle()
+      return
+    }
+    // Everything descended from this runner or its shell is the work; each row found inside that
+    // closure seeds the next round, so a worker whose own parent has exited is still accounted for.
+    const seeds = new Set([process.pid, Number(task.pid) || 0])
+    let grew = true
+    while (grew) {
+      grew = false
+      for (const row of String(table).split('\\n')) {
+        const fields = row.replace(/"/g, '').trim().split(',')
+        const pid = Number(fields[0])
+        if (fields.length !== 2 || !pid || seeds.has(pid)) continue
+        if (seeds.has(Number(fields[1]))) {
+          seeds.add(pid)
+          grew = true
+        }
+      }
+    }
+    // A job the shell just backgrounded can surface a beat late, so the tree must read empty
+    // twice before the anchor may leave.
+    if (seeds.size > 2) {
+      emptyReadings = 0
+      return
+    }
+    if (++emptyReadings < 2) return
+    settle()
+  }
+  probe()
+  timer = setInterval(probe, 500)
+})
+`
 
 /**
  * POSIX keeps the task's identity in one long-lived anchor. The command runs in a shell that is a

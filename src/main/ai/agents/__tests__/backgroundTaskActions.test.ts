@@ -5,14 +5,22 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getPathMock, sendMessageMock, sendMessageOtherMock, getAgentAdaptersMock } = vi.hoisted(() => ({
+const { getPathMock, sendMessageMock, sendMessageOtherMock, getAgentAdaptersMock, taskIndexMocks } = vi.hoisted(() => ({
   getPathMock: vi.fn(),
   sendMessageMock: vi.fn<(chatId: string, message: string) => Promise<void>>(async () => undefined),
   sendMessageOtherMock: vi.fn<(chatId: string, message: string) => Promise<void>>(async () => undefined),
-  getAgentAdaptersMock: vi.fn<() => unknown[]>(() => [])
+  getAgentAdaptersMock: vi.fn<() => unknown[]>(() => []),
+  taskIndexMocks: {
+    saveRecord: vi.fn(),
+    saveRecords: vi.fn(),
+    listByAgent: vi.fn()
+  }
 }))
 
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: vi.fn(() => null) } }))
+vi.mock('@data/services/AgentBackgroundTaskService', () => ({
+  agentBackgroundTaskService: taskIndexMocks
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const { application } = mockApplicationFactory({
@@ -25,6 +33,7 @@ vi.mock('@application', async () => {
 import { agentService } from '@data/services/AgentService'
 
 import {
+  listAgentBackgroundTasks,
   purgeAgentBackgroundTasks,
   startAgentBackgroundTask,
   stopAgentBackgroundTask,
@@ -403,6 +412,52 @@ describe('stopAllAgentBackgroundTasks', () => {
       }
     }
   )
+})
+
+describe('listAgentBackgroundTasks', () => {
+  let agentsRoot: string
+  let storageDir: string
+
+  beforeEach(async () => {
+    agentsRoot = await mkdtemp(path.join(tmpdir(), 'cherry-agents-list-'))
+    storageDir = path.join(agentsRoot, 'agent-1', 'background-tasks')
+    await mkdir(storageDir, { recursive: true })
+    getPathMock.mockReturnValue(agentsRoot)
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1' } as never)
+    taskIndexMocks.saveRecords.mockReset()
+    taskIndexMocks.listByAgent.mockReset()
+  })
+
+  afterEach(async () => {
+    await rmTaskDir(agentsRoot)
+    vi.mocked(agentService.getAgent).mockReturnValue(null)
+  })
+
+  it('returns the reconciled disk records even while the index write is only deferred', async () => {
+    // Inside a backup's pauseWrites hold the index accepts saveRecords without touching SQLite;
+    // reading it back would show a completed task as running (or omit an unindexed one), and the
+    // panel's Stop/Kill then acts against a stale record. The disk is the answer either way.
+    const diskRecord: BackgroundTaskRecord = {
+      id: 'bt-done',
+      name: 'done',
+      command: 'true',
+      pid: 999_999,
+      cwd: storageDir,
+      startedAt: new Date().toISOString(),
+      logFile: path.join(storageDir, 'bt-done.log'),
+      status: 'completed',
+      exitCode: 0,
+      signal: null
+    }
+    await writeFile(path.join(storageDir, 'bt-done.json'), JSON.stringify(diskRecord))
+    // Deferred, not failed: the call succeeds while the hold lasts, so the old read-back path
+    // reached the stale rows below.
+    taskIndexMocks.saveRecords.mockImplementation(() => undefined)
+    taskIndexMocks.listByAgent.mockReturnValue([{ ...diskRecord, status: 'running' }])
+
+    await expect(listAgentBackgroundTasks('agent-1')).resolves.toEqual([diskRecord])
+    expect(taskIndexMocks.saveRecords).toHaveBeenCalledWith('agent-1', [diskRecord])
+  })
 })
 
 describe('startAgentBackgroundTask / purgeAgentBackgroundTasks', () => {

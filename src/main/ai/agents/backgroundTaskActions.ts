@@ -111,15 +111,15 @@ export async function listAgentBackgroundTasks(agentId: string): Promise<Backgro
   if (!agentService.getAgent(agentId)) throw new Error(`Agent ${agentId} not found`)
   const records = await listDetachedBackgroundTasks(storageDirFor(agentId))
   // SQLite is the panel's index over these records, not a second source of truth. Reading it back
-  // after a failed write would hand the panel a different answer from the agent's own list tool,
-  // which returns the reconciled disk records, so the disk stays the answer either way.
+  // would hand the panel a different answer from the agent's own list tool, which returns the
+  // reconciled disk records — and inside a backup's pauseWrites hold the index is stale by
+  // design, so the disk stays the answer either way.
   try {
     agentBackgroundTaskService.saveRecords(agentId, records)
   } catch (error) {
     logger.error('Failed to index background tasks after reconcile', { agentId, error })
-    return records
   }
-  return agentBackgroundTaskService.listByAgent(agentId)
+  return records
 }
 
 /**
