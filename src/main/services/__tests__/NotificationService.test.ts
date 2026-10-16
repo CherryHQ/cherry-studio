@@ -287,32 +287,38 @@ describe('NotificationService', () => {
     }
   )
 
-  it.each(['assistant', 'agent'] as const)(
-    'omits all completion delivery while viewing the %s task',
-    async (conversationType) => {
+  it.each([
+    ['assistant', 1],
+    ['agent', 1],
+    ['assistant', 3],
+    ['agent', 3]
+  ] as const)(
+    'omits all completion delivery while viewing the %s batch of %i tasks',
+    async (conversationType, completedTaskCount) => {
       mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
         type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
       )
       mocks.preferenceValues['app.notification.completion_sound.enabled'] = true
       mocks.isActiveInFocusedWindow.mockResolvedValue(true)
-      const input = {
-        eventKey: 'active-task',
-        category: 'system' as const,
-        kind: 'task-completion' as const,
-        title: 'Done',
-        message: 'Finished',
-        createdAt: Date.now(),
-        target: { kind: 'conversation' as const, conversationType, conversationId: 'conversation-1' }
+      const publish = vi.spyOn(service, 'publish')
+      const completion = {
+        topicId: conversationType === 'agent' ? 'agent-session:conversation-1' : 'conversation-1',
+        completedTaskCount
       }
-      await service.publish(input, { completion: true, source: 'assistant' })
+      emitCompletion(completion)
+      await publish.mock.results[0].value
       expect(notificationRecordService.list({}).items).toEqual([])
       expect(notificationRecordService.unreadCount()).toBe(0)
       expect(mocks.send).not.toHaveBeenCalled()
       expect(mocks.electronNotifications).toHaveLength(0)
 
       mocks.isActiveInFocusedWindow.mockResolvedValue(false)
-      await service.publish(input, { completion: true, source: 'assistant' })
+      emitCompletion(completion)
+      await publish.mock.results[1].value
       expect(notificationRecordService.unreadCount()).toBe(1)
+      expect(notificationRecordService.list({}).items[0].kind).toBe(
+        completedTaskCount > 1 ? 'queue-completion' : 'task-completion'
+      )
       expect(mocks.send.mock.calls.map(([, event]) => event)).toEqual([
         'notification.completion_sound',
         'notification.present'

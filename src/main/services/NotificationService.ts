@@ -149,7 +149,7 @@ export class NotificationService extends BaseService {
       const preferences = application.get('PreferenceService')
       if (!preferences.get(`app.notification.center.${input.category}.enabled`)) return true
       if (
-        input.kind === 'task-completion' &&
+        (input.kind === 'task-completion' || input.kind === 'queue-completion') &&
         input.target?.kind === 'conversation' &&
         getFullChromeWindowInfos().some((window) => window.isFocused) &&
         (await application.get('ConversationNavigationService').isActiveInFocusedWindow(input.target))
