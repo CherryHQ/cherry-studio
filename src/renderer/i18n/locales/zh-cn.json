@@ -3200,7 +3200,6 @@
   "quickAssistant.chat.new_saved": "新建保存的对话",
   "quickAssistant.chat.new_temporary": "新建临时聊天",
   "quickAssistant.chat.open_in_app": "在 Cherry Studio 中打开",
-  "quickAssistant.chat.save_and_open": "保存并在 Cherry Studio 中打开",
   "quickAssistant.chat.saved": "已保存的聊天",
   "quickAssistant.chat.temporary": "临时聊天 — 不保存",
   "quickAssistant.clipboard.empty": "剪贴板为空",
