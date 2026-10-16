@@ -117,7 +117,11 @@ import {
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
-import { clearSessionEffectivePermissionMode, setSessionEffectivePermissionMode } from './sessionPermissionOverrides'
+import {
+  clearSessionEffectivePermissionMode,
+  getSessionEffectivePermissionMode,
+  setSessionEffectivePermissionMode
+} from './sessionPermissionOverrides'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -1606,6 +1610,11 @@ export class AgentSessionRuntimeService extends BaseService {
    * its way). Pausing first shuts the stream before the result lands, and persistence saves the
    * approved plan as `output-error` "Interrupted by user". The wait is bounded: a result that never
    * comes really was interrupted, so the teardown proceeds and that record stands.
+   *
+   * The close retires session-scoped state with the entry, but the approved permission recorded for
+   * this handoff must outlive it — the replacement startup re-derives its permission mode from the
+   * override registry, so it is carried back across. An agent row that left `plan` while the result
+   * settled is the user's own edit and keeps the override retired.
    */
   private async stopApprovedPlanTurn(
     entry: AgentSessionRuntimeEntry,
@@ -1619,7 +1628,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry)) return
     if (this.liveTurn(entry) && this.liveTurn(entry) !== turn) return
     streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
+    const approvedPermission = getSessionEffectivePermissionMode(entry.sessionId)
     await this.closeSession(entry.sessionId)
+    if (approvedPermission && agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan') {
+      setSessionEffectivePermissionMode(entry.sessionId, approvedPermission)
+    }
   }
 
   /**
