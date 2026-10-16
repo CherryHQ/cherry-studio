@@ -241,6 +241,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** Fatal results omit linkage. A success, including `hook_stopped`, is not fatal. */
+function resultOmitsLinkageButMustSurface(message: SDKResultMessage): boolean {
+  if (message.subtype !== 'success' || message.is_error) return true
+  return message.api_error_status != null || message.terminal_reason === 'api_error'
+}
+
+/** Ids the SDK echoes from the client uuid stamped on the submitted user message. */
+function readHostCorrelationIds(message: SDKMessage): string[] {
+  const raw = message as { user_message_uuid?: unknown; user_message_uuids?: unknown }
+  const ids: string[] = []
+  if (typeof raw.user_message_uuid === 'string' && raw.user_message_uuid) ids.push(raw.user_message_uuid)
+  if (!Array.isArray(raw.user_message_uuids)) return ids
+  for (const id of raw.user_message_uuids) {
+    if (typeof id === 'string' && id && !ids.includes(id)) ids.push(id)
+  }
+  return ids
+}
+
 function summarizeSdkContentBlock(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) return { type: typeof value }
 
@@ -497,6 +515,14 @@ export class ClaudeCodeStreamAdapter {
   private turnActive = false
   /** The current turn was started by parentless SDK content rather than a host `send()`. */
   private autonomousTurn = false
+  /** Client uuid stamped on the SDK user message for this host turn. */
+  private hostUserMessageUuid?: string
+  /** Slash name of this send. An ordinary turn does not accept another command's local result. */
+  private hostLocalCommand?: string
+  /** False while attachment IO is still running; that success cannot answer this send. */
+  private hostInputQueued = true
+  /** A frame named some other send; unstamped frames stay dropped until this send is echoed. */
+  private ignoringForeignTurn = false
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
   private backgroundWorkReleasePending = false
   private awaitingBackgroundReply = false
@@ -603,17 +629,29 @@ export class ClaudeCodeStreamAdapter {
     return this.turnHasActivity
   }
 
-  /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
-  beginTurn(): void {
+  /**
+   * Opens a turn. `userMessageUuid` is the id stamped on the SDK user message. A frame that names
+   * another send is omitted. Results that omit linkage still settle once the send is queued.
+   */
+  beginTurn(attribution?: { userMessageUuid: string; localCommand?: string }): void {
     this.turnHasActivity = false
     this.ctx = this.createTurnContext()
     this.turnActive = true
     this.autonomousTurn = false
+    this.hostUserMessageUuid = attribution?.userMessageUuid
+    this.hostLocalCommand = attribution?.localCommand
+    this.hostInputQueued = attribution?.userMessageUuid == null
+    this.ignoringForeignTurn = false
     if (this.pendingInit) {
       const init = this.pendingInit
       this.pendingInit = undefined
       this.handleInitSystemMessage(init, this.ctx)
     }
+  }
+
+  /** The stamped user message is in the SDK input queue. Unlinked results may now settle. */
+  markHostInputQueued(): void {
+    this.hostInputQueued = true
   }
 
   handleMessage(message: SDKMessage): ClaudeCodeStreamAdapterResult {
@@ -670,6 +708,25 @@ export class ClaudeCodeStreamAdapter {
       this.autonomousTurn = true
     }
 
+    if (
+      this.turnActive &&
+      (message.type === 'result' ||
+        message.type === 'stream_event' ||
+        message.type === 'assistant' ||
+        message.type === 'user' ||
+        message.type === 'tool_progress') &&
+      this.shouldOmitFromHostTurn(message)
+    ) {
+      if (message.type === 'result') {
+        this.setSessionId(message.session_id)
+        logger.warn('Ignoring a Claude Code result that is not correlated with the host turn', {
+          sessionId: this.sessionId,
+          subtype: message.subtype
+        })
+      }
+      return { type: 'continue' }
+    }
+
     switch (message.type) {
       case 'tool_progress':
         this.handleToolProgressMessage(message)
@@ -697,6 +754,37 @@ export class ClaudeCodeStreamAdapter {
         return { type: 'continue' }
     }
     return { type: 'continue' }
+  }
+
+  /**
+   * True when this frame must not render, settle, or be counted for the open host turn.
+   * Safe to call twice: the driver records stats before `handleMessage`.
+   */
+  shouldOmitFromHostTurn(message: SDKMessage): boolean {
+    if (!this.turnActive || !this.hostUserMessageUuid || this.autonomousTurn) return false
+    if ('parent_tool_use_id' in message && message.parent_tool_use_id != null) return false
+    const ids = readHostCorrelationIds(message)
+    if (ids.includes(this.hostUserMessageUuid)) {
+      this.ignoringForeignTurn = false
+      return false
+    }
+    if (ids.length > 0) {
+      this.ignoringForeignTurn = true
+      return true
+    }
+    if (message.type === 'result') {
+      if (this.isUnrelatedLocalCommand(message)) return true
+      return !this.hostInputQueued && !resultOmitsLinkageButMustSurface(message)
+    }
+    if (!this.hostInputQueued) return true
+    return this.ignoringForeignTurn
+  }
+
+  /** A local slash result does not belong to ordinary text. A slash send accepts it after queue. */
+  private isUnrelatedLocalCommand(message: SDKMessage): boolean {
+    if (message.type !== 'result' || message.subtype !== 'success') return false
+    if (typeof message.local_command !== 'string' || message.local_command.length === 0) return false
+    return this.hostLocalCommand == null
   }
 
   /** Close every active text part so filtering sinks flush buffered marker prefixes before errors escape. */
