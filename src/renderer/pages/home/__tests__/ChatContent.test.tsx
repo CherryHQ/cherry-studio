@@ -3,9 +3,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { ComposerChatTarget } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import ChatContent from '../ChatContent'
@@ -35,7 +39,6 @@ const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 const mockChatWriteValue = vi.hoisted(() => ({ current: null as any }))
-const mockEventEmit = vi.hoisted(() => vi.fn())
 const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
@@ -66,15 +69,6 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
 
 vi.mock('@renderer/hooks/useTopicMessages', () => ({
   useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
-}))
-
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: {
-    LOCATE_MESSAGE: 'LOCATE_MESSAGE'
-  },
-  EventEmitter: {
-    emit: mockEventEmit
-  }
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
@@ -277,6 +271,7 @@ describe('ChatContent', () => {
   let streamOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
   beforeEach(() => {
+    vi.spyOn(EventEmitter, 'emit')
     streamOpen = vi.fn().mockResolvedValue({ mode: 'started' })
     // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
@@ -338,7 +333,7 @@ describe('ChatContent', () => {
     capturedOnSend = undefined
     mockMessageListValue.current = null
     mockChatWriteValue.current = null
-    mockEventEmit.mockReset()
+    vi.mocked(EventEmitter.emit).mockRestore()
     mockUseExecutionOverlay.mockReset()
   })
 
@@ -1585,47 +1580,134 @@ describe('ChatContent', () => {
 
     expect(loadOlder).not.toHaveBeenCalled()
     expect(onLocateMessageHandled).not.toHaveBeenCalled()
-    expect(mockEventEmit).not.toHaveBeenCalled()
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
   })
 
-  it('loads older history for pending locate and clears it only after the target appears', async () => {
-    const loadOlder = vi.fn()
-    const onLocateMessageHandled = vi.fn()
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [createUiMessage('history-user', 'user')],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: 'branch-a',
-      loadOlder,
-      hasOlder: true,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
+  it.each(['route', 'quote'] as const)(
+    'loads older history for %s navigation and resolves it after the target appears',
+    async (source) => {
+      const locateMessageId = source === 'route' ? 'target-message' : undefined
+      const loadOlder = vi.fn()
+      const onLocateMessageHandled = vi.fn()
+      mockUseTopicMessages.mockReturnValue({
+        uiMessages: [createUiMessage('history-user', 'user')],
+        siblingsMap: {},
+        isLoading: false,
+        refresh: vi.fn().mockResolvedValue([]),
+        activeNodeId: 'branch-a',
+        loadOlder,
+        hasOlder: true,
+        mutate: vi.fn().mockResolvedValue(undefined)
+      })
 
-    const { rerender } = render(
-      <ChatContent topic={topic} locateMessageId="target-message" onLocateMessageHandled={onLocateMessageHandled} />
+      const { rerender } = render(
+        <ChatContent topic={topic} locateMessageId={locateMessageId} onLocateMessageHandled={onLocateMessageHandled} />
+      )
+
+      if (source === 'quote') {
+        await act(() =>
+          EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, {
+            topicId: 'other-topic',
+            messageId: 'target-message'
+          })
+        )
+        expect(loadOlder).not.toHaveBeenCalled()
+        await act(() =>
+          EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, {
+            topicId: topic.id,
+            messageId: 'target-message'
+          })
+        )
+      }
+
+      await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
+      expect(onLocateMessageHandled).not.toHaveBeenCalled()
+
+      mockUseTopicMessages.mockReturnValue({
+        uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('target-message', 'assistant')],
+        siblingsMap: {},
+        isLoading: false,
+        refresh: vi.fn().mockResolvedValue([]),
+        activeNodeId: 'target-message',
+        loadOlder,
+        hasOlder: false,
+        mutate: vi.fn().mockResolvedValue(undefined)
+      })
+      rerender(
+        <ChatContent topic={topic} locateMessageId={locateMessageId} onLocateMessageHandled={onLocateMessageHandled} />
+      )
+
+      await waitFor(() => {
+        expect(EventEmitter.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
+        expect(onLocateMessageHandled).toHaveBeenCalledTimes(source === 'route' ? 1 : 0)
+      })
+    }
+  )
+  it.each([true, false])('locates an inactive quoted branch (known sibling: %s)', async (knownSibling) => {
+    const target = createUiMessage('quoted-branch', 'assistant')
+    const setActiveNode = vi.fn().mockResolvedValue(undefined)
+    const sourceLookup = vi
+      .mocked(dataApiService.get)
+      .mockResolvedValueOnce({ id: target.id, topicId: topic.id })
+      .mockResolvedValueOnce([{ id: 'branch-leaf' }] as never)
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/topics/:id/active-node' ? setActiveNode : vi.fn().mockResolvedValue(undefined),
+      isLoading: false,
+      error: undefined
+    }))
+    let completeRefresh!: () => void
+    const refresh = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          completeRefresh = resolve
+        })
     )
-
-    await waitFor(() => expect(loadOlder).toHaveBeenCalledTimes(1))
-    expect(onLocateMessageHandled).not.toHaveBeenCalled()
-
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('target-message', 'assistant')],
-      siblingsMap: {},
+    const history = {
+      uiMessages: [createUiMessage('current-branch', 'assistant')],
+      siblingsMap: knownSibling ? { [target.id]: [{ id: target.id }] } : {},
       isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: 'target-message',
-      loadOlder,
+      refresh,
+      activeNodeId: 'current-branch',
+      loadOlder: vi.fn(),
       hasOlder: false,
       mutate: vi.fn().mockResolvedValue(undefined)
-    })
-    rerender(
-      <ChatContent topic={topic} locateMessageId="target-message" onLocateMessageHandled={onLocateMessageHandled} />
-    )
+    }
+    mockUseTopicMessages.mockReturnValue(history)
+    const view = render(<ChatContent topic={topic} />)
+    await act(() => EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, { topicId: topic.id, messageId: target.id }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(sourceLookup).toHaveBeenCalledWith(`/messages/${target.id}`)
+    expect(setActiveNode).toHaveBeenCalledExactlyOnceWith({ params: { id: topic.id }, body: { nodeId: 'branch-leaf' } })
+    expect(toast.info).not.toHaveBeenCalled()
+    mockUseTopicMessages.mockReturnValue({ ...history, uiMessages: [target], activeNodeId: 'branch-leaf' })
+    view.rerender(<ChatContent topic={topic} />)
+    await act(async () => completeRefresh())
+    await waitFor(() => expect(EventEmitter.emit).toHaveBeenCalledWith(`LOCATE_MESSAGE:${target.id}`, true))
+    expect(toast.info).not.toHaveBeenCalled()
+  })
 
-    await waitFor(() => {
-      expect(mockEventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
-      expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
-    })
+  it('reports a deleted quoted source without switching branches', async () => {
+    vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('Message', 'deleted-source'))
+    render(<ChatContent topic={topic} />)
+    await act(() =>
+      EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, { topicId: topic.id, messageId: 'deleted-source' })
+    )
+    await waitFor(() => expect(toast.info).toHaveBeenCalledTimes(1))
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith('LOCATE_MESSAGE:deleted-source', true)
+  })
+  it('does not activate a quoted branch after the conversation unmounts', async () => {
+    let resolveSource!: (message: { id: string; topicId: string }) => void
+    vi.mocked(dataApiService.get).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSource = resolve
+      })
+    )
+    const view = render(<ChatContent topic={topic} />)
+    await act(() =>
+      EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, { topicId: topic.id, messageId: 'old-source' })
+    )
+    view.unmount()
+    await act(async () => resolveSource({ id: 'old-source', topicId: topic.id }))
+    expect(dataApiService.get).not.toHaveBeenCalledWith(`/topics/${topic.id}/path`, expect.anything())
   })
 })

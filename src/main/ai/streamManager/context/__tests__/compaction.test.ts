@@ -24,6 +24,21 @@ const a = (id: string, text: string, compactionSummary?: string): CompactionRow 
 })
 
 describe('estimateRowTokens', () => {
+  it('counts quoted context even when the user question is short', () => {
+    const row = u('u1', 'Explain')
+    row.parts[0].providerMetadata = {
+      cherry: {
+        quotes: [
+          {
+            ...{ id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' },
+            text: 'long quoted context '.repeat(1000)
+          }
+        ]
+      }
+    }
+    expect(estimateRowTokens(row, 'openai')).toBeGreaterThan(2000)
+  })
+
   // #17837 in this lane: a media part used to be JSON.stringify'd into the
   // tokenizer, so its base64 payload scored as prose — a 13 MB MP3 came out at
   // 3.7 M tokens against the provider's real 20 k, tripping the turn-start

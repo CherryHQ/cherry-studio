@@ -93,6 +93,7 @@ describe('chatDraftCache', () => {
   it('round-trips files, knowledge bases, and every draft token', () => {
     const draft: ChatComposerDraftCache = {
       text: 'hello world',
+      quotes: [{ id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }],
       tokens: [fileToken, knowledgeToken, quoteToken],
       files: [file],
       knowledgeBaseIds: ['base-1'],

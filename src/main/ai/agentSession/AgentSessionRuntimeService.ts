@@ -65,6 +65,7 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
@@ -2866,7 +2867,7 @@ export class AgentSessionRuntimeService extends BaseService {
         message: {
           role: 'assistant',
           status: 'pending',
-          data: { parts: [] },
+          data: { parts: [], quotes: getMessageQuotes(nextMessage.data?.parts ?? []) },
           modelId: entry.modelId,
           messageSnapshot
         }
@@ -3151,6 +3152,7 @@ export class AgentSessionRuntimeService extends BaseService {
         ? reservation.messageSnapshot
         : (transition.inputs[0]?.messageSnapshot ?? entry.messageSnapshot)
 
+    const quotes = transition.inputs.flatMap((input) => getMessageQuotes(input.message.data?.parts ?? []) ?? [])
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
@@ -3160,7 +3162,10 @@ export class AgentSessionRuntimeService extends BaseService {
           ...(reservation ? { id: reservation.assistantMessageId } : {}),
           role: 'assistant',
           status: 'pending',
-          data: { parts: [] },
+          data: {
+            parts: [],
+            quotes: quotes.length ? quotes : undefined
+          },
           modelId,
           messageSnapshot
         }

@@ -1,6 +1,8 @@
 import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { withCherryMeta } from '@shared/data/types/uiParts'
+
 import type { AgentRuntimeUserInput } from '../../types'
 
 const { holder } = vi.hoisted(() => ({
@@ -84,6 +86,44 @@ describe('steer injection hooks', () => {
     expect(holder.pending).toHaveLength(0)
     expect(onInjected).toHaveBeenCalledTimes(1)
   })
+
+  it.each(['PostToolBatch', 'PreToolUse'] as const)(
+    'expands quoted steers with shared numbering at %s',
+    async (event) => {
+      const question = event === 'PreToolUse' ? '' : 'Compare these points'
+      const steers = [makeSteer(question), makeSteer('')]
+      steers.forEach((steer, index) => {
+        steer.message.data.parts = [
+          withCherryMeta(
+            { type: 'text', text: index === 0 ? question : '' },
+            {
+              quotes: [
+                {
+                  id: `quote-${index}`,
+                  sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001',
+                  text: `Quoted point ${index}`
+                }
+              ]
+            }
+          )
+        ]
+      })
+      holder.pending = steers
+      const out = await fireEvent(event)
+      const context = (out as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput
+        .additionalContext
+      expect(context).toContain('# User request')
+      if (question) expect(context).toContain(question)
+      expect(context).toContain('[Reference N](#cherry-quote-N)')
+      expect(context).toContain(
+        JSON.stringify([
+          { index: 1, text: 'Quoted point 0' },
+          { index: 2, text: 'Quoted point 1' }
+        ])
+      )
+      expect(holder.pending).toEqual([])
+    }
+  )
 
   it('PreToolUse still injects a pending steer (regression)', async () => {
     holder.pending = [makeSteer('via pre-tool-use')]

@@ -27,6 +27,7 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
 
   return {
     text: typeof cached.text === 'string' ? cached.text : '',
+    quotes: cached.quotes,
     tokens: Array.isArray(cached.tokens) ? cached.tokens : [],
     files: Array.isArray(cached.files) ? cached.files : [],
     knowledgeBaseIds: Array.isArray(cached.knowledgeBaseIds)
@@ -39,6 +40,7 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
 
 export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {
   return (
+    Boolean(draft.quotes?.length) ||
     draft.text.length > 0 ||
     draft.tokens.length > 0 ||
     draft.files.length > 0 ||
@@ -60,6 +62,7 @@ export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCac
     getChatDraftCacheKey(topicId),
     {
       text: draft.text,
+      quotes: draft.quotes,
       tokens: [...draft.tokens],
       files: [...draft.files],
       knowledgeBaseIds: [...draft.knowledgeBaseIds],

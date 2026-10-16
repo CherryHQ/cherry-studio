@@ -479,13 +479,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
       return
     }
-    const rawContent = buildAgentUserContent(input.message)
-
     // A `systemReminder` message is a steer the host re-queued as its own turn (an undelivered steer
     // or a mid-turn-queued message). It must reach pi wrapped as a redirect (invariant 7, mirroring
-    // the claude driver) and is never a manual `/compact` command — so skip the compact parse and
-    // only wrapped, non-reminder text is considered for `/compact`.
-    const manualCompact = input.systemReminder ? undefined : parseManualCompactCommand(rawContent)
+    // the claude driver) and is never a manual `/compact` command. Cross-session deliveries are
+    // also prompts. Parse the user's raw text before expanding linked quotes for model input.
+    const commandText = (input.message.data.parts ?? [])
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
+    const manualCompact =
+      input.systemReminder || input.message.delivery ? undefined : parseManualCompactCommand(commandText)
     if (manualCompact) {
       this.manualCompactInFlight = true
       void session.compact(manualCompact.instructions || undefined).then(
@@ -509,6 +512,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // Native steer lives in redirect() (plan D6); send() starts normal turns. pi only exposes
     // `/compact` as an SDK method; other Claude CLI commands stay Claude-only slash text.
     // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
+    const rawContent = buildAgentUserContent(input.message)
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
     this.promptRunActive = true

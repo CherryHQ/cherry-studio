@@ -15,6 +15,7 @@ const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H
 
 interface SelectionContextMenuProps {
   children: React.ReactNode
+  getQuoteAction?: (selection: Selection) => ((text: string) => void) | undefined
   openBrowserUrl?: (url: string) => void
 }
 
@@ -104,7 +105,7 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
 /**
  * Right-click actions for website links and selected text in conversation content.
  */
-const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
+const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl, getQuoteAction }) => {
   const { t } = useTranslation()
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const handleCopy = useCallback(
@@ -125,7 +126,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   }, [])
 
   const getMenuItems = useCallback(
-    (text: string, quoteText: string): CommandContextMenuExtraItem[] => {
+    (text: string, quoteText: string, quoteAction = handleQuote): CommandContextMenuExtraItem[] => {
       if (text.length === 0) return []
 
       return [
@@ -139,7 +140,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           type: 'item',
           id: 'selection.quote',
           label: t('chat.message.quote'),
-          onSelect: () => handleQuote(quoteText)
+          onSelect: () => quoteAction(quoteText)
         }
       ]
     },
@@ -150,6 +151,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     (event: React.MouseEvent): CommandContextMenuExtraItem[] => {
       const selection = window.getSelection()
       const selectedText = selection ? extractSelectedText(selection) : ''
+      const quoteAction = selection ? getQuoteAction?.(selection) : undefined
       const quoteText = selection ? extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }) : ''
       const target = event.target instanceof Element ? event.target : null
       const anchor = target?.closest('a[href]')
@@ -187,13 +189,13 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           }
         ]
         return selectedLinkText
-          ? [...getMenuItems(selectedLinkText, quoteText), { type: 'separator' }, ...linkItems]
+          ? [...getMenuItems(selectedLinkText, quoteText, quoteAction), { type: 'separator' }, ...linkItems]
           : linkItems
       }
 
-      return getMenuItems(selectedText, quoteText)
+      return getMenuItems(selectedText, quoteText, quoteAction)
     },
-    [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
+    [getMenuItems, getQuoteAction, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
   )
 
   return (

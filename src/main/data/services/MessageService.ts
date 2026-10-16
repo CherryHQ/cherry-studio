@@ -19,6 +19,7 @@ import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
+import { remapMessageQuoteSources } from '@main/utils/messageQuotes'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -48,6 +49,7 @@ import {
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -1392,7 +1394,7 @@ export class MessageService {
             topicId: input.topicId,
             parentId: userMessage.id,
             role: p.role,
-            data: p.data,
+            data: { ...p.data, quotes: p.data?.quotes ?? getMessageQuotes(userMessage.data.parts ?? []) },
             status,
             ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
@@ -1583,7 +1585,7 @@ export class MessageService {
         : null
       tx.update(messageTable)
         .set({
-          data: { ...input.data, modelSelection: row.data?.modelSelection },
+          data: { ...input.data, modelSelection: row.data?.modelSelection, quotes: row.data?.quotes },
           status: input.status,
           stats: stats ?? null
         })
@@ -1632,6 +1634,7 @@ export class MessageService {
       }
       const data: MessageData = {
         parts: [],
+        ...(row.data?.quotes ? { quotes: row.data.quotes } : {}),
         ...(row.data?.modelSelection ? { modelSelection: row.data.modelSelection } : {}),
         ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
       }
@@ -2352,6 +2355,16 @@ export class MessageService {
 
       copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
       copiedActiveNodeId = copiedMessage.id
+    }
+
+    // Wait for the complete ID map: edited messages may quote a later node in the copied path.
+    for (const sourceMessage of rows) {
+      const copiedData = remapMessageQuoteSources(sourceMessage.data, copiedMessageIds)
+      if (copiedData === sourceMessage.data) continue
+      tx.update(messageTable)
+        .set({ data: copiedData })
+        .where(eq(messageTable.id, copiedMessageIds.get(sourceMessage.id)!))
+        .run()
     }
 
     // File refs are NOT re-derived here: the sole caller (TopicService.duplicate)

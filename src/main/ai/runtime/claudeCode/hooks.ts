@@ -21,6 +21,7 @@ import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
+import { formatMessageQuotes, getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
@@ -187,10 +188,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (holder.pending.length === 0) return {}
 
     const taken = holder.pending.splice(0)
-    const text = taken
-      .map(extractSteerText)
-      .filter((t) => t.trim())
-      .join('\n\n')
+    const text = formatMessageQuotes(
+      taken
+        .map(extractSteerText)
+        .filter((text) => text.trim())
+        .join('\n\n'),
+      taken.flatMap((input) => getMessageQuotes(input.message.data?.parts ?? []) ?? [])
+    )
     if (!text) {
       holder.pending.unshift(...taken)
       return {}

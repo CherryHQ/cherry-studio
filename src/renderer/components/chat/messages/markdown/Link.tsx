@@ -1,7 +1,9 @@
 import { omit } from 'es-toolkit/compat'
 import type { Element } from 'hast'
 import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { MarkdownLinkRenderer } from '@renderer/components/markdown'
 import type { Citation } from '@renderer/types/message'
@@ -9,6 +11,7 @@ import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
+import { useMessageQuotes } from '../MessageQuoteContext'
 import CitationTooltip from './CitationTooltip'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -40,7 +43,10 @@ function hasSameUrl(href: string | undefined, citationUrl: string): boolean {
 }
 
 const Link: React.FC<LinkProps> = (props) => {
-  const openExternalUrl = useOptionalMessageListActions()?.openExternalUrl
+  const actions = useOptionalMessageListActions()
+  const openExternalUrl = actions?.openExternalUrl
+  const quotes = useMessageQuotes()
+  const { t } = useTranslation()
   const citationData = useMemo(() => {
     const number = Number(findCitationInChildren(props.children))
     return Number.isSafeInteger(number) && number > 0 ? (props.citationRegistry?.get(number) ?? null) : null
@@ -62,6 +68,27 @@ const Link: React.FC<LinkProps> = (props) => {
       return
     event.preventDefault()
     void openExternalUrl(props.href!)
+  }
+
+  const quoteMatch = props.href?.match(/^#cherry-quote-([1-9]\d*)$/)
+  if (props.href?.startsWith('#cherry-quote-')) {
+    const index = Number(quoteMatch?.[1])
+    const quote = quotes?.[index - 1]
+    if (!quote) return <span>{props.children}</span>
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        type="button"
+        className="rounded px-1 text-link hover:bg-muted"
+        title={quote.text}
+        onClick={(event) => {
+          event.stopPropagation()
+          actions?.locateQuotedMessage?.(quote.sourceMessageId)
+        }}>
+        {t('chat.message.quotes.reference', { index })}
+      </Button>
+    )
   }
 
   if (props.href && isKnownNavigationPath(props.href)) {

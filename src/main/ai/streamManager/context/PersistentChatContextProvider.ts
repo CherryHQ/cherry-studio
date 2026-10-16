@@ -201,6 +201,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
     parts: message.data.parts ?? [],
     metadata: {
       parentId: message.parentId,
+      quotes: message.data.quotes,
       siblingsGroupId: message.siblingsGroupId || undefined,
       modelId: message.modelId ?? undefined,
       modelSelection: message.data.modelSelection,

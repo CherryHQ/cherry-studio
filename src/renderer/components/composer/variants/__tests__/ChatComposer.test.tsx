@@ -231,6 +231,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
+    INSERT_MESSAGE_QUOTE: 'INSERT_MESSAGE_QUOTE',
     LOCATE_MESSAGE: 'LOCATE_MESSAGE',
     SEND_MESSAGE: 'SEND_MESSAGE'
   },
@@ -2600,6 +2601,12 @@ describe('ChatComposer', () => {
       textOffset: 0
     } as ComposerSerializedToken
     const draft = { text: 'draft message', tokens: [fileToken, quoteToken] }
+    const quote = {
+      id: 'during-send',
+      sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001',
+      text: 'Next question context'
+    }
+    mocks.getDraft.mockReturnValue(draft)
     const pendingSend = createDeferred<boolean>()
     const onSend = vi.fn().mockReturnValue(pendingSend.promise)
     mocks.files = [file]
@@ -2626,6 +2633,8 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('draft message')
     expect(mocks.surfaceProps?.editable).toBe(false)
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    act(() => mocks.eventListeners.get('INSERT_MESSAGE_QUOTE')!({ topicId: topic.id, quote }))
+    expect(mocks.surfaceProps?.quotes ?? []).toEqual([])
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft(draft)
@@ -2649,6 +2658,8 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.editable).toBe(true)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
     expect(toast.errorFromException).not.toHaveBeenCalled()
+    act(() => mocks.eventListeners.get('INSERT_MESSAGE_QUOTE')!({ topicId: topic.id, quote }))
+    expect(mocks.surfaceProps?.quotes).toEqual([quote])
   })
 
   it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {
@@ -2783,6 +2794,39 @@ describe('ChatComposer', () => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('my original draft'))
+  })
+
+  it('keeps a linked quote added during history preview when switching topics', async () => {
+    seedInputHistory(['recalled prompt'])
+    const drafts = new Map<string, unknown>()
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: [],
+      quotes: props?.quotes
+    }))
+    const quote = { id: 'history-quote', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'Quoted point' }
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    act(() => mocks.surfaceProps?.onTextChange('original draft'))
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    act(() => {
+      const insertQuote = mocks.eventListeners.get('INSERT_MESSAGE_QUOTE')
+      expect(insertQuote).toBeDefined()
+      insertQuote!({ topicId: topic.id, quote })
+    })
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(false)
+    })
+    expect(mocks.surfaceProps?.text).toBe('recalled prompt')
+    view.rerender(<ChatComposer topic={{ ...topic, id: 'topic-2' }} onSend={vi.fn()} />)
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    expect(mocks.surfaceProps?.text).toBe('recalled prompt')
+    expect(mocks.surfaceProps?.quotes).toEqual([quote])
   })
 
   it('resets input history navigation after a successful send, so a subsequent ArrowDown does not restore the recalled draft', async () => {

@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Citation } from '@renderer/types/message'
 
+import { MessageQuoteList } from '../../../MessageQuoteList'
+import { MessageQuoteContext } from '../../MessageQuoteContext'
 import Link from '../Link'
 
 const mocks = vi.hoisted(() => {
@@ -15,7 +17,7 @@ const mocks = vi.hoisted(() => {
   return {
     navigateToRoute,
     openExternalUrl,
-    messageListActions: { navigateToRoute, openExternalUrl },
+    messageListActions: { navigateToRoute, openExternalUrl, locateQuotedMessage: vi.fn() },
     findCitationInChildren: vi.fn(),
     Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
       <span data-testid="favicon" data-hostname={hostname} data-alt={alt} />
@@ -69,7 +71,66 @@ const bareUrlNode = {
   children: [{ type: 'text', value: 'https://domain.com/a/very/long/path' }]
 } as Element
 
+describe('Message quote preview', () => {
+  it('collapses added quotes, locates the source and keeps remaining quotes expanded after removal', async () => {
+    const user = userEvent.setup()
+    const quotes = [
+      { id: 'first', sourceMessageId: 'source-one', text: 'First quoted point' },
+      { id: 'second', sourceMessageId: 'source-two', text: 'Second quoted point' },
+      { id: 'third', sourceMessageId: 'source-three', text: 'Third quoted point' }
+    ]
+    const onLocate = vi.fn()
+    const onRemove = vi.fn()
+    const onClear = vi.fn()
+    const view = render(<MessageQuoteList quotes={quotes.slice(0, 1)} onLocate={onLocate} onRemove={onRemove} />)
+    expect(screen.getByText(quotes[0].text)).toBeVisible()
+    view.rerender(<MessageQuoteList quotes={quotes} onLocate={onLocate} onRemove={onRemove} />)
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { expanded: false }))
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    await user.click(screen.getByText(quotes[1].text))
+    expect(onLocate).toHaveBeenCalledExactlyOnceWith('source-two')
+    // The last control in each item removes it; the original quote text remains untouched.
+    await user.click(screen.getAllByRole('listitem')[0].querySelectorAll('button')[2])
+    expect(onRemove).toHaveBeenCalledExactlyOnceWith('first')
+    expect(quotes[0].text).toBe('First quoted point')
+    view.rerender(<MessageQuoteList quotes={quotes.slice(1)} onLocate={onLocate} onRemove={onRemove} />)
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByText(quotes[1].text)).toBeVisible()
+    expect(screen.getByText(quotes[2].text)).toBeVisible()
+    expect(screen.queryByText(quotes[0].text)).not.toBeInTheDocument()
+    view.rerender(
+      <MessageQuoteList quotes={[...quotes.slice(1), { ...quotes[0], id: 'fourth' }]} onLocate={onLocate} />
+    )
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    view.rerender(<MessageQuoteList quotes={quotes} onClear={onClear} />)
+    await user.click(screen.getAllByRole('button')[1])
+    expect(onClear).toHaveBeenCalledExactlyOnceWith()
+    view.rerender(<MessageQuoteList quotes={[]} onClear={onClear} />)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
 describe('Link', () => {
+  it('resolves a quote link against this reply and leaves unknown indexes inert', async () => {
+    const quote = { id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }
+    const view = render(
+      <MessageQuoteContext value={[quote]}>
+        <Link href="#cherry-quote-1">Quoted point</Link>
+      </MessageQuoteContext>
+    )
+    await userEvent.setup().click(screen.getByRole('button'))
+    expect(mocks.messageListActions.locateQuotedMessage).toHaveBeenCalledWith(quote.sourceMessageId)
+    view.rerender(
+      <MessageQuoteContext value={[quote]}>
+        <Link href="#cherry-quote-2">Unknown reference</Link>
+      </MessageQuoteContext>
+    )
+    expect(screen.getByText('Unknown reference')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
   beforeEach(() => vi.clearAllMocks())
 
   it.each([false, true])('routes a website click through the host action (citation: %s)', async (isCitation) => {

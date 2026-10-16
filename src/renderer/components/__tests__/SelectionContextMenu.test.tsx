@@ -160,19 +160,25 @@ describe('SelectionContextMenu', () => {
     expect(screen.queryByRole('button', { name: 'Quote' })).not.toBeInTheDocument()
   })
 
-  it('shows selection actions when text is selected', () => {
-    mockSelection('selected text')
+  it('captures the message quote action and selected line breaks before the menu takes focus', () => {
+    const text = 'First selected point\n\nSecond selected point'
+    mockSelection(text)
+    const quote = vi.fn()
+    const getQuoteAction = vi.fn(() => quote)
 
     render(
-      <SelectionContextMenu>
+      <SelectionContextMenu getQuoteAction={getQuoteAction}>
         <div data-testid="target">message</div>
       </SelectionContextMenu>
     )
 
     fireEvent.contextMenu(screen.getByTestId('target'))
-
+    expect(getQuoteAction).toHaveBeenCalledWith(window.getSelection())
+    mockSelection('')
     expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Quote' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Quote' }))
+    expect(quote).toHaveBeenCalledExactlyOnceWith(text)
+    expect(window.api.quoteToMainWindow).not.toHaveBeenCalled()
   })
 
   it('preserves indentation when selected code includes line numbers', () => {

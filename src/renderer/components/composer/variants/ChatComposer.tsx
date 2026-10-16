@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { MessageQuoteList } from '@renderer/components/chat/MessageQuoteList'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -61,6 +62,7 @@ import {
 } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { MessageQuote } from '@shared/data/types/message'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   type Model,
@@ -109,6 +111,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerMessageQuotes } from './shared/useComposerMessageQuotes'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
@@ -182,6 +185,7 @@ export interface ChatComposerProps {
 }
 
 interface SavedComposerDraft {
+  quotes?: MessageQuote[]
   text: string
   draftTokens: ComposerSerializedToken[]
   files: ComposerAttachment[]
@@ -559,6 +563,16 @@ const ChatComposerInner = ({
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
+  const { quotes, setQuotes, locateQuote } = useComposerMessageQuotes(
+    topicId,
+    initialDraft.quotes,
+    actionsRef,
+    (text) => {
+      if (directSendInFlightRef.current) return false
+      handleTextChange(text)
+      return true
+    }
+  )
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
@@ -1077,6 +1091,7 @@ const ChatComposerInner = ({
     writeChatDraftCache(draftCacheScopeKey, {
       text: draft.text,
       tokens: draft.tokens,
+      quotes: draft.quotes,
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       ...mentionedModelDraftRef.current
@@ -1085,6 +1100,7 @@ const ChatComposerInner = ({
     actionsRef,
     draftCacheScopeKey,
     draftTokenRevision,
+    quotes,
     editingMessage,
     files,
     isInputHistoryActive,
@@ -1101,10 +1117,13 @@ const ChatComposerInner = ({
     if (isInputHistoryActive) return
     const savedDraft = savedDraftBeforeEditingRef.current
     if (editingMessage && !savedDraft) return
-    const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
+    const draft = savedDraft
+      ? { text: savedDraft.text, tokens: savedDraft.draftTokens, quotes: savedDraft.quotes }
+      : surfaceGetDraftRef.current()
     writeChatDraftCache(draftCacheScopeKey, {
       text: draft.text,
       tokens: draft.tokens,
+      quotes: draft.quotes,
       files: savedDraft?.files ?? filesRef.current,
       knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
       mentionedModelIds:
@@ -1123,7 +1142,11 @@ const ChatComposerInner = ({
     if (!savedDraft) return
 
     exitInputHistoryPreview()
-    actionsRef.current.replaceDraft({ text: savedDraft.text, tokens: savedDraft.draftTokens })
+    actionsRef.current.replaceDraft({
+      text: savedDraft.text,
+      tokens: savedDraft.draftTokens,
+      quotes: savedDraft.quotes
+    })
     setText(savedDraft.text)
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
@@ -1169,7 +1192,11 @@ const ChatComposerInner = ({
       if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
     })
     editingOriginalFilePartsByTokenIdRef.current = originalFilePartsByTokenId
-    actionsRef.current.replaceDraft({ text: editableDraft.text, tokens: editableDraft.draftTokens })
+    actionsRef.current.replaceDraft({
+      text: editableDraft.text,
+      tokens: editableDraft.draftTokens,
+      quotes: editableDraft.quotes
+    })
     setText(editableDraft.text)
     setDraftTokens(editableDraft.draftTokens)
     setFiles(editableDraft.files)
@@ -1192,6 +1219,7 @@ const ChatComposerInner = ({
       savedDraftBeforeEditingRef.current = {
         text: currentDraft.text,
         draftTokens: currentDraft.tokens,
+        quotes: currentDraft.quotes,
         files: currentTools?.files ?? filesRef.current,
         mentionedModels: currentTools?.mentionedModels ?? mentionedModelsRef.current,
         mentionedModelSelectorValue: mentionedModelSelectorValueRef.current,
@@ -1530,6 +1558,7 @@ const ChatComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
+    setQuotes([])
     setText('')
     setDraftTokens(undefined)
     setFiles([])
@@ -1541,7 +1570,7 @@ const ChatComposerInner = ({
     // from a stale index.
     resetHistoryIndex()
     inputHistoryToolsRef.current = null
-  }, [resetHistoryIndex, setFiles, setText])
+  }, [resetHistoryIndex, setFiles, setText, setQuotes])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
@@ -1913,6 +1942,16 @@ const ChatComposerInner = ({
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}
+          quotes={quotes}
+          onQuotesChange={setQuotes}
+          topContent={
+            <MessageQuoteList
+              quotes={quotes}
+              onLocate={locateQuote}
+              onClear={() => setQuotes([])}
+              onRemove={(id) => setQuotes((current) => current.filter((quote) => quote.id !== id))}
+            />
+          }
           onTextChange={handleTextChange}
           tokens={tokens}
           draftTokens={draftTokens}
@@ -1925,7 +1964,7 @@ const ChatComposerInner = ({
           placeholder={searching ? t('chat.input.translating') : placeholderText}
           sendMessageShortcut={sendMessageShortcut}
           sendDisabled={
-            (text.trim().length === 0 && files.length === 0) ||
+            (text.trim().length === 0 && quotes.length === 0 && files.length === 0) ||
             (loading && !canSteer) ||
             isSavingEdit ||
             isDirectSending ||

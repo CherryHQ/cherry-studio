@@ -49,6 +49,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     assistantId: ctx.assistantId,
     topicId: ctx.topicId,
     parentId: metadata.parentId ?? null,
+    quotes: metadata.quotes,
     isContextBoundary: hasClearContextPart(message.parts) || undefined,
     createdAt: metadata.createdAt ?? '',
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',

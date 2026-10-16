@@ -15,6 +15,7 @@ import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@m
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import type * as ForkResourcesModule from '../fork/resources'
 
@@ -5784,7 +5785,17 @@ describe('AgentSessionRuntimeService', () => {
       )
 
       // The driver signals the post-steer assistant message → roll: A1a closes, the topic stays busy.
-      events.push({ type: 'steer-boundary', inputs: [{ message: userMessage('user-2'), systemReminder: true }] })
+      const quotes = [0, 1].map((index) => ({
+        id: `steer-quote-${index}`,
+        sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001',
+        text: `Steered point ${index}`
+      }))
+      const steers = quotes.map((quote, index) => {
+        const message = userMessage(`user-${index + 2}`)
+        message.data!.parts = [withCherryMeta({ type: 'text', text: 'Follow up' }, { quotes: [quote] })]
+        return { message, systemReminder: true }
+      })
+      events.push({ type: 'steer-boundary', inputs: steers })
       await vi.waitFor(() => expect(getEntry(service).runtimeState.execution.kind).toBe('steer-transition'))
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       expect(getEntry(service).runtimeState.execution).toMatchObject({
@@ -5814,7 +5825,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(connection.send).toHaveBeenCalledOnce() // user-1 only; A2 sends nothing to the connection
       expect(mocks.saveMessage).toHaveBeenLastCalledWith({
         sessionId: 'session-1',
-        message: { role: 'assistant', status: 'pending', data: { parts: [] }, modelId: baseTurnInput.modelId }
+        message: { role: 'assistant', status: 'pending', data: { parts: [], quotes }, modelId: baseTurnInput.modelId }
       })
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
 
@@ -6049,7 +6060,15 @@ describe('AgentSessionRuntimeService', () => {
     entry.lastResumeToken = 'resume-1'
     entry.currentTurn.activeToolIds.add('tool-1')
     service.markTurnTerminal('session-1', 'success')
-    entry.pendingTurns.push({ message: userMessage('user-2'), reasoningEffort: 'high', fastMode: false })
+    const quotes = [
+      { id: 'queued-quote', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'Queued source' }
+    ]
+    const queuedMessage = userMessage('user-2')
+    queuedMessage.data!.parts = [
+      withCherryMeta({ type: 'text', text: 'hello' }, { quotes }),
+      { type: 'file', mediaType: 'text/plain', url: 'file:///attachment.txt', filename: 'attachment.txt' }
+    ]
+    entry.pendingTurns.push({ message: queuedMessage, reasoningEffort: 'high', fastMode: false })
 
     await (service as any).startNextTurn(entry)
 
@@ -6058,7 +6077,7 @@ describe('AgentSessionRuntimeService', () => {
       message: {
         role: 'assistant',
         status: 'pending',
-        data: { parts: [] },
+        data: { parts: [], quotes },
         modelId: 'claude-code::claude-sonnet-4-5'
       }
     })
@@ -6071,7 +6090,7 @@ describe('AgentSessionRuntimeService', () => {
         trigger: 'submit-message',
         messageId: 'generated-message-id',
         messages: [
-          { id: 'user-2', role: 'user', parts: [{ type: 'text', text: 'hello' }] },
+          { id: 'user-2', role: 'user', parts: queuedMessage.data!.parts },
           { id: 'generated-message-id', role: 'assistant', parts: [] }
         ],
         reasoningEffort: 'high',

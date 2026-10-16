@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
+import { remapMessageQuoteSources } from '@main/utils/messageQuotes'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { Sequencer } from '@shared/utils/async'
 
@@ -432,7 +433,7 @@ function cloneMessages(
   const messages = rows.map((row) => structuredClone(row))
   remapNativeHistory(messages, resumeToken, checkpoints)
   return messages.map((row, index) => {
-    const data = row.data
+    const data = remapMessageQuoteSources(row.data, ids)
     delete data.nativeSessionId
     const anchor = RuntimeForkAnchorSchema.safeParse(data.runtimeAnchor)
     if (anchor.success) {

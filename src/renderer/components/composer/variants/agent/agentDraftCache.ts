@@ -69,6 +69,7 @@ export function getAgentDraftTokens(tokens: readonly ComposerSerializedToken[]) 
 export function getCacheableAgentDraft(draft: ComposerSerializedDraft): ComposerSerializedDraft {
   return {
     text: draft.text,
+    quotes: draft.quotes,
     tokens: getAgentDraftTokens(draft.tokens)
   }
 }
@@ -99,6 +100,7 @@ export function readAgentDraftCache(
 
   const draft = getCacheableAgentDraft({
     text: typeof cached.text === 'string' ? cached.text : '',
+    quotes: cached.quotes,
     tokens: Array.isArray(cached.tokens) ? cached.tokens : []
   })
   const cachedWorkspaceKey = typeof cached.workspaceKey === 'string' ? cached.workspaceKey : ''
@@ -119,7 +121,7 @@ export function readAgentDraftCache(
 }
 
 export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft: AgentComposerDraftCache) {
-  const cacheableDraft = getCacheableAgentDraft({ text: draft.text, tokens: [...draft.tokens] })
+  const cacheableDraft = getCacheableAgentDraft({ text: draft.text, tokens: [...draft.tokens], quotes: draft.quotes })
   cacheService.set(
     cacheKey,
     {

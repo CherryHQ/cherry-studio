@@ -8,11 +8,12 @@
  */
 
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import type { MessageSnapshot } from '@shared/data/types/message'
+import type { MessageQuote, MessageSnapshot } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
 
 export interface TemporaryChatBackendOptions {
+  quotes?: MessageQuote[]
   topicId: string
   messageId: string
   modelId?: string
@@ -30,7 +31,7 @@ export class TemporaryChatBackend implements PersistenceBackend {
       this.opts.topicId,
       {
         role: 'assistant',
-        data: { parts: finalMessage?.parts ?? [] },
+        data: { parts: finalMessage?.parts ?? [], quotes: this.opts.quotes },
         status,
         modelId: this.opts.modelId,
         messageSnapshot: this.opts.messageSnapshot

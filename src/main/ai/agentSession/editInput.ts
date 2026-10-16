@@ -5,9 +5,13 @@ import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 export async function validateEditedInput(parts: CherryMessagePart[]): Promise<void> {
-  if (!parts.some((part) => part.type === 'file' || (part.type === 'text' && part.text.trim())))
+  if (
+    !getMessageQuotes(parts)?.length &&
+    !parts.some((part) => part.type === 'file' || (part.type === 'text' && part.text.trim()))
+  )
     throw new AgentSessionEditError('input_unsupported')
   for (const part of parts) {
     if (part.type === 'text' && typeof part.text === 'string') {

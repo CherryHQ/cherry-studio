@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import { buildAgentUserContent } from '../agentUserContent'
 
@@ -16,6 +17,23 @@ function filePart(url: string, filename?: string): CherryMessagePart {
 }
 
 describe('buildAgentUserContent', () => {
+  it('passes a quote-only request to the agent with the source text intact', () => {
+    const content = buildAgentUserContent(
+      message([
+        withCherryMeta(
+          { type: 'text' as const, text: '' },
+          {
+            quotes: [
+              { id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }
+            ]
+          }
+        )
+      ])
+    )
+    expect(content).toContain('First quoted point')
+    expect(content).toContain('#cherry-quote-N')
+  })
+
   it('delivers original filenames alongside local attachment paths', () => {
     const firstUrl = 'file:///C:/managed/uuid-a'
     const secondUrl = 'file:///C:/managed/uuid-b'

@@ -361,6 +361,7 @@ const MessageGroup = ({
             trigger={gridPopoverTrigger}
             content={
               <MessageWrapper
+                data-message-id={message.id}
                 tabIndex={0}
                 className={classNames([
                   'in-popover',

@@ -4,6 +4,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Scrollbar } from '@cherrystudio/ui'
+import { MessageQuoteList } from '@renderer/components/chat/MessageQuoteList'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -11,6 +12,7 @@ import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpe
 import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
@@ -25,6 +27,7 @@ import {
   useMessageListUiSelectors,
   useMessageRenderConfig
 } from '../MessageListProvider'
+import { MessageQuoteContext } from '../MessageQuoteContext'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 import MessageAttachments from './MessageAttachments'
@@ -87,6 +90,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const messageParts = useMessageParts(message.id)
+  const quotes = message.quotes ?? getMessageQuotes(messageParts)
   const [isMessageMenuOpen, setIsMessageMenuOpen] = useState(false)
   const editingMessageId = useMessageListEditingId()
   const { setTimeoutTimer } = useTimer()
@@ -273,45 +277,52 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   ) : undefined
 
   return (
-    <div
-      key={message.id}
-      className={cn(
-        classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&_.menubar:focus-within]:opacity-100 no-hover:[&_.menubar]:opacity-100': true,
-          'message-assistant': isAssistantMessage,
-          'message-user': !isAssistantMessage,
-          'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
-          'cursor-pointer': isMultiSelectMode
-        })
-      )}
-      aria-disabled={isEditing ? true : undefined}
-      ref={messageContainerRef}
-      onClickCapture={handleMessageSelectClick}>
-      {isUserBubbleMessage ? (
-        <UserBubbleMessage
-          message={message}
-          isLastMessage={isLastMessage}
-          isGrouped={isGrouped}
-          isProcessing={isProcessing}
-          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-          onStartEditing={canStartEditing ? handleStartEditing : undefined}
-          onSelectContext={onSelectContext}
-          messageFont={messageFont}
-          fontSize={fontSize}
-          isEditing={isEditing}
-        />
-      ) : (
-        <MessageHeader
-          message={message}
-          model={model}
-          key={model ? createUniqueModelId(model.provider, model.id) : ''}
-          isGroupContextMessage={isGroupContextMessage}
-          showModelIdentity={showModelIdentity}
-          contentSlot={plainMessageContent}
-          footerSlot={userFooter ?? assistantFooter}
-        />
-      )}
-    </div>
+    <MessageQuoteContext value={quotes}>
+      <div
+        key={message.id}
+        className={cn(
+          classNames({
+            'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200 [&_.menubar:focus-within]:opacity-100 no-hover:[&_.menubar]:opacity-100': true,
+            'message-assistant': isAssistantMessage,
+            'message-user': !isAssistantMessage,
+            'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
+            'cursor-pointer': isMultiSelectMode
+          })
+        )}
+        aria-disabled={isEditing ? true : undefined}
+        ref={messageContainerRef}
+        onClickCapture={handleMessageSelectClick}>
+        {message.role === 'user' && quotes?.length ? (
+          <div className={cn('flex justify-end', isUserBubbleMessage && 'mr-10')}>
+            <MessageQuoteList quotes={quotes} variant="message" onLocate={actions.locateQuotedMessage} />
+          </div>
+        ) : null}
+        {isUserBubbleMessage ? (
+          <UserBubbleMessage
+            message={message}
+            isLastMessage={isLastMessage}
+            isGrouped={isGrouped}
+            isProcessing={isProcessing}
+            messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+            onStartEditing={canStartEditing ? handleStartEditing : undefined}
+            onSelectContext={onSelectContext}
+            messageFont={messageFont}
+            fontSize={fontSize}
+            isEditing={isEditing}
+          />
+        ) : (
+          <MessageHeader
+            message={message}
+            model={model}
+            key={model ? createUniqueModelId(model.provider, model.id) : ''}
+            isGroupContextMessage={isGroupContextMessage}
+            showModelIdentity={showModelIdentity}
+            contentSlot={plainMessageContent}
+            footerSlot={userFooter ?? assistantFooter}
+          />
+        )}
+      </div>
+    </MessageQuoteContext>
   )
 }
 

@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
+import { getQuotedMessageText } from '@shared/utils/messageQuotes'
 
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
@@ -216,7 +217,17 @@ export async function toModelMessages(
   const shaped = restoreLegacyToolStepBoundaries(
     dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
   )
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
+  const quoted = shaped.map((message) =>
+    message.role === 'user'
+      ? {
+          ...message,
+          parts: message.parts.map((part) =>
+            part.type === 'text' ? { ...part, text: getQuotedMessageText(part) } : part
+          )
+        }
+      : message
+  )
+  const model = await convertToModelMessages(quoted, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

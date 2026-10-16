@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { MessageQuoteList } from '@renderer/components/chat/MessageQuoteList'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -136,6 +137,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerMessageQuotes } from './shared/useComposerMessageQuotes'
 import { useComposerSelectionReferenceInsertion } from './shared/useComposerSelectionReferenceInsertion'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
@@ -311,7 +313,7 @@ export interface AgentComposerSendBody {
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
 
 export interface AgentComposerLaunchOptions {
-  initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens'>
+  initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'quotes'>
   initialParts?: CherryMessagePart[]
   editing?: ComposerSurfaceEditingState
   onSent?: () => void
@@ -416,6 +418,7 @@ const AgentComposerRoot = ({
       launchIdentityRef.current.consumed = true
       draft = {
         text: edited?.text ?? seed.text,
+        quotes: edited?.quotes ?? seed.quotes,
         tokens: edited?.draftTokens ?? [...seed.tokens],
         files: edited?.files ?? [],
         knowledgeBaseIds: getKnowledgeBaseIdsFromParts(launchOptions?.initialParts ?? []) ?? [],
@@ -853,6 +856,16 @@ const AgentComposerInner = ({
   )
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
+  const { quotes, setQuotes, locateQuote } = useComposerMessageQuotes(
+    buildAgentSessionTopicId(sessionId),
+    initialDraft.quotes,
+    actionsRef,
+    (text) => {
+      if (directSendInFlightRef.current) return false
+      handleTextChange(text)
+      return true
+    }
+  )
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
@@ -927,7 +940,7 @@ const AgentComposerInner = ({
   useEffect(() => {
     if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
 
-    const draft = { text, tokens: draftTokens }
+    const draft = { text, tokens: draftTokens, quotes }
     const validatedDraft = excludeComposerDraftTokens(draft, (token) => {
       if (token.kind !== 'skill') return false
       return !skillByFilename.has(getSkillFromCachedToken(token).filename)
@@ -946,6 +959,7 @@ const AgentComposerInner = ({
     )
     setShouldValidateSkills(false)
   }, [
+    quotes,
     actionsRef,
     availableSkillsError,
     draftTokens,
@@ -1065,6 +1079,7 @@ const AgentComposerInner = ({
     writeAgentDraftCache(draftCacheKey, {
       text: draft.text,
       tokens: draft.tokens,
+      quotes: draft.quotes,
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,
@@ -1077,6 +1092,7 @@ const AgentComposerInner = ({
     draftCacheKey,
     draftPersistenceEnabled,
     draftTokens,
+    quotes,
     files,
     isInputHistoryActive,
     isKnowledgeBaseDraftHydrated,
@@ -1095,6 +1111,7 @@ const AgentComposerInner = ({
     writeAgentDraftCache(draftCacheKey, {
       text: draft.text,
       tokens: draft.tokens,
+      quotes: draft.quotes,
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,
@@ -1544,6 +1561,7 @@ const AgentComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
+    setQuotes([])
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1572,6 +1590,7 @@ const AgentComposerInner = ({
     draftCacheKey,
     draftPersistenceEnabled,
     resetHistoryIndex,
+    setQuotes,
     setFiles,
     setText,
     setTimeoutTimer,
@@ -1830,6 +1849,16 @@ const AgentComposerInner = ({
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}
           text={text}
+          quotes={quotes}
+          onQuotesChange={setQuotes}
+          topContent={
+            <MessageQuoteList
+              quotes={quotes}
+              onLocate={locateQuote}
+              onClear={() => setQuotes([])}
+              onRemove={(id) => setQuotes((current) => current.filter((quote) => quote.id !== id))}
+            />
+          }
           onTextChange={handleTextChange}
           editable={!isDirectSending}
           tokens={tokens}
@@ -1851,7 +1880,7 @@ const AgentComposerInner = ({
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
-            (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
+            (text.trim().length === 0 && quotes.length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
             sendDisabled || isDirectSending || hasPendingReference ? t('common.loading') : missingModelMessage

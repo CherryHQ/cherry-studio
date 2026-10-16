@@ -146,6 +146,13 @@ export interface AssistantTurnOptions {
   fastMode?: boolean
 }
 
+export const MessageQuoteSchema = z.object({
+  id: z.string(),
+  sourceMessageId: MessageIdSchema,
+  text: z.string()
+})
+export type MessageQuote = z.infer<typeof MessageQuoteSchema>
+
 /**
  * Message data field structure — the type for the `data` column in the
  * message table. Messages are stored in AI SDK `UIMessage.parts` format.
@@ -155,6 +162,7 @@ export interface AssistantTurnOptions {
  * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
+  quotes?: MessageQuote[]
   parts?: CherryMessagePart[]
   /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
   modelSelection?: 'default' | 'explicit'
@@ -180,6 +188,7 @@ export interface MessageData {
  * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
+  quotes?: MessageQuote[]
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
@@ -411,6 +420,7 @@ export interface SerializedErrorData {
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
+  if (v.quotes !== undefined && !z.array(MessageQuoteSchema).safeParse(v.quotes).success) return false
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
   if (v.modelSelection !== undefined && v.modelSelection !== 'default' && v.modelSelection !== 'explicit') return false
   if (v.turnOptions !== undefined) {

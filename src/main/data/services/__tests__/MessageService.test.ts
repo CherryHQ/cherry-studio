@@ -1,6 +1,7 @@
+import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
+
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/TopicService'
-import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -16,6 +17,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -29,6 +31,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
 import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -202,6 +205,35 @@ describe('MessageService', () => {
       .insert(fileEntryTable)
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
+
+  it.each(['success', 'paused', 'error'] as const)(
+    'keeps the reply quote snapshot after %s and later user edits',
+    async (status) => {
+      await seedTopicWithRoot('topic-quotes')
+      const quotes = [
+        { id: 'quote-1', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'First quoted point' }
+      ]
+      const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
+        topicId: 'topic-quotes',
+        userMessage: {
+          mode: 'create',
+          dto: {
+            role: 'user',
+            status: 'success',
+            data: {
+              parts: [withCherryMeta({ type: 'text' as const, text: 'Explain' }, { quotes })]
+            }
+          }
+        },
+        placeholders: [{ role: 'assistant', status: 'pending', data: { parts: [] } }]
+      })
+      messageService.update(userMessage.id, { data: mainText('Edited question') })
+      messageService.finalizeAssistantMessage(placeholders[0].id, { status, data: mainText('Answer') })
+      const saved = messageService.getById(placeholders[0].id)
+      expect(saved.data.quotes).toEqual(quotes)
+      expect(saved.data.parts).toEqual(mainText('Answer').parts)
+    }
+  )
 
   describe('trashed Topic message addressability', () => {
     const topicId = 'topic-message-gate'
@@ -518,6 +550,9 @@ describe('MessageService', () => {
   describe('resetAssistantForRetry', () => {
     it('preserves sibling order, descendants, and active branch while resetting only attempt state', async () => {
       await seedMultiModelTree()
+      const quotes = [
+        { id: 'quote-retry', sourceMessageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001', text: 'Original quoted point' }
+      ]
       await dbh.db.insert(messageTable).values([
         {
           id: 'm-a1-child-user',
@@ -547,7 +582,7 @@ describe('MessageService', () => {
       dbh.db
         .update(messageTable)
         .set({
-          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }], modelSelection: 'explicit' },
+          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }], modelSelection: 'explicit', quotes },
           status: 'error',
           stats: {
             totalTokens: 42,
@@ -582,7 +617,7 @@ describe('MessageService', () => {
         siblingsGroupId: before.siblingsGroupId,
         modelId: before.modelId,
         status: 'pending',
-        data: { parts: [], modelSelection: 'explicit' }
+        data: { parts: [], modelSelection: 'explicit', quotes }
       })
       expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
       expect(reset.stats).not.toHaveProperty('runtimeTiming')
@@ -600,6 +635,11 @@ describe('MessageService', () => {
       expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(Date.parse(before.updatedAt))
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
+      messageService.finalizeAssistantMessage('m-a1', {
+        data: mainText('Retried answer. [Reference 1](#cherry-quote-1)'),
+        status: 'success'
+      })
+      expect(messageService.getById('m-a1').data.quotes).toEqual(quotes)
     })
   })
 
@@ -2324,7 +2364,16 @@ describe('MessageService', () => {
   })
 
   describe('copyPathRowsTx', () => {
-    it('reparents the path head onto the destination topic virtual root', async () => {
+    it('reparents the copied path and remaps user quotes and reply snapshots without changing their text', async () => {
+      const sourceId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
+      const childId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002'
+      const outsideId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d003'
+      const userQuotes = [
+        { id: 'later-source', sourceMessageId: childId, text: 'Original child text' },
+        { id: 'outside-source', sourceMessageId: outsideId, text: 'Outside copied path' }
+      ]
+      const replyQuotes = [{ id: 'ancestor-source', sourceMessageId: sourceId, text: 'Original root text' }]
+      const sourceData = { parts: [withCherryMeta({ type: 'text', text: 'root' }, { quotes: userQuotes })] }
       await dbh.db.insert(topicTable).values([
         { id: 'source-topic', orderKey: 'a0' },
         { id: 'target-topic', orderKey: 'a1' }
@@ -2333,20 +2382,20 @@ describe('MessageService', () => {
       await dbh.db.insert(messageTable).values(
         withRoot('source-topic', [
           {
-            id: 'source-root',
+            id: sourceId,
             parentId: null,
             topicId: 'source-topic',
             role: 'user',
-            data: mainText('root'),
+            data: sourceData,
             status: 'success',
             siblingsGroupId: 0
           },
           {
-            id: 'source-child',
-            parentId: 'source-root',
+            id: childId,
+            parentId: sourceId,
             topicId: 'source-topic',
             role: 'assistant',
-            data: mainText('child'),
+            data: { ...mainText('child'), quotes: replyQuotes },
             status: 'success',
             siblingsGroupId: 0,
             stats: {
@@ -2365,8 +2414,8 @@ describe('MessageService', () => {
       const targetRootId = messageService.createRootMessageTx(dbh.db, 'target-topic')
 
       // getPathRowsToNodeTx excludes the virtual root, so the chain starts at the first-turn head.
-      const pathRows = messageService.getPathRowsToNodeTx(dbh.db, 'source-child', { topicId: 'source-topic' })
-      expect(pathRows.map((r) => r.id)).toEqual(['source-root', 'source-child'])
+      const pathRows = messageService.getPathRowsToNodeTx(dbh.db, childId, { topicId: 'source-topic' })
+      expect(pathRows.map((r) => r.id)).toEqual([sourceId, childId])
 
       const { copiedActiveNodeId } = dbh.db.transaction((tx) =>
         messageService.copyPathRowsTx(tx, pathRows, { topicId: 'target-topic' })
@@ -2379,12 +2428,19 @@ describe('MessageService', () => {
         .from(messageTable)
         .where(and(eq(messageTable.topicId, 'target-topic'), eq(messageTable.parentId, targetRootId)))
       expect(targetContent).toHaveLength(1)
-      expect(targetContent[0].data.parts?.[0]).toEqual({ type: 'text', text: 'root' })
+      expect(targetContent[0].data.parts?.[0]).toMatchObject({ type: 'text', text: 'root' })
+      expect(getMessageQuotes(targetContent[0].data.parts ?? [])).toEqual([
+        { ...userQuotes[0], sourceMessageId: copiedActiveNodeId },
+        userQuotes[1]
+      ])
 
       const copiedLeaf = await dbh.db.select().from(messageTable).where(eq(messageTable.id, copiedActiveNodeId))
       expect(copiedLeaf[0].parentId).toBe(targetContent[0].id)
       expect(copiedLeaf[0].data.parts?.[0]).toEqual({ type: 'text', text: 'child' })
       expect(copiedLeaf[0].stats).toEqual({ timeCompletionMs: 250 })
+      expect(copiedLeaf[0].data.quotes).toEqual([{ ...replyQuotes[0], sourceMessageId: targetContent[0].id }])
+      expect(messageService.getById(sourceId).data).toEqual(sourceData)
+      expect(messageService.getById(childId).data.quotes).toEqual(replyQuotes)
     })
   })
 

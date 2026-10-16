@@ -16,6 +16,7 @@ import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import { getMessageQuotes } from '@shared/utils/messageQuotes'
 
 import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -118,7 +119,13 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, messageId, modelId: model.id, messageSnapshot }),
+        backend: new TemporaryChatBackend({
+          topicId: req.topicId,
+          messageId,
+          modelId: model.id,
+          messageSnapshot,
+          quotes: getMessageQuotes(req.userMessageParts)
+        }),
         onPersistFailed: (error) =>
           void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
       })
