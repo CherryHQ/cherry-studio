@@ -362,6 +362,10 @@ export const aiRequestSchemas = {
     input: z.void(),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
+  'ai.agent.assistant_session.create': defineRoute({
+    input: z.void(),
+    output: z.strictObject({ sessionId: z.string().min(1) })
+  }),
   'ai.agent.skill_session.create': defineRoute({
     input: z.strictObject({ skillId: z.string().min(1) }),
     output: z.strictObject({ sessionId: z.string().min(1) })

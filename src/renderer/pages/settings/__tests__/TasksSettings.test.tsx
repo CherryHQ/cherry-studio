@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { toast } from '@renderer/services/toast'
 import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
 
 import TasksSettings, {
@@ -105,6 +106,10 @@ const navigationMocks = vi.hoisted(() => ({
   openConversation: vi.fn(),
   openRoute: vi.fn(),
   taskId: 'task-1' as string | undefined
+}))
+
+const ipcMocks = vi.hoisted(() => ({
+  request: vi.fn()
 }))
 
 const channelDataMock = vi.hoisted(() => ({
@@ -248,6 +253,10 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openRoute: navigationMocks.openRoute
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcMocks.request }
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -1148,8 +1157,37 @@ describe('TasksSettings routing and creation', () => {
     expect(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' })).toBeDisabled()
     const agentCreate = screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' })
     expect(agentCreate).toBeEnabled()
-    fireEvent.click(agentCreate)
-    expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents')
+  })
+
+  it('opens a prepared Cherry Assistant chat with the scheduled task intent', async () => {
+    navigationMocks.taskId = undefined
+    ipcMocks.request.mockResolvedValue({ sessionId: 'session-task-chat' })
+
+    render(<TasksSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' }))
+
+    await waitFor(() =>
+      expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents', {
+        intent: 'task',
+        sessionId: 'session-task-chat'
+      })
+    )
+    expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.assistant_session.create')
+  })
+
+  it('stays on the page and reports the failure when the chat session cannot be created', async () => {
+    navigationMocks.taskId = undefined
+    ipcMocks.request.mockRejectedValue(new Error('restore failed'))
+
+    render(<TasksSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.scheduledTasks.agentCreateFailed'))
+    expect(navigationMocks.openRoute).not.toHaveBeenCalled()
   })
 
   it('uses the header as the only creation entry when the empty state has an Agent', async () => {
