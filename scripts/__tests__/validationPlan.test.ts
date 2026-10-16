@@ -91,6 +91,49 @@ describe('validation selection', () => {
     expect(createPlan(['migrations/sqlite-drizzle/0001.sql']).projects).toContain('main')
     expect(createPlan(['.agents/skills/example/SKILL.md']).tasks).toContain('skills')
   })
+  it.each([
+    ['src/main/ai/localModel/runtime/__tests__/inferenceEntryTts.test.ts', ['i18n-unused']],
+    ['src/main/service.test.ts', ['i18n-catalog', 'i18n-unused']],
+    ['src/main/service.spec.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']],
+    ['src/renderer/pages/Chat.test.tsx', ['i18n-unused']],
+    ['src/renderer/pages/Chat.spec.tsx', ['i18n-unused', 'i18n-hardcoded']],
+    ['packages/file-preview/src/__tests__/fixtures.ts', ['i18n-unused']],
+    ['src/main/__tests__/helpers.ts', ['i18n-unused']],
+    ['src/main/utils/testHelpers.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']],
+    ['tests/helpers/runtime.ts', ['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']]
+  ])('keeps every i18n scanner that can read %s', (file, tasks) => {
+    const plan = createPlan([file])
+    expect(plan.tasks.filter((task: string) => task.startsWith('i18n-'))).toEqual(tasks)
+    expect(plan.tasks).toContain('lint')
+    expect(plan.tasks.some((task: string) => task.startsWith('types-'))).toBe(true)
+    expect(plan.projects.length).toBeGreaterThan(0)
+    expect(() => verifyResults(plan, { i18n: 'skipped' }, ['i18n'])).toThrow('i18n: expected success')
+  })
+  it('keeps explicit full validation complete even when every changed file is a test', () => {
+    expect(createPlan(['src/main/__tests__/service.test.ts'], 'Explicit full validation').tasks).toEqual(
+      expect.arrayContaining(['i18n-catalog', 'i18n-unused', 'i18n-hardcoded'])
+    )
+  })
+  it.each([
+    'src/main/service.ts',
+    'src/renderer/i18n/locales/en-us.json',
+    'src/main/i18n/locales/en-us.json',
+    'packages/file-preview/src/locales/en-us.json',
+    'scripts/i18n-check-unused.ts',
+    'scripts/i18n-check-hardcoded-strings.ts',
+    'scripts/i18n-check-values.ts',
+    'scripts/i18n-main-keys.ts',
+    'scripts/i18n-glossary.json',
+    'i18next.config.ts',
+    'tsconfig.node.json',
+    'scripts/validation/plan.mjs',
+    'tests/new.config.ts'
+  ])('retains full i18n checks for mixed tests and scanner/runtime input %s', (file) => {
+    const plan = createPlan(['src/main/__tests__/service.test.ts', file])
+    expect(plan.tasks).toEqual(expect.arrayContaining(['i18n-catalog', 'i18n-unused', 'i18n-hardcoded']))
+    expect(selectedGroups(plan).i18n).toBe(true)
+    expect(() => verifyResults(plan, { i18n: 'skipped' }, ['i18n'])).toThrow('i18n: expected success')
+  })
   it('rejects missing, failed, cancelled or unexpectedly skipped planned jobs', () => {
     const plan = createPlan(['src/main/service.ts'])
     const results = Object.fromEntries(

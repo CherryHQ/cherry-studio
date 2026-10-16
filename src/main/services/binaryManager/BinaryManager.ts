@@ -46,6 +46,7 @@ import type {
 } from '@shared/types/binary'
 
 import { sanitizedCommandError } from './commandError'
+import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
 
 const logger = loggerService.withContext('BinaryManager')
@@ -224,8 +225,13 @@ export type ManagedCliInventoryEntry = {
 }
 
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
-type FixedToolDefinition = { name: string; tool: string; npmAllowBuilds?: readonly string[] }
-type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds'>
+type FixedToolDefinition = {
+  name: string
+  tool: string
+  npmAllowBuilds?: readonly string[]
+  pipDependencies?: readonly string[]
+}
+type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -264,7 +270,8 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     {
       name: preset.name,
       tool: preset.tool,
-      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
+      ...(preset.pipDependencies?.length ? { pipDependencies: preset.pipDependencies } : {})
     }
   ]),
   ...CODE_CLI_TOOL_PRESETS.map((preset): [string, FixedToolDefinition] => [
@@ -1308,6 +1315,33 @@ export class BinaryManager extends BaseService {
     throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
   }
 
+  private async enforcePipDependencies(
+    definition: InstallableToolDefinition,
+    dependencies: readonly string[]
+  ): Promise<void> {
+    const { stdout } = await this.runMise(['ls', '--json', definition.tool])
+    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const installPath = entries.find((entry) => entry.active)?.install_path
+    if (!installPath) throw new Error(`mise did not report an active install path for ${definition.name}`)
+
+    const snapshot = await this.getIsolatedEnv()
+    if (!snapshot.usesDefaultChinaPipIndex) {
+      await installToolDependencies({ installPath, dependencies, env: snapshot.env })
+      return
+    }
+
+    const failures: string[] = []
+    for (const index of [...CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX]) {
+      try {
+        await installToolDependencies({ installPath, dependencies, env: { ...snapshot.env, ...pipIndexEnv(index) } })
+        return
+      } catch (error) {
+        failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
+      }
+    }
+    throw new Error(`No PyPI index could install the pinned dependencies of ${definition.name}\n${failures.join('\n')}`)
+  }
+
   /**
    * Drop the global Python selection older Cherry versions wrote for the pipx
    * backend. Cherry provisions the interpreter itself now, so its own leftover
@@ -1378,6 +1412,9 @@ export class BinaryManager extends BaseService {
     if (pythonPath) {
       await this.installPipxTool(useArgs, pythonPath, includePrerelease)
       await this.releaseMisePythonSelection()
+      if (definition.pipDependencies?.length) {
+        await this.enforcePipDependencies(definition, definition.pipDependencies)
+      }
     } else {
       await this.runMise(useArgs, {
         timeoutMs: MISE_INSTALL_TIMEOUT_MS,

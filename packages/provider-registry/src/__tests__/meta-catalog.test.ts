@@ -14,7 +14,10 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
+import { bundledCatalog } from '../bundled-catalog'
 import { CREATORS } from '../creators'
+import { inferReasoningControls } from '../patterns/reasoning-heuristics'
+import { createRegistry } from '../registry'
 import { RegistryLoader } from '../registry-loader'
 import { normalizeModelId } from '../utils/normalize'
 
@@ -23,6 +26,51 @@ const loader = new RegistryLoader({
   models: join(dataDir, 'models.json'),
   providers: join(dataDir, 'providers.json'),
   providerModels: join(dataDir, 'provider-models.json')
+})
+
+describe('Meta Muse Spark Open catalog', () => {
+  const registry = createRegistry(bundledCatalog)
+
+  it.each([
+    ['meta-models/Muse-Spark-Open-816B-A42B', 'muse-spark-open-816b-a42b'],
+    ['muse-spark-open-816b-a42b', 'muse-spark-open-816b-a42b'],
+    ['meta-models/Muse-Spark-Open-816B-A42B-NVFP4', 'muse-spark-open-816b-a42b-nvfp4']
+  ])('resolves %s as the multimodal open-weight model without losing its size', (apiModelId, expectedId) => {
+    expect(registry.findModel(apiModelId)).toMatchObject({
+      id: expectedId,
+      ownedBy: 'meta',
+      openWeights: true,
+      contextWindow: 1048576,
+      capabilities: expect.arrayContaining([
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition'
+      ]),
+      inputModalities: expect.arrayContaining(['text', 'image', 'video', 'audio']),
+      outputModalities: ['text']
+    })
+  })
+
+  it('does not substitute another parameter size', () => {
+    expect(registry.findModel('meta-models/Muse-Spark-Open-30B')).toBeNull()
+  })
+
+  it.each(['meta-models/Muse-Spark-Open-816B-A42B', 'meta-models/Muse-Spark-Open-816B-A42B-NVFP4'])(
+    'offers only the official template efforts and preserves the xhigh default for %s',
+    (apiModelId) => {
+      const model = registry.findModel(apiModelId)
+      expect(model?.reasoning).toMatchObject({
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'], default: 'xhigh' }],
+        supportedEfforts: ['low', 'medium', 'high', 'xhigh'],
+        defaultEffort: 'xhigh'
+      })
+      expect(inferReasoningControls(apiModelId)).toEqual([
+        { kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }
+      ])
+    }
+  )
 })
 
 describe('Meta MuseSpark 1.3 catalog (#20096)', () => {
