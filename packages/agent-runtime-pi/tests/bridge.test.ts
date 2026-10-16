@@ -429,6 +429,29 @@ describe('Pi agent loop over the AI SDK port', () => {
     })
   })
 
+  // Breaks when a call whose input never finished (an early EOF ends the stream after
+  // tool-input-start) reaches Pi as runnable `{}` arguments.
+  it('never runs a call the stream ended before finalizing, even when its schema accepts an empty object', async () => {
+    const listCalls: unknown[] = []
+    const { model, calls } = scriptedModel([
+      [
+        { type: 'tool-input-start', id: 'call_1', toolName: 'list_files' },
+        { type: 'tool-input-delta', id: 'call_1', delta: '{"path":"/tm' },
+        finish('other')
+      ],
+      [...textParts('t', 'Let me retry.'), finish('stop')]
+    ])
+    const { session } = await createTestSession({ port: streamTextPort(model).port, tools: [listFilesTool(listCalls)] })
+    await session.prompt('List my files')
+
+    expect(listCalls).toEqual([])
+    const [toolMessage] = messagesOf(calls[1].prompt, 'tool')
+    expect(toolMessage.content[0]).toMatchObject({
+      toolCallId: 'call_1',
+      output: { type: 'error-text', value: expect.stringContaining('ended before its input was complete') }
+    })
+  })
+
   // Breaks when a host `tool_call` handler (an approval prompt) runs before the guard and is asked
   // about a call Pi will not run.
   it('keeps a call with unusable input away from host tool_call handlers', async () => {
