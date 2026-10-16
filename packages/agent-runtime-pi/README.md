@@ -235,7 +235,10 @@ handles.
   the stop. A round reserved at a settle is checked again when it starts: if a command changed the
   goal meanwhile (a later extension's settle handler was still running), the round is withdrawn
   before its request, and the goal goes on as it now is (a new round, or the stop its new limits
-  call for). A round prompt Pi committed but never sent on (another extension vetoed the
+  call for). The host sees a withdrawal as a run that ends aborted (`turn-complete` with
+  `aborted: true`) right after that round's prompt, its reply `stopReason: 'error'` with the
+  message `This operation was aborted`; it should show it as a withdrawn round, not as a failure or
+  a stop the user made. A round prompt Pi committed but never sent on (another extension vetoed the
   continuation, or the run was aborted at the settle) stays in the transcript and is left out of
   later model requests and of the verifier's conversation; the compaction summarizer still reads it.
   `update_goal(complete)` passes the host's `GoalVerifier` (it
