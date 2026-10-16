@@ -8,6 +8,7 @@ import {
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
   type LocalSpeechModelId,
+  type LocalVoiceModelId,
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -212,8 +213,7 @@ export class VoiceService {
     }
     const voice = preferences.voice.trim()
     const language =
-      this.optionalLanguage(preferences.language) ??
-      (voice ? undefined : getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language))
+      this.optionalLanguage(preferences.language) ?? getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
     return {
       ...(modelId && { modelId: modelId as LocalSpeechModelId }),
       ...(voice && { voice }),
@@ -297,15 +297,15 @@ export class VoiceService {
     return this.invoke(() => this.ipc.request('ai.voice.model.describe', { modelId }))
   }
 
-  downloadModel(modelId: LocalTranscriptionModelId) {
+  downloadModel(modelId: LocalVoiceModelId) {
     return this.invoke(() => this.ipc.request('ai.voice.model.download', { modelId }))
   }
 
-  cancelModelDownload(modelId: LocalTranscriptionModelId) {
+  cancelModelDownload(modelId: LocalVoiceModelId) {
     return this.invoke(() => this.ipc.request('ai.voice.model.cancel_download', { modelId }))
   }
 
-  removeModel(modelId: LocalTranscriptionModelId) {
+  removeModel(modelId: LocalVoiceModelId) {
     return this.invoke(() => this.ipc.request('ai.voice.model.remove', { modelId }))
   }
 
