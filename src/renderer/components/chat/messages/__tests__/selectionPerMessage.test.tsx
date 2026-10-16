@@ -47,7 +47,7 @@ function buildValue(selection: MessageListSelectionState, store: MessageSelectio
       loadingResetDelayMs: 0,
       selection
     },
-    actions: {} as MessageListProviderValue['actions'],
+    actions: {},
     meta: {} as MessageListProviderValue['meta'],
     selectionStore: store
   }

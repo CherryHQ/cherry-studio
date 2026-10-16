@@ -268,7 +268,7 @@ describe('useMessageSelectionController', () => {
       result.current.actions.toggleMultiSelectMode?.(true)
       result.current.actions.selectMessage?.('a', true)
     })
-    cacheService.set.mockClear()
+    vi.mocked(cacheService.set).mockClear()
     popupConfirm.mockResolvedValueOnce(false)
 
     await act(async () => {
