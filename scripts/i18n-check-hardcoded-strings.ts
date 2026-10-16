@@ -247,6 +247,14 @@ class HardcodedStringDetector {
   }
 
   private checkNode(node: Node, sourceFile: SourceFile, source: FindingSource, findings: Finding[]): void {
+    if (
+      !Node.isJsxText(node) &&
+      !Node.isJsxAttribute(node) &&
+      !Node.isStringLiteral(node) &&
+      !Node.isTemplateExpression(node) &&
+      !Node.isNoSubstitutionTemplateLiteral(node)
+    )
+      return
     if (shouldSkipNode(node)) return
 
     if (Node.isJsxText(node)) {

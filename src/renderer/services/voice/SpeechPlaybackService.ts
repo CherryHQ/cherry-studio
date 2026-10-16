@@ -3,6 +3,7 @@ import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoicePlaybackState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
 
+import { createAudioSpectrum, type AudioSpectrum } from './audioSpectrum'
 import {
   planReadableText,
   type ReadableTextMode,
@@ -33,6 +34,7 @@ export interface SpeechPlaybackSnapshot {
   readonly sourceLabel?: SpeechPlaybackSourceLabel
   readonly progress: SpeechPlaybackProgress
   readonly error?: VoiceErrorReason
+  readonly analyser?: AnalyserNode
 }
 
 export interface SpeechPlaybackStartInput {
@@ -99,6 +101,7 @@ interface PlaybackRun {
   outputId?: string
   outputUrl?: string
   audio?: HTMLAudioElement
+  spectrum?: AudioSpectrum
   ended?: EventListener
   failed?: EventListener
   cleanup?: Promise<void>
@@ -148,7 +151,14 @@ export class SpeechPlaybackService {
     this.voice = options.voice ?? voiceService
     this.planText = options.planText ?? planReadableText
     this.ownerWindow = options.ownerWindow ?? window
-    this.createAudio = options.createAudio ?? ((source) => new Audio(source))
+    this.createAudio =
+      options.createAudio ??
+      ((source) => {
+        const audio = new Audio()
+        audio.crossOrigin = 'anonymous'
+        audio.src = source
+        return audio
+      })
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -444,6 +454,7 @@ export class SpeechPlaybackService {
       run.failedAttempt = undefined
       const audio = this.createAudio(run.outputUrl)
       run.audio = audio
+      run.spectrum = createAudioSpectrum(audio)
       run.audioAttemptId = target.attemptId
       run.ended = () => void this.handleEnded(run, audio)
       run.failed = () => void this.failPlayback(run, 'operation_failed', audio)
@@ -505,6 +516,11 @@ export class SpeechPlaybackService {
     assertPlayable()
     if (this.isPaused(run)) return
     try {
+      if (run.spectrum) {
+        await run.spectrum.resume()
+        assertPlayable()
+        if (this.isPaused(run)) return
+      }
       await audio.play()
     } catch (error) {
       assertPlayable()
@@ -706,6 +722,8 @@ export class SpeechPlaybackService {
       audio.removeAttribute('src')
       audio.load()
     }
+    run.spectrum?.dispose()
+    run.spectrum = undefined
     run.audio = undefined
     run.audioAttemptId = undefined
     run.ended = undefined
@@ -740,6 +758,7 @@ export class SpeechPlaybackService {
       phase: state.phase as Exclude<SpeechPlaybackPhase, 'idle'>,
       sourceLabel: run.sourceLabel,
       progress: { completed: run.completed, total: run.chunks.length },
+      ...(run.spectrum && { analyser: run.spectrum.analyser }),
       ...(state.playback.failure && { error: state.playback.failure.reason })
     })
   }

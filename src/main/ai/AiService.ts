@@ -421,7 +421,7 @@ export interface AiRerankResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
+@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager', 'AutomationReplService'])
 export class AiService extends BaseService {
   // Per-request AbortControllers for the cancellable one-shot routes (`ai.image.generate`,
   // `ai.text.generate`), paired with their `*.abort` routes. Key is the renderer-generated

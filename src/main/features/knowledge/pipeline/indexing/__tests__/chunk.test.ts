@@ -9,6 +9,7 @@ const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id: KNOWLEDGE_BASE_ID,
     name: 'KB',
     groupId: null,
