@@ -458,7 +458,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 ### 11.4 用量与预算
 
-- goal 轮里开出的后台运行（派出、转后台、`message_subagent` 续接）属于该 goal，按 `(sessionId, run)` 记；别的回合续接出的运行不属于它。这样一次运行的用量在结果送到模型时计入一次：通知的 `details.subagents[].usage`，或模型 `stop_subagent` 结果的 `details.usage`；同一次运行被几个结果带到（例如重叠的两次 `stop_subagent` 拿到同一个结果）也只算一次。送达时 goal 没在跑（未武装，例如重建后用户的下一条消息带着它；或已暂停、已停下）也照样计入：用量从 branch 算出（L5 spec §6.1），`/goal resume` 的余量判断和重建都看得到。
+- 计入 goal 的回合里开出的后台运行（派出、转后台、`message_subagent` 续接）属于该 goal，按 `(sessionId, run)` 记。口径与用量相同：发出这次调用的请求计入了 goal（goal 轮里，或 goal 已武装时的通知轮里），它开出的运行就归 goal；人类回合开出或续接的运行不属于它。这样一次运行的用量在结果送到模型时计入一次：通知的 `details.subagents[].usage`，或模型 `stop_subagent` 结果的 `details.usage`；同一次运行被几个结果带到（例如重叠的两次 `stop_subagent` 拿到同一个结果）也只算一次。送达时 goal 没在跑（未武装，例如重建后用户的下一条消息带着它；或已暂停、已停下）也照样计入：用量从 branch 算出（L5 spec §6.1），`/goal resume` 的余量判断和重建都看得到。
 - 预算用完、goal 进入收尾或停止时：拒绝新的后台派出（`subagent` 返回 `The goal's budget is used up; background subagents cannot be started.`），并停掉当前运行属于该 goal、正在跑的后台子代理（`stoppedBy: 'budget'`）。
 - goal 与子代理表在同一个包里，goal 通过包内接口（不对外导出）查询运行中的后台子代理、停止它们。
 
@@ -593,3 +593,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 15. 11.3、11.4：goal 的用量改由 L5 spec §6.1 的同一个函数从 branch 算出（不再有内存里的累计和"送达时补写快照"），等待后台子代理期间关机、重建后不丢用量。运行按 `(sessionId, run)` 归属和计数：goal 轮里开出的那次运行才属于 goal，每次运行的用量只计一次，重叠的两次 `stop_subagent` 不再重复计费。随运行开头送达的通知属于那一回合。
 16. 4.3、9：用户停止在被接受时就写快照（`stoppedBy: 'user'`，运行仍在收尾），收尾期间关闭应用后重建，这次运行按用户停止恢复，`message_subagent` 不能续接它。
+
+2026-10-16，按第三轮修复的复审修订：
+
+17. 11.4：运行归属与用量用同一口径。原来只有 goal 轮里开出的运行归 goal，已武装时通知轮里派出的后台运行不受预算约束；现在请求计入 goal 的回合（含已武装的通知轮）开出的运行都归 goal，用量照计，预算用完时一起停。
