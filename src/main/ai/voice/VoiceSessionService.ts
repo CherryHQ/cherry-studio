@@ -167,19 +167,19 @@ export class VoiceSessionService extends BaseService {
     return describeVoiceModel(modelId)
   }
 
-  downloadModel(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+  downloadModel(owner: VoiceOwner, modelId: LocalVoiceModelId) {
     this.requireAdmission()
     this.requireOwner(owner)
     return downloadVoiceModel(modelId)
   }
 
-  cancelModelDownload(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+  cancelModelDownload(owner: VoiceOwner, modelId: LocalVoiceModelId) {
     this.requireAdmission()
     this.requireOwner(owner)
     return cancelVoiceModelDownload(modelId)
   }
 
-  removeModel(owner: VoiceOwner, modelId: LocalTranscriptionModelId) {
+  removeModel(owner: VoiceOwner, modelId: LocalVoiceModelId) {
     this.requireAdmission()
     this.requireOwner(owner)
     return removeVoiceModel(modelId)
@@ -195,7 +195,12 @@ export class VoiceSessionService extends BaseService {
 
   voices(owner: VoiceOwner, modelId: LocalSpeechModelId) {
     return this.inspect(owner, async (signal) =>
-      (await listLocalVoices(modelId, signal)).map(({ id, name, locale }) => ({ id, name, language: locale }))
+      (await listLocalVoices(modelId, signal)).map(({ id, name, locale, languages }) => ({
+        id,
+        name,
+        language: locale,
+        ...(languages && { languages: [...languages] })
+      }))
     )
   }
 

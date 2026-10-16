@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto'
 import { hostname, networkInterfaces } from 'node:os'
 
 import { Mutex } from 'async-mutex'
@@ -11,14 +10,30 @@ import { createLatestReconciler, type LatestReconciler } from '@main/core/concur
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
+import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
+import { isValidToken } from './middleware/auth'
 import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses'
 import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
-const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
+const INTERNAL_GATEWAY_HOST = '127.0.0.1'
+
+/** What a scoped internal credential may call: one generation path, one model address. */
+export type InternalCredentialScope = { path: string; model: string }
+
+function presentedToken(headers: Headers): string | undefined {
+  return (
+    headers.get('x-api-key')?.trim() ||
+    headers
+      .get('authorization')
+      ?.match(/^Bearer\s+(.+)$/i)?.[1]
+      ?.trim() ||
+    headers.get('x-goog-api-key')?.trim()
+  )
+}
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
@@ -26,23 +41,19 @@ const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
-  /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
-  private readonly internalUsageToken = uuidv4()
-  /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
-  private readonly internalRequestToken = uuidv4()
+  /** Never persisted or shown to the user; unrestricted on the internal listener. */
+  private readonly internalApiKey = `cs-internal-${uuidv4()}`
+  /** Live scoped credentials; each authorizes only its own scope until disposed. */
+  private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
+  /** Loopback listener for internal consumers, started on first use and independent of `enabled`. */
+  private internalGateway: Promise<ApiGateway> | null = null
+  private internalOrigin: string | undefined
   /** Latest persistent desired state. Its only source is the `enabled` preference. */
   private desiredEnabled = false
   /**
-   * Count of active temporary run leases (see {@link acquireLease}). Transient consumers (e.g. PDF
-   * translation) hold a lease instead of toggling `desiredEnabled`, so the effective running target
-   * is `desiredEnabled || leaseCount > 0`: a lease keeps the gateway up without persisting an
-   * "enabled" intent, and it never overrides a user who enables/disables the gateway mid-lease.
-   */
-  private leaseCount = 0
-  /**
-   * Converges the gateway's running state to the effective target (`desiredEnabled || leaseCount`).
-   * The reconciler is the SOLE caller of activate/deactivate (start/stop/restart and lease
-   * acquire/release route through it too), so transitions are never concurrent and the lifecycle's
+   * Converges the gateway's running state to `desiredEnabled`.
+   * The reconciler is the SOLE caller of activate/deactivate (start/stop/restart route through it
+   * too), so transitions are never concurrent and the lifecycle's
    * `_activating` short-circuit can't race two owners and leave the running state diverged from the
    * target. It is level-triggered against the ACTUAL `isActivated` state, latest-wins (an opposing
    * toggle landing mid-transition is honoured on the next pass), and a transition that throws for a
@@ -52,7 +63,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private readonly reconciler: LatestReconciler = createLatestReconciler({
     name: 'apiGateway',
     getSnapshot: () => ({
-      desired: this.desiredEnabled || this.leaseCount > 0,
+      desired: this.desiredEnabled,
       actual: this.isActivated,
       host: this.listeningHost(),
       actualHost: this.apiGateway?.getHost()
@@ -129,15 +140,20 @@ export class ApiGatewayService extends BaseService implements Activatable {
     logger.info('API Gateway deactivated')
   }
 
+  protected async onStop(): Promise<void> {
+    const internalGateway = this.internalGateway
+    this.internalGateway = null
+    this.internalOrigin = undefined
+    await internalGateway?.then((gateway) => gateway.stop()).catch(() => undefined)
+  }
+
   /**
    * Publish the running state to the shared cache (Main is authoritative). The
    * renderer reads it reactively via `useSharedCache('feature.api_gateway.running')`.
    * This replaces the previous IPC ready-broadcast + EventEmitter listener.
    *
-   * "Running" tracks whether the server is ACTUALLY listening (`isRunning()`) — including when a
-   * transient lease holds it up — because renderer consumers gate real actions on it (the settings
-   * page disables port / API-key editing while running). A lease must therefore NOT leak into the
-   * persisted `enabled` pref; that is prevented on the renderer side, not by faking this state.
+   * "Running" tracks whether the server is ACTUALLY listening (`isRunning()`), because renderer
+   * consumers gate real actions on it (the settings page disables port / API-key editing while running).
    */
   private publishRunningState(running: boolean): void {
     const config = this.getCurrentConfig()
@@ -206,12 +222,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async stop(): Promise<ApiGatewayStopOutcome> {
     await this.applyIntent(false)
     if (this.isActivated) {
-      if (this.leaseCount > 0 && this.apiGateway?.getHost() === '127.0.0.1') {
-        // A transient lease still holds the server open; the reconciler will stop it once the last
-        // lease releases. Persistent intent is cleared, so this is a success, not a failure.
-        logger.info('API Gateway persistent intent cleared; server stays up for active lease(s)')
-        return 'deferred'
-      }
       const error = this.failureError('Failed to stop API Gateway')
       logger.error('Failed to stop API Gateway:', error)
       throw error
@@ -221,11 +231,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async restart(): Promise<void> {
-    if (this.leaseCount > 0) {
-      const error = new Error('API Gateway is busy: a temporary run is in progress. Retry once it finishes.')
-      logger.warn('Refusing API Gateway restart while a lease is active', error)
-      throw error
-    }
     // Re-create the server (e.g. to apply a new host/port) as a stop→start through the same single
     // reconciler. A re-bind is not an intent change, so the persisted preference is left alone.
     await this.converge(false)
@@ -243,56 +248,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
       throw error
     }
     logger.info('API Gateway restarted successfully')
-  }
-
-  /**
-   * Converge an already-enabled gateway toward running. Unlike {@link start} this never touches the
-   * persisted intent, so a caller that merely needs the gateway up (an agent route whose model must
-   * be bridged) can wait for readiness without being able to re-enable what a user disabled.
-   */
-  async ensureRunning(): Promise<void> {
-    if (!this.getCurrentConfig().enabled) {
-      throw new Error('API Gateway is disabled')
-    }
-    await this.converge(true)
-    if (!this.isActivated || !this.isRunning()) {
-      const error = this.failureError('Failed to start API Gateway')
-      logger.error('Failed to start API Gateway:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Acquire a temporary run lease: keep the gateway running for a transient consumer without
-   * touching the persistent `enabled` state. Bumps the effective target (`|| leaseCount > 0`) and
-   * converges; throws if the gateway could not be brought up (rolling the lease back first). Every
-   * successful `acquireLease()` MUST be paired with a `releaseLease()` (in a `finally`).
-   *
-   * Unlike `start()`/`stop()`, this never rewrites `desiredEnabled`, so it cannot stop a
-   * user-enabled gateway on release, and a user disabling the gateway mid-lease cannot cut a
-   * running consumer off (the lease still pins the target true until released).
-   */
-  async acquireLease(): Promise<void> {
-    this.leaseCount += 1
-    this.reconciler.request()
-    await this.reconciler.flush()
-    if (!this.isActivated || !this.isRunning()) {
-      this.leaseCount = Math.max(0, this.leaseCount - 1)
-      this.reconciler.request()
-      const error = this.failureError('Failed to start API Gateway for a temporary lease')
-      logger.error('Failed to acquire API Gateway lease:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Release a lease taken by {@link acquireLease}. Fire-and-forget convergence (matching the
-   * preference-subscription path): once the last lease drops and `desiredEnabled` is false, the
-   * reconciler stops the gateway on its own.
-   */
-  releaseLease(): void {
-    this.leaseCount = Math.max(0, this.leaseCount - 1)
-    this.reconciler.request()
   }
 
   /** Surface the reconciler's most recent transition error to an IPC caller, or a generic fallback. */
@@ -377,15 +332,57 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  getInternalRequestToken(): string {
-    return this.internalRequestToken
+  /**
+   * Base URL and unrestricted credential for Cherry-launched consumers. Served by a dedicated loopback
+   * listener so internal traffic never depends on, or turns on, the user-facing gateway.
+   */
+  async ensureInternalGateway(): Promise<{ baseUrl: string; apiKey: string }> {
+    return { baseUrl: await this.ensureInternalListener(), apiKey: this.internalApiKey }
   }
 
-  isInternalRequestToken(candidate: string | undefined): boolean {
-    if (!candidate) return false
-    const expected = Buffer.from(this.internalRequestToken)
-    const received = Buffer.from(candidate)
-    return expected.length === received.length && timingSafeEqual(expected, received)
+  /** A credential for one consumer run that authorizes only `scope`, revoked by `dispose`. */
+  async createScopedCredential(
+    scope: InternalCredentialScope
+  ): Promise<{ baseUrl: string; apiKey: string; dispose: () => void }> {
+    const baseUrl = await this.ensureInternalListener()
+    const apiKey = `cs-internal-${uuidv4()}`
+    this.scopedCredentials.set(apiKey, scope)
+    return { baseUrl, apiKey, dispose: () => this.scopedCredentials.delete(apiKey) }
+  }
+
+  private async ensureInternalListener(): Promise<string> {
+    this.internalGateway ??= this.startInternalGateway().catch((error: unknown) => {
+      this.internalGateway = null
+      throw error
+    })
+    await this.internalGateway
+    return this.internalOrigin!
+  }
+
+  /** The internal listener's origin once started; read-only, for connection signatures. */
+  getInternalGatewayOrigin(): string | undefined {
+    return this.internalOrigin
+  }
+
+  private async startInternalGateway(): Promise<ApiGateway> {
+    const { ApiGateway } = await import('./server')
+    const gateway = new ApiGateway({ host: INTERNAL_GATEWAY_HOST, port: 0 }, 'internal')
+    await gateway.start()
+    this.internalOrigin = gatewayClientOrigin(INTERNAL_GATEWAY_HOST, gateway.getPort())
+    logger.info('Internal API gateway started', { origin: this.internalOrigin })
+    return gateway
+  }
+
+  /** Whether the request presents an internal credential; external callers never hold one. */
+  isInternalRequest(headers: Headers): boolean {
+    const token = presentedToken(headers)
+    return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
+  }
+
+  /** The scope of a live scoped credential; undefined for every other request. */
+  getCredentialScope(headers: Headers): InternalCredentialScope | undefined {
+    const token = presentedToken(headers)
+    return token ? this.scopedCredentials.get(token) : undefined
   }
 
   getCurrentConfig(): ApiGatewayConfig {
@@ -410,30 +407,19 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return apiKey
   }
 
-  /**
-   * Headers injected only into the Claude Agent SDK subprocess that Cherry
-   * launches for this session. They let the HTTP gateway retain per-provider
-   * request records while attaching them to the owning agent.
-   */
+  /** Headers an internal Agent consumer sends so gateway hops are attributed to its session. */
   getAgentSessionUsageHeaders(sessionId: string): Record<string, string> {
-    return {
-      [AGENT_SESSION_ID_HEADER]: sessionId,
-      [INTERNAL_USAGE_TOKEN_HEADER]: this.internalUsageToken
-    }
+    return { [AGENT_SESSION_ID_HEADER]: sessionId }
   }
 
-  /** Process-local proof that the request came from a Cherry-launched SDK subprocess. */
-  isInternalAgentRequest(headers: Headers): boolean {
-    return headers.get(INTERNAL_USAGE_TOKEN_HEADER) === this.internalUsageToken
-  }
-
-  /** Validated Agent session id from the internal usage headers; undefined for external requests. */
+  /** Agent session id of an unrestricted internal request; undefined for every other caller. */
   getAgentSessionId(headers: Headers): string | undefined {
-    if (!this.isInternalAgentRequest(headers)) return undefined
+    const token = presentedToken(headers)
+    if (!token || !isValidToken(token, this.internalApiKey)) return undefined
     return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
   }
 
-  /** Validate the process-local proof, then capture the reserved continuation or active turn. */
+  /** Capture the reserved continuation or active turn of the requesting Agent session. */
   resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
     const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined

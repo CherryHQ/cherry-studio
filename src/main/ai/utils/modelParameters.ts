@@ -17,6 +17,7 @@ import {
   isGemini3Model,
   isGemini4Model,
   isMaxTemperatureOneModel,
+  isQwenModel,
   isSupportedFlexServiceTier,
   isSupportTemperatureModel,
   isSupportTopPModel,
@@ -42,12 +43,13 @@ type SamplingParams = {
   bodyParams: Record<string, unknown>
 }
 
-/** Omit unsupported parameters after all request overrides have been merged. */
+/** Sanitize model parameters after all request overrides have been merged. */
 export function stripUnsupportedModelParams(params: SamplingParams, model: Model): SamplingParams {
   const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
   const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
   const gemini4 = isGemini4Model(model)
-  if (acceptsTemperature && acceptsTopP) return params
+  const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
+  if (acceptsTemperature && acceptsTopP && !normalizeTemperature) return params
 
   function strip<T>(values: Record<string, T>): Record<string, T> {
     const cleaned = { ...values }
@@ -61,6 +63,14 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
       delete cleaned.top_k
       delete cleaned.cachedContent
       delete cleaned.cached_content
+    }
+    if (
+      normalizeTemperature &&
+      typeof cleaned.temperature === 'number' &&
+      Number.isFinite(cleaned.temperature) &&
+      cleaned.temperature >= 2
+    ) {
+      cleaned.temperature = 1.9 as T
     }
     return cleaned
   }

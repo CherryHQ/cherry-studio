@@ -21,8 +21,10 @@ import type { AgentComposerSendOptions } from '@renderer/components/composer/var
 import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
 import {
   type ConversationHistoryAdapter,
   useConversationTurnController
@@ -36,11 +38,14 @@ import { autoReadService } from '@renderer/services/voice'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -143,6 +148,8 @@ export interface AgentChatRuntimeState {
 
 interface UseAgentChatRuntimeStateParams {
   sessionId: string
+  modelId?: UniqueModelId
+  agentType?: AgentType
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
@@ -150,12 +157,19 @@ interface UseAgentChatRuntimeStateParams {
 
 export function useAgentChatRuntimeState({
   sessionId,
+  modelId,
+  agentType,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { t } = useTranslation()
+  const errorToastsRef = useRef<ReturnType<typeof useConversationErrorToasts> | null>(null)
+  const liveSlashCommands = useAgentSessionSlashCommands(sessionId)
+  const canCompact = (liveSlashCommands ?? (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].slashCommands : [])).some(
+    (command) => command.command === '/compact'
+  )
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
   const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
   const [editPending, setEditPending] = useState(false)
@@ -236,6 +250,9 @@ export function useAgentChatRuntimeState({
     historyAdapter,
     ensureConversation,
     buildStreamRequest,
+    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
+    onError: (error, input) =>
+      input.editTarget ? reportEditError(error) : errorToastsRef.current?.report(error, modelId),
     openStream: async (request, input) => {
       if (!input.editTarget || request.trigger !== 'submit-message') return ipcApi.request('ai.stream.open', request)
       const ack = await ipcApi.request('ai.agent.session.edit_resend', {
@@ -291,7 +308,12 @@ export function useAgentChatRuntimeState({
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, { onFinish: handleExecutionFinish })
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, {
+    onFinish: (executionId, event) => {
+      errorToastsRef.current?.onFinish(executionId, event)
+      handleExecutionFinish(executionId, event)
+    }
+  })
   const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
     messages: optimisticMessages ?? uiMessages,
     overlay,
@@ -446,6 +468,19 @@ export function useAgentChatRuntimeState({
     }),
     [toolApprovalComposerOverrides]
   )
+
+  const errorToasts = useConversationErrorToasts(sessionTopicId, {
+    trimContext: canCompact
+      ? async () => {
+          if (isPending || editBusy) return false
+          return (
+            errorToastsRef.current?.waitForFinish(() => send({ text: '/compact' }, { throwOnError: true }), modelId) ??
+            false
+          )
+        }
+      : undefined
+  })
+  errorToastsRef.current = errorToasts
 
   return {
     sessionId,
