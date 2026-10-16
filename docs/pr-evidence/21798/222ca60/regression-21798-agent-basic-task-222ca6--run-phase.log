@@ -1,0 +1,7 @@
+
+Running 1 test using 1 worker
+
+  -  1 [macOS] › tests/e2e/regression/10-agent-runtimes.test.ts:50:5 › [A-01] Complete a basic file task with the default Agent @agent-basic-task
+End-to-end phase verdict: Passed
+
+  1 skipped

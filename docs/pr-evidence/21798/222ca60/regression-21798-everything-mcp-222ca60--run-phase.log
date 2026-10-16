@@ -1,0 +1,34 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [macOS] › tests/e2e/regression/07-integrations.test.ts:33:5 › [MCP-01] Create and use Everything MCP @everything-mcp (2.2m)
+End-to-end phase verdict: Failed
+
+
+  1) [macOS] › tests/e2e/regression/07-integrations.test.ts:33:5 › [MCP-01] Create and use Everything MCP @everything-mcp 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Connected', { exact: true })
+    Expected: visible
+    Timeout: 120000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 120000ms
+      - waiting for getByText('Connected', { exact: true })
+
+
+      52 |   const enabled = page.getByRole('switch').first()
+      53 |   if ((await enabled.getAttribute('aria-checked')) !== 'true') await enabled.click()
+    > 54 |   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 2 * 60_000 })
+         |                                                              ^
+      55 |   await page.getByRole('radio', { name: /Tools/ }).click()
+      56 |   await expect(page.getByText('get-sum', { exact: true })).toBeVisible()
+      57 |   await expect(page.getByText('echo', { exact: true })).toBeVisible()
+        at /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/tests/e2e/regression/07-integrations.test.ts:54:62
+
+    Error Context: ../runs/regression-21798-everything-mcp-222ca60/run.205634/evidence/playwright/07-integrations/07-integrations--MCP-01-Create-and-use-Everything-MCP-macOS/error-context.md
+
+  1 failed
+    [macOS] › tests/e2e/regression/07-integrations.test.ts:33:5 › [MCP-01] Create and use Everything MCP @everything-mcp 
