@@ -14,6 +14,15 @@ const helperPath = path.join(appPath, 'Contents', 'Helpers', 'cherry-system-spee
 const helperEntitlements = path.join(projectRoot, 'build', 'entitlements.system-speech.plist')
 
 describe('macOS signing policy', () => {
+  it('allows microphone capture in hardened Electron processes', () => {
+    const builder = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8'))
+    const entitlements = readFileSync(path.join(projectRoot, builder.mac.entitlementsInherit), 'utf8')
+
+    expect(entitlements).toMatch(/<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\s*\/>/)
+    expect(builder.mac.extendInfo.NSMicrophoneUsageDescription).toEqual(expect.any(String))
+    expect(builder.mac.extendInfo.NSMicrophoneUsageDescription.trim()).not.toBe('')
+  })
+
   it('packages the native helper as code in Contents/Helpers', () => {
     const builder = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8'))
 
