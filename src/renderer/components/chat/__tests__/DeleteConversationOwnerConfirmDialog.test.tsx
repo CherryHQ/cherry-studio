@@ -21,7 +21,9 @@ vi.mock('@renderer/services/toast', () => ({
 
 import {
   DeleteConversationOwnerConfirmDialog,
-  deleteConversationOwnerPopup
+  deleteConversationOwnerPopup,
+  PermanentConversationDeleteDialog,
+  permanentDeletePopup
 } from '../DeleteConversationOwnerConfirmDialog'
 
 interface HarnessProps {
@@ -282,5 +284,261 @@ describe('deleteConversationOwnerPopup', () => {
 
     expect(action).toHaveBeenCalledTimes(2)
     await expect(result).resolves.toBe(true)
+  })
+})
+
+describe('permanent deletion confirmation', () => {
+  it('shows the owner name and irreversibility without deleting before confirm', async () => {
+    const action = vi.fn()
+
+    render(
+      <DeleteConversationOwnerConfirmDialog
+        mode="permanent"
+        type="assistant"
+        name="Field Notes"
+        open
+        pending={false}
+        onOpenChange={() => {}}
+        onConfirm={action}
+      />
+    )
+
+    expect(screen.getByRole('dialog', { name: 'Permanently delete "Field Notes"?' })).toBeInTheDocument()
+    expect(screen.getByText('This action cannot be undone.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toHaveAttribute('data-variant', 'destructive')
+    expect(
+      screen.getByRole('checkbox', { name: 'Also permanently delete related topics, including archived ones' })
+    ).not.toBeChecked()
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it('submits the unchecked owner cascade by default and the checked cascade after an explicit choice', async () => {
+    const user = userEvent.setup()
+    const unchecked = vi.fn()
+    const checked = vi.fn()
+    const { rerender } = render(
+      <DeleteConversationOwnerConfirmDialog
+        mode="permanent"
+        type="agent"
+        name="Dispatch"
+        open
+        pending={false}
+        onOpenChange={() => {}}
+        onConfirm={unchecked}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    expect(unchecked).toHaveBeenCalledExactlyOnceWith(false)
+
+    rerender(
+      <DeleteConversationOwnerConfirmDialog
+        mode="permanent"
+        type="agent"
+        name="Dispatch"
+        open
+        pending={false}
+        onOpenChange={() => {}}
+        onConfirm={checked}
+      />
+    )
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Also permanently delete related sessions, including archived ones' })
+    )
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    expect(checked).toHaveBeenCalledExactlyOnceWith(true)
+  })
+
+  it('blocks confirm and dismissal while a permanent owner delete is pending', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onConfirm = vi.fn()
+
+    render(
+      <DeleteConversationOwnerConfirmDialog
+        mode="permanent"
+        type="agent"
+        name="Dispatch"
+        open
+        pending
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Delete Permanently' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    await user.keyboard('{Escape}')
+    fireEvent.click(document.body.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')!)
+
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('confirms a topic or session by name with no cascade checkbox', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn()
+    const onOpenChange = vi.fn()
+
+    render(
+      <PermanentConversationDeleteDialog
+        name="Notes"
+        open
+        pending={false}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />
+    )
+
+    expect(screen.getByRole('dialog', { name: 'Permanently delete "Notes"?' })).toBeInTheDocument()
+    expect(screen.getByText('This action cannot be undone.')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(onConfirm).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('does not delete a conversation until the permanent action is confirmed', async () => {
+    const user = userEvent.setup()
+    const action = vi.fn()
+    render(<PopupHost />)
+
+    let result!: Promise<boolean>
+    act(() => {
+      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+    })
+
+    expect(await screen.findByRole('dialog', { name: 'Permanently delete "Notes"?' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(action).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await expect(result).resolves.toBe(false)
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it('runs the conversation action once when permanent delete is confirmed', async () => {
+    const user = userEvent.setup()
+    const action = vi.fn()
+    render(<PopupHost />)
+
+    let result!: Promise<boolean>
+    act(() => {
+      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Permanently' }))
+    await expect(result).resolves.toBe(true)
+    expect(action).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a second permanent-delete request on the same open confirmation', async () => {
+    const user = userEvent.setup()
+    const action = vi.fn()
+    const ignored = vi.fn()
+    render(<PopupHost />)
+
+    let result!: Promise<boolean>
+    let duplicate!: Promise<boolean>
+    act(() => {
+      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+      duplicate = permanentDeletePopup.show({
+        kind: 'owner',
+        type: 'agent',
+        name: 'Dispatch',
+        action: ignored
+      })
+    })
+    expect(duplicate).toBe(result)
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }))
+    await expect(result).resolves.toBe(false)
+    expect(action).not.toHaveBeenCalled()
+    expect(ignored).not.toHaveBeenCalled()
+  })
+
+  it('submits one owner cascade when confirm is activated again before pending renders', async () => {
+    let finish!: () => void
+    const action = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    render(<PopupHost />)
+
+    let result!: Promise<boolean>
+    act(() => {
+      result = permanentDeletePopup.show({ kind: 'owner', type: 'assistant', name: 'Field Notes', action })
+    })
+
+    const confirm = await screen.findByRole('button', { name: 'Delete Permanently' })
+    expect(action).not.toHaveBeenCalled()
+    fireEvent.click(confirm)
+    fireEvent.click(confirm)
+    expect(action).toHaveBeenCalledExactlyOnceWith(false)
+
+    finish()
+    await expect(result).resolves.toBe(true)
+    expect(action).toHaveBeenCalledOnce()
+  })
+
+  it('stays open when a permanent delete fails and completes on a later confirm', async () => {
+    const user = userEvent.setup()
+    const error = new Error('delete failed')
+    const action = vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce(undefined)
+    render(<PopupHost />)
+
+    let result!: Promise<boolean>
+    act(() => {
+      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Permanently' }))
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith({
+        title: i18n.t('common.error'),
+        description: formatErrorMessage(error)
+      })
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(action).toHaveBeenCalledOnce()
+
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    await expect(result).resolves.toBe(true)
+    expect(action).toHaveBeenCalledTimes(2)
+  })
+
+  it('dismisses on the first Cancel after a failed confirm without deleting again', async () => {
+    const user = userEvent.setup()
+    const error = new Error('delete failed')
+    const action = vi.fn().mockRejectedValue(error)
+    render(<PopupHost />)
+
+    let result!: Promise<boolean>
+    act(() => {
+      result = permanentDeletePopup.show({ kind: 'conversation', name: 'Notes', action })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Permanently' }))
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith({
+        title: i18n.t('common.error'),
+        description: formatErrorMessage(error)
+      })
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(action).toHaveBeenCalledOnce()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await expect(result).resolves.toBe(false)
+    expect(action).toHaveBeenCalledOnce()
   })
 })
