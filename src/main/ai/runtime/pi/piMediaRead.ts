@@ -7,7 +7,7 @@ import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { AbsoluteFilePathSchema, FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
-import { loadPiSdk } from './piSdk'
+import { loadPiReadPathResolver, loadPiSdk } from './piSdk'
 
 const MEDIA_READ_GUIDELINE =
   'For an audio or video file, read returns Cherry media analysis text (transcript, on-screen text, and visual summary). Do not probe those files with bash or ffmpeg.'
@@ -27,7 +27,8 @@ export function wrapPiReadToolForMedia(definition: ToolDefinition, cwd: string):
         return definition.execute(toolCallId, params, signal, onUpdate, ctx)
       }
       signal?.throwIfAborted()
-      const absolutePath = resolveMediaPath(requestedPath, ctx?.cwd || cwd)
+      const absolutePath = await resolveMediaPath(requestedPath, ctx?.cwd || cwd)
+      signal?.throwIfAborted()
       const parsed = AbsoluteFilePathSchema.safeParse(absolutePath)
       if (!parsed.success) return definition.execute(toolCallId, params, signal, onUpdate, ctx)
       const text = await application
@@ -62,8 +63,8 @@ function isAudioOrVideoPath(filePath: string): boolean {
   return fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO
 }
 
-function resolveMediaPath(filePath: string, cwd: string): string {
-  return path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(cwd, filePath)
+async function resolveMediaPath(filePath: string, cwd: string): Promise<string> {
+  return (await loadPiReadPathResolver())(filePath, cwd)
 }
 
 async function pageAnalysisText(text: string, offset?: number, limit?: number): Promise<string> {

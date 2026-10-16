@@ -9,6 +9,7 @@
  * Phase 0 bundling spike). Every runtime use of pi values MUST go through here;
  * `import type` elsewhere is compile-only and safe.
  */
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import type { ExtensionFactory, ProviderConfig } from '@earendil-works/pi-coding-agent'
@@ -18,6 +19,29 @@ import type { PiApi } from '@shared/ai/piModelCompatibility'
 
 export function loadPiSdk() {
   return import('@earendil-works/pi-coding-agent')
+}
+
+type ResolveReadPathAsync = (filePath: string, cwd: string) => Promise<string>
+
+let piReadPathResolver: Promise<ResolveReadPathAsync> | undefined
+
+/** Pi's read tool normalizes through this function. The package export map does not expose it. */
+export function loadPiReadPathResolver(): Promise<ResolveReadPathAsync> {
+  piReadPathResolver ??= importPiReadPathResolver().catch((error: unknown) => {
+    piReadPathResolver = undefined
+    throw error
+  })
+  return piReadPathResolver
+}
+
+async function importPiReadPathResolver(): Promise<ResolveReadPathAsync> {
+  const packageDir = (await loadPiSdk()).getPackageDir()
+  const moduleUrl = pathToFileURL(join(packageDir, 'dist/core/tools/path-utils.js')).href
+  const loaded = (await import(/* @vite-ignore */ moduleUrl)) as { resolveReadPathAsync?: ResolveReadPathAsync }
+  if (typeof loaded.resolveReadPathAsync !== 'function') {
+    throw new Error('Pi read path resolver is unavailable')
+  }
+  return loaded.resolveReadPathAsync
 }
 
 export async function loadPiVccExtension(configPath: string): Promise<ExtensionFactory> {

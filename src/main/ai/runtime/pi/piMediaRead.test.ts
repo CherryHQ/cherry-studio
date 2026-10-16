@@ -1,4 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, type ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -196,6 +199,55 @@ describe('wrapPiReadToolForMedia', () => {
     expect(text).not.toContain('more')
   })
 
+  it('resolves an existing media fixture the same way Pi read does', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'pi-media-read-'))
+    const packageDir = (await import('@earendil-works/pi-coding-agent')).getPackageDir()
+    const resolver = (await import(pathToFileURL(path.join(packageDir, 'dist/core/tools/path-utils.js')).href))
+      .resolveReadPathAsync as (filePath: string, cwd: string) => Promise<string>
+    const homeProbe = await resolver('~/voice-missing.mp3', dir)
+    const homeDir = path.join(path.dirname(homeProbe), `pi-media-${process.pid}`)
+    await mkdir(homeDir, { recursive: true })
+    const homeClip = path.join(homeDir, 'voice.mp3')
+    try {
+      const clip = path.join(dir, 'clip.mp4')
+      const curly = path.join(dir, 'Capture d\u2019ecran.mp4')
+      await writeFile(clip, Buffer.from('mp4'))
+      await writeFile(curly, Buffer.from('mp4'))
+      await writeFile(homeClip, Buffer.from('mp3'))
+      const tool = wrapPiReadToolForMedia(readDefinition(vi.fn()), dir)
+      const requests = [
+        { requested: 'clip.mp4', cwd: dir },
+        { requested: clip, cwd: '/elsewhere' },
+        { requested: `~/${path.basename(homeDir)}/voice.mp3`, cwd: dir },
+        { requested: '@clip.mp4', cwd: dir },
+        { requested: pathToFileURL(clip).href, cwd: dir },
+        { requested: "Capture d'ecran.mp4", cwd: dir }
+      ]
+
+      for (const item of requests) {
+        analyzeToFullText.mockClear()
+        const expected = await resolver(item.requested, item.cwd)
+        await execute(tool, item.requested, { cwd: item.cwd })
+        expect(expected, item.requested).toBe(
+          item.requested.includes("d'") ? curly : item.requested.includes('voice.mp3') ? homeClip : clip
+        )
+        expect(analyzeToFullText).toHaveBeenCalledWith({ kind: 'path', path: expected }, undefined)
+      }
+
+      const original = vi.fn(async () => ({ content: [{ type: 'text' as const, text: 'notes' }], details: undefined }))
+      const delegated = wrapPiReadToolForMedia(readDefinition(original), dir)
+      analyzeToFullText.mockClear()
+      await expect(execute(delegated, pathToFileURL(path.join(dir, 'notes.txt')).href, { cwd: dir })).resolves.toEqual({
+        content: [{ type: 'text', text: 'notes' }],
+        details: undefined
+      })
+      expect(analyzeToFullText).not.toHaveBeenCalled()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+      await rm(homeDir, { recursive: true, force: true })
+    }
+  })
+
   it('propagates the abort reason and does not return analysis text', async () => {
     const original = vi.fn()
     const tool = wrapPiReadToolForMedia(readDefinition(original), '/workspace')
@@ -209,6 +261,7 @@ describe('wrapPiReadToolForMedia', () => {
     })
 
     const pending = execute(tool, '/library/clip.mp4', { signal: controller.signal })
+    await vi.waitFor(() => expect(analyzeToFullText).toHaveBeenCalledOnce())
     controller.abort()
 
     await expect(pending).rejects.toBe(abortError)

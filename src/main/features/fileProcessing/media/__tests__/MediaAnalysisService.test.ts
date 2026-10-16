@@ -223,6 +223,8 @@ describe('MediaAnalysisService', () => {
     const analysis = await service.analyze(file)
     expect(analysis.audio).toEqual({ segments: [] })
     expect(analysis.warnings).toContain('no_speech')
+    await service.analyze(file)
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1)
   })
 
   it('reuses the cache until the file version changes', async () => {
@@ -398,5 +400,184 @@ describe('MediaAnalysisService', () => {
     await expect(pending).rejects.toBe(reason)
     expect(runtime.extractFrames).not.toHaveBeenCalled()
     expect(await readdir(runtime.tempRoot)).toEqual([])
+  })
+
+  it('keeps completed vision summaries when a later batch fails', async () => {
+    runtime.config = {
+      ...runtime.config,
+      asr: null,
+      vision: {
+        uniqueModelId: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        endpointType: 'openai-chat-completions',
+        baseUrl: 'https://api.openai.com/v1',
+        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' }
+      },
+      budget: { maxFrames: 7, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
+    }
+    runtime.probe.mockResolvedValue({
+      durationMs: 60_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => ({
+      frames: await Promise.all(
+        timestampsMs.map(async (timestampMs: number) => {
+          const path = join(outputDir, `frame-${timestampMs}.jpg`)
+          await writeFile(path, Buffer.from('jpeg'))
+          return { path, timestampMs }
+        })
+      )
+    }))
+    runtime.generateText
+      .mockImplementationOnce(
+        async (
+          _providerId: string,
+          _settings: unknown,
+          request: { messages: Array<{ content: Array<{ type: string; text?: string }> }> }
+        ) => {
+          const lines = request.messages[0]?.content.flatMap((part) =>
+            part.type === 'text' && part.text?.startsWith('FRAME_') ? [`${part.text}: kept`] : []
+          )
+          return { text: lines?.join('\n') ?? '' }
+        }
+      )
+      .mockRejectedValueOnce(new Error('vision provider rejected the batch'))
+
+    const analysis = await service.analyze(file)
+    const timestamps = runtime.extractFrames.mock.calls[0]?.[0].timestampsMs as number[]
+
+    expect(timestamps).toHaveLength(7)
+    expect(runtime.generateText).toHaveBeenCalledTimes(2)
+    expect(analysis.audio).toBeUndefined()
+    expect(analysis.visuals?.flatMap((frame) => (frame.summary ? [frame.timestampMs] : []))).toEqual(
+      timestamps.slice(0, 6)
+    )
+    expect(analysis.visuals?.filter((frame) => frame.summary).every((frame) => frame.summary === 'kept')).toBe(true)
+    expect(analysis.warnings).toContain('vision_failed')
+    expect(analysis.warnings).not.toContain('visual_analysis_failed')
+  })
+
+  it('propagates cancellation from a later vision batch', async () => {
+    runtime.config = {
+      ...runtime.config,
+      asr: null,
+      vision: {
+        uniqueModelId: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        endpointType: 'openai-chat-completions',
+        baseUrl: 'https://api.openai.com/v1',
+        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' }
+      },
+      budget: { maxFrames: 7, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
+    }
+    runtime.probe.mockResolvedValue({
+      durationMs: 60_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => ({
+      frames: await Promise.all(
+        timestampsMs.map(async (timestampMs: number) => {
+          const path = join(outputDir, `frame-${timestampMs}.jpg`)
+          await writeFile(path, Buffer.from('jpeg'))
+          return { path, timestampMs }
+        })
+      )
+    }))
+    const controller = new AbortController()
+    const reason = new Error('cancel vision')
+    runtime.generateText.mockResolvedValueOnce({ text: 'FRAME_0: first' }).mockImplementationOnce(async () => {
+      controller.abort(reason)
+      throw reason
+    })
+
+    await expect(service.analyze(file, controller.signal)).rejects.toBe(reason)
+    expect(runtime.generateText).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries ASR after a recoverable transcription failure instead of caching it', async () => {
+    runtime.config = {
+      ...runtime.config,
+      ocr: {
+        processor: {
+          id: 'system',
+          type: 'builtin',
+          capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+        },
+        identity: { processorId: 'system', modelId: '', apiHost: '', optionsJson: '{}' }
+      }
+    }
+    runtime.probe.mockResolvedValue({
+      durationMs: 10_000,
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir }) => {
+      const path = join(outputDir, 'frame.jpg')
+      await writeFile(path, Buffer.from('jpeg'))
+      return { frames: [{ path, timestampMs: 4_000 }] }
+    })
+    runtime.ocrImage.mockResolvedValue('Agenda')
+    runtime.transcribe
+      .mockRejectedValueOnce(new Error('asr assets unavailable'))
+      .mockResolvedValue({ text: 'hello', segments: [{ text: 'hello', startSecond: 1, endSecond: 2 }] })
+
+    const failed = await service.analyze(file)
+    expect(failed.audio).toBeUndefined()
+    expect(failed.visuals).toEqual([{ timestampMs: 4_000, ocrText: 'Agenda' }])
+    expect(failed.warnings).toContain('audio_transcription_failed')
+    expect(runtime.cache.size).toBe(0)
+
+    const recovered = await service.analyze(file)
+    expect(recovered.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
+    expect(recovered.visuals).toEqual([{ timestampMs: 4_000, ocrText: 'Agenda' }])
+    expect(recovered.warnings).not.toContain('audio_transcription_failed')
+    expect(runtime.transcribe).toHaveBeenCalledTimes(2)
+    expect(runtime.cache.size).toBe(1)
+
+    await service.analyze(file)
+    expect(runtime.transcribe).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries frame extraction after a recoverable visual failure instead of caching it', async () => {
+    runtime.probe.mockResolvedValue({
+      durationMs: 10_000,
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockRejectedValueOnce(new Error('frame extraction unavailable'))
+    runtime.extractFrames.mockImplementation(async ({ outputDir }) => {
+      const framePath = join(outputDir, 'frame.jpg')
+      await writeFile(framePath, Buffer.from('jpeg'))
+      return { frames: [{ path: framePath, timestampMs: 0 }] }
+    })
+
+    const failed = await service.analyze(file)
+    expect(failed.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
+    expect(failed.visuals).toBeUndefined()
+    expect(failed.warnings).toContain('visual_analysis_failed')
+    expect(runtime.cache.size).toBe(0)
+
+    const recovered = await service.analyze(file)
+    expect(recovered.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
+    expect(recovered.visuals).toEqual([{ timestampMs: 0 }])
+    expect(recovered.warnings).not.toContain('visual_analysis_failed')
+    expect(recovered.warnings).toContain('vision_model_unavailable')
+    expect(runtime.extractFrames).toHaveBeenCalledTimes(2)
+    expect(runtime.cache.size).toBe(1)
+
+    await service.analyze(file)
+    expect(runtime.extractFrames).toHaveBeenCalledTimes(2)
   })
 })

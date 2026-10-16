@@ -43,6 +43,12 @@ const logger = loggerService.withContext('MediaAnalysisService')
 const CACHE_TTL_MS = 30 * 60 * 1000
 const MAX_AUDIO_CHUNK_BYTES = 25_000_000
 const VISION_BATCH_SIZE = 6
+const RECOVERABLE_ANALYSIS_WARNINGS = new Set<MediaAnalysisWarningCode>([
+  'audio_transcription_failed',
+  'ocr_failed',
+  'vision_failed',
+  'visual_analysis_failed'
+])
 
 export class MediaAnalysisError extends Error {
   constructor(readonly code: 'unusable_media_analysis') {
@@ -84,7 +90,9 @@ export class MediaAnalysisService extends BaseService {
     await mkdir(jobDir, { recursive: true })
     try {
       const analysis = await this.runAnalysis(fileInfo.path, fileInfo.ext, jobDir, execution, signal)
-      cache.set(cacheKey, analysis, CACHE_TTL_MS)
+      if (!analysis.warnings.some((warning) => RECOVERABLE_ANALYSIS_WARNINGS.has(warning))) {
+        cache.set(cacheKey, analysis, CACHE_TTL_MS)
+      }
       return analysis
     } finally {
       await rm(jobDir, { recursive: true, force: true }).catch(() => {
@@ -324,26 +332,31 @@ async function summarizeFrames(
   for (let index = 0; index < frames.length; index += VISION_BATCH_SIZE) {
     signal?.throwIfAborted()
     const batch = frames.slice(index, index + VISION_BATCH_SIZE)
-    const content: Array<{ type: 'text'; text: string } | { type: 'image'; image: Buffer; mediaType: 'image/jpeg' }> = [
-      {
-        type: 'text',
-        text: 'Describe each video frame briefly. Reply with one line per frame as FRAME_<timestamp>: summary. Do not transcribe speech.'
+    try {
+      const content: Array<{ type: 'text'; text: string } | { type: 'image'; image: Buffer; mediaType: 'image/jpeg' }> =
+        [
+          {
+            type: 'text',
+            text: 'Describe each video frame briefly. Reply with one line per frame as FRAME_<timestamp>: summary. Do not transcribe speech.'
+          }
+        ]
+      for (const frame of batch) {
+        content.push({ type: 'text', text: `FRAME_${frame.timestampMs}` })
+        content.push({ type: 'image', image: await readFile(frame.path), mediaType: 'image/jpeg' })
       }
-    ]
-    for (const frame of batch) {
-      content.push({ type: 'text', text: `FRAME_${frame.timestampMs}` })
-      content.push({ type: 'image', image: await readFile(frame.path), mediaType: 'image/jpeg' })
+      const result = await aiCoreGenerateText<AppProviderSettingsMap>(
+        vision.sdkConfig.providerId,
+        vision.sdkConfig.providerSettings,
+        {
+          model: vision.sdkConfig.modelId,
+          abortSignal: signal,
+          messages: [{ role: 'user', content }]
+        }
+      )
+      assignSummaries(batch, result.text, summaries)
+    } catch {
+      signal?.throwIfAborted()
     }
-    const result = await aiCoreGenerateText<AppProviderSettingsMap>(
-      vision.sdkConfig.providerId,
-      vision.sdkConfig.providerSettings,
-      {
-        model: vision.sdkConfig.modelId,
-        abortSignal: signal,
-        messages: [{ role: 'user', content }]
-      }
-    )
-    assignSummaries(batch, result.text, summaries)
   }
   return summaries
 }
