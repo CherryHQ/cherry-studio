@@ -215,6 +215,23 @@ describe('classifyError', () => {
     expect(result.category).toBe('permission')
   })
 
+  // An OCR-fallback failure must not be re-owned by the chat provider: even when the
+  // failing OCR processor's diagnostic carries auth-flavored tokens, the error text is
+  // the generic non-vision headline, so recovery never points at provider settings (#20343).
+  it('keeps an app-owned non-vision OCR error out of the provider auth routing', () => {
+    const result = classifyError(
+      makeError({
+        name: 'NonVisionImageOcrError',
+        i18nKey: 'image_unreadable_for_non_vision_model',
+        message:
+          "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
+      }),
+      'anthropic'
+    )
+    expect(result.category).not.toBe('auth')
+    expect(result.navTarget).toBeNull()
+  })
+
   // Model
   it('classifies 404 as model', () => {
     const result = classifyError(makeError({ statusCode: 404 }))

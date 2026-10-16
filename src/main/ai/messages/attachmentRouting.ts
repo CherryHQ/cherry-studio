@@ -48,12 +48,41 @@ const logger = loggerService.withContext('ai:attachmentRouting')
 const NON_VISION_IMAGE_OCR_ERROR_MESSAGE =
   "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
 
+/**
+ * Why the OCR fallback did not produce text — surfaced through the localized
+ * detail keys so the user can tell a no-text image apart from a
+ * misconfigured/failing OCR processor (#20343). The reason never rides on
+ * `message`: provider diagnostics can carry auth-flavored tokens that would
+ * hand the error to the chat provider's auth classifier, which routes users
+ * to the wrong settings page.
+ */
+type NonVisionImageOcrDetail = { kind: 'empty' } | { kind: 'failed'; reason: string }
+
+/** i18n keys under the `error.` namespace, rendered by ErrorBlock / ErrorDetailModal. */
+const NON_VISION_IMAGE_OCR_DETAIL_KEYS = {
+  empty: 'ocr_detail_empty',
+  failed: 'ocr_detail_failed'
+} as const
+
+/** A pathological provider body must not flood the error surfaces. */
+const MAX_OCR_FAILURE_REASON_LENGTH = 500
+
 class NonVisionImageOcrError extends Error {
   readonly i18nKey = 'image_unreadable_for_non_vision_model'
+  /** Classifier ownership: an OCR fallback failure is never a chat-provider auth error. */
+  readonly providerErrorCategory = 'ocr' as const
+  readonly detailI18nKey?: string
+  readonly detailI18nValues?: Record<string, string>
 
-  constructor() {
+  constructor(detail?: NonVisionImageOcrDetail) {
     super(NON_VISION_IMAGE_OCR_ERROR_MESSAGE)
     this.name = 'NonVisionImageOcrError'
+    if (detail) {
+      this.detailI18nKey = NON_VISION_IMAGE_OCR_DETAIL_KEYS[detail.kind]
+      if (detail.kind === 'failed') {
+        this.detailI18nValues = { reason: detail.reason.slice(0, MAX_OCR_FAILURE_REASON_LENGTH) }
+      }
+    }
   }
 }
 
@@ -117,17 +146,22 @@ function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boole
 }
 
 /**
- * OCR a non-vision image. Returns trimmed text, or `null` when OCR found no
- * text or is unavailable (unconfigured / failed). Abort rethrows.
+ * OCR a non-vision image. Returns extracted text, or why no text came back —
+ * `{ kind: 'empty' }` when the OCR ran but found nothing readable,
+ * `{ kind: 'failed', reason }` when the configured OCR path itself errored.
+ * Abort rethrows.
  */
-async function ocrNonVisionImage(entryId: string, signal?: AbortSignal): Promise<string | null> {
+async function ocrNonVisionImage(
+  entryId: string,
+  signal?: AbortSignal
+): Promise<NonVisionImageOcrDetail | { kind: 'text'; text: string }> {
   try {
     const text = (await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)).trim()
-    return text || null
+    return text ? { kind: 'text', text } : { kind: 'empty' }
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     logger.warn('OCR unavailable or failed for a non-vision model', { error })
-    return null
+    return { kind: 'failed', reason: error instanceof Error ? error.message : String(error) }
   }
 }
 
@@ -250,18 +284,21 @@ async function prepareChatMessage<T extends UIMessage>(
       }
 
       // Non-vision image → OCR text when available; otherwise stop before the
-      // provider request. Gateway-backed models can explicitly enable Vision.
+      // provider request, carrying why the fallback produced nothing. Gateway-
+      // backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
-        const ocrText = await ocrNonVisionImage(fileEntryId, ctx.signal)
-        if (ocrText === null) {
+        const outcome = await ocrNonVisionImage(fileEntryId, ctx.signal)
+        if (outcome.kind !== 'text') {
           logger.warn('Non-vision image OCR produced no readable text', {
             messageId: message.id,
             displayName,
-            fileEntryId
+            fileEntryId,
+            outcome: outcome.kind,
+            ...(outcome.kind === 'failed' ? { reason: outcome.reason } : {})
           })
-          throw new NonVisionImageOcrError()
+          throw new NonVisionImageOcrError(outcome)
         }
-        defer(kept, pending, handle, ocrText)
+        defer(kept, pending, handle, outcome.text)
         continue
       }
 

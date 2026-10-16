@@ -96,9 +96,10 @@ describe('Kokoro Chinese-English speech', () => {
     expect(await readdir(directory)).toEqual([])
   })
 
-  it('supports desktop Sherpa targets and excludes unavailable Windows ARM64 binaries', () => {
+  it('supports desktop Sherpa targets and rejects unavailable architectures', () => {
     for (const [platform, arch] of [
       ['win32', 'x64'],
+      ['win32', 'arm64'],
       ['linux', 'x64'],
       ['linux', 'arm64'],
       ['darwin', 'x64'],
@@ -106,6 +107,6 @@ describe('Kokoro Chinese-English speech', () => {
     ]) {
       expect(kokoroTtsSupport({ platform, arch })).toBe(VoiceModelSupport.Supported)
     }
-    expect(kokoroTtsSupport({ platform: 'win32', arch: 'arm64' })).toBe(VoiceModelSupport.UnsupportedArchitecture)
+    expect(kokoroTtsSupport({ platform: 'win32', arch: 'ia32' })).toBe(VoiceModelSupport.UnsupportedArchitecture)
   })
 })
