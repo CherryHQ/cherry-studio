@@ -6,8 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { CherryTextMetaSchema } from '@shared/data/types/uiParts'
 
 import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
@@ -998,7 +1000,9 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
     })
 
-    it('hoists non-image attachments and hides their token chips', () => {
+    it('keeps non-image attachment tokens visible when attachments are hoisted', () => {
+      const previewInputFile = vi.fn()
+
       renderParts(
         [
           {
@@ -1022,7 +1026,7 @@ describe('MessagePartsRenderer', () => {
           }
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
-        {},
+        { previewInputFile },
         defaultMessageRenderConfig,
         [],
         true
@@ -1030,10 +1034,349 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getByText('see the doc')).toBeInTheDocument()
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
+
+      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('hoisted-doc')
+      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
+        id: 'file:hoisted-doc',
+        kind: 'file',
+        label: 'report.pdf'
+      })
+
+      expect(previewInputFile).toHaveBeenCalledWith({
+        displayName: 'report.pdf',
+        previewPath: '/tmp/report.pdf',
+        mediaType: 'application/pdf'
+      })
     })
 
-    it('hoists attachments that carry no composer token', () => {
+    it('opens uniquely named sent files from their read-only tokens when parts omit fileTokenSourceId', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf and notes.md',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:legacy-report-token',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    },
+                    {
+                      id: 'file:legacy-notes-token',
+                      kind: 'file',
+                      label: 'notes.md',
+                      index: 1,
+                      textOffset: 22,
+                      promptText: 'notes.md',
+                      payload: { name: 'notes.md', origin_name: 'notes.md' }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-report',
+                originalPath: '/Users/alice/report.pdf'
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/notes.md',
+            mediaType: 'text/markdown',
+            filename: 'notes.md',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-notes',
+                originalPath: '/Users/alice/notes.md'
+              }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'report.pdf' }))
+      fireEvent.click(screen.getByRole('button', { name: 'notes.md' }))
+
+      expect(previewInputFile).toHaveBeenNthCalledWith(1, {
+        displayName: 'report.pdf',
+        previewPath: '/internal/message-files/report.pdf',
+        fileEntryId: 'entry-report',
+        originalPath: '/Users/alice/report.pdf',
+        mediaType: 'application/pdf'
+      })
+      expect(previewInputFile).toHaveBeenNthCalledWith(2, {
+        displayName: 'notes.md',
+        previewPath: '/internal/message-files/notes.md',
+        fileEntryId: 'entry-notes',
+        originalPath: '/Users/alice/notes.md',
+        mediaType: 'text/markdown'
+      })
+    })
+
+    it('lets an explicit fileTokenSourceId own the token when a same-name part appears first', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:target',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/fallback/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-fallback' } }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/explicit/stored-report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'stored-report.pdf',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-explicit',
+                fileTokenSourceId: 'target',
+                originalPath: '/Users/alice/stored-report.pdf'
+              }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
+        'data-handle',
+        JSON.stringify({ kind: 'entry', entryId: 'entry-fallback' })
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'report.pdf' }))
+      expect(previewInputFile).toHaveBeenCalledTimes(1)
+      expect(previewInputFile).toHaveBeenCalledWith({
+        displayName: 'report.pdf',
+        previewPath: '/internal/message-files/explicit/stored-report.pdf',
+        fileEntryId: 'entry-explicit',
+        originalPath: '/Users/alice/stored-report.pdf',
+        mediaType: 'application/pdf'
+      })
+    })
+
+    it('keeps the inline card when the matched token id has no preview key', () => {
+      const token = {
+        id: 'file:',
+        kind: 'file' as const,
+        label: 'report.pdf',
+        index: 0,
+        textOffset: 7,
+        promptText: 'report.pdf',
+        payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+      }
+      expect(CherryTextMetaSchema.safeParse({ composer: { version: 1, tokens: [token] } }).success).toBe(true)
+      expect(readComposerFileTokenIdSuffix(token.id)).toBeUndefined()
+
+      const previewInputFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf',
+            providerMetadata: { cherry: { composer: { version: 1, tokens: [token] } } }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
+        'data-handle',
+        JSON.stringify({ kind: 'entry', entryId: 'entry-report' })
+      )
+      expect(screen.queryByRole('button', { name: 'report.pdf' })).toBeNull()
+      fireEvent.click(document.querySelector('[data-composer-token-kind="file"]') as Element)
+      expect(previewInputFile).not.toHaveBeenCalled()
+    })
+
+    it('keeps every same-name file card and does not open one from the shared token', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:shared-report-token',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/a/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report-a' } }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/b/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report-b' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      const cards = screen.getAllByTestId('mock-attachments')
+      expect(cards.map((card) => card.getAttribute('data-handle'))).toEqual([
+        JSON.stringify({ kind: 'entry', entryId: 'entry-report-a' }),
+        JSON.stringify({ kind: 'entry', entryId: 'entry-report-b' })
+      ])
+      expect(screen.queryByRole('button', { name: 'report.pdf' })).toBeNull()
+      fireEvent.click(document.querySelector('[data-composer-token-kind="file"]') as Element)
+      expect(previewInputFile).not.toHaveBeenCalled()
+    })
+
+    it('keeps the file card when two visible tokens share its filename', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review report.pdf report.pdf',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:report-token-a',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 7,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    },
+                    {
+                      id: 'file:report-token-b',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 1,
+                      textOffset: 18,
+                      promptText: 'report.pdf',
+                      payload: { name: 'report.pdf', origin_name: 'report.pdf' }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
+        'data-handle',
+        JSON.stringify({ kind: 'entry', entryId: 'entry-report' })
+      )
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(2)
+      expect(screen.queryByRole('button', { name: 'report.pdf' })).toBeNull()
+      for (const chip of document.querySelectorAll('[data-composer-token-kind="file"]')) {
+        fireEvent.click(chip)
+      }
+      expect(previewInputFile).not.toHaveBeenCalled()
+    })
+
+    it('keeps non-image attachments without composer tokens in the inline flow when attachments are hoisted', () => {
       renderParts(
         [
           { type: 'text', text: 'see the doc' },
@@ -1047,7 +1390,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(screen.getByText('see the doc')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'report.pdf')
     })
 
     // A blank text part stays "substantive" while it carries a token chip, so hoisting every
@@ -1124,6 +1467,7 @@ describe('MessagePartsRenderer', () => {
               cherry: {
                 fileEntryId: 'entry-pasted-text',
                 fileTokenSourceId: 'source-pasted-text',
+                originalPath: '/Users/alice/Notes/Pasted text.txt',
                 composerFileKind: 'pasted-text'
               }
             }
@@ -1134,11 +1478,72 @@ describe('MessagePartsRenderer', () => {
 
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-pasted-text')).toEqual({
         url: 'file:///internal/message-files/pasted-text.txt',
+        fileEntryId: 'entry-pasted-text',
         mediaType: 'text/plain',
+        originalPath: '/Users/alice/Notes/Pasted text.txt',
         composerFileKind: 'pasted-text'
       })
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('maps a sent composer file token preview to the injected preview action', () => {
+      const previewInputFile = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review ',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:source-report',
+                      kind: 'file',
+                      label: 'report.md',
+                      index: 0,
+                      textOffset: 7
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/report.md',
+            mediaType: 'text/markdown',
+            filename: 'report.md',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-report',
+                fileTokenSourceId: 'source-report',
+                originalPath: '/Users/alice/report.md'
+              }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFile }
+      )
+
+      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('source-report')
+      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
+        id: 'file:source-report',
+        kind: 'file',
+        label: 'report.md'
+      })
+
+      expect(previewInputFile).toHaveBeenCalledWith({
+        displayName: 'report.md',
+        previewPath: '/internal/message-files/report.md',
+        fileEntryId: 'entry-report',
+        originalPath: '/Users/alice/report.md',
+        mediaType: 'text/markdown'
+      })
     })
 
     it('keeps a user image when no composer file token is visible', () => {
@@ -1195,6 +1600,101 @@ describe('MessagePartsRenderer', () => {
 
       expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('LICENSE')
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('hides the composer file chip when the bubble hoists a file with preview or open', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Open ',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:source-report',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 5
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileTokenSourceId: 'source-report' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewFile: vi.fn(), openFile: vi.fn() },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(screen.getByText('Open')).toBeInTheDocument()
+    })
+
+    it('keeps one right-pane file token when previewInputFile is available', () => {
+      const previewInputFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Open ',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:source-report',
+                      kind: 'file',
+                      label: 'report.pdf',
+                      index: 0,
+                      textOffset: 5
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/report.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: {
+              cherry: { fileEntryId: 'entry-report', fileTokenSourceId: 'source-report' }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewFile: vi.fn(), openFile: vi.fn(), previewInputFile },
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
+      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('source-report')
+      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
+        id: 'file:source-report',
+        kind: 'file',
+        label: 'report.pdf'
+      })
+      expect(previewInputFile).toHaveBeenCalledTimes(1)
     })
 
     it('hides a duplicate attachment when its composer file token is visible', () => {
