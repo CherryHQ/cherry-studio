@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': true,
     'chat.message.thought.auto_collapse': true,
+    'chat.message.user_content.default_expanded': false,
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
@@ -116,6 +117,7 @@ describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
+    mocks.preferenceValues['chat.message.user_content.default_expanded'] = false
     mocks.preferenceValues['chat.input.paste_long_text_as_file'] = false
     mocks.preferenceValues['chat.input.paste_long_text_threshold'] = 1500
     mocks.loadThemeNames.mockClear()
@@ -164,6 +166,22 @@ describe('ChatPreferenceSections', () => {
         name: 'settings.messages.input.paste_long_text_threshold'
       })
     ).toBeInTheDocument()
+  })
+
+  it('saves default user-message expansion independently from thinking auto-collapse', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ChatPreferenceSections />)
+    const name = 'settings.messages.user_content.default_expanded.label'
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'false')
+
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.user_content.default_expanded', true)
+    expect(mocks.preferenceValues['chat.message.thought.auto_collapse']).toBe(true)
+    rerender(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
+
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.user_content.default_expanded', false)
   })
 
   it('lets the user update the long paste threshold through the real number field', async () => {

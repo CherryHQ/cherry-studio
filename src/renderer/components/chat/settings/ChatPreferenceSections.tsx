@@ -80,6 +80,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [thoughtAutoCollapse, setThoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+  const [userMessageDefaultExpanded, setUserMessageDefaultExpanded] = usePreference(
+    'chat.message.user_content.default_expanded'
+  )
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
@@ -353,6 +356,15 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               onCheckedChange={setThoughtAutoCollapse}
               label={t('chat.settings.thought_auto_collapse.label')}
               hint={t('chat.settings.thought_auto_collapse.tip')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-user-message-default-expanded" className="scroll-mt-6">
+            <SettingSwitch
+              checked={userMessageDefaultExpanded}
+              onCheckedChange={setUserMessageDefaultExpanded}
+              label={t('settings.messages.user_content.default_expanded.label')}
+              hint={t('settings.messages.user_content.default_expanded.hint')}
             />
           </SettingRow>
           <SettingDivider />
