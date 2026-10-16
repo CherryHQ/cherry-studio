@@ -217,7 +217,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
 }
 
 const CONFIG_DESCRIPTION =
-  "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' to mark the onboarding ritual as done. Use 'reset_bootstrap' to re-run the onboarding in the next session."
+  "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' when onboarding is finished or the user declines it (e.g. 'no thanks', 'skip', or an equivalent phrase in their language); this disables onboarding for this agent in future sessions without requiring identity files. Use 'reset_bootstrap' only when the user explicitly asks to re-run onboarding in the next session."
 
 const ConfigInputSchema = z.object({
   action: z
@@ -1079,7 +1079,7 @@ function configSetBootstrap(ctx: AutonomyToolsContext, completed: boolean): Call
 
   logger.info(completed ? 'Bootstrap marked as completed' : 'Bootstrap reset', { agentId: ctx.agentId })
   const text = completed
-    ? 'Bootstrap completed. Future sessions will use your standard personality.'
+    ? 'Bootstrap is turned off for this agent. Stop onboarding now; future sessions will skip it unless the user asks to reset it.'
     : 'Bootstrap has been reset. The next session will run the onboarding flow.'
   return { content: [{ type: 'text', text }] }
 }

@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
 import { useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +10,7 @@ import { getComposerToolbarManifestsForScope } from '@renderer/components/compos
 import { type ComposerToolScope, TopicType } from '@renderer/components/composer/tools/types'
 import { ComposerDictationButton } from '@renderer/components/composer/variants/shared/ComposerDictationButton'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import enUS from '@renderer/i18n/locales/en-us.json'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(async () => {}),
@@ -16,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   discard: vi.fn(async () => {}),
   insertRecovery: vi.fn(() => 'inserted' as const),
   listener: undefined as (() => void) | undefined,
+  listeners: new Set<() => void>(),
   openSettingsTab: vi.fn(),
   retry: vi.fn(async () => {}),
   snapshot: { phase: 'idle', elapsedMs: 0, recoveryAvailable: false } as any,
@@ -31,9 +34,10 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 vi.mock('@renderer/services/voice', () => ({
   dictationService: {
     subscribe: (listener: () => void) => {
-      mocks.listener = listener
+      mocks.listeners.add(listener)
+      mocks.listener = () => mocks.listeners.forEach((notify) => notify())
       return () => {
-        if (mocks.listener === listener) mocks.listener = undefined
+        mocks.listeners.delete(listener)
       }
     },
     getSnapshot: () => mocks.snapshot,
@@ -49,16 +53,14 @@ vi.mock('@renderer/services/voice', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, options?: { seconds?: number }) => `${key}${options?.seconds ?? ''}` })
+  useTranslation: () => ({ t: translate })
 }))
 
 import dictationTool from '../dictationTool'
 
-const translate = (key: string, options?: { seconds?: number }) =>
-  ({
-    'settings.voice.action.transcribe': 'Transcribe',
-    'settings.voice.dictation.phase.recorded': 'Ready to transcribe'
-  })[key] ?? `${key}${options?.seconds ?? ''}`
+const testI18n = createInstance()
+await testI18n.init({ lng: 'en-US', keySeparator: false, resources: { 'en-US': { translation: enUS } } })
+const translate = testI18n.t.bind(testI18n)
 
 function renderRuntime(scope: ComposerToolScope = TopicType.Chat) {
   const launchers: ComposerToolLauncher[][] = []
@@ -127,7 +129,7 @@ describe('dictationTool', () => {
     await waitFor(() => expect(latestLauncher(rendered)).toBeDefined())
 
     expect(mocks.startScoped).not.toHaveBeenCalled()
-    await userEvent.setup().click(screen.getByRole('button', { name: 'chat.input.dictation.action.start' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Start dictation' }))
 
     expect(mocks.startScoped).toHaveBeenCalledOnce()
     expect(mocks.startScoped).toHaveBeenCalledWith()
@@ -144,14 +146,57 @@ describe('dictationTool', () => {
 
     const launcher = latestLauncher(rendered)!
     expect(launcher).toMatchObject({ active: true, disabled: false })
-    expect(launcher.description).toBe('settings.voice.dictation.phase.recording')
-    expect(launcher.suffix).toBe('settings.voice.dictation.elapsed3')
-    expect(screen.getByText('settings.voice.dictation.elapsed3')).toBeVisible()
-    await userEvent.setup().click(screen.getByRole('button', { name: 'settings.voice.action.stop_recording' }))
+    expect(launcher.description).toBe('Recording')
+    expect(launcher.suffix).toBe('3 s')
+    expect(screen.getByText('3 s')).toBeVisible()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Stop recording' }))
     expect(mocks.stop).toHaveBeenCalledOnce()
 
     launcher.submenu?.find((item) => item.id === 'dictation:cancel')?.action?.({} as never)
     expect(mocks.cancel).toHaveBeenCalledOnce()
+  })
+
+  it('returns to the inactive microphone after no speech instead of leaving an empty recording capsule', async () => {
+    mocks.snapshot = { phase: 'recording', elapsedMs: 3200, recoveryAvailable: false }
+    const rendered = renderRuntime()
+    expect(await screen.findByRole('button', { name: 'Stop recording' })).toBeEnabled()
+    // data-slot is the shared visualizer's semantic hook; a completed capture must remove the spectrum.
+    expect(document.querySelector('[data-slot="bar-visualizer"]')).not.toBeNull()
+
+    act(() => {
+      mocks.snapshot = { phase: 'failed', error: 'no_speech', elapsedMs: 0, recoveryAvailable: false }
+      mocks.listener?.()
+    })
+
+    expect(await screen.findByRole('button', { name: 'Start dictation' })).toBeEnabled()
+    expect(latestLauncher(rendered)?.active).toBe(false)
+    expect(latestLauncher(rendered)?.description).toBe(enUS['settings.voice.status.no_speech'])
+    expect(document.querySelector('[data-slot="bar-visualizer"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry transcription' })).not.toBeInTheDocument()
+    expect(screen.queryByText('3 s')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { phase: 'failed', retryAvailable: true, recoveryAvailable: false, error: 'transcription_failed' },
+    { phase: 'recorded', recoveryAvailable: false },
+    { phase: 'recovery', recoveryAvailable: true }
+  ])('lets the user discard retained $phase data from the visible composer and start again', async (state) => {
+    mocks.snapshot = { ...state, elapsedMs: 1000 }
+    mocks.discard.mockImplementationOnce(async () => {
+      mocks.snapshot = { phase: 'idle', elapsedMs: 0, recoveryAvailable: false }
+      mocks.listener?.()
+    })
+    renderRuntime()
+
+    const discard = await screen.findByRole('button', { name: 'Discard' })
+    expect(screen.queryByRole('button', { name: 'Start dictation' })).not.toBeInTheDocument()
+    expect(mocks.discard).not.toHaveBeenCalled()
+    await userEvent.setup().click(discard)
+
+    expect(await screen.findByRole('button', { name: 'Start dictation' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Discard' })).not.toBeInTheDocument()
+    expect(mocks.discard).toHaveBeenCalledOnce()
+    expect(mocks.startScoped).not.toHaveBeenCalled()
   })
 
   it('offers explicit retry and recovery actions without inserting automatically', async () => {
@@ -192,8 +237,8 @@ describe('dictationTool', () => {
 
     const launcher = latestLauncher(rendered)!
     expect(launcher.disabled).toBe(false)
-    expect(launcher.label).toBe('chat.input.dictation.action.cancel')
-    await userEvent.setup().click(screen.getByRole('button', { name: 'chat.input.dictation.action.cancel' }))
+    expect(launcher.label).toBe('Cancel dictation')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Cancel dictation' }))
     expect(mocks.cancel).toHaveBeenCalledOnce()
   })
 
@@ -229,7 +274,7 @@ describe('dictationTool', () => {
     })
 
     const launcher = latestLauncher(rendered)!
-    expect(launcher.description).toBe('settings.voice.status.unconfigured')
+    expect(launcher.description).toBe(enUS['settings.voice.status.unconfigured'])
     expect(launcher.disabled).toBe(false)
     launcher.submenu?.find((item) => item.id === 'dictation:open-settings')?.action?.({} as never)
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/voice')

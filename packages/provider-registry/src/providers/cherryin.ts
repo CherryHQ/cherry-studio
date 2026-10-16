@@ -146,6 +146,7 @@ export default defineProvider({
   ],
   metadata: {
     website: {
+      billing: 'https://open.cherryin.ai/console/topup',
       apiKey: 'https://open.cherryin.ai/console/token',
       docs: 'https://open.cherryin.ai',
       models: 'https://open.cherryin.ai/pricing',

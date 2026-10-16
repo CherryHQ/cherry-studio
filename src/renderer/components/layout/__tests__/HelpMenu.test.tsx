@@ -112,6 +112,18 @@ describe('HelpMenu', () => {
     expect(mocks.openFeedback).not.toHaveBeenCalled()
   })
 
+  it('opens the full help menu from the header', async () => {
+    render(<HelpMenu layout="icon" placement="bottom" onFeedbackClick={mocks.openFeedback} />)
+
+    await openMenu()
+
+    expect(screen.getByRole('button', { name: 'help.whats_new' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'help.guide' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Report a problem' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'help.feedback' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System diagnostics' })).toBeInTheDocument()
+  })
+
   it('reports the help overlay lifecycle to its sidebar owner', async () => {
     const onOverlayOpenChange = vi.fn()
     render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} onOverlayOpenChange={onOverlayOpenChange} />)

@@ -11,6 +11,10 @@ on:
       - v2
     types: [opened, edited, synchronize, ready_for_review]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   check-description:
     runs-on: ubuntu-latest
@@ -112,11 +116,8 @@ jobs:
               core.info('PR description check passed.');
             }
 
-  notify-sync:
-    runs-on: ubuntu-latest
-    if: github.event.action == 'synchronize' && github.event.pull_request.draft == false
-    steps:
       - name: Remind to review description
+        if: always() && !cancelled() && github.event.action == 'synchronize'
         uses: actions/github-script@v8
         with:
           script: |
