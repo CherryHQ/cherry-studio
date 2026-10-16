@@ -51,7 +51,12 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       position: relative;
     }
     body.platform-mac { --traffic-light-width: 70px; --window-controls-width: 0px; }
-    body.platform-win, body.platform-linux { --traffic-light-width: 0px; --window-controls-width: 138px; }
+    body.platform-win { --traffic-light-width: 0px; --window-controls-width: 138px; }
+    /* Linux: Electron draws the controls (WCO) on either side; reserve its safe-area insets. */
+    body.platform-linux {
+      --traffic-light-width: env(titlebar-area-x, 0px);
+      --window-controls-width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+    }
 
     /* Chrome-style tab row */
     #tab-row {
@@ -243,7 +248,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     #url-input::placeholder { color: var(--color-text); }
     #url-input::-webkit-input-placeholder { color: var(--color-text); }
 
-    /* Window controls for Windows/Linux - use inline-flex inside tab-row instead of fixed position */
+    /* Window controls for Windows - use inline-flex inside tab-row instead of fixed position */
     #window-controls {
       display: none;
       height: 42px;
@@ -252,8 +257,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       margin-top: -8px;
       -webkit-app-region: no-drag;
     }
-    body.platform-win #window-controls,
-    body.platform-linux #window-controls { display: flex; }
+    body.platform-win #window-controls { display: flex; }
     .window-control-btn {
       width: 46px;
       height: 42px;
@@ -280,7 +284,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
         <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
       </div>
     </div>
-    <!-- Window controls for Windows/Linux - inside tab-row to avoid drag region issues -->
+    <!-- Window controls for Windows - inside tab-row to avoid drag region issues -->
     <div id="window-controls">
       <button class="window-control-btn" id="minimize-btn" title="Minimize">
         <svg viewBox="0 0 10 1"><rect width="10" height="1"/></svg>
@@ -530,7 +534,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       sendAction({ type: 'refresh' });
     });
 
-    // Window controls for Windows/Linux
+    // Window controls for Windows
     document.getElementById('minimize-btn').addEventListener('click', function() {
       sendAction({ type: 'window-minimize' });
     });

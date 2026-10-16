@@ -251,6 +251,26 @@ describe('ChannelDetail', () => {
     })
   })
 
+  it('passes independent WeCom field patches through the settings save boundary', async () => {
+    const config = { bot_id: 'old-bot', secret: 'old-secret', allowed_chat_ids: [], allowed_user_ids: [] }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'wecom', config, isActive: false }]
+    render(<ChannelDetail channelDef={{ ...channelDef, type: 'wecom', name: 'WeCom', defaultConfig: config }} />)
+    const tooltip = await screen.findByText('common.edit')
+    fireEvent.click(within(tooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button'))
+    for (const [key, value] of [
+      ['botId', 'new-bot'],
+      ['secret', ' secret ']
+    ]) {
+      const input = await screen.findByLabelText(`agent.channels.wecom.${key}`)
+      fireEvent.change(input, { target: { value } })
+      fireEvent.blur(input)
+    }
+    expect(channelMocks.updateChannel.mock.calls).toEqual([
+      ['channel-1', { configPatch: { bot_id: 'new-bot' } }],
+      ['channel-1', { configPatch: { secret: ' secret ' } }]
+    ])
+  })
+
   it('sends null permissionMode when clearing an existing override to inherit', async () => {
     render(<ChannelDetail channelDef={channelDef} />)
 

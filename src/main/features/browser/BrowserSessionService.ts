@@ -1,4 +1,5 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, Transport } from '@modelcontextprotocol/server'
+import type { StdioServerHandle } from '@modelcontextprotocol/server/stdio'
 import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
 
 import { application } from '@application'
@@ -13,6 +14,7 @@ import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/sche
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { type AgentBrowserContext, AgentBrowserRegistry } from './AgentBrowserRegistry'
+import { BrowserControlSession } from './BrowserControlSession'
 import { captureBrowserFavicon, clearBrowserFavicons } from './browserFavicons'
 import { BrowserGuestRegistry, type BrowserGuestTarget } from './BrowserGuestRegistry'
 import type { SessionOwnership } from './browserUse'
@@ -58,8 +60,8 @@ export class BrowserSessionService extends BaseService {
     string,
     { ownerId: string; server: BrowserServer; active: number; lastUsed: number }
   >()
-  private readonly agentServers = new Set<BrowserServer>()
-  private readonly servers = new Set<BrowserServer>()
+  private readonly agentServers = new Set<BrowserServer | BrowserControlSession>()
+  private readonly servers = new Set<BrowserServer | BrowserControlSession>()
   private readonly sessions = new Map<number, SessionEntry>()
 
   protected onInit(): void {
@@ -132,28 +134,60 @@ export class BrowserSessionService extends BaseService {
     )
   }
 
-  async createMcpServer() {
-    if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
-      throw new BrowserSessionError('debugger_unavailable')
+  async createMcpEndpoint() {
+    this.assertServing()
     const server = new BrowserServer(this, () => this.servers.delete(server))
     this.servers.add(server)
-    return server.server
+    return { createServer: () => server.createServer(), close: () => server.close() }
   }
 
-  createAgentMcpServer(context: AgentBrowserContext) {
+  /** Serves the visible Agent pane per connection; each connection owns its controller. */
+  createAgentMcpServer(context: AgentBrowserContext): (transport: Transport) => Promise<StdioServerHandle> {
+    this.assertServing()
+    return async (transport) => {
+      this.assertServing()
+      const server = new BrowserServer(
+        this,
+        () => {
+          this.servers.delete(server)
+          this.agentServers.delete(server)
+        },
+        new AgentBrowserController(this, this.agentBrowser, context)
+      )
+      this.servers.add(server)
+      this.agentServers.add(server)
+      return server.serve(transport)
+    }
+  }
+
+  createControl(owner: { kind: 'agent' | 'topic'; sessionId: string; ownerId: string }): BrowserControlSession {
+    this.assertServing()
+    const context = { sessionId: owner.sessionId, ownerId: owner.ownerId }
+    const controller =
+      owner.kind === 'agent'
+        ? new AgentBrowserController(this, this.agentBrowser, { agentId: owner.ownerId, sessionId: owner.sessionId })
+        : new SessionBrowserController(this, {
+            assertAvailable: () => this.assertTopicAvailable(owner.sessionId, owner.ownerId),
+            get: () => this.topicBrowser.get(context),
+            focusInput: (target, options) => this.topicBrowser.focusInput(context, target, options),
+            ensureGuest: (signal, url) => this.topicBrowser.ensureGuest(context, signal, url),
+            reveal: (target) =>
+              application
+                .get('IpcApiService')
+                .send(target.windowId, 'browser.pane.open_requested', { scope: 'topic', sessionId: owner.sessionId })
+          })
+    const control = new BrowserControlSession(() => {
+      this.servers.delete(control)
+      this.agentServers.delete(control)
+    }, controller)
+    this.servers.add(control)
+    this.agentServers.add(control)
+    return control
+  }
+
+  private assertServing(): void {
     if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
       throw new BrowserSessionError('debugger_unavailable')
-    const server = new BrowserServer(
-      this,
-      () => {
-        this.servers.delete(server)
-        this.agentServers.delete(server)
-      },
-      new AgentBrowserController(this, this.agentBrowser, context)
-    )
-    this.servers.add(server)
-    this.agentServers.add(server)
-    return server.server
   }
 
   async callTopicTool(
@@ -179,6 +213,7 @@ export class BrowserSessionService extends BaseService {
       const controller = new SessionBrowserController(this, {
         assertAvailable: () => this.assertTopicAvailable(topicId, assistantId),
         get: () => this.topicBrowser.get(context),
+        focusInput: (target, options) => this.topicBrowser.focusInput(context, target, options),
         ensureGuest: async (abort, url) => {
           const target = await this.topicBrowser.ensureGuest(context, abort, url)
           return target

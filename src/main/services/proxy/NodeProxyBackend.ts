@@ -1,5 +1,6 @@
 import http from 'node:http'
 import https from 'node:https'
+import { urlToHttpOptions } from 'node:url'
 
 import axios from 'axios'
 import { socksDispatcher } from 'fetch-socks'
@@ -111,8 +112,8 @@ export class NodeProxyBackend {
     } else {
       http.get = this.bindHttpMethod(this.originalHttpGet, agents.http)
       http.request = this.bindHttpMethod(this.originalHttpRequest, agents.http)
-      https.get = this.bindHttpMethod(this.originalHttpsGet, agents.https)
-      https.request = this.bindHttpMethod(this.originalHttpsRequest, agents.https)
+      https.get = this.bindHttpMethod(this.originalHttpsGet, agents.https, 'https:')
+      https.request = this.bindHttpMethod(this.originalHttpsRequest, agents.https, 'https:')
     }
 
     for (const agent of new Set(previousAgents ? [previousAgents.http, previousAgents.https] : [])) {
@@ -125,7 +126,7 @@ export class NodeProxyBackend {
   }
 
   // oxlint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  private bindHttpMethod(originalMethod: Function, agent: http.Agent) {
+  private bindHttpMethod(originalMethod: Function, agent: http.Agent, defaultProtocol = 'http:') {
     return (...args: any[]) => {
       let url: string | URL | undefined
       let options: http.RequestOptions | https.RequestOptions
@@ -145,8 +146,20 @@ export class NodeProxyBackend {
         callback = args[1]
       }
 
-      if (url && this.proxyBypassRuleMatcher.isByPass(url.toString(), this.logger)) {
-        return originalMethod(url, options, callback)
+      const targetOptions = url
+        ? { ...urlToHttpOptions(typeof url === 'string' ? new URL(url) : url), ...options }
+        : options
+      const defaultAgent =
+        targetOptions._defaultAgent || (defaultProtocol === 'https:' ? https.globalAgent : http.globalAgent)
+      const protocol = targetOptions.protocol || (Reflect.get(defaultAgent, 'protocol') as string)
+      const hostname = targetOptions.hostname || targetOptions.host || 'localhost'
+      const host = hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname
+      const targetAgent = typeof targetOptions.agent === 'boolean' ? defaultAgent : targetOptions.agent || defaultAgent
+      const port =
+        targetOptions.port || targetOptions.defaultPort || (Reflect.get(targetAgent, 'defaultPort') as number) || 80
+
+      if (this.proxyBypassRuleMatcher.isByPass(`${protocol}//${host}:${port}`, this.logger)) {
+        return url ? originalMethod(url, options, callback) : originalMethod(options, callback)
       }
       if (options.agent instanceof https.Agent) {
         // Per-request TLS option — mutating the shared proxy agent would leak

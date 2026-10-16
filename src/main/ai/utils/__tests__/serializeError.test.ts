@@ -48,6 +48,31 @@ describe('serializeError', () => {
     expect(JSON.stringify(serialized)).not.toContain('private prompt')
   })
 
+  // The renderer consumer (ErrorBlock description + ErrorDetailModal detail row)
+  // reads these fields to tell empty OCR output apart from a failing processor;
+  // dropping them at the IPC boundary would reintroduce the generic unknown
+  // error the diagnostic detail exists to replace (#20343).
+  it('retains the OCR diagnostic detail fields across the serialization boundary', () => {
+    const error = new Error(
+      "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
+    )
+    Object.assign(error, {
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: 'ocr_detail_failed',
+      detailI18nValues: { reason: 'Unauthorized' },
+      providerErrorCategory: 'ocr'
+    })
+    const serialized = serializeError(error)
+    expect(serialized).toMatchObject({
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: 'ocr_detail_failed',
+      detailI18nValues: { reason: 'Unauthorized' },
+      providerErrorCategory: 'ocr'
+    })
+  })
+
   describe('null preservation (FIX error-1)', () => {
     it('serializes an absent cause to real null, not the string "null"', () => {
       const result = serializeError(new Error('boom'))

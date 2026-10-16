@@ -28,7 +28,8 @@ const logger = loggerService.withContext('McpResourceListTool')
 export const MCP_RESOURCE_LIST_DESCRIPTION =
   'List the resources exposed by the MCP servers available in this conversation (documents, files, ' +
   'database rows, anything the server publishes). Use it to discover a resource, then read the ' +
-  'content with mcp_resource_read using the serverId and uri returned here — serverName is for ' +
+  'content with mcp_resource_read using the serverId and uri returned here, or a URI expanded from ' +
+  'that server’s resourceTemplates — serverName is for ' +
   'display only and is not unique.'
 
 const mcpResourceListTool = tool({
@@ -38,9 +39,9 @@ const mcpResourceListTool = tool({
   execute: async (_input, options) => {
     const { request } = getToolCallContext(options)
     const servers = resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds)
-    const resources = await listScopedMcpResources(servers)
-    logger.debug('Listed MCP resources', { servers: servers.length, resources: resources.length })
-    return { resources }
+    const listing = await listScopedMcpResources(servers)
+    logger.debug('Listed MCP resources', { servers: servers.length, resources: listing.resources.length })
+    return listing
   }
 })
 

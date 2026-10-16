@@ -1110,6 +1110,28 @@ describe('ComposerToken', () => {
     expect(ipcRequestMock).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps modified sent-link clicks on the global opener when a host opener is present', async () => {
+    const user = userEvent.setup()
+    const url = 'https://www.example.com/docs'
+    const onOpenLink = vi.fn()
+    render(
+      <ComposerToken
+        token={{ id: 'link-token-1', kind: 'link', label: 'example.com/docs', promptText: url }}
+        readOnly
+        onOpenLink={onOpenLink}
+      />
+    )
+    const link = screen.getByRole('link', { name: url })
+    for (const modifier of ['Control', 'Meta', 'Shift', 'Alt']) {
+      ipcRequestMock.mockClear()
+      await user.keyboard(`{${modifier}>}`)
+      await user.click(link)
+      await user.keyboard(`{/${modifier}}`)
+      expect(ipcRequestMock).toHaveBeenCalledExactlyOnceWith('system.shell.open_website', url)
+    }
+    expect(onOpenLink).not.toHaveBeenCalled()
+  })
+
   it('renders sent links with their hostname favicon', () => {
     const url = 'https://www.example.com/docs'
     const { container } = render(
@@ -1613,4 +1635,40 @@ describe('ComposerToken', () => {
       expect(editor!.state.selection.empty).toBe(true)
     }
   )
+})
+
+it('keeps image ownership separate from preview URLs across token removal and undo', () => {
+  const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValueOnce('blob:first').mockReturnValueOnce('blob:undo')
+  const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+  const blob = new Blob(['image'], { type: 'image/png' })
+  const token = {
+    id: 'file:shot',
+    kind: 'file' as const,
+    label: 'shot.png',
+    payload: {
+      fileTokenSourceId: 'shot',
+      name: 'shot.png',
+      origin_name: 'shot.png',
+      type: FILE_TYPE.IMAGE,
+      ext: '.png',
+      size: blob.size,
+      blob
+    }
+  }
+  try {
+    const first = render(<FileComposerToken token={token} imageIconPreview />)
+    expect(first.container.querySelector('img')).toHaveAttribute('src', 'blob:first')
+    first.unmount()
+    expect(revokeUrl).toHaveBeenCalledWith('blob:first')
+    const restored = render(<FileComposerToken token={token} imageIconPreview />)
+    expect(restored.container.querySelector('img')).toHaveAttribute('src', 'blob:undo')
+    expect(createUrl).toHaveBeenLastCalledWith(blob)
+    fireEvent.click(getFileTokenTrigger(restored.container))
+    expect(imagePreviewShowMock).toHaveBeenCalledWith(blob)
+    restored.unmount()
+    expect(revokeUrl).toHaveBeenCalledWith('blob:undo')
+  } finally {
+    createUrl.mockRestore()
+    revokeUrl.mockRestore()
+  }
 })

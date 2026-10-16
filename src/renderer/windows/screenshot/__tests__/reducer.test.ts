@@ -4,6 +4,10 @@ import { initialState, overlayReducer } from '../reducer'
 import type { OverlayState } from '../types'
 
 describe('overlayReducer', () => {
+  it('clears the optional message when the capture session resets', () => {
+    const state = overlayReducer(initialState, { type: 'SET_RESULT_MESSAGE', text: 'Previous capture' })
+    expect(overlayReducer(state, { type: 'RESET' }).resultMessage).toBe('')
+  })
   describe('idle phase', () => {
     it('starts a zero-size selection at the press point on POINTER_DOWN_BACKGROUND', () => {
       const state = overlayReducer(initialState, { type: 'POINTER_DOWN_BACKGROUND', x: 100, y: 200 })
@@ -319,6 +323,7 @@ describe('overlayReducer', () => {
   describe('RESET', () => {
     it('clears every field from a fully populated state', () => {
       const complexState: OverlayState = {
+        resultMessage: 'Screenshot note',
         phase: 'moving',
         selection: { x: 50, y: 50, width: 300, height: 200 },
         dragOrigin: { x: 100, y: 100 },
