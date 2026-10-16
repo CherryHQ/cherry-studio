@@ -8,10 +8,12 @@
  * `__tests__/errorDetails.test.ts`.
  */
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
-  // Handle circular references
-  if (err === null || typeof err !== 'object' || seen.has(err)) {
+  if (err === null || typeof err !== 'object') {
     return err
   }
+
+  // Error fallbacks must stay serializable even when a cause points back to its parent.
+  if (seen.has(err)) return '[Circular]'
 
   seen.add(err)
   const result: any = {}
@@ -31,6 +33,7 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
     }
   }
 
+  seen.delete(err)
   return result
 }
 

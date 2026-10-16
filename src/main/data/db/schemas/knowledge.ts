@@ -10,7 +10,13 @@ import {
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 
-import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import {
+  createUpdateTimestamps,
+  orderKeyColumns,
+  scopedOrderKeyIndex,
+  uuidPrimaryKey,
+  uuidPrimaryKeyOrdered
+} from './_columnHelpers'
 import { groupTable } from './group'
 import { userModelTable } from './userModel'
 
@@ -20,6 +26,7 @@ export const knowledgeBaseTable = sqliteTable(
   {
     id: uuidPrimaryKey(),
     name: text().notNull(),
+    ...orderKeyColumns,
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
     dimensions: integer(),
 
@@ -43,6 +50,7 @@ export const knowledgeBaseTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    scopedOrderKeyIndex('knowledge_base', 'groupId')(t),
     check('knowledge_base_chunk_strategy_check', sql`${t.chunkStrategy} IN ('structured', 'delimiter')`),
     check('knowledge_base_status_check', sql`${t.status} IN ('completed', 'failed')`),
     check(

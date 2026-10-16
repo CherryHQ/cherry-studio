@@ -1,18 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ProcessRunnerModule from '@main/utils/processRunner'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
-
-import type { rtkRewrite as RtkRewrite } from '../rtk'
 
 const snapshotRef = vi.hoisted(() => ({
   value: { name: 'rtk', availability: { source: 'none' } } as BinaryToolSnapshot
 }))
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const executeCommandMock = vi.hoisted(() => vi.fn())
-const loggerMock = vi.hoisted(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+const loggerMock = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn()
+}))
 
-// Mock dependencies before importing the module
-vi.mock('@main/utils/processRunner', () => ({
+// Keep the real module (CommandFailedError) and override only executeCommand
+vi.mock('@main/utils/processRunner', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProcessRunnerModule>()),
   executeCommand: executeCommandMock
 }))
 
@@ -64,19 +69,20 @@ vi.mock('semver', () => ({
   }
 }))
 
+import { CommandFailedError } from '@main/utils/processRunner'
+
+import { rtkRewrite } from '../rtk'
+
 describe('rtk utils', () => {
   let now = 0
-  let rtkRewrite: typeof RtkRewrite
 
-  beforeEach(async () => {
-    vi.resetModules()
+  beforeEach(() => {
     vi.clearAllMocks()
     now += 60_001
     vi.spyOn(Date, 'now').mockImplementation(() => now)
     snapshotRef.value = { name: 'rtk', availability: { source: 'none' } }
     binaryManagerMock.getToolSnapshots.mockImplementation(async () => ({ rtk: snapshotRef.value }))
     executeCommandMock.mockReset()
-    rtkRewrite = (await import('../rtk')).rtkRewrite
   })
 
   afterEach(() => {
@@ -100,208 +106,116 @@ describe('rtk utils', () => {
       expect(executeCommandMock).not.toHaveBeenCalled()
     })
 
-    it('returns null after the inline wait while a snapshot probe remains in flight', async () => {
+    it('returns null when the snapshot probe exceeds its timeout budget', async () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      // A slow snapshot query must not block the awaiting hook.
+      // A snapshot query that never settles must not block the awaiting hook.
       binaryManagerMock.getToolSnapshots.mockReturnValue(new Promise(() => {}))
 
       const pending = rtkRewrite('ls -la')
-      await vi.advanceTimersByTimeAsync(3000)
+      await vi.advanceTimersByTimeAsync(10_000)
 
       await expect(pending).resolves.toBeNull()
       expect(executeCommandMock).not.toHaveBeenCalled()
-      expect(loggerMock.warn).toHaveBeenCalledWith(
-        'rtk availability probe is slower than the 3000ms inline budget; probe keeps running'
-      )
+      vi.useRealTimers()
     })
 
-    it('does not start a second query while a slow probe is still running', async () => {
-      // Catches duplicated backend work and an obsolete version check after the inline wait.
+    it('retries a timed-out probe after the short failure TTL instead of caching it for a minute', async () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      const snapshot: BinaryToolSnapshot = {
-        name: 'rtk',
-        availability: { source: 'system', path: '/usr/local/bin/rtk' }
-      }
-      binaryManagerMock.getToolSnapshots.mockImplementationOnce(
-        () => new Promise((resolve) => setTimeout(() => resolve({ rtk: snapshot }), 40_000))
-      )
-      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('rg --files')
-
-      const first = rtkRewrite('ls -la')
-      await vi.advanceTimersByTimeAsync(3_000)
-      await expect(first).resolves.toBeNull()
-      expect(loggerMock.warn).toHaveBeenCalledTimes(1)
-      expect(loggerMock.warn).toHaveBeenCalledWith(
-        'rtk availability probe is slower than the 3000ms inline budget; probe keeps running'
-      )
-
-      await vi.advanceTimersByTimeAsync(32_000)
-      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
-      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
-      expect(executeCommandMock).not.toHaveBeenCalled()
-      expect(loggerMock.warn).toHaveBeenCalledTimes(1)
-
-      await vi.advanceTimersByTimeAsync(5_000)
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
-      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
-      expect(executeCommandMock.mock.calls.filter(([, args]) => args[0] === '--version')).toHaveLength(1)
-      expect(executeCommandMock.mock.calls.filter(([, args]) => args[0] === 'rewrite')).toHaveLength(1)
-      expect(executeCommandMock).toHaveBeenNthCalledWith(
-        1,
-        '/usr/local/bin/rtk',
-        ['--version'],
-        expect.objectContaining({ timeout: 12_000 })
-      )
-      expect(executeCommandMock).toHaveBeenNthCalledWith(
-        2,
-        '/usr/local/bin/rtk',
-        ['rewrite', 'ls -la'],
-        expect.objectContaining({ timeout: 3_000 })
-      )
-    })
-
-    it('uses a slow but successful background probe on the next rewrite', async () => {
-      // Catches a slow mise shim being cached as missing rtk for a full minute.
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      const snapshot: BinaryToolSnapshot = {
-        name: 'rtk',
-        availability: { source: 'system', path: '/usr/local/bin/rtk' }
-      }
-      binaryManagerMock.getToolSnapshots.mockImplementationOnce(
-        () => new Promise((resolve) => setTimeout(() => resolve({ rtk: snapshot }), 8_000))
-      )
-      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('rg --files')
-
-      const first = rtkRewrite('ls -la')
-      await vi.advanceTimersByTimeAsync(3_000)
-      await expect(first).resolves.toBeNull()
-      expect(executeCommandMock).not.toHaveBeenCalled()
-
-      await vi.advanceTimersByTimeAsync(5_000)
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
-      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
-      expect(executeCommandMock).toHaveBeenNthCalledWith(
-        1,
-        '/usr/local/bin/rtk',
-        ['--version'],
-        expect.objectContaining({ timeout: 12_000 })
-      )
-    })
-
-    it('retries an indeterminate probe after five seconds', async () => {
-      // Catches a failed probe suppressing a successful install check for sixty seconds.
-      binaryManagerMock.getToolSnapshots.mockRejectedValueOnce(new Error('mise unavailable'))
-      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
-      expect(loggerMock.warn).toHaveBeenCalledWith('rtk availability probe failed; retrying in 5000ms', {
-        error: 'mise unavailable'
-      })
-
-      now += 4_999
-      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
-      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
-      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
-      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('rg --files')
-      now += 1
-      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
-      await vi.waitFor(() => expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2))
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
-    })
-
-    it('warns once for consecutive probe errors', async () => {
-      // Catches repeated transient failures flooding the warning log on every retry.
-      binaryManagerMock.getToolSnapshots.mockRejectedValueOnce(new Error('mise unavailable'))
-      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
-      expect(loggerMock.warn).toHaveBeenCalledWith('rtk availability probe failed; retrying in 5000ms', {
-        error: 'mise unavailable'
-      })
-
-      now += 5_000
-      binaryManagerMock.getToolSnapshots.mockRejectedValueOnce(new Error('mise unavailable'))
-      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
-      await vi.waitFor(() =>
-        expect(loggerMock.debug).toHaveBeenCalledWith('rtk availability probe failed; retrying in 5000ms', {
-          error: 'mise unavailable'
+      let resolveSnapshot!: (value: { rtk: BinaryToolSnapshot }) => void
+      binaryManagerMock.getToolSnapshots.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSnapshot = resolve
         })
       )
-      expect(loggerMock.warn).toHaveBeenCalledTimes(1)
-      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2)
-    })
 
-    it('keeps a known-good execution until a failed refresh settles before retrying', async () => {
-      // Catches a failed refresh releasing the gate while its query is still running.
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
-      executeCommandMock.mockImplementation(async (_path: string, args: string[]) =>
-        args[0] === '--version' ? 'rtk 0.30.1' : 'rg --files'
-      )
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
-      now += 60_000
-      binaryManagerMock.getToolSnapshots.mockImplementationOnce(
-        () => new Promise((_, reject) => setTimeout(() => reject(new Error('mise unavailable')), 40_000))
-      )
-
-      const duringRefresh = rtkRewrite('ls -la')
-      await vi.advanceTimersByTimeAsync(3_000)
-      await expect(duringRefresh).resolves.toBe('rg --files')
-      await vi.advanceTimersByTimeAsync(32_000)
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
-      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2)
-      expect(loggerMock.warn).toHaveBeenCalledTimes(1)
-
-      await vi.advanceTimersByTimeAsync(5_000)
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
-      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2)
-      expect(loggerMock.warn).toHaveBeenCalledTimes(2)
-
-      now += 5_000
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
-      await vi.advanceTimersByTimeAsync(0)
-      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(3)
-    })
-
-    it('does not stall the hook twice for one slow probe', async () => {
-      // Catches every Bash call paying the inline wait for the same hung snapshot query.
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      binaryManagerMock.getToolSnapshots.mockReturnValueOnce(new Promise(() => {}))
       const first = rtkRewrite('ls -la')
-      await vi.advanceTimersByTimeAsync(3_000)
+      await vi.advanceTimersByTimeAsync(10_000)
       await expect(first).resolves.toBeNull()
-      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
+
+      // A late snapshot must not promote the timed-out probe to an available cache entry.
+      resolveSnapshot({
+        rtk: { name: 'rtk', availability: { source: 'system', path: '/obsolete/rtk' } }
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+      executeCommandMock.mockResolvedValueOnce('rtk 0.44.2').mockResolvedValueOnce('rg --files')
+      now += 14_999
+
+      await expect(rtkRewrite('find . -type f')).resolves.toBeNull()
+      expect(executeCommandMock).not.toHaveBeenCalled()
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
-      expect(loggerMock.warn).toHaveBeenCalledTimes(1)
+      now += 1
+
+      await expect(rtkRewrite('find . -type f')).resolves.toBe('rg --files')
+      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2)
+      expect(executeCommandMock).toHaveBeenLastCalledWith(
+        '/usr/local/bin/rtk',
+        ['rewrite', 'find . -type f'],
+        expect.objectContaining({ capture: true })
+      )
+      vi.useRealTimers()
     })
+
+    it.each(['snapshot rejection', 'snapshot timeout', 'version rejection', 'version timeout'])(
+      'invalidates an available cache after a %s and retries after the failure TTL',
+      async (failure) => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+        executeCommandMock.mockImplementation(async (_path: string, args: string[]) =>
+          args[0] === '--version' ? 'rtk 0.44.2' : 'rg --files'
+        )
+        await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
+        now += 60_000
+
+        if (failure === 'snapshot rejection') {
+          binaryManagerMock.getToolSnapshots.mockRejectedValueOnce(new Error('mise unavailable'))
+        } else if (failure === 'snapshot timeout') {
+          binaryManagerMock.getToolSnapshots.mockReturnValueOnce(new Promise(() => {}))
+        } else if (failure === 'version rejection') {
+          executeCommandMock.mockRejectedValueOnce(new CommandFailedError(2, '', 'version probe failed'))
+        } else {
+          executeCommandMock.mockImplementationOnce(
+            (_path: string, _args: string[], options: { timeout: number }) =>
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(`Command timed out after ${options.timeout}ms`)), options.timeout)
+              )
+          )
+        }
+
+        const refresh = rtkRewrite('ls -la')
+        await vi.advanceTimersByTimeAsync(10_000)
+        await expect(refresh).resolves.toBeNull()
+        now += 14_999
+        await expect(rtkRewrite('ls -la')).resolves.toBeNull()
+        expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2)
+        expect(executeCommandMock.mock.calls.filter(([, args]) => args[0] === 'rewrite')).toHaveLength(1)
+
+        now += 1
+        await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
+        expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(3)
+        vi.useRealTimers()
+      }
+    )
 
     it.each([
-      {
-        name: 'absent',
-        snapshot: { name: 'rtk', availability: { source: 'none' } } as BinaryToolSnapshot,
-        warning: 'rtk binary not found; command rewrite disabled until RTK is installed from Settings → Plugins',
-        context: undefined
-      },
-      {
-        name: 'batch wrapper',
-        snapshot: {
-          name: 'rtk',
-          availability: { source: 'system', path: 'C:\\Users\\V\\rtk.CMD' }
-        } as BinaryToolSnapshot,
-        warning: 'rtk resolves to a batch wrapper; command rewrite disabled',
-        context: { path: 'C:\\Users\\V\\rtk.CMD' }
-      },
-      {
-        name: 'old version',
-        snapshot: { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } } as BinaryToolSnapshot,
-        warning: 'rtk version too old (need >= 0.23.0)',
-        context: { version: '0.22.0' }
-      }
-    ])('keeps a definite $name result for the full TTL', async ({ snapshot, warning, context }) => {
-      // Catches definite absence, wrapper, or old-version checks being retried before their TTL.
-      snapshotRef.value = snapshot
-      executeCommandMock.mockResolvedValue('rtk 0.22.0')
+      { name: 'missing', availability: { source: 'none' } },
+      { name: 'batch wrapper', availability: { source: 'system', path: '/usr/local/bin/rtk.cmd' } },
+      { name: 'old version', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+    ] as const)('caches a definitive $name probe until the full TTL expires', async ({ availability }) => {
+      snapshotRef.value = { name: 'rtk', availability }
+      executeCommandMock.mockResolvedValueOnce('rtk 0.22.0')
+
       await expect(rtkRewrite('ls -la')).resolves.toBeNull()
+      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+      executeCommandMock.mockReset().mockResolvedValueOnce('rtk 0.44.2').mockResolvedValueOnce('rg --files')
       now += 59_999
       await expect(rtkRewrite('ls -la')).resolves.toBeNull()
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(1)
-      expect(loggerMock.warn).toHaveBeenCalledWith(warning, ...(context ? [context] : []))
+      expect(executeCommandMock).not.toHaveBeenCalled()
+
+      now += 1
+      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
+      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledTimes(2)
     })
 
     it('uses a system RTK path and preserves the raw user environment', async () => {
@@ -327,20 +241,6 @@ describe('rtk utils', () => {
           env: { PATH: '/usr/local/bin:/usr/bin', MISE_DATA_DIR: '/user/mise' }
         })
       )
-    })
-
-    it('rewrites when the system RTK version cannot be parsed', async () => {
-      // Catches a new false negative on unparseable version output.
-      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
-      executeCommandMock.mockResolvedValueOnce('rtk (unknown build)').mockResolvedValueOnce('rg --files')
-
-      await expect(rtkRewrite('ls -la')).resolves.toBe('rg --files')
-      expect(executeCommandMock).toHaveBeenCalledWith(
-        '/usr/local/bin/rtk',
-        ['rewrite', 'ls -la'],
-        expect.objectContaining({ capture: true })
-      )
-      expect(loggerMock.info).not.toHaveBeenCalled()
     })
 
     it('disables rewrite when rtk resolves to a Windows batch wrapper', async () => {
@@ -410,6 +310,52 @@ describe('rtk utils', () => {
       const result = await rtkRewrite('some-command')
 
       expect(result).toBeNull()
+    })
+
+    it('accepts a rewrite that rtk reports via its non-standard exit code 3 (rtk-ai/rtk#3634)', async () => {
+      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+
+      executeCommandMock
+        .mockResolvedValueOnce('rtk 0.51.0')
+        .mockRejectedValueOnce(new CommandFailedError(3, 'rtk ls -la\n', ''))
+
+      await expect(rtkRewrite('ls -la /tmp')).resolves.toBe('rtk ls -la')
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        'rtk rewrite reported success via its non-standard exit code 3 (rtk-ai/rtk#3634)',
+        expect.objectContaining({ code: 3 })
+      )
+    })
+
+    it('treats an exit 3 without usable output as a failure', async () => {
+      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+
+      executeCommandMock
+        .mockResolvedValueOnce('rtk 0.51.0')
+        .mockRejectedValueOnce(new CommandFailedError(3, '  \n', ''))
+
+      await expect(rtkRewrite('ls -la')).resolves.toBeNull()
+    })
+
+    it('stays silent for the documented exit 1 "no rewrite" outcome', async () => {
+      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+
+      executeCommandMock
+        .mockResolvedValueOnce('rtk 0.51.0')
+        .mockRejectedValueOnce(new CommandFailedError(1, '', 'no rtk equivalent'))
+
+      await expect(rtkRewrite('some-command')).resolves.toBeNull()
+      expect(loggerMock.warn).not.toHaveBeenCalled()
+    })
+
+    it('logs unexpected rewrite failures so they are distinguishable from "no rewrite"', async () => {
+      snapshotRef.value = { name: 'rtk', availability: { source: 'system', path: '/usr/local/bin/rtk' } }
+
+      executeCommandMock
+        .mockResolvedValueOnce('rtk 0.51.0')
+        .mockRejectedValueOnce(new CommandFailedError(2, '', 'rtk: internal error'))
+
+      await expect(rtkRewrite('some-command')).resolves.toBeNull()
+      expect(loggerMock.warn).toHaveBeenCalledWith('rtk rewrite failed', expect.objectContaining({ code: 2 }))
     })
   })
 })
