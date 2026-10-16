@@ -11,6 +11,7 @@ import { findConversationTab } from '@renderer/utils/conversationNavigation'
 import { getSidebarApp, resolveSidebarActiveItem } from '@renderer/utils/sidebar'
 
 import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
+import { NotificationTitle } from './NotificationTitle'
 
 const logger = loggerService.withContext('ConversationNotificationRuntime')
 
@@ -66,7 +67,7 @@ export function ConversationNotificationRuntime(): null {
     const Icon = notificationCategoryIcons[notification.category]
     showToast({
       key: notification.id,
-      title: notificationPreview(notification.title, true),
+      title: <NotificationTitle record={notification} />,
       description: notificationPreview(notification.message),
       icon: <Icon aria-hidden="true" className="size-4" />,
       timeout: 6000,

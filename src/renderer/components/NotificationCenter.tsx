@@ -22,6 +22,7 @@ import { toast } from '@renderer/services/toast'
 import type { NotificationCategory, NotificationRecord } from '@shared/data/types/notification'
 
 import { notificationCategoryIcons, notificationPreview } from './notificationPresentation'
+import { NotificationTitle } from './NotificationTitle'
 
 const logger = loggerService.withContext('NotificationCenter')
 const ReleaseNotes = lazy(() => import('./ReleaseNotes').then((module) => ({ default: module.ReleaseNotes })))
@@ -111,7 +112,9 @@ function NotificationItem({
                   <span className="sr-only">{t('notification.center.unread')}</span>
                 </span>
               )}
-              <span className="min-w-0 flex-1 truncate">{notificationPreview(record.title, true)}</span>
+              <span className="min-w-0 flex-1 truncate">
+                <NotificationTitle record={record} />
+              </span>
             </span>
             <span className="block max-h-[2lh] overflow-hidden break-words text-sm text-muted-foreground">
               {notificationPreview(record.message)}
