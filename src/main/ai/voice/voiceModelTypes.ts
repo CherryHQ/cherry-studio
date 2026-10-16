@@ -3,6 +3,7 @@ import type { SpeechModelV3, TranscriptionModelV3 } from '@ai-sdk/provider'
 import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import type {
   LocalSpeechModelId,
+  LocalSpeechVoice,
   LocalTranscriptionModelId,
   LocalVoiceModelDescriptor,
   VoiceModelSupport
@@ -15,6 +16,9 @@ import type { VoiceEnvironment } from './voicePlatform'
 export type LocalVoiceStatus = OutputFor<'ai.voice.model.status'>
 
 interface VoiceModelDefinition {
+  download?(): Promise<LocalModelDownloadResult>
+  cancelDownload?(): Promise<void>
+  remove?(): Promise<{ removed: boolean }>
   adapterId: string
   support(environment: VoiceEnvironment): Exclude<VoiceModelSupport, typeof VoiceModelSupport.UnknownModel>
   describe(environment: VoiceEnvironment): LocalVoiceModelDescriptor
@@ -49,9 +53,6 @@ export type TranscriptionModelDefinition = VoiceModelDefinition &
 export interface SpeechModelDefinition extends VoiceModelDefinition {
   id: LocalSpeechModelId
   createModel(options: SpeechOptions): SpeechModelV3
-  getDefaultVoice(
-    language: string | undefined,
-    signal?: AbortSignal
-  ): Promise<{ id: string; name: string; locale: string } | null>
-  voices(signal?: AbortSignal): Promise<Array<{ id: string; name: string; locale: string }>>
+  getDefaultVoice(language: string | undefined, signal?: AbortSignal): Promise<LocalSpeechVoice | null>
+  voices(signal?: AbortSignal): Promise<LocalSpeechVoice[]>
 }

@@ -8,6 +8,9 @@ import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import AgentComposerSlot from '../AgentComposerSlot'
 
 vi.mock('@renderer/components/chat/panes/Shell', () => ({ useRightPanelPresentationMaximized: () => false }))
+vi.mock('../components/AgentRightPane', () => ({
+  useOptionalAgentRightPaneActions: () => null
+}))
 vi.mock('@renderer/components/composer/ConversationComposerSlot', () => ({
   default: ({ fallback }: { fallback: ReactNode }) => fallback
 }))

@@ -24,7 +24,12 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
-import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
+import {
+  getComposerShortcutLabel,
+  matchesComposerShortcut,
+  resolveNewlineShortcut,
+  resolveSendShortcut
+} from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -51,6 +56,7 @@ import {
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import type { ComposerInputFilePreviewAction } from './filePreview'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
@@ -159,6 +165,7 @@ export interface ComposerSurfaceProps {
   onPause: () => void | Promise<void>
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
+  previewInputFile?: ComposerInputFilePreviewAction
   filesCount: number
   isExpanded: boolean
   onExpandedChange: (expanded: boolean) => void
@@ -474,6 +481,10 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
   }
 }
 
+// Outlast ProseMirror's 20ms composition-end flush; keep this above its upstream delay.
+const COMPOSITION_END_SETTLE_MS = 40
+const COMPOSITION_END_NOTIFY_TIMER_KEY = 'composerCompositionEndNotify'
+
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
@@ -494,6 +505,7 @@ export default function ComposerSurfaceRuntime({
   onPause,
   supportedExts,
   setFiles,
+  previewInputFile,
   filesCount,
   isExpanded,
   onExpandedChange,
@@ -551,7 +563,7 @@ export default function ComposerSurfaceRuntime({
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
-  const { setTimeoutTimer } = useTimer()
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
@@ -1406,6 +1418,16 @@ export default function ComposerSurfaceRuntime({
     [enableQuickPanel, rootSuggestionSources, quickPanelSuggestionSources]
   )
 
+  // Tiptap keeps the node view created with the first renderToken. The activation
+  // function itself stays stable and reads the latest preview action at click time.
+  const previewInputFileRef = useRef(previewInputFile)
+  useLayoutEffect(() => {
+    previewInputFileRef.current = previewInputFile
+  }, [previewInputFile])
+  const activateFilePreview = useCallback<ComposerInputFilePreviewAction>((input) => {
+    return previewInputFileRef.current?.(input)
+  }, [])
+
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
     (token, { selected, nodeViewProps }) => {
       const currentToken = tokenByIdRef.current.get(token.id) ?? token
@@ -1418,6 +1440,7 @@ export default function ComposerSurfaceRuntime({
           token={fileToken}
           selected={selected}
           imageIconPreview
+          onFilePreviewActivate={previewInputFile ? activateFilePreview : undefined}
           onRemove={() => removeToken(fileToken.id)}
           removeLabel={t('common.delete')}
           tooltipActions={
@@ -1443,7 +1466,7 @@ export default function ComposerSurfaceRuntime({
         />
       )
     },
-    [handleShowPastedTextFileInInput, removeToken, t]
+    [activateFilePreview, handleShowPastedTextFileInInput, previewInputFile, removeToken, t]
   )
 
   const editorExtensions = useMemo(
@@ -1455,6 +1478,25 @@ export default function ComposerSurfaceRuntime({
       }),
     [activeSuggestionSources, placeholder, renderComposerToken]
   )
+
+  // ProseMirror may finish composition without another document update, leaving the quick panel
+  // unaware that it can read the committed query.
+  const scheduleCompositionEndInputNotify = useCallback(() => {
+    setTimeoutTimer(
+      COMPOSITION_END_NOTIFY_TIMER_KEY,
+      () => {
+        const editor = editorRef.current
+        if (!editor || editor.isDestroyed) return
+        // Typing fast enough starts the next composition before this fires; announcing "not composing"
+        // then would run the close checks against a half-typed pinyin.
+        if (editor.view.composing) return
+        inputListenersRef.current.forEach((listener) =>
+          listener({ isComposing: false, cause: isSyncingTokensRef.current ? 'state-sync' : 'user-input' })
+        )
+      },
+      COMPOSITION_END_SETTLE_MS
+    )
+  }, [setTimeoutTimer])
 
   const memoizedEditorProps = useMemo(
     () => ({
@@ -1631,6 +1673,7 @@ export default function ComposerSurfaceRuntime({
           return true
         },
         compositionend: (_view, event) => {
+          scheduleCompositionEndInputNotify()
           const editor = editorRef.current
           const composingToken = promptVariableCompositionRef.current
           promptVariableCompositionRef.current = null
@@ -1650,7 +1693,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
     }),
-    [editorElementStyle, hasCustomHeight, submitDraft]
+    [editorElementStyle, hasCustomHeight, scheduleCompositionEndInputNotify, submitDraft]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -1771,6 +1814,9 @@ export default function ComposerSurfaceRuntime({
       pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
       const inputEventCause = isSyncingTokensRef.current ? 'state-sync' : 'user-input'
+      if (!updatedEditor.view.composing && inputEventCause === 'user-input') {
+        clearTimeoutTimer(COMPOSITION_END_NOTIFY_TIMER_KEY)
+      }
       inputListenersRef.current.forEach((listener) =>
         listener({ isComposing: updatedEditor.view.composing, cause: inputEventCause })
       )
@@ -2171,6 +2217,7 @@ export default function ComposerSurfaceRuntime({
       sendMessage={sendDraft}
       disabled={sendDisabled}
       onDisabledClick={showBlockedSendReason}
+      shortcutLabel={getComposerShortcutLabel(sendMessageShortcut)}
       label={editingState?.sendLabel}
     />
   )

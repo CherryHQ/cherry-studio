@@ -12,6 +12,7 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
@@ -47,6 +48,8 @@ export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
   BROWSER: 'browser',
+  COMPUTER: 'computer',
+  AUTOMATION: 'automation',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',
@@ -78,6 +81,8 @@ function tool(
  * omitting it is fail-closed for auto-approval because every consumer selects explicit entries.
  */
 const BUILTIN_TOOL_POLICIES = {
+  automationJs: tool(CHERRY_MCP_SERVER.AUTOMATION, 'js', 'auto'),
+  automationReset: tool(CHERRY_MCP_SERVER.AUTOMATION, 'reset', 'auto'),
   cherryWebSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_SEARCH_TOOL_NAME, 'auto'),
   cherryWebFetch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_FETCH_TOOL_NAME, 'auto'),
   cherryKnowledgeSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_SEARCH_TOOL_NAME, 'auto'),
@@ -131,5 +136,9 @@ const BUILTIN_TOOL_POLICIES = {
 
 export const BUILTIN_TOOL_POLICY_ENTRIES: readonly BuiltinToolPolicyEntry[] = Object.values(BUILTIN_TOOL_POLICIES)
 export const MOUNTED_TOOL_POLICY_PROVIDERS: ReadonlyMap<string, () => BuiltinToolPolicyEntry[]> = new Map([
-  [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies]
+  [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies],
+  [
+    CHERRY_MCP_SERVER.COMPUTER,
+    () => computerUseToolDefinitions.map(({ name }) => tool(CHERRY_MCP_SERVER.COMPUTER, name, 'auto'))
+  ]
 ])

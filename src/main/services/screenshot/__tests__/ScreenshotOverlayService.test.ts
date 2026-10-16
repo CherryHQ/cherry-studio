@@ -32,7 +32,7 @@ vi.mock('@main/utils/screenCapturePermission', () => capture)
 const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
 vi.mock('../windowEnumerator', () => enumerator)
 
-const localModel = vi.hoisted(() => ({ isCapabilityReady: vi.fn(() => true) }))
+const localModel = vi.hoisted(() => ({ isDefaultModelReady: vi.fn(() => true) }))
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 const nativeOcr = vi.hoisted(() => ({ recognize: vi.fn(), OcrAccuracy: { Accurate: 1 } }))
@@ -369,7 +369,7 @@ describe('ScreenshotOverlayService', () => {
     enumerator.listWindowsOffThread.mockResolvedValue([])
     capture.listMonitors.mockReturnValue([])
     capture.captureAllMonitors.mockReturnValue(new Map())
-    localModel.isCapabilityReady.mockReturnValue(true)
+    localModel.isDefaultModelReady.mockReturnValue(true)
     nativeOcr.recognize.mockReset().mockResolvedValue({ text: '', confidence: 1, lines: [] })
     container.ocrInferenceService.recognize.mockResolvedValue({ text: '', lines: [] })
     startService()
@@ -1485,7 +1485,7 @@ describe('ScreenshotOverlayService', () => {
         platform.isMac = os === 'macOS'
         platform.isWin = os === 'Windows'
         platform.isLinux = false
-        localModel.isCapabilityReady.mockReturnValue(false)
+        localModel.isDefaultModelReady.mockReturnValue(false)
         nativeOcr.recognize.mockResolvedValue({
           text: 'native',
           confidence: 1,
@@ -1573,7 +1573,7 @@ describe('ScreenshotOverlayService', () => {
       // later, and reporting "no text" there sends them looking for the wrong problem.
       singleDisplaySetup()
       await service.startCapture()
-      localModel.isCapabilityReady.mockReturnValue(false)
+      localModel.isDefaultModelReady.mockReturnValue(false)
 
       const result = await service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(1))
 

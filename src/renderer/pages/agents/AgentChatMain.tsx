@@ -93,8 +93,10 @@ const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<type
     isAgentToolFlowActive,
     canOpenAgentToolFlow,
     canOpenArtifactFile,
+    canPreviewInputFileInRightPane,
     openAgentToolFlow,
     openArtifactFile,
+    previewInputFileInRightPane,
     openBrowserUrl,
     openExternalUrl
   } = useAgentRightPaneActions()
@@ -104,6 +106,7 @@ const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<type
       isAgentToolFlowActive={isAgentToolFlowActive}
       openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
       openArtifactFile={canOpenArtifactFile ? openArtifactFile : undefined}
+      previewInputFile={canPreviewInputFileInRightPane ? previewInputFileInRightPane : undefined}
       openBrowserUrl={openBrowserUrl}
       openExternalUrl={openExternalUrl}
     />
