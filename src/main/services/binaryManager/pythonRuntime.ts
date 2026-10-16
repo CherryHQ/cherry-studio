@@ -39,7 +39,7 @@ function installDir(): string {
   return application.getPath('feature.binary.data.uv_python')
 }
 
-async function runUv(args: string[], env: Record<string, string>, timeoutMs: number): Promise<string> {
+export async function runUv(args: string[], env: Record<string, string>, timeoutMs: number): Promise<string> {
   const uvBin = application.getPath('cherry.bin', getBinaryName('uv'))
   if (!fs.existsSync(uvBin)) throw new Error('Bundled uv is not available')
   const cwd = application.getPath('app.temp')

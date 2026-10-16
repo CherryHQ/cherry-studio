@@ -75,11 +75,7 @@ export const useApiGateway = () => {
     try {
       const result = await ipcApi.request('api_gateway.stop')
       if (result.success) {
-        if (result.outcome === 'deferred') {
-          toast.info(t('apiGateway.messages.stopDeferred'))
-        } else {
-          toast.success(t('apiGateway.messages.stopSuccess'))
-        }
+        toast.success(t('apiGateway.messages.stopSuccess'))
       } else {
         toast.error(t('apiGateway.messages.stopError') + result.error)
       }
