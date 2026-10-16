@@ -101,13 +101,12 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 
 1. instruction precedence when an Agent System Prompt exists;
 2. bootstrap, identity, and memory context from `PromptBuilder` (`SOUL.md`, `USER.md`, `memory/FACT.md`);
-3. runtime-supplied root workspace instructions when the SDK exposes them to the materializer;
-4. variable-resolved Agent System Prompt text and its authority wrapper;
-5. context required when `system.md` replaces a native base;
-6. linked-channel security policy;
-7. citation markers for the lookup tools the runtime actually exposes;
-8. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
-9. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
+3. variable-resolved Agent System Prompt text and its authority wrapper;
+4. context required when `system.md` replaces a native base;
+5. linked-channel security policy;
+6. citation markers for the lookup tools the runtime actually exposes;
+7. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
+8. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
 Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
 
@@ -117,10 +116,12 @@ Runtime adapters own only native mechanics:
 |---|---|
 | `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
 | Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`. |
-| Workspace instruction authority | Claude uses `AgentsMdLoader`; Pi permits native context files. Physical placement differs while semantic precedence stays common. |
+| Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`; sealed sessions disable both through `settingSources: []`. Pi permits native context files. Semantic precedence stays common. |
 | Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
 | Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
 | Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
+
+Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instructions. Nested `AGENTS.md` files follow the native text `Read` behavior; Cherry does not inject them before `Edit`, `Write`, or other tools. Sealed sessions retain `settingSources: []` and do not automatically load workspace instruction files.
 
 Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
 
@@ -713,6 +714,10 @@ resources (extensions, project skills/prompts/themes), it must add a Cherry-owne
 trust prompt and persisted decision first, then selectively pass that decision
 into pi resource loading rather than widening the `no*` flags wholesale.
 
+Before constructing the prompt or SDK session, Pi startup prepares the captured
+session workspace: it creates an app-owned system directory or validates that a
+user directory exists, preventing missing system directories from aborting startup.
+
 Connection startup uses an optimistic materialization snapshot. Cherry warms
 the MCP catalog, captures every reconcilable database/catalog fact, constructs
 the runtime from that captured provider, model, enabled-key set, skill paths,
@@ -878,9 +883,7 @@ credential invalidation, and provider-owned usage capture.
 
 ## Internal Agent continuation normalization
 
-When a Cherry-internal Agent Session request enters the API gateway in Anthropic
-Messages format and its converted UIMessage list ends with a text-only assistant
-attachment, the gateway appends an ephemeral user continuation after conversion.
+When a Cherry-internal Agent Session request enters the API gateway in Anthropic Messages format and its converted UIMessage list ends with an assistant attachment whose parts are all `text` or `reasoning`, the gateway appends an ephemeral user continuation after conversion, including for reasoning-only attachments. Eligibility depends on part types, not text length; empty text or reasoning and an empty parts array do not prevent continuation. Attachments containing tool parts or any other part type do not receive this continuation. This normalization expresses sampling intent and does not validate provider-specific content requirements, including the handling of empty or redacted-only assistant content.
 The Agent request itself proves that Claude Code's standard loop intends another
 sample, so this normalization is independent of the target provider, endpoint,
 and model. The original assistant attachment is preserved and the caller's params

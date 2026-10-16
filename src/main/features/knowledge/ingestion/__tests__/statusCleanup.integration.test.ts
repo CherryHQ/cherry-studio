@@ -47,6 +47,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
       orderKey: embeddingModelOrderKey
     })
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id: BASE_ID,
       name: 'KB',
       groupId: null,

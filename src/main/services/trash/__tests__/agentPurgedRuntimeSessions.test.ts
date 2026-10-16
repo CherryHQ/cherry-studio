@@ -30,6 +30,7 @@ vi.mock('@application', async () => {
     },
     AgentSessionRuntimeService: {
       isSessionBusy: () => false,
+      isSessionBusyForArchive: () => false,
       listClaimedResumeTokens: () => new Set(claimedTokens),
       closeSession: async () => undefined,
       cancelSessionForks: async () => undefined,

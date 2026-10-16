@@ -15,7 +15,9 @@ import {
   isClaude47SeriesModel,
   isClaudeReasoningModel,
   isGemini3Model,
+  isGemini4Model,
   isMaxTemperatureOneModel,
+  isQwenModel,
   isSupportedFlexServiceTier,
   isSupportTemperatureModel,
   isSupportTopPModel,
@@ -41,11 +43,13 @@ type SamplingParams = {
   bodyParams: Record<string, unknown>
 }
 
-/** Omit rejected sampling from all merged parameters before SDK serialization or body passthrough. */
-export function stripRejectedSamplingParams(params: SamplingParams, model: Model): SamplingParams {
+/** Sanitize model parameters after all request overrides have been merged. */
+export function stripUnsupportedModelParams(params: SamplingParams, model: Model): SamplingParams {
   const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
   const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
-  if (acceptsTemperature && acceptsTopP) return params
+  const gemini4 = isGemini4Model(model)
+  const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
+  if (acceptsTemperature && acceptsTopP && !normalizeTemperature) return params
 
   function strip<T>(values: Record<string, T>): Record<string, T> {
     const cleaned = { ...values }
@@ -53,6 +57,20 @@ export function stripRejectedSamplingParams(params: SamplingParams, model: Model
     if (!acceptsTopP) {
       delete cleaned.topP
       delete cleaned.top_p
+    }
+    if (gemini4) {
+      delete cleaned.topK
+      delete cleaned.top_k
+      delete cleaned.cachedContent
+      delete cleaned.cached_content
+    }
+    if (
+      normalizeTemperature &&
+      typeof cleaned.temperature === 'number' &&
+      Number.isFinite(cleaned.temperature) &&
+      cleaned.temperature >= 2
+    ) {
+      cleaned.temperature = 1.9 as T
     }
     return cleaned
   }
@@ -153,9 +171,9 @@ export function filterStandardParams(
   standardParams: Partial<Record<AiSdkParam, any>>,
   model: Model
 ): Partial<Record<AiSdkParam, any>> {
-  if (isGemini3Model(model) && 'topK' in standardParams) {
+  if ((isGemini3Model(model) || isGemini4Model(model)) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
-    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
+    logger.info(`Gemini model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
     return rest
   }
 
