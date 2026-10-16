@@ -220,6 +220,14 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   return { text, tokens }
 }
 
+/** Whether two serialized token lists restore the same chips at the same places of the text. */
+export function areComposerSerializedTokensEqual(
+  left: readonly ComposerSerializedToken[],
+  right: readonly ComposerSerializedToken[]
+): boolean {
+  return left.length === right.length && JSON.stringify(left) === JSON.stringify(right)
+}
+
 /**
  * The text `serializeComposerDocument` attributes to a leaf node. For any length measured
  * against the serialized draft — a replacement budget over a selection — a token atom must
