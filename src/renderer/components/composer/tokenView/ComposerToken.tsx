@@ -40,6 +40,46 @@ import { type FileTokenPresentation, getFileTokenPresentation } from './fileToke
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
+
+/**
+ * Inline entity chips (file / folder / knowledge) are words inside prose, not standalone controls,
+ * so all three share one geometry contract:
+ *
+ * - everything that must track the text is em-based. The composer font size comes from the
+ *   `chat.message.font_size` preference (`--composer-editor-font-size`), while `h-6` / `text-xs` /
+ *   `px-*` resolve against the root font size — a fixed chip drifts away from the paragraph as soon
+ *   as the user scales the font up.
+ * - `items-baseline` puts the label on the paragraph baseline by construction, instead of centring
+ *   an oversized box (`align-middle`, which depends on the font's x-height) somewhere near it.
+ * - `leading-none` + no vertical padding or margin keep the chip inside the line box, so a line that
+ *   holds a token stays exactly as tall as a plain text line (the 1px border is the only vertical
+ *   box, and it is transparent so the fill still reads as padding).
+ * - the surface is the neutral quiet fill with no visible resting border, so the chip reads as an
+ *   entity rather than a button (the 1px `border-transparent` reserves the box so the selected
+ *   state cannot shift layout). Hover is expressed by the icon → remove swap, not by a fill change
+ *   (`muted` and `accent` currently resolve to the same value), and selection uses the
+ *   `border-border-selected` role.
+ */
+const composerChipClassName = cn(
+  'group/composer-token mx-0.5 inline-flex max-w-[calc(100%_-_0.25rem)] items-baseline gap-1',
+  'rounded-xs border border-transparent bg-muted px-1.5',
+  'text-foreground font-medium select-none transition-colors',
+  'group-focus-visible:border-primary'
+)
+
+// `translate-y` (/not `vertical-align`) nudges the glyph optically below the baseline: inside the
+// flex line the icon box sits on the baseline, which would read as a superscript for 1em icons.
+const composerChipIconBoxClassName =
+  'text-muted-foreground inline-flex size-[0.9em] shrink-0 translate-y-[0.1em] items-center justify-center'
+const composerChipIconClassName = 'size-full shrink-0 text-current'
+const composerChipLabelClassName = 'max-w-full min-w-0 truncate break-normal whitespace-nowrap! leading-none'
+const composerChipRemoveButtonClassName = 'size-full rounded-xs bg-muted text-foreground'
+const composerChipRemoveIconClassName = 'size-[0.6em]'
+
+// 链接 chip 的图标槽：站点图标填满 1em（图片和 FallbackFavicon 自带的方块兜底都交给子选择器撑满）
+const composerLinkFaviconClassName =
+  'inline-flex size-[1em] shrink-0 items-center justify-center overflow-hidden rounded-xs [&>img]:block [&>img]:size-full! [&>img]:object-contain [&>span]:size-full!'
+
 const TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 const TOKEN_TOOLTIP_DELAY_MS = 300
@@ -190,7 +230,7 @@ function FileTokenImageIcon({ previewUrl, fallbackIcon }: { previewUrl?: string;
       alt=""
       aria-hidden
       draggable={false}
-      className="block size-4.5! shrink-0 object-cover"
+      className="block size-full shrink-0 rounded-xs object-cover"
       data-file-token-icon-thumbnail=""
       onError={() => setFailedPreviewUrl(previewUrl)}
     />
@@ -289,14 +329,12 @@ export function LinkComposerToken(props: ComposerTokenProps) {
     ...props,
     colorClassName: 'text-link',
     className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
-    icon: props.readOnly ? (
-      <span
-        className="inline-flex size-[1em] shrink-0 items-center justify-center overflow-hidden rounded-[4px] [&>img]:block [&>img]:size-full! [&>img]:object-contain [&>span]:size-full!"
-        data-composer-link-favicon="">
-        <Favicon hostname={link.hostname} alt="" />
+    // 编辑态也和只读态一样显示站点图标；拿不到图标时退回链接字形（而不是首字母方块），
+    // 这样编辑中的链接和已发送消息里的链接长得一样。
+    icon: (
+      <span className={composerLinkFaviconClassName} data-composer-link-favicon="">
+        <Favicon hostname={link.hostname} alt="" fallback={tokenIconByKind.link} />
       </span>
-    ) : (
-      tokenIconByKind.link
     ),
     children: <span className="min-w-0 truncate">{link.label}</span>,
     hideNativeTitle: true,
@@ -481,11 +519,7 @@ function FileTokenPreviewCard({
   return (
     <div className="w-72 overflow-hidden text-left">
       <div className={tokenPreviewHeaderClassName}>
-        <span
-          className={cn(
-            'inline-flex size-12 items-center justify-center rounded-xl bg-background',
-            presentation.iconClassName
-          )}>
+        <span className="text-muted-foreground inline-flex size-12 items-center justify-center rounded-xl bg-background">
           {presentation.previewIcon}
         </span>
       </div>
@@ -794,10 +828,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     [canOpenFilePreview, openFilePreview]
   )
   const shouldShowPathTooltip = Boolean(pathTooltipPath) && !shouldShowFileTokenPopover(file)
-  const shouldUseNeutralImageIcon = imageIconPreview && presentation.variant === 'image'
+  const shouldRenderImageThumbnail = imageIconPreview && presentation.variant === 'image'
   const tokenIcon = props.token.icon ? (
     props.token.icon
-  ) : shouldUseNeutralImageIcon && !isSvgFile(file, label) ? (
+  ) : shouldRenderImageThumbnail && !isSvgFile(file, label) ? (
     <FileTokenImageIcon previewUrl={presentation.previewUrl} fallbackIcon={presentation.icon} />
   ) : (
     presentation.icon
@@ -806,12 +840,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle text-xs leading-[1.4] font-medium text-foreground transition-[color,box-shadow,border-color] select-none',
-        'group-focus-visible:border-primary',
+        composerChipClassName,
         (props.readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
         canOpenFilePreview && 'cursor-pointer',
-        presentation.containerClassName,
-        props.selected && 'border-primary ring-1 ring-primary/40',
+        props.selected && 'border-border-selected',
         props.className
       )}
       title={props.readOnly || shouldShowPathTooltip ? undefined : title}
@@ -823,26 +855,17 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       onClick={canOpenFilePreview ? handleFilePreviewClick : undefined}
       onKeyDown={canOpenFilePreview ? handleFilePreviewKeyDown : undefined}
       onMouseDown={props.onMouseDown}>
-      <span
-        className={cn(
-          'inline-flex size-4.5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border-0 leading-none',
-          shouldUseNeutralImageIcon ? 'text-muted-foreground bg-accent' : presentation.iconClassName
-        )}
-        data-file-token-icon={presentation.variant}>
+      <span className={composerChipIconBoxClassName} data-file-token-icon={presentation.variant}>
         <InlineTokenIconSlot
           icon={tokenIcon}
           removeLabel={removeLabel}
           onRemove={onRemove}
           slotClassName="size-full items-center justify-center"
-          removeButtonClassName="size-full rounded-[5px] bg-muted text-foreground"
-          removeIconClassName="size-3"
+          removeButtonClassName={composerChipRemoveButtonClassName}
+          removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>
-      {props.children ?? (
-        <span className={cn('max-w-full min-w-0 truncate break-normal whitespace-nowrap!', props.maxWidthClassName)}>
-          {label}
-        </span>
-      )}
+      {props.children ?? <span className={cn(composerChipLabelClassName, props.maxWidthClassName)}>{label}</span>}
     </span>
   )
 
@@ -907,31 +930,25 @@ export function FolderComposerToken(props: ComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline text-xs leading-[inherit] font-medium text-foreground transition-[color,box-shadow,border-color] select-none',
-        'group-focus-visible:border-primary',
+        composerChipClassName,
         props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
-        'border-border bg-background hover:bg-accent',
-        props.selected && 'border-primary ring-1 ring-primary/40',
+        props.selected && 'border-border-selected',
         props.className
       )}
       title={path ? undefined : title}
       data-composer-token-kind={props.token.kind}
       onMouseDown={props.onMouseDown}>
-      <span
-        className="text-muted-foreground inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent leading-none"
-        data-folder-token-icon="">
+      <span className={composerChipIconBoxClassName} data-folder-token-icon="">
         <InlineTokenIconSlot
-          icon={props.token.icon ? props.token.icon : <Folder className={tokenIconClassName} aria-hidden />}
+          icon={props.token.icon ? props.token.icon : <Folder className={composerChipIconClassName} aria-hidden />}
           removeLabel={removeLabel}
           onRemove={props.onRemove}
-          removeButtonClassName="size-full rounded-[5px]"
-          removeIconClassName="size-3"
+          removeButtonClassName={composerChipRemoveButtonClassName}
+          removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>
       {props.children ?? (
-        <span className={cn('max-w-full min-w-0 truncate break-normal whitespace-nowrap!', props.maxWidthClassName)}>
-          {props.token.label}
-        </span>
+        <span className={cn(composerChipLabelClassName, props.maxWidthClassName)}>{props.token.label}</span>
       )}
     </span>
   )
@@ -956,31 +973,25 @@ export function KnowledgeComposerToken(props: ComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline text-xs leading-[inherit] font-medium text-foreground transition-[color,box-shadow,border-color] select-none',
-        'group-focus-visible:border-primary',
+        composerChipClassName,
         props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
-        'border-border bg-background hover:bg-accent',
-        props.selected && 'border-primary ring-1 ring-primary/40',
+        props.selected && 'border-border-selected',
         props.className
       )}
       title={props.token.description ? undefined : props.token.label}
       data-composer-token-kind={props.token.kind}
       onMouseDown={props.onMouseDown}>
-      <span
-        className="text-muted-foreground inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent leading-none"
-        data-knowledge-token-icon="">
+      <span className={composerChipIconBoxClassName} data-knowledge-token-icon="">
         <InlineTokenIconSlot
-          icon={props.token.icon ? props.token.icon : <Boxes className={tokenIconClassName} aria-hidden />}
+          icon={props.token.icon ? props.token.icon : <Boxes className={composerChipIconClassName} aria-hidden />}
           removeLabel={removeLabel}
           onRemove={props.onRemove}
-          removeButtonClassName="size-full rounded-[5px]"
-          removeIconClassName="size-3"
+          removeButtonClassName={composerChipRemoveButtonClassName}
+          removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>
       {props.children ?? (
-        <span className={cn('max-w-full min-w-0 truncate break-normal whitespace-nowrap!', props.maxWidthClassName)}>
-          {props.token.label}
-        </span>
+        <span className={cn(composerChipLabelClassName, props.maxWidthClassName)}>{props.token.label}</span>
       )}
     </span>
   )

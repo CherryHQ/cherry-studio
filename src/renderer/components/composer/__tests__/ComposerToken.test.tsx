@@ -472,8 +472,8 @@ describe('ComposerToken', () => {
     )
 
     const token = getRenderedFileToken(container)
-    expect(token).toHaveClass('h-6', 'align-middle', 'border-primary', 'ring-1', 'ring-primary/40')
-    expect(token).not.toHaveClass('align-baseline')
+    expect(token).toHaveClass('items-baseline', 'rounded-xs', 'bg-muted', 'border-border-selected', 'font-medium')
+    expect(token).not.toHaveClass('h-6', 'align-middle', 'text-xs')
     expect(token).toHaveTextContent('avatar-preview.png')
 
     const iconSlot = token.querySelector('[data-file-token-icon="image"]')
@@ -557,9 +557,13 @@ describe('ComposerToken', () => {
       expect(getComputedStyle(sentThumbnail)[property]).toBe(getComputedStyle(draftThumbnail)[property])
     }
 
-    // The compact token owns its line box instead of inheriting the surrounding Markdown paragraph.
-    expect(container.querySelectorAll('[data-composer-token-kind="file"]')[0]).toHaveClass('leading-[1.4]')
-    expect(container.querySelectorAll('[data-composer-token-kind="file"]')[1]).toHaveClass('leading-[1.4]')
+    // The chip tracks the surrounding font size (em-based, no fixed line box) instead of owning a
+    // hard-coded one, so the composer draft and the sent message agree in both contexts.
+    const [draftToken, sentToken] = container.querySelectorAll('[data-composer-token-kind="file"]')
+    for (const token of [draftToken, sentToken]) {
+      expect(token).toHaveClass('items-baseline', 'rounded-xs', 'bg-muted')
+      expect(token).not.toHaveClass('h-6', 'leading-[1.4]', 'text-xs')
+    }
     markdownStyles.remove()
   })
 
@@ -585,7 +589,7 @@ describe('ComposerToken', () => {
     expect(getRenderedFileToken(container)).toHaveTextContent('icon.svg')
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
     const iconSlot = container.querySelector('[data-file-token-icon="image"]')
-    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
+    expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:svg')
   })
 
   it('falls back to the default image icon when the icon thumbnail fails to load', () => {
@@ -610,8 +614,15 @@ describe('ComposerToken', () => {
     fireEvent.error(container.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement)
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
     const iconSlot = container.querySelector('[data-file-token-icon="image"]')
-    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
+    expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:image')
     expect(getRenderedFileToken(container)).toHaveTextContent('avatar-preview.png')
+  })
+
+  it('renders the type glyph from the app-wide file icon mapping', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:ts', kind: 'file', label: 'agents.ts' }} />)
+
+    const iconSlot = container.querySelector('[data-file-token-icon="code"]')
+    expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:typescript')
   })
 
   it('renders pdf file tokens with pdf variant metadata', () => {
@@ -958,11 +969,12 @@ describe('ComposerToken', () => {
     }
   })
 
-  it('keeps selected file tokens highlighted with primary border and ring', () => {
+  it('keeps selected file tokens highlighted with the selected border role', () => {
     const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} selected />)
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('border-primary', 'ring-1', 'ring-primary/40')
+    expect(token).toHaveClass('border-border-selected')
+    expect(token).not.toHaveClass('ring-1', 'ring-primary/40', 'border-primary')
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {
@@ -1079,7 +1091,7 @@ describe('ComposerToken', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('renders pasted links with the default icon, identifiable label, and removable open action', () => {
+  it('renders pasted links with the site icon, identifiable label, and removable open action', () => {
     const url = 'https://www.example.com/docs'
     const onRemove = vi.fn()
     const { container } = render(
@@ -1099,9 +1111,9 @@ describe('ComposerToken', () => {
     expect(link).toHaveTextContent('example.com/docs')
     expect(link).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
     expect(link).not.toHaveClass('focus-visible:ring-[3px]', 'focus-visible:ring-ring/50')
-    expect(link.querySelector('svg')).toBeInTheDocument()
-    expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
-    expect(container.querySelector('[data-composer-link-favicon]')).not.toBeInTheDocument()
+    // 编辑态也加载站点图标（与只读态一致），而不是通用的链接字形
+    expect(container.querySelector('[data-composer-link-favicon]')).toBeInTheDocument()
+    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.example.com')
     fireEvent.click(link)
     expect(ipcRequestMock).toHaveBeenCalledWith('system.shell.open_website', url)
 
