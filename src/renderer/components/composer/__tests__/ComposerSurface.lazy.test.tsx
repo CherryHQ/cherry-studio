@@ -1,7 +1,7 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
@@ -42,13 +42,15 @@ vi.mock('@renderer/components/SendMessageButton', () => ({
   default: ({
     disabled,
     onDisabledClick,
-    sendMessage
+    sendMessage,
+    shortcutLabel
   }: {
     disabled?: boolean
     onDisabledClick?: () => void
     sendMessage: () => void
+    shortcutLabel?: string
   }) => (
-    <button type="button" onClick={disabled ? onDisabledClick : sendMessage}>
+    <button type="button" data-shortcut-label={shortcutLabel} onClick={disabled ? onDisabledClick : sendMessage}>
       Send
     </button>
   )
@@ -71,7 +73,8 @@ vi.mock('../ComposerSurfaceRuntime', () => {
   }: ComposerSurfaceProps) => {
     mocks.runtimeIntent = deferredIntent
     mocks.runtimeTokens = tokens.map((token) => ({ id: token.id, kind: token.kind, label: token.label }))
-    useEffect(() => {
+    // Match the runtime's adapter handoff before the mounted editor can receive dictation.
+    useLayoutEffect(() => {
       onInputAdapterChange?.(mocks.runtimeInputAdapter as never)
       return () => onInputAdapterChange?.(undefined)
     }, [onInputAdapterChange])
@@ -507,6 +510,12 @@ describe('deferred ComposerSurface', () => {
     render(<Harness isExpanded />)
 
     expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('labels the fallback send control with the resolved send shortcut', () => {
+    render(<Harness sendMessageShortcut={['Enter']} />)
+
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-shortcut-label', 'Enter')
   })
 
   it('follows the send-shortcut preference when the caller does not pass one', () => {

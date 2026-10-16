@@ -162,7 +162,7 @@ Boot config keys are accessible through PreferenceService using the `BootConfig.
 - `preferenceService.get('BootConfig.app.disable_hardware_acceleration')` routes to `bootConfigService.get('app.disable_hardware_acceleration')`
 - The `BootConfigPreferenceKeys` mapped type automatically adds the `BootConfig.` prefix to all **public** boot config keys — internal `temp.*` keys (`InternalBootConfigKey`) are excluded
 - The `UnifiedPreferenceType` merges preference and **public** boot config type spaces, providing full type safety
-- Changes made through PreferenceService are broadcast to all windows
+- `set()` and `setMultiple()` strictly persist BootConfig changes before acknowledging success or broadcasting them. Failed BootConfig writes restore the previous in-memory values and reject the request; in mixed batches, SQLite updates only start after BootConfig persistence succeeds. The two stores do not form one atomic transaction.
 
 Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 

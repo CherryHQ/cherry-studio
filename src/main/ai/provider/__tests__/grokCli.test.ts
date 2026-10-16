@@ -1,7 +1,17 @@
-import { gte } from 'semver'
-import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
-import { buildGrokCliRequestHeaders, normalizeGrokModelId, rewriteGrokCliResponsesBody } from '../grokCli'
+import { gte } from 'semver'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  buildGrokCliRequestHeaders,
+  normalizeGrokModelId,
+  pickGrokClientVersion,
+  resolveGrokClientVersion,
+  rewriteGrokCliResponsesBody
+} from '../grokCli'
 
 describe('rewriteGrokCliResponsesBody', () => {
   it('hoists system/developer turns into instructions and drops them from input', () => {
@@ -98,5 +108,116 @@ describe('buildGrokCliRequestHeaders', () => {
   it('omits the model-override header when no model id is known', () => {
     const headers = buildGrokCliRequestHeaders(undefined, { accessToken: 'tok', modelId: '' })
     expect(headers.has('x-grok-model-override')).toBe(false)
+  })
+})
+
+describe('pickGrokClientVersion', () => {
+  const floor = '1.0.13'
+
+  it('returns the floor when the file contents are null', () => {
+    expect(pickGrokClientVersion(null, floor)).toBe(floor)
+  })
+
+  it('returns the floor when the file contents are empty', () => {
+    expect(pickGrokClientVersion('', floor)).toBe(floor)
+  })
+
+  it('returns the floor on malformed JSON', () => {
+    expect(pickGrokClientVersion('not json', floor)).toBe(floor)
+  })
+
+  it('returns the floor when the parsed object has no version fields', () => {
+    expect(pickGrokClientVersion('{}', floor)).toBe(floor)
+  })
+
+  it('prefers stable_version over version', () => {
+    const contents = JSON.stringify({ version: '1.0.0', stable_version: '1.0.52' })
+    expect(pickGrokClientVersion(contents, floor)).toBe('1.0.52')
+  })
+
+  it('falls back to version when stable_version is missing', () => {
+    const contents = JSON.stringify({ version: '1.0.52' })
+    expect(pickGrokClientVersion(contents, floor)).toBe('1.0.52')
+  })
+
+  it('returns the floor when stable_version is not a valid semver', () => {
+    const contents = JSON.stringify({ stable_version: 'not-a-version' })
+    expect(pickGrokClientVersion(contents, floor)).toBe(floor)
+  })
+
+  it('clamps to the floor when the installed version is below floor', () => {
+    const contents = JSON.stringify({ stable_version: '1.0.0' })
+    expect(pickGrokClientVersion(contents, floor)).toBe(floor)
+  })
+
+  it('returns the floor verbatim when the parsed value exactly equals the floor', () => {
+    expect(pickGrokClientVersion(JSON.stringify({ stable_version: floor }), floor)).toBe(floor)
+  })
+
+  it('accepts versions with a build metadata segment', () => {
+    const contents = JSON.stringify({ stable_version: '1.0.50+meta' })
+    expect(pickGrokClientVersion(contents, floor)).toBe('1.0.50+meta')
+  })
+})
+
+describe('resolveGrokClientVersion', () => {
+  let tmpDir: string
+  let homedirSpy: ReturnType<typeof vi.spyOn>
+  const originalEnv = process.env.GROK_CLIENT_VERSION_OVERRIDE
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'grok-cli-test-'))
+    homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tmpDir)
+  })
+
+  afterEach(() => {
+    homedirSpy.mockRestore()
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+    if (originalEnv === undefined) delete process.env.GROK_CLIENT_VERSION_OVERRIDE
+    else process.env.GROK_CLIENT_VERSION_OVERRIDE = originalEnv
+  })
+
+  function writeVersionFile(contents: string): string {
+    const dir = path.join(tmpDir, '.grok')
+    fs.mkdirSync(dir, { recursive: true })
+    const file = path.join(dir, 'version.json')
+    fs.writeFileSync(file, contents, 'utf8')
+    return file
+  }
+
+  it('returns the override env var when set, without reading disk', () => {
+    process.env.GROK_CLIENT_VERSION_OVERRIDE = '9.9.9'
+    writeVersionFile(JSON.stringify({ stable_version: '1.0.52' }))
+    expect(resolveGrokClientVersion()).toBe('9.9.9')
+  })
+
+  it('reads ~/.grok/version.json stable_version when the file is present', () => {
+    writeVersionFile(JSON.stringify({ version: '1.0.0', stable_version: '1.0.52' }))
+    expect(resolveGrokClientVersion()).toBe('1.0.52')
+  })
+
+  it('falls back to the floor when the file is missing', () => {
+    expect(resolveGrokClientVersion()).toBe('1.0.13')
+  })
+
+  it('falls back to the floor when the file is unreadable (bad JSON)', () => {
+    writeVersionFile('this is not json')
+    expect(resolveGrokClientVersion()).toBe('1.0.13')
+  })
+
+  it('clamps to the floor when the file version is below floor', () => {
+    writeVersionFile(JSON.stringify({ stable_version: '1.0.0' }))
+    expect(resolveGrokClientVersion()).toBe('1.0.13')
+  })
+})
+
+describe('buildGrokCliRequestHeaders (runtime version)', () => {
+  it('sets x-grok-client-version to a value at or above the floor', () => {
+    const headers = buildGrokCliRequestHeaders(undefined, { accessToken: 'tok', modelId: 'grok-build' })
+    const v = headers.get('x-grok-client-version')!
+    // Don't pin an exact version (CI may or may not have ~/.grok/version.json);
+    // just verify it parses and the major is >= 1.
+    expect(v).toMatch(/^\d+\.\d+\.\d+/)
+    expect(Number(v.split('.')[0])).toBeGreaterThanOrEqual(1)
   })
 })

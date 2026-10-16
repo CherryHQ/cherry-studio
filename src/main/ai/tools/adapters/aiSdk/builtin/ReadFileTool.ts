@@ -96,11 +96,6 @@ export async function readFile(
     const bareExt = ext?.toLowerCase() ?? ''
     const fileType = getFileTypeByExt(bareExt)
 
-    if (fileType === FILE_TYPE.OTHER && bareExt) {
-      // Binary / unsupported — don't auto-decode it into mojibake.
-      return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
-    }
-
     let text: string | null
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
       text = await application.get('MediaAnalysisService').analyzeToFullText({ kind: 'entry', entryId }, signal)

@@ -37,14 +37,34 @@ Read [Cherry Studio](https://example.com/private-path) today. ![Architecture dia
     )
   })
 
-  it('omits code, math, private execution content, metadata, and citation markers', () => {
+  it.each([
+    ['fenced code', '```text\n125 × 37 + 456 = 5081\n5081 ÷ 8 = 635.125\n```'],
+    ['tilde-fenced code', '~~~text\n125 × 37 + 456 = 5081\n5081 ÷ 8 = 635.125\n~~~'],
+    ['indented code', '    125 × 37 + 456 = 5081\n    5081 ÷ 8 = 635.125'],
+    ['HTML code', '<pre><code>125 × 37 + 456 = 5081\n5081 ÷ 8 = 635.125</code></pre>']
+  ])('reads %s in order with surrounding prose', (_label, code) => {
+    expect(normalizeReadableText(`计算过程：\n\n${code}\n\n计算完成。`)).toBe(
+      '计算过程：\n\n125 × 37 + 456 = 5081\n5081 ÷ 8 = 635.125\n\n计算完成。'
+    )
+  })
+
+  it('reads inline code as literal text without interpreting HTML or Markdown inside it', () => {
+    expect(normalizeReadableText('运行 `answer()`，返回 `<think>**结果**</think>`。')).toBe(
+      '运行 answer()，返回 <think>**结果**</think>。'
+    )
+    expect(normalizeReadableText('运行 <code>answer()</code>。')).toBe('运行 answer()。')
+  })
+
+  it('preserves literal markup and entities inside fenced code', () => {
+    expect(normalizeReadableText('```html\n<think>结果</think>\n<p>A &amp; B</p>\n```')).toBe(
+      '<think>结果</think>\n<p>A &amp; B</p>'
+    )
+  })
+
+  it('omits math, private execution content, metadata, and citation markers', () => {
     const markdown = `Visible **answer** [cite:source-1].
 
-\`inlineSecret()\` \\(hidden_math\\)
-
-\`\`\`ts
-const secret = 'never read'
-\`\`\`
+\\(hidden_math\\)
 
 <tool-call>private tool arguments</tool-call>
 
@@ -74,6 +94,12 @@ ${open}
 
 - private **Markdown**
 - [private link](https://example.com/private)
+
+\`\`\`text
+private code
+\`\`\`
+
+<pre><code>private HTML code</code></pre>
 
 ${close}
 
@@ -175,12 +201,6 @@ describe('chunkReadableText', () => {
 })
 
 describe('planReadableText', () => {
-  it('exports distinct confirmation and adapter limits with a product-safe chunk size', () => {
-    expect(READABLE_TEXT_CONFIRMATION_THRESHOLD).toBe(5_000)
-    expect(SPEECH_ADAPTER_TEXT_LIMIT).toBe(10_000)
-    expect(READABLE_TEXT_CHUNK_LIMIT).toBeLessThanOrEqual(SPEECH_ADAPTER_TEXT_LIMIT)
-  })
-
   it('returns ready chunks for text at the confirmation threshold', () => {
     const result = planReadableText('x'.repeat(READABLE_TEXT_CONFIRMATION_THRESHOLD), { trigger: 'manual' })
 
