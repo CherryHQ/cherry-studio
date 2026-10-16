@@ -377,7 +377,7 @@ Background subagent update (automatic message, not from the user):
 
 ### 7.6 中止后的抑制期
 
-父代理一轮被用户中止后，到下一个人类回合开始之前不自动开轮。两种中止都算：`session.abort()`（`agent_settled { aborted: true }`），以及宿主经自己的请求 signal 中止（`agent_before_settle` 的 `outcome: 'aborted'`，`agent_settled` 报 `aborted: false`，见 L5 的 I1）。用户按停止往往是想插话，立刻开一轮会和用户抢。期间结束的子代理照常进队列，随用户下一条消息一起送达（父会话 `before_agent_start` 返回的 `message`，见 7.5），之后恢复自动开轮。goal 为撤回过期轮而中止运行（L5 spec 6.3）不是用户停止：goal 在中止前经包内的 goal 链接告诉投递，这次 `aborted` 的 settle 不进入抑制期，照常投递。
+父代理一轮被用户中止后，到下一个人类回合开始之前不自动开轮。两种中止都算：`session.abort()`（`agent_settled { aborted: true }`），以及宿主经自己的请求 signal 中止（`agent_before_settle` 的 `outcome: 'aborted'`，`agent_settled` 报 `aborted: false`，见 L5 的 I1）。用户按停止往往是想插话，立刻开一轮会和用户抢。期间结束的子代理照常进队列，随用户下一条消息一起送达（父会话 `before_agent_start` 返回的 `message`，见 7.5），之后恢复自动开轮。goal 为撤回过期轮而中止运行（L5 spec 6.3）不是用户停止：goal 在中止前经包内的 goal 链接告诉投递，这次 `aborted` 的 settle 不进入抑制期，照常投递。用户的停止由宿主经 `AgentRuntimeSession.abort()` 发出（13 节第 1 条）：它在 Pi 的事件总线上告诉 goal、经子代理控制告诉投递"这是用户停的"，所以即使落在撤回的那次运行里，也照样进入抑制期，已武装的 goal 记 `paused / aborted`。宿主经请求 signal 的中止不需要另外标记：它中止的是一次请求，而撤回的轮不发请求。
 
 ### 7.7 重建后的未送达通知
 
@@ -475,7 +475,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 ## 13. 宿主接入约定
 
-1. 用户回合走 `AgentRuntimeSession.prompt`，手动压缩走 `AgentRuntimeSession.compact`，不要直接调 `session.prompt` / `session.compact`（7.4）。
+1. 用户回合走 `AgentRuntimeSession.prompt`，手动压缩走 `AgentRuntimeSession.compact`，不要直接调 `session.prompt` / `session.compact`（7.4）；用户停止回合走 `AgentRuntimeSession.abort()`，不要直接调 `session.abort()`（7.6）。
 2. 有后台子代理在运行时，不销毁、不重建父会话。宿主现有逻辑在有后台工作时推迟重建（`AgentSessionRuntimeService.ts:1706`），把 `subagents` 事件映射到 `background-work-state` 即可沿用。
 3. 把 `subagents` 事件映射到现有的 `background-tasks`（任务标签条）与 `background-work-state`；停止按钮（`ai.agent.session.stop_background_task`）调用 `stopSubagent(sessionId)`，`taskId` 即 `sessionId`。
 4. 子代理 transcript 按 `sessionId` 持久化（含起始条目），实现 `SubagentPort.load`；父子关系用 Cherry 会话 id 记录；删父会话时一并删除。
@@ -491,8 +491,8 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 | 层 | 改动 |
 |---|---|
 | L4 | `subagent` 加 `background?`、`model?`；前台转后台（6.6）；子会话 id 改为 `randomUUID()`（去掉父前缀）；`Subagent` 加 `description`、`background`、`modelKey?`、`continuedBy?`；`SubagentDetails` 改为前台/后台联合；`run()` 抽到 `subagentRun.ts`；起始条目经 `onEvent` 发出；前台结果末尾带 id；origin 条目加 `description`、`modelKey`（实际用的模型）；fork 子代理调用 `message_subagent` / `stop_subagent` 报错；README 子代理一节重写 |
-| L5 | 删除 `GoalPort.hasRunningSubagents` 与 `waiting_subagents`，改为 11.1 的等待；`GoalApprovalEvent` 改名 `ToolApprovalEvent` 并移到 `ports.ts`；settle 时见到通知条目让路（11.2）；通知轮的身份（11.3）；子代理用量与预算（11.4）；审批事件只认父会话 branch 上的调用（11.5）；goal 激活且已武装时通知轮的用量计入预算（11.3）；`/goal` 状态显示等待中的子代理；README goal 一节相应更新 |
-| L2 | `AgentRuntimeEvent` 加 `subagents`；`AgentRuntimeSession` 加 `prompt`、`compact`、`stopSubagent`、`backgroundSubagent` |
+| L5 | 删除 `GoalPort.hasRunningSubagents` 与 `waiting_subagents`，改为 11.1 的等待；`GoalApprovalEvent` 改名 `ToolApprovalEvent` 并移到 `ports.ts`；settle 时见到通知条目让路（11.2）；通知轮的身份（11.3）；子代理用量与预算（11.4）；审批事件只认父会话 branch 上的调用（11.5）；goal 激活且已武装时通知轮的用量计入预算（11.3）；`/goal` 状态显示等待中的子代理；用户经 `abort()` 停在撤回轮的运行里时照样暂停（7.6）；README goal 一节相应更新 |
+| L2 | `AgentRuntimeEvent` 加 `subagents`；`AgentRuntimeSession` 加 `prompt`、`compact`、`abort`、`stopSubagent`、`backgroundSubagent` |
 
 ## 15. 测试计划
 
@@ -598,3 +598,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 17. 11.4：运行归属与用量用同一口径。原来只有 goal 轮里开出的运行归 goal，已武装时通知轮里派出的后台运行不受预算约束；现在请求计入 goal 的回合（含已武装的通知轮）开出的运行都归 goal，用量照计，预算用完时一起停。
 18. 7.6、11.1：goal 撤回过期轮的中止经 goal 链接告诉投递，不再被当成用户停止而进入抑制期（原来在 Pi 1.1.0 下，等待后台子代理的 goal 会卡到用户下一条消息）；11.1 改为"不写停止快照、进展照常落盘"。
+
+2026-10-16，按第四轮修复的复审修订：
+
+19. 7.6、13：用户的停止改为显式的 `AgentRuntimeSession.abort()`，不再只靠推断。它把这次中止标为用户的：落在 goal 撤回过期轮的那次运行里时，原来被当成撤回（goal 接着开新轮，投递不进入抑制期），现在照样暂停已武装的 goal、进入抑制期；运行时自己的中止仍走撤回信号。宿主的请求 signal 中止不受影响（撤回的轮不发请求）。

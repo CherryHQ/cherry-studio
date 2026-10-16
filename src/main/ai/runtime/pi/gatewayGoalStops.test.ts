@@ -621,6 +621,48 @@ describe('goal stops for people, errors and aborts', () => {
     })
   })
 
+  // Breaks when a user's stop that lands in the run withdrawing a stale round is taken for the
+  // withdrawal: the goal would go on with a fresh round instead of pausing.
+  it("a user's stop in the run that withdraws a stale round still pauses the goal", async () => {
+    let settling!: () => void
+    const awaiting = new Promise<void>((resolve) => (settling = resolve))
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    const user: { runtime?: { abort(): Promise<void> } } = {}
+    const slowSettleThenStop: ExtensionFactory = (pi) => {
+      let settles = 0
+      pi.on('agent_before_settle', async () => {
+        if (settles++ > 0) return undefined
+        settling()
+        await gate
+        return undefined
+      })
+      // After the goal's handler: the second run is the withdrawal's. Not awaited, as abort() waits for the run.
+      let turns = 0
+      pi.on('turn_start', () => {
+        if (++turns === 2) void user.runtime!.abort()
+      })
+    }
+    const runtime = await goalSession([working], goalPort({ defaults: { maxGoalRounds: 3 } }), {
+      laterExtensions: [slowSettleThenStop]
+    })
+    user.runtime = runtime
+    const { session: s, host, calls } = runtime
+    const run = promptIdle(s, '/goal Keep working')
+    await awaiting
+    await s.prompt('/goal edit Keep working carefully')
+    release()
+    await run
+    await s.waitForIdle()
+
+    expect(calls).toHaveLength(1)
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      phase: 'paused',
+      roundsStarted: 1,
+      lastStop: { code: 'aborted' }
+    })
+  })
+
   // Breaks when only session.abort() pauses the goal: a request the host aborts through its own signal
   // settles like a finished one, and the goal opens the next round. Breaks too when the cut-off round counts as progress.
   it('a request the host aborts through its own signal pauses the goal', async () => {
