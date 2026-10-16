@@ -338,6 +338,80 @@ describe('goal and background subagents', () => {
     expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 5_050, lastStop: { code: 'round_limit' } })
   })
 
+  // Breaks when stopped runs are counted per result instead of per run: two overlapping stop_subagent
+  // calls both get the run's result, and the goal would pay for it twice.
+  it('counts a run two overlapping stop_subagent calls both report once', async () => {
+    const started = gate()
+    const work = defineTool({
+      name: 'work',
+      label: 'Work',
+      description: 'Works until stopped',
+      parameters: Type.Object({}),
+      async execute(_id, _params, signal) {
+        void started.wait(undefined)
+        await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), { once: true }))
+        return { content: [{ type: 'text', text: 'stopped working' }], details: undefined }
+      }
+    })
+    const host = recordingSubagentPort()
+    const { model, calls } = routedModel(async (call) => {
+      if (call.userText.includes('TASK-B'))
+        return call.lastText.includes('TASK-B')
+          ? [toolCallPart('work_1', 'work'), finish('tool-calls', 5_000, 0)]
+          : reply('LATE', 10, 0)
+      if (round(call) === 1) return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
+      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
+        await started.reached
+        const id = host.subagents[0].sessionId
+        return [
+          toolCallPart('stop_1', 'stop_subagent', { id }),
+          toolCallPart('stop_2', 'stop_subagent', { id }),
+          finish('tool-calls', 10, 0)
+        ]
+      }
+      return reply(`working ${calls.length}`, 10, 0)
+    })
+    const { session: s, host: store } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 2 } }), {
+      tools: [work],
+      subagents: host.port
+    })
+    await promptIdle(s, '/goal Check B')
+    await waitFor(() => lastSnapshot(store.entries)?.phase === 'blocked')
+
+    for (const id of ['stop_1', 'stop_2']) expect(toolResultOf(s, id).details).toMatchObject({ stopped: true, run: 1 })
+    // Four parent requests of 12 tokens (10 + 2 cached), and B's 5002 once.
+    expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 5_050, lastStop: { code: 'round_limit' } })
+  })
+
+  // Breaks when what a waiting goal used lives only in memory: after a shutdown while background
+  // subagents still run, a rebuilt session would count it as unspent and resume past the budget.
+  it('keeps what a goal used while it waits for background subagents across a shutdown', async () => {
+    const cwd = tempDir('cwd')
+    const hung = gate()
+    const port = goalPort({ defaults: { budget: { tokens: 3_000 } } })
+    const subagents = recordingSubagentPort().port
+    const { model, calls } = routedModel((call) => {
+      if (call.userText.includes('TASK-A')) return reply('REPORT-A', 500, 0)
+      if (call.userText.includes('TASK-B')) return hung.wait(reply('REPORT-B'))
+      if (round(call) === 1) return [bg('call_a', 'TASK-A'), bg('call_b', 'TASK-B'), finish('tool-calls', 2_000, 0)]
+      return reply('Waiting for the others.', 10, 0)
+    })
+    const live = await openGoalSession(model, port, { cwd, subagents })
+    await promptIdle(live.session, '/goal Check A and B')
+    // A's notification turn (merged at round 1's settle, or a run of its own) settles waiting for B.
+    await waitFor(() => calls.some(isNotice))
+    await live.session.waitForIdle()
+    expect(live.host.events.at(-1)).toMatchObject({ type: 'turn-complete' })
+    const transcript = plain(live.host.entries)
+    await live.dispose()
+    hung.open()
+
+    const { session: s, host } = await openGoalSession(model, port, { cwd, subagents, transcript })
+    await s.prompt('/goal')
+    // Round 1's two requests (2002 + 12), A's request (502) and the notification turn's (12).
+    expect(notices(host.entries).at(-1)).toContain('Phase: active · disarmed\nRounds: 1/100 · Tokens: 2528 ·')
+  })
+
   // Breaks when a continuation a goal round starts is left out of the budget because the goal did
   // not start that subagent in the background (here it ran in the foreground first).
   it('counts the continuation a goal round starts toward the goal', async () => {
@@ -366,6 +440,41 @@ describe('goal and background subagents', () => {
     })
     // Six parent requests of 12 tokens, and both runs of A (5002 each: the foreground one counts with its result).
     expect(lastSnapshot(store.entries)).toMatchObject({ tokensUsed: 10_076, lastStop: { code: 'round_limit' } })
+  })
+
+  // Breaks when a subagent the goal started is the goal's for good: a run a person's turn continues
+  // later is that turn's work, not the goal's.
+  it("leaves a later run a person's turn continues out of the goal that started the subagent", async () => {
+    const host = storingSubagentPort()
+    const { model, calls } = routedModel((call) => {
+      if (call.userText.includes('TASK-A')) return reply(call.lastText === 'GO-ON' ? 'REPORT-2' : 'REPORT-1', 5_000, 0)
+      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls', 10, 0)]
+      if (call.lastRole === 'user' && call.lastText === 'Continue A')
+        return [
+          toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' }),
+          finish('tool-calls', 10, 0)
+        ]
+      return reply(`working ${calls.length}`, 10, 0)
+    })
+    const { session: s, host: store } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 1 } }), {
+      subagents: host.port
+    })
+    const used = async () => {
+      await s.prompt('/goal')
+      return /Tokens: (\d+)/.exec(notices(store.entries).at(-1)!)![1]
+    }
+    await promptIdle(s, '/goal Check A')
+    await waitFor(() => calls.filter(isNotice).length === 1)
+    await s.waitForIdle()
+    const afterRunOne = await used()
+    expect(Number(afterRunOne)).toBeGreaterThan(5_002)
+    await promptIdle(s, 'Continue A')
+    await waitFor(() => calls.filter(isNotice).length === 2)
+    await s.waitForIdle()
+
+    expect(toolResultOf(s, 'call_msg').details).toMatchObject({ continued: true, run: 2 })
+    // A's second run (5002) and the person's turn count toward no goal.
+    expect(await used()).toBe(afterRunOne)
   })
 
   // Breaks when the usage of a goal subagent's result that reaches a disarmed goal (rebuilt, in a
