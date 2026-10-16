@@ -72,9 +72,6 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 @DependsOn(['AgentSessionRuntimeService', 'AiStreamManager', 'ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
-  private budgetSnapshot?: { day: string; total: number }
-  private pendingBudgetDay?: string
-
   protected onInit(): void {
     this.registerDisposable(
       application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
@@ -91,20 +88,7 @@ export class NotificationService extends BaseService {
         .subscribeMultipleChanges([...OS_NOTIFICATION_PREF_KEYS], () => this.syncDockBadgeWithNotificationPrefs())
     )
     this.syncDockBadgeWithNotificationPrefs()
-    this.refreshDailyBudget(true)
     this.registerDisposable(aiUsageRecordService.onInvocationsRecorded(() => this.refreshDailyBudget()))
-    this.registerDisposable(
-      application
-        .get('PreferenceService')
-        .subscribeMultipleChanges(
-          [
-            'app.notification.center.usage.enabled',
-            'app.notification.daily_budget.tokens',
-            'app.notification.daily_budget.threshold'
-          ],
-          () => this.refreshDailyBudget(true)
-        )
-    )
     this.registerDisposable(
       application
         .get('CacheService')
@@ -293,7 +277,7 @@ export class NotificationService extends BaseService {
     }
   }
 
-  private refreshDailyBudget(baseline = false): void {
+  private refreshDailyBudget(): void {
     try {
       const preferences = application.get('PreferenceService')
       const budget = preferences.get('app.notification.daily_budget.tokens')
@@ -305,32 +289,17 @@ export class NotificationService extends BaseService {
         !Number.isInteger(threshold) ||
         threshold < 1 ||
         threshold > 100
-      ) {
-        this.budgetSnapshot = undefined
-        this.pendingBudgetDay = undefined
+      )
         return
-      }
       const now = new Date()
       const from = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
       const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - 1
       const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
+      if (this.readState<string>('notification:daily-budget') === day) return
       const total = aiUsageRecordService.stats({ from, to, groupBy: 'model', metric: 'tokens', limit: 1 }).totals
         .totalTokens
-      const previous = this.budgetSnapshot
-      this.budgetSnapshot = { day, total }
-      if (baseline || !previous) {
-        this.pendingBudgetDay = undefined
-        return
-      }
-      const prior = previous.day === day ? previous.total : 0
       const limit = (budget * threshold) / 100
-      if (
-        (prior >= limit && this.pendingBudgetDay !== day) ||
-        total < limit ||
-        this.readState<string>('notification:daily-budget') === day
-      )
-        return
-      this.pendingBudgetDay = day
+      if (total < limit) return
       void this.publish({
         eventKey: `daily-budget:${day}`,
         category: 'usage',
@@ -345,10 +314,7 @@ export class NotificationService extends BaseService {
         target: { kind: 'settings', tab: 'usage' }
       })
         .then((recorded) => {
-          if (recorded) {
-            this.writeState('notification:daily-budget', day)
-            if (this.pendingBudgetDay === day) this.pendingBudgetDay = undefined
-          }
+          if (recorded) this.writeState('notification:daily-budget', day)
         })
         .catch((error) => logger.warn('Failed to retain daily notification marker', { error }))
     } catch (error) {

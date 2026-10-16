@@ -137,6 +137,25 @@ function emitApproval(overrides: Partial<ApprovalRequestedEvent> = {}, source: '
   })
 }
 
+function recordUsage(requestId: string, totalTokens: number): void {
+  aiUsageRecordService.recordInvocation({
+    requestId,
+    context: createAiUsageCaptureContext({
+      providerId: 'p',
+      providerName: 'Provider',
+      modelId: 'm',
+      modelName: 'Model',
+      pricingSnapshot: null,
+      credentialReceipt: { attribution: 'unknown' },
+      source: null,
+      messageRef: null
+    }),
+    modality: 'language',
+    usage: { totalTokens, cacheReadTokens: totalTokens },
+    completedAt: Date.now()
+  })
+}
+
 describe('NotificationService', () => {
   const dbh = setupTestDatabase()
   let service: InstanceType<typeof NotificationService>
@@ -144,6 +163,7 @@ describe('NotificationService', () => {
 
   async function initService(): Promise<void> {
     if (service) await service._doStop()
+    BaseService.resetInstances()
     service = new NotificationService()
     await service._doInit()
   }
@@ -539,36 +559,19 @@ describe('NotificationService', () => {
     BaseService.resetInstances()
     mocks.preferenceValues['app.notification.daily_budget.tokens'] = 100_000
     await initService()
-    const record = (requestId: string, totalTokens: number) =>
-      aiUsageRecordService.recordInvocation({
-        requestId,
-        context: createAiUsageCaptureContext({
-          providerId: 'p',
-          providerName: 'Provider',
-          modelId: 'm',
-          modelName: 'Model',
-          pricingSnapshot: null,
-          credentialReceipt: { attribution: 'unknown' },
-          source: null,
-          messageRef: null
-        }),
-        modality: 'language',
-        usage: { totalTokens, cacheReadTokens: totalTokens },
-        completedAt: Date.now()
-      })
-    record('before', 79_000)
+    recordUsage('before', 79_000)
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(0)
-    record('crossing', 1_000)
-    record('crossing', 1_000)
-    record('after', 2_000)
+    recordUsage('crossing', 1_000)
+    recordUsage('crossing', 1_000)
+    recordUsage('after', 2_000)
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
     await service._doStop()
     BaseService.resetInstances()
     await initService()
-    record('after-restart', 2_000)
+    recordUsage('after-restart', 2_000)
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
     vi.setSystemTime(new Date(2026, 9, 16, 0, 1))
-    record('next-day', 95_000)
+    recordUsage('next-day', 95_000)
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
     expect(t).toHaveBeenCalledWith('notification.center.budget_message', {
       percent: 95,
@@ -580,8 +583,64 @@ describe('NotificationService', () => {
     BaseService.resetInstances()
     mocks.preferenceValues['app.notification.daily_budget.tokens'] = 1_000
     await initService()
-    record('changed-budget', 100)
+    recordUsage('changed-budget', 100)
     expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
+  })
+
+  it.each([
+    ['budget enabled', 'app.notification.daily_budget.tokens', 0, 100_000],
+    ['budget lowered', 'app.notification.daily_budget.tokens', 200_000, 100_000],
+    ['threshold lowered', 'app.notification.daily_budget.threshold', 100, 80],
+    ['usage enabled', 'app.notification.center.usage.enabled', false, true],
+    ['service restarted', 'app.notification.daily_budget.tokens', 0, 100_000]
+  ] as const)(
+    'warns on the next committed usage when already over the limit after %s',
+    async (scenario, key, before, after) => {
+      mocks.preferenceValues['app.notification.daily_budget.tokens'] = 100_000
+      mocks.preferenceValues[key] = before
+      await initService()
+      recordUsage('existing', 90_000)
+      mocks.preferenceValues[key] = after
+      for (const [keys, listener] of mocks.subscribeMultipleChanges.mock.calls) {
+        if (keys.includes(key)) listener(key, after, before)
+      }
+      if (scenario === 'service restarted') await initService()
+      expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(0)
+
+      mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+        type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
+      )
+      recordUsage('new', 1_000)
+      await Promise.resolve()
+      recordUsage('more', 1_000)
+      expect(notificationRecordService.list({ category: 'usage' }).items).toEqual([
+        expect.objectContaining({ kind: 'daily-budget', target: { kind: 'settings', tab: 'usage' } })
+      ])
+      expect(mocks.send).toHaveBeenCalledExactlyOnceWith(
+        'main-1',
+        'notification.present',
+        expect.objectContaining({ kind: 'daily-budget' })
+      )
+    }
+  )
+
+  it('retries the daily budget reminder on later usage after a failed notification write', async () => {
+    mocks.preferenceValues['app.notification.daily_budget.tokens'] = 100_000
+    await initService()
+    dbh.sqlite.exec(
+      "CREATE TRIGGER fail_budget_notification BEFORE INSERT ON notification_record BEGIN SELECT RAISE(ABORT, 'write failed'); END"
+    )
+    try {
+      recordUsage('crossing', 90_000)
+      await Promise.resolve()
+      expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(0)
+    } finally {
+      dbh.sqlite.exec('DROP TRIGGER fail_budget_notification')
+    }
+    recordUsage('retry', 1_000)
+    expect(notificationRecordService.list({ category: 'usage' }).items).toEqual([
+      expect.objectContaining({ kind: 'daily-budget' })
+    ])
   })
 
   it('sends one presentation-ready event to the focused full-chrome window', async () => {
