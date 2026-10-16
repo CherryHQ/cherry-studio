@@ -60,7 +60,8 @@ function makeScope(overrides: {
     },
     mcpToolIds: new Set(overrides.mcpToolIds ?? []),
     contextSettings: DEFAULT_CONTEXT_SETTINGS,
-    compressionModel: null
+    compressionModel: null,
+    hasMessageAnchor: false
   }
 }
 

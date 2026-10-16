@@ -1131,6 +1131,7 @@ function inLoopScope(contextWindow: number): RequestScope {
     provider: makeProvider({ id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} }),
     contextSettings: DEFAULT_CONTEXT_SETTINGS,
     compressionModel: { languageModel: new MockLanguageModelV3({ modelId: 'compression-model' }), contextWindow },
+    hasMessageAnchor: true,
     signal: undefined,
     registry: new ToolRegistry(),
     mcpToolIds: new Set(),

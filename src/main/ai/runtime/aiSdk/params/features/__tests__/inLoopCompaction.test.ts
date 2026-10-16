@@ -33,6 +33,7 @@ const provider = (adapterFamily = 'anthropic') =>
 const scope = (overrides: {
   chatId?: string
   assistant?: boolean
+  hasMessageAnchor?: boolean
   contextOwner?: 'cherry' | 'caller'
   contextWindow?: number
   enabled?: boolean
@@ -47,6 +48,7 @@ const scope = (overrides: {
       contextOwner: overrides.contextOwner
     },
     assistant: overrides.assistant === false ? undefined : { id: 'assistant-1', settings: {} },
+    hasMessageAnchor: overrides.hasMessageAnchor ?? true,
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     provider: provider(overrides.adapterFamily),
     contextSettings: {
@@ -144,8 +146,10 @@ describe('inLoopCompactionFeature', () => {
 
   it.each([
     { chatId: 'topic-1', expectedWarnings: 1 },
-    { chatId: 'translation-stream', assistant: false, expectedWarnings: 0 },
-    { chatId: 'prompt-stream', assistant: false, expectedWarnings: 0 },
+    { chatId: 'topic-1', assistant: false, expectedWarnings: 1 },
+    { chatId: 'translation-stream', assistant: false, hasMessageAnchor: false, expectedWarnings: 0 },
+    { chatId: 'prompt-stream', assistant: false, hasMessageAnchor: false, expectedWarnings: 0 },
+    { chatId: 'prompt-stream', hasMessageAnchor: false, expectedWarnings: 0 },
     { chatId: 'temp:t1', expectedWarnings: 0 },
     { chatId: 'agent-session:s1', expectedWarnings: 0 },
     { chatId: undefined, expectedWarnings: 0 },
@@ -174,12 +178,32 @@ describe('inLoopCompactionFeature', () => {
   })
 
   it('does not compact assistant-less prompt streams even with a valid compressor', () => {
-    const requestScope = scope({ chatId: 'translation-stream', assistant: false, contextWindow: CONTEXT_WINDOW })
+    const requestScope = scope({
+      chatId: 'translation-stream',
+      assistant: false,
+      hasMessageAnchor: false,
+      contextWindow: CONTEXT_WINDOW
+    })
     const hooks = inLoopCompactionFeature.applies!(requestScope)
       ? inLoopCompactionFeature.contributeHooks!(requestScope)
       : {}
 
     expect(hooks).toEqual({})
+  })
+
+  it.each([true, false])('compacts persistent history with assistant presence %s', async (assistant) => {
+    compactModelMessages.mockClear()
+    const compacted = [assistantMessage(10), userMessage(10)]
+    compactModelMessages.mockResolvedValue(compacted)
+    const requestScope = scope({ chatId: 'topic-1', assistant, contextWindow: CONTEXT_WINDOW })
+    const hooks = inLoopCompactionFeature.applies!(requestScope)
+      ? inLoopCompactionFeature.contributeHooks!(requestScope)
+      : {}
+    const messages = [userMessage(90_000), assistantMessage(10), userMessage(10)]
+
+    const result = await hooks.prepareStep?.({ messages } as any)
+
+    expect(result).toEqual({ messages: compacted })
   })
 
   // --- contributeHooks: prepareStep ---

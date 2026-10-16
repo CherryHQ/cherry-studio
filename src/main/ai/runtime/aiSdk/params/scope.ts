@@ -46,6 +46,8 @@ export interface RequestScope extends ToolApplyScope {
   /** Pre-resolved compression model (explicit pick, else current request
    *  model). null when compression is disabled or resolution failed. */
   readonly compressionModel: CompressionModelDescriptor | null
+  /** Whether this Cherry-managed request is anchored to a persisted chat message. */
+  readonly hasMessageAnchor: boolean
   /** Reports compaction progress to the UI (see CompactionSink). */
   readonly compactionSink?: CompactionSink
 }
