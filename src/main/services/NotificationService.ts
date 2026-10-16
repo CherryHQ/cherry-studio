@@ -91,6 +91,21 @@ export class NotificationService extends BaseService {
     this.registerDisposable(aiUsageRecordService.onInvocationsRecorded(() => this.refreshDailyBudget()))
     this.registerDisposable(
       application
+        .get('PreferenceService')
+        .subscribeMultipleChanges(
+          ['app.notification.daily_budget.tokens', 'app.notification.daily_budget.threshold'],
+          (_key, value, previous) => {
+            if (value === previous) return
+            try {
+              this.writeState('notification:daily-budget-cycle', crypto.randomUUID())
+            } catch (error) {
+              logger.warn('Failed to reset daily budget notification', { error })
+            }
+          }
+        )
+    )
+    this.registerDisposable(
+      application
         .get('CacheService')
         .subscribeSharedChange('agent.session.context_usage.${sessionId}', (usage, _old, key) => {
           const sessionId = key.slice('agent.session.context_usage.'.length)
@@ -295,13 +310,15 @@ export class NotificationService extends BaseService {
       const from = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
       const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - 1
       const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
-      if (this.readState<string>('notification:daily-budget') === day) return
+      const cycle = this.readState<string>('notification:daily-budget-cycle')
+      const period = cycle ? `${day}:${cycle}` : day
+      if (this.readState<string>('notification:daily-budget') === period) return
       const total = aiUsageRecordService.stats({ from, to, groupBy: 'model', metric: 'tokens', limit: 1 }).totals
         .totalTokens
       const limit = (budget * threshold) / 100
       if (total < limit) return
       void this.publish({
-        eventKey: `daily-budget:${day}`,
+        eventKey: `daily-budget:${period}`,
         category: 'usage',
         kind: 'daily-budget',
         createdAt: Date.now(),
@@ -314,7 +331,7 @@ export class NotificationService extends BaseService {
         target: { kind: 'settings', tab: 'usage' }
       })
         .then((recorded) => {
-          if (recorded) this.writeState('notification:daily-budget', day)
+          if (recorded) this.writeState('notification:daily-budget', period)
         })
         .catch((error) => logger.warn('Failed to retain daily notification marker', { error }))
     } catch (error) {

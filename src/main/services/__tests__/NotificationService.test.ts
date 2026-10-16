@@ -156,6 +156,13 @@ function recordUsage(requestId: string, totalTokens: number): void {
   })
 }
 
+function changeBudgetPreference(key: string, value: number | boolean): void {
+  const previous = mocks.preferenceValues[key]
+  mocks.preferenceValues[key] = value
+  const subscription = mocks.subscribeMultipleChanges.mock.calls.findLast(([keys]) => keys.includes(key))
+  subscription?.[1](key, value, previous)
+}
+
 describe('NotificationService', () => {
   const dbh = setupTestDatabase()
   let service: InstanceType<typeof NotificationService>
@@ -578,13 +585,6 @@ describe('NotificationService', () => {
       used: '95k',
       budget: '100k'
     })
-
-    await service._doStop()
-    BaseService.resetInstances()
-    mocks.preferenceValues['app.notification.daily_budget.tokens'] = 1_000
-    await initService()
-    recordUsage('changed-budget', 100)
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
   })
 
   it.each([
@@ -600,10 +600,7 @@ describe('NotificationService', () => {
       mocks.preferenceValues[key] = before
       await initService()
       recordUsage('existing', 90_000)
-      mocks.preferenceValues[key] = after
-      for (const [keys, listener] of mocks.subscribeMultipleChanges.mock.calls) {
-        if (keys.includes(key)) listener(key, after, before)
-      }
+      changeBudgetPreference(key, after)
       if (scenario === 'service restarted') await initService()
       expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(0)
 
@@ -621,6 +618,41 @@ describe('NotificationService', () => {
         'notification.present',
         expect.objectContaining({ kind: 'daily-budget' })
       )
+    }
+  )
+
+  it.each([
+    ['app.notification.daily_budget.tokens', 100_000, 200_000],
+    ['app.notification.daily_budget.threshold', 80, 100]
+  ] as const)(
+    'rearms the daily warning after changing %s, including returning to an earlier value',
+    async (key, initial, changed) => {
+      mocks.preferenceValues['app.notification.daily_budget.tokens'] = 100_000
+      await initService()
+      recordUsage('initial-warning', 90_000)
+      const [first] = notificationRecordService.list({ category: 'usage' }).items
+      expect(first?.kind).toBe('daily-budget')
+      notificationRecordService.dismiss(first.id)
+      await Promise.resolve()
+
+      changeBudgetPreference(key, changed)
+      await initService()
+      recordUsage('below-new-limit', 1_000)
+      expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(0)
+      recordUsage('new-limit-crossed', 80_000)
+      await Promise.resolve()
+      expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
+      await initService()
+      changeBudgetPreference(key, changed)
+      recordUsage('same-limit', 1_000)
+      expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
+
+      changeBudgetPreference(key, initial)
+      expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
+      recordUsage('returned-limit', 1_000)
+      await Promise.resolve()
+      recordUsage('same-day-more', 1_000)
+      expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
     }
   )
 
