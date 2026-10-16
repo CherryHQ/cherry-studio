@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -18,6 +18,8 @@ import { truncateAll } from './internal/truncate'
 export interface TestDatabaseOptions {
   /** Seeders to run after schema init. Default: none. */
   seeders?: ISeeder[]
+  /** Initialize an older production schema, up to and including this migration tag. */
+  migrationsThrough?: string
 }
 
 export interface TestDatabaseHandle {
@@ -90,7 +92,23 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     sqlite.pragma('synchronous = NORMAL')
 
     // Same migration path as DbService.onInit(): migrations first, then custom SQL.
-    applyMigrations(db, resolveMigrationsPath())
+    let migrationsFolder = resolveMigrationsPath()
+    if (options.migrationsThrough) {
+      const source = migrationsFolder
+      const journal = JSON.parse(readFileSync(join(source, 'meta/_journal.json'), 'utf8')) as {
+        entries: Array<{ tag: string }>
+      }
+      const lastIndex = journal.entries.findIndex((entry) => entry.tag === options.migrationsThrough)
+      if (lastIndex < 0) throw new Error(`Unknown migration tag: ${options.migrationsThrough}`)
+      journal.entries = journal.entries.slice(0, lastIndex + 1)
+      migrationsFolder = join(tempDir, 'migrations')
+      mkdirSync(join(migrationsFolder, 'meta'), { recursive: true })
+      writeFileSync(join(migrationsFolder, 'meta/_journal.json'), JSON.stringify(journal))
+      for (const { tag } of journal.entries) {
+        copyFileSync(join(source, `${tag}.sql`), join(migrationsFolder, `${tag}.sql`))
+      }
+    }
+    applyMigrations(db, migrationsFolder)
 
     if (options.seeders?.length) {
       new SeedRunner(db).runAll(options.seeders)
