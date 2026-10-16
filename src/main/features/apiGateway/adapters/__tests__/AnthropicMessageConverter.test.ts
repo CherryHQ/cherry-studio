@@ -45,6 +45,20 @@ const malformedMediaTypes = [
 ]
 
 const unusableImageSources = [
+  { name: 'https URL without a host', source: { type: 'url' as const, url: 'https://' } },
+  { name: 'http URL without a host', source: { type: 'url' as const, url: 'http://' } },
+  { name: 'https URL with an empty authority', source: { type: 'url' as const, url: 'https:///path' } },
+  { name: 'https URL with an invalid host', source: { type: 'url' as const, url: 'https://[invalid]/a.png' } },
+  { name: 'http URL with a space in its path', source: { type: 'url' as const, url: 'http://example.com/a b.png' } },
+  { name: 'https URL with a trailing space', source: { type: 'url' as const, url: 'https://example.com/a.png ' } },
+  { name: 'https URL with a tab in its host', source: { type: 'url' as const, url: 'https://exam\tple.com/a.png' } },
+  {
+    name: 'https URL with a newline in its path',
+    source: { type: 'url' as const, url: 'https://example.com/a\n.png' }
+  },
+  { name: 'file URL without a path', source: { type: 'url' as const, url: 'file://' } },
+  { name: 'file URL with only a host', source: { type: 'url' as const, url: 'file://localhost' } },
+  { name: 'file URL with only a query', source: { type: 'url' as const, url: 'file://?image=a.png' } },
   { name: 'non-image data URL', source: { type: 'url' as const, url: 'data:text/plain,hello' } },
   { name: 'data URL without a media type', source: { type: 'url' as const, url: 'data:,hello' } },
   { name: 'invalid base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,not-valid-base64' } },
@@ -234,6 +248,8 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     ['data:image/png;base64,QUJD', 'image/png'],
     ['data:image/jpeg;base64,/9j/4AAQ', 'image/jpeg'],
     ['https://example.com/a.png', 'image/png'],
+    ['HTTPS://Example.com/a.png', 'image/png'],
+    ['http://Example.com/a%20b.png?token=AbC', 'image/png'],
     ['file:///tmp/a.png', 'image/png']
   ])('keeps a valid image URL in top-level and tool_result content: %s', (url, mediaType) => {
     const source = { type: 'url' as const, url }
@@ -259,14 +275,14 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   })
 
   it.each([
-    ['HTTPS://img.example/CaseSensitive.PNG?token=AbC', 'https://img.example/CaseSensitive.PNG?token=AbC'],
-    ['FILE:///tmp/CaseSensitive.PNG', 'file:///tmp/CaseSensitive.PNG'],
-    ['DATA:image/png;base64,AAAA', 'data:image/png;base64,AAAA']
-  ])('accepts %s and lowercases only its scheme', (url, expectedUrl) => {
+    'HTTPS://img.example/CaseSensitive.PNG?token=AbC',
+    'FILE:///tmp/CaseSensitive.PNG',
+    'DATA:image/png;base64,AAAA'
+  ])('accepts %s without changing its payload', (url) => {
     const msgs = converter.toUIMessages(
       params({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'url', url } }] }] })
     )
-    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url: expectedUrl }])
+    expect(msgs[0].parts).toEqual([{ type: 'file', mediaType: 'image/png', url }])
   })
 
   it.each([

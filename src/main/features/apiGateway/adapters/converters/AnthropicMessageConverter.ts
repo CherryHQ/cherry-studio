@@ -106,11 +106,25 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
     if (typeof source.url !== 'string' || !source.url.trim()) return undefined
     const prefix = /^(https?:\/\/|file:\/\/|data:)/i.exec(source.url)?.[0]
     if (!prefix) return undefined
-    const url = `${prefix.toLowerCase()}${source.url.slice(prefix.length)}`
-    if (url.startsWith('data:')) {
+    const scheme = prefix.toLowerCase()
+    const url = source.url
+    if (scheme === 'data:') {
       // Validate the effective URL and payload before forwarding it.
-      const mediaType = imageDataUrlMediaType(url)
+      const mediaType = imageDataUrlMediaType(`${scheme}${url.slice(prefix.length)}`)
       return mediaType ? { type: 'file', mediaType, url } : undefined
+    }
+    if (/\s/.test(url)) return undefined
+    try {
+      const parsed = new URL(url)
+      const afterPrefix = url.slice(prefix.length)
+      // URL parsing repairs empty authorities and synthesizes missing file paths.
+      if (scheme === 'file://') {
+        if (!parsed.pathname || !/^[^/?#]*\//.test(afterPrefix)) return undefined
+      } else if (!parsed.hostname || /^[\\/]/.test(afterPrefix)) {
+        return undefined
+      }
+    } catch {
+      return undefined
     }
     return { type: 'file', mediaType: 'image/png', url }
   }
