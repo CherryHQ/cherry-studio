@@ -81,6 +81,7 @@ export {
   read,
   type ReadableFileSnapshot,
   readChunk,
+  readTextFileWithinRoots,
   realpath,
   remove,
   removeDir,
