@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import { createToolCallLimitStopCondition } from '../toolLoopTermination'
@@ -83,6 +84,38 @@ describe('Agent', () => {
     await expect(reader.read()).resolves.toEqual({ value: source, done: false })
     await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
   })
+
+  it.each(['generate', 'stream'] as const)(
+    'classifies provider rejections and internal defects at the %s boundary',
+    async (mode) => {
+      for (const [error, reportable] of [
+        [
+          new APICallError({
+            message: 'Unauthorized',
+            url: 'https://provider.invalid',
+            requestBodyValues: { prompt: 'private prompt' },
+            statusCode: 401
+          }),
+          false
+        ],
+        [new TypeError('Cannot read network state'), true]
+      ] as const) {
+        mockMainLoggerService.error.mockClear()
+        mockCreateAgent.mockResolvedValue({ [mode]: vi.fn().mockRejectedValue(error) })
+        const agent = await makeAgent()
+        const result =
+          mode === 'generate'
+            ? agent.generate({ prompt: 'hello' })
+            : agent.stream([], new AbortController().signal).getReader().read()
+        await expect(result).rejects.toBe(error)
+        const entries = mockMainLoggerService.error.mock.calls.map(([, entry]) => entry)
+        const reports = entries.map((entry) => getSentryLogContext({ ...entry, level: 'error' })).filter(Boolean)
+        expect(reports).toHaveLength(reportable ? 1 : 0)
+        expect(error).toHaveProperty('reportingHandled', true)
+        expect(JSON.stringify(entries)).not.toContain('private prompt')
+      }
+    }
+  )
 
   describe('generate', () => {
     it('routes a trusted terminal tool failure through onError without calling onFinish', async () => {
@@ -971,9 +1004,13 @@ describe('Agent', () => {
     expect(onError).toHaveBeenCalledOnce()
     expect(onError.mock.calls[0][0].error).toBeInstanceOf(Error)
     expect(onError.mock.calls[0][0].error).toMatchObject({ message: 'You have no credits remaining.' })
-    expect(mockMainLoggerService.error).toHaveBeenCalledWith('agentLoop error', {
-      errorMessage: 'You have no credits remaining.'
-    })
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'agentLoop error',
+      expect.objectContaining({
+        errorMessage: 'You have no credits remaining.',
+        operation: 'agent.ai_sdk.stream'
+      })
+    )
     expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
   })
 
@@ -1063,7 +1100,7 @@ describe('Agent', () => {
 
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'agentLoop onError returned retry; retry not implemented — aborting',
-      { errorMessage: 'You have no credits remaining.' }
+      expect.objectContaining({ errorMessage: 'You have no credits remaining.', operation: 'agent.ai_sdk.stream' })
     )
     expect(JSON.stringify(mockMainLoggerService.warn.mock.calls)).not.toMatch(/object-secret|private prompt/)
   })

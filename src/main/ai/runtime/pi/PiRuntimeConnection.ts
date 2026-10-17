@@ -17,6 +17,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { logAiFailure } from '@main/ai/errorReporting'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
@@ -26,7 +27,6 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
-import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -67,6 +67,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
+import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
@@ -435,6 +436,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.maybeEmitResumeToken()
       return this
     } catch (error) {
+      logAiFailure(logger, 'pi startup failed', error, 'agent.pi.start', classifyPiFailure(error))
       const cleanup = await Promise.allSettled([
         this.session?.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
       ])
@@ -499,7 +501,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           if (!this.manualCompactInFlight) return
           this.manualCompactInFlight = false
           if (this.closed) return
-          logger.error('pi compact failed', error as Error)
+          logAiFailure(logger, 'pi compact failed', error, 'agent.pi.compact', classifyPiFailure(error))
           this.eventQueue.push({ type: 'error', error })
         }
       )
@@ -531,7 +533,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     void session.steer(wrappedText).catch((error) => {
       this.removePendingSteer(pending)
       if (this.closed) return
-      logger.error('pi steer failed', error as Error)
+      logAiFailure(logger, 'pi steer failed', error, 'agent.pi.steer', classifyPiFailure(error))
       this.eventQueue.push({ type: 'error', error })
     })
     return true
@@ -648,7 +650,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (delivered.length > 0) this.eventQueue.push({ type: 'steer-boundary', inputs: delivered })
     }
 
-    this.adapter.handleEvent(event)
+    try {
+      this.adapter.handleEvent(event)
+    } catch (error) {
+      logAiFailure(logger, 'Pi stream adapter failed', error, 'agent.pi.adapt', {
+        source: 'application',
+        kind: 'defect',
+        reason: 'stream_adapter_failed',
+        outcome: 'failed',
+        runtime: 'pi'
+      })
+      throw error
+    }
 
     if (event.type === 'tool_execution_end') this.endToolSpan(event)
 
@@ -707,7 +720,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       } else {
         failure = new Error(this.lastAgentError ?? 'pi agent turn failed')
       }
-      logger.error('pi prompt failed', chatErrorContext(failure))
+      logAiFailure(
+        logger,
+        'pi prompt failed',
+        failure,
+        'agent.pi.prompt',
+        classifyPiFailure(failure, { stopReason: this.lastStopReason, returnedFailure: !error })
+      )
       this.eventQueue.push({ type: 'error', error: failure })
     } else {
       this.emitContextUsage()
@@ -874,6 +893,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private handleCompactionEnd(event: Extract<AgentSessionEvent, { type: 'compaction_end' }>): void {
     if (event.errorMessage || event.aborted) {
+      logger.error('pi compaction failed', {
+        operation: 'agent.pi.compact',
+        failure: classifyPiFailure(
+          { message: event.errorMessage },
+          {
+            returnedFailure: true,
+            cancelled: event.aborted
+          }
+        )
+      })
       // A failed manual /compact is a host turn: settle it with EXACTLY ONE terminal error (never
       // turn-complete, which would report the failure as a junk empty-assistant success and feed the
       // resume-token brick). pi always emits this compaction_end before `compact()` rejects, so

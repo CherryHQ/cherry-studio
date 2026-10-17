@@ -1,4 +1,5 @@
 export { Agent } from './Agent'
+export { classifyAiSdkFailure } from './failureFacts'
 export { markTrustedLocalToolTerminalFailure } from './loop/localToolTerminalOutcome'
 export type { AgentLoopHooks } from './loop/types'
 export { mergeUsage, ZERO_USAGE } from './observers/usage'

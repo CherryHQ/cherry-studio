@@ -25,6 +25,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { logAiFailure } from '@main/ai/errorReporting'
 import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '@main/ai/mcp/servers/factory'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -47,6 +48,7 @@ import { createInProcessMcpConnection } from './connections/InProcessMcpConnecti
 import type { McpConnection, McpConnectionEvents, McpInteractionContext } from './connections/McpConnection'
 import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './connections/McpConnection'
 import type { McpResourceObservationState } from './connections/McpConnection'
+import { classifyMcpFailure, McpConfigurationError } from './failureFacts'
 import { isMcpCancellation } from './mcpAbort'
 import type { McpPackageService } from './McpPackageService'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
@@ -338,19 +340,19 @@ export class McpRuntimeService extends BaseService {
       toolsChanged: (error, tools) => {
         if (!current()) return
         if (error) {
-          getServerLogger(server).warn('Failed to refresh changed tools', { error })
+          this.logFailure(server, 'mcp.tools.refresh', error)
           return
         }
         if (tools) this._onToolListChanged.fire({ serverId: server.id, tools })
       },
       promptsChanged: (error) => {
         if (!current()) return
-        if (error) getServerLogger(server).warn('Failed to refresh changed prompts', { error })
+        if (error) this.logFailure(server, 'mcp.prompts.refresh', error)
         else this._onCatalogChanged.fire({ serverId: server.id, kind: 'prompts' })
       },
       resourcesChanged: (error) => {
         if (!current()) return
-        if (error) getServerLogger(server).warn('Failed to refresh changed resources', { error })
+        if (error) this.logFailure(server, 'mcp.resources.refresh', error)
         else this._onCatalogChanged.fire({ serverId: server.id, kind: 'resources' })
       },
       resourceUpdated: (uri) => {
@@ -418,6 +420,37 @@ export class McpRuntimeService extends BaseService {
     })
   }
 
+  private logFailure(server: McpServer, operation: string, error: unknown, signal?: AbortSignal): void {
+    const failure = classifyMcpFailure(
+      error,
+      mcpTransportKind(server) !== 'inMemory',
+      signal ? isMcpCancellation(error, signal) : false
+    )
+    logAiFailure(
+      getServerLogger(server),
+      failure.outcome === 'cancelled' ? 'MCP operation cancelled' : 'MCP operation failed',
+      error,
+      operation,
+      failure,
+      {},
+      failure.outcome === 'cancelled' ? 'debug' : 'error'
+    )
+  }
+
+  private async runRequest<T>(
+    server: McpServer,
+    operation: string,
+    run: () => Promise<T>,
+    signal?: AbortSignal
+  ): Promise<T> {
+    try {
+      return await run()
+    } catch (error) {
+      this.logFailure(server, operation, error, signal)
+      throw error
+    }
+  }
+
   private async getOrCreateConnection(
     server: McpServer,
     requestContext?: McpInteractionContext | null,
@@ -428,7 +461,7 @@ export class McpRuntimeService extends BaseService {
     if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
     if (!server.isActive) {
       this.setServerStatus(server.id, 'disabled')
-      throw new Error(`MCP server ${server.name} is disabled`)
+      throw new McpConfigurationError(`MCP server ${server.name} is disabled`)
     }
 
     const serverKey = this.getServerKey(server)
@@ -493,6 +526,7 @@ export class McpRuntimeService extends BaseService {
         if (!cancelled && !this.stopping && !this.removedServerIds.has(server.id)) {
           this.recordConnectionFailure(server, error, interactive)
         }
+        this.logFailure(server, 'mcp.connect', error, controller.signal)
         this.setServerStatus(server.id, 'error', error)
         this.emitServerLog(server, {
           timestamp: Date.now(),
@@ -544,11 +578,11 @@ export class McpRuntimeService extends BaseService {
         await existing.health()
       } catch (error) {
         assertCurrent()
-        getServerLogger(server).warn('Existing MCP connection failed health check', { error })
+        this.logFailure(server, 'mcp.health', error)
         this.recordConnectionFailure(server, error, false)
         this.setServerStatus(server.id, 'error', error)
         await this.closeConnection(serverKey, existing).catch((closeError) => {
-          getServerLogger(server).warn('Failed to close unhealthy MCP connection', { error: closeError })
+          this.logFailure(server, 'mcp.close', closeError)
         })
         throw error
       }
@@ -565,11 +599,13 @@ export class McpRuntimeService extends BaseService {
 
   public async listTools(serverId: string, cacheMode: CacheMode = 'use'): Promise<Tool[]> {
     const server = this.getServerById(serverId)
-    const connection = await this.getOrCreateConnection(server, null)
-    const tools = await connection.listTools(cacheMode)
-    if (this.connections.get(this.getServerKey(server)) !== connection)
-      throw new DOMException('MCP connection replaced', 'AbortError')
-    return tools
+    return this.runRequest(server, 'mcp.tools.list', async () => {
+      const connection = await this.getOrCreateConnection(server, null)
+      const tools = await connection.listTools(cacheMode)
+      if (this.connections.get(this.getServerKey(server)) !== connection)
+        throw new DOMException('MCP connection replaced', 'AbortError')
+      return tools
+    })
   }
 
   public async observeResource(serverId: string, uri: string, onState: (state: McpResourceObservationState) => void) {
@@ -720,13 +756,13 @@ export class McpRuntimeService extends BaseService {
             try {
               normalizedArgs = JSON.parse(normalizedArgs)
             } catch (error) {
-              throw new Error(`Invalid JSON tool arguments for ${name}: ${(error as Error).message}`)
+              throw new McpConfigurationError(`Invalid JSON tool arguments for ${name}: ${(error as Error).message}`)
             }
           }
         }
 
         if (isMcpToolDisabledBySource(this.getLatestSourcePolicy(server), { name })) {
-          throw new Error(`MCP tool is disabled: ${name}`)
+          throw new McpConfigurationError(`MCP tool is disabled: ${name}`)
         }
 
         getServerLogger(server, { tool: name, callId: toolCallId }).debug('Calling tool', {
@@ -754,14 +790,16 @@ export class McpRuntimeService extends BaseService {
             }
           }
         })
-        if (response.isError) return response
+        if (response.isError) {
+          getServerLogger(server).warn('MCP tool returned an error', {
+            operation: 'mcp.tools.call',
+            failure: { source: 'tool', kind: 'expected', reason: 'tool_result_error', outcome: 'failed' }
+          })
+          return response
+        }
         return clampToolResultImages(response, getServerLogger(server, { tool: name, callId: toolCallId }))
       } catch (error) {
-        if (isMcpCancellation(error, effectiveSignal)) {
-          getServerLogger(server, { tool: name, callId: toolCallId }).debug('Tool call aborted')
-        } else {
-          getServerLogger(server, { tool: name, callId: toolCallId }).error('Error calling tool', error as Error)
-        }
+        this.logFailure(server, 'mcp.tools.call', error, effectiveSignal)
         throw error
       } finally {
         const registered = this.activeToolCalls.get(registrationKey)
@@ -795,24 +833,30 @@ export class McpRuntimeService extends BaseService {
       method === 'tools/call' &&
       isMcpToolDisabledBySource(this.getLatestSourcePolicy(server), { name: String(params.name) })
     ) {
-      throw new Error(`MCP tool is disabled: ${String(params.name)}`)
+      const error = new McpConfigurationError(`MCP tool is disabled: ${String(params.name)}`)
+      this.logFailure(server, 'mcp.forward', error)
+      throw error
     }
     const policy = resolveMcpRequestOptions(server)
-    const result = await (
-      await this.getOrCreateConnection(server, null, options.signal)
-    ).forwardRequest(method, params, {
-      ...options,
-      toolDefinition:
-        method === 'tools/call'
-          ? application
-              .get('McpCatalogService')
-              .listTools(server.id, { includeDisabled: true })
-              .find((tool) => tool.name === params.name)
-          : undefined,
-      timeoutMs: policy.timeout,
-      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
-      maxTotalTimeoutMs: policy.maxTotalTimeout
-    })
+    const result = await this.runRequest(
+      server,
+      'mcp.forward',
+      async () =>
+        (await this.getOrCreateConnection(server, null, options.signal)).forwardRequest(method, params, {
+          ...options,
+          toolDefinition:
+            method === 'tools/call'
+              ? application
+                  .get('McpCatalogService')
+                  .listTools(server.id, { includeDisabled: true })
+                  .find((tool) => tool.name === params.name)
+              : undefined,
+          timeoutMs: policy.timeout,
+          resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+          maxTotalTimeoutMs: policy.maxTotalTimeout
+        }),
+      options.signal
+    )
     if (method === 'tools/call' && !isInputRequiredResult(result) && 'content' in result) {
       return clampToolResultImages(result as CallToolResult, getServerLogger(server))
     }
@@ -830,7 +874,7 @@ export class McpRuntimeService extends BaseService {
         serverName: server.name
       }))
     } catch (error) {
-      getServerLogger(server).error('Failed to list prompts', error as Error)
+      this.logFailure(server, 'mcp.prompts.list', error)
       return []
     }
   }
@@ -852,18 +896,26 @@ export class McpRuntimeService extends BaseService {
     const server = this.getServerById(serverId)
     const policy = resolveMcpRequestOptions(server)
     const host = this.resolveInteractionContext(server.id, interactionContext)
-    return (await this.getOrCreateConnection(server, host ?? null, signal)).getPrompt(name, args, {
-      signal: signal ?? new AbortController().signal,
-      timeoutMs: policy.timeout,
-      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
-      maxTotalTimeoutMs: policy.maxTotalTimeout,
-      interactionContext: host
-    })
+    return this.runRequest(
+      server,
+      'mcp.prompts.get',
+      async () =>
+        (await this.getOrCreateConnection(server, host ?? null, signal)).getPrompt(name, args, {
+          signal: signal ?? new AbortController().signal,
+          timeoutMs: policy.timeout,
+          resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+          maxTotalTimeoutMs: policy.maxTotalTimeout,
+          interactionContext: host
+        }),
+      signal
+    )
   }
 
   public async listResourceTemplates(serverId: string, cacheMode: CacheMode = 'use') {
     const server = this.getServerById(serverId)
-    const templates = await (await this.getOrCreateConnection(server, null)).listResourceTemplates(cacheMode)
+    const templates = await this.runRequest(server, 'mcp.resources.templates', async () =>
+      (await this.getOrCreateConnection(server, null)).listResourceTemplates(cacheMode)
+    )
     return templates.map((template) => ({ ...template, serverId: server.id, serverName: server.name }))
   }
 
@@ -877,7 +929,7 @@ export class McpRuntimeService extends BaseService {
         serverName: server.name
       }))
     } catch (error) {
-      getServerLogger(server).error('Failed to list resources', error as Error)
+      this.logFailure(server, 'mcp.resources.list', error)
       throw error
     }
   }
@@ -899,15 +951,19 @@ export class McpRuntimeService extends BaseService {
     const server = this.getServerById(serverId)
     const policy = resolveMcpRequestOptions(server)
     const host = this.resolveInteractionContext(server.id, interactionContext)
-    const result = await (
-      await this.getOrCreateConnection(server, host ?? null, signal)
-    ).readResource(uri, cacheMode, {
-      signal: signal ?? new AbortController().signal,
-      timeoutMs: policy.timeout,
-      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
-      maxTotalTimeoutMs: policy.maxTotalTimeout,
-      interactionContext: host
-    })
+    const result = await this.runRequest(
+      server,
+      'mcp.resources.read',
+      async () =>
+        (await this.getOrCreateConnection(server, host ?? null, signal)).readResource(uri, cacheMode, {
+          signal: signal ?? new AbortController().signal,
+          timeoutMs: policy.timeout,
+          resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+          maxTotalTimeoutMs: policy.maxTotalTimeout,
+          interactionContext: host
+        }),
+      signal
+    )
     return {
       contents: result.contents.map((content) => ({
         ...content,
@@ -1201,6 +1257,7 @@ export class McpRuntimeService extends BaseService {
       await this.getOrCreateConnection(server)
       await application.get('McpCatalogService').refreshTools(server.id)
     } catch (error) {
+      this.logFailure(server, 'mcp.restart', error)
       this.setServerStatus(server.id, 'error', error)
       throw error
     }

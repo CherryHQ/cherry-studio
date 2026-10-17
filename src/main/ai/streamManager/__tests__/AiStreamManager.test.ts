@@ -3347,14 +3347,19 @@ describe('AiStreamManager', () => {
       expect(listener.errorResults[0].error).toEqual({
         name: null,
         message: 'You have no credits remaining.',
-        stack: null
+        stack: null,
+        reportingHandled: true
       })
       expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
-      expect(mockMainLoggerService.error).toHaveBeenCalledWith('Execution loop error', {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        err: { errorMessage: 'You have no credits remaining.' }
-      })
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        'Execution loop error',
+        expect.objectContaining({
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          errorMessage: 'You have no credits remaining.',
+          operation: 'chat.stream.consume'
+        })
+      )
       expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
       expect(mgr.inspect('a')!.status).toBe('error')
     })
@@ -3430,6 +3435,7 @@ describe('AiStreamManager', () => {
         name: 'AI_APICallError',
         message: 'no access to this model',
         providerErrorCategory: 'permission',
+        reportingHandled: true,
         stack: null,
         cause: null,
         url: '',

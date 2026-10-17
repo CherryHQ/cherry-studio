@@ -1,5 +1,5 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { CancellationToken } from 'builder-util-runtime'
+import { CancellationError, CancellationToken, HttpError } from 'builder-util-runtime'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
@@ -8,6 +8,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { regionService } from '@main/services/RegionService'
@@ -16,7 +17,9 @@ import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { AppEdition } from '@shared/types/appEdition'
+import type { FailureFacts } from '@shared/types/errorReporting'
 import { APP_NAME } from '@shared/utils/constants'
+import { isCancellation } from '@shared/utils/errorReporting'
 import {
   hasMultiLanguageReleaseNotes,
   localizeReleaseNotes,
@@ -26,6 +29,46 @@ import {
 } from '@shared/utils/releaseNotes'
 
 const logger = loggerService.withContext('AppUpdaterService')
+
+export function classifyUpdateFailure(error: unknown): FailureFacts {
+  if (error instanceof CancellationError || isCancellation(error)) {
+    return { source: 'environment', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
+  }
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+  if (error instanceof HttpError && ![401, 403, 408, 429].includes(error.statusCode) && !error.isServerError()) {
+    return { source: 'application', kind: 'reliability', reason: 'update_feed_invalid', outcome: 'failed' }
+  }
+  if (
+    error instanceof HttpError ||
+    (typeof code === 'string' &&
+      [
+        'ENOTFOUND',
+        'EAI_AGAIN',
+        'ECONNREFUSED',
+        'ECONNRESET',
+        'ETIMEDOUT',
+        'ENETUNREACH',
+        'EHOSTUNREACH',
+        'EACCES',
+        'EPERM',
+        'ENOSPC'
+      ].includes(code))
+  ) {
+    return { source: 'environment', kind: 'expected', reason: 'update_unavailable', outcome: 'failed' }
+  }
+  if (typeof code === 'string' && (code.startsWith('ERR_UPDATER_') || code === 'ERR_CHECKSUM_MISMATCH')) {
+    return { source: 'application', kind: 'reliability', reason: 'update_package_invalid', outcome: 'failed' }
+  }
+  return {
+    source: 'application',
+    kind:
+      error instanceof TypeError || error instanceof ReferenceError || error instanceof SyntaxError
+        ? 'defect'
+        : 'unknown',
+    reason: 'update_failed',
+    outcome: 'failed'
+  }
+}
 
 type ReleaseRegion = 'cn' | 'global'
 
@@ -144,7 +187,7 @@ export class AppUpdaterService extends BaseService {
 
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
-      logger.error('update error', error)
+      logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', error)
     }
     autoUpdater.on('error', onError)
@@ -361,7 +404,7 @@ export class AppUpdaterService extends BaseService {
     try {
       return await this.performUpdateCheck()
     } catch (error) {
-      logger.error('Failed to check for update:', error as Error)
+      logFailure(logger, 'Failed to check for update:', error, 'update.check', classifyUpdateFailure(error))
       return {
         currentVersion: app.getVersion(),
         updateInfo: null
