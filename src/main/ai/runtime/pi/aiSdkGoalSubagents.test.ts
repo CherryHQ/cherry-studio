@@ -2,7 +2,8 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { SubagentPort, ToolApprovalEvent } from '../src'
+import type { SubagentPort, ToolApprovalEvent } from '@cherrystudio/agent-runtime-pi'
+
 import {
   goalPort,
   lastSnapshot,
@@ -12,7 +13,7 @@ import {
   rounds,
   roundStart,
   snapshots
-} from './goalSupport'
+} from './aiSdkGoalSupport'
 import {
   gate,
   NOTE,
@@ -28,9 +29,9 @@ import {
   toolResults,
   untilStopped,
   waitFor
-} from './subagentSupport'
-import { finish, plain, tempDir } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { finish, plain, tempDir } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
 /** A background launch; the description never holds the task marker the routes look for. */
 const bg = (id: string, task: string) =>
@@ -472,7 +473,7 @@ describe('goal and background subagents', () => {
     await live.dispose()
     hung.open()
 
-    const { session: s, host } = await openGoalSession(model, port, { cwd, subagents, transcript })
+    const { session: s, host } = await openGoalSession(model, port, { cwd, subagents, entries: transcript })
     await s.prompt('/goal')
     // Round 1's two requests (2002 + 12), A's request (502) and the notification turn's (12).
     expect(notices(host.entries).at(-1)).toContain('Phase: active · disarmed\nRounds: 1/100 · Tokens: 2528 ·')
@@ -568,7 +569,7 @@ describe('goal and background subagents', () => {
     await crashed.dispose()
     hung.open()
 
-    const { session: s, host } = await openGoalSession(model, port, { cwd, subagents, transcript })
+    const { session: s, host } = await openGoalSession(model, port, { cwd, subagents, entries: transcript })
     await promptIdle(s, 'Where were we?')
     expect(trailingUserTexts(calls.at(-1)!)).toEqual(['Where were we?', expect.stringContaining('REPORT-A')])
     // The parent's round-1 request (10 + 2 cached + 5) and A's one request (5000 + 2 cached).
@@ -626,7 +627,11 @@ describe('goal and background subagents', () => {
     await live.dispose()
     hung.open()
 
-    const { session: s, host: store } = await openGoalSession(model, port, { cwd, subagents: host.port, transcript })
+    const { session: s, host: store } = await openGoalSession(model, port, {
+      cwd,
+      subagents: host.port,
+      entries: transcript
+    })
     await promptIdle(s, 'Where were we?')
     expect(trailingUserTexts(calls.at(-1)!)).toEqual(['Where were we?', expect.stringContaining('REPORT-B')])
     // Rounds 1 and 2 (three requests of 12 tokens) and B's request (5000 + 2 cached).

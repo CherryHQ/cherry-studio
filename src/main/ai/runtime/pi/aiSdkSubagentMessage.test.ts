@@ -14,9 +14,9 @@ import {
   toolCallPart,
   toolResultOf,
   waitFor
-} from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, hostStore, streamTextPort } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 

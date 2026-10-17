@@ -1,13 +1,9 @@
-import { randomUUID } from 'node:crypto'
-
-import type { AssistantMessage, Usage } from '@earendil-works/pi-ai'
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
-import type { ToolCallPart } from 'ai'
+import type { AssistantMessage, ToolCall, Usage } from '@earendil-works/pi-ai'
+import type { ExtensionFactory, ModelRuntime, SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 
 import type { AgentRuntimeModel, AgentRuntimeSession } from './session'
+import type { AgentRuntimeEvent } from './sessionEvents'
 import type { Subagent, SubagentSessionOptions } from './subagent'
-import type { TranscriptEntry, TranscriptMessageEntry, TranscriptStateEntry } from './transcript'
-import type { AgentRuntimeEvent } from './transcriptTap'
 
 /** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
 export const SUBAGENT_TOOL_NAME = 'subagent'
@@ -47,8 +43,8 @@ export interface SubagentOrigin {
 
 /** What a subagent's session overrides in the parent's options. */
 export interface SubagentSessionOverrides {
-  sessionId: string
-  transcript: TranscriptEntry[]
+  sessionManager: SessionManager
+  modelRuntime?: ModelRuntime
   extensionFactories: NonNullable<SubagentSessionOptions['extensionFactories']>
   onEvent: ((event: AgentRuntimeEvent) => void) | undefined
   model: AgentRuntimeModel
@@ -118,100 +114,46 @@ export class SubagentInbox {
   }
 }
 
-const PLACEHOLDER = 'This tool call was still running when the subagent started; its result is not available here.'
-
-const plainJson = <T>(value: T): T => JSON.parse(JSON.stringify(value))
-
-function toolCallsOf(entry: TranscriptEntry): ToolCallPart[] {
-  if (entry.kind !== 'message' || entry.message.role !== 'assistant' || typeof entry.message.content === 'string')
-    return []
-  return entry.message.content.filter((part): part is ToolCallPart => part.type === 'tool-call')
-}
-
-/**
- * The parent's transcript up to the assistant message holding `toolCallId`, every call of that
- * message answered by the same placeholder, so sibling forks send the same prefix.
- */
-export function forkTranscript(entries: readonly TranscriptEntry[], toolCallId: string): TranscriptEntry[] {
-  // Last: some providers reuse call ids across turns, and the running call is in the latest message.
-  const index = entries.findLastIndex((entry) => toolCallsOf(entry).some((call) => call.toolCallId === toolCallId))
-  if (index < 0) throw new Error(`No assistant message holds the call ${toolCallId}.`)
-  const assistant = entries[index]
-  const placeholders = toolCallsOf(assistant).map(
-    (call, i): TranscriptMessageEntry => ({
-      id: `${assistant.id}-fork-${i}`,
-      timestamp: assistant.timestamp,
-      kind: 'message',
-      message: {
-        role: 'tool',
-        content: [
-          {
-            type: 'tool-result',
-            toolCallId: call.toolCallId,
-            toolName: call.toolName,
-            output: { type: 'text', value: PLACEHOLDER }
-          }
-        ]
-      }
-    })
-  )
-  return [...entries.slice(0, index + 1), ...placeholders]
-}
-
 const INTERRUPTED =
   'This tool call was interrupted (the app closed or the turn was stopped); its result is unknown. Check the current state before relying on it.'
 
-/** The origin entry of a stored subagent transcript. */
-export function readOrigin(entries: readonly TranscriptEntry[]): SubagentOrigin | undefined {
-  const entry = entries.find((candidate) => candidate.kind === 'state' && candidate.type === SUBAGENT_ORIGIN_STATE)
-  return entry?.kind === 'state' ? (entry.data as unknown as SubagentOrigin) : undefined
+/** Origin persisted in the native child branch. */
+export function readOrigin(entries: readonly SessionEntry[]): SubagentOrigin | undefined {
+  const entry = entries.find(
+    (candidate) => candidate.type === 'custom' && candidate.customType === SUBAGENT_ORIGIN_STATE
+  )
+  return entry?.type === 'custom' ? (entry.data as SubagentOrigin) : undefined
 }
 
-/**
- * Results for the calls of the transcript's last reply that never got one (the app closed while
- * they ran). Pi would answer them itself, as if the call had failed for no reason.
- */
-export function answerInterrupted(entries: readonly TranscriptEntry[]): TranscriptMessageEntry[] {
-  const index = entries.findLastIndex((entry) => entry.kind === 'message' && entry.message.role === 'assistant')
-  const reply = entries[index]
-  // Pi leaves failed and aborted replies out of requests, and their calls with them.
-  if (index < 0 || reply.kind !== 'message' || reply.stopReason === 'error' || reply.stopReason === 'aborted') return []
+/** Close unfinished calls in the native branch before a continuation starts. */
+export function answerInterrupted(manager: SessionManager): void {
+  const entries = manager.getBranch()
+  const index = entries.findLastIndex((entry) => entry.type === 'message' && entry.message.role === 'assistant')
+  const entry = entries[index]
+  if (entry?.type !== 'message' || entry.message.role !== 'assistant') return
+  const reply = entry.message
+  if (reply.stopReason === 'error' || reply.stopReason === 'aborted') return
   const answered = new Set(
     entries
       .slice(index + 1)
       .flatMap((entry) =>
-        entry.kind === 'message' && entry.message.role === 'tool'
-          ? entry.message.content.flatMap((part) => (part.type === 'tool-result' ? [part.toolCallId] : []))
-          : []
+        entry.type === 'message' && entry.message.role === 'toolResult' ? [entry.message.toolCallId] : []
       )
   )
-  return toolCallsOf(reply)
-    .filter((call) => !answered.has(call.toolCallId))
-    .map((call) => ({
-      id: randomUUID(),
-      timestamp: Date.now(),
-      kind: 'message',
-      message: {
-        role: 'tool',
-        content: [
-          {
-            type: 'tool-result',
-            toolCallId: call.toolCallId,
-            toolName: call.toolName,
-            output: { type: 'error-text', value: INTERRUPTED }
-          }
-        ]
-      }
-    }))
+  for (const call of reply.content.filter((part): part is ToolCall => part.type === 'toolCall')) {
+    if (!answered.has(call.id))
+      manager.appendMessage({
+        role: 'toolResult',
+        toolCallId: call.id,
+        toolName: call.name,
+        content: [{ type: 'text', text: INTERRUPTED }],
+        isError: true,
+        timestamp: Date.now()
+      })
+  }
 }
 
-export const originEntry = (origin: SubagentOrigin): TranscriptStateEntry => ({
-  id: `subagent-origin-${origin.parentToolCallId}`,
-  timestamp: Date.now(),
-  kind: 'state',
-  type: SUBAGENT_ORIGIN_STATE,
-  data: { ...origin }
-})
+export const nativeModelKey = (model: AgentRuntimeModel): string => `${model.provider}/${model.id}`
 
 /** The model a subagent runs on (spec §6.7). */
 export function pickModel(
@@ -220,9 +162,9 @@ export function pickModel(
   parentModel: AgentRuntimeModel
 ): AgentRuntimeModel {
   if (subagent.modelKey !== undefined) {
-    if (options.model?.key === subagent.modelKey) return options.model
+    if (options.model && nativeModelKey(options.model) === subagent.modelKey) return options.model
     // A host that never picks models runs every subagent on the parent's model.
-    if (!options.model && subagent.modelKey === parentModel.key) return parentModel
+    if (!options.model && subagent.modelKey === nativeModelKey(parentModel)) return parentModel
     throw new Error(`The subagent needs the model ${subagent.modelKey}, which the app did not provide.`)
   }
   // A fork shares the parent's prompt cache, which another model cannot use.
@@ -230,29 +172,21 @@ export function pickModel(
   return options.model ?? parentModel
 }
 
-/**
- * Builds a subagent's session. The entries the host has not stored yet (a new subagent's fork
- * prefix and origin entry, a continuation's answers to interrupted calls) go to its `onEvent` first,
- * so the host's copy is the whole transcript.
- */
+/** Opens native child storage; its manager owns persistence before observation starts. */
 export async function openChild(input: {
-  subagent: Subagent
   options: SubagentSessionOptions
   model: AgentRuntimeModel
-  /** The whole transcript the session starts from. */
-  transcript: TranscriptEntry[]
-  /** Its entries the host has not stored yet. */
-  handOff: TranscriptEntry[]
+  sessionManager: SessionManager
+  fork: boolean
   inbox: SubagentInbox
   createSession: CreateSubagentSession
 }): Promise<AgentRuntimeSession> {
-  const { subagent, options, transcript } = input
-  if (input.handOff.length > 0) options.onEvent?.({ type: 'transcript-append', entries: plainJson(input.handOff) })
+  const { options } = input
   const limit = new RequestLimit()
   const child = await input.createSession({
-    sessionId: subagent.sessionId,
-    transcript,
-    fork: subagent.fork,
+    sessionManager: input.sessionManager,
+    modelRuntime: options.modelRuntime,
+    fork: input.fork,
     extensionFactories: [input.inbox.extension, ...(options.extensionFactories ?? [])],
     onEvent: options.onEvent,
     model: input.model,

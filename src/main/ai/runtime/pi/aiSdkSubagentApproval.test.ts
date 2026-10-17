@@ -2,7 +2,8 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { SubagentPort, ToolApprovalEvent } from '../src'
+import type { SubagentPort, ToolApprovalEvent } from '@cherrystudio/agent-runtime-pi'
+
 import {
   gate,
   recordingSubagentPort,
@@ -13,9 +14,9 @@ import {
   toolCallPart,
   toolResultOf,
   waitFor
-} from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, hostStore, streamTextPort } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 

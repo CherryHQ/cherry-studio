@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AgentRuntimeModel, SubagentModelCandidate, SubagentPort } from '../src'
+import type { AgentRuntimeModel, SubagentModelCandidate, SubagentPort } from '@cherrystudio/agent-runtime-pi'
+
 import {
   recordingSubagentPort,
   reply,
@@ -10,17 +11,17 @@ import {
   toolCallPart,
   toolResultOf,
   waitFor
-} from './subagentSupport'
-import { createTestSession, finish, MODEL, streamTextPort } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, MODEL, streamTextPort } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
-const SONNET_OR: AgentRuntimeModel = { ...MODEL, provider: 'openrouter', key: 'or::sonnet', id: 'sonnet-4.5' }
-const SONNET_AN: AgentRuntimeModel = { ...MODEL, provider: 'anthropic', key: 'an::sonnet', id: 'claude-sonnet-4-5' }
-const DEFAULT_SUB: AgentRuntimeModel = { ...MODEL, provider: 'cherry', key: 'cherry::small', id: 'small-model' }
+const SONNET_OR: AgentRuntimeModel = { ...MODEL, provider: 'openrouter', id: 'sonnet-4.5' }
+const SONNET_AN: AgentRuntimeModel = { ...MODEL, provider: 'anthropic', id: 'claude-sonnet-4-5' }
+const DEFAULT_SUB: AgentRuntimeModel = { ...MODEL, provider: 'cherry', id: 'small-model' }
 const MODELS = [SONNET_OR, SONNET_AN, DEFAULT_SUB]
 const CATALOG = [
-  { key: SONNET_OR.key, provider: 'OpenRouter', model: 'Claude Sonnet 4.5' },
-  { key: SONNET_AN.key, provider: 'Anthropic', model: 'Claude Sonnet 4.5' },
+  { key: `${SONNET_OR.provider}/${SONNET_OR.id}`, provider: 'OpenRouter', model: 'Claude Sonnet 4.5' },
+  { key: `${SONNET_AN.provider}/${SONNET_AN.id}`, provider: 'Anthropic', model: 'Claude Sonnet 4.5' },
   { key: 'or::gpt', provider: 'OpenRouter', model: 'GPT-5' }
 ]
 
@@ -42,7 +43,7 @@ function modelPort(fallback?: AgentRuntimeModel, store = recordingSubagentPort()
     findModels,
     async configure(subagent) {
       const options = await store.port.configure(subagent)
-      const named = MODELS.find((model) => model.key === subagent.modelKey)
+      const named = MODELS.find((model) => `${model.provider}/${model.id}` === subagent.modelKey)
       const model = subagent.modelKey === undefined ? fallback : named
       return { ...options, ...(model ? { model } : {}) }
     }
@@ -76,10 +77,13 @@ describe('subagent models', () => {
     const { session } = await createTestSession({ port, subagents: host.port })
     await session.prompt('Delegate')
 
-    expect(host.subagents[0].modelKey).toBe(SONNET_OR.key)
+    expect(host.subagents[0].modelKey).toBe(`${SONNET_OR.provider}/${SONNET_OR.id}`)
     expect(childRequests(requests, session.sessionId).map((request) => request.model.id)).toEqual(['sonnet-4.5'])
-    const origin = host.events.get(host.subagents[0].sessionId)![0]
-    expect(origin).toMatchObject({ type: 'transcript-append', entries: [{ data: { modelKey: SONNET_OR.key } }] })
+    const origin = host.sessions
+      .get(host.subagents[0].sessionId)!
+      .sessionManager.getBranch()
+      .find((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-origin')
+    expect(origin).toMatchObject({ data: { modelKey: `${SONNET_OR.provider}/${SONNET_OR.id}` } })
   })
 
   // Breaks when the package picks a provider for the user among several matches.
@@ -117,7 +121,7 @@ describe('subagent models', () => {
     await session.prompt('Delegate')
 
     expect(textOf(toolResultOf(session, 'call_a'))).toBe(
-      'The subagent needs the model or::sonnet, which the app did not provide.'
+      'The subagent needs the model openrouter/sonnet-4.5, which the app did not provide.'
     )
   })
 
@@ -144,9 +148,13 @@ describe('subagent models', () => {
     expect(childRequests(firstPort.requests, one.session.sessionId).map((request) => request.model.id)).toEqual([
       'small-model'
     ])
-    expect(withDefault.events.get(withDefault.subagents[0].sessionId)![0]).toMatchObject({
-      entries: [{ data: { modelKey: DEFAULT_SUB.key } }]
-    })
+    expect(withDefault.sessions.get(withDefault.subagents[0].sessionId)!.sessionManager.getBranch()).toContainEqual(
+      expect.objectContaining({
+        type: 'custom',
+        customType: 'cherry.subagent-origin',
+        data: expect.objectContaining({ modelKey: `${DEFAULT_SUB.provider}/${DEFAULT_SUB.id}` })
+      })
+    )
 
     const withoutDefault = modelPort()
     const second = delegating({})
@@ -178,7 +186,7 @@ describe('subagent models', () => {
     await session.prompt('Again')
     await waitFor(() => calls.some((call) => call.lastText.includes('REPORT-2')))
 
-    expect(host.subagents[1].modelKey).toBe(DEFAULT_SUB.key)
+    expect(host.subagents[1].modelKey).toBe(`${DEFAULT_SUB.provider}/${DEFAULT_SUB.id}`)
     expect(new Set(childRequests(requests, session.sessionId).map((request) => request.model.id))).toEqual(
       new Set(['small-model'])
     )

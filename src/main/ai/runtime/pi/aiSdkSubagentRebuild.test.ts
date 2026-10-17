@@ -1,7 +1,8 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { SUBAGENT_STATUS_TYPE } from '../src'
+import { SUBAGENT_STATUS_TYPE } from '@cherrystudio/agent-runtime-pi'
+
 import {
   gate,
   NOTE,
@@ -18,9 +19,9 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './subagentSupport'
-import { createTestSession, finish, hostStore, plain, streamTextPort, tempDir } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, hostStore, plain, streamTextPort, tempDir } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
@@ -59,7 +60,7 @@ describe('subagents after a rebuild', () => {
       cwd,
       port: streamTextPort(model).port,
       subagents: host.port,
-      transcript: plain(first.entries),
+      entries: plain(first.entries),
       onEvent: second.onEvent
     })
     // Only a delivery could start a run, and nothing delivers before the user's next message.
@@ -77,7 +78,7 @@ describe('subagents after a rebuild', () => {
       cwd,
       port: streamTextPort(model).port,
       subagents: host.port,
-      transcript: plain([...first.entries, ...second.entries])
+      entries: plain([...first.entries, ...second.entries])
     })
     await again.prompt('And now?')
     expect(lastTwoTexts(calls.at(-1)!)[1]).toBe('And now?')
@@ -118,7 +119,7 @@ describe('subagents after a rebuild', () => {
       cwd,
       port: streamTextPort(model).port,
       subagents: host.port,
-      transcript: plain(first.entries)
+      entries: plain(first.entries)
     })
     await rebuilt.prompt('Where were we?')
 
@@ -159,7 +160,7 @@ describe('subagents after a rebuild', () => {
       port: streamTextPort(model).port,
       subagents: host.port,
       extensionFactories: [roundCommand],
-      transcript: plain(first.entries)
+      entries: plain(first.entries)
     })
     const sent = calls.length
     for (let turn = 0; turn < 2; turn++) {
@@ -209,7 +210,7 @@ describe('subagents after a rebuild', () => {
       cwd,
       port: streamTextPort(model).port,
       subagents: host.port,
-      transcript: plain(first.entries),
+      entries: plain(first.entries),
       onEvent: second.onEvent
     })
     await rebuilt.prompt('Go on with A')
@@ -260,7 +261,7 @@ describe('subagents after a rebuild', () => {
       port: streamTextPort(model).port,
       tools: [stopTurn],
       subagents: host.port,
-      transcript: plain(first.entries),
+      entries: plain(first.entries),
       onEvent: second.onEvent
     })
     await rebuilt.prompt('Where were we?')
@@ -274,7 +275,7 @@ describe('subagents after a rebuild', () => {
       port: streamTextPort(model).port,
       tools: [stopTurn],
       subagents: host.port,
-      transcript: plain([...first.entries, ...second.entries])
+      entries: plain([...first.entries, ...second.entries])
     })
     await again.prompt('And now?')
     expect(lastTwoTexts(calls.at(-1)!)[1]).toBe('And now?')
@@ -326,7 +327,7 @@ describe('subagents after a rebuild', () => {
       port: streamTextPort(model).port,
       tools: [stopTurn],
       subagents: host.port,
-      transcript: plain(first.entries),
+      entries: plain(first.entries),
       onEvent: second.onEvent
     })
     await rebuilt.prompt('Where were we?')
@@ -341,7 +342,7 @@ describe('subagents after a rebuild', () => {
       port: streamTextPort(model).port,
       tools: [stopTurn],
       subagents: host.port,
-      transcript: plain([...first.entries, ...second.entries])
+      entries: plain([...first.entries, ...second.entries])
     })
     await again.prompt('And now?')
     expect(lastTwoTexts(calls.at(-1)!)[1]).toBe('And now?')
@@ -377,7 +378,7 @@ describe('subagents after a rebuild', () => {
       cwd,
       port: streamTextPort(model).port,
       subagents: host.port,
-      transcript: plain(first.entries)
+      entries: plain(first.entries)
     })
     await rebuilt.prompt('Ask A again')
 
@@ -411,7 +412,7 @@ describe('subagent status after a compaction', () => {
 
     const status = `Background subagent status (automatic message, not from the user):\n- "Check A" (id: ${host.subagents[0].sessionId}): running\nRunning subagents report back on their own when they finish: do not start them again, and do not wait for or poll them.`
     const kinds = parent.entries.map((entry) =>
-      entry.kind === 'message' ? (entry.custom?.type ?? entry.message.role) : entry.kind
+      entry.type === 'message' ? entry.message.role : entry.type === 'custom_message' ? entry.customType : entry.type
     )
     expect(kinds.slice(kinds.indexOf('compaction'), kinds.indexOf('compaction') + 2)).toEqual([
       'compaction',
