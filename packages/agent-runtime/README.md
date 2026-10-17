@@ -1,0 +1,17 @@
+# Agent runtime contracts
+
+Harness-neutral contracts for accessing a thread, submitting native input, observing normalized
+facts, interrupting foreground work, and releasing access/resources. This package has no Pi,
+Electron, AI SDK, or application dependency and does not schedule agent execution.
+
+`Thread` is the stable native context identity within a backend. `ThreadHandle` is a live access
+with submit, observation and release operations; releasing it does not delete the thread or abort
+its work. The host stores product-session relationships separately from native context storage.
+
+`ThreadFeed` is a protocol utility: one normalized snapshot, ordered per-observer delivery,
+bounded pending frames, explicit overflow gaps, and observer error isolation. It owns no native
+queue or execution lifecycle. Adapters maintain source identity before publishing events.
+
+Pi-specific APIs previously in this package live in `@cherrystudio/agent-runtime-pi`. Pi Durable
+has a separate adapter in `@cherrystudio/agent-runtime-pi-durable`. Neither adapter is wired into
+the desktop app yet. See the [interface design](../../docs/superpowers/specs/2026-10-17-agent-runtime-ownership-and-behavior.md).
