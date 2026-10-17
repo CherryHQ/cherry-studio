@@ -19,6 +19,7 @@ import {
 } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 /** Check if model has reasoning capability */
 export const isReasoningModel = (model: Model): boolean =>
@@ -98,6 +99,15 @@ export const isNonChatModel = (model: Model): boolean =>
   isGenerateAudioModel(model) ||
   isTextToSpeechModel(model) ||
   isSpeechToTextModel(model)
+
+/** Whether a model can describe video frames in the media preprocessing pipeline. */
+export const isVideoVisionSelectableModel = (
+  model: Model,
+  provider?: Pick<Provider, 'id' | 'presetProviderId'> | null
+): boolean => {
+  if (!provider || !isVisionModel(model) || isNonChatModel(model)) return false
+  return provider.id !== 'qiniu' && provider.presetProviderId !== 'qiniu'
+}
 
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's

@@ -29,6 +29,8 @@ export interface NativeFileSupport {
   readonly pdf: boolean
   readonly audio: boolean
   readonly video: boolean
+  /** Audio MIME types the converter accepts. Absent: any resolved audio MIME stays native when `audio` is true. */
+  readonly audioMediaTypes?: readonly string[]
 }
 
 /** Resolved request routing needed to identify the actual AI SDK converter. */
@@ -92,9 +94,17 @@ const OPENAI_CHAT_MEDIA_PROVIDER_IDS = new Set<AppProviderId>([
   'google-vertex-maas'
 ])
 
+/** Installed OpenAI chat and OpenAI-compatible converters accept these audio types and throw for the rest. */
+const OPENAI_CHAT_AUDIO_MEDIA_TYPES = ['audio/wav', 'audio/mp3', 'audio/mpeg'] as const
+
 interface NativeAudioVideoSupport {
   readonly audio: boolean
   readonly video: boolean
+  readonly audioMediaTypes?: readonly string[]
+}
+
+function openAiChatAudioVideo(): NativeAudioVideoSupport {
+  return { audio: true, video: false, audioMediaTypes: OPENAI_CHAT_AUDIO_MEDIA_TYPES }
 }
 
 function resolveNativeAudioVideoSupport(
@@ -107,16 +117,11 @@ function resolveNativeAudioVideoSupport(
     return { audio: false, video: false }
   }
   if (NATIVE_AUDIO_VIDEO_PROVIDER_IDS.has(runtimeProviderId)) return { audio: true, video: true }
-  if (OPENAI_CHAT_MEDIA_PROVIDER_IDS.has(runtimeProviderId)) return { audio: true, video: false }
+  if (OPENAI_CHAT_MEDIA_PROVIDER_IDS.has(runtimeProviderId)) return openAiChatAudioVideo()
 
   // Multi-backend providers retain their own provider id, so their resolved
   // endpoint is the source of truth for which converter they select internally.
-  if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
-    // Chat-completions supports a subset of audio MIME types, but no video.
-    // Keep the existing boolean audio contract permissive rather than rejecting
-    // working WAV/MP3 input; MIME-aware routing is a separate concern.
-    return { audio: true, video: false }
-  }
+  if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) return openAiChatAudioVideo()
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
     return { audio: true, video: true }
   }
@@ -159,6 +164,7 @@ export function resolveNativeFileSupport(
     image: isVisionModel(model),
     pdf: supportsNativePdf(provider, model, routing.aiSdkProviderId),
     audio: mediaSupport.audio && isAudioModel(model),
-    video: mediaSupport.video && isVideoModel(model)
+    video: mediaSupport.video && isVideoModel(model),
+    ...(mediaSupport.audioMediaTypes ? { audioMediaTypes: mediaSupport.audioMediaTypes } : {})
   }
 }

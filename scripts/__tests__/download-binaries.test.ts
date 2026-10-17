@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 /**
  * Build-script coverage for download-binaries.js: the `zip-tree` extraction mode
  * (real extraction against a committed fixture, no fs mocking — the platform
@@ -8,12 +10,14 @@ import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // CJS build script — vitest interops the module.exports fine.
 import {
   cachedVersionDir,
+  downloadTool,
   extract,
   materialize,
   sweepUnreferencedVersions,
@@ -65,7 +69,218 @@ describe('extract – zip-tree mode', () => {
   })
 })
 
-describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
+const LINUX_FFMPEG_TREE: Record<string, string> = {
+  'bin/ffmpeg': 'ffmpeg',
+  'bin/ffprobe': 'ffprobe',
+  'lib/libavcodec.so.61': 'avcodec',
+  'lib/libswscale.so.8': 'swscale',
+  'licenses/ffmpeg/COPYING.LGPLv2.1': 'LGPL',
+  'SOURCE.txt': 'source',
+  'manifest.json': '{"tag":"ffmpeg-lgpl-v8.1.2-r1"}',
+  'lib/pkgconfig/extra.pc': 'unlisted'
+}
+
+function writeRelativeFiles(root: string, files: Record<string, string>) {
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = path.join(root, rel)
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, content)
+  }
+}
+
+function makeStrippedLinuxArchive(files: Record<string, string>): string {
+  const parent = makeTmpDir('dl-linux-src-')
+  const top = 'ffmpeg-lgpl-v8.1.2-linux-x64'
+  writeRelativeFiles(path.join(parent, top), files)
+  const archivePath = path.join(makeTmpDir('dl-linux-archive-'), 'ffmpeg.tar.gz')
+  execFileSync('tar', ['czf', archivePath, '-C', parent, top])
+  return archivePath
+}
+
+describe('extract – Linux FFmpeg tar tree', () => {
+  const linuxPkg = () =>
+    (
+      TOOLS.find((tool) => tool.name === 'ffmpeg') as {
+        packages: Record<string, { dir: string; stripComponents: number; tree: unknown }>
+      }
+    ).packages['linux-x64']
+
+  it('keeps the stripped bin, lib, license, source, and manifest tree', () => {
+    const outputDir = makeTmpDir('dl-linux-out-')
+    const stale = path.join(outputDir, 'ffmpeg', 'lib', 'old.so')
+    fs.mkdirSync(path.dirname(stale), { recursive: true })
+    fs.writeFileSync(stale, 'stale')
+
+    extract(makeStrippedLinuxArchive(LINUX_FFMPEG_TREE), 'tar.gz', outputDir, linuxPkg())
+
+    const root = path.join(outputDir, 'ffmpeg')
+    expect(fs.readFileSync(path.join(root, 'bin', 'ffmpeg'), 'utf8')).toBe('ffmpeg')
+    expect(fs.readFileSync(path.join(root, 'bin', 'ffprobe'), 'utf8')).toBe('ffprobe')
+    expect(fs.readFileSync(path.join(root, 'lib', 'libavcodec.so.61'), 'utf8')).toBe('avcodec')
+    expect(fs.readFileSync(path.join(root, 'lib', 'libswscale.so.8'), 'utf8')).toBe('swscale')
+    expect(fs.readFileSync(path.join(root, 'licenses', 'ffmpeg', 'COPYING.LGPLv2.1'), 'utf8')).toBe('LGPL')
+    expect(fs.readFileSync(path.join(root, 'SOURCE.txt'), 'utf8')).toBe('source')
+    expect(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8')).toContain('ffmpeg-lgpl-v8.1.2-r1')
+    expect(fs.readFileSync(path.join(root, 'lib', 'pkgconfig', 'extra.pc'), 'utf8')).toBe('unlisted')
+    expect(fs.existsSync(path.join(outputDir, 'ffmpeg'))).toBe(true)
+    expect(fs.existsSync(path.join(outputDir, 'bin'))).toBe(false)
+    expect(fs.existsSync(stale)).toBe(false)
+  })
+
+  it('rejects a stripped tree with no replaceable libav library', () => {
+    const outputDir = makeTmpDir('dl-linux-out-')
+    const withoutLibav = { ...LINUX_FFMPEG_TREE }
+    delete withoutLibav['lib/libavcodec.so.61']
+
+    expect(() => extract(makeStrippedLinuxArchive(withoutLibav), 'tar.gz', outputDir, linuxPkg())).toThrow(
+      /lib\/libav\*\.so\*/
+    )
+  })
+})
+
+describe('extract – flat tar.gz mode', () => {
+  it('preserves every declared FFmpeg runtime and license file with stripComponents=0', () => {
+    const fixtureDir = makeTmpDir('dl-tar-source-')
+    const outputDir = makeTmpDir('dl-tar-output-')
+    const archivePath = path.join(makeTmpDir('dl-tar-archive-'), 'ffmpeg.tar.gz')
+    const files = ['ffmpeg', 'ffprobe', 'COPYING.LGPLv2.1', 'SOURCE.txt']
+    for (const file of files) fs.writeFileSync(path.join(fixtureDir, file), file, 'utf8')
+    execFileSync('tar', ['czf', archivePath, '-C', fixtureDir, '.'])
+
+    extract(archivePath, 'tar.gz', outputDir, { binaries: files, stripComponents: 0 })
+
+    expect(
+      Object.fromEntries(files.map((file) => [file, fs.readFileSync(path.join(outputDir, file), 'utf8')]))
+    ).toEqual(Object.fromEntries(files.map((file) => [file, file])))
+  })
+
+  it('adds a repository-owned license companion that is not present in the archive', () => {
+    const fixtureDir = makeTmpDir('dl-tar-source-')
+    const outputDir = makeTmpDir('dl-tar-output-')
+    const archivePath = path.join(makeTmpDir('dl-tar-archive-'), 'ffmpeg.tar.gz')
+    const archiveFiles = ['ffmpeg', 'ffprobe']
+    for (const file of archiveFiles) fs.writeFileSync(path.join(fixtureDir, file), file, 'utf8')
+    execFileSync('tar', ['czf', archivePath, '-C', fixtureDir, '.'])
+    const sha256 = createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex')
+    const platformKey = 'win32-x64'
+    const exception = 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'
+
+    downloadTool(
+      {
+        name: 'ffmpeg-fixture',
+        version: '1',
+        versionFile: '.ffmpeg-version',
+        packages: {
+          [platformKey]: {
+            url: pathToFileURL(archivePath).toString(),
+            archive: 'tar.gz',
+            stripComponents: 0,
+            binaries: [...archiveFiles, exception],
+            archiveFiles,
+            localFiles: [{ source: `scripts/packaging/licenses/${exception}`, name: exception }],
+            executableFiles: archiveFiles,
+            sha256
+          }
+        }
+      },
+      platformKey,
+      outputDir,
+      { versionFile: '.ffmpeg-version' }
+    )
+
+    expect(fs.readFileSync(path.join(outputDir, exception), 'utf8')).toContain('GCC RUNTIME LIBRARY EXCEPTION')
+    expect(fs.readFileSync(path.join(outputDir, '.ffmpeg-version'), 'utf8')).toBe('1')
+  })
+})
+
+describe('FFmpeg bundle manifest', () => {
+  const ffmpeg = TOOLS.find((tool) => tool.name === 'ffmpeg')!
+  const packages = ffmpeg.packages as Record<
+    string,
+    {
+      binaries: string[]
+      archiveFiles?: string[]
+      localFiles?: Array<{ source: string; name: string }>
+      executableFiles: string[]
+      url: string
+      sha256: string
+      dir?: string
+      stripComponents?: number
+      version?: string
+      tree?: {
+        executables: string[]
+        sharedLibraries: string[]
+        notices: string[]
+      }
+    }
+  >
+
+  it('pins a package with license and source notices for every flat target', () => {
+    expect(ffmpeg.supportedPlatforms).toEqual([
+      'darwin-arm64',
+      'darwin-x64',
+      'win32-arm64',
+      'win32-x64',
+      'linux-x64',
+      'linux-arm64'
+    ])
+    expect(Object.keys(packages).sort()).toEqual([
+      'darwin-arm64',
+      'darwin-x64',
+      'linux-arm64',
+      'linux-x64',
+      'win32-arm64',
+      'win32-x64'
+    ])
+    for (const [platform, pkg] of Object.entries(packages)) {
+      if (platform.startsWith('linux-')) continue
+      expect(pkg.binaries).toContain('COPYING.LGPLv2.1')
+      expect(pkg.binaries).toContain('SOURCE.txt')
+      expect(pkg.executableFiles).toHaveLength(2)
+      expect(pkg.dir).toBeUndefined()
+    }
+  })
+
+  it.each(['x64', 'arm64'] as const)('pins the immutable Linux %s shared tree', (arch) => {
+    const pkg = packages[`linux-${arch}`]
+    const checksums = {
+      x64: '1de031a8774b7b10b2e823be50bbed52be27bf89a46b7cf8b33cc48cfb5143d2',
+      arm64: 'e579ec85a8fe6206030e2f0ca1a9b699d3a9db03c7eb1987f5b0aa1083d04f5d'
+    }
+    expect(pkg.url).toBe(
+      `https://github.com/CherryHQ/cherry-studio-ffmpeg-lgpl/releases/download/ffmpeg-lgpl-v8.1.2-r1/ffmpeg-lgpl-v8.1.2-linux-${arch}.tar.gz`
+    )
+    expect(pkg.sha256).toBe(checksums[arch])
+    expect(pkg.stripComponents).toBe(1)
+    expect(pkg.dir).toBe('ffmpeg')
+    expect(pkg.version).toBe('ffmpeg-lgpl-v8.1.2-r1')
+    expect(pkg.executableFiles).toEqual(['ffmpeg/bin/ffmpeg', 'ffmpeg/bin/ffprobe'])
+    expect(pkg.tree).toEqual({
+      executables: ['bin/ffmpeg', 'bin/ffprobe'],
+      sharedLibraries: ['lib/libav*.so*', 'lib/libsw*.so*'],
+      notices: ['licenses/**', 'SOURCE.txt', 'manifest.json']
+    })
+  })
+
+  it('uses the stable x64 Windows artifact and ships its runtime DLLs for arm64 emulation', () => {
+    const x64 = packages['win32-x64']
+    const arm64 = packages['win32-arm64']
+    expect(arm64.url).toBe(x64.url)
+    expect(arm64.sha256).toBe(x64.sha256)
+    expect(arm64.binaries).toEqual(
+      expect.arrayContaining(['libopenh264-7.dll', 'libstdc++-6.dll', 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'])
+    )
+    expect(arm64.archiveFiles).not.toContain('GCC-RUNTIME-LIBRARY-EXCEPTION.txt')
+    expect(arm64.localFiles).toEqual([
+      {
+        source: 'scripts/packaging/licenses/GCC-RUNTIME-LIBRARY-EXCEPTION.txt',
+        name: 'GCC-RUNTIME-LIBRARY-EXCEPTION.txt'
+      }
+    ])
+  })
+})
+
+describe('verifyBundledBinaries – supported platform rule', () => {
   const mise = TOOLS.find((tool) => tool.name === 'mise')!
 
   /** A resources dir with the given files pre-created under <platformKey>/. */
@@ -99,11 +314,11 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
     name: 'mingit',
     version: '2.54.0',
     versionFile: '.mingit-version',
-    isWindowsOnly: true,
+    supportedPlatforms: ['win32-x64'],
     packages: { 'win32-x64': { binaries: ['git/cmd/git.exe'] } }
   }
 
-  it('does not flag an isWindowsOnly tool that has no package on a non-Windows platform', () => {
+  it('does not flag a tool outside its supported platforms', () => {
     const resourcesDir = makeCompleteBundle('linux-x64', regularTool)
 
     expect(() =>
@@ -119,7 +334,7 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
     )
   })
 
-  it('still verifies the isWindowsOnly tool binaries on Windows targets', () => {
+  it('still verifies a tool on its supported platform', () => {
     // Package declared for win32-x64 but git.exe missing on disk → must fail.
     const resourcesDir = makeCompleteBundle('win32-x64', regularTool)
 
@@ -233,6 +448,63 @@ describe('materialize – assembling the bundle from the shared cache', () => {
 
     expect(fs.readFileSync(path.join(bundle, 'bun'), 'utf8')).toBe('working binary from an earlier run')
     expect(fs.existsSync(path.join(bundle, '.bun-version'))).toBe(true)
+  })
+
+  it('materializes the Linux FFmpeg tree and publishes the LGPL tag', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    const tool = {
+      name: 'ffmpeg',
+      version: '8.1.2-27',
+      versionFile: '.ffmpeg-version',
+      packages: {
+        'linux-x64': {
+          dir: 'ffmpeg',
+          version: 'ffmpeg-lgpl-v8.1.2-r1',
+          binaries: ['ffmpeg/bin/ffmpeg', 'ffmpeg/bin/ffprobe'],
+          executableFiles: ['ffmpeg/bin/ffmpeg', 'ffmpeg/bin/ffprobe']
+        }
+      }
+    }
+    const versionDir = cachedVersionDir(cache, 'linux-x64', tool)
+    writeRelativeFiles(path.join(versionDir, 'ffmpeg'), LINUX_FFMPEG_TREE)
+    fs.mkdirSync(path.join(bundle, 'ffmpeg', 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(bundle, 'ffmpeg', 'bin', 'dropped'), 'from an older version')
+
+    materialize([tool], 'linux-x64', cache, bundle)
+
+    expect(fs.readFileSync(path.join(bundle, '.ffmpeg-version'), 'utf8')).toBe('ffmpeg-lgpl-v8.1.2-r1')
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'lib', 'libavcodec.so.61'), 'utf8')).toBe('avcodec')
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'licenses', 'ffmpeg', 'COPYING.LGPLv2.1'), 'utf8')).toBe('LGPL')
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'manifest.json'), 'utf8')).toContain('ffmpeg-lgpl-v8.1.2-r1')
+    expect(fs.existsSync(path.join(bundle, 'ffmpeg', 'bin', 'dropped'))).toBe(false)
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(path.join(bundle, 'ffmpeg', 'bin', 'ffmpeg')).mode & 0o111).not.toBe(0)
+      expect(fs.statSync(path.join(bundle, 'ffmpeg', 'bin', 'ffprobe')).mode & 0o111).not.toBe(0)
+    }
+  })
+
+  it('keeps an existing FFmpeg bundle when the cached version holds only resumable staging', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    const ffmpeg = TOOLS.find((tool) => tool.name === 'ffmpeg')!
+    const platformKey = 'linux-x64'
+    const versionDir = cachedVersionDir(cache, platformKey, ffmpeg)
+    const partial = path.join(versionDir, '.staging-resume', 'ffmpeg', 'ffmpeg-lgpl-v8.1.2-linux-x64.tar.gz')
+    fs.mkdirSync(path.dirname(partial), { recursive: true })
+    fs.writeFileSync(partial, 'partial transfer')
+    fs.mkdirSync(path.join(bundle, 'ffmpeg', 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(bundle, 'ffmpeg', 'bin', 'ffmpeg'), 'usable ffmpeg')
+    fs.writeFileSync(path.join(bundle, 'ffmpeg', 'bin', 'ffprobe'), 'usable ffprobe')
+    fs.writeFileSync(path.join(bundle, '.ffmpeg-version'), 'previous-usable')
+
+    materialize([ffmpeg], platformKey, cache, bundle)
+
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'bin', 'ffmpeg'), 'utf8')).toBe('usable ffmpeg')
+    expect(fs.readFileSync(path.join(bundle, 'ffmpeg', 'bin', 'ffprobe'), 'utf8')).toBe('usable ffprobe')
+    expect(fs.readFileSync(path.join(bundle, '.ffmpeg-version'), 'utf8')).toBe('previous-usable')
+    expect(fs.existsSync(path.join(versionDir, 'ffmpeg'))).toBe(false)
+    expect(fs.readFileSync(partial, 'utf8')).toBe('partial transfer')
   })
 
   it('mirrors a whole tree and drops files a shrinking release removed', () => {

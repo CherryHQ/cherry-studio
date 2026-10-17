@@ -797,7 +797,7 @@ export class BinaryManager extends BaseService {
 
     for (const tool of BUNDLED_TOOLS) {
       try {
-        const binaries = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
+        const executables = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
           getBinaryName(bin)
         )
         const versionPath = path.join(bundledDir, tool.versionFile)
@@ -807,7 +807,7 @@ export class BinaryManager extends BaseService {
           continue
         }
 
-        const missingBundled = binaries.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
+        const missingBundled = executables.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
         if (missingBundled.length > 0) {
           logger.error(
             `Expected bundled ${tool.name} binaries missing`,
@@ -821,12 +821,12 @@ export class BinaryManager extends BaseService {
         // against partial deletions / AV quarantine of secondary binaries
         // (e.g. uvx alongside uv).
         const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
-        const allDestsPresent = binaries.every((b) => fs.existsSync(path.join(binDir, b)))
+        const allDestsPresent = executables.every((bin) => fs.existsSync(path.join(binDir, bin)))
         if (allDestsPresent && bundledVersion === installedVersion) continue
 
         // Copy each binary via dest.tmp + rename so an EBUSY on Windows
         // (binary in use) doesn't leave a half-written file at `dest`.
-        for (const bin of binaries) {
+        for (const bin of executables) {
           const src = path.join(bundledDir, bin)
           const dest = path.join(binDir, bin)
           const tmp = `${dest}.tmp-${process.pid}`

@@ -126,6 +126,53 @@ describe('resolveNativeFileSupport', () => {
 
     expect(ns.audio).toBe(true)
     expect(ns.video).toBe(false)
+    expect(ns.audioMediaTypes).toEqual(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+  })
+
+  it('records OpenAI chat audio MIME types without restricting converters that pass MIME through', () => {
+    const model = makeModel({
+      id: 'provider::multimodal',
+      apiModelId: 'multimodal',
+      name: 'multimodal',
+      capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION, MODEL_CAPABILITY.VIDEO_RECOGNITION]
+    })
+    const chat = resolveNativeFileSupport(makeProvider({ id: 'openai' }), model, {
+      aiSdkProviderId: 'openai-chat',
+      runtimeProviderId: 'openai-chat',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    const compatible = resolveNativeFileSupport(makeProvider({ id: 'hub' }), model, {
+      aiSdkProviderId: 'openai-compatible',
+      runtimeProviderId: 'openai-compatible',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    const chatEndpoint = resolveNativeFileSupport(makeProvider({ id: 'aihubmix' }), model, {
+      aiSdkProviderId: 'aihubmix',
+      runtimeProviderId: 'aihubmix',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    const google = resolveNativeFileSupport(makeProvider({ id: 'google' }), model, {
+      aiSdkProviderId: 'google',
+      runtimeProviderId: 'google',
+      endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    })
+    const openrouter = resolveNativeFileSupport(makeProvider({ id: 'openrouter' }), model, {
+      aiSdkProviderId: 'openrouter',
+      runtimeProviderId: 'openrouter',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+
+    expect(chat.audioMediaTypes).toEqual(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+    expect(compatible.audioMediaTypes).toEqual(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+    expect(chatEndpoint.audio).toBe(true)
+    expect(chatEndpoint.video).toBe(false)
+    expect(chatEndpoint.audioMediaTypes).toEqual(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+    expect(google.audio).toBe(true)
+    expect(google.video).toBe(true)
+    expect(google.audioMediaTypes).toBeUndefined()
+    expect(openrouter.audio).toBe(true)
+    expect(openrouter.video).toBe(true)
+    expect(openrouter.audioMediaTypes).toBeUndefined()
   })
 
   it('forces text for providers known to break on native files (qiniu)', () => {
