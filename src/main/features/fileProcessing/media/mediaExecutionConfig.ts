@@ -55,13 +55,6 @@ export interface MediaExecutionConfig {
   pipelineVersion: typeof MEDIA_PIPELINE_VERSION
 }
 
-export class MediaAnalysisConfigError extends Error {
-  constructor(readonly code: 'unsupported_asr_model' | 'invalid_vision_model') {
-    super(code)
-    this.name = 'MediaAnalysisConfigError'
-  }
-}
-
 function resolveAsrExecutionConfig(): MediaAsrExecutionConfig | null {
   const preferences = application.get('PreferenceService')
   const rawModelId = preferences.get('feature.voice.recognition.model_id').trim()
@@ -111,13 +104,13 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
   const raw = application.get('PreferenceService').get('feature.file_processing.default_video_vision_model')
   if (!raw) return null
   const parsed = UniqueModelIdSchema.safeParse(raw)
-  if (!parsed.success) throw new MediaAnalysisConfigError('invalid_vision_model')
+  if (!parsed.success) return null
 
   try {
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
     const model = modelService.getByKey(providerId, modelId)
     const provider = providerService.getByProviderId(providerId)
-    if (!isVideoVisionSelectableModel(model, provider)) throw new MediaAnalysisConfigError('invalid_vision_model')
+    if (!isVideoVisionSelectableModel(model, provider)) return null
     const endpoint = resolveEffectiveEndpoint(provider, model)
     const { sdkConfig } = await resolveSdkConfig(provider, model, endpoint)
     return {
@@ -132,9 +125,8 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
         modelId: sdkConfig.modelId
       }
     }
-  } catch (error) {
-    if (error instanceof MediaAnalysisConfigError) throw error
-    throw new MediaAnalysisConfigError('invalid_vision_model')
+  } catch {
+    return null
   }
 }
 

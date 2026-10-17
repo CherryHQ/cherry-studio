@@ -23,6 +23,8 @@ vi.mock('@main/features/fileProcessing/config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: state.resolveProcessor
 }))
 
+import { modelService } from '@data/services/ModelService'
+
 import {
   hashMediaExecutionConfig,
   resolveMediaExecutionConfig,
@@ -100,6 +102,18 @@ describe('resolveMediaExecutionConfig', () => {
       optionsJson: '{"lang":"en"}'
     })
     expect(config.vision).toBeNull()
+  })
+
+  it('keeps ASR when a selected video vision model has been deleted', async () => {
+    state.preferences.set('feature.file_processing.default_video_vision_model', 'openai::gpt-4o')
+    vi.mocked(modelService.getByKey).mockImplementation(() => {
+      throw new Error('Model not found')
+    })
+
+    const config = await resolveMediaExecutionConfig()
+
+    expect(config.vision).toBeNull()
+    expect(config.asr).toEqual({ modelId: APPLE_ASR_MODEL_ID })
   })
 })
 
