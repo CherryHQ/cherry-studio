@@ -41,6 +41,7 @@ import { installBundledDevtools } from '@main/core/devtools'
 import {
   captureRequestBody,
   describeHttpRequest,
+  getEffectiveFetchRequestContentType,
   type MainNetworkDevtoolsEvent,
   MainNetworkDevtoolsService,
   redactHeaders,
@@ -203,12 +204,111 @@ describe('MainNetworkDevtoolsService helpers', () => {
   })
 
   it('captures and redacts common request body shapes', () => {
+    expect(getEffectiveFetchRequestContentType(undefined, 'plain message')).toBe('text/plain;charset=UTF-8')
+    expect(getEffectiveFetchRequestContentType({}, 'plain message')).toBe('text/plain;charset=UTF-8')
+    expect(getEffectiveFetchRequestContentType({ 'Content-Type': 'application/json' }, 'plain message')).toBe(
+      'application/json'
+    )
+    expect(
+      captureRequestBody('plain message', getEffectiveFetchRequestContentType({}, 'plain message'))?.contentType
+    ).toBe('text/plain;charset=UTF-8')
+
     expect(captureRequestBody('{"api_key":"secret","prompt":"hi"}', 'application/json')?.text).toBe(
       '{"api_key":"<redacted>","prompt":"hi"}'
     )
     expect(captureRequestBody(new URLSearchParams({ token: 'secret', query: 'hello' }))?.text).toBe(
       'token=%3Credacted%3E&query=hello'
     )
+  })
+
+  it('marks multipart FormData bodies as non-replayable display summaries', () => {
+    const formData = new FormData()
+    formData.append('file', new Blob(['hello'], { type: 'text/plain' }), 'doc.txt')
+
+    expect(captureRequestBody(formData)).toMatchObject({
+      replayable: false,
+      note: 'Multipart FormData cannot be exported as cURL.'
+    })
+  })
+
+  it('truncates large multipart FormData display summaries like other text bodies', () => {
+    const formData = new FormData()
+    formData.append('prompt', 'x'.repeat(200 * 1024))
+
+    const captured = captureRequestBody(formData)
+    expect(captured?.text?.length).toBe(128 * 1024)
+    expect(captured).toMatchObject({
+      truncated: true,
+      replayable: false,
+      note: 'Multipart FormData cannot be exported as cURL.'
+    })
+  })
+
+  it('marks content-encoded request bodies as non-replayable', () => {
+    expect(captureRequestBody('{"prompt":"hi"}', 'application/json', { 'content-encoding': 'gzip' })).toMatchObject({
+      replayable: false,
+      note: 'Content-encoded request bodies cannot be replayed from capture.'
+    })
+  })
+
+  it('preserves large JSON integers in display while marking the body non-replayable', () => {
+    const captured = captureRequestBody('{"record_id":9007199254740993,"api_key":"secret"}', 'application/json')
+
+    expect(captured?.text).toContain('9007199254740993')
+    expect(captured?.text).toContain('"api_key":"<redacted>"')
+    expect(captured).toMatchObject({
+      replayable: false,
+      note: 'JSON integer precision cannot be preserved for cURL replay.'
+    })
+  })
+
+  it('marks decimal and exponent JSON identifiers as non-replayable', () => {
+    expect(captureRequestBody('{"record_id":9007199254740993.0}', 'application/json')).toMatchObject({
+      replayable: false
+    })
+    expect(captureRequestBody('{"record_id":9.007199254740993e15}', 'application/json')).toMatchObject({
+      replayable: false
+    })
+  })
+
+  it('redacts non-string sensitive JSON values when preserving integer literals', () => {
+    const captured = captureRequestBody(
+      '{"record_id":9007199254740993,"credentials":{"value":"secret"},"token":["secret"],"code":123456}',
+      'application/json'
+    )
+
+    expect(captured?.text).toContain('9007199254740993')
+    expect(captured?.text).toContain('"credentials":"<redacted>"')
+    expect(captured?.text).toContain('"token":"<redacted>"')
+    expect(captured?.text).toContain('"code":"<redacted>"')
+    expect(captured?.text).not.toContain('secret')
+  })
+
+  it('redacts a sensitive parent whole even when nested sensitive keys sit under it', () => {
+    const captured = captureRequestBody(
+      '{"id":9007199254740993,"credentials":{"token":0,"key":0,"pass":0,"value":"TOP_SECRET"}}',
+      'application/json'
+    )
+
+    expect(captured?.text).toContain('9007199254740993')
+    expect(captured?.text).toContain('"credentials":"<redacted>"')
+    expect(captured?.text).not.toContain('TOP_SECRET')
+  })
+
+  it('marks root-level and fractional precision-losing JSON numbers as non-replayable', () => {
+    expect(captureRequestBody('9007199254740993', 'application/json')).toMatchObject({ replayable: false })
+    expect(captureRequestBody('{"record_id":9007199254740992.5}', 'application/json')).toMatchObject({
+      replayable: false
+    })
+    expect(captureRequestBody('{"n":1.50,"m":42}', 'application/json')).not.toMatchObject({ replayable: false })
+  })
+
+  it('marks gzip-compressed binary JSON bodies as non-replayable', () => {
+    const body = Buffer.from('{"prompt":"hi"}', 'utf8')
+    expect(captureRequestBody(body, 'application/json', { 'content-encoding': 'gzip' })).toMatchObject({
+      replayable: false,
+      note: 'Content-encoded request bodies cannot be replayed from capture.'
+    })
   })
 
   it('allows only registered DevTools extension origins', () => {
