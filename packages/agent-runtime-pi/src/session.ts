@@ -132,6 +132,8 @@ async function buildSession(
   const settingsManager = SettingsManager.inMemory({
     ...options.settings,
     ...required?.settings,
+    // Pi's cache warmer requests bypass `agent.streamFunction`, where a subagent's requests are counted.
+    ...(beforeModelRequest && { cacheWarming: 'off' as const }),
     ...(compaction && {
       compaction: {
         enabled: compaction.enabled ?? true,
