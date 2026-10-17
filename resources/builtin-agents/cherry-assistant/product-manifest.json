@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "1b44511badb438e6",
-    "count": 66,
+    "version": "01cb7bfd2dd2c90d",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -590,6 +590,10 @@
       {
         "id": "new-api",
         "name": "New API"
+      },
+      {
+        "id": "llmman",
+        "name": "llmman"
       },
       {
         "id": "lmstudio",

@@ -3156,6 +3156,7 @@
   "provider.jina": "Jina",
   "provider.lanyun": "LANYUN",
   "provider.litellm": "LiteLLM",
+  "provider.llmman": "llmman",
   "provider.lmstudio": "LM Studio",
   "provider.local-embedding": "Yerel Modeller",
   "provider.longcat": "LongCat AI",

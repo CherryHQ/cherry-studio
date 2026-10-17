@@ -92,6 +92,7 @@ export const PROVIDER_ICON_LOADERS = {
   lingxi: () => import('./lingxi').then(({ LingxiIcon }) => LingxiIcon),
   liquid: () => import('./liquid').then(({ LiquidIcon }) => LiquidIcon),
   litellm: () => import('./litellm/litellm').then(({ LitellmIcon }) => LitellmIcon),
+  llmman: () => import('./llmman/llmman').then(({ LlmmanIcon }) => LlmmanIcon),
   lmstudio: () => import('./lmstudio').then(({ LmstudioIcon }) => LmstudioIcon),
   longcat: () => import('./longcat').then(({ LongcatIcon }) => LongcatIcon),
   macos: () => import('./macos').then(({ MacosIcon }) => MacosIcon),

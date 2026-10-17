@@ -91,6 +91,7 @@ import { LeptonIcon } from './lepton'
 import { LingxiIcon } from './lingxi'
 import { LiquidIcon } from './liquid'
 import { LitellmIcon } from './litellm/litellm'
+import { LlmmanIcon } from './llmman/llmman'
 import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
 import { MacosIcon } from './macos'
@@ -258,6 +259,7 @@ export const PROVIDER_ICON_CATALOG = {
   lingxi: LingxiIcon,
   liquid: LiquidIcon,
   litellm: LitellmIcon,
+  llmman: LlmmanIcon,
   lmstudio: LmstudioIcon,
   longcat: LongcatIcon,
   macos: MacosIcon,

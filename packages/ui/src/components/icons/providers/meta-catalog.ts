@@ -89,6 +89,7 @@ import { meta as leptonMeta } from './lepton/meta'
 import { meta as lingxiMeta } from './lingxi/meta'
 import { meta as liquidMeta } from './liquid/meta'
 import { meta as litellmMeta } from './litellm/meta'
+import { meta as llmmanMeta } from './llmman/meta'
 import { meta as lmstudioMeta } from './lmstudio/meta'
 import { meta as longcatMeta } from './longcat/meta'
 import { meta as macosMeta } from './macos/meta'
@@ -255,6 +256,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   lingxi: lingxiMeta,
   liquid: liquidMeta,
   litellm: litellmMeta,
+  llmman: llmmanMeta,
   lmstudio: lmstudioMeta,
   longcat: longcatMeta,
   macos: macosMeta,
