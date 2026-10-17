@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { SubagentPort, ToolApprovalEvent } from '@cherrystudio/agent-runtime-pi'
 
 import {
+  askAtTurnEnd,
   goalPort,
   lastSnapshot,
   notices,
@@ -308,6 +309,71 @@ describe('goal and background subagents', () => {
       "The goal's budget is used up; background subagents cannot be started."
     )
     expect(lastSnapshot(host.entries)).toMatchObject({ lastStop: { code: 'budget_exhausted' } })
+  })
+
+  /** A goal whose round 1 launches C, then replies with 214 tokens in all: past the default 100-token budget. */
+  async function launchThenSpend(autonomy: 'auto' | 'confirm-each-round', budget = 100, onUserTurn?: () => void) {
+    const heldC = gate()
+    const child: { signal?: AbortSignal } = {}
+    const { model } = routedModel((call) => {
+      if (call.userText.includes('TASK-C')) {
+        child.signal = call.options.abortSignal
+        return heldC.wait(reply('REPORT-C'))
+      }
+      if (call.humanText === 'a question from the user') {
+        onUserTurn?.()
+        return reply('Answered.')
+      }
+      if (round(call) === 1) return [bg('call_c', 'TASK-C'), finish('tool-calls', 10, 0)]
+      return reply('Over budget now.', 200, 0)
+    })
+    const runtime = await openGoalSession(
+      model,
+      goalPort({ defaults: { maxGoalRounds: 3, budget: { tokens: budget }, autonomy: () => autonomy } }),
+      { subagents: recordingSubagentPort().port }
+    )
+    const finishedC = () =>
+      subagentStates(runtime.host.entries).find(
+        (state) => state.description === 'Check C' && state.status === 'finished'
+      )
+    return { ...runtime, heldC, child, finishedC }
+  }
+
+  // Breaks when only a settle that goes on to decide stops the goal's background subagents: with
+  // confirm-each-round the settle pauses first, and the child would run on past the used-up budget.
+  it.each(['auto', 'confirm-each-round'] as const)(
+    "stops the goal's running background subagent once its budget is used up (autonomy: %s)",
+    async (autonomy) => {
+      const { session: s, finishedC } = await launchThenSpend(autonomy)
+      await promptIdle(s, '/goal Check C')
+      await waitFor(() => finishedC() !== undefined)
+
+      expect(finishedC()).toMatchObject({ outcome: 'stopped', stoppedBy: 'budget' })
+    }
+  )
+
+  // Breaks when the settle that yields to a queued user message skips the budget: the goal's child
+  // would run on through the person's turn.
+  it("stops the goal's background subagent before a queued user message the settle yields to", async () => {
+    const seen: { childStopped?: boolean } = {}
+    const run = await launchThenSpend('auto', 100, () => (seen.childStopped = run.child.signal?.aborted === true))
+    askAtTurnEnd(run.session, 2)
+    await promptIdle(run.session, '/goal Check C')
+    await waitFor(() => seen.childStopped !== undefined)
+
+    expect(seen.childStopped).toBe(true)
+  })
+
+  // Breaks when any stop of the goal stops its children (spec §11.4: only a used-up budget does).
+  it('leaves its background subagent running when the goal pauses within its budget', async () => {
+    const { session: s, host, heldC, child, finishedC } = await launchThenSpend('confirm-each-round', 10_000)
+    await promptIdle(s, '/goal Check C')
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'paused', lastStop: { code: 'paused_each_round' } })
+    expect(child.signal?.aborted).toBe(false)
+
+    heldC.open()
+    await waitFor(() => finishedC() !== undefined)
+    expect(finishedC()).toMatchObject({ outcome: 'completed' })
   })
 
   // Breaks when the run of a goal's background subagent that the model stops is left out of the
