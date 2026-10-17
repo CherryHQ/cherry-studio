@@ -15,7 +15,7 @@ import {
   type ToolSet
 } from 'ai'
 
-import { decodeProviderMetadata } from './providerMetadata'
+import { decodeProviderMetadata } from './aiSdkMetadata'
 
 type ToolResultOutput = Extract<ToolModelMessage['content'][number], { type: 'tool-result' }>['output']
 

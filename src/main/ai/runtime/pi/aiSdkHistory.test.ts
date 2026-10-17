@@ -2,8 +2,9 @@ import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import type { AssistantMessage, Message } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 
-import { AI_SDK_API, encodeProviderMetadata } from '../src'
-import { createTestSession, finish, MODEL, plain, scriptedModel, streamTextPort, textParts } from './support'
+import { encodeProviderMetadata } from './aiSdkMetadata'
+import { AI_SDK_API } from './aiSdkProvider'
+import { createTestSession, finish, MODEL, plain, scriptedModel, streamTextPort, textParts } from './aiSdkSupport'
 
 const zeroUsage: AssistantMessage['usage'] = {
   input: 0,
@@ -60,7 +61,7 @@ describe('history seeded into a fresh session', () => {
     ])
   })
 
-  it('does not replay another model’s reasoning or signatures as reasoning', async () => {
+  it('drops another model’s reasoning and signatures from replay', async () => {
     const history: Message[] = [
       user('My name is Li.'),
       assistant([
@@ -93,10 +94,7 @@ describe('history seeded into a fresh session', () => {
         { type: 'reasoning', text: 'remember', providerOptions: { anthropic: { signature: 'sig-old' } } },
         { type: 'text', text: 'Nice to meet you, Li.' }
       ],
-      [
-        { type: 'text', text: 'other model reasoning' },
-        { type: 'text', text: 'Paris is lovely.' }
-      ]
+      [{ type: 'text', text: 'Paris is lovely.' }]
     ])
   })
 
