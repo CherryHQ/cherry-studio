@@ -81,6 +81,60 @@ describe('toGbnfJsonSchema', () => {
     expect(toToolArguments(schema, { items: [{ id: 'a', note: null }] })).toEqual({ items: [{ id: 'a' }] })
   })
 
+  it('removes unset optional arguments of an object inside a union', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        target: {
+          anyOf: [
+            { type: 'object', properties: { id: { type: 'string' }, limit: { type: 'integer' } }, required: ['id'] },
+            { type: 'string' }
+          ]
+        }
+      },
+      required: ['target']
+    }
+    const generated = { target: { id: 'x', limit: null } }
+
+    expect(generates(schema, generated)).toBe(true)
+    expect(toToolArguments(schema, generated)).toEqual({ target: { id: 'x' } })
+  })
+
+  it('removes unset optional arguments inside the values of a dictionary', () => {
+    const schema = {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        properties: { id: { type: 'string' }, limit: { type: 'integer' } },
+        required: ['id']
+      }
+    }
+    const generated = { first: { id: 'x', limit: null } }
+
+    expect(generates(schema, generated)).toBe(true)
+    expect(toToolArguments(schema, generated)).toEqual({ first: { id: 'x' } })
+  })
+
+  it('removes unset optional arguments throughout a recursive schema', () => {
+    const schema = {
+      $ref: '#/$defs/Node',
+      $defs: {
+        Node: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            note: { type: 'string' },
+            children: { type: 'array', items: { $ref: '#/$defs/Node' } }
+          },
+          required: ['name', 'children']
+        }
+      }
+    }
+    const generated = { name: 'root', note: null, children: [{ name: 'leaf', note: null, children: [] }] }
+
+    expect(toToolArguments(schema, generated)).toEqual({ name: 'root', children: [{ name: 'leaf', children: [] }] })
+  })
+
   it('turns an optional argument written with anyOf into a oneOf', () => {
     const schema = { type: 'object', properties: { mode: { anyOf: [{ type: 'string' }, { type: 'null' }] } } }
 
@@ -168,5 +222,18 @@ describe('toGbnfJsonSchema', () => {
 
     expect(generates(schema, { a: 'a', b: 'b' })).toBe(true)
     expect(generates(schema, { b: 'b' })).toBe(false)
+  })
+
+  it('follows a chain of references in an allOf part without dropping the other parts', () => {
+    const schema = {
+      allOf: [{ $ref: '#/$defs/Alias' }, { type: 'object', properties: { b: { type: 'string' } }, required: ['b'] }],
+      $defs: {
+        Alias: { $ref: '#/$defs/Payload' },
+        Payload: { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] }
+      }
+    }
+
+    expect(generates(schema, { a: 'x', b: 'y' })).toBe(true)
+    expect(generates(schema, { a: 'x' })).toBe(false)
   })
 })
