@@ -131,7 +131,8 @@ already handles.
   since answers are keyed by them, and so must the option labels of a question, since answers
   name them). The tool waits on `AskUserPort.ask`, which resolves `answered` (`answers`, optional
   `annotations` notes), `declined` (optional `feedback`) or `unavailable` (no one can answer, e.g.
-  a channel or scheduled run). The result text tells the model what happened; only `answered` is a
+  a channel or scheduled run); inside a subagent's session it ends as `unavailable` without asking
+  the port. The result text tells the model what happened; only `answered` is a
   success. Every result the tool returns, aborted included, has `details`
   `{ questions, answers, annotations? }`; invalid input and a rejecting port fail the call with
   empty `details`. Calls in one model step run one at a time. When the turn aborts, the tool stops
@@ -141,6 +142,51 @@ already handles.
 Host obligations: the approval layer must not ask approval for `AskUserQuestion` (the question is
 itself the interaction, or the user would be asked twice) and may auto-allow `todo_write` (it only
 changes the session's list). `ASK_USER_TOOL_NAME` and `TODO_TOOL_NAME` hold the names.
+
+## Subagents
+
+`subagents: SubagentPort` registers the `model-only` tool `subagent({ description, prompt, fork? })`
+(`SUBAGENT_TOOL_NAME`), with DSH's name, so Cherry's renderer shows it as a Task card. Each call
+builds a session in-process from the parent's options (model runtime, model, prompts, tools,
+compaction, offload, recall, settings) plus the extensions, native event listener and live-session
+callback the host returns from `SubagentPort.configure(subagent)`, and starts it with
+`session.prompt()`, so `before_agent_start` handlers run as in any turn. The parent's
+`extensionFactories` and `onEvent` are not inherited. Sessions on a model binding's runtime still
+get the binding's requirements (Cherry's tool-call guard, Pi's retry off): they come with the
+runtime, not with `configure`. A subagent shares its parent's model runtime, so a host's side
+channel tells their requests apart by `sessionId`, which is the subagent's own:
+`<parent session id>.<random UUID>`. Calls of one step run at the same time. A host whose
+`configure` throws fails that call only.
+
+A fresh subagent starts empty and has no `subagent` tool. A fork starts at the native assistant
+entry that holds the calling tool: every tool call in that entry gets a placeholder result, so
+siblings started together share the same model-visible prefix, and it keeps the `subagent` tool,
+so its tools match the parent's, but the tool fails there with
+`Subagents cannot start subagents.` The parent's manager and branch are left unchanged.
+
+Children follow their parent's persistence mode. File-backed parents create native child files in
+the same session directory, with a native parent-session link; in-memory parents create in-memory
+children. Each child records a `cherry.subagent-origin` entry (`{ parentToolCallId, fork }`, never
+sent to the model) before its extensions start; it marks a subagent's session.
+
+The call blocks until the subagent's run settles. Its result is the subagent's final message, with
+`details` `{ sessionId, fork, outcome }` and `usage`, the sum of the subagent's replies. A run that
+fails, is cut off by its output limit, is aborted with the parent's turn or would make a 201st
+request returns an `isError` result with the reason and its last partial output (`outcome`
+`failed`, `truncated`, `aborted`, `limit_reached`). That `usage` is for budgets: the host's AI SDK
+calls already account it, so it must not be billed again.
+
+A subagent makes at most 200 model requests, counted where its session makes them: its turns and
+the compaction summaries made for it (Pi's own summarizer through the model runtime, or the host's
+`compaction.summarize`) alike; the 201st is refused before it goes out. Counting wraps the child's
+native `agent.streamFunction` and the host summarizer, so it is independent of the provider and
+does not modify the borrowed model runtime. Pi's cache warmer
+would re-send requests past that count, so subagent sessions run with cache warming off. The
+compaction summarizer gets the compacting session's id, so a host can tell a subagent's compaction
+from its parent's.
+
+Host obligation: the approval layer may auto-allow `subagent` as long as `configure` returns the
+approval extension, so each call a subagent makes is approved on its own.
 
 ## Known gaps
 
@@ -152,3 +198,7 @@ changes the session's list). `ASK_USER_TOOL_NAME` and `TODO_TOOL_NAME` hold the 
   threshold, still overflows; offloading at `turn_end` is deferred.
 - Pi's `bash` tool saves the full output of a truncated command to a temp file and names it in the
   result; that file is not moved into the offload store and may be gone when read later.
+- A fork's requests carry the subagent's session id, so a host that routes prompt caches by session
+  id (OpenAI's `prompt_cache_key`) does not reach the parent's cache partition.
+- Every fork's native session holds its own copy of the parent's history (a file-backed fork copies
+  the parent's file); a host may deduplicate it.

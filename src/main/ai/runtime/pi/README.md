@@ -22,7 +22,9 @@ Pi events. `aiSdkMessages.ts` applies Pi's replay rules (`transformMessages`) be
 ## Host-facing contracts
 
 - **`ModelCallPort`** – the only way out to a model. The request carries a `requestId`, Pi's
-  `sessionId`, the Pi `model` it is for, and `options`, the host's own per-request settings.
+  `sessionId`, the Pi `model` it is for, and `options`, the host's own per-request settings. The
+  bridge never hands the port a request whose signal is already aborted (it can fire while
+  `before_provider_request` handlers run).
 - **Reasoning** – the host decides it through `requestOptions` (forwarded verbatim on every
   request), never through Pi's thinking level, which lacks Cherry levels such as `ultra`.
 - **Output tokens** – every request sets `maxOutputTokens` as Pi's built-in providers do: the

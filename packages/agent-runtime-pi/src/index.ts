@@ -22,6 +22,13 @@ export {
 } from './session'
 export type { AgentRuntimeEvent, CompactionReason } from './sessionEvents'
 export {
+  SUBAGENT_TOOL_NAME,
+  type Subagent,
+  type SubagentDetails,
+  type SubagentPort,
+  type SubagentSessionOptions
+} from './subagent'
+export {
   createTodoExtension,
   TODO_TOOL_NAME,
   type TodoItem,

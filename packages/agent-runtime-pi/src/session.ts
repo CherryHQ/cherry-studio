@@ -15,6 +15,7 @@ import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compa
 import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
 import { recallExtension } from './recall'
 import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
+import { subagentExtension, type SubagentPort } from './subagent'
 
 export type AgentRuntimeModel = Model<Api>
 
@@ -43,6 +44,7 @@ export interface AgentRuntimeSessionOptions {
   compaction?: AgentRuntimeCompaction
   offload?: ToolOutputOffload
   recall?: boolean
+  subagents?: SubagentPort
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
@@ -83,24 +85,55 @@ export interface AgentRuntimeSession {
  * Workspace context files and skills load only when the host opts in.
  */
 export async function createAgentRuntimeSession(options: AgentRuntimeSessionOptions): Promise<AgentRuntimeSession> {
+  return buildSession(options)
+}
+
+async function buildSession(
+  options: AgentRuntimeSessionOptions,
+  beforeModelRequest?: () => void
+): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
   const { modelRuntime, model } = options
   const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
   const events = new SessionEvents(sessionManager, options.onEvent ?? (() => {}))
   const { compaction } = options
+  const summarize = compaction?.summarize
+    ? (request: Parameters<NonNullable<AgentRuntimeCompaction['summarize']>>[0]) => {
+        beforeModelRequest?.()
+        return compaction.summarize!(request)
+      }
+    : undefined
+  // A subagent's session is built here too, so it gets them whatever its host's `configure` returns.
   const required = sessionRequirements.get(modelRuntime)
   const extensionFactories = [
     ...(required?.extensionFactories ?? []),
-    ...(compaction?.summarize
-      ? [compactionSummaryExtension(compaction.summarize, (message) => (events.summaryFailure = message))]
-      : []),
+    ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : []),
     ...(options.recall ? [recallExtension(() => sessionManager.getBranch())] : []),
+    ...(options.subagents
+      ? [
+          subagentExtension({
+            port: options.subagents,
+            parentSession: sessionManager,
+            createSession: ({ fork, beforeModelRequest: beforeChildRequest, ...overrides }) =>
+              buildSession(
+                {
+                  ...options,
+                  ...overrides,
+                  subagents: fork ? options.subagents : undefined
+                },
+                beforeChildRequest
+              )
+          })
+        ]
+      : []),
     ...(options.extensionFactories ?? []),
     ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
   ]
   const settingsManager = SettingsManager.inMemory({
     ...options.settings,
     ...required?.settings,
+    // Pi's cache warmer requests bypass `agent.streamFunction`, where a subagent's requests are counted.
+    ...(beforeModelRequest && { cacheWarming: 'off' as const }),
     ...(compaction && {
       compaction: {
         enabled: compaction.enabled ?? true,
@@ -140,6 +173,13 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
     customTools: options.tools ?? []
   })
+  if (beforeModelRequest) {
+    const stream = session.agent.streamFunction
+    session.agent.streamFunction = (model, context, options) => {
+      beforeModelRequest()
+      return stream(model, context, options)
+    }
+  }
   session.subscribe((event) => events.handle(event))
   await session.bindExtensions({})
   const baseTools = session.getActiveToolNames()
