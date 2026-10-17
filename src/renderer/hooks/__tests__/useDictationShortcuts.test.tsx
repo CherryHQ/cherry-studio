@@ -5,6 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 
 import { useDictationShortcuts } from '@renderer/hooks/useDictationShortcuts'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
+import type * as PlatformUtils from '@renderer/utils/platform'
+
+const platform = vi.hoisted(() => ({ isMac: false }))
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlatformUtils>()),
+  get isMac() {
+    return platform.isMac
+  }
+}))
 
 function Host({ onKeyDown }: { onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement> }) {
   useDictationShortcuts()
@@ -38,6 +47,7 @@ describe('application-local dictation shortcuts', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    platform.isMac = false
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltLeft')
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltLeft+ControlLeft')
@@ -61,6 +71,103 @@ describe('application-local dictation shortcuts', () => {
     render(<Host />)
     screen.getByRole('textbox', { name: 'Dictation input' }).focus()
   }
+
+  it.each(['MetaLeft', 'MetaRight'])('recovers both defaults after a missing macOS keyup with %s', (code) => {
+    platform.isMac = true
+    mount()
+    fireEvent.keyDown(window, { code, key: 'Meta', metaKey: true })
+    fireEvent.keyDown(window, { code: 'KeyB', key: 'b', metaKey: true })
+    // macOS can omit B's keyup while Command is held.
+    fireEvent.keyUp(window, { code, key: 'Meta' })
+    down('AltLeft')
+    void act(() => vi.advanceTimersByTime(300))
+    expect(start).toHaveBeenCalledOnce()
+    up('AltLeft')
+    expect(stop).toHaveBeenCalledOnce()
+    down('ControlLeft')
+    down('AltLeft')
+    expect(start).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['MetaLeft', 'MetaRight'])('does not retrigger a Command chord on a later %s-only press', (code) => {
+    platform.isMac = true
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', `${code}+KeyB`)
+    mount()
+    fireEvent.keyDown(window, { code, key: 'Meta', metaKey: true })
+    fireEvent.keyDown(window, { code: 'KeyB', key: 'b', metaKey: true })
+    expect(start).toHaveBeenCalledOnce()
+    vi.mocked(dictationService.getSnapshot).mockReturnValue({
+      phase: 'recording',
+      elapsedMs: 0,
+      recoveryAvailable: false
+    })
+    fireEvent.keyUp(window, { code, key: 'Meta' })
+    fireEvent.keyDown(window, { code, key: 'Meta', metaKey: true })
+    expect(stop).not.toHaveBeenCalled()
+    expect(start).toHaveBeenCalledOnce()
+  })
+
+  it.each([false, true])('handles another character with Command still held on macOS (%s)', (isMac) => {
+    platform.isMac = isMac
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'MetaLeft+ShiftRight+KeyC')
+    mount()
+    fireEvent.keyDown(window, { code: 'ShiftRight', key: 'Shift', shiftKey: true })
+    fireEvent.keyDown(window, { code: 'MetaLeft', key: 'Meta', metaKey: true, shiftKey: true })
+    fireEvent.keyDown(window, { code: 'KeyB', key: 'b', metaKey: true, shiftKey: true })
+    fireEvent.keyDown(window, { code: 'KeyC', key: 'c', metaKey: true, shiftKey: true })
+    expect(start).toHaveBeenCalledTimes(isMac ? 1 : 0)
+  })
+
+  it('preserves a sided modifier when releasing Command clears a missing character keyup', () => {
+    platform.isMac = true
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'ControlLeft+ShiftRight')
+    mount()
+    fireEvent.keyDown(window, { code: 'ShiftRight', key: 'Shift', shiftKey: true })
+    fireEvent.keyDown(window, { code: 'MetaLeft', key: 'Meta', metaKey: true, shiftKey: true })
+    fireEvent.keyDown(window, { code: 'KeyB', key: 'b', metaKey: true, shiftKey: true })
+    fireEvent.keyUp(window, { code: 'MetaLeft', key: 'Meta', shiftKey: true })
+    fireEvent.keyDown(window, { code: 'ControlLeft', key: 'Control', ctrlKey: true, shiftKey: true })
+    expect(start).toHaveBeenCalledOnce()
+  })
+
+  it('keeps consuming an owned character repeat and release after Command is released first', () => {
+    platform.isMac = true
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'MetaLeft+KeyB')
+    mount()
+    fireEvent.keyDown(window, { code: 'MetaLeft', key: 'Meta', metaKey: true })
+    fireEvent.keyDown(window, { code: 'KeyB', key: 'b', metaKey: true })
+    void act(() => vi.advanceTimersByTime(300))
+    expect(start).toHaveBeenCalledOnce()
+    fireEvent.keyUp(window, { code: 'MetaLeft', key: 'Meta' })
+    expect(stop).toHaveBeenCalledOnce()
+    expect(fireEvent.keyDown(window, { code: 'KeyB', key: 'b', repeat: true })).toBe(false)
+    expect(fireEvent.keyUp(window, { code: 'KeyB', key: 'b' })).toBe(false)
+    expect(fireEvent.keyDown(window, { code: 'KeyB', key: 'b' })).toBe(true)
+  })
+
+  it('keeps a Command hold running while a sided modifier completes its toggle chord', () => {
+    platform.isMac = true
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'MetaLeft+KeyB')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'MetaLeft+KeyB+ShiftRight')
+    mount()
+    fireEvent.keyDown(window, { code: 'MetaLeft', key: 'Meta', metaKey: true })
+    fireEvent.keyDown(window, { code: 'KeyB', key: 'b', metaKey: true })
+    void act(() => vi.advanceTimersByTime(300))
+    vi.mocked(dictationService.getSnapshot).mockReturnValue({
+      phase: 'recording',
+      elapsedMs: 0,
+      recoveryAvailable: false
+    })
+    fireEvent.keyDown(window, { code: 'ShiftRight', key: 'Shift', metaKey: true, shiftKey: true })
+    fireEvent.keyUp(window, { code: 'MetaLeft', key: 'Meta', shiftKey: true })
+    fireEvent.keyUp(window, { code: 'ShiftRight', key: 'Shift' })
+    expect(stop).not.toHaveBeenCalled()
+    fireEvent.keyDown(window, { code: 'MetaLeft', key: 'Meta', metaKey: true })
+    fireEvent.keyDown(window, { code: 'KeyB', key: 'b', metaKey: true })
+    fireEvent.keyDown(window, { code: 'ShiftRight', key: 'Shift', metaKey: true, shiftKey: true })
+    expect(stop).toHaveBeenCalledOnce()
+    expect(start).toHaveBeenCalledOnce()
+  })
 
   it('consumes the initial hold event before an eligible input action can run', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'ControlLeft+Enter')

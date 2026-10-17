@@ -19,16 +19,20 @@ const MODIFIER_CODES: Record<string, ShortcutToken> = {
   MetaRight: 'Meta'
 }
 
+export function isDictationShortcutModifier(code: string): boolean {
+  return Object.hasOwn(MODIFIER_CODES, code)
+}
+
 export function parseDictationShortcut(value: string): string[] {
   if (!value) return []
   const codes = value.split('+')
-  const modifiers = codes.filter((code) => MODIFIER_CODES[code])
+  const modifiers = codes.filter(isDictationShortcutModifier)
   if (codes.length > 3 || modifiers.length === 0 || codes.length - modifiers.length > 1) return []
   if (new Set(modifiers.map((code) => MODIFIER_CODES[code])).size !== modifiers.length) return []
   if (new Set(codes).size !== codes.length) return []
   if (
     codes.some((code) => {
-      if (MODIFIER_CODES[code]) return false
+      if (isDictationShortcutModifier(code)) return false
       const token = normalizeShortcutToken(code)
       return !token || isShortcutModifier(token) || token === 'Escape'
     })

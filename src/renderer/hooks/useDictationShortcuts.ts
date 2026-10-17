@@ -2,7 +2,12 @@ import { useEffect } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
-import { dictationShortcutMatches, parseDictationShortcut } from '@renderer/utils/dictationShortcut'
+import {
+  dictationShortcutMatches,
+  isDictationShortcutModifier,
+  parseDictationShortcut
+} from '@renderer/utils/dictationShortcut'
+import { isMac } from '@renderer/utils/platform'
 
 const HOLD_DELAY_MS = 300
 
@@ -13,6 +18,9 @@ export function useDictationShortcuts(): void {
   useEffect(() => {
     const pressed = new Set<string>()
     const consumed = new Set<string>()
+    const clearNonModifiers = () => {
+      for (const code of pressed) if (!isDictationShortcutModifier(code)) pressed.delete(code)
+    }
     const holdCodes = parseDictationShortcut(hold)
     const toggleCodes = parseDictationShortcut(toggle)
     const isCompletingToggle = () =>
@@ -85,6 +93,7 @@ export function useDictationShortcuts(): void {
         if (consumed.has(event.code)) consume(event)
         return
       }
+      if (isMac && event.metaKey && !isDictationShortcutModifier(event.code)) clearNonModifiers()
       pressed.add(event.code)
       clearTimer()
       if (dictationShortcutMatches(toggle, pressed) && (owned || activateFocusedTarget())) {
@@ -107,6 +116,8 @@ export function useDictationShortcuts(): void {
     const keyup = (event: KeyboardEvent) => {
       if (consumed.delete(event.code)) consume(event)
       pressed.delete(event.code)
+      // macOS can omit character keyups while Command is held.
+      if (isMac && event.code.startsWith('Meta')) clearNonModifiers()
       clearTimer()
       if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed) && !isCompletingToggle()) {
         stopOwned()
