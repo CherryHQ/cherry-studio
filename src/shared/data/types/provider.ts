@@ -42,7 +42,9 @@ export const EndpointDialectSchema = z.object({
   /** Accepts messages with `role: "developer"`. Absent ⇒ false. */
   developerRole: z.boolean().optional(),
   /** Accepts OpenAI Responses `reasoning.summary`. Absent ⇒ use the registry wire. */
-  reasoningSummary: z.boolean().optional()
+  reasoningSummary: z.boolean().optional(),
+  /** Accepts the chat-completions `prompt_cache_key` routing hint. Absent ⇒ only api.openai.com is assumed to. */
+  promptCacheKey: z.boolean().optional()
 })
 
 export type EndpointDialect = z.infer<typeof EndpointDialectSchema>

@@ -1,4 +1,4 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import type { MessageCreateParams, ThinkingBlockParam } from '@anthropic-ai/sdk/resources/messages'
 import { asSchema } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -462,5 +462,100 @@ describe('AnthropicMessageConverter.extractStreamOptions', () => {
         params({ max_tokens: 256, temperature: 0.5, top_p: 0.9, top_k: 40, stop_sequences: ['x'] })
       )
     ).toEqual({ maxOutputTokens: 256, temperature: 0.5, topP: 0.9, topK: 40, stopSequences: ['x'] })
+  })
+})
+
+describe('AnthropicMessageConverter.toUIMessages cache_control preservation', () => {
+  const anthropicMetadata = (part: unknown) =>
+    (part as { providerMetadata?: { anthropic?: Record<string, unknown> } } | undefined)?.providerMetadata?.anthropic
+
+  it('keeps the tail system block marker on the flattened system message', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        system: [
+          { type: 'text', text: 'A' },
+          { type: 'text', text: 'B', cache_control: { type: 'ephemeral', ttl: '1h' } }
+        ] as MessageCreateParams['system'],
+        messages: [{ role: 'user', content: 'hi' }]
+      })
+    )
+
+    expect(anthropicMetadata(msgs[0]?.parts[0])?.cacheControl).toEqual({ type: 'ephemeral', ttl: '1h' })
+    expect(anthropicMetadata(msgs[1]?.parts[0])?.cacheControl).toBeUndefined()
+  })
+
+  it('keeps markers on text blocks and inline system messages', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          { role: 'system', content: [{ type: 'text', text: 'catalog', cache_control: { type: 'ephemeral' } }] },
+          { role: 'user', content: [{ type: 'text', text: 'question', cache_control: { type: 'ephemeral' } }] }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(anthropicMetadata(msgs[0]?.parts[0])?.cacheControl).toEqual({ type: 'ephemeral' })
+    expect(anthropicMetadata(msgs[1]?.parts[0])?.cacheControl).toEqual({ type: 'ephemeral' })
+  })
+
+  it('keeps thinking signatures alongside a marker on the same part', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'thinking',
+                thinking: 'hmm',
+                signature: 'sig',
+                // Newer clients mark thinking blocks; the pinned SDK types do not declare it yet.
+                cache_control: { type: 'ephemeral' }
+              } as ThinkingBlockParam
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    const metadata = anthropicMetadata(msgs[0]?.parts[0])
+    expect(metadata?.signature).toBe('sig')
+    expect(metadata?.cacheControl).toEqual({ type: 'ephemeral' })
+  })
+
+  it('rides a marked tool_result on the tool-call part metadata', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'call-1', name: 'read_file', input: {} }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'call-1',
+                content: 'file body',
+                cache_control: { type: 'ephemeral' }
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    const toolPart = msgs[0]?.parts.find((part) => part.type === 'dynamic-tool') as {
+      callProviderMetadata?: { anthropic?: Record<string, unknown> }
+    }
+    expect(toolPart?.callProviderMetadata?.anthropic?.cacheControl).toEqual({ type: 'ephemeral' })
+  })
+
+  it('leaves unmarked parts without an anthropic namespace', () => {
+    const msgs = converter.toUIMessages(params({ messages: [{ role: 'user', content: 'plain' }] }))
+
+    const part = msgs[0]?.parts[0] as { providerMetadata?: { anthropic?: Record<string, unknown> } }
+    expect(part.providerMetadata?.anthropic).toBeUndefined()
   })
 })

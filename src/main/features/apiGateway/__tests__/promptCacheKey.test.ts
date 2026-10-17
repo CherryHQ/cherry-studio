@@ -1,4 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { generateText } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -114,5 +115,111 @@ describe('applyAgentPromptCacheKey', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
     expect(body.prompt_cache_key).toBe(providerOptions.openai.promptCacheKey)
+  })
+
+  describe('chat completions dialect gating', () => {
+    const chatProvider = (
+      baseUrl: string,
+      options?: { dialect?: { promptCacheKey: boolean }; adapterFamily?: string }
+    ) =>
+      ({
+        id: 'my-relay',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl,
+            ...(options?.dialect ? { dialect: options.dialect } : {}),
+            ...(options?.adapterFamily ? { adapterFamily: options.adapterFamily } : {})
+          }
+        }
+      }) as Provider
+    const chatModel = model('my-relay', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+
+    it('leaves chat-completions hosts untouched unless the dialect opts in', () => {
+      const options = { 'my-relay': { existing: true } }
+      const result = applyAgentPromptCacheKey(chatProvider('https://relay.example/v1'), chatModel, options, SESSION_ID)
+
+      expect(result).toBe(options)
+    })
+
+    it('derives the key for chat-completions hosts that opt in via the dialect flag', () => {
+      const result = applyAgentPromptCacheKey(
+        chatProvider('https://relay.example/v1', { dialect: { promptCacheKey: true } }),
+        chatModel,
+        {},
+        SESSION_ID
+      )
+
+      expect(result['my-relay']?.prompt_cache_key).toMatch(/^cherry-agent:[0-9a-f]{32}$/)
+    })
+
+    it('derives the key on api.openai.com without a dialect flag', () => {
+      const result = applyAgentPromptCacheKey(chatProvider('https://api.openai.com/v1'), chatModel, {}, SESSION_ID)
+
+      expect(result['my-relay']?.prompt_cache_key).toBeDefined()
+    })
+
+    it('never overrides an existing snake_case key on the compatible adapter', () => {
+      const result = applyAgentPromptCacheKey(
+        chatProvider('https://relay.example/v1', { dialect: { promptCacheKey: true } }),
+        chatModel,
+        { 'my-relay': { prompt_cache_key: 'own' } },
+        SESSION_ID
+      )
+
+      expect(result['my-relay']?.prompt_cache_key).toBe('own')
+    })
+
+    // Contract tripwires: the namespace key OUR helper writes must reach the chat
+    // wire as `prompt_cache_key` on BOTH adapters — @ai-sdk/openai maps its
+    // `promptCacheKey` option, while openai-compatible only forwards unknown
+    // namespace entries verbatim, which is why the helper writes snake_case there.
+    const chatResponse = () =>
+      new Response(
+        JSON.stringify({
+          id: 'chatcmpl-1',
+          created: 1,
+          model: 'gpt-5.6',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+
+    it('is serialized as prompt_cache_key on the openai chat-completions wire', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () => chatResponse())
+      const openai = createOpenAI({ apiKey: 'test-key', fetch: fetchMock as unknown as typeof fetch })
+      const providerOptions = applyAgentPromptCacheKey(
+        chatProvider('https://api.openai.com/v1', { adapterFamily: 'openai' }),
+        chatModel,
+        {},
+        SESSION_ID
+      )
+
+      await generateText({ model: openai.chat('gpt-5.6'), prompt: 'ping', providerOptions })
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+      expect(body.prompt_cache_key).toBe(providerOptions.openai?.promptCacheKey)
+    })
+
+    it('is serialized as prompt_cache_key on the openai-compatible chat-completions wire', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () => chatResponse())
+      const compatible = createOpenAICompatible({
+        name: 'my-relay',
+        apiKey: 'test-key',
+        baseURL: 'https://relay.example/v1',
+        fetch: fetchMock
+      })
+      const providerOptions = applyAgentPromptCacheKey(
+        chatProvider('https://relay.example/v1', { dialect: { promptCacheKey: true } }),
+        chatModel,
+        {},
+        SESSION_ID
+      )
+
+      await generateText({ model: compatible.chatModel('gpt-5.6'), prompt: 'ping', providerOptions })
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+      expect(body.prompt_cache_key).toBe(providerOptions['my-relay']?.prompt_cache_key)
+    })
   })
 })

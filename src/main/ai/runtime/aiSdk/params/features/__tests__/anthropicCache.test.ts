@@ -277,4 +277,92 @@ describe('transformAnthropicCacheParams', () => {
     expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
     expect(countCacheMarkers({ ...out, tools: undefined })).toBe(0)
   })
+
+  describe('preserved client markers (Anthropic-format gateway requests)', () => {
+    const marker = { type: 'ephemeral', ttl: '1h' }
+
+    function withMarker<T extends object>(part: T): T {
+      return {
+        ...part,
+        providerOptions: { anthropic: { cacheControl: marker } }
+      }
+    }
+
+    function promptParts(prompt: LanguageModelV3Message[]): Array<{ type: string; providerOptions?: unknown }> {
+      const parts: Array<{ type: string; providerOptions?: unknown }> = []
+      for (const message of prompt) {
+        if (typeof message.content !== 'string') parts.push(...message.content)
+      }
+      return parts
+    }
+
+    it('yields to preserved client markers instead of adding its own', async () => {
+      const out = await transform({
+        // Long enough to earn an injected marker if the middleware were allowed to.
+        prompt: [
+          textMessage('system', 'x '.repeat(3000)),
+          { role: 'user', content: [withMarker({ type: 'text', text: 'client-planned prefix' })] }
+        ],
+        tools: [makeTool('mcp_tool', 6000)]
+      })
+
+      expect(countCacheMarkers(out)).toBe(1)
+      expect(hasCacheControl(out.prompt[0])).toBe(false)
+      expect(hasCacheControl(out.tools?.[0] as LanguageModelV3FunctionTool)).toBe(false)
+    })
+
+    it('strips the call-side duplicate when the tool result replays the same marker', async () => {
+      const out = await transform({
+        prompt: [
+          {
+            role: 'assistant',
+            content: [withMarker({ type: 'tool-call', toolCallId: 'call-1', toolName: 't', input: {} })]
+          },
+          {
+            role: 'tool',
+            content: [
+              withMarker({
+                type: 'tool-result',
+                toolCallId: 'call-1',
+                toolName: 't',
+                output: { type: 'text', value: 'ok' }
+              })
+            ]
+          }
+        ]
+      })
+
+      const parts = promptParts(out.prompt)
+      const call = parts.find((part) => part.type === 'tool-call')
+      const result = parts.find((part) => part.type === 'tool-result')
+      expect(getCacheControl(call as { providerOptions?: unknown })).toBeUndefined()
+      expect(getCacheControl(result as { providerOptions?: unknown })).toEqual(marker)
+    })
+
+    it('keeps a call-side marker the client placed on the call alone', async () => {
+      const out = await transform({
+        prompt: [
+          {
+            role: 'assistant',
+            content: [withMarker({ type: 'tool-call', toolCallId: 'call-1', toolName: 't', input: {} })]
+          },
+          {
+            role: 'tool',
+            content: [
+              {
+                type: 'tool-result',
+                toolCallId: 'call-1',
+                toolName: 't',
+                output: { type: 'text', value: 'ok' }
+              }
+            ]
+          }
+        ]
+      })
+
+      const parts = promptParts(out.prompt)
+      const call = parts.find((part) => part.type === 'tool-call')
+      expect(getCacheControl(call as { providerOptions?: unknown })).toEqual(marker)
+    })
+  })
 })

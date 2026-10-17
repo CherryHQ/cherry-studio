@@ -60,6 +60,28 @@ export function resolveAiSdkProviderId(provider, endpointType) {
 }
 ```
 
+## Direct mode for Anthropic-Messages models
+
+The built-in Claude Code runtime speaks exactly one dialect, so it asks the
+shared resolver for `ANTHROPIC_MESSAGES` **as a preference**
+(`usesAnthropicMessagesEndpoint`, `agentSessionWarmup.ts`) instead of taking
+the in-app-chat default. The preference wins only when the model declares the
+endpoint AND the provider configures a base URL for it; otherwise the request
+falls back to the normal resolution order and flows through the local gateway
+(`proxyStream`) for dialect conversion.
+
+The practical consequence for users: **declaring an `anthropic-messages`
+endpoint (with a base URL) on a model puts the built-in Claude Code on a
+direct connection to that host** — the SDK's native request, including its
+`cache_control` markers and thinking signatures, reaches the provider
+byte-for-byte. Vendors that expose an Anthropic-compatible route (DeepSeek,
+Moonshot, Kimi, routers like CC Switch presets) should get that endpoint
+declared to keep prompt caching and thinking replays intact. Models served
+only in OpenAI dialects go through the gateway, which preserves the inbound
+markers in provider metadata and re-emits them for Anthropic targets —
+OpenAI chat-completions has no marker field, so there the levers are prefix
+stability and the session `prompt_cache_key` instead.
+
 ## Variants
 
 Some bases expose variant ids (a different endpoint on the same base).

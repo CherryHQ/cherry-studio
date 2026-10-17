@@ -102,6 +102,80 @@ function createCacheBreakpointBudget(): CacheBreakpointBudget {
   }
 }
 
+/** An inbound client `cache_control` marker replayed from a converted Anthropic-format request. */
+interface PreservedCacheControl {
+  type: 'ephemeral'
+  ttl?: '5m' | '1h'
+}
+
+function preservedCacheControl(providerOptions: unknown): PreservedCacheControl | undefined {
+  const anthropic = (providerOptions as { anthropic?: { cacheControl?: unknown } } | undefined)?.anthropic
+  const marker = anthropic?.cacheControl
+  if (!marker || typeof marker !== 'object' || (marker as { type?: unknown }).type !== 'ephemeral') return undefined
+  return marker as PreservedCacheControl
+}
+
+function hasPreservedCacheMarkers(params: LanguageModelV3CallOptions): boolean {
+  for (const message of params.prompt) {
+    for (const part of message.content) {
+      if (typeof part === 'object' && 'providerOptions' in part && preservedCacheControl(part.providerOptions))
+        return true
+    }
+  }
+  for (const tool of params.tools ?? []) {
+    if ('providerOptions' in tool && preservedCacheControl(tool.providerOptions)) return true
+  }
+  return false
+}
+
+function stripPreservedCacheControl<T extends { providerOptions?: Record<string, Record<string, unknown>> }>(
+  part: T
+): T {
+  const providerOptions = { ...part.providerOptions }
+  const anthropic = { ...providerOptions.anthropic }
+  delete anthropic.cacheControl
+  if (Object.keys(anthropic).length > 0) providerOptions.anthropic = anthropic
+  else delete providerOptions.anthropic
+  return { ...part, providerOptions }
+}
+
+/**
+ * The gateway carries a marked tool_result on the same providerOptions object as its
+ * tool_call (a client-executed tool part has one metadata carrier), which would emit
+ * two breakpoints per marker. When the result replays the call's marker verbatim the
+ * call side is the duplicate — strip it and keep the client's intended position.
+ */
+function dropDuplicatedToolCallCacheMarkers(messages: LanguageModelV3Message[]): LanguageModelV3Message[] {
+  const resultMarkers = new Map<string, string>()
+  for (const message of messages) {
+    if (message.role !== 'tool') continue
+    for (const part of message.content) {
+      if (part.type !== 'tool-result') continue
+      const marker = preservedCacheControl(part.providerOptions)
+      if (marker) resultMarkers.set(part.toolCallId, JSON.stringify(marker))
+    }
+  }
+  if (resultMarkers.size === 0) return messages
+
+  let changed = false
+  const next = messages.map((message) => {
+    if (message.role !== 'assistant') return message
+    let messageChanged = false
+    const content = message.content.map((part) => {
+      if (part.type !== 'tool-call') return part
+      const marker = preservedCacheControl(part.providerOptions)
+      if (marker && resultMarkers.get(part.toolCallId) === JSON.stringify(marker)) {
+        messageChanged = true
+        changed = true
+        return stripPreservedCacheControl(part)
+      }
+      return part
+    })
+    return messageChanged ? { ...message, content } : message
+  })
+  return changed ? next : messages
+}
+
 function hasCacheableContent(msg: LanguageModelV3Message): boolean {
   return msg.content.length > 0
 }
@@ -158,6 +232,14 @@ export async function transformAnthropicCacheParams(
   const settings = resolveAnthropicCacheSettings(provider)
   if (!settings.enabled) return params
   if (!Array.isArray(params.prompt) || params.prompt.length === 0) return params
+
+  // A converted Anthropic-format request replays the client's own cache_control plan
+  // (see AnthropicMessageConverter). Injecting our breakpoints on top would blow the
+  // 4-breakpoint cap and have the adapter silently drop them, so yield: forward the
+  // client markers verbatim and only fix up the duplicated call-side marker.
+  if (hasPreservedCacheMarkers(params)) {
+    return { ...params, prompt: dropDuplicatedToolCallCacheMarkers(params.prompt) }
+  }
 
   const messages = [...params.prompt]
   const budget = createCacheBreakpointBudget()
