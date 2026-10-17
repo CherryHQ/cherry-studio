@@ -1,8 +1,7 @@
 import { createContext, type ReactElement, type ReactNode, use, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type AgentLaunchIndex, resolveResumeReceiptState } from '../shared/agentToolTypes'
-import { getPartLaunchToolCallId } from '../toolParentMetadata'
+import { type AgentLaunchIndex, getPartLaunchToolCallId, resolveResumeReceiptState } from '../shared/agentToolTypes'
 import type { ToolResponseLike } from '../toolResponse'
 import { buildResumeToolHeader } from './agentResumeHeader'
 

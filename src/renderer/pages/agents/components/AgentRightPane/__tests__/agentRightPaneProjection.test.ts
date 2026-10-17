@@ -2,72 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import { getSubagentTaskStatus } from '@renderer/components/chat/messages/tools/agent'
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
-import {
-  buildAgentRightPaneStatus,
-  buildAgentToolFlowProjection,
-  findLatestAgentPreviewUrl
-} from '../agentRightPaneProjection'
-
-const message = (id: string, parts: CherryMessagePart[]): CherryUIMessage =>
-  ({
-    id,
-    role: 'assistant',
-    parts,
-    metadata: {},
-    createdAt: '2026-05-21T00:00:00.000Z',
-    updatedAt: '2026-05-21T00:00:00.000Z'
-  }) as CherryUIMessage
-
-const toolPart = (
-  toolCallId: string,
-  toolName: string,
-  parentToolCallId?: string,
-  state = 'output-available',
-  input?: unknown,
-  output?: unknown
-): CherryMessagePart =>
-  ({
-    type: 'dynamic-tool',
-    toolCallId,
-    toolName,
-    state,
-    input,
-    output,
-    callProviderMetadata: {
-      'claude-code': {
-        parentToolCallId: parentToolCallId ?? null
-      }
-    }
-  }) as unknown as CherryMessagePart
-
-// A dsh-runtime tool part: runtime-native lowercase name plus the cherry transport tag its
-// stream adapter stamps — the tag is what lets the projection resolve the canonical tool name.
-const dshToolPart = (toolCallId: string, toolName: string, state: string, input?: unknown): CherryMessagePart =>
-  ({
-    type: 'dynamic-tool',
-    toolCallId,
-    toolName,
-    state,
-    input,
-    callProviderMetadata: {
-      cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name: toolName } }
-    }
-  }) as unknown as CherryMessagePart
-
-const textPart = (text: string, parentToolCallId?: string): CherryMessagePart =>
-  ({
-    type: 'text',
-    text,
-    providerMetadata: parentToolCallId
-      ? {
-          'claude-code': {
-            parentToolCallId
-          }
-        }
-      : undefined
-  }) as unknown as CherryMessagePart
+import { buildAgentToolFlowProjection, findLatestAgentPreviewUrl } from '../agentRightPaneProjection'
+import { buildAgentRightPaneStatus } from '../agentStatusProjection'
+import { dshToolPart, message, textPart, toolPart } from './agentRightPaneProjectionTestUtils'
 
 describe('agent right pane projections', () => {
   describe('preview URL discovery', () => {
@@ -129,7 +69,14 @@ describe('agent right pane projections', () => {
 
   it('builds a selected tool subtree with text and reasoning parts owned by that subtree', () => {
     const parts = [
-      toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Explore the repo' }, 'Done exploring'),
+      toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Explore the repo' },
+        'Async agent launched successfully.\nagentId: b1c2d3e4f5a6b7c8'
+      ),
       textPart('child agent text', 'root'),
       toolPart('child', 'Read', 'root'),
       {
@@ -149,16 +96,13 @@ describe('agent right pane projections', () => {
 
     expect(projection.selectedToolCallIds).toEqual(new Set(['root', 'child']))
     expect(projection.messages.map((item) => item.id)).toEqual(['root:agent-flow-prompt', 'root:agent-flow-assistant'])
-    expect(projection.partsByMessageId['root:agent-flow-assistant']).toHaveLength(4)
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toHaveLength(3)
     expect(projection.partsByMessageId['root:agent-flow-assistant'][1]).not.toBe(parts[2])
     expect(getPartParentToolCallId(projection.partsByMessageId['root:agent-flow-assistant'][1])).toBeUndefined()
     expect(Object.values(projection.partsByMessageId).flat()).not.toContain(parts[0])
     expect(Object.values(projection.partsByMessageId).flat()).not.toContain(parts[4])
     expect((projection.partsByMessageId['root:agent-flow-prompt'][0] as { text?: string }).text).toBe(
       'Explore the repo'
-    )
-    expect((projection.partsByMessageId['root:agent-flow-assistant'][3] as { text?: string }).text).toBe(
-      'Done exploring'
     )
 
     const nextProjection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
@@ -221,11 +165,12 @@ describe('agent right pane projections', () => {
     const parts = [selected, child]
     const messages = [message('m1', parts)]
 
-    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root', 'Loaded subagent summary')
+    // The launch receipt's own result text is no longer appended to the flow — it duplicates the
+    // agent's final message and goes stale across continuations.
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root')
 
     expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
-      expect.objectContaining({ toolCallId: 'child' }),
-      { type: 'text', text: 'Loaded subagent summary' }
+      expect.objectContaining({ toolCallId: 'child' })
     ])
   })
 
@@ -274,6 +219,43 @@ describe('agent right pane projections', () => {
     expect(assistantParts.map((part) => part.text).filter(Boolean)).toEqual(['child agent text'])
     expect(JSON.stringify(assistantParts)).not.toContain('Async agent launched successfully')
     expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
+  })
+
+  // A done-prefixed receipt with no detached child parts must not surface its internal
+  // metadata (agent id, SendMessage instructions) as assistant content.
+  it('hides a done-prefixed receipt when the launch has no detached child parts', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+    )
+    const parts = [selected]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(JSON.stringify(projection)).not.toContain('agent-77')
+    expect(JSON.stringify(projection)).not.toContain('SendMessage')
+    expect(JSON.stringify(projection)).not.toContain('done.')
+  })
+
+  // A legacy 'Internal id' receipt with no detached child parts must not surface its task id or
+  // output_file path as assistant content either.
+  it('hides an Internal-id receipt when the launch has no detached child parts', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Async agent launched successfully. Internal id: task-1; output_file: /tmp/task-1.output'
+    )
+    const parts = [selected]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(JSON.stringify(projection)).not.toContain('task-1')
+    expect(JSON.stringify(projection)).not.toContain('/tmp/task-1.output')
   })
 
   it.each(['async_launched', 'remote_launched'] as const)(
@@ -654,6 +636,144 @@ describe('agent right pane projections', () => {
   })
 
   // SDK task events describe spawned processes, not the agent's own plan, so they populate
+  // A cold-resumed dsh task is rebound to the send_message call its content streams under, even
+  // when the original launch's task event is loaded and would otherwise win the row.
+  it('follows the dsh runtime rebinding a task to its resume call', () => {
+    const parts = [
+      dshToolPart(
+        'call-launch',
+        'subagent',
+        'output-available',
+        { description: 'Audit the renderer' },
+        'started subagent dsh-child-1'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'dsh-child-1',
+          toolUseId: 'call-launch',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      },
+      dshToolPart(
+        'call-send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1' },
+        'message delivered to agent dsh-child-1'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'dsh-child-1',
+          toolUseId: 'call-send',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'dsh-child-1', toolUseId: 'call-send' })])
+  })
+
+  // The resume edge can arrive through the runtime's live cache without ever being a loaded part:
+  // the row must still follow the call the child's content streams under.
+  it('follows a dsh rebinding that only the live task-event cache carries', () => {
+    const parts = [
+      dshToolPart(
+        'call-launch',
+        'subagent',
+        'output-available',
+        { description: 'Audit the renderer' },
+        'started subagent dsh-child-1'
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'dsh-child-1',
+          toolUseId: 'call-launch',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      },
+      dshToolPart(
+        'call-send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1' },
+        'message delivered to agent dsh-child-1'
+      )
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+    const lateTaskEvents = {
+      'dsh-child-1': {
+        event: 'started',
+        taskId: 'dsh-child-1',
+        toolUseId: 'call-send',
+        status: 'in_progress',
+        taskType: 'subagent',
+        title: 'Audit the renderer'
+      }
+    } as AgentSessionTaskEvents
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts }, lateTaskEvents)
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'dsh-child-1', toolUseId: 'call-send' })])
+  })
+
+  // Claude resume edges also name the resuming call, but a claude child's content stays under its
+  // launch root: the row must keep the launch binding, so first-wins has to survive there.
+  it('keeps the launch binding for a claude task whose later edge names a resume call', () => {
+    const parts = [
+      toolPart('call-launch', 'Agent', undefined, 'output-available', { description: 'Audit the renderer' }, 'ok'),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'child-1',
+          toolUseId: 'call-launch',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      },
+      toolPart(
+        'call-resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'child-1', message: 'continue' },
+        { success: true, resumedAgentId: 'child-1' }
+      ),
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'child-1',
+          toolUseId: 'call-resume',
+          status: 'in_progress',
+          taskType: 'subagent',
+          title: 'Audit the renderer'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'child-1', toolUseId: 'call-launch' })])
+  })
+
   // `runTasks` and stay out of the plan's done/total ratio.
   it('applies persisted Claude SDK task events to run tasks, not the plan', () => {
     const parts = [
@@ -841,6 +961,39 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  // A SendMessage resume re-points lifecycle edges at the resuming call's id, while the resumed
+  // content keeps streaming under the launch id — the row's navigation anchor must stay there.
+  it('keeps the launch tool-use id when a resumed run reports a new one', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'agent-1',
+          status: 'in_progress',
+          title: 'Review patch',
+          toolUseId: 'call_launch'
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'progress',
+          taskId: 'agent-1',
+          status: 'in_progress',
+          description: 'Resumed work',
+          toolUseId: 'call_resume'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
+
+    expect(status.runTasks).toEqual([
+      expect.objectContaining({ id: 'agent-1', status: 'in_progress', toolUseId: 'call_launch' })
+    ])
+  })
+
   // An interrupted turn kills its subagents without a completion event, so the persisted parts end
   // at in_progress forever. Liveness — not the events — decides whether a row still spins.
   it('stops a run task the session is no longer running', () => {
@@ -911,3 +1064,5 @@ describe('agent right pane projections', () => {
     ])
   })
 })
+
+// A DSH `send_message` is both the continuation edge and — after a cold resume — the root the child
