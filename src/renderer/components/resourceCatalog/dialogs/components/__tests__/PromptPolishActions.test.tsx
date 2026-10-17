@@ -344,6 +344,63 @@ describe('PromptPolishActions', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  describe('running state', () => {
+    function RunningStateHarness() {
+      const [running, setRunning] = useState(false)
+      const [mounted, setMounted] = useState(true)
+
+      return (
+        <>
+          {mounted ? (
+            <PromptPolishActions
+              value="Original prompt"
+              emptyValueSystemPrompt={TEST_GENERATE_SYSTEM_PROMPT}
+              existingValueSystemPrompt={TEST_EXISTING_SYSTEM_PROMPT}
+              onChange={vi.fn()}
+              onRunningChange={setRunning}
+            />
+          ) : null}
+          <button type="button" onClick={() => setMounted(false)}>
+            unmount actions
+          </button>
+          <output data-testid="running">{String(running)}</output>
+        </>
+      )
+    }
+
+    it('reports running until the response arrives', async () => {
+      const request = deferredResponse()
+      mocks.fetchGenerate.mockReturnValueOnce(request.promise)
+      render(<RunningStateHarness />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+      expect(screen.getByTestId('running')).toHaveTextContent('true')
+
+      await act(async () => request.resolve('Polished prompt'))
+      expect(screen.getByTestId('running')).toHaveTextContent('false')
+    })
+
+    it('stops reporting running when the user cancels', () => {
+      mocks.fetchGenerate.mockReturnValueOnce(NEVER_RESOLVING_PROMISE)
+      render(<RunningStateHarness />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+      fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+      expect(screen.getByTestId('running')).toHaveTextContent('false')
+    })
+
+    it('stops reporting running when the actions unmount mid-request', () => {
+      mocks.fetchGenerate.mockReturnValueOnce(NEVER_RESOLVING_PROMISE)
+      render(<RunningStateHarness />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
+      fireEvent.click(screen.getByRole('button', { name: 'unmount actions' }))
+
+      expect(screen.getByTestId('running')).toHaveTextContent('false')
+    })
+  })
+
   it('invalidates undo after a manual edit without an effect-driven follow-up commit', async () => {
     mocks.fetchGenerate.mockResolvedValueOnce('Polished prompt')
     const onRender = vi.fn()

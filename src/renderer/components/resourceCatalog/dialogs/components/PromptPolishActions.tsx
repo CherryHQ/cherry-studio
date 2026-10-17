@@ -1,4 +1,4 @@
-import { Sparkles, Undo2, X } from 'lucide-react'
+import { LoaderCircle, Sparkles, Undo2, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +22,7 @@ type PromptPolishActionsProps = {
   emptyValueSystemPrompt: string
   existingValueSystemPrompt: string
   onChange: (value: string) => void
+  onRunningChange?: (running: boolean) => void
   disabled?: boolean
 }
 
@@ -45,6 +46,7 @@ export function PromptPolishActions({
   emptyValueSystemPrompt,
   existingValueSystemPrompt,
   onChange,
+  onRunningChange,
   disabled = false
 }: PromptPolishActionsProps) {
   const { t } = useTranslation()
@@ -61,21 +63,30 @@ export function PromptPolishActions({
   const actionLabel = t(usesFallback ? 'library.config.prompt.generate' : 'library.config.prompt.polish')
   const generationSourceRef = useRef(generationSource)
   const onChangeRef = useRef(onChange)
+  const onRunningChangeRef = useRef(onRunningChange)
 
   useLayoutEffect(() => {
     valueRef.current = value
     disabledRef.current = disabled
     generationSourceRef.current = generationSource
     onChangeRef.current = onChange
-  }, [disabled, generationSource, onChange, value])
+    onRunningChangeRef.current = onRunningChange
+  }, [disabled, generationSource, onChange, onRunningChange, value])
 
   useEffect(() => {
     return () => {
       requestIdRef.current += 1
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       abortControllerRef.current?.abort(new DOMException('Prompt polish cancelled', 'AbortError'))
+      // The owner of the running state can outlive this button, e.g. a dialog whose content unmounts on close.
+      if (inFlightRef.current) onRunningChangeRef.current?.(false)
     }
   }, [])
+
+  const updateRunning = (nextRunning: boolean) => {
+    setRunning(nextRunning)
+    onRunningChangeRef.current?.(nextRunning)
+  }
 
   if (restoreState && restoreState.polished !== value) {
     setRestoreState(null)
@@ -95,7 +106,7 @@ export function PromptPolishActions({
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
     }
-    setRunning(false)
+    updateRunning(false)
     controller.abort(reason)
     return true
   }
@@ -130,7 +141,7 @@ export function PromptPolishActions({
     inFlightRef.current = true
     requestIdRef.current = requestId
     abortControllerRef.current = controller
-    setRunning(true)
+    updateRunning(true)
     setRestoreState(null)
     timeoutRef.current = setTimeout(() => {
       if (stopActiveRequest(controller, new DOMException(t('error.request_timeout'), 'TimeoutError'))) {
@@ -191,7 +202,7 @@ export function PromptPolishActions({
         timeoutRef.current = null
         abortControllerRef.current = null
         inFlightRef.current = false
-        setRunning(false)
+        updateRunning(false)
       }
     }
   }
@@ -225,8 +236,9 @@ export function PromptPolishActions({
             variant="ghost"
             aria-label={t('common.cancel')}
             onClick={handleCancel}
-            className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0">
-            <X className="size-3" />
+            className="group flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-error! focus-visible:bg-accent/50 focus-visible:text-error! focus-visible:ring-0">
+            <LoaderCircle className="size-3 group-hover:hidden group-focus-visible:hidden motion-safe:animate-spin" />
+            <X className="hidden size-3 group-hover:block group-focus-visible:block" />
           </Button>
         </Tooltip>
       ) : (
