@@ -38,16 +38,57 @@ function emptySecretData(): OAuthSecretData {
   }
 }
 
-/** Storage key for a server URL; servers sharing a URL share credentials. */
+/** Legacy URL-only key, used only to migrate credentials saved before account isolation. */
 export function oauthServerUrlHash(serverUrl: string): string {
   return crypto.createHash('md5').update(serverUrl).digest('hex')
 }
 
-const storagePath = (configDir: string, serverUrlHash: string) => path.join(configDir, `${serverUrlHash}_oauth.json`)
+export function oauthServerKey(serverId: string, serverUrl: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify([serverId, serverUrl]))
+    .digest('hex')
+}
+
+const storagePath = (configDir: string, storageKey: string) => path.join(configDir, `${storageKey}_oauth.json`)
+
+/** Run against the saved configurations at startup; new configurations must never inherit URL-only credentials. */
+export async function migrateOAuthStorage(
+  servers: readonly { id: string; baseUrl?: string }[],
+  configDir: string
+): Promise<void> {
+  const files = await fs.readdir(configDir, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return []
+    throw error
+  })
+  const byLegacyKey = Map.groupBy(
+    servers.filter((server) => server.baseUrl),
+    (server) => oauthServerUrlHash(server.baseUrl!)
+  )
+  for (const file of files) {
+    if (!file.isFile() || !/^[a-f0-9]{32}_oauth\.json$/.test(file.name)) continue
+    const legacyKey = file.name.slice(0, 32)
+    const owners = byLegacyKey.get(legacyKey) ?? []
+    const legacyPath = storagePath(configDir, legacyKey)
+    if (owners.length === 1) {
+      const target = storagePath(configDir, oauthServerKey(owners[0].id, owners[0].baseUrl!))
+      try {
+        await fs.copyFile(legacyPath, target, fs.constants.COPYFILE_EXCL)
+        const secrets = volatileSecrets.get(legacyPath)
+        if (secrets) volatileSecrets.set(target, secrets)
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code
+        if (code !== 'ENOENT' && code !== 'EEXIST') throw error
+      }
+    }
+    // Shared and orphaned logins must not become eligible for a future configuration.
+    await deleteOAuthStorage(legacyKey, configDir)
+  }
+}
 
 /** Forgets a server's credentials, including process-only ones kept when secure storage is unavailable. */
-export async function deleteOAuthStorage(serverUrlHash: string, configDir: string): Promise<void> {
-  const filePath = storagePath(configDir, serverUrlHash)
+export async function deleteOAuthStorage(storageKey: string, configDir: string): Promise<void> {
+  const filePath = storagePath(configDir, storageKey)
   volatileSecrets.delete(filePath)
   await fs.rm(filePath, { force: true })
 }
@@ -59,11 +100,11 @@ export class JsonFileStorage implements IOAuthStorage {
   private secretCache: OAuthSecretData | null = null
 
   constructor(
-    readonly serverUrlHash: string,
+    readonly storageKey: string,
     configDir: string,
     cipher: OAuthSecretCipher = electronSecretCipher
   ) {
-    this.filePath = storagePath(configDir, serverUrlHash)
+    this.filePath = storagePath(configDir, storageKey)
     this.cipher = cipher
   }
 
