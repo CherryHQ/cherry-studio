@@ -54,7 +54,7 @@ export interface GoalSnapshot {
   objective: string
   phase: GoalPhase
   roundsStarted: number
-  /** Rounds in which a non-read tool call succeeded or the reply changed; the fallback completion check reads it. */
+  /** What {@link goalProgress} reported when this snapshot was written, for the host's display; never read back. */
   progressRounds: number
   maxGoalRounds: number
   budget?: GoalBudget
@@ -252,9 +252,15 @@ export function admitRound(goal: GoalSnapshot, round: Pick<RoundDetails, 'id' | 
   })
 }
 
-/** The snapshot to write: `goal` with the usage the branch shows now (no revision bump). */
-export function withUsage(goal: GoalSnapshot, usage: GoalUsage): GoalSnapshot {
-  return { ...goal, tokensUsed: usage.tokens, costUsed: usage.usd }
+/** What the branch shows of a goal: its usage (spec §6.1) and its rounds' progress (spec §7.2). */
+export interface GoalCounts {
+  usage: GoalUsage
+  progress: GoalProgress
+}
+
+/** `goal` with the counts the branch shows (no revision bump). */
+export function withCounts(goal: GoalSnapshot, { usage, progress }: GoalCounts): GoalSnapshot {
+  return { ...goal, tokensUsed: usage.tokens, costUsed: usage.usd, progressRounds: progress.progressRounds }
 }
 
 export interface RoundDetails {
@@ -473,6 +479,78 @@ export function goalUsage(entries: readonly SessionEntry[], goalId: string): Goa
   return used
 }
 
+/** A goal's rounds as the branch shows them (spec §7.2). */
+export interface GoalProgress {
+  /** Rounds that moved the objective, the running one so far included. */
+  progressRounds: number
+  /** Rounds in a row that did not, since a person spoke or the goal was armed; the running one counts as ended. */
+  noProgressRounds: number
+}
+
+/**
+ * Spec §7.2, from the branch alone: a round moves the objective when one of its tool results
+ * succeeded and does more than read or bookkeep, or its last text-bearing reply (not one cut off by
+ * the output limit) differs from the previous round's. A round runs from its admitted message to the
+ * next round message, a person's message or a snapshot that stops or disarms the goal; a round the
+ * user aborted counts for nothing.
+ */
+export function goalProgress(entries: readonly SessionEntry[], goalId: string): GoalProgress {
+  const stale = unadmittedRounds(entries)
+  const progress: GoalProgress = { progressRounds: 0, noProgressRounds: 0 }
+  let previousText: string | undefined
+  let round: { tools: boolean; text: string | undefined } | undefined
+  let running = false
+  const endRound = (counts: boolean) => {
+    if (round && counts) {
+      const moved = round.tools || (round.text !== undefined && round.text !== previousText)
+      if (round.text !== undefined) previousText = round.text
+      progress.noProgressRounds = moved ? 0 : progress.noProgressRounds + 1
+      if (moved) progress.progressRounds++
+    }
+    round = undefined
+  }
+  for (const entry of entries) {
+    if (isGoalState(entry)) {
+      const data = entry.data as GoalSnapshot | GoalCleared
+      if (data.id !== goalId) continue
+      const nowRunning = !('cleared' in data) && data.phase === 'active' && data.armed
+      if (!nowRunning) endRound(!('cleared' in data) && data.lastStop?.code !== 'aborted')
+      // Arming the goal (create, resume) starts the comparison and the streak over.
+      else if (!running) {
+        previousText = undefined
+        progress.noProgressRounds = 0
+      }
+      running = nowRunning
+    } else if (isRoundMessage(entry)) {
+      // The settle that committed it ended the running round, whether this one runs or not.
+      endRound(true)
+      const details = entry.details as RoundDetails
+      if (details.goalId === goalId && !stale.has(details.id)) round = { tools: false, text: undefined }
+    } else if (entry.type === 'message') {
+      const { message } = entry
+      if (message.role === 'user') {
+        endRound(true)
+        progress.noProgressRounds = 0
+      } else if (!round) continue
+      else if (message.role === 'toolResult') round.tools ||= isProgressResult(message)
+      else if (message.role === 'assistant' && message.stopReason !== 'length') {
+        const text = assistantText(message)
+        if (text) round.text = text
+      }
+    }
+  }
+  endRound(true)
+  return progress
+}
+
+/** The counts of goal `goalId`, with `next` taken as written when given (an abort's snapshot drops its round). */
+export function goalCounts(entries: readonly SessionEntry[], goalId: string, next?: GoalSnapshot): GoalCounts {
+  const branch: readonly SessionEntry[] = next
+    ? [...entries, { type: 'custom', customType: GOAL_STATE_TYPE, data: next, id: '', parentId: null, timestamp: '' }]
+    : entries
+  return { usage: goalUsage(branch, goalId), progress: goalProgress(branch, goalId) }
+}
+
 /** The subagents whose latest background run is goal `goalId`'s (spec §11.4: they stop with its budget). */
 export function goalSubagents(entries: readonly SessionEntry[], goalId: string): string[] {
   const { owners, latestRuns } = readGoalBranch(entries)
@@ -547,10 +625,10 @@ export function renderRoundPrompt(
   return [...head, ...body, '</goal_round>'].join('\n')
 }
 
-/** The model-facing view: the goal with the usage the branch shows now, its activation beside it. */
-export function goalView(goal: GoalSnapshot | undefined, usage: GoalUsage) {
+/** The model-facing view: the goal with the counts the branch shows now, its activation beside it. */
+export function goalView(goal: GoalSnapshot | undefined, counts: GoalCounts) {
   if (!goal) return { goal: null } as const
-  const { wrapUpDone: _wrapUpDone, admittedRound: _admittedRound, armed, ...view } = withUsage(goal, usage)
+  const { wrapUpDone: _wrapUpDone, admittedRound: _admittedRound, armed, ...view } = withCounts(goal, counts)
   void _wrapUpDone // Intentionally unused - the model-facing view omits the internal wrap-up flag
   void _admittedRound // Intentionally unused - the view omits round bookkeeping too
   return { goal: view, activation: armed ? ('armed' as const) : ('disarmed' as const) }

@@ -12,12 +12,12 @@ import {
   toolResultOf,
   waitFor
 } from './aiSdkSubagentSupport'
-import { createTestSession, finish, MODEL, streamTextPort } from './aiSdkSupport'
+import { createTestSession, finish, NATIVE_MODEL, streamTextPort } from './aiSdkSupport'
 import { textOf } from './aiSdkToolResults'
 
-const SONNET_OR: AgentRuntimeModel = { ...MODEL, provider: 'openrouter', id: 'sonnet-4.5' }
-const SONNET_AN: AgentRuntimeModel = { ...MODEL, provider: 'anthropic', id: 'claude-sonnet-4-5' }
-const DEFAULT_SUB: AgentRuntimeModel = { ...MODEL, provider: 'cherry', id: 'small-model' }
+const SONNET_OR: AgentRuntimeModel = { ...NATIVE_MODEL, provider: 'openrouter', id: 'sonnet-4.5' }
+const SONNET_AN: AgentRuntimeModel = { ...NATIVE_MODEL, provider: 'anthropic', id: 'claude-sonnet-4-5' }
+const DEFAULT_SUB: AgentRuntimeModel = { ...NATIVE_MODEL, provider: 'cherry', id: 'small-model' }
 const MODELS = [SONNET_OR, SONNET_AN, DEFAULT_SUB]
 const CATALOG = [
   { key: `${SONNET_OR.provider}/${SONNET_OR.id}`, provider: 'OpenRouter', model: 'Claude Sonnet 4.5' },
@@ -162,7 +162,7 @@ describe('subagent models', () => {
     const two = await createTestSession({ port: secondPort.port, subagents: withoutDefault.port })
     await two.session.prompt('Delegate')
     expect(childRequests(secondPort.requests, two.session.sessionId).map((request) => request.model.id)).toEqual([
-      MODEL.id
+      NATIVE_MODEL.id
     ])
   })
 
