@@ -504,8 +504,8 @@ export interface GoalProgress {
  * Spec §7.2, from the branch alone: a round moves the objective when one of its tool results
  * succeeded and does more than read or bookkeep, or its last text-bearing reply (not one cut off by
  * the output limit) differs from the previous round's. A round runs from its admitted message to the
- * next round message, a person's message or a snapshot that stops or disarms the goal; a round the
- * user aborted counts for nothing.
+ * next round message, a person's message, a notification turn (background subagent spec §11.3) or a
+ * snapshot that stops or disarms the goal; a round the user aborted counts for nothing.
  */
 export function goalProgress(entries: readonly SessionEntry[], goalId: string): GoalProgress {
   const stale = unadmittedRounds(entries)
@@ -513,6 +513,8 @@ export function goalProgress(entries: readonly SessionEntry[], goalId: string): 
   let previousText: string | undefined
   let round: { tools: boolean; text: string | undefined } | undefined
   let running = false
+  // No reply since a turn started: a notification now rides with that start.
+  let starting = false
   const endRound = (counts: boolean) => {
     if (round && counts) {
       const moved = round.tools || (round.text !== undefined && round.text !== previousText)
@@ -534,13 +536,19 @@ export function goalProgress(entries: readonly SessionEntry[], goalId: string): 
         progress.noProgressRounds = 0
       }
       running = nowRunning
+    } else if (entry.type === 'custom_message' && entry.customType === SUBAGENT_NOTIFICATION_TYPE) {
+      // A notification that starts its own turn ends the round; one riding with a turn's start belongs to it.
+      if (!starting) endRound(true)
+      starting = true
     } else if (isRoundMessage(entry)) {
       // The settle that committed it ended the running round, whether this one runs or not.
       endRound(true)
+      starting = true
       const details = entry.details as RoundDetails
       if (details.goalId === goalId && !stale.has(details.id)) round = { tools: false, text: undefined }
     } else if (entry.type === 'message') {
       const { message } = entry
+      starting = message.role === 'user'
       if (message.role === 'user') {
         endRound(true)
         progress.noProgressRounds = 0
