@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AssistantIdSchema, AssistantSchema, DEFAULT_ASSISTANT_SETTINGS } from '../assistant'
+import { AssistantIdSchema, AssistantSchema, AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '../assistant'
 
 describe('AssistantIdSchema', () => {
   it.each([
@@ -46,5 +46,22 @@ describe('AssistantSchema', () => {
 
     expect(AssistantSchema.safeParse(missingEmbed).success).toBe(false)
     expect(AssistantSchema.parse(baseAssistant)).toMatchObject({ modelName })
+  })
+})
+
+describe('web provider settings', () => {
+  it('preserves independent provider overrides and null reset through the persisted settings schema', () => {
+    const stored = AssistantSettingsSchema.parse({
+      ...DEFAULT_ASSISTANT_SETTINGS,
+      searchKeywordsProviderId: 'exa',
+      fetchUrlsProviderId: 'jina'
+    })
+    expect(stored.searchKeywordsProviderId).toBe('exa')
+    expect(stored.fetchUrlsProviderId).toBe('jina')
+    expect(AssistantSettingsSchema.parse({ ...stored, searchKeywordsProviderId: null })).toMatchObject({
+      searchKeywordsProviderId: null,
+      fetchUrlsProviderId: 'jina'
+    })
+    expect(AssistantSettingsSchema.safeParse({ ...stored, fetchUrlsProviderId: 'invalid' }).success).toBe(false)
   })
 })

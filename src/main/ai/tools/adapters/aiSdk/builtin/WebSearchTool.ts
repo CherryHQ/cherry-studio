@@ -35,8 +35,13 @@ const webSearchTool = tool({
     if (typeof query !== 'string' || !query.trim()) {
       return []
     }
+    const { request } = getToolCallContext(options)
     return markTrustedLocalToolTerminalFailure(
-      await searchWeb(query.trim(), getToolCallContext(options).request.abortSignal)
+      await searchWeb(
+        query.trim(),
+        request.abortSignal,
+        request.assistant?.settings.searchKeywordsProviderId ?? undefined
+      )
     )
   },
   toModelOutput: ({ output }) => webLookupModelOutput(output)
