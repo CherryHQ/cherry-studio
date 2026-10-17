@@ -5,7 +5,7 @@ import { resolveProviderIconRef } from '@cherrystudio/ui/icons'
 import { getIconDisplayConfig } from '../iconDisplayConfig'
 
 describe('getIconDisplayConfig', () => {
-  it.each(['cherryin', 'aihubmix', 'lmstudio', 'anthropic', 'yi', 'groq', 'aws-bedrock', 'tokendance'])(
+  it.each(['cherryin', 'aihubmix', 'lmstudio', 'anthropic', 'yi', 'groq', 'aws-bedrock', 'tokendance', 'api-route'])(
     'contains the %s provider logo in the provider-list context',
     (providerId) => {
       const icon = resolveProviderIconRef(providerId)
