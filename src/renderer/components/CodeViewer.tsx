@@ -300,11 +300,12 @@ const CodeViewer = ({
         return
       }
 
-      // Prefer saved selection from scroll, otherwise get it in real-time
-      let saved = savedSelectionRef.current
-      if (!saved) {
-        saved = saveSelection()
-      }
+      // The saved selection exists for rows a scroll has since unmounted, where the DOM no longer
+      // holds the range. A live measurement is the truth whenever one is possible, and it is what
+      // keeps an in-viewer edit to the selection from being answered with the offsets a scroll
+      // cached before it.
+      const live = saveSelection()
+      const saved = live ?? savedSelectionRef.current
 
       if (!saved) {
         logger.warn('Cannot get selection, using browser default')
@@ -323,7 +324,7 @@ const CodeViewer = ({
         endOffset,
         expanded,
         needsCustomCopy,
-        usedSavedSelection: !!savedSelectionRef.current
+        usedSavedSelection: live === null
       })
 
       if (needsCustomCopy) {
