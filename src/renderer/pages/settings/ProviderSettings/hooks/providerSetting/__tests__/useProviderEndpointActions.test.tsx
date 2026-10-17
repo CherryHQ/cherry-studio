@@ -346,6 +346,63 @@ describe('useProviderEndpointActions', () => {
     })
   })
 
+  it('keeps newer refreshed endpoint settings over an older retained snapshot on sequential host saves', async () => {
+    const { result, rerender } = renderHook(
+      ({ provider: currentProvider }) =>
+        useProviderEndpointActions({
+          provider: currentProvider,
+          primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          apiHost: 'https://api.openai.com',
+          setApiHost: setApiHostMock,
+          providerApiHost: 'https://api.openai.com',
+          anthropicApiHost: '',
+          setAnthropicApiHost: setAnthropicApiHostMock,
+          defaultApiHost: 'https://api.openai.com',
+          apiVersion: '',
+          patchProvider: patchProviderMock
+        }),
+      { initialProps: { provider } }
+    )
+
+    await act(async () => {
+      await result.current.commitApiHost('https://first.example.com')
+      await flushEndpointAction()
+    })
+
+    // A whole-map writer (custom headers drawer) retained a snapshot taken before the next edit.
+    commitCommittedEndpointConfigs(provider.id, {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://first.example.com' }
+    })
+
+    // API Options disables streamOptions through a writer that records no snapshot; the refresh delivers it.
+    const refreshed = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://first.example.com',
+          dialect: { streamOptions: false }
+        }
+      }
+    }
+    await act(async () => {
+      rerender({ provider: refreshed })
+    })
+
+    await act(async () => {
+      await result.current.commitApiHost('https://second.example.com')
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenLastCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://second.example.com',
+          dialect: { streamOptions: false }
+        }
+      }
+    })
+  })
+
   it('preserves reasoning format when resetting the API host', async () => {
     const providerWithOverride = {
       ...provider,

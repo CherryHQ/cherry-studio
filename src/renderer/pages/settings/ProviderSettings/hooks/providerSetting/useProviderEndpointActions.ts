@@ -133,8 +133,17 @@ export function useProviderEndpointActions({
     lastPersistedApiHostRef.current = trim(providerApiHost)
   }, [providerApiHost])
 
+  const observedProviderRef = useRef(provider)
   useEffect(() => {
     providerRef.current = provider
+    // A provider object that changed after mount is an authoritative refresh: it already reflects every
+    // committed write plus edits from writers that don't record snapshots (e.g. API Options dialect flags),
+    // so the retained snapshot must stop overriding it. A failed revalidation delivers no new object and
+    // keeps the snapshot.
+    if (provider && observedProviderRef.current !== provider) {
+      committedEndpointConfigsByProviderId.delete(provider.id)
+    }
+    observedProviderRef.current = provider
   }, [provider])
 
   const persistApiHostDraft = useCallback(
