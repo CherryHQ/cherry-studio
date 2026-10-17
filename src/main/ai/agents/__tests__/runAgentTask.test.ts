@@ -19,6 +19,7 @@ const {
   mockAbort,
   mockRemoveListener,
   mockStashWakeChannelListeners,
+  mockWhenTerminalDispatchSettled,
   mockGetAdapter,
   mockStartRun,
   mockBindTaskSessionReuse,
@@ -34,6 +35,7 @@ const {
     mockAbort: vi.fn(),
     mockRemoveListener: vi.fn(),
     mockStashWakeChannelListeners: vi.fn(),
+    mockWhenTerminalDispatchSettled: vi.fn(async () => undefined),
     mockGetAdapter: vi.fn(() => undefined),
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
       captured.listeners = opts.listeners
@@ -58,7 +60,8 @@ vi.mock('@application', async () => {
     AiStreamManager: {
       abort: mockAbort,
       removeListener: mockRemoveListener,
-      stashWakeChannelListeners: mockStashWakeChannelListeners
+      stashWakeChannelListeners: mockStashWakeChannelListeners,
+      whenTerminalDispatchSettled: mockWhenTerminalDispatchSettled
     },
     AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
     // Gate that keeps a reusing fire off a session with a live turn.
@@ -899,6 +902,50 @@ describe('runAgentTask', () => {
     await expect(promise).rejects.toThrow('boom')
 
     // Exactly one channel message, and it's the task-framed summary — not the bare `Error: …`.
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage.mock.calls[0][1]).toContain('[Task failed]')
+    expect(adapter.sendMessage.mock.calls[0][1]).not.toMatch(/^Error:/)
+  })
+
+  // With background work pending, the failing fire retains its channel listeners and arms their
+  // error delivery for the wake. The arm must wait out the terminal dispatch it is running inside:
+  // the sentinel executes ahead of the channel listeners, so an immediate enable lets this same
+  // failure double-notify (generic `Error: …` plus the `[Task failed]` summary) before the wake.
+  it('keeps the generic error suppressed on the fire’s own failing terminal while work is pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => true),
+      onStreamError: vi.fn(async () => false)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    // Same dispatch as the test above: the sentinel's onError settles first, then the channel
+    // listener sees the terminal event this fire itself produced.
+    const errorResult = { error: new Error('boom'), status: 'error' }
+    for (const listener of captured.listeners) {
+      listener.onError?.(errorResult)
+    }
+
+    await expect(promise).rejects.toThrow('boom')
+
+    // Still exactly one notification, and it is the task-framed summary — the retained listeners'
+    // generic delivery must arm for the wake, not for the failure currently being dispatched.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage.mock.calls[0][1]).toContain('[Task failed]')
     expect(adapter.sendMessage.mock.calls[0][1]).not.toMatch(/^Error:/)

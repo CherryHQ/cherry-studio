@@ -965,8 +965,9 @@ export class AiStreamManager extends BaseService {
    * stream replacement can drop them without stranding that obligation. Only the component that
    * knows the obligation — the fire (or inbound request) retaining its recipients — may stash: a
    * replacement that stashed whatever it found would hand a served chat to an unrelated wake.
-   * `owesTaskIds` is the driver's live background set at stash time; the claim is discharged only
-   * once those ids leave it, so another fire's still-running task can neither delay nor steal it.
+   * `owesTaskIds` is the driver's live background set at stash time; the claim is discharged by a
+   * completion — the first owed id to leave that set — so another fire's still-running task can
+   * neither delay nor steal it.
    */
   stashWakeChannelListeners(topicId: string, listeners: StreamListener[], owesTaskIds?: ReadonlySet<string>): void {
     if (listeners.length === 0) return
@@ -979,17 +980,22 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Whether the topic's stashed recipients are ready to be claimed: every task they owe has left
-   * the driver's live background set. Bound to the stash's own recorded debt, not to the live set
-   * being empty — an unrelated fire's still-running task must not delay this claim.
+   * Whether the topic's stashed recipients are ready to be claimed: at least one task they owe has
+   * left the driver's live background set. Each completion is its own delivery opportunity — the
+   * first owed task to settle is the wake that carries the recipients — so a co-spawned long-lived
+   * task must not hold the claim hostage until the whole snapshot drains (a mixed fire's finite
+   * subagent would never reach the requesting chat while its server stays up). Bound to the stash's
+   * own recorded debt, not to the live set being empty — an unrelated fire's still-running task
+   * must not delay this claim.
    */
   stashedWakeRecipientsDischarged(topicId: string, listedTaskIds: ReadonlySet<string>): boolean {
     const pending = this.pendingChannelListeners.get(topicId)
     if (!pending) return true
+    if (pending.owesTaskIds.size === 0) return true
     for (const id of pending.owesTaskIds) {
-      if (listedTaskIds.has(id)) return false
+      if (!listedTaskIds.has(id)) return true
     }
-    return true
+    return false
   }
 
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {

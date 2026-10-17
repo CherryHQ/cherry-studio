@@ -3470,7 +3470,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Same fail-closed rule as `getSessionToolsAuthorization`: a native child's MCP request carries
     // no origin, so an unattributed call must not raise consent in the foreground turn's window
     // while a headless child is still running.
-    if (bridgeOrigin === undefined && this.hasHeadlessNativeChild(entry)) return undefined
+    if (bridgeOrigin === undefined && this.hasLiveHeadlessNativeChild(entry)) return undefined
     if (this.getInteractionState(sessionId).userResponse === 'unavailable') return undefined
     const windowId = application.get('AiStreamManager').getInteractionWindow(entry.topicId) ?? entry.interactionWindowId
     if (!windowId || !application.get('WindowManager').getWindow(windowId)) return undefined
@@ -3577,7 +3577,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // stamp `cherry.bridgeOrigin`, so a call with no provenance may belong to any running child.
     // While one of them holds unattended authority, crediting this call with the foreground turn's
     // interactive state would hand it the auto-approved discovery tools — fail closed instead.
-    if (entry && bridgeOrigin === undefined && this.hasHeadlessNativeChild(entry)) {
+    // Bindings outlive their child (a resumed one keeps its origin), so this restricts only while
+    // the connection still lists live work; after the idle drain an unattributed call is the
+    // foreground's own and a desktop follow-up must not inherit the old denial.
+    if (entry && bridgeOrigin === undefined && this.hasLiveHeadlessNativeChild(entry)) {
       return { currentTurn: 'headless', userResponse: 'unavailable' }
     }
     return interaction
@@ -3589,12 +3592,25 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.headlessNativeChild(entry, bridgeOrigin)
   }
 
-  /** Whether any still-running native Claude child holds unattended authority. */
+  /** Whether any native Claude child is bound to unattended authority. */
   private hasHeadlessNativeChild(entry: AgentSessionRuntimeEntry): boolean {
     for (const headless of entry.nativeChildOrigins?.values() ?? []) {
       if (headless) return true
     }
     return false
+  }
+
+  /**
+   * Whether a headless-bound native child may still be running. Bindings are historical provenance —
+   * a finished child's binding must survive so a resumed one keeps its origin — so the
+   * unattributed-call restriction keys on the connection's live background occupancy instead: it is
+   * active whenever the SDK lists work and drops only at the trustworthy idle drain, after held-back
+   * results and the background-agent loop have emptied membership. A drained connection has no child
+   * left to attribute an unprovenanced call to.
+   */
+  private hasLiveHeadlessNativeChild(entry: AgentSessionRuntimeEntry): boolean {
+    if (!this.hasHeadlessNativeChild(entry)) return false
+    return hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
   }
 
   /**

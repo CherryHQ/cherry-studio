@@ -3356,6 +3356,9 @@ describe('AgentSessionRuntimeService', () => {
       mocks.getWindow.mockReturnValue({})
       const turn = service.beginTurn(baseTurnInput)
       service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      // Both children are still listed on the live connection — the running-child state the
+      // unattributed-call restriction keys on.
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
 
       // B carries no bridge provenance of its own; the request must still not be credited with the
       // foreground interactive authority the retained responder reports.
@@ -3374,6 +3377,48 @@ describe('AgentSessionRuntimeService', () => {
         currentTurn: 'interactive'
       })
       expect(service.getMcpInteractionHost('session-1', 'agent-a')).toMatchObject({ windowId: 'window-1' })
+    })
+
+    // Bindings are historical provenance: after a headless child finishes (membership empties, the
+    // SDK drains idle) its stale binding must not keep a desktop follow-up's unprovenanced root
+    // calls failing closed — only a child still listed on the live connection does that.
+    it('releases the unattributed-call denial once the headless child’s work drains', () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      service.bindNativeChildOrigin('session-1', 'agent-b')
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      const entry = getEntry(service)
+
+      // While the child is listed, the unattributed call fails closed.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      expect(service.getMcpInteractionHost('session-1')).toBeUndefined()
+
+      // The child finished: membership empties and the connection drains idle. The follow-up's own
+      // root calls must no longer inherit the denial.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      expect(service.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
+
+      // Provenance survives the release — a resumed child keeps its headless origin.
+      expect(service.getSessionToolsAuthorization('session-1', 'agent-b')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      void service.closeSession('session-1')
     })
 
     // A CLI crash after SubagentStart but before SubagentStop leaves the child bound while a later
