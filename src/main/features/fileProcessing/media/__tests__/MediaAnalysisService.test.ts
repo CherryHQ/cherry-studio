@@ -145,6 +145,29 @@ describe('MediaAnalysisService', () => {
     expect(await readdir(runtime.tempRoot)).toEqual([])
   })
 
+  it('shifts WAV-relative speech onto the source timeline when audio starts later than the container', async () => {
+    runtime.probe.mockResolvedValue({
+      durationMs: 10_000,
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video',
+      audioStartMs: 2_000
+    })
+    runtime.extractAudio.mockImplementation(async ({ outputDir }) => {
+      const path = join(outputDir, 'chunk.wav')
+      await writeFile(path, Buffer.from('RIFF-test'))
+      return { chunks: [{ path, startMs: 0, endMs: 8_000, byteLength: 9 }], sampleRateHz: 16000, channels: 1 }
+    })
+    runtime.transcribe.mockResolvedValue({
+      text: 'hello',
+      segments: [{ text: 'hello', startSecond: 0.25, endSecond: 0.75 }]
+    })
+
+    const analysis = await service.analyze(file)
+    expect(analysis.audio?.segments).toEqual([{ startMs: 2_250, endMs: 2_750, text: 'hello' }])
+  })
+
   it('keeps successful OCR when audio transcription fails', async () => {
     runtime.config = {
       ...runtime.config,
