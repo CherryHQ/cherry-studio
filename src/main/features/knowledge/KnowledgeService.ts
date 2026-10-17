@@ -18,7 +18,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
-import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
+import { type KnowledgeAddItemsAdmissionResult, KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
   KnowledgeConceptContent,
   KnowledgeConceptGrep,
@@ -108,6 +108,14 @@ export class KnowledgeService extends BaseService {
     conflictStrategy?: KnowledgeAddConflictStrategy
   ): Promise<KnowledgeAddItemsResult> {
     return await this.ingestionService.addItems(baseId, items, conflictStrategy)
+  }
+
+  async addItemsWithAdmission(
+    baseId: string,
+    items: KnowledgeAddItemInput[],
+    conflictStrategy?: KnowledgeAddConflictStrategy
+  ): Promise<KnowledgeAddItemsAdmissionResult> {
+    return await this.ingestionService.addItemsWithAdmission(baseId, items, conflictStrategy)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
