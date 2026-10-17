@@ -64,7 +64,7 @@ describe('useBundledCatalog', () => {
       })
     )
 
-    expect(result.current).toEqual({ isLoading: false, items: [] })
+    expect(result.current).toEqual({ error: null, retry: expect.any(Function), isLoading: false, items: [] })
     expect(load).not.toHaveBeenCalled()
 
     enabled = true
@@ -77,7 +77,7 @@ describe('useBundledCatalog', () => {
       deferred.resolve(['preset'])
     })
 
-    expect(result.current).toEqual({ isLoading: false, items: ['preset'] })
+    expect(result.current).toEqual({ error: null, retry: expect.any(Function), isLoading: false, items: ['preset'] })
   })
 
   it('ignores a stale request after the catalog language changes', async () => {
@@ -102,12 +102,12 @@ describe('useBundledCatalog', () => {
     await act(async () => {
       english.resolve(['stale'])
     })
-    expect(result.current).toEqual({ isLoading: true, items: [] })
+    expect(result.current).toEqual({ error: null, retry: expect.any(Function), isLoading: true, items: [] })
 
     await act(async () => {
       chinese.resolve(['最新'])
     })
-    expect(result.current).toEqual({ isLoading: false, items: ['最新'] })
+    expect(result.current).toEqual({ error: null, retry: expect.any(Function), isLoading: false, items: ['最新'] })
   })
 
   it('keeps a loaded catalog stable across an Activity hide and show cycle', async () => {
@@ -131,12 +131,16 @@ describe('useBundledCatalog', () => {
     rerender()
 
     expect(load).toHaveBeenCalledTimes(1)
-    expect(result.current).toEqual({ isLoading: false, items: ['preset'] })
+    expect(result.current).toEqual({ error: null, retry: expect.any(Function), isLoading: false, items: ['preset'] })
   })
 
-  it('degrades a failed reload to an empty catalog', async () => {
+  it('exposes a failed reload and recovers on retry', async () => {
     const loadError = new Error('broken catalog')
-    const load = vi.fn().mockResolvedValueOnce(['preset']).mockRejectedValueOnce(loadError)
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(['preset'])
+      .mockRejectedValueOnce(loadError)
+      .mockResolvedValueOnce(['recovered'])
     const { result, rerender } = renderHook(() =>
       useBundledCatalog<string>({
         catalog: 'test catalog',
@@ -154,13 +158,18 @@ describe('useBundledCatalog', () => {
       catalog: 'test catalog',
       error: loadError
     })
-    expect(result.current).toEqual({ isLoading: false, items: [] })
+    expect(result.current).toEqual({ error: loadError, retry: expect.any(Function), isLoading: false, items: [] })
+
+    act(() => result.current.retry())
+    await waitFor(() => expect(result.current.items).toEqual(['recovered']))
+    expect(result.current.error).toBeNull()
+    expect(result.current.isLoading).toBe(false)
   })
 
-  it('waits for the resources path without invoking the domain loader', () => {
+  it('waits for the resources path and loads once it becomes available', async () => {
     bundledCatalogMocks.resourcesPath = ''
-    const load = vi.fn()
-    const { result } = renderHook(() =>
+    const load = vi.fn().mockResolvedValue(['preset'])
+    const { result, rerender } = renderHook(() =>
       useBundledCatalog({
         catalog: 'test catalog',
         load
@@ -171,6 +180,11 @@ describe('useBundledCatalog', () => {
     expect(bundledCatalogMocks.warn).toHaveBeenCalledWith('Bundled catalog resources path is not ready', {
       catalog: 'test catalog'
     })
-    expect(result.current).toEqual({ isLoading: false, items: [] })
+    expect(result.current).toEqual({ error: null, retry: expect.any(Function), isLoading: true, items: [] })
+
+    bundledCatalogMocks.resourcesPath = '/resources'
+    rerender()
+    await waitFor(() => expect(result.current.items).toEqual(['preset']))
+    expect(result.current.isLoading).toBe(false)
   })
 })

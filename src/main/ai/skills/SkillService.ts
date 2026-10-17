@@ -27,13 +27,23 @@ import type {
   SystemSkillCandidate,
   SystemSkillPlacement
 } from '@shared/types/skill'
+import type { MarketplaceInstallResult, MarketplaceSkillDetail } from '@shared/types/skillMarketplace'
+import { marketplaceSkillNamespace, marketplaceSkillSource } from '@shared/utils/cherrySkillMarketplace'
 import {
   hasSkillRemoteUpdateProvenance,
   isSkillDirectoryContentHash,
   parseSkillSourceUrl
 } from '@shared/utils/skillMarketplace'
+import { skillInstallIdentity, subscriptionMemberSource } from '@shared/utils/skillSubscription'
 
-import { assertSkillDirectoryWithinLimits, extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
+import { downloadMarketplaceSkill, downloadSkillPackage, getMarketplaceSkill } from './cherrySkillMarketplace'
+import {
+  assertSkillDirectoryWithinLimits,
+  exportSkillArchive,
+  extractZip,
+  resolveSkillDirectory,
+  validateZipFile
+} from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
 import { fetchRemoteSkill } from './skillRemoteSource'
@@ -75,6 +85,7 @@ export class SkillService {
   private readonly mutationLock = new Mutex()
   // Dedupes concurrent reconcile-on-open triggers onto a single run.
   private reconcileInFlight: Promise<void> | null = null
+  private readonly marketplaceInstalls = new Map<string, Promise<MarketplaceInstallResult>>()
 
   constructor() {
     this.installer = new SkillInstaller()
@@ -93,6 +104,14 @@ export class SkillService {
    */
   async getById(id: string): Promise<InstalledSkill | null> {
     return agentGlobalSkillService.getById(id)
+  }
+
+  async exportArchive(id: string): Promise<Uint8Array> {
+    return this.mutationLock.runExclusive(async () => {
+      const skill = agentGlobalSkillService.getById(id)
+      if (!skill) throw new Error(`Skill not found: ${id}`)
+      return exportSkillArchive(this.getInstalledSkillDirectory(skill))
+    })
   }
 
   async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
@@ -223,6 +242,106 @@ export class SkillService {
       return installed
     } finally {
       await safeRemoveDirectory(fetched.tempDir)
+    }
+  }
+
+  installMarketplace(id: string): Promise<MarketplaceInstallResult> {
+    const pending = this.marketplaceInstalls.get(id)
+    if (pending) return pending
+    const task = this.installMarketplacePackage(id).finally(() => this.marketplaceInstalls.delete(id))
+    this.marketplaceInstalls.set(id, task)
+    return task
+  }
+
+  private async installMarketplacePackage(id: string): Promise<MarketplaceInstallResult> {
+    const skill = await getMarketplaceSkill(id)
+    const namespace = marketplaceSkillNamespace(id)
+    const downloaded = await downloadMarketplaceSkill(skill)
+    const result: MarketplaceInstallResult = {
+      members: downloaded.directories.map(({ path, name }) => ({ path, name })),
+      installed: [],
+      alreadyInstalled: [],
+      failed: []
+    }
+    try {
+      await this.mutationLock.runExclusive(async () => {
+        const existing = await this.list()
+        for (const member of downloaded.directories) {
+          const sourceUrl = marketplaceSkillSource(id, member.path)
+          const installed = existing.find(
+            (entry) => entry.source === 'marketplace' && entry.namespace === namespace && entry.sourceUrl === sourceUrl
+          )
+          if (installed) {
+            result.alreadyInstalled.push(installed)
+            continue
+          }
+          try {
+            result.installed.push(
+              await this.installSkillDirLocked(member.skillDir, 'marketplace', sourceUrl, { namespace })
+            )
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            result.failed.push({ path: member.path, name: member.name, error: message })
+            logger.warn('Failed to install marketplace member', { id, member: member.path, error: message })
+          }
+        }
+      })
+      return result
+    } finally {
+      await safeRemoveDirectory(downloaded.tempDir)
+    }
+  }
+
+  async installSubscription(skill: MarketplaceSkillDetail): Promise<MarketplaceInstallResult> {
+    const source = skill.subscription!
+    const namespace = 'subscription:' + createHash('sha256').update(skillInstallIdentity(source.url)).digest('hex')
+    const fetched = source.kind === 'github' ? await fetchRemoteSkill('github', source.url) : null
+    const downloaded = fetched ? null : await downloadSkillPackage(source.url)
+    const directories = fetched
+      ? [{ path: '', name: skill.name.en, skillDir: fetched.skillDir }]
+      : downloaded!.directories
+    const result: MarketplaceInstallResult = {
+      members: directories.map(({ path, name }) => ({ path, name })),
+      installed: [],
+      alreadyInstalled: [],
+      failed: []
+    }
+    try {
+      await this.mutationLock.runExclusive(async () => {
+        const existing = await this.list()
+        for (const member of directories) {
+          const sourceUrl = fetched?.sourceUrl ?? subscriptionMemberSource(skill, member.path)
+          const installed = existing.find(
+            (entry) =>
+              entry.source === 'marketplace' &&
+              entry.sourceUrl &&
+              skillInstallIdentity(entry.sourceUrl) === skillInstallIdentity(sourceUrl)
+          )
+          if (installed) {
+            result.alreadyInstalled.push(installed)
+            continue
+          }
+          try {
+            result.installed.push(
+              await this.installSkillDirLocked(
+                member.skillDir,
+                'marketplace',
+                sourceUrl,
+                source.kind === 'zip' ? { namespace } : undefined
+              )
+            )
+          } catch (error) {
+            result.failed.push({
+              path: member.path,
+              name: member.name,
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
+        }
+      })
+      return result
+    } finally {
+      await safeRemoveDirectory(fetched?.tempDir ?? downloaded!.tempDir)
     }
   }
 

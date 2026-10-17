@@ -113,6 +113,7 @@ export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
   'paintings',
+  'marketplace',
   'translate',
   'mini_app',
   'knowledge',
@@ -452,3 +453,5 @@ export type CustomToolDefinition = {
   tool: string
   requestedVersion?: string
 }
+
+export type { SkillSubscriptionSource } from '@shared/types/skillMarketplace'
