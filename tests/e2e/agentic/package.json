@@ -1,0 +1,26 @@
+{
+  "name": "cherry-agentic-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ci": "tsx ci.ts",
+    "test": "tsx run.ts",
+    "test:ci": "tsx --test ciReport.test.ts",
+    "test:connection": "tsx --test connection.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.53",
+    "@e2e-dev/web": "0.15.1",
+    "ai": "7.0.107",
+    "dotenv": "17.4.2",
+    "e2e": "0.21.1",
+    "playwright-core": "1.64.0",
+    "tsx": "4.20.3",
+    "zod": "4.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}
