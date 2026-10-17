@@ -105,4 +105,65 @@ describe('createSiliconProvider', () => {
     expect(sent).not.toHaveProperty('image3')
     expect(sent).not.toHaveProperty('batch_size')
   })
+
+  it('maps the addWatermark switch to the X-Enable-Watermark header (off = "0")', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ images: [{ url: 'https://x/y.png' }] }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      })
+    )
+    const provider = createSiliconProvider({ apiKey: 'sk-test', fetch })
+    const model = provider.imageModel('Kwai-Kolors/Kolors')
+
+    await model.doGenerate({
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: { silicon: { addWatermark: false } }
+    })
+
+    const init = fetch.mock.calls[0][1] as RequestInit
+    const sentHeaders = init.headers as Record<string, string>
+    // mergeHeaders lowercases names — assert the wire name.
+    expect(sentHeaders['x-enable-watermark']).toBe('0')
+    // The watermark toggle rides the header — it must not leak into the body.
+    const sent = JSON.parse(init.body as string)
+    expect(sent).not.toHaveProperty('watermark')
+    expect(sent).not.toHaveProperty('addWatermark')
+  })
+
+  it('omits the watermark header when addWatermark is not declared', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ images: [{ url: 'https://x/y.png' }] }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      })
+    )
+    const provider = createSiliconProvider({
+      apiKey: 'sk-test',
+      fetch,
+      headers: { 'X-Enable-Watermark': '0' }
+    })
+    const model = provider.imageModel('Tongyi-MAI/Z-Image-Turbo')
+
+    await model.doGenerate({
+      prompt: 'a fox',
+      n: 1,
+      size: '1024x1024',
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: { silicon: {} }
+    })
+
+    const sentHeaders = (fetch.mock.calls[0][1] as RequestInit).headers as Record<string, string>
+    // No declared switch → the user's provider-level header survives untouched.
+    expect(sentHeaders['x-enable-watermark']).toBe('0')
+  })
 })
