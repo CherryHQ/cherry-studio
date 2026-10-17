@@ -56,7 +56,9 @@ describe('inferReasoningMembership', () => {
     'xopglmv47flash',
     'xopglm52',
     'xsparkx2',
-    'xsparkx2flash'
+    'xsparkx2flash',
+    // Spark X2.5 keeps its dotted id.
+    'spark-x2.5'
   ])('claims %s', (modelId) => {
     expect(inferReasoningMembership(modelId)).toBe(true)
   })
