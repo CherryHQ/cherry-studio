@@ -126,6 +126,9 @@ export function mergeDeltaPayload(
     }
     const merged: StreamChunkPayload = {
       ...tail,
+      // Newer constituent wins: the merged entry covers both origins, so the
+      // replay watermark must reach the incoming side to filter its live twin.
+      seq: incoming.seq ?? tail.seq,
       chunk: {
         ...prev,
         delta: prev.delta + next.delta,
@@ -144,6 +147,7 @@ export function mergeDeltaPayload(
     }
     const merged: StreamChunkPayload = {
       ...tail,
+      seq: incoming.seq ?? tail.seq,
       chunk: { ...prev, inputTextDelta: prev.inputTextDelta + next.inputTextDelta }
     }
     if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)
@@ -152,11 +156,27 @@ export function mergeDeltaPayload(
   return undefined
 }
 
+/** Ring eviction that spares a still-open tool call's `tool-input-start`: without the opener a later live delta throws in `readUIMessageStream`. Returns false when every entry is pinned so the caller drops the incoming segment instead — the ring stays bounded without orphaning live deltas. */
+export function evictOldestReplayEntry(buffer: StreamChunkPayload[], openToolInputIds?: ReadonlySet<string>): boolean {
+  let victim = 0
+  if (openToolInputIds && openToolInputIds.size > 0) {
+    const index = buffer.findIndex(
+      (payload) => payload.chunk.type !== 'tool-input-start' || !openToolInputIds.has(payload.chunk.toolCallId)
+    )
+    if (index === -1) return false
+    victim = index
+  }
+  buffer.splice(victim, 1)
+  return true
+}
+
 /**
  * Compact an execution's buffered chunks for replay. Contiguous delta runs
  * are merged, and a missing `text-start` / `reasoning-start` is synthesized
  * when ring eviction leaves a surviving delta run. A bare end with no
- * surviving content is dropped instead of creating an empty part.
+ * surviving content is dropped instead of creating an empty part, and a tool
+ * output/approval without its retained input is dropped instead of leaving an
+ * orphan the reader rejects.
  */
 export function buildCompactReplay(
   buffer: readonly StreamChunkPayload[],
@@ -165,11 +185,14 @@ export function buildCompactReplay(
   const compact: StreamChunkPayload[] = []
   let pending: StreamChunkPayload | undefined
   const openParts = new Set<string>()
+  const openToolInputs = new Set<string>()
+  const seenToolInput = new Set<string>()
 
   const scopedKey = (payload: StreamChunkPayload, id: string): string =>
     JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
   const openPartKey = (payload: StreamChunkPayload, kind: 'text' | 'reasoning', id: string): string =>
     scopedKey(payload, `${kind}:${id}`)
+  const toolInputKey = (payload: StreamChunkPayload, tid: string): string => scopedKey(payload, `tool-input:${tid}`)
 
   const flushPending = () => {
     if (!pending) return
@@ -217,15 +240,61 @@ export function buildCompactReplay(
         break
       }
 
-      case 'tool-input-delta':
+      case 'tool-input-start': {
         flushPending()
-        pending = payload
-        break
-
-      default:
-        flushPending()
+        const key = toolInputKey(payload, chunk.toolCallId)
+        openToolInputs.add(key)
+        seenToolInput.add(key)
         compact.push(payload)
         break
+      }
+
+      case 'tool-input-available': {
+        flushPending()
+        seenToolInput.add(toolInputKey(payload, chunk.toolCallId))
+        compact.push(payload)
+        break
+      }
+
+      case 'tool-input-delta': {
+        flushPending()
+        const key = toolInputKey(payload, chunk.toolCallId)
+        if (!openToolInputs.has(key)) break
+        pending = payload
+        break
+      }
+
+      default: {
+        flushPending()
+        // `tool-input-end` is not part of the AI SDK's UIMessageChunk but is
+        // emitted by the legacy DeepSeek DSML parser (uses `id`/`delta`);
+        // handle it here without widening the central StreamChunkPayload type.
+        const raw = chunk as unknown as { type: string; id?: string; toolCallId?: string }
+        if (raw.type === 'tool-input-end') {
+          const tid = raw.toolCallId ?? raw.id
+          if (!tid) {
+            compact.push(payload)
+            break
+          }
+          const key = toolInputKey(payload, tid)
+          if (!openToolInputs.has(key)) break
+          compact.push(payload)
+          openToolInputs.delete(key)
+          break
+        }
+        // An opener evicted after its terminal output leaves an orphan the AI
+        // SDK reader rejects; drop it so later replay and live output survive.
+        if (
+          chunk.type === 'tool-output-available' ||
+          chunk.type === 'tool-output-error' ||
+          chunk.type === 'tool-output-denied' ||
+          chunk.type === 'tool-approval-request'
+        ) {
+          if (!seenToolInput.has(toolInputKey(payload, chunk.toolCallId))) break
+        }
+        compact.push(payload)
+        break
+      }
     }
   }
 
