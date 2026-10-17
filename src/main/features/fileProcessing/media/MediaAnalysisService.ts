@@ -185,13 +185,17 @@ export class MediaAnalysisService extends BaseService {
               const text = segment.text.trim()
               if (!text) continue
               segments.push({
-                startMs: chunk.startMs + Math.round(segment.startSecond * 1000),
-                endMs: chunk.startMs + Math.round(segment.endSecond * 1000),
+                startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.startSecond),
+                endMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.endSecond),
                 text
               })
             }
           } else if (result.text.trim()) {
-            segments.push({ startMs: chunk.startMs, endMs: chunk.endMs, text: result.text.trim() })
+            segments.push({
+              startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs),
+              endMs: sourceAudioMs(probe.audioStartMs, chunk.endMs),
+              text: result.text.trim()
+            })
           }
         } catch (error) {
           signal?.throwIfAborted()
@@ -359,6 +363,10 @@ async function summarizeFrames(
     }
   }
   return summaries
+}
+
+function sourceAudioMs(audioStartMs: number | undefined, chunkMs: number, segmentSeconds = 0): number {
+  return Math.max(0, audioStartMs ?? 0) + chunkMs + Math.round(segmentSeconds * 1000)
 }
 
 function assignSummaries(batch: Array<{ timestampMs: number }>, text: string, summaries: Map<number, string>): void {
