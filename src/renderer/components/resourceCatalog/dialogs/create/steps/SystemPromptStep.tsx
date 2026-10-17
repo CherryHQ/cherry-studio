@@ -30,6 +30,7 @@ type SystemPromptStepProps = {
 export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProps) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const [polishing, setPolishing] = useState(false)
   const name = useWatch({ control: form.control, name: 'name' })
   const modelId = useWatch({ control: form.control, name: 'modelId' })
   const prompt = useWatch({ control: form.control, name: 'prompt' })
@@ -53,6 +54,7 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
                   field.onChange(value)
                   setResetPreviewKey((key) => key + 1)
                 }}
+                onRunningChange={setPolishing}
               />
             }
             label={
@@ -72,6 +74,7 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
             maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
             autoFocus
             fill
+            disabled={polishing}
           />
         </FormItem>
       )}

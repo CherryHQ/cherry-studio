@@ -3,7 +3,6 @@ description: 三平台进程沙盒 proposal，覆盖 Agent 执行与未来插件
 status: proposal
 date: 2026-09-25
 sources:
-  - src/main/ai/runtime/dsh/compositionBuilder.ts
   - src/main/ai/runtime/pi/PiRuntimeConnection.ts
   - src/main/ai/runtime/pi/approvalExtension.ts
   - src/main/ai/runtime/claudeCode/ClaudeCodeProcessManager.ts
@@ -80,14 +79,14 @@ VS Code 的 Extension Host 拥有与 VS Code 相同的权限，可以访问文�
 
 | 入口 | 已确认的事实 | 接入时需解决的问题 |
 | --- | --- | --- |
-| [DSH composition](../../src/main/ai/runtime/dsh/compositionBuilder.ts) | 普通权限映射为 `workspace-write`，`bypassPermissions` 映射为 `danger-full-access`，按平台选择 Bash / PowerShell sandbox | 统一设计时分离审批与隔离策略；不能把现有 shell 限制扩大解释为整个 DSH 的隔离 |
+| 历史 [DSH composition](https://github.com/CherryHQ/cherry-studio/blob/4454c4d2e0c948c773b13471036ca58e34f8f21b/src/main/ai/runtime/dsh/compositionBuilder.ts) | 普通权限映射为 `workspace-write`，`bypassPermissions` 映射为 `danger-full-access`，按平台选择 Bash / PowerShell sandbox | 统一设计时分离审批与隔离策略；不能把现有 shell 限制扩大解释为整个 DSH 的隔离 |
 | [Pi session](../../src/main/ai/runtime/pi/PiRuntimeConnection.ts) | 在主进程中调用 SDK 创建 session，Bash spawn hook 当前主要处理执行环境 | 只包装 Bash 无法隔离 Pi 进程内扩展；需评估将不可信执行移入独立宿主 |
 | [Pi approval](../../src/main/ai/runtime/pi/approvalExtension.ts) | 明确说明审批模式不构成 sandbox，Bash 对路径检查是不可透视的 | 保留审批职责，隔离保证由执行后端提供 |
 | [Claude 进程入口](../../src/main/ai/runtime/claudeCode/ClaudeCodeProcessManager.ts)及[配置](../../src/main/ai/runtime/claudeCode/settingsBuilder.ts) | 已有可控制的子进程启动入口，尚无 Cherry 统一 sandbox 策略 | 评估整体包装与 SDK 内置工具 sandbox 的关系，验证嵌套限制和通信兼容性 |
 | [Utility Process](../../src/main/core/utilityProcess/README.md) | 用于可信工作的崩溃与原生库隔离，明确不是安全 sandbox | 不能直接把 utility process 标为插件安全边界 |
 | [Code Mode](../../src/main/ai/tools/codeMode/runtime.ts) | Worker 编排明确不是安全 sandbox | 如纳入不可信代码执行，需更换实际执行边界 |
 
-已检查的 DSH `0.1.2-rc.1` 本地依赖主要实施文件写入限制，Windows 后端将强制执行程度标为 `partial`。该指标相对于其文件策略，不代表网络、秘密保护或完整插件安全等级。当前 checkout 尚未发现独立 Extension Host 实现；本提案将其作为未来消费者。
+已检查的 DSH `0.1.2-rc.1` 本地依赖主要实施文件写入限制，Windows 后端将强制执行程度标为 `partial`。该指标相对于其文件策略，不代表网络、秘密保护或完整插件安全等级。DSH 集成已随上游移除，上表 DSH 链接固定到移除前提交，仅保留调研背景。当前 checkout 尚未发现独立 Extension Host 实现；本提案将其作为未来消费者。
 
 ## 5. 建议的职责划分
 

@@ -45,7 +45,11 @@ import {
   diffAgentSaveIntent,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
-import { MAX_HEARTBEAT_INTERVAL_MINUTES, MIN_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
+import {
+  MAX_HEARTBEAT_INTERVAL_MINUTES,
+  MAX_HEARTBEAT_TIMEOUT_MINUTES,
+  MIN_HEARTBEAT_INTERVAL_MINUTES
+} from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import {
@@ -53,7 +57,9 @@ import {
   CLAUDE_TOOL_CATEGORIES,
   type ClaudeToolCategory
 } from '@shared/ai/claudecode/toolRegistry'
+import { COMPUTER_USE_TOOL_GROUP } from '@shared/ai/computerUseTools'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -103,6 +109,7 @@ type AgentEditFormValues = {
   envVarsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
+  heartbeatTimeoutMinutes: number
   languageMode: AgentLanguageMode
   languageCustom: string
 }
@@ -160,6 +167,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     envVarsText: form.envVarsText,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval,
+    heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
     languageMode: form.languageMode,
     languageCustom: form.languageCustom
   }
@@ -192,6 +200,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     envVarsText: values.envVarsText,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval,
+    heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
     languageMode: values.languageMode,
     languageCustom: values.languageCustom
   }
@@ -227,6 +236,8 @@ function advanceAgentFormBaseline(
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
+    if (hasOwn(configuration, 'heartbeat_timeout_minutes'))
+      next.heartbeatTimeoutMinutes = submitted.heartbeatTimeoutMinutes
     if (hasOwn(configuration, 'language')) {
       next.languageMode = submitted.languageMode
       next.languageCustom = submitted.languageCustom
@@ -247,6 +258,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
+  form.setValue('heartbeatTimeoutMinutes', next.heartbeatTimeoutMinutes, { shouldDirty: true })
   form.setValue('languageMode', next.languageMode, { shouldDirty: true })
   form.setValue('languageCustom', next.languageCustom, { shouldDirty: true })
 }
@@ -453,14 +465,17 @@ function AgentEditDialogContent({
   const rootError = form.formState.errors.root?.message
   const autoSaveChangeKey =
     saveIntent && values.name.trim().length > 0 ? serializeAgentSaveAttempt(values, saveIntent.payload) : null
-  const canPersist = autoSaveChangeKey !== null
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
+
+  const getCurrentSaveIntent = () =>
+    diffAgentSaveIntent(buildAgentFormState(formBaselineRef.current, form.getValues()), formBaselineRef.current)
 
   const persist = async () => {
     // Recompute from refs at execution time: the serialized autosave queue may
     // start its follow-up pass before React has rendered the baseline state
     // advanced by the previous pass.
     const submittedValues = form.getValues()
+    if (!submittedValues.name.trim()) return
     const submittedFormState = buildAgentFormState(formBaselineRef.current, submittedValues)
     const pending = diffAgentSaveIntent(submittedFormState, formBaselineRef.current)
     if (!pending) return
@@ -493,33 +508,47 @@ function AgentEditDialogContent({
   // can queue a newly meaningful diff even when form values return to the
   // snapshot that save captured. Values remain in the key to distinguish DTO
   // clears represented by explicit `undefined`.
-  const flush = useDebouncedAutoSave({
+  const { flush, getPendingSave } = useDebouncedAutoSave({
     enabled: open,
     changeKey: autoSaveChangeKey,
     onSave: persist
   })
 
-  // On close with a pending edit, flush through the same serialized save queue and
-  // only close once it settles — so a failed final save stays visible instead of
-  // being silently dropped, and we never race a second concurrent save.
-  const handleOpenChange = (next: boolean) => {
-    if (next || !canPersist) {
+  // Keep failed saves visible and gate settings navigation on successful closure.
+  const handleOpenChange = async (next: boolean, allowDiscard = true): Promise<boolean> => {
+    if (next) {
       onOpenChange(next)
-      return
+      return true
     }
-    if (failedSaveKeyRef.current === autoSaveChangeKey) {
+    const valuesBeforeSave = JSON.stringify(form.getValues())
+    const pendingSave = getPendingSave()
+    if (pendingSave) await pendingSave
+    if (JSON.stringify(form.getValues()) !== valuesBeforeSave) return false
+
+    const currentValues = form.getValues()
+    const pending = getCurrentSaveIntent()
+    if (!pending || (!currentValues.name.trim() && allowDiscard)) {
+      onOpenChange(false)
+      return true
+    }
+    if (!currentValues.name.trim()) return false
+    if (failedSaveKeyRef.current === serializeAgentSaveAttempt(currentValues, pending.payload)) {
       toast.error(saveFailedMessage)
+      if (!allowDiscard || pendingSave) return false
       onOpenChange(false)
-      return
+      return true
     }
-    void (async () => {
-      await flush()
-      if (failedSaveKeyRef.current !== null) return
-      onOpenChange(false)
-    })()
+    await flush()
+    if (
+      failedSaveKeyRef.current !== null ||
+      JSON.stringify(form.getValues()) !== valuesBeforeSave ||
+      getCurrentSaveIntent()
+    )
+      return false
+    onOpenChange(false)
+    return true
   }
-  // Route the settings-navigate close through handleOpenChange so it flushes too.
-  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
+  const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
 
   return (
     <EditDialogShell
@@ -566,6 +595,7 @@ function AgentEditDialogContent({
           <PromptBindingTab
             enabled={open && activeTab === 'prompts'}
             target={{ type: 'agent', id: resource.id }}
+            onManageGlobal={() => closeBeforeAction(() => openSettingsTab('/settings/prompts'))}
             portalContainer={dialogContentElement}
           />
         </TabsContent>
@@ -646,7 +676,16 @@ function AgentBasicFields({
         form={form}
         name="modelId"
         includeAgentOnlyModels
-        label={t('library.config.agent.field.model.label')}
+        label={t(
+          caps.modelTiers
+            ? 'library.config.agent.field.model.label.claude_code'
+            : 'library.config.agent.field.model.label'
+        )}
+        help={t(
+          caps.modelTiers
+            ? 'library.config.agent.field.model.hint.claude_code'
+            : 'library.config.agent.field.model.hint'
+        )}
         filter={modelFilter}
         isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
@@ -664,6 +703,7 @@ function AgentBasicFields({
             name="planModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.plan_model.label')}
+            help={t('library.config.agent.field.plan_model.hint')}
             emptyLabel={t('library.config.agent.field.plan_model.empty')}
             allowClear
             filter={modelFilter}
@@ -681,6 +721,7 @@ function AgentBasicFields({
             name="smallModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.small_model.label')}
+            help={t('library.config.agent.field.small_model.hint')}
             emptyLabel={t('library.config.agent.field.small_model.empty')}
             allowClear
             filter={modelFilter}
@@ -926,32 +967,58 @@ function HeartbeatSettingsField({
         )}
       />
       {enabled ? (
-        <FormField
-          control={form.control}
-          name="heartbeatInterval"
-          render={({ field }) => (
-            <FormItem className={editDialogFormRowClassName}>
-              <FormLabel className={editDialogFormRowLabelClassName}>
-                {t('library.config.agent.field.heartbeat_interval.label')}
-              </FormLabel>
-              <FormControl>
-                <InputNumber
-                  min={MIN_HEARTBEAT_INTERVAL_MINUTES}
-                  max={MAX_HEARTBEAT_INTERVAL_MINUTES}
-                  step={1}
-                  className="h-9 w-full"
-                  value={field.value || null}
-                  // Emptying the field is how you retype the interval, not how you
-                  // turn the heartbeat off — the switch above does that.
-                  onBlur={(v) => {
-                    if (v !== null) field.onChange(v)
-                  }}
-                />
-              </FormControl>
-              <FormMessage className="col-start-2" />
-            </FormItem>
-          )}
-        />
+        <>
+          <FormField
+            control={form.control}
+            name="heartbeatInterval"
+            render={({ field }) => (
+              <FormItem className={editDialogFormRowClassName}>
+                <FormLabel className={editDialogFormRowLabelClassName}>
+                  {t('library.config.agent.field.heartbeat_interval.label')}
+                </FormLabel>
+                <FormControl>
+                  <InputNumber
+                    min={MIN_HEARTBEAT_INTERVAL_MINUTES}
+                    max={MAX_HEARTBEAT_INTERVAL_MINUTES}
+                    step={1}
+                    className="h-9 w-full"
+                    value={field.value || null}
+                    // Emptying the field is how you retype the interval, not how you
+                    // turn the heartbeat off — the switch above does that.
+                    onBlur={(v) => {
+                      if (v !== null) field.onChange(v)
+                    }}
+                  />
+                </FormControl>
+                <FormMessage className="col-start-2" />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="heartbeatTimeoutMinutes"
+            render={({ field }) => (
+              <FormItem className={editDialogFormRowClassName}>
+                <FormLabel className={editDialogFormRowLabelClassName}>
+                  {t('agent.tasks.timeout.label')} ({t('agent.tasks.intervalUnit')})
+                </FormLabel>
+                <FormControl>
+                  <InputNumber
+                    min={1}
+                    max={MAX_HEARTBEAT_TIMEOUT_MINUTES}
+                    step={1}
+                    className="h-9 w-full"
+                    value={field.value}
+                    onBlur={(value) => {
+                      if (value !== null) field.onChange(value)
+                    }}
+                  />
+                </FormControl>
+                <FormMessage className="col-start-2" />
+              </FormItem>
+            )}
+          />
+        </>
       ) : null}
     </div>
   )
@@ -968,6 +1035,7 @@ function AgentPromptField({
 }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const [polishing, setPolishing] = useState(false)
   const instructions = form.watch('instructions')
   const name = form.watch('name')
   const processedInstructions = usePromptProcessor({
@@ -1010,10 +1078,12 @@ function AgentPromptField({
               emptyValueSystemPrompt={AGENT_PROMPT}
               existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
               onChange={handlePromptActionChange}
+              onRunningChange={setPolishing}
             />
           }
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+          disabled={polishing}
         />
       )}
     />
@@ -1046,6 +1116,7 @@ function AgentToolsFields({
   const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
   const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
+  const [computerUseEnabled] = usePreference('app.computer_use.agent_control.enabled')
 
   // Built-in catalog: registry user-facing tools grouped into category sections.
   // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
@@ -1054,6 +1125,7 @@ function AgentToolsFields({
   // so hide their toggles here when the agent has none — they would otherwise read as
   // "on" while doing nothing.
   const hasKnowledgeScope = knowledgeBaseIds.length > 0
+  const legacyRestrictions = disabledTools.filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX))
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
     const tools = caps
@@ -1119,6 +1191,33 @@ function AgentToolsFields({
               portalContainer={portalContainer}
             />
           </div>
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-muted-foreground text-xs">{t('settings.computerUse.title')}</span>
+              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/computer-use')}>
+                {t('settings.title')}
+              </Button>
+            </div>
+            <CatalogToggleGrid
+              items={[
+                {
+                  id: COMPUTER_USE_TOOL_GROUP,
+                  name: t('settings.computerUse.control'),
+                  description: t('settings.computerUse.controlHelp'),
+                  pickable: computerUseEnabled,
+                  inactiveBadge: computerUseEnabled ? undefined : t('library.config.tools.inactive_badge')
+                }
+              ]}
+              enabledIds={
+                computerUseEnabled && !disabledSet.has(COMPUTER_USE_TOOL_GROUP)
+                  ? new Set([COMPUTER_USE_TOOL_GROUP])
+                  : new Set()
+              }
+              onToggle={setToolEnabled}
+              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
+              portalContainer={portalContainer}
+            />
+          </div>
           {builtinSections.map((section) => (
             <div key={section.category} className="grid gap-2">
               <div className="font-medium text-muted-foreground text-xs">{section.label}</div>
@@ -1135,6 +1234,30 @@ function AgentToolsFields({
       ) : null}
       {activeToolTab === 'tools.knowledge' ? (
         <KnowledgeBaseField form={form} portalContainer={portalContainer} />
+      ) : null}
+      {activeToolTab === 'tools.mcp' && legacyRestrictions.length > 0 ? (
+        <div className="grid gap-2">
+          <p className="text-muted-foreground text-xs">{t('library.config.tools.legacy_restrictions.description')}</p>
+          <ul className="grid gap-1 text-xs">
+            {legacyRestrictions.map((name) => (
+              <li key={name}>{name.slice(LEGACY_DSH_TOOL_PREFIX.length)}</li>
+            ))}
+          </ul>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="justify-self-start"
+            onClick={() =>
+              form.setValue(
+                'disabledTools',
+                disabledTools.filter((name) => !name.startsWith(LEGACY_DSH_TOOL_PREFIX)),
+                { shouldDirty: true }
+              )
+            }>
+            {t('library.config.tools.legacy_restrictions.remove')}
+          </Button>
+        </div>
       ) : null}
       {activeToolTab === 'tools.mcp' ? (
         <McpServerCatalogGrid

@@ -86,7 +86,6 @@ async function waitForCdp(runnerPid: number, platform: Platform): Promise<{ elec
 function getLaunchSpec(
   paths: RunPaths,
   mode: RunMode,
-  platform: Platform,
   targetRoot: string,
   profile: TestProfile,
   runKey: string
@@ -94,20 +93,25 @@ function getLaunchSpec(
   const logPath = join(paths.logs, `electron-${profile}.log`)
   if (mode === 'branch') {
     const args = [
-      'exec',
-      'dotenv',
+      join(targetRoot, 'node_modules', 'dotenv-cli', 'cli.js'),
       '--',
-      'electron-vite',
+      process.execPath,
+      join(targetRoot, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js'),
       '--',
       '--inspect',
       '--sourcemap',
-      '--remote-debugging-port=9222'
+      '--remote-debugging-port=9222',
+      '--disable-backgrounding-occluded-windows'
     ]
     return {
-      command: platform === 'windows' ? 'cmd.exe' : 'pnpm',
-      args: platform === 'windows' ? ['/d', '/s', '/c', `pnpm ${args.join(' ')}`] : args,
+      command: process.execPath,
+      args,
       cwd: targetRoot,
-      environment: { ...process.env, CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}` },
+      environment: {
+        ...process.env,
+        CS_DEV_PROFILE_ROOT: join(paths.profiles, profile),
+        CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}`
+      },
       logPath
     }
   }
@@ -118,6 +122,7 @@ function getLaunchSpec(
     args: [
       `--inspect=${MAIN_INSPECTOR_PORT}`,
       `--remote-debugging-port=${CDP_PORT}`,
+      '--disable-backgrounding-occluded-windows',
       `--user-data-dir=${join(paths.profiles, profile)}`
     ],
     cwd: dirname(installation.executablePath),
@@ -141,7 +146,7 @@ export async function launchApp(
   if (existsSync(paths.appRecord)) await stopOwnedApp(paths)
   if (findCdpPid(options.platform)) throw new Error(`CDP port ${CDP_PORT} is already owned by another process`)
   const targetRoot = resolve(options.targetRoot)
-  const spec = getLaunchSpec(paths, options.mode, options.platform, targetRoot, options.profile, options.runKey)
+  const spec = getLaunchSpec(paths, options.mode, targetRoot, options.profile, options.runKey)
   const logFd = openSync(spec.logPath, 'a', 0o600)
   appendFileSync(spec.logPath, `\n[${new Date().toISOString()}] Launching ${spec.command} ${spec.args.join(' ')}\n`)
   const child = spawn(spec.command, spec.args, {

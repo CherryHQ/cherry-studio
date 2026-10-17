@@ -139,6 +139,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
   adapter.sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
   adapter.onTextUpdate = vi.fn().mockResolvedValue(undefined)
   adapter.onStreamComplete = vi.fn().mockResolvedValue(false)
+  adapter.discardResponse = vi.fn()
   adapter.onStreamError = vi.fn().mockResolvedValue(undefined)
   adapter.notifyChatIds = []
   return adapter

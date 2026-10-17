@@ -5,7 +5,6 @@ date: 2026-09-29
 sources:
   - src/main/core/utilityProcess/host/processAdapter.ts
   - src/main/core/utilityProcess/host/electronProcessAdapter.ts
-  - src/main/ai/runtime/dsh/DshBridgeServer.ts
 ---
 
 # Sandbox Backend Options

@@ -10,8 +10,6 @@ sources:
   - src/main/ipc/IpcRouter.ts
   - src/main/ipc/IpcApiService.ts
   - src/shared/ipc/types.ts
-  - src/main/ai/runtime/dsh/DshBridgeServer.ts
-  - packages/dsh-bridge/src/protocol.ts
 ---
 
 # Sandbox Design Draft
@@ -148,7 +146,7 @@ Windows 初始化与日常执行分开：初始化可以建立专用账户和系
 
 [Node net](https://nodejs.org/api/net.html#ipc-support) 支持这两类本地 IPC。每个实例使用独立端点，结合端点访问控制和实例认证；随机端点名称本身不构成授权。需验证 Windows 专用账户的 pipe 访问权限，以及三平台启用隔离后只允许指定通道的能力。
 
-仓库已有 [DSH Bridge](../../src/main/ai/runtime/dsh/DshBridgeServer.ts) 和[双向协议](../../packages/dsh-bridge/src/protocol.ts)采用本地 socket / named pipe 承载 JSON-RPC，可作为复用评估的起点。通用沙盒协议不绑定 DSH 业务类型，现有连接认证也不能直接视为不可信插件场景的安全验收。
+历史实现（已随上游移除）的 [DSH Bridge](https://github.com/CherryHQ/cherry-studio/blob/4454c4d2e0c948c773b13471036ca58e34f8f21b/src/main/ai/runtime/dsh/DshBridgeServer.ts) 和[双向协议](https://github.com/CherryHQ/cherry-studio/blob/4454c4d2e0c948c773b13471036ca58e34f8f21b/packages/dsh-bridge/src/protocol.ts)采用本地 socket / named pipe 承载 JSON-RPC，可作为复用评估的起点。通用沙盒协议不绑定 DSH 业务类型，现有连接认证也不能直接视为不可信插件场景的安全验收。
 
 私有管道或继承式通道保留为备选；平台启动器是否正确传递专用句柄、Windows 跨账户启动是否可用，需要原型验证后再决定。普通日志不能与协议帧混在同一未经分帧的流中。
 

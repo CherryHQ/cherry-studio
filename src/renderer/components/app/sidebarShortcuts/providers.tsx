@@ -213,7 +213,8 @@ const agentProvider: SidebarShortcutProvider = {
         ? getSidebarApp('agents')!.conversationRoute!.urlForKey(sessionId)
         : `/app/agents?agentId=${encodeURIComponent(target.locator.resourceId)}`,
       conversation: sessionId ? { conversationType: 'agent', conversationId: sessionId } : undefined,
-      title: target.locator.resourceId
+      title: target.locator.resourceId,
+      metadata: { agentPinPending: true }
     })
   },
   isActive: (target, navigation) =>

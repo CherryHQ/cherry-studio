@@ -7,10 +7,8 @@ sources:
   - src/main/core/utilityProcess/host/processAdapter.ts
   - src/main/core/utilityProcess/protocol/frames.ts
   - src/main/core/lifecycle/event.ts
-  - src/main/ai/runtime/dsh/DshBridgeServer.ts
   - src/main/ai/mcp/oauth/callback.ts
   - src/main/ai/observability/adapters/claudeCode/ClaudeCodeTraceBridgeService.ts
-  - packages/dsh-bridge/src/link.ts
   - pnpm-lock.yaml
 ---
 
@@ -36,7 +34,7 @@ sources:
 | [bubblewrap](https://github.com/containers/bubblewrap) 与[命令接口](https://github.com/containers/bubblewrap/blob/main/bwrap.xml) | 提供隔离原语，实际安全性依赖调用者构造的策略；有状态输出、父进程死亡处理等选项 | 平台后端必须编译完整策略并提供可信启动和退出证据；包装器 PID 或退出码不能单独代表目标进程树 |
 | DSH `@deepseek-ai/dsh-sandbox` / `dsh-sandbox-local` `0.1.2-rc.1`（本地安装包类型声明） | `confine(argv, policy)` 返回命令与文件限制的执行程度；文件策略不包含网络和进程可见性 | 保留策略与机制分离；不使用单一 `full/partial` 表示全部安全能力，也不只暴露命令包装函数 |
 | [vscode-jsonrpc](https://github.com/microsoft/vscode-languageserver-node/tree/main/jsonrpc) 与 [LSP 基础协议](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.17/specification.md#base-protocol) | 请求、通知、双向处理、长度分帧和取消通知已有实现与跨语言约定 | 拟采用 JSON-RPC 2.0 + Content-Length 分帧；仅复用基础协议，不实现 LSP 业务。Node 优先评估 `vscode-jsonrpc`，Python 接入须证明互通 |
-| 仓库 [Utility Process](../references/utility-process/README.md) 与 [DSH Bridge](../../src/main/ai/runtime/dsh/DshBridgeServer.ts) | 已有进程管理、请求关联和本地双向通信经验；前者以同一构建的可信代码为前提 | 复用适用部分，补充受限启动、运行时校验和实例身份；不开放任意 renderer IPC 转发 |
+| 仓库 [Utility Process](../references/utility-process/README.md) 与历史 [DSH Bridge](https://github.com/CherryHQ/cherry-studio/blob/4454c4d2e0c948c773b13471036ca58e34f8f21b/src/main/ai/runtime/dsh/DshBridgeServer.ts) | 已有进程管理、请求关联和本地双向通信经验；前者以同一构建的可信代码为前提 | 复用适用部分，补充受限启动、运行时校验和实例身份；不开放任意 renderer IPC 转发 |
 
 `vscode-jsonrpc` 的 [MessageReader](https://github.com/microsoft/vscode-languageserver-node/blob/main/jsonrpc/src/common/messageReader.ts)提供分帧和部分消息超时通知，但不能据此认定已具备我们的帧大小、队列和超时关闭策略。选库前核查这些限制；优先扩展已有 reader/transport 接点，不另造 RPC 引擎。DSH 上游文档地址本轮未能读取，其观察仅基于本地版本，不声称代表上游最新状态。
 

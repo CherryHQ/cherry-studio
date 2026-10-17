@@ -15,9 +15,11 @@ import { ClawhubSkillDetailSchema } from '@shared/types/skill'
 import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 
 import {
+  assertNoFoldedPathCollisions,
   assertSkillDirectoryWithinLimits,
   extractZip,
   MAX_SKILL_FILES,
+  MAX_SKILL_SIZE,
   resolveSkillDirectory,
   validateRepositorySkillDirectory
 } from './skillArchive'
@@ -38,6 +40,7 @@ const GIT_COMMAND_TIMEOUT_MS = 2 * 60 * 1000
 // chromium/chromium lists ~2.4 MiB of refs; the cap only stops output that a hostile repository can
 // grow without end.
 const MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
+const MAX_CLAWHUB_DETAIL_BYTES = 1024 * 1024
 
 type GithubRef = {
   name: string
@@ -287,7 +290,18 @@ async function fetchFromClawhub(
     throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
   }
 
-  const detailResult = ClawhubSkillDetailSchema.safeParse(await detailResp.json())
+  const detailChunks: Uint8Array[] = []
+  let detailBytes = 0
+  for await (const chunk of detailResp.body as unknown as AsyncIterable<Uint8Array>) {
+    detailBytes += chunk.byteLength
+    if (detailBytes > MAX_CLAWHUB_DETAIL_BYTES) {
+      throw new Error(`clawhub detail exceeds the ${MAX_CLAWHUB_DETAIL_BYTES}-byte limit`)
+    }
+    detailChunks.push(chunk)
+  }
+  const detailResult = ClawhubSkillDetailSchema.safeParse(
+    JSON.parse(new TextDecoder().decode(Buffer.concat(detailChunks)))
+  )
   if (!detailResult.success) {
     throw new Error('clawhub detail returned invalid metadata')
   }
@@ -309,10 +323,30 @@ async function fetchFromClawhub(
     throw new Error(`clawhub download failed: HTTP ${downloadResp.status}`)
   }
 
+  const advertisedSize = Number(downloadResp.headers.get('content-length') ?? NaN)
+  if (Number.isFinite(advertisedSize) && advertisedSize > MAX_SKILL_SIZE) {
+    await downloadResp.body?.cancel()
+    throw new Error(`clawhub archive advertises ${advertisedSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
+  }
+
   const tempDir = await openTempDir()
   const zipPath = path.join(tempDir, 'skill.zip')
-  const buffer = Buffer.from(await downloadResp.arrayBuffer())
-  await fs.promises.writeFile(zipPath, buffer)
+  // Content-Length is server-controlled; the running count is what enforces the cap.
+  const handle = await fs.promises.open(zipPath, 'w')
+  try {
+    let received = 0
+    for await (const chunk of downloadResp.body as unknown as AsyncIterable<Uint8Array>) {
+      received += chunk.byteLength
+      if (received > MAX_SKILL_SIZE) {
+        throw new Error(`clawhub archive exceeds the ${MAX_SKILL_SIZE}-byte limit`)
+      }
+      for (let offset = 0; offset < chunk.byteLength;) {
+        offset += (await handle.write(chunk, offset)).bytesWritten
+      }
+    }
+  } finally {
+    await handle.close()
+  }
   const extractDir = path.join(tempDir, sanitizeFolderName(slug))
   await fs.promises.mkdir(extractDir, { recursive: true })
   await extractZip(zipPath, extractDir)
@@ -405,23 +439,34 @@ async function materializeGithubTarget(
   descriptorFileNames: readonly SkillDescriptorFileName[]
 ): Promise<{ contentDir: string; skillDir: string }> {
   const contentDir = path.join(commit.tempDir, 'content')
+  // The check and the checkout read one tree object: a sparse pattern and a pathspec naming the
+  // same path fold case and Unicode differently on macOS and Windows, and select different trees.
+  const treeOid = target.kind === 'root' ? 'FETCH_HEAD^{tree}' : await resolveGithubTargetTree(commit, target.path)
+  if (!treeOid) throw missingDescriptorError(target, descriptorFileNames)
   // Sizes are left to the on-disk check after checkout: `ls-tree -l` fetches every blob one
   // round trip at a time, long enough for a 60-file skill to hit the git timeout.
-  const tree = await commit.git([
-    'ls-tree',
-    '-r',
-    '-z',
-    '--full-tree',
-    'FETCH_HEAD',
-    ...(target.kind === 'root' ? [] : ['--', `:(top,literal)${target.path}`])
-  ])
+  const tree = await commit.git(['ls-tree', '-r', '-z', treeOid])
   assertGithubTargetTree(tree, target, descriptorFileNames)
-  await checkoutSparse(commit, contentDir, [toSparsePattern(target)])
 
-  return {
-    contentDir,
-    skillDir: target.kind === 'root' ? contentDir : path.join(contentDir, target.path)
-  }
+  // The installed folder is named after this directory, so the tree lands at its repository path.
+  const skillDir = target.kind === 'root' ? contentDir : path.join(contentDir, target.path)
+  await fs.promises.mkdir(skillDir, { recursive: true })
+  await fs.promises.rm(path.join(commit.gitDir, 'index'), { force: true })
+  // A user's global `core.sparseCheckout` would otherwise apply the descriptor-only patterns left behind.
+  await commit.git([`--work-tree=${skillDir}`, '-c', 'core.sparseCheckout=false', 'read-tree', '-mu', treeOid])
+  return { contentDir, skillDir }
+}
+
+async function resolveGithubTargetTree(commit: FetchedGithubCommit, targetPath: string): Promise<string | null> {
+  // Without `-r` this lists the entry itself, so a submodule is reported instead of lazily fetched.
+  const records = (
+    await commit.git(['ls-tree', '-z', '--full-tree', 'FETCH_HEAD', '--', `:(top,literal)${targetPath}`])
+  )
+    .split('\0')
+    .filter(Boolean)
+  if (records.length !== 1) return null
+  const [, type, oid] = records[0].slice(0, records[0].indexOf('\t')).split(' ')
+  return type === 'tree' ? oid : null
 }
 
 /**
@@ -443,13 +488,13 @@ async function checkoutSparse(
   await commit.git([`--work-tree=${workTree}`, '-c', 'core.sparseCheckout=true', 'read-tree', '-mu', 'FETCH_HEAD'])
 }
 
-function toSparsePattern(target: GithubSkillTarget): string {
-  if (target.kind === 'root') return '/*'
-  // One pattern per line: a decoded `%0A` in the path would otherwise add patterns of its own.
-  if (/[\r\n]/.test(target.path)) {
-    throw new Error(`Skill directory path contains a line break: ${JSON.stringify(target.path)}`)
-  }
-  return `/${target.path.replace(/[\\*?[\]!# ]/g, '\\$&')}/`
+function missingDescriptorError(
+  target: GithubSkillTarget,
+  descriptorFileNames: readonly SkillDescriptorFileName[]
+): Error {
+  const descriptor = descriptorFileNames.join(' or ')
+  const location = target.kind === 'root' ? descriptor : `${target.path}/${descriptor}`
+  return new Error(`No ${descriptor} found at the selected GitHub location: ${location}`)
 }
 
 function assertGithubTargetTree(
@@ -457,39 +502,19 @@ function assertGithubTargetTree(
   target: GithubSkillTarget,
   descriptorFileNames: readonly SkillDescriptorFileName[]
 ): void {
-  const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
-  const targetParts = target.kind === 'root' ? [] : target.path.split('/')
-
   const entryPaths = tree.split('\0').flatMap((record) => {
     if (!record) return []
     const tab = record.indexOf('\t')
     if (tab === -1) return []
     const [, type] = record.slice(0, tab).trim().split(/\s+/)
     if (type !== 'blob') return []
-    const entryPath = record.slice(tab + 1)
-    return [target.kind === 'root' ? entryPath : entryPath.split('/').slice(targetParts.length).join('/')]
+    return [record.slice(tab + 1)]
   })
 
-  const seenPaths = new Map<string, string>()
-  for (const entryPath of entryPaths) {
-    const parts = entryPath.split('/')
-    for (let length = 1; length <= parts.length; length++) {
-      const prefix = parts.slice(0, length).join('/')
-      const key = parts.slice(0, length).map(foldKey).join('/')
-      const previous = seenPaths.get(key)
-      if (previous && previous !== prefix) {
-        throw new Error(
-          `The commit contains paths that collide once case and Unicode are normalized (${previous}, ${prefix}).`
-        )
-      }
-      seenPaths.set(key, prefix)
-    }
-  }
+  assertNoFoldedPathCollisions(entryPaths)
 
   if (!entryPaths.some((entryPath) => descriptorFileNames.includes(entryPath as SkillDescriptorFileName))) {
-    const descriptor = descriptorFileNames.join(' or ')
-    const location = target.kind === 'root' ? descriptor : `${target.path}/${descriptor}`
-    throw new Error(`No ${descriptor} found at the selected GitHub location: ${location}`)
+    throw missingDescriptorError(target, descriptorFileNames)
   }
   if (entryPaths.length > MAX_SKILL_FILES) {
     throw new Error(`Skill holds ${entryPaths.length} files, over the ${MAX_SKILL_FILES}-file limit`)
