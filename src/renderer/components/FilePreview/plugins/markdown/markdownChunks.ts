@@ -950,6 +950,9 @@ function htmlHeadingText(content: string): string {
     )
 }
 
+/** CommonMark's escapable set: the ASCII punctuation a backslash is a valid escape before. */
+const ASCII_PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/
+
 /**
  * The plain text a heading's inline source renders — the text the renderer numbers the heading's
  * id from. A link renders its label while its destination stays out of the text, an image with a
@@ -977,8 +980,16 @@ function headingRenderedText(source: string): string {
     while (index < segment.length) {
       const character = segment[index]
       if (character === '\\') {
-        text += segment[index + 1] ?? ''
-        index += 2
+        const next = segment[index + 1]
+        // Markdown preserves a backslash before anything but ASCII punctuation — `C:\Users` renders
+        // with the backslash, and the slug the renderer numbers the id from keeps it.
+        if (next !== undefined && ASCII_PUNCTUATION.test(next)) {
+          text += next
+          index += 2
+        } else {
+          text += character
+          index += 1
+        }
       } else if (character === '`') {
         // A code span's content is literal, and only a run of the opener's own length closes it.
         const run = /^`+/.exec(segment.slice(index))?.[0] ?? '`'
