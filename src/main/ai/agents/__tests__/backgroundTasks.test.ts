@@ -312,7 +312,7 @@ describe('backgroundTasks', () => {
       } finally {
         await vi.waitFor(() => expect(isPidAlive(running.pid)).toBe(false), { timeout: 10_000 })
       }
-    })
+    }, 30_000)
 
     it.skipIf(process.platform === 'win32')('does not show a recycled pid as a running task', async () => {
       // Simulate the app restarting and the OS handing the task's old pid to something else: the
@@ -706,16 +706,21 @@ describe('backgroundTasks', () => {
           return null
         }
 
-        // A worker that ignores SIGTERM: the stop is delivered but the task survives it, which is
-        // the state that leaves the recovered identity no later chance to be persisted.
+        // A worker that ignores SIGTERM and publishes its pid: the stop below may only be sent
+        // once the worker exists. A signal that beats the tree into being kills a shell that has
+        // not yet spawned it, the group legitimately drains, and the anchor leaves — a loaded CI
+        // runner observed exactly that race, and the supervisor's pid read back dead.
+        const pidFile = path.join(storageDir, 'identity-worker.pid')
         const record = await startDetachedBackgroundTask({
           storageDir,
-          command: `${nodeBin} -e "process.on('SIGTERM', () => {}); setInterval(() => {}, 60_000)"`,
+          command: `${nodeBin} -e "require('fs').writeFileSync(process.argv[1], String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 60_000)" "${pidFile}" &`,
           cwd: storageDir
         })
         expect(record.pidStartTime).toBeUndefined()
 
         try {
+          const workerPid = await readWorkerPid(pidFile)
+          expect(isPidAlive(workerPid)).toBe(true)
           groupReadable = true
           const stopped = await stopDetachedBackgroundTask(storageDir, record.id)
           // The stop reached the group and the survivor keeps the task open.

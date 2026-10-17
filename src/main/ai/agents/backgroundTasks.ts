@@ -175,6 +175,9 @@ const LEADERLESS_GROUP_POLL_MS = 250
 /** How long a forced stop waits for the group to drain before treating a member as a survivor. */
 const STOP_DRAIN_TIMEOUT_MS = 3_000
 const STOP_DRAIN_POLL_MS = 50
+/** How long a Windows stop waits for the runner's spawn evidence before it may signal the runner. */
+const TASK_EVIDENCE_WAIT_TIMEOUT_MS = 6_000
+const TASK_EVIDENCE_WAIT_POLL_MS = 100
 
 /** Payload handed to the completion callback and written into the sentinel file. */
 export interface BackgroundTaskCompletion {
@@ -782,6 +785,18 @@ async function stopDetachedBackgroundTaskUnlocked(
     await writeRecord(storageDir, record)
     return undefined
   }
+  // The runner is `.pids`' only writer, and it writes after an identity query that can spend its
+  // whole five-second timeout — a kill landing first destroys the file and every later walk with
+  // it. The stop waits out that window; a runner that died waiting proves no evidence is coming
+  // (the verifier's recovery takes over), but a live one that never wrote is refused.
+  if (process.platform === 'win32' && !(await waitForTaskEvidence(storageDir, record)) && isPidAlive(record.pid)) {
+    logger.warn('Refusing to kill before the runner has recorded its identity evidence', {
+      taskId: record.id,
+      pid: record.pid
+    })
+    await writeRecord(storageDir, record)
+    return undefined
+  }
   // The recorded runner pid is a number the OS may have handed to someone else since the spawn —
   // a crash or an earlier kill frees it. Its creation stamp is the one the runner captured while
   // it was provably ours, so a live occupant reading a different stamp is a stranger and the kill
@@ -1092,6 +1107,27 @@ async function readTaskEvidence(storageDir: string, taskId: string): Promise<Win
 }
 
 /**
+ * Waits out the runner's evidence write. The runner is `.pids`' only writer, and it writes after
+ * an identity query that can spend its whole five-second timeout — a stop that arrived first
+ * would destroy the file and every later walk with it. `undefined` means the window closed
+ * without a write: either the runner is gone, so nothing will ever be written, or it is wedged
+ * on the one thing it must do before it may be signalled.
+ */
+async function waitForTaskEvidence(
+  storageDir: string,
+  record: BackgroundTaskRecord
+): Promise<WindowsTaskEvidence | undefined> {
+  const deadline = Date.now() + TASK_EVIDENCE_WAIT_TIMEOUT_MS
+  for (;;) {
+    const evidence = await readTaskEvidence(storageDir, record.id)
+    if (evidence) return evidence
+    if (!isPidAlive(record.pid)) return undefined
+    if (Date.now() >= deadline) return undefined
+    await new Promise((resolve) => setTimeout(resolve, TASK_EVIDENCE_WAIT_POLL_MS))
+  }
+}
+
+/**
  * Whether the recorded runner pid may be signalled. A live occupant is only the process this app
  * spawned while it reads the stamp captured at spawn; a dead one is nothing to refuse — nothing
  * here is signalled, and the walk below still reaches the shell's side of the tree. Without a
@@ -1114,7 +1150,11 @@ async function isWindowsRunnerVerified(storageDir: string, record: BackgroundTas
  */
 async function verifyWindowsTaskTerminated(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
   const evidence = await readTaskEvidence(storageDir, record.id)
-  if (!evidence) return false
+  // The runner is the evidence's only writer. Dead before it ever wrote one — a startup that
+  // failed inside its identity query — there is no root left to walk and no later read that can
+  // differ, so holding the record open would strand it past every control path: the runner's own
+  // absence is the termination proof.
+  if (!evidence) return !isPidAlive(record.pid)
   const roots: WindowsTaskRoot[] = [
     { pid: record.pid, created: evidence.runnerCreatedAt },
     { pid: evidence.shellPid, created: evidence.shellCreatedAt }
