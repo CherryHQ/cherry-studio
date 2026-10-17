@@ -6,7 +6,7 @@ import type { WebviewTag } from 'electron'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { SWRConfig } from 'swr'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import en from '@renderer/i18n/locales/en-us.json'
@@ -145,6 +145,27 @@ describe('Browser address history', () => {
     expect(screen.queryByRole('option', { name: /Monthly report/ })).not.toBeInTheDocument()
     await user.keyboard('{ArrowDown}{Enter}')
     expect(loadURL).toHaveBeenCalledWith('https://new.test/')
+  })
+
+  it('keeps the last suggestions while the closing popover animates out', async () => {
+    const getComputedStyle = window.getComputedStyle
+    const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+      const style = getComputedStyle(element, pseudo)
+      if (element.getAttribute('role') !== 'dialog') return style
+      // jsdom has no animations; Radix Presence keeps closing content mounted only while one runs.
+      return Object.defineProperty(style, 'animationName', {
+        get: () => (element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter')
+      })
+    })
+    onTestFinished(() => styleSpy.mockRestore())
+    const user = userEvent.setup()
+    const { address } = setup()
+    await user.click(address)
+    await screen.findByRole('option', { name: /Monthly report/ })
+    await user.tab()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-state', 'closed')
+    expect(screen.getByRole('option', { name: /Monthly report/ })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('does not expose ordinary browser history in preview surfaces', async () => {

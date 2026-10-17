@@ -97,7 +97,8 @@ export function WebviewNavigation({
   } = useQuery('/browser-visits', {
     query: { search: debouncedSearch, offset: 0, limit: 20 },
     enabled: showHistory && search === debouncedSearch,
-    swrOptions: { keepPreviousData: false }
+    // Hold the last list while the closing popover animates out; while open, never show another search's results.
+    swrOptions: { keepPreviousData: !showHistory }
   })
   const suggestions =
     search === debouncedSearch
