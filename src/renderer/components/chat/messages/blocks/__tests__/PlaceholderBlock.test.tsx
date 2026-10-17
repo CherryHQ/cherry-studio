@@ -52,6 +52,12 @@ describe('PlaceholderBlock', () => {
     expect(screen.getByTestId('message-status-text')).toHaveTextContent('Thinking')
   })
 
+  it('reveals the wait clock once preparing has been silent beyond the threshold', () => {
+    render(<PlaceholderBlock isProcessing createdAt={new Date(Date.now() - 30_000).toISOString()} />)
+
+    expect(screen.getByTestId('message-status-elapsed')).toHaveTextContent('30 seconds')
+  })
+
   it('formats elapsed time across seconds, minutes, hours, and days', () => {
     const t = (key: string, options?: Record<string, number | string>) => {
       const template = translations[key] ?? key

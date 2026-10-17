@@ -71,8 +71,17 @@ export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): strin
   return t('message.tools.placeholder.elapsed.seconds', { seconds })
 }
 
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing' }) => {
+/**
+ * Surface the wait clock only once the silence is abnormal: a short preparing
+ * phase stays uncluttered, and a slow upstream round-trip no longer reads as a
+ * frozen app (agent rounds can legitimately wait tens of seconds for the first
+ * token before any thinking or tool call becomes visible).
+ */
+const PREPARING_ELAPSED_VISIBLE_AFTER_MS = 10_000
+
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, createdAt, status = 'preparing' }) => {
   const { t } = useTranslation()
+  const elapsedMs = usePlaceholderElapsedMs(isProcessing, createdAt, 1000)
 
   if (isProcessing) {
     return (
@@ -80,6 +89,9 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, statu
         className="flex min-h-7 flex-row items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-tertiary select-none"
         data-testid="message-status-placeholder">
         <span data-testid="message-status-text">{t(PLACEHOLDER_LABEL_KEYS[status])}</span>
+        {status === 'preparing' && elapsedMs >= PREPARING_ELAPSED_VISIBLE_AFTER_MS && (
+          <span data-testid="message-status-elapsed">{formatPlaceholderElapsed(elapsedMs, t)}</span>
+        )}
         <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
       </div>
     )
