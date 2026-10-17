@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { collectAgentMediaNotes } from '@main/ai/runtime/agentMediaPreface'
 import {
   appendAgentAttachmentPaths,
   buildAgentUserContent,
@@ -1164,6 +1165,7 @@ async function materializeUserContent(
   supportsAttachmentReads: boolean,
   readOnlyAttachmentMedia: boolean
 ): Promise<SDKUserMessage['message']['content']> {
+  const mediaNotes = await collectAgentMediaNotes(message)
   const parts = message.data?.parts ?? []
   const firstPartyFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
@@ -1219,10 +1221,13 @@ async function materializeUserContent(
     preparedParts = prepared.parts
   }
 
-  const text = preparedParts
-    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-    .map((part) => part.text)
-    .join('\n')
+  const text = appendMediaNotes(
+    preparedParts
+      .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n'),
+    mediaNotes
+  )
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
@@ -1302,6 +1307,15 @@ async function materializeUserContent(
   textContent = wrapAgentSessionDeliveryContent(message, textContent)
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
+}
+
+function appendMediaNotes(text: string, mediaNotes: readonly string[]): string {
+  const section = mediaNotes
+    .map((note) => note.trim())
+    .filter(Boolean)
+    .join('\n\n')
+  if (!section) return text
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 function appendAttachmentManifest(

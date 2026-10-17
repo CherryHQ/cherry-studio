@@ -164,6 +164,7 @@ const mocks = vi.hoisted(() => ({
   createClaudeQuery: vi.fn(),
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
+  analyzeMedia: vi.fn(),
   materializeNativeFilePart: vi.fn(),
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
@@ -496,6 +497,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
+      if (name === 'MediaAnalysisService') return { analyzeToCompactText: mocks.analyzeMedia }
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
@@ -507,6 +509,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
+    mocks.analyzeMedia.mockResolvedValue('# Media analysis\n[0:00] spoken line')
     mocks.materializeNativeFilePart.mockResolvedValue(null)
     mocks.buildRequest.mockResolvedValue({
       connectionConfig: {
@@ -1611,6 +1614,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const pdfHandle = createAssistantFileAttachmentHandle('entry-secret')
     const content = (await nextInput).value.message.content as string
 
+    expect(content).toContain('Attached file "clip.mp4":\n# Media analysis\n[0:00] spoken line')
+    expect(content.indexOf('[0:00] spoken line')).toBeLessThan(content.indexOf('mcp__assistant-files__read_file'))
     expect(content).toContain(
       `Attached audio and video (call mcp__assistant-files__read_file with the opaque attachment handle; the tool returns timestamped analysis):\n- "clip.mp4" (handle: ${videoHandle})`
     )
@@ -1732,7 +1737,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: `what is said here\n\nAttached files (read them with your tools using these absolute paths):\n- "clip.mp4": /managed/entry-video\n\nAttachment manifest:\n- "clip.mp4" (handle: ${handle})`
+          content: `what is said here\n\nAttached file "clip.mp4":\n# Media analysis\n[0:00] spoken line\n\nAttached files (read them with your tools using these absolute paths):\n- "clip.mp4": /managed/entry-video\n\nAttachment manifest:\n- "clip.mp4" (handle: ${handle})`
         }
       },
       done: false

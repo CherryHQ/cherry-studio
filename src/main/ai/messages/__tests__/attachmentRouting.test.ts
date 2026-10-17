@@ -304,16 +304,15 @@ describe('prepareChatMessages — routing', () => {
   })
 
   it.each(['probe failed', 'unusable_media_analysis'])(
-    'degrades a non-native video to a clear note when media analysis fails: %s',
+    'stops the request when media analysis fails: %s',
     async (message) => {
       getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
       mediaAnalysisMock.mockRejectedValueOnce(new Error(message))
 
-      const [out] = await run([fileWithEntry('e1', 'media.mp4', 'video/mp4')], NONE)
-
-      expect(textOf(out.parts)[0]).toBe(
-        'Attached file "media.mp4":\nCould not analyze the attached video file "media.mp4".'
-      )
+      await expect(run([fileWithEntry('e1', 'media.mp4', 'video/mp4')], NONE)).rejects.toMatchObject({
+        name: 'NonNativeMediaAnalysisError',
+        i18nKey: 'media_unreadable_without_preprocessing'
+      })
       expect(resolveMock).not.toHaveBeenCalled()
     }
   )

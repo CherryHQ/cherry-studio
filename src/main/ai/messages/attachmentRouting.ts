@@ -10,15 +10,17 @@
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
  *     unconfigured/failed) stops before the provider call with a user-facing
- *     error.
+ *     error. Unusable or failed audio/video analysis stops the same way and
+ *     points at Voice and Model settings. A completed analysis that only found
+ *     silence stays an inline note.
  *
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Other failures
  * (missing entry, parse error, native materialization) degrade to a model-visible
  * note rather than silently dropping the file or failing the request. Unreadable
- * non-vision images stop the request. Legacy / gateway parts (no `fileEntryId`)
- * keep the eager materialization path, but their image/audio/video parts remain
- * capability-gated.
+ * non-vision images and unusable audio/video stop the request. Legacy / gateway
+ * parts (no `fileEntryId`) keep the eager materialization path, but their
+ * image/audio/video parts remain capability-gated.
  *
  * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
  * handles against (unique handles; the internal `fileEntryId` never reaches the
@@ -43,6 +45,7 @@ import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
+import { NonNativeMediaAnalysisError } from './mediaAnalysisRequestError'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
 
@@ -201,7 +204,7 @@ async function extractNonNativeText(
     } catch (error) {
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Media analysis unavailable for a non-native attachment', { error, entryId, handle, fileType })
-      return { text: `Could not analyze the attached ${fileType} file "${handle}".`, continuation: 'prefix' }
+      throw new NonNativeMediaAnalysisError()
     }
   }
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || fileType === FILE_TYPE.OTHER) {
@@ -356,7 +359,7 @@ async function prepareChatMessage<T extends UIMessage>(
       defer(kept, pending, handle, extracted.text, extracted.continuation)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
-      if (error instanceof NonVisionImageOcrError) throw error
+      if (error instanceof NonVisionImageOcrError || error instanceof NonNativeMediaAnalysisError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
       kept.push(noteOf(handle))
     }
