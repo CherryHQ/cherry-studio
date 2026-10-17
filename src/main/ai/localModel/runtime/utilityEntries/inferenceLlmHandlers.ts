@@ -96,9 +96,14 @@ function toFunctions(tools: LlmGenerateInput['tools']): ChatModelFunctions | und
   )
 }
 
-// node-llama-cpp throws a plain Error when even the system prompt and latest turn exceed the context.
-function isContextOverflow(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('did not return a history that fits the context size')
+// node-llama-cpp throws a plain Error when even the system prompt and latest turn exceed the context:
+// its context shift strategy fails to compress the history, or returns one that still does not fit.
+export function isContextOverflow(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.startsWith('Failed to compress chat history') ||
+      error.message.includes('did not return a history that fits the context size'))
+  )
 }
 
 function contextOverflowError(contextSize: number): Error {
