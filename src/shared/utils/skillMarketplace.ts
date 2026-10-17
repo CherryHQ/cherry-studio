@@ -406,7 +406,7 @@ export async function searchSkillMarketplaces(
 
   const seen = new Set<string>()
   return combined.filter((result) => {
-    const key = result.name.toLowerCase()
+    const key = result.installSource
     if (seen.has(key)) return false
     seen.add(key)
     return true
