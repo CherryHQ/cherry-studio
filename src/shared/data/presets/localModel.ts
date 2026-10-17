@@ -37,6 +37,10 @@ export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[num
 export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr', 'asr', 'tts', 'llm'] as const
 export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
 
+/** Whether a chat model's estimated memory need fits this machine. Says nothing about speed or answer quality. */
+export const LOCAL_CHAT_MODEL_FITS = ['recommended', 'runnable', 'not_recommended'] as const
+export type LocalChatModelFit = (typeof LOCAL_CHAT_MODEL_FITS)[number]
+
 /**
  * What a user *installs*: the addressing key of the whole management plane — status,
  * download, cancel, remove and shared status snapshots. Adding a model means adding an
@@ -51,7 +55,8 @@ export const LOCAL_MODEL_BUNDLE_IDS = [
   'funasr-nano-int8',
   'qwen3-tts-0.6b-customvoice-8bit',
   'kokoro-multi-lang-v1.1',
-  'qwen3.5-4b-q4_k_m'
+  'qwen3.5-4b-q4_k_m',
+  'qwen3.5-9b-q4_k_m'
 ] as const
 export type LocalModelBundleId = (typeof LOCAL_MODEL_BUNDLE_IDS)[number]
 

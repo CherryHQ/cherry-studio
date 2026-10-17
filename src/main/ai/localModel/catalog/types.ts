@@ -142,6 +142,9 @@ export interface ModelBundle {
 export interface ChatModelRuntime {
   maxContextSize: number
   sampling: { temperature: number; topP: number; topK: number; presencePenalty: number }
+  /** Memory the weights plus context need with {@link maxContextSize} and with an 8k context, as
+   * node-llama-cpp's GgufInsights estimates for the pinned weights on Metal. Re-measure when they change. */
+  memoryBytes: { maxContext: number; minContext: number }
 }
 
 /**
