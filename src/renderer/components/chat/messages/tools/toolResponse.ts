@@ -33,6 +33,7 @@ const CHERRY_RUNTIME_TOOL_RENDER_NAMES = new Map<string, AgentToolsType>([
   ['exit_plan_mode', AgentToolsType.ExitPlanMode],
   ['read', AgentToolsType.Read],
   ['skill', AgentToolsType.Skill],
+  ['send_message', AgentToolsType.SendMessage],
   ['subagent', AgentToolsType.Task],
   ['subagent_fork', AgentToolsType.Task],
   ['todo_write', AgentToolsType.TodoWrite],
@@ -211,6 +212,9 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
+  // The ai SDK's part typing only models callProviderMetadata; the persisted output metadata
+  // (e.g. the adapter-stamped launch root) is carried by resultProviderMetadata.
+  const resultProviderMetadata = (toolPart as unknown as { resultProviderMetadata?: unknown }).resultProviderMetadata
   const approval =
     typeof toolPart.approval?.approved === 'boolean'
       ? {
@@ -241,7 +245,8 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
       ...(approval ? { approval } : {}),
       toolCallId,
       ...(parentToolUseId ? { parentToolUseId } : {}),
-      ...(partialArguments ? { partialArguments } : {})
+      ...(partialArguments ? { partialArguments } : {}),
+      ...(resultProviderMetadata ? { resultProviderMetadata } : {})
     }
     return mcpResponse
   }
@@ -256,7 +261,8 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     ...(approval ? { approval } : {}),
     toolCallId,
     ...(parentToolUseId ? { parentToolUseId } : {}),
-    ...(partialArguments ? { partialArguments } : {})
+    ...(partialArguments ? { partialArguments } : {}),
+    ...(resultProviderMetadata ? { resultProviderMetadata } : {})
   }
   return normalResponse
 }

@@ -70,9 +70,10 @@ import {
   SessionResultCards,
   getSubagentTaskStatus
 } from '../tools/agent'
+import { useAgentLaunchIndex, resolveAgentToolFlowTarget } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
-import { AgentToolsType, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
-import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
+import { AgentToolsType, getResumedAgentId, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
+import { getPartLaunchToolCallId, hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
 import AgentSessionForkBlock from './AgentSessionForkBlock'
@@ -1564,6 +1565,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const { subagentListTitle } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !previewInputFile && !!(previewFile || openFile)
+  // The same index the rows resolve their flow target with, so the disclosure and the click agree.
+  const launchIndex = useAgentLaunchIndex()
   const { t } = useTranslation()
   const subscribeDisclosures = React.useCallback(
     (listener: () => void) => subscribeCachedMessageUiState(message.id, listener),
@@ -1668,7 +1671,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
             if (!isToolUIPart(entry.part)) return false
             const name = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse?.tool
               .name
-            return name === AgentToolsType.Agent || name === AgentToolsType.Task
+            if (name === AgentToolsType.Agent || name === AgentToolsType.Task) return true
+            // A receipt that resumed a child of this message belongs to the same subtask list as
+            // its launch; leaving it inline is what kept a duplicate capsule at the message tail.
+            // The stamp counts too: a deferred result names no child, yet the row still resumes one.
+            return (
+              name === AgentToolsType.SendMessage &&
+              (getResumedAgentId((entry.part as { output?: unknown }).output) !== undefined ||
+                getPartLaunchToolCallId(entry.part) !== undefined)
+            )
           })
         : [],
     [displayProjection.entries, message.id, openAgentToolFlow]
@@ -1685,7 +1696,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const allSubagentsCompleted = subagentEntries.length > 0 && completedSubagents === subagentEntries.length
   const viewingSubagent = subagentEntries.some(({ part, index }) => {
     const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
-    return response?.toolCallId && isAgentToolFlowActive?.(response.toolCallId)
+    // A resume row's flow is keyed by the target it opens, not by the row's own call, so the list
+    // must ask the same question the click answers.
+    const target = response ? resolveAgentToolFlowTarget(response, launchIndex, true) : undefined
+    return Boolean(target && isAgentToolFlowActive?.(target))
   })
   const [showSubagents, setSubagentsExpanded] = useMessageDisclosureState(
     'subtasks',
