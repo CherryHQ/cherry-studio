@@ -1,0 +1,103 @@
+$ vitest run --project renderer --reporter=verbose src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (electron.vite.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/piVccBundle.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/checkChunkExports.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/sentry.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/vitePlugin.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/build-theme-css.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/claudeCodeBinaryManifest.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/types/appEdition.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/releaseNotes.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (src/shared/utils/redaction.ts:4:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (packages/ui/scripts/theme-contract.ts:12:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/transform.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/scan.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (scripts/uiContract/semanticId.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+(node:81694) Warning: Accessing non-existent property 'replaceRouteChunk' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/conversation-entry.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/app/__tests__/-conversation-entry.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/about.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-about.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/search.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-search.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+Warning: Route file "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/skills.test.ts" does not export a Route. This file will not be included in the route tree.
+
+If this file is not intended to be a route, you can exclude it using one of these options:
+  1. Rename the file to "/Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src/src/renderer/routes/settings/__tests__/-skills.test.ts" (prefix with "-")
+  2. Use 'routeFileIgnorePattern' in your config to match this file
+
+Current configuration:
+  routeFileIgnorePrefix: "-"
+  routeFileIgnorePattern: undefined
+
+ RUN  v5.0.1 /Volumes/cherrydev/development/cherry-studio/qa/pr-testing/src
+
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > opens global search from the action area 35ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > shows a ready update and opens its dialog directly 15ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > keeps the update action hidden until the update is ready to install 2ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > keeps the update action at the left of the action group 5ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > keeps theme and settings actions out of the tab bar while the sidebar is visible 2ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > opens settings from the tab bar when the sidebar is hidden 9ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > opens system diagnostics from the keyboard when the sidebar is hidden 28ms
+stderr | src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > sidebar direct theme switch > switches away from the actual light system theme with the keyboard
+An update to Tooltip inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > sidebar direct theme switch > switches away from the actual dark system theme with the keyboard
+An update to Tooltip inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > opens the settings tab from the sidebar footer action 9ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > forwards help overlay state from the sidebar footer 9ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > ShellTabBarActions > forwards feedback requests from the sidebar footer 9ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > sidebar direct theme switch > switches both ways directly in the icon sidebar 17ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > sidebar direct theme switch > switches both ways directly in the full sidebar 17ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > sidebar direct theme switch > switches away from the actual light system theme with the keyboard 13ms
+ ✓ |renderer| src/renderer/components/layout/__tests__/ShellTabBarActions.test.tsx > sidebar direct theme switch > switches away from the actual dark system theme with the keyboard 12ms
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  12:29:25
+   Duration  3.02s (import 74%, transform 15%, tests 6%, environment 4%, setup 1%)
+
