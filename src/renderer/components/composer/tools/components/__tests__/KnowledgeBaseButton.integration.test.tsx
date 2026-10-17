@@ -57,10 +57,6 @@ vi.mock('@renderer/components/VirtualList', async () => {
   }
 })
 
-vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: mocks.knowledgeBases })
-}))
-
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     init: vi.fn(),
@@ -158,7 +154,8 @@ function ControlledKnowledgeBaseRuntime({
   return (
     <KnowledgeBaseToolRuntime
       launcher={launcher}
-      configuredKnowledgeBaseIds={['kb-1', 'kb-2']}
+      bases={mocks.knowledgeBases}
+      unconfiguredBaseIds={new Set()}
       selectedBases={selectedBases}
       onSelect={(bases) => {
         onSelect(bases)

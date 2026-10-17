@@ -15,6 +15,7 @@ interface HarnessProps {
   scopeKey: string
   initialSelection?: KnowledgeBase[]
   remountsOnScopeChange?: boolean
+  allowUnconfigured?: boolean
 }
 
 /** Drives the hook with real selection state so pruning and restore effects actually settle. */
@@ -27,7 +28,8 @@ function useScopeHarness(props: HarnessProps) {
     scopeKey: props.scopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
-    remountsOnScopeChange: props.remountsOnScopeChange
+    remountsOnScopeChange: props.remountsOnScopeChange,
+    allowUnconfigured: props.allowUnconfigured
   })
   return { ...scope, selectedKnowledgeBases }
 }
@@ -153,5 +155,54 @@ describe('useComposerKnowledgeBaseScope', () => {
     rerender({ allKnowledgeBases: bases, isKnowledgeBasesLoading: false, scopeKey: 'topic-2:agent-1' })
 
     expect(result.current.selectedKnowledgeBases).toEqual([])
+  })
+
+  describe('allowUnconfigured (chat scope, #20238)', () => {
+    const bases = [kb('kb-1'), kb('kb-2'), kb('kb-3')]
+
+    it('exposes every loaded base as selectable even when only a subset is configured', () => {
+      const { result } = renderHook(useScopeHarness, {
+        initialProps: {
+          configuredKnowledgeBaseIds: ['kb-1', 'kb-2'],
+          allKnowledgeBases: bases,
+          isKnowledgeBasesLoading: false,
+          scopeKey: SCOPE_KEY,
+          allowUnconfigured: true
+        }
+      })
+
+      expect(result.current.selectableKnowledgeBases).toEqual(bases)
+    })
+
+    it('restores an unconfigured pick instead of stripping it', () => {
+      // Chat scope: an unconfigured pick is sendable because selecting it auto-links
+      // the base to the assistant, so restore must not filter it out.
+      const { result } = renderHook(useScopeHarness, {
+        initialProps: {
+          configuredKnowledgeBaseIds: ['kb-1'],
+          allKnowledgeBases: bases,
+          isKnowledgeBasesLoading: false,
+          scopeKey: SCOPE_KEY,
+          allowUnconfigured: true
+        }
+      })
+
+      act(() => result.current.restoreKnowledgeBaseSelection(['kb-3']))
+
+      expect(result.current.selectedKnowledgeBases).toEqual([bases[2]])
+    })
+
+    it('keeps the configured-intersection filter when not opted in (agent scope)', () => {
+      const { result } = renderHook(useScopeHarness, {
+        initialProps: {
+          configuredKnowledgeBaseIds: ['kb-1', 'kb-2'],
+          allKnowledgeBases: bases,
+          isKnowledgeBasesLoading: false,
+          scopeKey: SCOPE_KEY
+        }
+      })
+
+      expect(result.current.selectableKnowledgeBases).toEqual([bases[0], bases[1]])
+    })
   })
 })
