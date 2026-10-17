@@ -3,15 +3,17 @@ import type { AddressInfo } from 'node:net'
 
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
-import { Type } from '@earendil-works/pi-ai'
+import { type AssistantMessage, type Message, type SimpleStreamOptions, Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { extractReasoningMiddleware, streamText, type TextStreamPart, type ToolSet, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { createAiSdkModelBinding } from './aiSdkModelBinding'
 import {
   createTestSession,
   finish,
   lastAssistant,
+  MODEL,
   plain,
   scriptedModel,
   streamTextPort,
@@ -592,5 +594,60 @@ describe('Pi agent loop over the AI SDK port', () => {
     } finally {
       server.close()
     }
+  })
+})
+
+describe('output token ceiling', () => {
+  // Breaks when the bridge forwards only a per-call cap: Pi's agent passes none, so the port would
+  // get no ceiling and the provider's own default (64,000 tokens for Anthropic) would apply.
+  it("sends the model's maxTokens on an ordinary session call", async () => {
+    const { port, requests } = streamTextPort(scriptedModel([[...textParts('t1', 'Hello'), finish('stop')]]).model)
+    const { session } = await createTestSession({ port })
+    await session.prompt('hi')
+
+    expect(requests[0].maxOutputTokens).toBe(4_096)
+  })
+
+  /** The context of a request made after a reply whose usage reports `contextTokens`. */
+  const after = (contextTokens: number): Message[] => [
+    { role: 'user', content: 'hi', timestamp: 1 },
+    {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'ok' }],
+      api: 'ai-sdk',
+      provider: 'cherry',
+      model: 'bridged-model',
+      usage: {
+        input: contextTokens,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: contextTokens,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+      },
+      stopReason: 'stop',
+      timestamp: 2
+    } satisfies AssistantMessage
+  ]
+
+  // Breaks when the bridge skips Pi's remaining-context clamp (a 10,000-token window less the
+  // context and a 4,096-token safety margin, never below 1) or lets the model's ceiling override a
+  // smaller cap.
+  it.each([
+    { name: 'a roomy context gets the model ceiling', messages: after(1_000), maxTokens: undefined, sent: 4_096 },
+    { name: 'a nearly full context gets what is left', messages: after(5_000), maxTokens: undefined, sent: 904 },
+    { name: 'a full context gets Pi’s minimum', messages: after(9_000), maxTokens: undefined, sent: 1 },
+    { name: 'a smaller per-call cap wins', messages: after(1_000), maxTokens: 1_000, sent: 1_000 }
+  ])('$name', async ({ messages, maxTokens, sent }) => {
+    const { port, requests } = streamTextPort(scriptedModel([[...textParts('t1', 'ok'), finish('stop')]]).model)
+    const { modelRuntime, model } = await createAiSdkModelBinding({
+      port,
+      requestOptions: undefined,
+      model: { ...MODEL, contextWindow: 10_000 }
+    })
+    const options: SimpleStreamOptions = maxTokens === undefined ? {} : { maxTokens }
+    await modelRuntime.streamSimple(model, { messages }, options).result()
+
+    expect(requests[0].maxOutputTokens).toBe(sent)
   })
 })
