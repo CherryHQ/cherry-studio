@@ -87,6 +87,25 @@ describe('Agent Note lifecycle transitions', () => {
     expect(checkAgentNoteTransition(proposedPath, proposed, implementedPath, implemented)).toMatchObject({ errors: [] })
   })
 
+  it('maps ownerless criteria from proposals merged before the owner rule', () => {
+    const historical = proposed.replace(/ \(verification: [^)]+\)/gu, '')
+
+    expect(checkAgentNoteTransition(proposedPath, historical, implementedPath, implemented)).toMatchObject({
+      errors: []
+    })
+  })
+
+  it('allows an unnumbered proposal merged before AC IDs were required', () => {
+    const historical = proposed.replace(
+      '- AC1 — First outcome. (verification: unit)\n- AC2 — Second outcome. (verification: docs gate)',
+      '- First outcome.\n- Second outcome.'
+    )
+
+    expect(checkAgentNoteTransition(proposedPath, historical, implementedPath, implemented)).toMatchObject({
+      errors: []
+    })
+  })
+
   it('rejects an implemented note that omits an acceptance criterion', () => {
     const incomplete = implemented.replace('- AC2 — `pnpm docs:check`: catches documentation drift.\n', '')
     expect(checkAgentNoteTransition(proposedPath, proposed, implementedPath, incomplete).errors).toContain(
@@ -126,6 +145,41 @@ describe('Agent Note lifecycle transitions', () => {
     )
   })
 
+  it.each([
+    ['* AC2 — Second outcome. (verification: docs gate)'],
+    ['+ AC2 — Second outcome. (verification: docs gate)'],
+    ['  - AC2 — Second outcome. (verification: docs gate)']
+  ])('rejects a source criterion with unsupported list syntax: %s', (entry) => {
+    const malformed = proposed.replace('- AC2 — Second outcome. (verification: docs gate)', entry)
+    const incomplete = implemented.replace('- AC2 — `pnpm docs:check`: catches documentation drift.\n', '')
+
+    expect(checkAgentNoteTransition(proposedPath, malformed, implementedPath, incomplete).errors).toContain(
+      'the proposed note has malformed acceptance criteria: AC2'
+    )
+  })
+
+  it('rejects verification evidence hidden by an HTML comment inside an HTML block', () => {
+    const hidden = implemented.replace(
+      '- AC2 — `pnpm docs:check`: catches documentation drift.',
+      '<div>\n<!--\n- AC2 — hidden evidence\n-->\n</div>'
+    )
+
+    const errors = checkAgentNoteTransition(proposedPath, proposed, implementedPath, hidden).errors
+
+    expect(errors).toContain('Verification is missing AC2')
+  })
+
+  it('rejects malformed verification entries instead of omitting them', () => {
+    const malformed = implemented.replace(
+      '- AC2 — `pnpm docs:check`: catches documentation drift.',
+      '* AC2 — `pnpm docs:check`: catches documentation drift.'
+    )
+
+    expect(checkAgentNoteTransition(proposedPath, proposed, implementedPath, malformed).errors).toContain(
+      'the implemented note has malformed verification: AC2'
+    )
+  })
+
   it('rejects lifecycle rewrites after a decision has shipped', () => {
     const rejectedPath = '.agents/notes/rejected/process/2026-10-01-decision.md'
     const rejected = proposed.replace('Status: proposed', 'Status: rejected — superseded')
@@ -157,5 +211,32 @@ describe('Agent Note lifecycle transitions', () => {
         `${proposedPath}: head still contains ${proposedPath.replace(/\.md$/u, '.i18n.yaml')}`
       ])
     )
+  })
+
+  it('allows a historical source note without a pairing sidecar to transition', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-note-transition-'))
+    tempDirs.push(root)
+    git(root, 'init', '--quiet')
+    git(root, 'config', 'user.email', 'notes@example.test')
+    git(root, 'config', 'user.name', 'Notes Test')
+    git(root, 'config', 'commit.gpgsign', 'false')
+    const historical = proposed.replace(
+      '- AC1 — First outcome. (verification: unit)\n- AC2 — Second outcome. (verification: docs gate)',
+      '- First outcome.\n- Second outcome.'
+    )
+    fs.mkdirSync(path.dirname(path.join(root, proposedPath)), { recursive: true })
+    fs.writeFileSync(path.join(root, proposedPath), historical)
+    fs.writeFileSync(path.join(root, proposedPath.replace(/\.md$/u, '.zh.md')), historical)
+    git(root, 'add', '.')
+    git(root, 'commit', '--quiet', '-m', 'historical proposal')
+    const base = git(root, 'rev-parse', 'HEAD')
+
+    writeTriplet(root, implementedPath, implemented)
+    fs.unlinkSync(path.join(root, proposedPath))
+    fs.unlinkSync(path.join(root, proposedPath.replace(/\.md$/u, '.zh.md')))
+    git(root, 'add', '.')
+    git(root, 'commit', '--quiet', '-m', 'complete transition')
+
+    expect(collectAgentNoteTransitionReport({ base }, root).errors).toEqual([])
   })
 })

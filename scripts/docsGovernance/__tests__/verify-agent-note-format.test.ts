@@ -65,6 +65,12 @@ describe('checkAgentNote', () => {
     ).toContain('Acceptance criteria must contain `- AC1 — <observable outcome>` entries')
   })
 
+  it('requires a verification owner on current proposed notes', () => {
+    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', proposed)).toContain(
+      'Acceptance criteria entries must match `- AC1 — <observable outcome> (verification: <owner>)`'
+    )
+  })
+
   it('requires rejection rationale for a rejected proposal', () => {
     const rejected = proposed
       .replace('Status: proposed', 'Status: rejected — no legitimate consumer')
@@ -207,14 +213,33 @@ Risk.
     )
   })
 
-  it('allows supporting bullets that do not claim an acceptance-criterion ID', () => {
-    const supportingBullet = proposed
+  it.each([
+    ['asterisk', '* AC2 — The failure case is rejected. (verification: unit)'],
+    ['plus', '+ AC2 — The failure case is rejected. (verification: unit)'],
+    ['indented', '  - AC2 — The failure case is rejected. (verification: unit)'],
+    ['ordered', '1. AC2 — The failure case is rejected. (verification: unit)'],
+    ['quoted', '> - AC2 — The failure case is rejected. (verification: unit)'],
+    ['formatted', '- **AC2** — The failure case is rejected. (verification: unit)'],
+    ['multiline', '- AC2 — The failure case is rejected.\n  (verification: unit)']
+  ])('rejects an AC entry using an unsupported %s syntax variant', (_name, entry) => {
+    const unsupportedMarker = proposed
+      .replace('A user observes the promised result.', 'A user observes the promised result. (verification: renderer)')
+      .replace('- AC2 — The failure case is rejected.', entry)
+
+    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', unsupportedMarker)).toContain(
+      'Acceptance criteria entries must match `- AC1 — <observable outcome> (verification: <owner>)`'
+    )
+  })
+
+  it('allows supporting prose and bullets that do not claim an acceptance-criterion ID', () => {
+    const supportingContent = proposed
       .replace('A user observes the promised result.', 'A user observes the promised result. (verification: renderer)')
       .replace(
         'The failure case is rejected.',
-        'The failure case is rejected. (verification: unit)\n- Supporting context for the criteria.'
+        'The failure case is rejected. (verification: unit)\n  - Nested supporting context.\n- Top-level supporting context.'
       )
+      .replace('## Risks', 'Supporting paragraph.\n\n## Risks')
 
-    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', supportingBullet)).toEqual([])
+    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', supportingContent)).toEqual([])
   })
 })

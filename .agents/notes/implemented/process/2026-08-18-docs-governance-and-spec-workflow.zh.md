@@ -147,14 +147,14 @@ sources: # code paths this document describes; directories preferred
 - **双语维护成本。** 每次编辑配对文档都要同步另一侧并重录;高频变动的文档付出最多。有意接受——文档在这里是产品——并通过只配对审定为现行的材料来控制上限。
 - **翻译评审负担。** 配对门禁校验的是结构而非忠实度;中文质量仍需评审者投入,而术语表起点很薄。
 - **由 agent 负责 PR 元数据。** 人工 PR 通过模板和仓库 skill 携带 Note/Spec/AC/Verification。自动化创建的 PR(仓库 workflow 与 Dependabot)免除该要求,也不再有通用 PR-description Action;人工元数据错误仍由 review 负责发现。
-- **生命周期自动化刻意受限。** 转换检查器证明已声明的三件套移动与 AC 映射内部完整。人类 Approval 和当前层是否真是最终层,仍根据实时 GitHub review 与 stack 证据判断。
+- **生命周期自动化刻意受限。** 转换检查器解析 Markdown 结构,证明已声明的生命周期移动与现有 AC 映射内部完整,且绝不把代码或原始 HTML 当作证据。只有 merge-base 状态可以缺少规则上线前尚未要求的 AC ID 或源 sidecar;当前 proposal 仍须通过格式与 pairing 门禁。人类 Approval 和当前层是否真是最终层,仍根据实时 GitHub review 与 stack 证据判断。
 - **Phase 3 保持独立。** 已审计语料尚未全部翻译;扩展发现根仍是后续变更,继续复用同一 pairing 与 terminology 架构。
 
 ## Verification
 
 - AC1 — [Phase 0b 审计结果](./2026-08-19-phase-0b-doc-audit-outcomes.md)加 `pnpm docs:check`:保留逐域审计记录,并拒绝结构或链接回归。
 - AC2 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/verify-doc-frontmatter.test.ts scripts/docsGovernance/__tests__/gen-doc-index.test.ts scripts/docsGovernance/__tests__/find-affected-docs.test.ts` 加 `pnpm docs:check`:捕获缺失的 source owner 和过时的生成索引。
-- AC3 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/verify-agent-note-format.test.ts scripts/docsGovernance/__tests__/verify-agent-note-transitions.test.ts` 加 `pnpm docs:check`:捕获无效生命周期结构、fenced-code 伪装、非法移动和不完整 AC 证据。
+- AC3 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/verify-agent-note-format.test.ts scripts/docsGovernance/__tests__/verify-agent-note-transitions.test.ts` 加 `pnpm docs:check`:捕获无效生命周期结构、不受支持的 AC 语法、代码/HTML 伪装、非法移动和不完整 AC 证据。
 - AC4 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/translation-pairing.test.ts` 加 `pnpm docs:check`:捕获不完整三件套、配对结构不一致、过时 hash 以及 staged hook 使用的 index/worktree 不一致。
 - AC5 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/change-scope.test.ts scripts/docsGovernance/__tests__/find-affected-docs.test.ts` 加 `pnpm skills:check`:捕获 scope plane 错误,并让 PR/review/stack consumer 始终使用显式 base。
 - AC6 — `pnpm skills:check` 加 `pnpm docs:check`:校验携带 Note、Spec、AC、实际 verification、自动化豁免和最终 note 现实的 agent 入口与双语 workflow 契约。

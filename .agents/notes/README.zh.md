@@ -121,6 +121,8 @@ Acceptance criteria 描述可观察结果，而不是实现任务：
 - AC1 — <observable result> (verification: unit | renderer | Electron | packaged artifact | docs gate)
 ```
 
+验收标准条目是机器可读的单行顶层列表项。必须使用上面的精确 `-` 形式；使用其他列表标记、缩进、引用块或跨行内容的条目都会被拒绝。代码块和原始 HTML 不会被视为条目。补充上下文可以写在段落中，或写在不引入其他 AC ID 的列表项中。
+
 Implemented note 包含：
 
 ```markdown
@@ -137,6 +139,8 @@ Implemented note 包含：
 - AC1 — `<command or test>`: <what regression it catches>
 - Regression — `<command or test>`: <what regression it catches>
 ```
+
+Verification 条目遵循相同的单行顶层列表规则。
 
 Rejected note 保留 `Problem`、`Proposal` 和 `Alternatives considered`，增加 `Rejection rationale`，并使用：
 

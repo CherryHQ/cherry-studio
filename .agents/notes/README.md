@@ -121,6 +121,11 @@ Acceptance criteria are observable outcomes, not implementation tasks:
 - AC1 — <observable result> (verification: unit | renderer | Electron | packaged artifact | docs gate)
 ```
 
+Acceptance-criterion entries are machine-readable, single-line, top-level list items. Use the exact `-` form above;
+entries expressed with alternative markers, indentation, block quotes, or multiline content are rejected. Code blocks
+and raw HTML do not count as entries. Supporting context may remain in prose or list items that do not introduce
+another AC ID.
+
 An implemented note contains:
 
 ```markdown
@@ -137,6 +142,8 @@ Transitioned Specs map every AC to actual evidence. A direct bug-fix note may us
 - AC1 — `<command or test>`: <what regression it catches>
 - Regression — `<command or test>`: <what regression it catches>
 ```
+
+Verification entries follow the same single-line, top-level list rule.
 
 A rejected note retains `Problem`, `Proposal`, and `Alternatives considered`, adds `Rejection rationale`, and uses:
 

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { parseArgs } from 'node:util'
 
 import { collectChangeScope } from './change-scope.mjs'
-import { linesOutsideCode, parseAcceptanceCriteria } from './verify-agent-note-format'
+import { parseAgentNote } from './verify-agent-note-format'
 
 const NOTE_PATH =
   /^\.agents\/notes\/(proposed|implemented|rejected)\/(feature|bug-fix|simplification|architecture|process|testing)\/(\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md)$/u
@@ -41,19 +41,6 @@ const noteLocation = (file: string): NoteLocation | undefined => {
 
 const noteIdentity = (note: NoteLocation): string => `${note.noteClass}/${note.filename}`
 
-const sectionLines = (content: string, heading: string): string[] => {
-  const lines = linesOutsideCode(content)
-  const start = lines.indexOf(heading)
-  if (start === -1) return []
-  const end = lines.findIndex((line, index) => index > start && line.startsWith('## '))
-  return lines.slice(start + 1, end === -1 ? undefined : end)
-}
-
-const criterionIds = (content: string, heading: string): string[] =>
-  sectionLines(content, heading)
-    .map((line) => /^- (AC\d+) — \S/u.exec(line)?.[1])
-    .filter((value): value is string => Boolean(value))
-
 const repeatedIds = (ids: string[]): string[] => [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))]
 
 export const checkAgentNoteTransition = (
@@ -68,9 +55,10 @@ export const checkAgentNoteTransition = (
   if (noteIdentity(from) !== noteIdentity(to))
     return { errors: ['a lifecycle transition must preserve class and filename'] }
 
-  const parsedAcceptanceCriteria = parseAcceptanceCriteria(sectionLines(before, '## Acceptance criteria'))
-  const acceptanceCriteria = parsedAcceptanceCriteria.ids
-  const verification = criterionIds(after, '## Verification')
+  const proposedNote = parseAgentNote(before)
+  const implementedNote = parseAgentNote(after)
+  const acceptanceCriteria = proposedNote.acceptanceCriteria.ids
+  const verification = implementedNote.verification.ids
   const transition = { identity: noteIdentity(from), from, to, acceptanceCriteria, verification }
   const errors: string[] = []
 
@@ -78,17 +66,28 @@ export const checkAgentNoteTransition = (
     errors.push(`unsupported lifecycle transition: ${from.lifecycle} → ${to.lifecycle}`)
   }
   if (to.lifecycle === 'implemented') {
-    if (parsedAcceptanceCriteria.malformed.length)
+    if (proposedNote.acceptanceCriteria.malformed.length)
       errors.push(
-        `the proposed note has malformed acceptance criteria: ${parsedAcceptanceCriteria.malformed.join(', ')}`
+        `the proposed note has malformed acceptance criteria: ${proposedNote.acceptanceCriteria.malformed.join(', ')}`
       )
-    if (acceptanceCriteria.length === 0) errors.push('the proposed note has no acceptance-criteria IDs')
+    if (implementedNote.verification.malformed.length)
+      errors.push(
+        `the implemented note has malformed verification: ${implementedNote.verification.malformed.join(', ')}`
+      )
+    const isUnnumberedHistoricalProposal =
+      acceptanceCriteria.length === 0 &&
+      proposedNote.acceptanceCriteria.malformed.length === 0 &&
+      proposedNote.acceptanceCriteria.hasListItems
+    if (acceptanceCriteria.length === 0 && !isUnnumberedHistoricalProposal)
+      errors.push('the proposed note has no acceptance-criteria IDs')
     const repeatedCriteria = repeatedIds(acceptanceCriteria)
     if (repeatedCriteria.length) errors.push(`the proposed note repeats criteria: ${repeatedCriteria.join(', ')}`)
-    const missing = acceptanceCriteria.filter((id) => !verification.includes(id))
-    if (missing.length) errors.push(`Verification is missing ${missing.join(', ')}`)
-    const extra = verification.filter((id) => !acceptanceCriteria.includes(id))
-    if (extra.length) errors.push(`Verification contains unknown criteria: ${extra.join(', ')}`)
+    if (!isUnnumberedHistoricalProposal) {
+      const missing = acceptanceCriteria.filter((id) => !verification.includes(id))
+      if (missing.length) errors.push(`Verification is missing ${missing.join(', ')}`)
+      const extra = verification.filter((id) => !acceptanceCriteria.includes(id))
+      if (extra.length) errors.push(`Verification contains unknown criteria: ${extra.join(', ')}`)
+    }
     const repeatedVerification = repeatedIds(verification)
     if (repeatedVerification.length) errors.push(`Verification repeats criteria: ${repeatedVerification.join(', ')}`)
   }
@@ -149,8 +148,8 @@ export const collectAgentNoteTransitionReport = (
     }
     if (from.lifecycle === to.lifecycle) continue
     for (const pairPath of pairPaths(from.path)) {
-      if (!beforePaths.has(pairPath)) errors.push(`${from.path}: base is missing ${pairPath}`)
-      if (afterPaths.has(pairPath)) errors.push(`${from.path}: head still contains ${pairPath}`)
+      if (beforePaths.has(pairPath) && afterPaths.has(pairPath))
+        errors.push(`${from.path}: head still contains ${pairPath}`)
     }
     for (const pairPath of pairPaths(to.path)) {
       if (beforePaths.has(pairPath)) errors.push(`${to.path}: base already contains ${pairPath}`)
