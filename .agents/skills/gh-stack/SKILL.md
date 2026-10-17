@@ -74,7 +74,9 @@ gh stack checkout <branch-or-pr>
 gh stack link --remote <remote> <bottom-pr> <higher-pr> [...]
 ```
 
-Exit code `2` from `gh stack view --json` means the current branch is standalone. Exit code `3` from rebase or sync means conflicts require resolution followed by `gh stack rebase --continue`, or `gh stack rebase --abort` if the stack cannot be repaired safely. Exit code `9` means GitHub stacked PRs are unavailable for the repository; stop instead of silently publishing a different PR shape.
+Exit code `2` from `gh stack view --json` means only that the current checkout has no matching local stack metadata. It does not prove that an existing PR is standalone on GitHub. In a clean disposable worktree, run `gh stack checkout <pr-number-or-url>` to discover and hydrate remote topology, then rerun `gh stack view --json`. Classify an existing PR as standalone only after remote discovery confirms that it is not attached to a GitHub stack.
+
+Exit code `3` means a conflict, but recovery depends on the command. `gh stack rebase` leaves active recovery state, so resolve the conflict and run `gh stack rebase --continue`, or `gh stack rebase --abort`. `gh stack sync` rolls the attempted rebase back before returning; start a new `gh stack rebase` to resolve that conflict, and do not use `--continue` or `--abort` unless a rebase is active. Exit code `9` means GitHub stacked PRs are unavailable for the repository; stop instead of silently publishing a different PR shape.
 
 ## Cherry PR creation
 

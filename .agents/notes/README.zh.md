@@ -91,7 +91,7 @@ stateDiagram-v2
 
 Approval 绑定一个精确 Spec head。沉默、`CHANGES_REQUESTED` 和讨论都不表示 rejection。
 
-Agent 根据整个 stack 而不是单个 PR 判断生命周期。运行 `gh stack view --json`；退出码 2 表示当前 branch 是 standalone。对于 stack，检查当前层及每个 downstack implementation PR，只汇总有实际 verification 支撑的 AC；只有最终层的累计证据覆盖已批准 Spec 的全部 AC 时，才转换 note。Stack 同步不代表完成验证：`gh stack sync` 后，对每个存活层重新运行 change scope 和被改写范围影响的检查。
+Agent 根据整个 stack 而不是单个 PR 判断生命周期。运行 `gh stack view --json`；退出码 2 只表示当前 checkout 缺少本地 stack 元数据，并不能证明已有 PR 在 GitHub 上是 standalone。按照 `gh-stack` skill 发现并初始化远端拓扑，然后重新运行 view，再对 PR 作出分类。对于 stack，检查当前层及每个 downstack implementation PR，只汇总有实际 verification 支撑的 AC；只有最终层的累计证据覆盖已批准 Spec 的全部 AC 时，才转换 note。Stack 同步不代表完成验证：`gh stack sync` 后，对每个存活层重新运行 change scope 和被改写范围影响的检查。
 
 ## 文件格式
 

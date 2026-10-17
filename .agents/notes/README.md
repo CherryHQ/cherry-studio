@@ -91,7 +91,7 @@ Substantial feature, architecture, process, and simplification work follows this
 
 Approval binds one exact Spec head. Silence, `CHANGES_REQUESTED`, and discussion do not mean rejection.
 
-Agents determine the lifecycle from the stack, not from one PR in isolation. Run `gh stack view --json`; exit code 2 means the branch is standalone. For a stack, inspect the current layer and every downstack implementation PR, aggregate only ACs backed by actual verification, and transition the note only in the final layer when the cumulative evidence covers the complete approved Spec. Stack synchronization never proves completion: after `gh stack sync`, rerun change scope and the invalidated checks for each live layer.
+Agents determine the lifecycle from the stack, not from one PR in isolation. Run `gh stack view --json`; exit code 2 means only that the checkout lacks local stack metadata, not that an existing PR is standalone on GitHub. Follow the `gh-stack` skill to discover and hydrate remote topology, then rerun the view before classifying the PR. For a stack, inspect the current layer and every downstack implementation PR, aggregate only ACs backed by actual verification, and transition the note only in the final layer when the cumulative evidence covers the complete approved Spec. Stack synchronization never proves completion: after `gh stack sync`, rerun change scope and the invalidated checks for each live layer.
 
 ## File format
 

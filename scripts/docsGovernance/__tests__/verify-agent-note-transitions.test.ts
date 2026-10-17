@@ -104,6 +104,16 @@ describe('Agent Note lifecycle transitions', () => {
     )
   })
 
+  it('rejects acceptance-criterion evidence hidden inside an HTML comment', () => {
+    const hidden = implemented.replace(
+      '- AC2 — `pnpm docs:check`: catches documentation drift.',
+      '<!--\n- AC2 — `pnpm docs:check`: hidden evidence.\n-->'
+    )
+    expect(checkAgentNoteTransition(proposedPath, proposed, implementedPath, hidden).errors).toContain(
+      'Verification is missing AC2'
+    )
+  })
+
   it('rejects lifecycle rewrites after a decision has shipped', () => {
     const rejectedPath = '.agents/notes/rejected/process/2026-10-01-decision.md'
     const rejected = proposed.replace('Status: proposed', 'Status: rejected — superseded')

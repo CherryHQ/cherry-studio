@@ -35,7 +35,7 @@ There is no `archived/` lifecycle yet. Do not archive by age, merge status, move
 6. A material behavior, ownership, AC, alternative, or risk change belongs on the Spec branch. Rebase upstack and require Approval again.
 7. The final layer moves all three pair artifacts to `implemented/`, rewrites shipped reality in present tense, and maps every AC to actual evidence.
 
-Before deciding step 7, run `gh stack view --json`. Exit code 2 means the branch is standalone. Otherwise inspect the current layer and every downstack implementation PR, then aggregate only ACs backed by verification that was actually run. Intermediate layers keep the note proposed; only the final layer whose cumulative evidence covers every approved AC performs the transition. Do not infer finality from branch order alone.
+Before deciding step 7, run `gh stack view --json`. If it exits 2, follow the `gh-stack` skill's remote-discovery procedure; missing local metadata does not prove the PR is standalone. For a stack, inspect the current layer and every downstack implementation PR, then aggregate only ACs backed by verification that was actually run. Intermediate layers keep the note proposed; only the final layer whose cumulative evidence covers every approved AC performs the transition. Do not infer finality from branch order alone.
 
 After `gh stack sync`, rerun `pnpm change:scope` against every live PR base and rerun only checks invalidated by the rewritten scope. A successful sync is not validation.
 

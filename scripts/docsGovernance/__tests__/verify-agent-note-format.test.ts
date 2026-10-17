@@ -139,4 +139,45 @@ Risk.
       'Verification must map AC IDs or a direct bug regression to actual evidence'
     )
   })
+
+  it('ignores required sections and acceptance criteria inside HTML comments', () => {
+    const commented = `# Agent Note: A decision
+
+Status: proposed
+
+English | [中文](2026-08-20-decision.zh.md)
+
+## Problem
+
+Problem.
+
+<!--
+## Proposal
+
+Proposal.
+
+## Alternatives considered
+
+Alternative.
+
+## Acceptance criteria
+
+- AC1 — Fake outcome. (verification: unit)
+
+## Risks
+
+Risk.
+-->
+`
+
+    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', commented)).toEqual(
+      expect.arrayContaining([
+        'missing required section ## Proposal',
+        'missing required section ## Alternatives considered',
+        'missing required section ## Acceptance criteria',
+        'missing required section ## Risks',
+        'Acceptance criteria must contain `- AC1 — <observable outcome>` entries'
+      ])
+    )
+  })
 })

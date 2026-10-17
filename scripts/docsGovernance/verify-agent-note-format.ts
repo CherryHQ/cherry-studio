@@ -12,8 +12,9 @@ const LIFECYCLES = new Set(['proposed', 'implemented', 'rejected'])
 const NOTE_NAME = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/
 
 export const linesOutsideCode = (content: string): string[] => {
-  const lines = content.split('\n')
-  const tree = unified().use(remarkParse).parse(content)
+  const visibleContent = content.replace(/<!--[\s\S]*?(?:-->|$)/gu, (comment) => comment.replace(/[^\r\n]/gu, ' '))
+  const lines = visibleContent.split('\n')
+  const tree = unified().use(remarkParse).parse(visibleContent)
   visit(tree, 'code', (node) => {
     const start = node.position?.start.line
     const end = node.position?.end.line
