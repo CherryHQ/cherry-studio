@@ -56,13 +56,14 @@ Status: proposed
 
 ## 证据与审批边界
 
-这是对用户已授权设计及 PR 1 实现的补充记录，不是已经执行 Spec-first 评审的证据。2026-10-18 核对时，[PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795) 为开放的 Draft，提交为 `1d98ad19aef9d04fd8a1b3b899be2c2826602905`；GitHub stack 发现结果显示没有关联 stack，评审中没有 Approval。尚未建立单独获批的 Spec head。本次不声明生命周期迁移。
+这是对用户已授权设计及 PR 1 实现的补充记录，不是已经执行 Spec-first 评审的证据。2026-10-18 核对时，[PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795) 为开放的 Draft，提交为 `1d98ad19aef9d04fd8a1b3b899be2c2826602905`；GitHub stack 发现结果显示没有关联 stack，评审中没有 Approval。尚未建立单独获批的 Spec head。本次不声明生命周期迁移。 用户于 2026-10-18 明确授权实现 PR 2；开始实施时，PR #21795 仍为 Draft，head 为 `240554f11d36c72d640531b31d67affbd85674b0`，没有 Approval。
 
 | 标准 | 已有证据 | 剩余边界 |
 | --- | --- | --- |
 | AC1–AC2 | 合入 main 的 `46ef0b8ce37` 后，10 个 Main 定向测试文件共 265 项通过；Node/Web 类型检查、定向 lint 和文档检查通过。测试包含 `execution.test.ts`、`sdkOperations.test.ts`、`scratch.test.ts`、会话与准入测试、适配器测试及语音 IPC handler。 | 单元测试不能证明所有原生平台或打包路径。 |
 | AC3 | 此次 main 合并前，适配器拆分通过 13 个 Main 文件共 273 项测试。开发版 Electron 完成 Apple 与 Qwen3 WAV 生成及播放，并回到 idle。后续定向测试覆盖了 Windows 标准 WAV、字节偏移输入、取消和超时清理。 | 原生 ASR 资源不可用；本地未执行 Windows 与打包环境验证。较早的 Electron 验证不代表合并后当前提交的实机验证。 |
-| AC4–AC8 | 实现方案中已有详细提案。 | 本分支未实现或验证 PR 2–6。 |
+| AC4（部分） | PR 2 已实现类型化有界输入输出、有序 EOF、等待写入者上限及清理确认。定向单元测试覆盖流和普通请求行为。真实 Electron 普通目录和 ASAR smoke 通过；双向队列每个方向的峰值为 6,016 字节 / 2 帧，低于 8,192 字节 / 3 帧上限。 | 与 PR 3 的 Qwen3-TTS 生产者到播放器联调尚未验证；队列测量不是 RSS 或音频质量证据。未验证 Windows。 |
+| AC5–AC8 | 实现方案中已有详细提案。 | 本分支未实现或验证 PR 3–6。 |
 
 任一标准未完成时，本笔记保持 proposed。后续实现层开始前，按当前流程建立 Spec 评审及 AC 覆盖关系。只有完整获批范围具备实际累计证据后才能迁移；Draft、推送或部分检查通过都不代表完成。
 
@@ -417,7 +418,7 @@ PR 4 可以在 PR 1 后独立推进。它将模型交付、权重格式和加载
 
 ## 逐 PR 实现方案
 
-状态：PR 1 已创建 [Draft PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795)，PR 2–6 待实现。方案基于 `9d1bf05fe2c` 的代码结构，并在合入 `425b15397e7` 后补齐 Kokoro 完整结果适配，细化 [统一接口和流式执行方案](2026-10-18-unified-voice-execution.md#detailed-interface-design) 中的六个 PR。下文保留各 PR 的实施目标，不能将后续接口、文件和验收项视为已交付。
+状态：PR 1 已创建 [Draft PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795)，PR 2 已完成基础设施实现和进程 smoke 验证，但与 PR 3 的集成门槛仍未完成；PR 3–6 待实现。方案基于 `9d1bf05fe2c` 的代码结构，并在合入 `425b15397e7` 后补齐 Kokoro 完整结果适配，细化 [统一接口和流式执行方案](2026-10-18-unified-voice-execution.md#detailed-interface-design) 中的六个 PR。下文保留各 PR 的实施目标，不能将后续接口、文件和验收项视为已交付。
 
 PR 1 已提供完整结果操作表、统一执行句柄和能力描述，迁移了 VoiceSessionService 的调用与依赖；清理失败通过 `closed` 保持可观察。共享层目前只定义已支持的完整输入输出标签，PCM 与增量标签随对应 PR 加入。定向自动化及 Node/Web 类型检查通过；合入 `46ef0b8ce37` 之前，开发版 Electron 已验证 Apple/Qwen3 TTS 生成、播放结束、Qwen 取消与随后重启操作。原生 ASR 因本地资源未安装尚未完成实机识别，Windows 与打包产物也仍需对应环境验收。
 
@@ -499,6 +500,8 @@ PR 1 已提供完整结果操作表、统一执行句柄和能力描述，迁移
 ### PR 2：通用请求级有界流
 
 建议标题：`feat(utility-process): support bounded request streams`。保持普通 request/event 行为，单独评审 core 协议变更；与 PR 3 原型联合验证后合并。
+
+PR 2 当前实现使用主进程与子进程共享的请求级 `StreamChannel`，由仅主进程使用的 `StreamRequest` 管理结果与关闭所有权，`streamFrame.ts` 负责有界标量元数据和字节视图编码。不增加生命周期服务或语音依赖。每个方向显式指定容量；协议版本 2 会拒绝旧 bundle。[消费者参考](../../../../docs/references/utility-process/README.md#bounded-request-streams) 维护已交付 API。
 
 #### 接口与协议设计
 

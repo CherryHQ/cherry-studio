@@ -56,13 +56,14 @@ Deliver complete-result compatibility first, then bounded process streams and Qw
 
 ## Evidence and approval boundary
 
-This is a retrospective record of the user-authorized design and PR 1 implementation, not evidence that a Spec-first review occurred. On 2026-10-18, [PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795) was an open Draft at `1d98ad19aef9d04fd8a1b3b899be2c2826602905`; GitHub stack discovery reported no attached stack, and its reviews contained no Approval. A separate approved Spec head has not been established. No lifecycle transition is claimed.
+This is a retrospective record of the user-authorized design and PR 1 implementation, not evidence that a Spec-first review occurred. On 2026-10-18, [PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795) was an open Draft at `1d98ad19aef9d04fd8a1b3b899be2c2826602905`; GitHub stack discovery reported no attached stack, and its reviews contained no Approval. A separate approved Spec head has not been established. No lifecycle transition is claimed. The user explicitly authorized PR 2 implementation on 2026-10-18; PR #21795 was still Draft at `240554f11d36c72d640531b31d67affbd85674b0` with no Approval when that work started.
 
 | Criteria | Available evidence | Remaining boundary |
 | --- | --- | --- |
 | AC1–AC2 | After the merge of main at `46ef0b8ce37`, 10 focused Main test files passed 265 tests; Node/Web typechecks, scoped lint, and the docs gate passed. Tests include `execution.test.ts`, `sdkOperations.test.ts`, `scratch.test.ts`, session/admission tests, adapter tests, and the voice IPC handler. | Unit results do not establish every native platform or packaged path. |
 | AC3 | Before that main merge, the adapter split passed 273 tests across 13 Main files. Development Electron generated and played Apple and Qwen3 WAV to completion and returned to idle. Windows canonical WAV, byte-offset input, cancellation, and timeout cleanup were covered by the later focused tests. | Native ASR resources were unavailable; Windows and packaged execution were not exercised locally. The earlier Electron run is not an exact-head run after the merge. |
-| AC4–AC8 | Detailed proposals exist in the implementation plan. | PR 2–6 are not implemented or verified by this branch. |
+| AC4 (partial) | PR 2 implements typed bounded input/output, ordered EOF, pending-writer limits, and cleanup acknowledgement. Focused unit tests cover stream and ordinary request behavior. Real Electron unpacked and ASAR smoke passed; duplex queue peaks were 6,016 bytes / 2 frames per direction against limits of 8,192 bytes / 3 frames. | Qwen3-TTS producer-to-player integration with PR 3 remains unverified; queue measurements are not RSS or audio-quality evidence. Windows was not exercised. |
+| AC5–AC8 | Detailed proposals exist in the implementation plan. | PR 3–6 are not implemented or verified by this branch. |
 
 Keep this note proposed while any criterion is incomplete. Before future implementation layers, establish the Spec review and AC coverage required by the current workflow. Transition only when the complete approved scope has actual cumulative evidence; a draft, a push, or a passing subset does not establish completion.
 
@@ -417,7 +418,7 @@ Before implementation, use a small Stage B prototype to confirm generic stream A
 
 ## Per-PR implementation plan
 
-Status: PR 1 has [Draft PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795); PR 2–6 remain unimplemented. This plan uses the `9d1bf05fe2c` code layout, adds Kokoro complete-result adaptation after merging `425b15397e7`, and details the six PRs in the [unified interface and streaming design](2026-10-18-unified-voice-execution.md#detailed-interface-design). The sections below retain implementation targets; future interfaces, files, and acceptance items are not delivered features.
+Status: PR 1 has [Draft PR #21795](https://github.com/CherryHQ/cherry-studio/pull/21795); PR 2 has an infrastructure implementation and process-smoke evidence, while its PR 3 integration gate remains open; PR 3–6 remain unimplemented. This plan uses the `9d1bf05fe2c` code layout, adds Kokoro complete-result adaptation after merging `425b15397e7`, and details the six PRs in the [unified interface and streaming design](2026-10-18-unified-voice-execution.md#detailed-interface-design). The sections below retain implementation targets; future interfaces, files, and acceptance items are not delivered features.
 
 PR 1 provides complete-result operation tables, unified execution handles, and capability descriptions, and migrates VoiceSessionService calls/dependencies. Cleanup failure remains observable through `closed`. Shared types currently define only supported complete-input/output tags; PCM and incremental tags arrive with their respective PRs. Focused automation and Node/Web typechecks passed. Before merging `46ef0b8ce37`, development Electron verified Apple/Qwen3 TTS generation, playback completion, Qwen cancellation, and subsequent restart. Native ASR recognition remains unverified because local resources were not installed; Windows and packaged artifacts still need their corresponding environments.
 
@@ -499,6 +500,8 @@ Merge gate: existing system TTS/ASR, FunASR, Qwen3-TTS, and Kokoro paths require
 ### PR 2: Generic request-level bounded streams
 
 Suggested title: `feat(utility-process): support bounded request streams`. Preserve ordinary request/event behavior, review core protocol changes separately, and merge after joint prototype validation with PR 3.
+
+Current PR 2 implementation uses per-request `StreamChannel` shared by host and child, host-only `StreamRequest` for result/closure ownership, and `streamFrame.ts` for bounded scalar-metadata / byte-view encoding. It adds no lifecycle service or voice dependency. Limits are explicit per direction; protocol version 2 rejects stale bundles. The [consumer reference](../../../../docs/references/utility-process/README.md#bounded-request-streams) owns the delivered API.
 
 #### Interface and protocol design
 
