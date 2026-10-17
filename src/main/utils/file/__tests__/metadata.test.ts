@@ -69,6 +69,19 @@ describe('getFileType', () => {
     await writeFile(f, TEXT_SAMPLE)
     expect(await getFileType(f as AbsoluteFilePath)).toBe('image')
   })
+
+  // MapInfo MIF/MID pairs: `.mid` holds the CSV-like attribute table as plain
+  // text. The extension catalogs deliberately do not claim `.mid` (same
+  // contract as `.dts` — see fileExtensions.ts), so the content sniff must
+  // classify it as text and the chat attach gate keeps accepting it.
+  it('classifies a MapInfo .mid attribute file as text by content', async () => {
+    const f = path.join(tmp, 'cities.mid')
+    const mid = Array.from({ length: 8 }, (_, i) => `"Place ${i}","${10 + i} Main St",Springfield,${10000 + i}`).join(
+      '\n'
+    )
+    await writeFile(f, mid)
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('text')
+  })
 })
 
 describe('isTextByContent', () => {

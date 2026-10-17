@@ -25,6 +25,10 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * the content-based text fallback in `getFileType` — so a valid `board.dts`
  * would be rejected by chat's attach gate and lose its preview and editing.
  * Leaving it unclassified lets those sources classify as text by content.
+ *
+ * `.mid` is deliberately absent for the same reason: MapInfo MIF/MID pairs
+ * store the CSV-like attribute table in a plain-text `.mid` file, while the
+ * unambiguous `.midi` keeps serving real MIDI audio.
  */
 export const imageExts = [
   '.apng',
@@ -79,7 +83,6 @@ export const audioExts = [
   '.m4a',
   '.m4b',
   '.mka',
-  '.mid',
   '.midi',
   '.mp2',
   '.mp3',
