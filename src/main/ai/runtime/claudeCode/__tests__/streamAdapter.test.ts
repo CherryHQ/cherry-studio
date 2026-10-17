@@ -594,6 +594,77 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
   })
 
+  describe('duplicate reasoning on the parentless text channel (#21390)', () => {
+    const monologue = 'Let me inspect the file first, then run the tests.'
+
+    function assistant(content: unknown[], parentToolUseId: string | null = null, id = 'msg_1') {
+      return {
+        type: 'assistant',
+        parent_tool_use_id: parentToolUseId,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: { id, role: 'assistant', content }
+      } as any
+    }
+
+    function streamReasoning(adapter: InstanceType<typeof ClaudeCodeStreamAdapter>, text: string, id = 'msg_1') {
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: text } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    }
+
+    it('drops a parentless text block identical to the reasoning streamed for the same message', () => {
+      const { adapter, parts } = createAdapter()
+
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(assistant([{ type: 'text', text: `${monologue}\n` }]))
+
+      expect(parts.map((part) => part.type)).toEqual(['reasoning-start', 'reasoning-delta', 'reasoning-end'])
+    })
+
+    it('drops a parentless text block identical to a thinking block of the same assistant message', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+    })
+
+    it('keeps text that differs from the reasoning, belongs to another message, or has a parent tool', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: 'Here is the answer.' }
+        ])
+      )
+      adapter.handleMessage(assistant([{ type: 'text', text: monologue }], null, 'msg_2'))
+      adapter.handleMessage(
+        assistant(
+          [
+            { type: 'thinking', thinking: monologue, signature: '' },
+            { type: 'text', text: monologue }
+          ],
+          'agent-1'
+        )
+      )
+
+      const deltas = parts.filter((part) => part.type === 'text-delta').map((part: any) => part.delta)
+      expect(deltas.join('')).toBe(`Here is the answer.${monologue}${monologue}`)
+    })
+  })
+
   it('attaches parent tool metadata to streamed text and reasoning parts', () => {
     const { adapter, parts } = createAdapter()
 

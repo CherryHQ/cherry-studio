@@ -146,6 +146,12 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** Anthropic message id of the stream currently open (`message_start`), '' when unknown. */
+  streamMessageId: string
+  /** Streamed reasoning text per open reasoning part, flushed into `reasoningTextsByMessageId` on close. */
+  reasoningBuffers: Map<string, string>
+  /** Completed reasoning texts per Anthropic message id, used to drop a parentless text copy of them. */
+  reasoningTextsByMessageId: Map<string, Set<string>>
 }
 
 /**
@@ -548,7 +554,10 @@ export class ClaudeCodeStreamAdapter {
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
-      textStreamedViaContentBlock: false
+      textStreamedViaContentBlock: false,
+      streamMessageId: '',
+      reasoningBuffers: new Map(),
+      reasoningTextsByMessageId: new Map()
     }
   }
 
@@ -793,6 +802,8 @@ export class ClaudeCodeStreamAdapter {
         this.handleMessageDelta(event, ctx)
         break
       case 'message_start':
+        ctx.streamMessageId = event.message?.id ?? ''
+        break
       case 'message_stop':
         break
     }
@@ -975,6 +986,7 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = ctx.reasoningBlocksByIndex.get(blockIndex) ?? ctx.currentReasoningPartId
     if (reasoningPartId) {
       ctx.sink.enqueue({ type: 'reasoning-delta', id: reasoningPartId, delta: thinking })
+      ctx.reasoningBuffers.set(reasoningPartId, (ctx.reasoningBuffers.get(reasoningPartId) ?? '') + thinking)
     }
   }
 
@@ -999,6 +1011,8 @@ export class ClaudeCodeStreamAdapter {
     const reasoningPartId = ctx.reasoningBlocksByIndex.get(blockIndex)
     if (reasoningPartId) {
       ctx.sink.enqueue({ type: 'reasoning-end', id: reasoningPartId })
+      this.recordReasoningText(ctx, ctx.streamMessageId, ctx.reasoningBuffers.get(reasoningPartId))
+      ctx.reasoningBuffers.delete(reasoningPartId)
       ctx.reasoningBlocksByIndex.delete(blockIndex)
       if (ctx.currentReasoningPartId === reasoningPartId) ctx.currentReasoningPartId = undefined
     }
@@ -1054,11 +1068,48 @@ export class ClaudeCodeStreamAdapter {
       this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
 
+    const messageId = message.message.id ?? ''
+    for (const block of content) {
+      if (block.type === 'thinking') this.recordReasoningText(ctx, messageId, block.thinking)
+    }
+
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
+
+    // #21390: some backends repeat the turn's reasoning verbatim as a parentless text block of the same
+    // message. The reasoning part already carries it, so a byte-identical copy (modulo surrounding
+    // whitespace) must not also become user-visible text. Subagent (parented) text is left alone.
+    if (text && !sdkParentToolUseId && this.isReasoningCopy(ctx, messageId, text)) {
+      logger.warn('Dropping parentless text that duplicates the reasoning of the same message', {
+        messageId,
+        length: text.length
+      })
+      return
+    }
 
     if (text) {
       this.handleAssistantText(text, sdkParentToolUseId, ctx)
     }
+  }
+
+  private recordReasoningText(ctx: StreamContext, messageId: string, reasoning: string | undefined): void {
+    const normalized = reasoning?.trim()
+    if (!normalized) return
+    let texts = ctx.reasoningTextsByMessageId.get(messageId)
+    if (!texts) {
+      texts = new Set()
+      ctx.reasoningTextsByMessageId.set(messageId, texts)
+    }
+    texts.add(normalized)
+  }
+
+  private isReasoningCopy(ctx: StreamContext, messageId: string, text: string): boolean {
+    const normalized = text.trim()
+    if (!normalized) return false
+    // Streamed reasoning is keyed by the `message_start` id; fall back to '' when the stream carried none.
+    return Boolean(
+      ctx.reasoningTextsByMessageId.get(messageId)?.has(normalized) ||
+      (messageId && ctx.reasoningTextsByMessageId.get('')?.has(normalized))
+    )
   }
 
   private handleAssistantToolUse(
