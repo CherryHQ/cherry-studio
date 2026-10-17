@@ -20,9 +20,9 @@ import {
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import type { FinishReason, LanguageModelUsage, ProviderMetadata, TextStreamPart, ToolSet } from 'ai'
 
-import { toModelMessages, toToolSet } from './modelMessages'
-import type { ModelCallInfo, ModelCallPort, ModelCallRequest, ModelCallSideChannel } from './ports'
-import { encodeProviderMetadata } from './providerMetadata'
+import { toModelMessages, toToolSet } from './aiSdkMessages'
+import { encodeProviderMetadata } from './aiSdkMetadata'
+import type { ModelCallInfo, ModelCallPort, ModelCallRequest, ModelCallSideChannel } from './aiSdkTypes'
 
 /** Pi `api` id of models served through a {@link ModelCallPort}. */
 export const AI_SDK_API = 'ai-sdk'
@@ -44,7 +44,7 @@ export interface AiSdkProviderOptions<TRequestOptions = undefined> {
    * stream ended before it was finalized) reaches Pi with `{}` arguments. Pi must answer it with
    * `error` instead of running the tool on them.
    */
-  onInvalidToolCall?(toolCallId: string, error: string): void
+  onInvalidToolCall?(call: ModelCallInfo, toolCallId: string, error: string): void
 }
 
 type FinishStepPart = Extract<TextStreamPart<ToolSet>, { type: 'finish-step' }>
@@ -262,7 +262,7 @@ function streamModelCall<TRequestOptions>(
               const error = part.invalid
                 ? errorMessageOf(part.error)
                 : `Invalid input for tool ${part.toolName}: must be a JSON object`
-              provider.onInvalidToolCall?.(part.toolCallId, error)
+              provider.onInvalidToolCall?.(call, part.toolCallId, error)
             }
             block.thoughtSignature = encodeProviderMetadata(part.providerMetadata)
             finalized.add(part.toolCallId)
@@ -302,6 +302,7 @@ function streamModelCall<TRequestOptions>(
       for (const block of toolCalls.values())
         if (!finalized.has(block.id))
           provider.onInvalidToolCall?.(
+            call,
             block.id,
             `Tool call ${block.name} was not executed: the model stream ended before its input was complete. Re-issue it with complete arguments.`
           )

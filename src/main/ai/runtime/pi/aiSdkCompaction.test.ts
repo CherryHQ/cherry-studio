@@ -5,7 +5,15 @@ import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
-import { createTestSession, finish, lastAssistant, MODEL, scriptedModel, streamTextPort, textParts } from './support'
+import {
+  createTestSession,
+  finish,
+  lastAssistant,
+  MODEL,
+  scriptedModel,
+  streamTextPort,
+  textParts
+} from './aiSdkSupport'
 
 const PAGE_CHARS = 9_000 // ~2.6k tokens per tool result
 

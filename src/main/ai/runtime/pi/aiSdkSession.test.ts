@@ -5,7 +5,15 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createTestSession, finish, lastAssistant, scriptedModel, streamTextPort, tempDir, textParts } from './support'
+import {
+  createTestSession,
+  finish,
+  lastAssistant,
+  scriptedModel,
+  streamTextPort,
+  tempDir,
+  textParts
+} from './aiSdkSupport'
 
 const noopTool = (name: string) =>
   defineTool({

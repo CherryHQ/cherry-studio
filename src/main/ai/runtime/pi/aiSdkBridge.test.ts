@@ -8,8 +8,16 @@ import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-age
 import { extractReasoningMiddleware, streamText, type TextStreamPart, type ToolSet, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import type { ModelCallInfo, ModelCallPort, UnmappedStreamPart } from '../src'
-import { createTestSession, finish, lastAssistant, plain, scriptedModel, streamTextPort, textParts } from './support'
+import {
+  createTestSession,
+  finish,
+  lastAssistant,
+  plain,
+  scriptedModel,
+  streamTextPort,
+  textParts
+} from './aiSdkSupport'
+import type { ModelCallInfo, ModelCallPort, UnmappedStreamPart } from './aiSdkTypes'
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 

@@ -9,8 +9,9 @@ import { APICallError } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
-import { createAiSdkProvider, type ModelCallInfo, type ModelCallPort } from '../src'
-import { createTestSession, lastAssistant, MODEL, streamTextPort } from './support'
+import { createAiSdkProvider } from './aiSdkProvider'
+import { createTestSession, lastAssistant, MODEL, streamTextPort } from './aiSdkSupport'
+import { type ModelCallInfo, type ModelCallPort } from './aiSdkTypes'
 
 const rateLimited = () =>
   new APICallError({
