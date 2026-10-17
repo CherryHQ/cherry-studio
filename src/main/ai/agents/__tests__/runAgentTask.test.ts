@@ -18,10 +18,13 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 const {
   mockAbort,
   mockRemoveListener,
+  mockStashWakeChannelListeners,
+  mockWhenTerminalDispatchSettled,
   mockGetAdapter,
   mockStartRun,
   mockBindTaskSessionReuse,
   mockIsSessionBusy,
+  mockHasPendingBackgroundWork,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
   mockAssertAgentStorageDirectory,
@@ -31,6 +34,8 @@ const {
   return {
     mockAbort: vi.fn(),
     mockRemoveListener: vi.fn(),
+    mockStashWakeChannelListeners: vi.fn(),
+    mockWhenTerminalDispatchSettled: vi.fn(async () => undefined),
     mockGetAdapter: vi.fn(() => undefined),
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
       captured.listeners = opts.listeners
@@ -38,6 +43,7 @@ const {
     }),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockIsSessionBusy: vi.fn(() => false),
+    mockHasPendingBackgroundWork: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
     mockSyncJobScheduleTimerById: vi.fn(),
     mockAssertAgentStorageDirectory: vi.fn(),
@@ -51,10 +57,18 @@ vi.mock('@application', async () => {
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
-    AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
+    AiStreamManager: {
+      abort: mockAbort,
+      removeListener: mockRemoveListener,
+      stashWakeChannelListeners: mockStashWakeChannelListeners,
+      whenTerminalDispatchSettled: mockWhenTerminalDispatchSettled
+    },
     AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
     // Gate that keeps a reusing fire off a session with a live turn.
-    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
+    AgentSessionRuntimeService: {
+      isSessionBusy: mockIsSessionBusy,
+      hasPendingBackgroundWork: mockHasPendingBackgroundWork
+    },
     // An untrusted agent directory pauses its heartbeat schedule.
     JobManager: {
       ...mod.defaultServiceInstances.JobManager,
@@ -101,6 +115,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY } from '@shared/ai/agentSessionBackgroundTasks'
 
 import type * as AgentDataDirectoryModule from '../agentDataDirectory'
 import { runAgentTask } from '../runAgentTask'
@@ -241,6 +256,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getByIdTx).mockReset()
     mockBindTaskSessionReuse.mockReset().mockReturnValue(true)
     mockIsSessionBusy.mockReset().mockReturnValue(false)
+    mockHasPendingBackgroundWork.mockReset().mockReturnValue(false)
     vi.mocked(readHeartbeat).mockReset()
     mockAssertAgentStorageDirectory.mockReset().mockResolvedValue(undefined)
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
@@ -699,6 +715,159 @@ describe('runAgentTask', () => {
     expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ trustedNotifyChannels }))
   })
 
+  // The spawning reply settles while native background work keeps running. The fire's channel
+  // listeners are the only route that work's settlement wake has to the subscribed chats, so they
+  // must stay attached while work is pending (an ordinary turn evicts them; the wake carries them).
+  it('keeps the subscribed-channel listeners attached while the fire’s background work is pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    mockGetAdapter.mockImplementation(((channelId: string) =>
+      channelId === 'ch1'
+        ? {
+            channelId: 'ch1',
+            connected: true,
+            notifyChatIds: ['chat-1'],
+            sendMessage: vi.fn(async () => {}),
+            onTextUpdate: vi.fn(async () => {}),
+            onStreamComplete: vi.fn(async () => false)
+          }
+        : undefined) as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+
+    const removedIds = mockRemoveListener.mock.calls.map(([, listenerId]) => listenerId)
+    expect(removedIds).toContain('agent-task:s1')
+    expect(removedIds).not.toContain('channel:ch1:chat-1:unthreaded')
+  })
+
+  // A retained listener outlives the handler that owned error reporting (the promise has settled,
+  // so notifyTaskError can never run again). If the later wake fails, its failure must reach the
+  // chat through normal error delivery — at base the suppression silenced it AND the handler was
+  // gone, leaving the subscribed chats without any failure notice.
+  it('delivers a retained listener’s wake failure normally after the fire completed with work pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => false),
+      onStreamError: vi.fn(async () => false)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+
+    // The wake produces partial output and then fails on the retained channel listener (not the
+    // already-settled task sentinel).
+    const channelListener = captured.listeners.find(
+      (listener) =>
+        typeof listener.onError === 'function' && String((listener as { id?: string }).id).startsWith('channel:')
+    )
+    channelListener?.onChunk?.({ type: 'text-delta', delta: 'partial wake output' })
+    await Promise.resolve(channelListener?.onError?.({ status: 'error', error: { message: 'wake failed' } }))
+
+    expect(adapter.onStreamError).toHaveBeenCalledWith('chat-1', 'wake failed', undefined, { suppressDelivery: false })
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', expect.stringContaining('wake failed'), undefined)
+  })
+
+  it('removes the subscribed-channel listeners once no background work is pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    mockGetAdapter.mockImplementation(((channelId: string) =>
+      channelId === 'ch1'
+        ? {
+            channelId: 'ch1',
+            connected: true,
+            notifyChatIds: ['chat-1'],
+            sendMessage: vi.fn(async () => {}),
+            onTextUpdate: vi.fn(async () => {}),
+            onStreamComplete: vi.fn(async () => false)
+          }
+        : undefined) as never)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+
+    const removedIds = mockRemoveListener.mock.calls.map(([, listenerId]) => listenerId)
+    expect(removedIds).toContain('agent-task:s1')
+    expect(removedIds).toContain('channel:ch1:chat-1:unthreaded')
+    // With no work pending the fire owes no wake delivery — it must not feed the stash either.
+    expect(mockStashWakeChannelListeners).not.toHaveBeenCalled()
+  })
+
+  // The stash is the binding between the retained recipients and the background work owing their
+  // delivery. Only the fire knows that obligation, so the retained fire must stash its recipients
+  // itself — a later stream replacement must not guess (an unrelated wake would revive a served
+  // chat, or a still-running work's wake would find its recipients consumed).
+  it('stashes the retained listeners for the settlement wake when background work is pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    mockGetAdapter.mockImplementation(((channelId: string) =>
+      channelId === 'ch1'
+        ? {
+            channelId: 'ch1',
+            connected: true,
+            notifyChatIds: ['chat-1'],
+            sendMessage: vi.fn(async () => {}),
+            onTextUpdate: vi.fn(async () => {}),
+            onStreamComplete: vi.fn(async () => false)
+          }
+        : undefined) as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    // The driver's live background set at settle time: the fire records these ids as the stash's
+    // debt, so the wake claims by ITS OWN tasks draining — not by the session-wide list emptying.
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY('sess-new'), [
+        { id: 'task-a', type: 'task', description: 'review' }
+      ])
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+
+    const stashedTopicIds = mockStashWakeChannelListeners.mock.calls.map(([topicId]) => topicId)
+    expect(stashedTopicIds).toHaveLength(1)
+    const [topicId, stashed, owesTaskIds] = mockStashWakeChannelListeners.mock.calls[0]
+    expect(String(topicId)).toContain('session')
+    expect(stashed.map((listener: { id: string }) => listener.id)).toEqual(['channel:ch1:chat-1:unthreaded'])
+    expect(owesTaskIds).toEqual(new Set(['task-a']))
+  })
+
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
   // once. The channel listener's generic `Error: …` is suppressed for task runs so only
   // the richer `[Task failed]` summary from notifyTaskError is delivered (no double-send).
@@ -733,6 +902,50 @@ describe('runAgentTask', () => {
     await expect(promise).rejects.toThrow('boom')
 
     // Exactly one channel message, and it's the task-framed summary — not the bare `Error: …`.
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage.mock.calls[0][1]).toContain('[Task failed]')
+    expect(adapter.sendMessage.mock.calls[0][1]).not.toMatch(/^Error:/)
+  })
+
+  // With background work pending, the failing fire retains its channel listeners and arms their
+  // error delivery for the wake. The arm must wait out the terminal dispatch it is running inside:
+  // the sentinel executes ahead of the channel listeners, so an immediate enable lets this same
+  // failure double-notify (generic `Error: …` plus the `[Task failed]` summary) before the wake.
+  it('keeps the generic error suppressed on the fire’s own failing terminal while work is pending', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => true),
+      onStreamError: vi.fn(async () => false)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    // Same dispatch as the test above: the sentinel's onError settles first, then the channel
+    // listener sees the terminal event this fire itself produced.
+    const errorResult = { error: new Error('boom'), status: 'error' }
+    for (const listener of captured.listeners) {
+      listener.onError?.(errorResult)
+    }
+
+    await expect(promise).rejects.toThrow('boom')
+
+    // Still exactly one notification, and it is the task-framed summary — the retained listeners'
+    // generic delivery must arm for the wake, not for the failure currently being dispatched.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage.mock.calls[0][1]).toContain('[Task failed]')
     expect(adapter.sendMessage.mock.calls[0][1]).not.toMatch(/^Error:/)

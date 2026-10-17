@@ -154,6 +154,12 @@ export interface StartRuntimeTurnInput {
   listeners: StreamListener[]
   rootSpan?: Span
   abortController?: AbortController
+  /**
+   * Receive-only wake turns may claim the channel recipients a fire stashed for the background
+   * work's delivery. Ordinary successor turns must not inherit them — and only a wake whose owed
+   * work has drained may claim the stash.
+   */
+  carryChannelListeners?: boolean
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -368,6 +374,16 @@ export class AiStreamManager extends BaseService {
   /** In-flight steer-continuation launches (registered synchronously in `scheduleNextChatTurn`),
    *  part of `drainInFlight`'s wait-set — a launch admitted before a pause must be awaited. */
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
+  /**
+   * IM-channel recipients still owed a background result, by topic. Detached work outlives the
+   * turn that spawned it, and an intervening turn legitimately drops these listeners. The stash
+   * records the driver task ids its fire saw pending: the wake claims only once those very ids
+   * have left the live set — another fire's overlapping task must not delay or steal the claim.
+   */
+  private readonly pendingChannelListeners = new Map<
+    string,
+    { listeners: StreamListener[]; owesTaskIds: ReadonlySet<string> }
+  >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -829,7 +845,9 @@ export class AiStreamManager extends BaseService {
       return { mode: 'injected', activeExecutions: [] }
     }
 
-    // Evict any grace-period stream so two streams never coexist on one topic.
+    // Evict any grace-period stream so two streams never coexist on one topic. Channel recipients
+    // a replacement drops were stashed by the fire that owes their delivery — a replacement itself
+    // must not guess, or an unrelated wake revives chats this stream already served.
     if (existing) this.evictStream(input.topicId)
 
     const isMultiModel = input.models.length > 1
@@ -942,15 +960,64 @@ export class AiStreamManager extends BaseService {
     })
   }
 
+  /**
+   * Bind channel recipients to the background work that still owes their chat a delivery, so a
+   * stream replacement can drop them without stranding that obligation. Only the component that
+   * knows the obligation — the fire (or inbound request) retaining its recipients — may stash: a
+   * replacement that stashed whatever it found would hand a served chat to an unrelated wake.
+   * `owesTaskIds` is the driver's live background set at stash time; the claim is discharged by a
+   * completion — the first owed id to leave that set — so another fire's still-running task can
+   * neither delay nor steal it.
+   */
+  stashWakeChannelListeners(topicId: string, listeners: StreamListener[], owesTaskIds?: ReadonlySet<string>): void {
+    if (listeners.length === 0) return
+    const pending = this.pendingChannelListeners.get(topicId)
+    const merged = new Map(pending?.listeners.map((l) => [l.id, l]))
+    for (const listener of listeners) merged.set(listener.id, listener)
+    const debts = new Set(pending?.owesTaskIds)
+    for (const id of owesTaskIds ?? []) debts.add(id)
+    this.pendingChannelListeners.set(topicId, { listeners: [...merged.values()], owesTaskIds: debts })
+  }
+
+  /**
+   * Whether the topic's stashed recipients are ready to be claimed: at least one task they owe has
+   * left the driver's live background set. Each completion is its own delivery opportunity — the
+   * first owed task to settle is the wake that carries the recipients — so a co-spawned long-lived
+   * task must not hold the claim hostage until the whole snapshot drains (a mixed fire's finite
+   * subagent would never reach the requesting chat while its server stays up). Bound to the stash's
+   * own recorded debt, not to the live set being empty — an unrelated fire's still-running task
+   * must not delay this claim.
+   */
+  stashedWakeRecipientsDischarged(topicId: string, listedTaskIds: ReadonlySet<string>): boolean {
+    const pending = this.pendingChannelListeners.get(topicId)
+    if (!pending) return true
+    if (pending.owesTaskIds.size === 0) return true
+    for (const id of pending.owesTaskIds) {
+      if (!listedTaskIds.has(id)) return true
+    }
+    return false
+  }
+
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
     const carriedListeners = existing
-      ? [...existing.listeners.values()].filter(
-          (listener) => !listener.id.startsWith('persistence:') && !listener.id.startsWith('agent-runtime:')
-        )
+      ? [...existing.listeners.values()].filter((listener) => {
+          if (listener.id.startsWith('persistence:') || listener.id.startsWith('agent-runtime:')) return false
+          // Channel recipients ride ONLY via the stash: the fire recorded the obligation there, and
+          // a carried copy of a served (or never-recorded) listener would hand later wakes to chats
+          // that were already answered — a user follow-up or the next fire must not inherit them.
+          return !listener.id.startsWith('channel:')
+        })
       : []
 
     if (existing) this.evictStream(input.topicId)
+
+    // Retained recipients were stashed by the fire that owes their delivery; a successor turn that
+    // drops them must not re-stash whatever it found, or a served chat rides into an unrelated wake.
+    const owedChannelListeners = input.carryChannelListeners
+      ? (this.pendingChannelListeners.get(input.topicId)?.listeners ?? [])
+      : []
+    if (input.carryChannelListeners) this.pendingChannelListeners.delete(input.topicId)
 
     return this.send({
       topicId: input.topicId,
@@ -963,7 +1030,7 @@ export class AiStreamManager extends BaseService {
           abortController: input.abortController
         }
       ],
-      listeners: [...carriedListeners, ...input.listeners],
+      listeners: [...carriedListeners, ...input.listeners, ...owedChannelListeners],
       isPersistentConversation: true
     })
   }
@@ -1170,8 +1237,23 @@ export class AiStreamManager extends BaseService {
   }
 
   removeListener(topicId: string, listenerId: string): void {
+    // Unsubscribing also releases the wake binding, so a given-up recipient is never restored.
+    const pending = this.pendingChannelListeners.get(topicId)
+    if (pending) {
+      const remaining = pending.listeners.filter((listener) => listener.id !== listenerId)
+      if (remaining.length === 0) this.pendingChannelListeners.delete(topicId)
+      else this.pendingChannelListeners.set(topicId, { ...pending, listeners: remaining })
+    }
     const stream = this.activeStreams.get(topicId)
     stream?.listeners.delete(listenerId)
+  }
+
+  /**
+   * Drop a topic's stashed wake recipients: the runtime connection that owed their delivery
+   * closed, so its detached work can never produce the wake that would consume them.
+   */
+  clearPendingChannelListeners(topicId: string): void {
+    this.pendingChannelListeners.delete(topicId)
   }
 
   /**
@@ -1433,6 +1515,9 @@ export class AiStreamManager extends BaseService {
       isAgentSessionTopic(topicId) &&
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
     const chaining = chatChaining || agentChaining
+    // Record the hold so a later "the successor never came" edge can settle this stream instead of
+    // leaving it in `activeStreams` forever (agent sessions: `finalizeHeldTopicStream`).
+    stream.heldForContinuation = chaining
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
@@ -1644,6 +1729,53 @@ export class AiStreamManager extends BaseService {
     this.runTerminalLifecycle(stream)
   }
 
+  /**
+   * Clean twin of `terminateHeldTopicStream`: settle a stream a chaining turn kept alive
+   * (`isTopicDone=false`, terminal lifecycle skipped) when its successor will never arrive — an agent
+   * session held it for a receive-only wake that is not coming (task stopped/killed, headless
+   * responder). The completion that opened the hold already finalised, persisted, and delivered its
+   * bubble, so this only closes the topic through the canonical terminal dispatch with a payload-free
+   * done (no `finalMessage`/timings to replay), skipping only the persistence phase — there is no new
+   * execution to write. Then the terminal status is written and the terminal lifecycle runs so the
+   * status cache settles and the stream is evicted. No-op unless the stream is still held, so one
+   * already in its eviction grace period never gets a duplicate terminal notification.
+   */
+  async finalizeHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream?.heldForContinuation) return
+    // Claim the settle synchronously so a second drain edge racing this dispatch cannot
+    // double-close the topic.
+    stream.heldForContinuation = false
+    const exec = modelId ? stream.executions.get(modelId) : undefined
+    const result: StreamDoneResult = {
+      status: 'success',
+      modelId,
+      attemptId: exec?.attemptId,
+      topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
+      anchorMessageId: exec?.anchorMessageId,
+      isTopicDone: true
+    }
+    // The awaited dispatch parks on cleanup listeners (e.g. trace span persistence) with no live
+    // execution left; a follow-up admitted in that window would evict this stream and the identity
+    // guard below would skip the terminal lifecycle (see onExecutionDone).
+    const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
+    try {
+      await this.dispatchToListeners(
+        stream,
+        'onDone',
+        (listener) => listener.onDone(result),
+        (listener) => listener.terminalPhase === 'persistence'
+      )
+      if (this.activeStreams.get(topicId) !== stream) return
+      // The hold only exists across a `done` topic gap, so this restates the value the settling
+      // execution resolved rather than overriding a live status.
+      stream.status = 'done'
+      this.runTerminalLifecycle(stream)
+    } finally {
+      settleTerminalDispatch()
+    }
+  }
+
   /** Counts a terminal dispatch in flight for the topic; the returned release settles the topic once every
    *  counted dispatch has released. Synchronous on both ends so the terminal handlers keep their timing. */
   private beginTerminalDispatch(topicId: string): () => void {
@@ -1671,6 +1803,7 @@ export class AiStreamManager extends BaseService {
 
   /** Chat defers 30 s, prompt evicts immediately. */
   private runTerminalLifecycle(stream: ActiveStream): void {
+    stream.heldForContinuation = false
     stream.lifecycle.onTerminal(stream)
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
@@ -2123,15 +2256,17 @@ export class AiStreamManager extends BaseService {
 
   /**
    * Skips dead listeners and isolates throws. Persistence finishes before renderer/runtime
-   * notification, while cleanup work remains last.
+   * notification, while cleanup work remains last. `skip` opts listeners out while keeping them
+   * registered and uncounted.
    */
   private async dispatchToListeners(
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
-    invoke: (listener: StreamListener) => void | Promise<void>
+    invoke: (listener: StreamListener) => void | Promise<void>,
+    skip?: (listener: StreamListener) => boolean
   ): Promise<void> {
     const dead: string[] = []
-    const listeners = [...stream.listeners]
+    const listeners = [...stream.listeners].filter(([, listener]) => !skip?.(listener))
     const orderedListeners = [
       ...listeners.filter(([, listener]) => listener.terminalPhase === 'persistence'),
       ...listeners.filter(([, listener]) => listener.terminalPhase === undefined),

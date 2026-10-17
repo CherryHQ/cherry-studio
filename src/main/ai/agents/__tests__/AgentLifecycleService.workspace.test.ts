@@ -42,6 +42,7 @@ vi.mock('@application', async () => {
       recoverSessionForks: async () => {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: mocks.busyForArchive,
+      hasPendingBackgroundWork: () => false,
       closeSession: mocks.closeSession,
       closeSessionForArchive: mocks.closeSessionForArchive
     },

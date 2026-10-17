@@ -597,17 +597,26 @@ describe('ClaudeCodeStreamAdapter', () => {
   it('attaches parent tool metadata to streamed text and reasoning parts', () => {
     const { adapter, parts } = createAdapter()
 
+    // The spawning tool call exists in the active turn's context, so the parented content maps
+    // onto the row owning it.
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'parent-tool', name: 'Agent', input: {} }
+      })
+    )
     adapter.handleMessage({
-      ...streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
+      ...streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } }),
       parent_tool_use_id: 'parent-tool'
     })
-    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
     adapter.handleMessage({
-      ...streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'thinking', thinking: '' } }),
+      ...streamEvent({ type: 'content_block_start', index: 2, content_block: { type: 'thinking', thinking: '' } }),
       parent_tool_use_id: 'parent-tool'
     })
 
-    expect(parts[0]).toMatchObject({
+    expect(parts[1]).toMatchObject({
       type: 'text-start',
       providerMetadata: {
         'claude-code': {
@@ -615,7 +624,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         }
       }
     })
-    expect(parts[2]).toMatchObject({
+    expect(parts[3]).toMatchObject({
       type: 'reasoning-start',
       providerMetadata: {
         'claude-code': {
@@ -628,10 +637,19 @@ describe('ClaudeCodeStreamAdapter', () => {
   it('keeps nested Agent tools under the SDK parent while top-level Agent tools remain roots', () => {
     const { adapter, parts } = createAdapter()
 
+    // The spawning tool call exists in the active turn's context, so its child flow opens on the
+    // main row.
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'workflow-root', name: 'Task', input: {} }
+      })
+    )
     adapter.handleMessage({
       ...streamEvent({
         type: 'content_block_start',
-        index: 0,
+        index: 1,
         content_block: { type: 'tool_use', id: 'nested-agent', name: 'Agent', input: {} }
       }),
       parent_tool_use_id: 'workflow-root'
@@ -646,6 +664,15 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     expect(parts[0]).toMatchObject({
       type: 'tool-input-start',
+      toolCallId: 'workflow-root',
+      providerMetadata: {
+        'claude-code': {
+          parentToolCallId: null
+        }
+      }
+    })
+    expect(parts[1]).toMatchObject({
+      type: 'tool-input-start',
       toolCallId: 'nested-agent',
       providerMetadata: {
         'claude-code': {
@@ -653,7 +680,7 @@ describe('ClaudeCodeStreamAdapter', () => {
         }
       }
     })
-    expect(parts[1]).toMatchObject({
+    expect(parts[2]).toMatchObject({
       type: 'tool-input-start',
       toolCallId: 'top-level-agent',
       providerMetadata: {
@@ -1494,6 +1521,39 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(secondTurnParts.some((part) => part.type === 'text-delta' && part.delta === 'second')).toBe(true)
     })
 
+    // The idle-entry reuse lets a desktop follow-up start while a previous turn's background child
+    // has not emitted its first parented content yet. That child belongs to the row owning its
+    // spawning tool call — an active follow-up turn must not capture it into the new main row.
+    it('lands a previous turn child’s first parented content on the flow path when a follow-up turn is active', () => {
+      const { adapter, parts, statusEvents } = createAdapter()
+
+      // Turn A spawns the child: the parent tool call is recorded into turn A's context.
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'tool_use', id: 'task-root', name: 'Agent', input: {} }
+        })
+      )
+      // Turn A settles before the child emitted anything parented — nothing to detach.
+      adapter.handleMessage(successResult())
+      const mainPartCount = parts.length
+
+      // Turn B reuses the session (idle-entry reuse), then the child's first content arrives.
+      adapter.beginTurn()
+      adapter.handleMessage({
+        ...streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
+        parent_tool_use_id: 'task-root'
+      })
+
+      expect(parts).toHaveLength(mainPartCount)
+      expect(statusEvents).toContainEqual({
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: expect.objectContaining({ type: 'text-start' })
+      })
+    })
+
     it('keeps a subagent flow context alive after the spawning main turn completes', () => {
       const { adapter, parts, statusEvents } = createAdapter()
 
@@ -1629,7 +1689,7 @@ describe('ClaudeCodeStreamAdapter', () => {
           type: 'background-tasks',
           tasks: [{ id: 'bg-1', type: 'local_bash', description: 'sleep 300' }]
         },
-        { type: 'background-work-state', active: true, awaitingReply: false },
+        { type: 'background-work-state', active: true },
         { type: 'supported-commands', commands: [{ name: 'help', description: 'Help' }] }
       ])
       // Status is not turn content, so nothing reaches the message stream.
@@ -1940,8 +2000,12 @@ describe('ClaudeCodeStreamAdapter', () => {
         state: 'idle'
       } as any)
       expect(adapter.isTurnActive).toBe(false)
-      expect(statusEvents.at(-1)).toEqual({ type: 'background-work-state', active: true, awaitingReply: false })
-      expect(statusEvents).not.toContainEqual({ type: 'background-work-state', active: false })
+      // The remaining detached server keeps the occupancy active after the reply-relevant agents
+      // drained: only session idle (with an empty task set) releases the connection hold, so no
+      // `active: false` is ever emitted here.
+      const workStates = statusEvents.filter((event) => event.type === 'background-work-state')
+      expect(workStates.at(-1)).toEqual({ type: 'background-work-state', active: true })
+      expect(workStates).not.toContainEqual({ type: 'background-work-state', active: false })
     })
 
     it('keeps background work alive through a terminal bookend and parentless wake until idle', () => {

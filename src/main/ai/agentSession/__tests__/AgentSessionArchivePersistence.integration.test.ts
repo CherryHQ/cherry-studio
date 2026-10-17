@@ -12,6 +12,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 const mocks = vi.hoisted(() => ({
   hasUnsettledTopicWork: vi.fn(),
   isSessionBusy: vi.fn(),
+  hasPendingBackgroundWork: vi.fn(),
   closeSession: vi.fn()
 }))
 
@@ -28,6 +29,7 @@ vi.mock('@application', async () => {
       recoverSessionForks: vi.fn().mockResolvedValue(undefined),
       isSessionBusy: mocks.isSessionBusy,
       isSessionBusyForArchive: mocks.isSessionBusy,
+      hasPendingBackgroundWork: mocks.hasPendingBackgroundWork,
       closeSession: mocks.closeSession
     }
   } as Parameters<typeof mockApplicationFactory>[0])
@@ -49,6 +51,7 @@ describe('Agent Session archive persistence', () => {
     vi.clearAllMocks()
     mocks.hasUnsettledTopicWork.mockReturnValue(true)
     mocks.isSessionBusy.mockReturnValue(false)
+    mocks.hasPendingBackgroundWork.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
 
     await dbh.db.insert(agentTable).values({
@@ -143,16 +146,20 @@ describe('Agent Session archive persistence', () => {
     })
   })
 
-  it.each(['stream', 'runtime'])('refuses direct permanent deletion while %s work is unsettled', async (busy) => {
-    mocks.hasUnsettledTopicWork.mockReturnValue(busy === 'stream')
-    mocks.isSessionBusy.mockReturnValue(busy === 'runtime')
-    const service = new AgentLifecycleService()
-    await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).rejects.toMatchObject({
-      name: 'AgentSessionArchiveBusyError'
-    })
-    expect(agentSessionService.getById(SESSION_ID).id).toBe(SESSION_ID)
-    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('pending')
-  })
+  it.each(['stream', 'runtime', 'background'])(
+    'refuses direct permanent deletion while %s work is unsettled',
+    async (busy) => {
+      mocks.hasUnsettledTopicWork.mockReturnValue(busy === 'stream')
+      mocks.isSessionBusy.mockReturnValue(busy === 'runtime')
+      mocks.hasPendingBackgroundWork.mockReturnValue(busy === 'background')
+      const service = new AgentLifecycleService()
+      await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).rejects.toMatchObject({
+        name: 'AgentSessionArchiveBusyError'
+      })
+      expect(agentSessionService.getById(SESSION_ID).id).toBe(SESSION_ID)
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('pending')
+    }
+  )
 
   it('permanently deletes an idle active Session and its messages without deleting the user workspace', async () => {
     mocks.hasUnsettledTopicWork.mockReturnValue(false)

@@ -25,17 +25,23 @@ function delta(text: string): UIMessageChunk {
   return { type: 'text-delta', id: 't', delta: text }
 }
 
+/** Live updates queue behind the chat's update chain — let the queued callback run. */
+async function flushLiveUpdate(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 describe('ChannelAdapterListener', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('accumulates text-delta via .delta and redacts secrets before live onTextUpdate', () => {
+  it('accumulates text-delta via .delta and redacts secrets before live onTextUpdate', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta('here is the key: '))
     listener.onChunk(delta(SECRET))
+    await flushLiveUpdate()
 
     const lastCall = vi.mocked(adapter.onTextUpdate).mock.calls.at(-1)
     expect(lastCall?.[0]).toBe('chat-1')
@@ -56,25 +62,31 @@ describe('ChannelAdapterListener', () => {
     expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toContain('[REDACTED]')
   })
 
-  it('withholds an incomplete citation marker from live updates', () => {
+  it('withholds an incomplete citation marker from the coalesced live snapshot', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta('Claim '))
     listener.onChunk(delta('[ci'))
-    listener.onChunk(delta('te:source-'))
-    listener.onChunk(delta('1]'))
-    listener.onChunk(delta(' confirmed'))
+    listener.onChunk(delta('te:src-1'))
+    await flushLiveUpdate()
 
+    // The one live snapshot withholds the trailing half-written marker; once the marker closes,
+    // the sanitizer strips it entirely like any complete citation.
     const updates = vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)
-    expect(updates).toEqual(['Claim ', 'Claim', 'Claim', 'Claim', 'Claim confirmed'])
+    expect(updates).toEqual(['Claim'])
+
+    listener.onChunk(delta('] confirmed'))
+    await flushLiveUpdate()
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)).toEqual(['Claim', 'Claim confirmed'])
   })
 
-  it('does not withhold a trailing bracket sequence once it is ruled out as a citation', () => {
+  it('does not withhold a trailing bracket sequence once it is ruled out as a citation', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
 
     listener.onChunk(delta('Array [city'))
+    await flushLiveUpdate()
 
     expect(adapter.onTextUpdate).toHaveBeenCalledWith('chat-1', 'Array [city', undefined)
   })
@@ -97,6 +109,90 @@ describe('ChannelAdapterListener', () => {
 
     expect(adapter.onStreamComplete).toHaveBeenCalledOnce()
     expect(adapter.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('delivers only once when a held topic settles again (chain hold + close)', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('the reply'))
+    await listener.onDone({ status: 'success', isTopicDone: false })
+    // A later topic close (held stream whose wake never came) settles the same listener again —
+    // the reply must not be re-delivered to the channel.
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('delivers the background wake turn that a held topic carries into the same listener', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    await listener.onDone({ status: 'success', isTopicDone: false })
+    // Background work keeps the topic stream alive across the inter-turn gap precisely so the wake
+    // carries this listener (willContinueTopic) — the wake's own output must reach the channel, and
+    // must not re-post the turn that already settled.
+    listener.onChunk(delta('Found it: 42'))
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(vi.mocked(adapter.sendMessage).mock.calls.map(([, text]) => text)).toEqual(['On it.', 'Found it: 42'])
+  })
+
+  it('delivers a carried-in wake’s channel error even when it fails before any output', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    await listener.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    // The wake is a new execution on the carried listener (its completion sentinel already resolved),
+    // and it dies before emitting a single text delta — nothing re-arms delivery except execution
+    // identity, so the error must still reach the channel.
+    await listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'wake exploded' },
+      isTopicDone: true,
+      attemptId: 2
+    })
+
+    expect(adapter.onStreamError).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(adapter.sendMessage).mock.calls.map(([, text]) => text)).toEqual([
+      'On it.',
+      t('common.channel_error', { error: 'wake exploded' })
+    ])
+  })
+
+  it('still deduplicates a payload-free held-topic close that replays the settled execution', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('the reply'))
+    await listener.onDone({ status: 'success', isTopicDone: false, attemptId: 3 })
+    // `finalizeHeldTopicStream` closes the held topic with a payload-free done carrying the SAME
+    // execution identity — the already-delivered reply must not be re-delivered.
+    await listener.onDone({ status: 'success', isTopicDone: true, attemptId: 3 })
+
+    expect(adapter.onStreamComplete).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not carry an errored turn’s partial text into the successor turn on the same listener', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('Half a reply that'))
+    // A live sibling execution keeps the topic out of the terminal broadcast, so an error can land
+    // with isTopicDone:false — a successor turn then arrives on this same listener.
+    await listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'boom' },
+      isTopicDone: false
+    })
+    listener.onChunk(delta('the successor continues'))
+    await listener.onDone({ status: 'success', isTopicDone: true })
+
+    expect(vi.mocked(adapter.sendMessage).mock.calls.at(-1)?.[1]).toBe('the successor continues')
   })
 
   it('appends a stopped suffix on onPaused and falls back to sendMessage when onStreamComplete is false', async () => {
@@ -158,5 +254,375 @@ describe('ChannelAdapterListener', () => {
     expect(listener.isAlive()).toBe(true)
     alive = false
     expect(listener.isAlive()).toBe(false)
+  })
+
+  // One chat holds ONE stream controller, so two generations settling on one listener must take
+  // turns in the adapter: a chain-hold gap plus a background wake is exactly that overlap, and the
+  // predecessor's cleanup otherwise owns (Discord/Slack deletes) or absorbs (Feishu writes into)
+  // the controller the wake just opened.
+  it('awaits the predecessor still finalizing before the successor touches the same chat', async () => {
+    const log: string[] = []
+    let enterIndex = 0
+    let release!: () => void
+    let entered!: (value: number) => void
+    const enterOrder = new Promise<number>((resolve) => {
+      entered = resolve
+    })
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const adapter = makeAdapter({
+      onStreamComplete: vi.fn(async (_chatId: string, text: string) => {
+        const mine = ++enterIndex
+        log.push(`enter#${mine}:${text}`)
+        entered(mine)
+        await gate
+        log.push(`leave#${mine}:${text}`)
+        return true
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    const predecessor = listener.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    await enterOrder // the predecessor's finalize is genuinely inside the adapter now
+
+    listener.onChunk(delta('Found it: 42'))
+    const successor = listener.onDone({ status: 'success', isTopicDone: true, attemptId: 2 })
+    release()
+    await Promise.all([predecessor, successor])
+
+    expect(log).toEqual(['enter#1:On it.', 'leave#1:On it.', 'enter#2:Found it: 42', 'leave#2:Found it: 42'])
+  })
+
+  it('holds a wake’s live updates behind the predecessor’s still-running finalization', async () => {
+    // A native background wake emits chunks through the carried listener while the predecessor's
+    // Feishu finalize still owns the chat's single card controller. The wake's live onTextUpdate
+    // must queue behind that finalize — otherwise it rewrites the predecessor's card content and
+    // the reply is delivered twice in two shapes.
+    let releaseComplete!: () => void
+    const finalizeGate = new Promise<void>((resolve) => {
+      releaseComplete = resolve
+    })
+    const adapter = makeAdapter({
+      onStreamComplete: vi.fn(async () => {
+        await finalizeGate
+        return false
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'))
+    const predecessor = listener.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    // The predecessor's finalize has been invoked and is parked inside the adapter.
+    await vi.waitFor(() => expect(adapter.onStreamComplete).toHaveBeenCalledOnce())
+
+    // Wake output arrives through this listener during the predecessor's finalize.
+    listener.onChunk(delta('wake report'))
+    // Give an unserialized live update every chance to slip through before the gate opens
+    // (the predecessor's own live update is expected — only the wake's must be held back).
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(
+      vi.mocked(adapter.onTextUpdate).mock.calls.filter(([, text]) => String(text).includes('wake report'))
+    ).toEqual([])
+
+    releaseComplete()
+    await predecessor
+    // Once the finalize settles, the wake's live updates flow (and its own terminal follows).
+    await vi.waitFor(() =>
+      expect(vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)).toContain('wake report')
+    )
+  })
+
+  // `dispatchToListeners` awaits each recipient's terminal in turn, so the SECOND listener's own
+  // terminal can be invoked after a receive-only wake already emitted through it. Its buffer then
+  // holds both generations' text; the terminal must ship only what its own execution produced.
+  it('gives each channel listener its own execution’s text when its terminal lands after the wake', async () => {
+    const deliveredFirst: string[] = []
+    const deliveredSecond: string[] = []
+    let releaseFirstForeground!: () => void
+    const firstForegroundGate = new Promise<void>((resolve) => {
+      releaseFirstForeground = resolve
+    })
+    const adapterFor = (sink: string[]) =>
+      makeAdapter({
+        onStreamComplete: vi.fn(async (_chatId: string, text: string) => {
+          sink.push(text)
+          if (text === 'foreground') await firstForegroundGate
+          return true
+        })
+      })
+    const first = new ChannelAdapterListener(adapterFor(deliveredFirst), 'chat-1')
+    const second = new ChannelAdapterListener(adapterFor(deliveredSecond), 'chat-2')
+
+    for (const listener of [first, second]) listener.onChunk(delta('foreground'), undefined, undefined, 1)
+
+    // Terminal dispatch starts: the first recipient's finalize parks inside its adapter.
+    const firstForeground = first.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    await vi.waitFor(() => expect(deliveredFirst).toEqual(['foreground']))
+
+    // The wake starts and emits through both carried listeners while the first still finalizes —
+    // before the second listener's own foreground terminal is ever invoked.
+    for (const listener of [first, second]) listener.onChunk(delta('wake'), undefined, undefined, 2)
+
+    const terminals = [
+      second.onDone({ status: 'success', isTopicDone: false, attemptId: 1 }),
+      first.onDone({ status: 'success', isTopicDone: true, attemptId: 2 }),
+      second.onDone({ status: 'success', isTopicDone: true, attemptId: 2 })
+    ]
+    releaseFirstForeground()
+    await Promise.all([firstForeground, ...terminals])
+
+    // Each terminal ships exactly its own execution's text: the second listener must not swallow
+    // the wake into its foreground reply and leave that wake empty.
+    expect(deliveredFirst).toEqual(['foreground', 'wake'])
+    expect(deliveredSecond).toEqual(['foreground', 'wake'])
+  })
+
+  // The review's frozen-listener experiment: with two scheduled recipients, the wake's terminal
+  // can reach the second chat while its foreground terminal is still queued behind the first
+  // chat's slow fallback sendMessage (terminal dispatch awaits recipients one at a time, and the
+  // fallback is not part of the update chain). The second chat's wake terminal must ship only the
+  // wake's own text — never consume the foreground attempt's still-undelivered buffer.
+  it('keeps a slower recipient’s foreground text intact when a wake terminal outruns it', async () => {
+    const sentFirst: string[] = []
+    const sentSecond: string[] = []
+    let releaseFirstForeground!: () => void
+    const firstForegroundGate = new Promise<void>((resolve) => {
+      releaseFirstForeground = resolve
+    })
+    const adapterFor = (sink: string[], parkForeground: boolean) =>
+      makeAdapter({
+        onStreamComplete: vi.fn().mockResolvedValue(false),
+        sendMessage: vi.fn(async (_chatId: string, text: string) => {
+          sink.push(text)
+          if (parkForeground && text === 'foreground') await firstForegroundGate
+        })
+      })
+    const first = new ChannelAdapterListener(adapterFor(sentFirst, true), 'chat-1')
+    const second = new ChannelAdapterListener(adapterFor(sentSecond, false), 'chat-2')
+
+    for (const listener of [first, second]) listener.onChunk(delta('foreground'), undefined, undefined, 1)
+
+    // Terminal dispatch starts with the first recipient; its fallback sendMessage parks.
+    const firstForeground = first.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    await vi.waitFor(() => expect(sentFirst).toEqual(['foreground']))
+
+    // The wake streams through both carried listeners, and its terminal reaches the second
+    // recipient before the foreground terminal is ever dispatched to it.
+    for (const listener of [first, second]) listener.onChunk(delta('wake'), undefined, undefined, 2)
+    const terminals = [
+      second.onDone({ status: 'success', isTopicDone: false, attemptId: 2 }),
+      first.onDone({ status: 'success', isTopicDone: true, attemptId: 2 }),
+      second.onDone({ status: 'success', isTopicDone: true, attemptId: 1 })
+    ]
+    releaseFirstForeground()
+    await Promise.all([firstForeground, ...terminals])
+
+    // Each chat receives both attempts' texts as separate messages — whichever terminal order the
+    // dispatch produced — and never one combined foreground+wake message.
+    expect([...sentFirst].sort()).toEqual(['foreground', 'wake'])
+    expect([...sentSecond].sort()).toEqual(['foreground', 'wake'])
+    expect(sentSecond).not.toContain('foregroundwake')
+  })
+
+  // Telegram's onTextUpdate awaits a network round-trip per draft. One queued update per delta
+  // strands the final answer behind every stale draft when generation outruns the network —
+  // superseded snapshots must collapse into the one live draft instead.
+  it('coalesces superseded live snapshots instead of queueing one update per delta', async () => {
+    const pending: Array<() => void> = []
+    const adapter = makeAdapter({
+      onTextUpdate: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            pending.push(resolve)
+          })
+      )
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    for (let i = 0; i < 100; i++) listener.onChunk(delta(`d${i} `))
+    await flushLiveUpdate()
+
+    // The adapter holds one live draft carrying the latest accumulated text — not a backlog of
+    // 100 obsolete snapshots the terminal would have to wait behind.
+    expect(adapter.onTextUpdate).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls[0][1]).toContain('d99')
+
+    // Once that draft's round-trip completes, no stale draft is still owed to the network.
+    pending.shift()!()
+    await flushLiveUpdate()
+    expect(adapter.onTextUpdate).toHaveBeenCalledTimes(1)
+    expect(adapter.onStreamComplete).not.toHaveBeenCalled()
+
+    await listener.onDone({ status: 'success' })
+    expect(vi.mocked(adapter.onStreamComplete).mock.calls[0][1]).toContain('d0 ')
+    expect(vi.mocked(adapter.onStreamComplete).mock.calls[0][1]).toContain('d99')
+  })
+
+  // Coalescing is scoped to one attempt: a later attempt's snapshot must neither merge another
+  // attempt's text into itself nor overtake it in the chat's single update chain.
+  it('keeps coalescing per attempt: another attempt’s snapshot neither merges nor reorders', async () => {
+    const pending: Array<() => void> = []
+    const adapter = makeAdapter({
+      onTextUpdate: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            pending.push(resolve)
+          })
+      )
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('a1 '), undefined, undefined, 1)
+    listener.onChunk(delta('a2 '), undefined, undefined, 1)
+    listener.onChunk(delta('b1 '), undefined, undefined, 2)
+    listener.onChunk(delta('b2 '), undefined, undefined, 2)
+    await flushLiveUpdate()
+
+    expect(adapter.onTextUpdate).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls[0][1]).toBe('a1 a2 ')
+
+    pending.shift()!()
+    await flushLiveUpdate()
+    expect(adapter.onTextUpdate).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(adapter.onTextUpdate).mock.calls[1][1]).toBe('b1 b2 ')
+  })
+
+  // FeishuStreamSession.error() stays writable until removal: if a wake's live update runs while
+  // onStreamError is still finalizing the predecessor, the successor's draft overwrites the
+  // predecessor's error card. The error terminal must join the update chain like completeStream.
+  it('serializes a terminal persistence failure with the updates a wake queues behind it', async () => {
+    const events: string[] = []
+    let releaseError!: () => void
+    const errorGate = new Promise<void>((resolve) => {
+      releaseError = resolve
+    })
+    const adapter = makeAdapter({
+      onStreamError: vi.fn(async (_chatId: string, message: string) => {
+        events.push(`error:start:${message}`)
+        await errorGate
+        events.push('error:end')
+        return true
+      }),
+      onTextUpdate: vi.fn(async (_chatId: string, text: string) => {
+        events.push(`update:${text}`)
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('On it.'), undefined, undefined, 1)
+    const errored = listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'boom' },
+      isTopicDone: false,
+      attemptId: 1
+    })
+    await vi.waitFor(() => expect(events).toContain('error:start:boom'))
+
+    // A background wake reuses the carried listener while the error finalization is still parked.
+    listener.onChunk(delta('wake report'), undefined, undefined, 2)
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(events).not.toContain('update:wake report')
+
+    releaseError()
+    await errored
+    await flushLiveUpdate()
+    // The wake's draft reached the adapter only after the error card settled.
+    expect(events.indexOf('error:end')).toBeLessThan(events.indexOf('update:wake report'))
+  })
+
+  // The terminal owes the chat's single controller a chain position taken at initiation: while the
+  // error terminal waits for the foreground draft, a wake chunk must queue BEHIND it — otherwise the
+  // wake's draft rewrites the card and the error finalizes on top of the wrong text.
+  it('reserves the error terminal ahead of a wake draft queued while the terminal waits', async () => {
+    const order: string[] = []
+    let releaseDraft!: () => void
+    const draftGate = new Promise<void>((resolve) => {
+      releaseDraft = resolve
+    })
+    const adapter = makeAdapter({
+      onTextUpdate: vi.fn(async (_chatId: string, text: string) => {
+        if (text === 'partial answer') await draftGate
+        order.push(`update:${text}`)
+      }),
+      onStreamError: vi.fn(async (_chatId: string, message: string) => {
+        order.push(`error:${message}`)
+        return true
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('partial answer'), undefined, undefined, 1)
+    await flushLiveUpdate()
+    const errored = listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'foreground boom' },
+      isTopicDone: true,
+      attemptId: 1
+    })
+
+    // The wake streams through the carried listener while the error terminal is still waiting for
+    // the foreground draft update to settle.
+    listener.onChunk(delta('wake result'), undefined, undefined, 2)
+    releaseDraft()
+    await errored
+    await flushLiveUpdate()
+
+    expect(order.indexOf('error:foreground boom')).toBeLessThan(order.indexOf('update:wake result'))
+  })
+
+  it('keeps two channel listeners’ terminal text separate when the first finalizes slowly', async () => {
+    const firstText: string[] = []
+    const secondText: string[] = []
+    let releaseFirst!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+
+    // Two channel listeners on one execution (a scheduled run subscribes several). The first one's
+    // adapter is slow, so `dispatchToListeners` is still awaiting its terminal when the second
+    // listener's turn to finalize arrives.
+    const firstAdapter = makeAdapter({
+      onStreamComplete: vi.fn(async (_chatId: string, text: string) => {
+        firstText.push(text)
+        await gate
+        return true
+      })
+    })
+    const secondAdapter = makeAdapter({
+      onStreamComplete: vi.fn(async (_chatId: string, text: string) => {
+        secondText.push(text)
+        return true
+      })
+    })
+    const first = new ChannelAdapterListener(firstAdapter, 'chat-1')
+    const second = new ChannelAdapterListener(secondAdapter, 'chat-2')
+
+    first.onChunk(delta('On it.'))
+    const firstTerminal = first.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+
+    // A receive-only background wake emits through both carried listeners while the first is still
+    // inside its adapter.
+    first.onChunk(delta('Found it: 42'))
+    second.onChunk(delta('Found it: 42'))
+    const secondTerminal = Promise.all([
+      second.onDone({ status: 'success', isTopicDone: true, attemptId: 2 }),
+      first.onDone({ status: 'success', isTopicDone: true, attemptId: 2 })
+    ])
+
+    releaseFirst()
+    await Promise.all([firstTerminal, secondTerminal])
+
+    // Each execution's text reaches its own terminal: the wake must not append itself to the
+    // predecessor's buffer and ship both replies in one message.
+    expect(firstText).toEqual(['On it.', 'Found it: 42'])
+    expect(secondText).toEqual(['Found it: 42'])
   })
 })

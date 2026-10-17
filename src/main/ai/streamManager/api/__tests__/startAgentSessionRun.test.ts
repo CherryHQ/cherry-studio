@@ -25,9 +25,10 @@ const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: stri
   })
 })
 
-const { sessionGetById, runtimeBusy } = vi.hoisted(() => ({
+const { sessionGetById, runtimeBusy, backgroundWork } = vi.hoisted(() => ({
   sessionGetById: vi.fn(),
-  runtimeBusy: vi.fn(() => false)
+  runtimeBusy: vi.fn(() => false),
+  backgroundWork: vi.fn(() => false)
 }))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
@@ -43,7 +44,9 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'AiStreamManager') return managerHolder.current
-      if (name === 'AgentSessionRuntimeService') return { isSessionBusy: runtimeBusy }
+      if (name === 'AgentSessionRuntimeService') {
+        return { isSessionBusy: runtimeBusy, hasPendingBackgroundWork: backgroundWork }
+      }
       throw new Error(`startAgentSessionRun.test: unexpected application.get('${name}')`)
     }
   }
@@ -70,6 +73,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     prepareDispatchMock.mockClear()
     sessionGetById.mockReset().mockReturnValue({ agentId: 'agent-1' })
     runtimeBusy.mockReset().mockReturnValue(false)
+    backgroundWork.mockReset().mockReturnValue(false)
 
     const Ctor = AiStreamManager as unknown as new () => ManagerInstance
     const manager = new Ctor()
@@ -170,6 +174,26 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
 
     expect(prepareDispatchMock).not.toHaveBeenCalled()
     expect(sendSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns busy while a reused session still has detached background work', async () => {
+    // `requireIdle` is how a scheduled task, a channel message and a remote-access entry avoid
+    // landing on top of work the session is already running. Background work stays off the busy
+    // path on purpose so a user turn may begin through it, which means the strict gate has to ask
+    // for it separately — otherwise a second run of a reused task session piles onto the first.
+    backgroundWork.mockReturnValue(true)
+
+    const run = startAgentSessionRun({
+      sessionId: 's',
+      userParts: [text('scheduled')],
+      listeners: [listener('task')],
+      requireIdle: { expectedAgentId: 'agent-1' }
+    })
+    await flush()
+
+    expect(prepareDispatchMock).not.toHaveBeenCalled()
+    expect(sendSpy).not.toHaveBeenCalled()
+    await expect(run).resolves.toEqual({ mode: 'not-started', reason: 'busy' })
   })
 
   it('waits for the previous terminal dispatch to settle before checking liveness', async () => {

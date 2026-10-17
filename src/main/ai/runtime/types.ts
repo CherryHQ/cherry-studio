@@ -87,6 +87,9 @@ export interface AgentRuntimeUserInput {
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean
+  /** Snapshot text of detached background work still running when this queued input is admitted;
+   *  drivers that wrap `systemReminder` embed it in the same reminder. */
+  backgroundTasksNote?: string
   /** Host-owned message attributes that must survive the driver round-trip (`redirect` →
    *  `steer-boundary`/`steer-undelivered`). Opaque to drivers. */
   headless?: boolean
@@ -162,11 +165,15 @@ export type AgentRuntimeEvent =
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
   /** Whether work outliving the current turn still needs this connection kept alive. `false` is a
    *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
-   *  work have drained. `awaitingReply` defaults to `active`; false keeps detached commands alive
-   *  without holding the current reply open. */
-  | { type: 'background-work-state'; active: boolean; awaitingReply?: boolean }
+   *  work have drained. Detached work never holds a reply open — user turns may start while it
+   *  runs, and its results arrive via a later autonomous (receive-only) generation. */
+  | { type: 'background-work-state'; active: boolean }
   /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
   | { type: 'background-task-event'; data: AgentTaskEventPartData }
+  /** Spawn lineage of one admitted subagent — emitted for EVERY descendant, unlike the task-panel
+   *  edges above (`publishTaskEdge` folds grandchildren into their ancestor's flow). `parentSessionId`
+   *  is absent when the root session spawned the child. */
+  | { type: 'background-child-provenance'; childSessionId: string; parentSessionId?: string }
   /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
    *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
   | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
