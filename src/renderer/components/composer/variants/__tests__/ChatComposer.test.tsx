@@ -18,6 +18,7 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { installFakeFollowupQueueBackend } from '../../__tests__/fakeFollowupQueueBackend'
 import type * as ComposerSurfaceModule from '../../ComposerSurface'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
@@ -683,6 +684,7 @@ describe('ChatComposer', () => {
     })) as unknown as typeof fetch
     mocks.registeredFooterActions.clear()
     MockCacheUtils.resetMocks()
+    installFakeFollowupQueueBackend()
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
@@ -2206,15 +2208,38 @@ describe('ChatComposer', () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
 
-    render(<ChatComposer topic={topic} onSend={onSend} />)
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
+    // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+  })
+
+  it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    await act(async () => {
+      mocks.surfaceProps?.onTextChange('draft A')
+    })
+
+    await act(async () => {
+      const submitted = mocks.surfaceProps?.onSendDraft({ text: 'draft A', tokens: [] })
+      // The editor stays editable while the enqueue write is in flight.
+      mocks.surfaceProps?.onTextChange('draft A plus newer edits')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await submitted
+    })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('draft A plus newer edits')
   })
 
   it('restores queued knowledge selection from the user-message parts', async () => {
@@ -2239,6 +2264,7 @@ describe('ChatComposer', () => {
         tokens: [serializeComposerToken(knowledgeToken)]
       })
     })
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     mocks.selectedKnowledgeBases = []
     const queueContent = mocks.surfaceProps?.queueContent as any
@@ -2435,11 +2461,12 @@ describe('ChatComposer', () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
 
-    render(<ChatComposer topic={topic} onSend={onSend} />)
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'queued', tokens: [] })
     })
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
     const queueContent = mocks.surfaceProps?.queueContent as any
     expect(queueContent).toBeTruthy()
     const itemId = queueContent.props.items[0].id
@@ -2464,6 +2491,7 @@ describe('ChatComposer', () => {
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'reserved follow-up', tokens: [] })
     })
+    view.rerender(<ChatComposer topic={topic} chatTarget={reservedTarget} onSend={onSend} />)
 
     let queueContent = mocks.surfaceProps?.queueContent as any
     const queuedItem = queueContent.props.items[0]
@@ -2555,11 +2583,12 @@ describe('ChatComposer', () => {
       mocks.topicPending = true
       const onSend = vi.fn().mockResolvedValue(undefined)
 
-      render(<ChatComposer topic={topic} onSend={onSend} />)
+      const view = render(<ChatComposer topic={topic} onSend={onSend} />)
 
       await act(async () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'queued steer', tokens: [] })
       })
+      view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
       // The follow-up is queued (not actually sent), so history must stay clean.
       // onSend should also NOT have been called directly — it goes through the dock.

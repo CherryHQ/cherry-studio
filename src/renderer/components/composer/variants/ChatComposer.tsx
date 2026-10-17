@@ -61,6 +61,7 @@ import {
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { buildTopicFollowupScopeKey } from '@shared/data/types/followupQueue'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -651,8 +652,12 @@ const ChatComposerInner = ({
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
     [actionsRef, navigateHistory]
   )
+  // Bumped synchronously on every user draft edit (text, tokens, attachments). An awaited enqueue only clears
+  // the composer when nothing changed meanwhile, so newer unsent input is never wiped by an older submission.
+  const draftEditRevisionRef = useRef(0)
   const handleTextChange = useCallback(
     (nextText: string) => {
+      draftEditRevisionRef.current += 1
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       skipDraftCacheWriteForHistoryPreviewRef.current = false
@@ -1013,7 +1018,11 @@ const ChatComposerInner = ({
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
-  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
+  const selectedKnowledgeBasesScopeKey = buildTopicFollowupScopeKey(scopeKey, selectedAssistantId)
+  // Live queue scope for the async enqueue below: clearing the editor after
+  // the POST must not wipe the newly selected conversation's draft.
+  const queueScopeRef = useRef(selectedKnowledgeBasesScopeKey)
+  queueScopeRef.current = selectedKnowledgeBasesScopeKey
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
@@ -1238,6 +1247,7 @@ const ChatComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
   const handleTokensChange = useCallback(
     (nextDraftTokens: readonly ComposerSerializedToken[]) => {
+      draftEditRevisionRef.current += 1
       reconcileTokens(nextDraftTokens)
       setDraftTokenRevision((revision) => revision + 1)
     },
@@ -1534,6 +1544,10 @@ const ChatComposerInner = ({
     [onSend, saveHistory, t]
   )
 
+  // Attachment edits arrive through tool state rather than the editor callbacks.
+  useEffect(() => {
+    draftEditRevisionRef.current += 1
+  }, [files])
   const clearCurrentDraft = useCallback(() => {
     setText('')
     setDraftTokens(undefined)
@@ -1556,7 +1570,9 @@ const ChatComposerInner = ({
     removeId: removeFollowup,
     reorder: reorderFollowups,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    steer: steerFollowup,
+    takeForEdit: takeFollowupForEdit
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
@@ -1783,8 +1799,12 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        const enqueueScope = selectedKnowledgeBasesScopeKey
+        const enqueueRevision = draftEditRevisionRef.current
+        const queued = await enqueueFollowup(draft, payload)
+        if (queued && queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
+          clearCurrentDraft()
+        }
         return
       }
 
@@ -1815,6 +1835,7 @@ const ChatComposerInner = ({
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
+      selectedKnowledgeBasesScopeKey,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
@@ -1970,18 +1991,17 @@ const ChatComposerInner = ({
                 paused={followupPaused}
                 onTogglePause={() => setFollowupPaused(!followupPaused)}
                 onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
+                  // Claim-guarded send: only the window whose claim wins sends,
+                  // so a manual steer racing another window's auto-drain cannot
+                  // deliver the same queued message twice.
+                  await steerFollowup(id, sendQueuedPayload)
                 }}
-                onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
+                onEdit={async (id) => {
+                  // Atomic take: undefined when the item is owned by an
+                  // in-flight drain, so an edit can never race its send.
+                  const item = await takeFollowupForEdit(id)
                   if (!item) return
                   restoreFollowupDraft(item)
-                  removeFollowup(id)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}

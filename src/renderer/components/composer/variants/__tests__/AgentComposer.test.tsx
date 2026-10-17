@@ -23,6 +23,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
+import { installFakeFollowupQueueBackend } from '../../__tests__/fakeFollowupQueueBackend'
 import * as ComposerDraftModule from '../../composerDraft'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
@@ -792,6 +793,7 @@ describe('AgentComposer', () => {
     mocks.openResourceEditDialog.mockReset()
     mocks.registeredLaunchers.clear()
     mocks.registeredFooterActions.clear()
+    installFakeFollowupQueueBackend()
     mocks.optionalQuickPanel = null
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
@@ -1148,6 +1150,17 @@ describe('AgentComposer', () => {
       />
     )
     fireEvent.click(screen.getByText('send'))
+    // The DataApi write settles asynchronously; flush it, then re-render to pick up the revalidated queue.
+    await act(async () => {})
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
     const queued = getQueueDock()
     expect(queued).toBeTruthy()
     expect(queued.props.items[0].payload.userMessageParts).toContainEqual({
@@ -4772,8 +4785,8 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('queues a follow-up while the agent session is streaming (does not send directly)', () => {
-    render(
+  it('queues a follow-up while the agent session is streaming (does not send directly)', async () => {
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -4784,10 +4797,44 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
+    await act(async () => {})
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
 
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(getQueueDock()).toBeTruthy()
+  })
+
+  it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('draft A'))
+
+    await act(async () => {
+      const submitted = mocks.surfaceProps?.onSendDraft({ text: 'draft A', tokens: [] })
+      // The editor stays editable while the enqueue write is in flight.
+      mocks.surfaceProps?.onTextChange('draft A plus newer edits')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await submitted
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.text).toBe('draft A plus newer edits')
   })
 
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
@@ -4981,7 +5028,7 @@ describe('AgentComposer', () => {
   it('keeps a steered follow-up in the dock when its manual send fails', async () => {
     mocks.draftText = 'queued message'
 
-    render(
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -4992,6 +5039,16 @@ describe('AgentComposer', () => {
     )
 
     fireEvent.click(screen.getByText('send'))
+    await act(async () => {})
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
     const dock = getQueueDock()
     expect(dock).toBeTruthy()
     const itemId = dock.props.items[0].id

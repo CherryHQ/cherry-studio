@@ -4,6 +4,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -343,6 +344,7 @@ export class AgentLifecycleService extends BaseService {
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
         await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
+        if (purgedIds.length > 0) followupQueueService.notifyPurged()
         return { purgedIds, hasMore: sessionIds.length === limit }
       } finally {
         for (const release of releases.reverse()) release()
@@ -413,6 +415,10 @@ export class AgentLifecycleService extends BaseService {
         return { result, scheduleIds }
       })
       agentService.notifyDeleted(agentId, result)
+      if (result.deleted && permanent) {
+        const purgedScopeIds = result.deletedSessionIds ?? result.affectedSessionIds
+        if (purgedScopeIds.length > 0) followupQueueService.notifyPurged()
+      }
       this.syncSchedules(scheduleIds)
       application.get('ChannelManager').reconcileAgent(agentId, true)
       const manager = application.get('AiStreamManager')
