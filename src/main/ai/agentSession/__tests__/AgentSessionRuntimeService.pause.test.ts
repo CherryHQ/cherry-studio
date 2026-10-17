@@ -26,11 +26,12 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   getAgent: vi.fn(),
+  getSessionById: vi.fn(),
   ensureTraceId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { ensureTraceId: mocks.ensureTraceId }
+  agentSessionService: { getById: mocks.getSessionById, ensureTraceId: mocks.ensureTraceId }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -166,6 +167,7 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
       id: message.id ?? 'generated-message-id'
     }))
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.getSessionById.mockReturnValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {

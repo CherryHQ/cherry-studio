@@ -514,7 +514,9 @@ const agentSessionPartsMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => vi.fn()
+  useInvalidateCache: () => vi.fn(),
+  useReadCache: () => () => undefined,
+  prefetch: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({

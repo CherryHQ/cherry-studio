@@ -530,6 +530,19 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
   })
 
+  it('propagates the original request-construction rejection from start()', async () => {
+    const failure = new Error('route resolution failed')
+    mocks.buildRequest.mockRejectedValue(failure)
+
+    await expect(
+      new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+    ).rejects.toBe(failure)
+  })
+
   it('uses the serving receipt retained by a consumed warm process', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -591,6 +604,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       owner: 'agent-sdk',
       credentialReceipt: { attribution: 'explicit', id: 'warm-key' }
     })
+    // The host's agent-switch gate keys off this: the connection declares the agent it serves.
+    expect(connection.agentId).toBe('agent-1')
     expect(warmQuery.query).toHaveBeenCalledOnce()
     await connection.close()
   })
@@ -689,14 +704,16 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
 
     // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
-    // the model captured at its creation even if the agent was edited since.
+    // the model captured at its creation even if the agent was edited since; the same pinning
+    // applies to the agent identity the request is built from.
     expect(mocks.buildRequest).toHaveBeenCalledWith(
       'session-1',
       'resume-1',
       'claude-code::sonnet',
       'default',
       false,
-      undefined
+      undefined,
+      'agent-1'
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -4165,7 +4182,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
       await connection.reconcile({ modelId: 'claude-code::sonnet', knowledgeBaseIds: ['kb-1'] })
 
-      expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', false, ['kb-1'])
+      expect(mocks.deriveConfig).toHaveBeenCalledWith(
+        'session-1',
+        'claude-code::sonnet',
+        'default',
+        false,
+        ['kb-1'],
+        'agent-1'
+      )
     })
 
     it('hot-patches live tool-policy facts and advances the baseline', async () => {
