@@ -98,6 +98,9 @@ const MACOS_AUTO_FOCUS_VERSION = 26
 //   The poll only starts on macOS (`isMac` guard in setPinQuickAssistant).
 //   The bug is specific to NSPanel; Windows/Linux paths route through plain
 //   `BrowserWindow` and `window.on('blur')` works reliably there.
+const WAYLAND_PREWARM_DELAY_MS = 500
+const WAYLAND_PREWARM_TTL_MS = 5 * 60_000
+
 const POST_UNPIN_FOCUS_POLL_MAX_MS = 30_000
 const POST_UNPIN_FOCUS_POLL_INTERVAL_MS = 200
 
@@ -108,6 +111,8 @@ const logger = loggerService.withContext('QuickAssistantService')
 @DependsOn(['MainWindowService', 'WindowManager'])
 export class QuickAssistantService extends BaseService implements Activatable {
   private windowId: string | null = null
+  private prewarmTimer: ReturnType<typeof setTimeout> | null = null
+  private prewarmExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private cancelPendingShow: (() => void) | null = null
   private isPinnedQuickAssistant = false
   private isFloatingChat = false
@@ -144,6 +149,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.registerDisposable(
       wm.onWindowDestroyedByType(WindowType.QuickAssistant, ({ id }) => {
         if (id !== this.windowId) return
+        this.cancelPrewarm()
         this.cancelPendingShow?.()
         this.windowId = null
         this.isFloatingChat = false
@@ -186,6 +192,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     const focusedBefore = isMac ? BrowserWindow.getFocusedWindow() : null
     try {
       this.createQuickAssistant()
+      this.expirePrewarmedWindow()
     } catch (error) {
       this.releaseActivationResources()
       throw error
@@ -204,6 +211,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   private releaseActivationResources(): void {
+    this.cancelPrewarm()
     this.cancelPendingShow?.()
     if (this.windowId) {
       // QuickAssistant is a singleton — wm.close() falls through to destroyWindow()
@@ -397,11 +405,13 @@ export class QuickAssistantService extends BaseService implements Activatable {
     const window = this.getQuickAssistant()
     if (!window) return
 
+    this.cancelPrewarm()
     this.proceedShow(true)
   }
 
   public async openChat(input: QuickChatInput): Promise<void> {
     await this.activate()
+    this.cancelPrewarm()
     const wm = application.get('WindowManager')
     const request: QuickChatRequest = {
       ...input,
@@ -543,6 +553,44 @@ export class QuickAssistantService extends BaseService implements Activatable {
     }
     application.get('WindowManager').close(this.windowId)
     this.windowId = null
+    this.schedulePrewarm()
+  }
+
+  private cancelPrewarm(): void {
+    if (this.prewarmTimer) clearTimeout(this.prewarmTimer)
+    if (this.prewarmExpiryTimer) clearTimeout(this.prewarmExpiryTimer)
+    this.prewarmTimer = null
+    this.prewarmExpiryTimer = null
+  }
+
+  private schedulePrewarm(): void {
+    this.cancelPrewarm()
+    if (!isLinuxWayland || !this.isActivated) return
+    this.prewarmTimer = setTimeout(() => {
+      this.prewarmTimer = null
+      if (!this.isActivated || this.getQuickAssistant()) return
+      try {
+        // A fresh, never-mapped surface avoids GNOME's hidden-window placement bug.
+        this.createQuickAssistant()
+        this.expirePrewarmedWindow()
+      } catch (error) {
+        logger.warn('Failed to prewarm quick assistant', error as Error)
+      }
+    }, WAYLAND_PREWARM_DELAY_MS)
+    this.prewarmTimer.unref()
+  }
+
+  private expirePrewarmedWindow(): void {
+    if (!isLinuxWayland) return
+    const window = this.getQuickAssistant()
+    if (!window) return
+    this.prewarmExpiryTimer = setTimeout(() => {
+      this.prewarmExpiryTimer = null
+      if (this.getQuickAssistant() !== window || window.isVisible()) return
+      if (this.windowId) application.get('WindowManager').close(this.windowId)
+      this.windowId = null
+    }, WAYLAND_PREWARM_TTL_MS)
+    this.prewarmExpiryTimer.unref()
   }
 
   /** Dismiss the window using the platform's hide or destroy policy. */

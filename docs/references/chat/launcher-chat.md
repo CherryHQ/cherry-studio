@@ -85,7 +85,10 @@ card; the compositor moves it (drag the header) and resizes it from its edges an
 X11 keeps an opaque background because transparent X11 windows depend on the window manager.
 Wayland apps cannot position their own windows, and a hidden window that is shown again is
 placed as if it had no size. Cherry therefore closes the floating window when it is dismissed
-and creates a fresh one each time it opens, so the compositor places it normally. Saved and
+and prepares a fresh, never-shown window after a 500 ms idle delay, so the compositor places
+it normally on its first show. An unused prepared window is released after five minutes;
+opening it cancels that expiry. Disabling Quick Assistant cancels preparation and releases
+its renderer. This trades background memory for faster repeat opens. Saved and
 minimized conversations are unaffected; an unsaved temporary conversation closed with Esc is
 discarded. On GNOME, `gsettings set org.gnome.mutter center-new-windows true` opens new
 windows centered.

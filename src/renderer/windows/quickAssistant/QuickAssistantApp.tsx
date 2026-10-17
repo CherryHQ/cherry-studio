@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 
+import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -24,6 +25,19 @@ function QuickAssistantRuntime(): null {
   useLanguageSync()
   useAutoReadPreferenceSync()
   useCustomCss()
+  useEffect(() => {
+    if (!isLinuxWayland) return
+    const idle = requestIdleCallback(
+      () => {
+        // Warm the display code without creating or sending a conversation.
+        void import('./chat/ChatWindow').catch((error) => {
+          loggerService.withContext('QuickAssistant').warn('Failed to preload floating chat display', error as Error)
+        })
+      },
+      { timeout: 100 }
+    )
+    return () => cancelIdleCallback(idle)
+  }, [])
   useEffect(() => {
     if (isLinuxWayland) {
       // Wayland windows are transparent: clip everything, including modal overlays,
