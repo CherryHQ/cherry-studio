@@ -151,9 +151,18 @@ async function resolveFallback(
     return null
   }
 
+  const attemptOverrides = args.request.modelAttempt?.resolveFallback({ provider, model })
+  if (attemptOverrides === null) {
+    logger.info('skipping fallback rejected by the request contract', { uniqueModelId })
+    return null
+  }
+  const fallbackRequest = attemptOverrides
+    ? { ...args.request, callOverrides: attemptOverrides.callOverrides }
+    : args.request
+
   const repairUsagePlugins: { current?: AiPlugin[] } = {}
   const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
-    request: args.request,
+    request: fallbackRequest,
     signal: args.signal,
     provider,
     model,
@@ -180,5 +189,7 @@ async function resolveFallback(
     sdkConfig.modelId,
     [...plugins, usagePlugin]
   )
-  return { model: resolved, options: pickFallbackCallOptions(options), repairToolCall: options.repairToolCall }
+  const callOptions = pickFallbackCallOptions(options)
+  const retryOptions = attemptOverrides?.prompt ? { ...callOptions, prompt: attemptOverrides.prompt } : callOptions
+  return { model: resolved, options: retryOptions, repairToolCall: options.repairToolCall, sourceModel: model }
 }
