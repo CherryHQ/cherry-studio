@@ -111,9 +111,8 @@ describe('subagent', () => {
     expect(calls[0].tools?.map((tool) => tool.name) ?? []).not.toContain('subagent')
   })
 
-  // Breaks when the origin entry is not handed to the host (a stored subagent transcript could not
-  // rebuild a subagent's session) or when any entry reaches the host twice.
-  it('sends subagent entries only to its own listener, starting with the origin entry', async () => {
+  // Child output belongs to its own observation stream; origin remains in native storage.
+  it('sends child entries only to its listener and preserves native origin state', async () => {
     const { model } = delegateOnce()
     const host = recordingSubagentPort()
     const parent = hostStore()
@@ -127,16 +126,28 @@ describe('subagent', () => {
     await session.prompt(DELEGATE_A)
 
     const roles = (entries: typeof parent.entries) =>
-      entries.map((entry) => (entry.kind === 'message' ? entry.message.role : entry.kind))
-    expect(roles(parent.entries)).toEqual(['user', 'assistant', 'tool', 'assistant'])
+      entries.flatMap((entry) =>
+        entry.type === 'message' && entry.message.role !== 'system' ? [entry.message.role] : []
+      )
+    expect(roles(parent.entries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
     expect(JSON.stringify(parent.entries)).not.toContain('noted')
     const childEvents = host.events.get(host.subagents[0].sessionId)!
-    const childEntries = childEvents.flatMap((event) => (event.type === 'transcript-append' ? event.entries : []))
-    expect(roles(childEntries)).toEqual(['state', 'user', 'assistant', 'tool', 'assistant'])
-    expect(childEntries[0]).toMatchObject({
-      kind: 'state',
-      type: 'cherry.subagent-origin',
-      data: { parentToolCallId: 'call_a', fork: false, description: 'Check module A', modelKey: MODEL.key }
+    const childEntries = childEvents.flatMap((event) => (event.type === 'session-append' ? event.entries : []))
+    expect(roles(childEntries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
+    expect(
+      host.sessions
+        .get(host.subagents[0].sessionId)!
+        .sessionManager.getBranch()
+        .find((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-origin')
+    ).toMatchObject({
+      type: 'custom',
+      customType: 'cherry.subagent-origin',
+      data: {
+        parentToolCallId: 'call_a',
+        fork: false,
+        description: 'Check module A',
+        modelKey: `${MODEL.provider}/${MODEL.id}`
+      }
     })
     expect(new Set(childEntries.map((entry) => entry.id)).size).toBe(childEntries.length)
     expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: false })

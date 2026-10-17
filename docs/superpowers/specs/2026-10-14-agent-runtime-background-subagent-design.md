@@ -28,7 +28,7 @@ L4 给 Pi 运行时加了前台子代理：`subagent({ description, prompt, fork
 - `subagent` 加 `background?` 和 `model?`；新工具 `message_subagent`、`stop_subagent`。
 - 用户把运行中的前台子代理转到后台（同一次运行接着跑，不重跑）。
 - 包内的后台运行表、通知队列、投递时机（settle 时并入、空闲时开轮）。
-- 子代理 transcript 的完整交付（含起始条目）与从宿主取回后重建。
+- 子代理原生会话文件和内存分支的创建、打开与身份核对。
 - 停止（模型、用户、预算）、父会话销毁时的收尾、重建后的状态恢复。
 - goal 等待后台子代理、用量计入、预算用完时停子代理。
 - 压缩后、重启后把子代理状态告诉模型。
@@ -49,7 +49,7 @@ L4 给 Pi 运行时加了前台子代理：`subagent({ description, prompt, fork
 | D1 | 后台子代理结束后，结果作为通知送回父会话；父会话空闲时自动开一轮。通知在父会话一轮结束（settle）时送入，不在轮中插入；有用户消息排队时先处理用户的；忙时陆续结束的合并成一条；压缩中等压缩完 | 与 Claude Code 一致；Codex 不唤醒空闲父代理被用户当成 bug（#15723） |
 | D2 | 用户中止父代理的一轮，不停后台子代理；单个停止用宿主现有的停止按钮；"全部停止"以后再做 | Claude Code、Cursor（从"停"改成"不停"）都这样；"停本轮"和"停子代理"要分开 |
 | D3 | 后台子代理的审批交给用户，显示在父会话，标明哪个子代理在请求，子代理等待；拒绝只拒那一次调用；无人值守的会话拒绝 | Claude Code、Codex、Goose、Gemini 都是从别的做法改到这里 |
-| D4 | 已结束（含被应用退出打断）的子代理可以跨重启续接；宿主持久化子代理 transcript，包交出起始条目并能从宿主取回的 transcript 重建 | Claude Code、OpenCode、Codex、Cursor 都能；不给 id 的产品都不能续接 |
+| D4 | 已结束（含被应用退出打断）的子代理可以跨重启续接；Pi 持久化子代理原生会话；宿主返回 SessionManager，包核对身份后继续执行 | Claude Code、OpenCode、Codex、Cursor 都能；不给 id 的产品都不能续接 |
 | D5 | goal 等后台子代理回来再继续；goal 轮派出的后台子代理用量计入 goal 预算 | Claude Code `/goal`、Codex root goal（#41183）；不计入子代理花费的产品都有投诉 |
 | D6 | 三个工具：`subagent({ description, prompt, fork?, background?, model? })`、`message_subagent({ id, message })`、`stop_subagent({ id })`；不提供 wait、list、读输出 | 各家收敛到"派出 + 发消息/续接 + 停止"，等待和轮询工具在被删 |
 | D7 | 一个标识：子会话 id 就是 `randomUUID()`；宿主 API 叫 `sessionId`，模型参数叫 `id` | L4 的 `父 id.UUID` 前缀不可靠：Cherry 的 Pi 会话 id 会变（resume token、fork checkpoint） |
@@ -89,7 +89,7 @@ interface SubagentRecord {
   description: string
   fork: boolean
   background: boolean             // 最近一次运行是否在后台（续接总在后台）
-  modelKey: string                // 实际用的模型 key（`model` 解析出的、宿主默认的子代理模型或父会话当前模型），续接时交给宿主还原
+  modelKey: string                // 实际用的模型 key（`model` 解析出的、宿主默认的子代理模型或父会话当前模型），格式为 provider/id，续接时交给宿主还原
   run: number                     // 第几次运行，从 1 起；每次续接 +1
   status: 'running' | 'awaiting_approval' | 'finished'
   outcome?: SubagentOutcome       // finished 时有
@@ -133,8 +133,8 @@ type SubagentOutcome =
 ```ts
 interface SubagentPort {
   configure(subagent: Subagent): SubagentSessionOptions | Promise<SubagentSessionOptions>
-  /** 取回已结束子代理的 transcript（含起始条目），用于续接。不提供则已结束的子代理不能续接。 */
-  load?(sessionId: string): Promise<readonly TranscriptEntry[] | undefined>
+  /** 打开已结束子代理的原生 SessionManager（含 origin），用于续接。不提供则已结束的子代理不能续接。 */
+  load?(sessionId: string): Promise<SessionManager | undefined>
   /** 子代理工具调用的审批事件，形状同 GoalPort.onApproval。 */
   onApproval?(listener: (event: ToolApprovalEvent) => void): () => void
   /** 同一父会话同时运行的后台子代理上限，默认 20（Claude Code 的默认值）。 */
@@ -147,7 +147,7 @@ interface SubagentPort {
 }
 
 interface SubagentModelCandidate {
-  key: string          // 唯一：一个 provider 下的一个模型，也是 transcript 里 modelKey 的取值
+  key: string          // 唯一：一个 provider 下的一个模型，采用原生 provider/id，保存在 origin 中
   provider: string     // 显示名，例如 "OpenRouter"
   model: string        // 显示名，例如 "Claude Sonnet 4.5"
   exact: boolean       // query 与 provider + 模型名、或模型名完全相同
@@ -174,6 +174,7 @@ interface SubagentSessionOptions {
    * 没设时宿主可给智能体设置里的默认子代理模型，不给就跟随父会话当前模型。实际用的 key 记进 origin。
    */
   model?: AgentRuntimeModel
+  modelRuntime?: ModelRuntime
 }
 
 type SubagentDetails =
@@ -211,7 +212,7 @@ interface AgentRuntimeSession {
 
 改名与删除（L5 未合并，直接改）：
 
-- `GoalApprovalEvent` 改名 `ToolApprovalEvent`，移到 `ports.ts`，goal 与子代理共用。
+- `GoalApprovalEvent` 改名 `ToolApprovalEvent`，移到 `approval.ts`，goal 与子代理共用。
 - 删除 `GoalPort.hasRunningSubagents`：goal 通过包内接口问子代理表（第 11 节）。
 
 ## 5. 工具面
@@ -270,7 +271,7 @@ L4 的 `run()` 抽成 `runSubagent(child, prompt, options)`，保留：从 `mess
 ### 6.3 后台
 
 1. 校验参数、并发上限（只数后台运行中的）。
-2. 生成 `sessionId`，构造起始 transcript（fork 前缀 + origin 条目），`await port.configure(subagent)`，建子会话，起始条目经子会话 `onEvent` 发出。
+2. 生成 `sessionId`，验证原生 fork 点，`await port.configure(subagent)`，创建原生子会话并写入 origin，随后打开执行会话。
 3. 写"开始运行"快照，发 `subagents` 事件，立即返回已启动结果。
 4. 子会话在后台跑 `runSubagent`，**不挂父工具调用的 signal**：父代理这一轮结束或被中止都不影响它（D2）。
 5. 结束：写"结束"快照（outcome、结果文本、用量），发 `subagents` 事件，进通知队列（第 7 节），销毁子会话。
@@ -385,28 +386,28 @@ Background subagent update (automatic message, not from the user):
 
 ## 8. 续接与持久化
 
-### 8.1 起始条目交给宿主
+### 8.1 原生会话拥有起始条目
 
-新建子代理时，起始 transcript（fork 前缀 + `cherry.subagent-origin`）在 `configure` 之后、子会话建好之前，经子会话的 `onEvent` 以 `transcript-append` 发出一次；这样子会话的扩展在 `session_start` 里追加的条目，在宿主只追加的副本里排在它们后面。之后的条目照 L2 规则发出。宿主按 `sessionId` 存下这些条目，就得到了完整的子代理 transcript。续接重建时不再发起始条目（宿主已经有了）。
+新建子代理跟随父会话的持久化方式：文件会话创建独立原生文件，内存会话创建独立 manager。fork 保留截止到调用的原生分支，补齐同批调用的占位结果，写入 origin。Pi 负责持久化；`onSessionCreated` 可读取完整分支，`session-append` 只观察后续变化，不作为存储来源。
 
 ### 8.2 续接流程
 
 1. `message_subagent` 校验 id 与状态（5.2）。
-2. `await port.load(sessionId)` 取回 transcript。取不到：返回错误 `Subagent <id> cannot be continued: its transcript is not available.`
+2. `await port.load(sessionId)` 取回原生 SessionManager，核对 ID 和 origin。取不到或 ID 不匹配：返回错误 `Subagent <id> cannot be continued: its native session is not available.`
 3. 读 origin 条目，构造 `Subagent`（`continuedBy` = 本次 `message_subagent` 调用，`modelKey` 取 origin 里的），`await port.configure(subagent)`。宿主按 `modelKey` 返回 `model`，扩展与首次一致（Claude Code 修了 4 次续接后缓存失效、修过续接丢模型，原因都是续接时重新计算了配置）。
-4. 修补 transcript（8.3），以它重建子会话。
+4. 通过原生 manager 补齐中断调用（8.3），用该 manager 打开子会话。
 5. 写"开始运行"快照（`run + 1`），在后台以这条消息跑 `runSubagent`，结束照常进通知队列。
 
 续接运行同样受每次运行 200 次请求上限、并发上限约束。
 
 ### 8.3 被打断的运行
 
-上一次运行是 `interrupted` 或 `aborted` 时，transcript 末尾可能有没有结果的工具调用。重建前为每个这样的调用补一条工具结果：`This tool call was interrupted (the app closed or the turn was stopped); its result is unknown. Check the current state before relying on it.`（不能说成"用户拒绝"，Claude Code 2.1.296 修过这一点）。只给最后一条可重放回复里的调用补：被中止或出错的 assistant 回复在重建时会被 Pi 丢掉，给它的调用补结果会变成孤立结果（实施计划探针 f）。补上的结果在子会话建好之前经 `onEvent` 交给宿主，否则宿主下次取回的 transcript 里，那个调用后面仍然没有结果。续接消息前加一句恢复提示：`Your previous run was interrupted. Check the current state of the workspace first and do not redo work that is already done.`（Cline Teams、OpenCode v2 都这样做）。
+上一次运行是 `interrupted` 或 `aborted` 时，transcript 末尾可能有没有结果的工具调用。重建前为每个这样的调用补一条工具结果：`This tool call was interrupted (the app closed or the turn was stopped); its result is unknown. Check the current state before relying on it.`（不能说成"用户拒绝"，Claude Code 2.1.296 修过这一点）。只给最后一条可重放回复里的调用补：被中止或出错的 assistant 回复在重建时会被 Pi 丢掉，给它的调用补结果会变成孤立结果（实施计划探针 f）。补上的结果通过原生 manager 写入，后续打开同一原生会话即可读取。续接消息前加一句恢复提示：`Your previous run was interrupted. Check the current state of the workspace first and do not redo work that is already done.`（Cline Teams、OpenCode v2 都这样做）。
 
 ### 8.4 宿主的存储
 
-- 子代理 transcript：按 `sessionId` 存，只追加。
-- 父子关系：宿主在 `configure` 时就知道父会话是哪个，记 Cherry 自己的会话 id（不记 Pi 的会话 id，它会变）。
+- 子代理原生会话：Pi 管理文件和分支，宿主记录会话 ID 与文件的关联。
+- 父子关系：宿主在 `configure` 时就知道父会话是哪个，记录 Cherry 会话与原生父子会话 ID/文件的关联；重开保持原生 ID。
 - 删除父会话时一并删除子代理的存储。
 
 ### 8.5 id 归属校验
@@ -478,7 +479,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 1. 用户回合走 `AgentRuntimeSession.prompt`，手动压缩走 `AgentRuntimeSession.compact`，不要直接调 `session.prompt` / `session.compact`（7.4）；用户停止回合走 `AgentRuntimeSession.abort()`，不要直接调 `session.abort()`（7.6）。
 2. 有后台子代理在运行时，不销毁、不重建父会话。宿主现有逻辑在有后台工作时推迟重建（`AgentSessionRuntimeService.ts:1706`），把 `subagents` 事件映射到 `background-work-state` 即可沿用。
 3. 把 `subagents` 事件映射到现有的 `background-tasks`（任务标签条）与 `background-work-state`；停止按钮（`ai.agent.session.stop_background_task`）调用 `stopSubagent(sessionId)`，`taskId` 即 `sessionId`。
-4. 子代理 transcript 按 `sessionId` 持久化（含起始条目），实现 `SubagentPort.load`；父子关系用 Cherry 会话 id 记录；删父会话时一并删除。
+4. 选择原生会话存储目录，实现返回 SessionManager 的 `SubagentPort.load`；父子关系用 Cherry 会话 id 记录；删父会话时一并删除。
 5. `configure` 对同一个子代理（首次与续接）返回一致的扩展；设了 `modelKey` 时必须按它返回 `model`（`modelKey` 正是父会话当前模型时可以不返回）。
 6. 审批：按第 10 节；实现 `SubagentPort.onApproval`，与 `GoalPort.onApproval` 接同一个审批注册表；goal 只收父会话自己的工具调用（11.5）。
 7. 通知轮渲染为自主轮（`background-work`），通知消息不渲染成用户气泡；`details` 可用于在轮次头显示"子代理 X 已完成"。
@@ -491,7 +492,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 | 层 | 改动 |
 |---|---|
 | L4 | `subagent` 加 `background?`、`model?`；前台转后台（6.6）；子会话 id 改为 `randomUUID()`（去掉父前缀）；`Subagent` 加 `description`、`background`、`modelKey?`、`continuedBy?`；`SubagentDetails` 改为前台/后台联合；`run()` 抽到 `subagentRun.ts`；起始条目经 `onEvent` 发出；前台结果末尾带 id；origin 条目加 `description`、`modelKey`（实际用的模型）；fork 子代理调用 `message_subagent` / `stop_subagent` 报错；README 子代理一节重写 |
-| L5 | 删除 `GoalPort.hasRunningSubagents` 与 `waiting_subagents`，改为 11.1 的等待；`GoalApprovalEvent` 改名 `ToolApprovalEvent` 并移到 `ports.ts`；settle 时见到通知条目让路（11.2）；通知轮的身份（11.3）；子代理用量与预算（11.4）；审批事件只认父会话 branch 上的调用（11.5）；goal 激活且已武装时通知轮的用量计入预算（11.3）；`/goal` 状态显示等待中的子代理；用户经 `abort()` 停在撤回轮的运行里时照样暂停（7.6）；README goal 一节相应更新 |
+| L5 | 删除 `GoalPort.hasRunningSubagents` 与 `waiting_subagents`，改为 11.1 的等待；`GoalApprovalEvent` 改名 `ToolApprovalEvent` 并移到 `approval.ts`；settle 时见到通知条目让路（11.2）；通知轮的身份（11.3）；子代理用量与预算（11.4）；审批事件只认父会话 branch 上的调用（11.5）；goal 激活且已武装时通知轮的用量计入预算（11.3）；`/goal` 状态显示等待中的子代理；用户经 `abort()` 停在撤回轮的运行里时照样暂停（7.6）；README goal 一节相应更新 |
 | L2 | `AgentRuntimeEvent` 加 `subagents`；`AgentRuntimeSession` 加 `prompt`、`compact`、`abort`、`stopSubagent`、`backgroundSubagent` |
 
 ## 15. 测试计划
@@ -525,7 +526,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 | goal：通知轮里父代理的用量在 goal 激活且已武装时计入预算，goal 未激活时不计 | 通知轮用量漏记或误记 |
 | goal：goal 轮派出的后台子代理用量在通知送达时计入；预算用完时拒绝新派出并停掉它们（`stoppedBy: 'budget'`） | 后台用量不计入；超预算仍在跑 |
 | 压缩后追加 `cherry.subagent-status`，列出运行中的子代理 | 压缩后模型不知道子代理在跑 |
-| 新建子代理时起始条目经 `onEvent` 发出一次；续接重建时不再发 | 宿主存不到完整 transcript；重复存 |
+| 原生文件重开保留 fork 前缀和 origin；错误 ID 拒绝续接 | 丢历史或误开新会话 |
 | 结果超过阈值：有 offload 时给预览和路径，没有时保留首尾 | 超长结果整段塞进上下文 |
 | 子代理会话里调用 `message_subagent` / `stop_subagent` 失败；fork 子代理工具列表仍与父代理一致 | 子代理能管理子代理；fork 工具列表与父代理不同（缓存失效） |
 | `details.sessionId` 等于 `configure` 收到的 `sessionId`，是 UUID | id 形式回退 |
@@ -603,7 +604,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 
 19. 7.6、13：用户的停止改为显式的 `AgentRuntimeSession.abort()`，不再只靠推断。它把这次中止标为用户的：落在 goal 撤回过期轮的那次运行里时，原来被当成撤回（goal 接着开新轮，投递不进入抑制期），现在照样暂停已武装的 goal、进入抑制期；运行时自己的中止仍走撤回信号。宿主的请求 signal 中止不受影响（撤回的轮不发请求）。
 
-2026-10-15，升级 Pi 1.2.0（L7）后修订：
+2026-10-15，升级 Pi 1.2.0（依赖 PR 已移到栈首）后修订：
 
 20. 7.5、7.6、7.7：Pi 1.2.0 起 `before_agent_start` 对自定义消息开出的运行（命令、通知轮、goal 轮）也触发，`messageType` 为 `custom`。决定接受这一行为：每个运行的开头都带走队列里的全部项并结束抑制期；第 11 条作废，settle 时只在有会唤醒的项时并入。17 节的 Pi 1.1.0 事实中，`prompt()` 准备期误报空闲的窗口在 1.2.0 缩小为命令与 `input` 处理器阶段，`settle` 派发期间推迟 `prompt()` 不变。
 21. 11.3、11.4：Pi 1.2.0 下 `/goal resume` 开出的轮也带着排队的结果开头，branch 上是"goal 轮消息 → 通知 → 这一轮派出的后台子代理"。随轮开头送达的通知属于这一轮，不结束它，所以这一轮派出的运行仍归 goal，重建后照样计入（由 15、17 条的同一个计入函数保证，按 PR #21743 评审补测试：resume → 派出 → 重建 → 送达）。

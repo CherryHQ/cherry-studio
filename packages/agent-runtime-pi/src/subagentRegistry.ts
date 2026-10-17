@@ -1,8 +1,9 @@
 import type { Usage } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 
-import type { ToolApprovalEvent } from './ports'
+import type { ToolApprovalEvent } from './approval'
 import type { AgentRuntimeSession } from './session'
+import type { AgentRuntimeEvent } from './sessionEvents'
 import type { SubagentDetails, SubagentOutcome, SubagentStopper } from './subagent'
 import { type PendingDelivery, SUBAGENT_NOTIFICATION_TYPE, type SubagentNotificationDetails } from './subagentDelivery'
 import {
@@ -13,7 +14,6 @@ import {
   type SubagentInbox,
   zeroUsage
 } from './subagentRun'
-import type { AgentRuntimeEvent } from './transcriptTap'
 
 /** State entry of the parent: one snapshot per change of a subagent's run. */
 export const SUBAGENT_STATE_TYPE = 'cherry.subagent-state'

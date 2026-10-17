@@ -17,9 +17,9 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, hostStore, streamTextPort } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))

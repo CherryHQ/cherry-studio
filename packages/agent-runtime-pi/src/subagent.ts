@@ -6,12 +6,15 @@ import type {
   AgentToolResult,
   ExtensionContext,
   ExtensionFactory,
-  SessionEntry
+  SessionEntry,
+  SessionManager,
+  ModelRuntime
 } from '@earendil-works/pi-coding-agent'
 
+import type { ToolApprovalEvent } from './approval'
 import type { ToolOutputOffload } from './offload'
-import type { ToolApprovalEvent } from './ports'
 import type { AgentRuntimeModel, AgentRuntimeSession } from './session'
+import type { AgentRuntimeEvent } from './sessionEvents'
 import { renderStatus, shortenResult, SubagentDelivery } from './subagentDelivery'
 import {
   DEFAULT_MAX_BACKGROUND,
@@ -23,10 +26,9 @@ import {
 import {
   answerInterrupted,
   type CreateSubagentSession,
-  forkTranscript,
   MAX_SUBAGENT_REQUESTS,
   openChild,
-  originEntry,
+  nativeModelKey,
   pickModel,
   readOrigin,
   type RunEnd,
@@ -35,8 +37,7 @@ import {
   SUBAGENT_TOOL_NAME,
   SubagentInbox
 } from './subagentRun'
-import type { TranscriptEntry } from './transcript'
-import type { AgentRuntimeEvent } from './transcriptTap'
+import { createSubagentSessionManager, subagentForkPoint } from './subagentSession'
 
 export { SUBAGENT_MESSAGE_TYPE, SUBAGENT_ORIGIN_STATE, SUBAGENT_TOOL_NAME } from './subagentRun'
 
@@ -57,10 +58,10 @@ export interface SubagentPort {
    */
   configure(subagent: Subagent): SubagentSessionOptions | Promise<SubagentSessionOptions>
   /**
-   * The stored transcript of a finished subagent (everything its `onEvent` received), to continue
-   * it. Without it, finished subagents cannot be continued.
+   * Open the finished child's native storage with the same ID.
+   * Without it, finished subagents cannot be continued.
    */
-  load?(sessionId: string): Promise<readonly TranscriptEntry[] | undefined>
+  load?(sessionId: string): Promise<SessionManager | undefined>
   /**
    * Approval events of the subagents' tool calls (the parent's own may come too: they are told
    * apart by `sessionId`, or by call id when an event has none). While one is pending, its subagent
@@ -78,7 +79,7 @@ export interface SubagentPort {
 
 /** A model `findModels` matched. */
 export interface SubagentModelCandidate {
-  /** Unique: one model of one provider, the `modelKey` the transcript records. */
+  /** Native provider/model ID pair (`provider/id`), persisted with the child origin. */
   key: string
   /** Display names, e.g. "OpenRouter" and "Claude Sonnet 4.5". */
   provider: string
@@ -110,10 +111,7 @@ export interface Subagent {
 /** The session options the host gives each subagent; everything else comes from the parent. */
 export interface SubagentSessionOptions {
   extensionFactories?: ExtensionFactory[]
-  /**
-   * The subagent's own transcript events, shaped like the parent's `onEvent`; they never reach the
-   * parent's. The first `transcript-append` holds its start entries (fork prefix and origin entry).
-   */
+  /** Child observations; read its existing branch in `onSessionCreated`. */
   onEvent?: (event: AgentRuntimeEvent) => void
   /** Called before the subagent's first model request; subscribe to its live output here. */
   onSessionCreated?: (session: AgentSession) => void
@@ -124,6 +122,8 @@ export interface SubagentSessionOptions {
    * fork, which keeps the parent's model.
    */
   model?: AgentRuntimeModel
+  /** Borrowed runtime for a different native provider; parent runtime when omitted. */
+  modelRuntime?: ModelRuntime
 }
 
 /** How a subagent's run ended. */
@@ -161,8 +161,8 @@ export interface SubagentToolOptions {
   port: SubagentPort
   /** Builds a session from the parent's options with these overrides. */
   createSession: CreateSubagentSession
-  /** The parent's transcript so far, including the running turn. */
-  parentTranscript: () => readonly TranscriptEntry[]
+  /** The parent's native storage, including the running turn. */
+  parentSession: SessionManager
   /** The parent's model, a subagent's unless the host gives it another. */
   parentModel: AgentRuntimeModel
   /** The parent's `onEvent`. */
@@ -331,7 +331,7 @@ const parametersWithModel = Type.Object({
 export function createSubagentExtension({
   port,
   createSession,
-  parentTranscript,
+  parentSession,
   parentModel,
   emit,
   offload
@@ -388,7 +388,7 @@ export function createSubagentExtension({
       if (inSubagent) return
       ctx = context
       main = { registry, delivery }
-      const { records, undelivered } = restoreSubagents(branch, parentModel.key)
+      const { records, undelivered } = restoreSubagents(branch, nativeModelKey(parentModel))
       registry.restore(records)
       delivery.restore(undelivered)
       unsubscribeApproval = port.onApproval?.((event) => registry.approval(event))
@@ -450,20 +450,19 @@ export function createSubagentExtension({
         let child: AgentRuntimeSession
         let modelKey: string
         try {
-          // Built before `configure`, so a failure building the fork transcript never reaches the host.
-          const prefix = fork ? forkTranscript(parentTranscript(), toolCallId) : []
+          // Built before `configure`, so a missing native fork point never reaches the host.
+          const forkPoint = fork ? subagentForkPoint(parentSession, toolCallId) : undefined
           const options = await port.configure(subagent)
           // A background subagent does not belong to the turn, so the turn's abort does not cancel it.
           if (!background && signal?.aborted) return notStarted(subagent.sessionId, fork)
           const model = pickModel(subagent, options, parentModel)
-          modelKey = model.key
-          const startEntries = [...prefix, originEntry({ parentToolCallId: toolCallId, fork, description, modelKey })]
+          modelKey = nativeModelKey(model)
+          const sessionManager = createSubagentSessionManager(parentSession, subagent, modelKey, forkPoint)
           child = await openChild({
-            subagent,
-            options,
+            fork,
+            options: fork ? { ...options, modelRuntime: undefined } : options,
             model,
-            transcript: startEntries,
-            handOff: startEntries,
+            sessionManager,
             inbox,
             createSession
           })
@@ -501,7 +500,7 @@ export function createSubagentExtension({
       }
     })
 
-    /** A finished subagent's next run, in the background, from the transcript the host stored. */
+    /** A finished subagent's next run, from its native stored branch. */
     const continueSubagent = async (record: SubagentRecord, message: string, toolCallId: string) => {
       const id = record.sessionId
       assertBackgroundAllowed()
@@ -510,8 +509,9 @@ export function createSubagentExtension({
       let child: AgentRuntimeSession
       try {
         const stored = await port.load!(id)
-        const origin = stored && readOrigin(stored)
-        if (!stored || !origin) throw new Error(`Subagent ${id} cannot be continued: its transcript is not available.`)
+        const origin = stored && readOrigin(stored.getBranch())
+        if (!stored || stored.getSessionId() !== id || !origin)
+          throw new Error(`Subagent ${id} cannot be continued: its native session is not available.`)
         const subagent: Subagent = {
           parentToolCallId: origin.parentToolCallId,
           continuedBy: toolCallId,
@@ -523,14 +523,13 @@ export function createSubagentExtension({
         }
         const options = await port.configure(subagent)
         const model = pickModel(subagent, options, parentModel)
-        record.modelKey = model.key
-        const answers = answerInterrupted(stored)
+        record.modelKey = nativeModelKey(model)
+        answerInterrupted(stored)
         child = await openChild({
-          subagent,
+          fork: subagent.fork,
           options,
           model,
-          transcript: [...stored, ...answers],
-          handOff: answers,
+          sessionManager: stored,
           inbox,
           createSession
         })

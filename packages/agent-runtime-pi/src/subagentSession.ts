@@ -1,7 +1,8 @@
 import type { ToolCall } from '@earendil-works/pi-ai'
 import { type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 
-import { type Subagent, SUBAGENT_ORIGIN_STATE } from './subagent'
+import type { Subagent } from './subagent'
+import { SUBAGENT_ORIGIN_STATE } from './subagentRun'
 
 const PLACEHOLDER = 'This tool call was still running when the subagent started; its result is not available here.'
 
@@ -20,6 +21,7 @@ export function subagentForkPoint(parent: SessionManager, toolCallId: string): s
 export function createSubagentSessionManager(
   parent: SessionManager,
   child: Subagent,
+  modelKey: string,
   forkPoint?: string
 ): SessionManager {
   const options = { id: child.sessionId, parentSession: parent.getSessionFile() }
@@ -42,6 +44,11 @@ export function createSubagentSessionManager(
       })
     }
   }
-  manager.appendCustomEntry(SUBAGENT_ORIGIN_STATE, { parentToolCallId: child.parentToolCallId, fork: child.fork })
+  manager.appendCustomEntry(SUBAGENT_ORIGIN_STATE, {
+    parentToolCallId: child.parentToolCallId,
+    fork: child.fork,
+    description: child.description,
+    modelKey
+  })
   return manager
 }
