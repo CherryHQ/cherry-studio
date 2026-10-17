@@ -44,6 +44,12 @@ const user = (content: string): Message => ({ role: 'user', content, timestamp: 
 const assistantsOf = (prompt: LanguageModelV3Prompt) =>
   prompt.flatMap((m) => (m.role === 'assistant' ? [plain(m.content)] : []))
 
+function nativeHistory(messages: Message[]) {
+  const manager = SessionManager.inMemory(tempDir('history'))
+  for (const message of messages) manager.appendMessage(message)
+  return manager
+}
+
 describe('history seeded into a fresh session', () => {
   it('replays signed reasoning recorded by an earlier session of the same model', async () => {
     const first = scriptedModel([
@@ -61,7 +67,10 @@ describe('history seeded into a fresh session', () => {
     await earlier.dispose()
 
     const second = scriptedModel([[...textParts('t', 'You are Li.'), finish('stop')]])
-    const { session } = await createTestSession({ port: streamTextPort(second.model).port, history })
+    const { session } = await createTestSession({
+      port: streamTextPort(second.model).port,
+      sessionManager: nativeHistory(history)
+    })
     await session.prompt("What's my name?")
 
     expect(assistantsOf(second.calls[0].prompt)).toEqual([
@@ -133,7 +142,10 @@ describe('history seeded into a fresh session', () => {
       )
     ]
     const { model, calls } = scriptedModel([[...textParts('t', 'You are Li, in Paris.'), finish('stop')]])
-    const { session } = await createTestSession({ port: streamTextPort(model).port, history })
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      sessionManager: nativeHistory(history)
+    })
     await session.prompt("What's my name and city?")
 
     expect(assistantsOf(calls[0].prompt)).toEqual([
@@ -155,7 +167,10 @@ describe('history seeded into a fresh session', () => {
       assistant([{ type: 'text', text: 'half an ans' }], { stopReason: 'aborted', errorMessage: 'aborted' })
     ]
     const { model, calls } = scriptedModel([[...textParts('t', 'OK.'), finish('stop')]])
-    const { session } = await createTestSession({ port: streamTextPort(model).port, history })
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      sessionManager: nativeHistory(history)
+    })
     await session.prompt('Hello again')
 
     const prompt = calls[0].prompt

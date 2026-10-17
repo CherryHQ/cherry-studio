@@ -3,13 +3,17 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import type { AssistantMessage, Message } from '@earendil-works/pi-ai'
-import { type AgentSession, SessionManager } from '@earendil-works/pi-coding-agent'
+import type { AssistantMessage } from '@earendil-works/pi-ai'
+import { type AgentSession, type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 import { type LanguageModel, simulateReadableStream, streamText } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { onTestFinished } from 'vitest'
 
-import { type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
+import {
+  type AgentRuntimeSessionOptions,
+  type AgentRuntimeEvent,
+  createAgentRuntimeSession
+} from '@cherrystudio/agent-runtime-pi'
 
 import { type AiSdkModel, createAiSdkModelBinding } from './aiSdkModelBinding'
 import { type ModelCallPort, type ModelCallRequest, type ModelCallSideChannel } from './aiSdkTypes'
@@ -93,7 +97,8 @@ export function tempDir(label: string): string {
 type Defaulted = 'cwd' | 'agentDir' | 'model' | 'modelRuntime' | 'systemPrompt'
 export type TestSessionOptions<TRequestOptions> = Omit<AgentRuntimeSessionOptions, Defaulted> &
   Partial<Pick<AgentRuntimeSessionOptions, 'cwd' | 'agentDir' | 'systemPrompt'>> & {
-    history?: Message[]
+    entries?: SessionEntry[]
+    sessionId?: string
     model?: AiSdkModel
     port: ModelCallPort<TRequestOptions>
     sideChannel?: ModelCallSideChannel
@@ -101,7 +106,7 @@ export type TestSessionOptions<TRequestOptions> = Omit<AgentRuntimeSessionOption
   }
 
 export async function createTestSession<TRequestOptions = undefined>(options: TestSessionOptions<TRequestOptions>) {
-  const { port, requestOptions, sideChannel, model, history, ...sessionOptions } = options
+  const { port, requestOptions, sideChannel, model, entries, sessionId, ...sessionOptions } = options
   const binding = await createAiSdkModelBinding({
     port,
     requestOptions: requestOptions as TRequestOptions,
@@ -109,11 +114,9 @@ export async function createTestSession<TRequestOptions = undefined>(options: Te
     model: model ?? MODEL
   })
   const cwd = options.cwd ?? tempDir('cwd')
-  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
-  for (const message of history ?? []) sessionManager.appendMessage(message)
   const runtime = await createAgentRuntimeSession({
-    sessionManager,
     cwd,
+    sessionManager: options.sessionManager ?? SessionManager.inMemory(cwd, { id: sessionId }, entries),
     agentDir: options.agentDir ?? tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
@@ -127,4 +130,15 @@ export function lastAssistant(session: AgentSession): AssistantMessage {
   const message = session.messages.filter((m) => m.role === 'assistant').at(-1)
   if (!message) throw new Error('no assistant message')
   return message
+}
+
+/** Records copied observations for assertions; native SessionManager owns persistence. */
+export function hostStore() {
+  const entries: SessionEntry[] = []
+  const events: AgentRuntimeEvent[] = []
+  const onEvent = (event: AgentRuntimeEvent) => {
+    events.push(event)
+    if (event.type === 'session-append') entries.push(...plain(event.entries))
+  }
+  return { entries, events, onEvent }
 }

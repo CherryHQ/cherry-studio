@@ -2,6 +2,7 @@ import {
   type Api,
   getCurrentTools,
   type Model,
+  type Message,
   type ToolResultMessage,
   type TranscriptContext
 } from '@earendil-works/pi-ai'
@@ -39,9 +40,9 @@ function toToolResultOutput(message: ToolResultMessage): ToolResultOutput {
  * Pi's `transformMessages` first applies its replay rules: signatures and reasoning survive only for
  * the same provider/api/model, orphan tool calls get synthetic results, failed turns are skipped.
  */
-export function toModelMessages(context: TranscriptContext, model: Model<Api>): ModelMessage[] {
+export function toModelMessages(history: Message[], model: Model<Api>): ModelMessage[] {
   const messages: ModelMessage[] = []
-  for (const message of transformMessages(context.messages, model)) {
+  for (const message of transformMessages(history, model)) {
     switch (message.role) {
       case 'system':
         break

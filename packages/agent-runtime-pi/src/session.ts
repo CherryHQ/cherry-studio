@@ -11,9 +11,14 @@ import {
   type ToolDefinition
 } from '@earendil-works/pi-coding-agent'
 
+import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
+import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
+import { recallExtension } from './recall'
+import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
+
 export type AgentRuntimeModel = Model<Api>
 
-export type AgentRuntimeSettings = NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>
+export type AgentRuntimeSettings = Omit<NonNullable<Parameters<typeof SettingsManager.inMemory>[0]>, 'compaction'>
 
 export interface AgentRuntimeSessionOptions {
   /** Borrowed native runtime; the caller owns provider registration and credentials. */
@@ -33,6 +38,11 @@ export interface AgentRuntimeSessionOptions {
   skillPaths?: string[]
   /** Native storage owner. Defaults to an in-memory session; pass create/open for persistence. */
   sessionManager?: SessionManager
+  /** Native entry observations and turn events; never used to restore the session. Must not throw. */
+  onEvent?: (event: AgentRuntimeEvent) => void
+  compaction?: AgentRuntimeCompaction
+  offload?: ToolOutputOffload
+  recall?: boolean
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
@@ -75,8 +85,30 @@ export interface AgentRuntimeSession {
 export async function createAgentRuntimeSession(options: AgentRuntimeSessionOptions): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
   const { modelRuntime, model } = options
+  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
+  const events = new SessionEvents(sessionManager, options.onEvent ?? (() => {}))
+  const { compaction } = options
   const required = sessionRequirements.get(modelRuntime)
-  const settingsManager = SettingsManager.inMemory({ ...options.settings, ...required?.settings })
+  const extensionFactories = [
+    ...(required?.extensionFactories ?? []),
+    ...(compaction?.summarize
+      ? [compactionSummaryExtension(compaction.summarize, (message) => (events.summaryFailure = message))]
+      : []),
+    ...(options.recall ? [recallExtension(() => sessionManager.getBranch())] : []),
+    ...(options.extensionFactories ?? []),
+    ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
+  ]
+  const settingsManager = SettingsManager.inMemory({
+    ...options.settings,
+    ...required?.settings,
+    ...(compaction && {
+      compaction: {
+        enabled: compaction.enabled ?? true,
+        reserveTokens: compaction.reserveTokens,
+        keepRecentTokens: compaction.keepRecentTokens
+      }
+    })
+  })
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -87,14 +119,12 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
     noThemes: true,
     noContextFiles: !options.contextFiles,
     additionalSkillPaths: options.skillPaths,
-    extensionFactories: [...(required?.extensionFactories ?? []), ...(options.extensionFactories ?? [])],
+    extensionFactories,
     // Overriding (even with undefined) keeps disk-discovered SYSTEM.md / APPEND_SYSTEM.md out.
     systemPromptOverride: () => options.systemPrompt,
     appendSystemPromptOverride: () => options.appendSystemPrompt ?? []
   })
   await resourceLoader.reload()
-
-  const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
 
   const { session } = await createAgentSession({
     cwd,
@@ -110,7 +140,12 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
     customTools: options.tools ?? []
   })
+  session.subscribe((event) => events.handle(event))
   await session.bindExtensions({})
+  const baseTools = session.getActiveToolNames()
+  events.setBaseTools(baseTools)
+  if (events.activatedTools.length > 0) session.setActiveToolsByName([...baseTools, ...events.activatedTools])
+  events.flush()
 
   return {
     session,
@@ -123,7 +158,11 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
         try {
           await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
         } finally {
-          session.dispose()
+          try {
+            events.flush()
+          } finally {
+            session.dispose()
+          }
         }
       }
     }
