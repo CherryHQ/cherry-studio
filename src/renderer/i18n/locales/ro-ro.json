@@ -2220,6 +2220,7 @@
   "message.api.check.model.title": "Selectează modelul de utilizat pentru detectare",
   "message.api.connection.failed": "Conexiune eșuată",
   "message.api.connection.success": "Conexiune reușită",
+  "message.attachment_notice.image_ocr": "{{names}} a fost trimis ca text extras (OCR), deoarece acest model nu acceptă imagini. Pentru a trimite imagini direct, alege un model cu suport pentru viziune sau activează Viziunea pentru acest model în setările furnizorului.",
   "message.attachments.pasted_image": "Imagine lipită",
   "message.attachments.pasted_text": "Text lipit",
   "message.backup.cleanup_failed": "Copierea de rezervă s-a încheiat, dar copiile vechi nu au putut fi curățate.",

@@ -2220,6 +2220,7 @@
   "message.api.check.model.title": "Chọn mô hình để sử dụng cho việc phát hiện",
   "message.api.connection.failed": "Kết nối thất bại",
   "message.api.connection.success": "Kết nối thành công",
+  "message.attachment_notice.image_ocr": "{{names}} đã được gửi dưới dạng văn bản trích xuất (OCR) vì mô hình này không hỗ trợ đầu vào hình ảnh. Để gửi hình ảnh trực tiếp, hãy chọn mô hình hỗ trợ thị giác hoặc bật Thị giác cho mô hình này trong Cài đặt nhà cung cấp.",
   "message.attachments.pasted_image": "Hình ảnh đã dán",
   "message.attachments.pasted_text": "Văn bản đã dán",
   "message.backup.cleanup_failed": "Đã sao lưu xong nhưng không thể dọn dẹp các bản sao lưu cũ.",

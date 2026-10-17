@@ -2220,6 +2220,7 @@
   "message.api.check.model.title": "Select the model to use for detection",
   "message.api.connection.failed": "Connection failed",
   "message.api.connection.success": "Connection successful",
+  "message.attachment_notice.image_ocr": "{{names}} was sent as extracted text (OCR) because this model doesn't accept image input. To send images directly, choose a vision-capable model or enable Vision for this model in Provider Settings.",
   "message.attachments.pasted_image": "Pasted Image",
   "message.attachments.pasted_text": "Pasted Text",
   "message.backup.cleanup_failed": "Backup completed, but old backups could not be cleaned up.",

@@ -2220,6 +2220,7 @@
   "message.api.check.model.title": "Selecione o modelo a ser verificado",
   "message.api.connection.failed": "Conexão falhou",
   "message.api.connection.success": "Conexão bem-sucedida",
+  "message.attachment_notice.image_ocr": "{{names}} foi enviado como texto extraído (OCR) porque este modelo não aceita entrada de imagens. Para enviar imagens diretamente, escolha um modelo com visão ou ative a Visão para este modelo nas definições do fornecedor.",
   "message.attachments.pasted_image": "Imagem da área de transferência",
   "message.attachments.pasted_text": "Ficheiro da área de transferência",
   "message.backup.cleanup_failed": "A cópia de segurança foi concluída, mas não foi possível limpar as cópias antigas.",
