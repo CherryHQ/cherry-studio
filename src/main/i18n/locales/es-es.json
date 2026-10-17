@@ -11,6 +11,8 @@
   "agent.session.workspace_status.inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
   "agent.session.workspace_status.missing": "La ruta del espacio de trabajo no existe: {{path}}",
   "agent.session.workspace_status.not_directory": "La ruta del espacio de trabajo no es una carpeta: {{path}}",
+  "ai.image.error.empty_response": "El proveedor de imágenes devolvió una respuesta correcta pero sin datos de imagen utilizables (proveedor \"{{provider}}\", modelo \"{{model}}\"). Es posible que la operación se haya facturado. No se reintentó automáticamente.",
+  "ai.image.error.unusable_response": "No se pudo procesar la respuesta del proveedor de imágenes (proveedor \"{{provider}}\", modelo \"{{model}}\", HTTP 200). Es posible que la operación se haya facturado. No se reintentó automáticamente.",
   "apiGateway.docs.description": "API HTTP de Cherry Studio compatible con OpenAI, Anthropic y Gemini, más los endpoints propios de Cherry (modelos, bases de conocimiento)",
   "apiGateway.docs.language_switcher_label": "Idioma de la documentación",
   "apiGateway.docs.operations.chat_completions": "Crea una respuesta de chat. El cuerpo de la petición y de la respuesta sigue el formato de OpenAI Chat Completions; con `stream: true` la salida es incremental.",

@@ -11,6 +11,8 @@
   "agent.session.workspace_status.inaccessible": "Путь к рабочей области недоступен: {{path}}",
   "agent.session.workspace_status.missing": "Путь к рабочей области не существует: {{path}}",
   "agent.session.workspace_status.not_directory": "Путь к рабочей области не является каталогом: {{path}}",
+  "ai.image.error.empty_response": "Провайдер изображений вернул успешный ответ, но без пригодных данных изображения (провайдер «{{provider}}», модель «{{model}}»). Операция могла быть оплачена. Автоматический повтор не выполнялся.",
+  "ai.image.error.unusable_response": "Не удалось обработать ответ провайдера изображений (провайдер «{{provider}}», модель «{{model}}», HTTP 200). Операция могла быть оплачена. Автоматический повтор не выполнялся.",
   "apiGateway.docs.description": "HTTP API Cherry Studio, совместимый с OpenAI, Anthropic и Gemini, а также собственные эндпоинты Cherry (модели, базы знаний)",
   "apiGateway.docs.language_switcher_label": "Язык документации",
   "apiGateway.docs.operations.chat_completions": "Создаёт ответ чата. Формат запроса и ответа соответствует OpenAI Chat Completions; с `stream: true` вывод передаётся по частям.",
