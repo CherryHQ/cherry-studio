@@ -4862,7 +4862,6 @@
   "settings.models.add.context_window.placeholder": "ör. 128000",
   "settings.models.add.endpoint_type.label": "Uç Nokta Türü",
   "settings.models.add.endpoint_type.placeholder": "Uç nokta türünü seçin",
-  "settings.models.add.endpoint_type.required": "Lütfen bir uç nokta türü seçin",
   "settings.models.add.endpoint_type.tooltip": "API uç noktası türü biçimini seçin",
   "settings.models.add.group_name.label": "Grup Adı",
   "settings.models.add.group_name.placeholder": "ör. ChatGPT",

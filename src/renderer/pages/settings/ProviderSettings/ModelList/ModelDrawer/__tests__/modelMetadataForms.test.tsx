@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
+import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
 import AddModelFormPanel from '../AddModelFormPanel'
 import EditModelDrawer from '../EditModelDrawer'
@@ -144,6 +145,42 @@ describe('model metadata persistence', () => {
       )
     )
   })
+  it.each([
+    ['Image', 'image', 'image-recognition', isVisionModel],
+    ['Audio', 'audio', 'audio-recognition', isAudioModel],
+    ['Video', 'video', 'video-recognition', isVideoModel]
+  ] as const)(
+    'disables and re-enables %s input without stale recognition support',
+    async (label, modality, capability, supports) => {
+      const user = userEvent.setup()
+      const original = ModelSchema.parse({
+        ...model,
+        capabilities: [...model.capabilities, capability],
+        inputModalities: ['text', modality]
+      })
+      render(<EditModelDrawer providerId={provider.id} model={original} open onClose={vi.fn()} />)
+      await user.click(groupButton('Input Modalities', label))
+      await waitFor(() =>
+        expect(update).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            body: { inputModalities: ['text'], capabilities: model.capabilities }
+          })
+        )
+      )
+      const disabled = { ...original, ...update.mock.lastCall![0].body }
+      expect(supports(disabled)).toBe(false)
+      expect(disabled.outputModalities).toEqual(model.outputModalities)
+      await user.click(groupButton('Input Modalities', label))
+      await waitFor(() =>
+        expect(update).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            body: expect.objectContaining({ inputModalities: ['text', modality] })
+          })
+        )
+      )
+      expect(supports({ ...disabled, ...update.mock.lastCall![0].body })).toBe(true)
+    }
+  )
   it('clears output modalities without changing input modalities, capabilities or endpoints', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId={provider.id} model={model} open onClose={vi.fn()} />)

@@ -4862,7 +4862,6 @@
   "settings.models.add.context_window.placeholder": "例: 128000",
   "settings.models.add.endpoint_type.label": "エンドポイントタイプ",
   "settings.models.add.endpoint_type.placeholder": "エンドポイントタイプを選択",
-  "settings.models.add.endpoint_type.required": "エンドポイントタイプを選択してください",
   "settings.models.add.endpoint_type.tooltip": "APIエンドポイントタイプフォーマットを選択",
   "settings.models.add.group_name.label": "グループ名",
   "settings.models.add.group_name.placeholder": "例：ChatGPT",

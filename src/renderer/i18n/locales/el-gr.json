@@ -4862,7 +4862,6 @@
   "settings.models.add.context_window.placeholder": "π.χ. 128000",
   "settings.models.add.endpoint_type.label": "Τύπος endpoint",
   "settings.models.add.endpoint_type.placeholder": "Επιλέξτε τύπο endpoint",
-  "settings.models.add.endpoint_type.required": "Επιλέξτε τύπο endpoint",
   "settings.models.add.endpoint_type.tooltip": "Επιλέξτε τη μορφή endpoint του API",
   "settings.models.add.group_name.label": "Όνομα ομάδας",
   "settings.models.add.group_name.placeholder": "Για παράδειγμα ChatGPT",
