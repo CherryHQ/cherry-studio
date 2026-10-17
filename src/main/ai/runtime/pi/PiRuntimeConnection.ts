@@ -19,6 +19,7 @@ import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
+import { collectAgentMediaNotes, hasAgentMediaAttachment } from '@main/ai/runtime/agentMediaPreface'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
@@ -485,61 +486,94 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
       return
     }
-    const rawContent = buildAgentUserContent(input.message)
+    const deliver = (rawContent: string) => {
+      // A `systemReminder` message is a steer the host re-queued as its own turn (an undelivered steer
+      // or a mid-turn-queued message). It must reach pi wrapped as a redirect (invariant 7, mirroring
+      // the claude driver) and is never a manual `/compact` command — so skip the compact parse and
+      // only wrapped, non-reminder text is considered for `/compact`.
+      const manualCompact = input.systemReminder ? undefined : parseManualCompactCommand(rawContent)
+      if (manualCompact) {
+        this.manualCompactInFlight = true
+        void session.compact(manualCompact.instructions || undefined).then(
+          // compaction_end normally settles the turn first (events fire before resolve); this
+          // settles the no-op case where pi resolves without emitting any compaction event.
+          () => this.maybeCompleteManualCompactTurn(),
+          (error) => {
+            // pi always emits compaction_end (which already settled the turn and cleared the flag)
+            // before rejecting, so this is normally a no-op. Only settle here defensively if the flag
+            // is somehow still set (compaction_end never arrived) — never push a second terminal.
+            if (!this.manualCompactInFlight) return
+            this.manualCompactInFlight = false
+            if (this.closed) return
+            logger.error('pi compact failed', error as Error)
+            this.eventQueue.push({ type: 'error', error })
+          }
+        )
+        return
+      }
 
-    // A `systemReminder` message is a steer the host re-queued as its own turn (an undelivered steer
-    // or a mid-turn-queued message). It must reach pi wrapped as a redirect (invariant 7, mirroring
-    // the claude driver) and is never a manual `/compact` command — so skip the compact parse and
-    // only wrapped, non-reminder text is considered for `/compact`.
-    const manualCompact = input.systemReminder ? undefined : parseManualCompactCommand(rawContent)
-    if (manualCompact) {
-      this.manualCompactInFlight = true
-      void session.compact(manualCompact.instructions || undefined).then(
-        // compaction_end normally settles the turn first (events fire before resolve); this
-        // settles the no-op case where pi resolves without emitting any compaction event.
-        () => this.maybeCompleteManualCompactTurn(),
-        (error) => {
-          // pi always emits compaction_end (which already settled the turn and cleared the flag)
-          // before rejecting, so this is normally a no-op. Only settle here defensively if the flag
-          // is somehow still set (compaction_end never arrived) — never push a second terminal.
-          if (!this.manualCompactInFlight) return
-          this.manualCompactInFlight = false
-          if (this.closed) return
-          logger.error('pi compact failed', error as Error)
-          this.eventQueue.push({ type: 'error', error })
-        }
+      // Native steer lives in redirect() (plan D6); send() starts normal turns. pi only exposes
+      // `/compact` as an SDK method; other Claude CLI commands stay Claude-only slash text.
+      // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
+      const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
+      const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
+      this.promptRunActive = true
+      void session.prompt(content, options).then(
+        () => this.finishPromptRun(),
+        (error) => this.finishPromptRun(error)
       )
+    }
+
+    if (!hasAgentMediaAttachment(input.message)) {
+      deliver(buildAgentUserContent(input.message))
       return
     }
 
-    // Native steer lives in redirect() (plan D6); send() starts normal turns. pi only exposes
-    // `/compact` as an SDK method; other Claude CLI commands stay Claude-only slash text.
-    // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
-    const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
-    const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
-    this.promptRunActive = true
-    void session.prompt(content, options).then(
-      () => this.finishPromptRun(),
-      (error) => this.finishPromptRun(error)
-    )
+    void collectAgentMediaNotes(input.message)
+      .then((notes) => {
+        if (this.closed) return
+        deliver(buildAgentUserContent(input.message, notes))
+      })
+      .catch((error) => {
+        if (this.closed) return
+        logger.error('pi media analysis failed', error as Error)
+        this.eventQueue.push({ type: 'error', error })
+      })
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
     const session = this.session
     if (!session?.isStreaming) return false
 
-    // buildAgentUserContent intentionally flattens attachments to filenames and absolute paths for
-    // filesystem agents; pi's native image channel stays unused until Cherry models multimodal agent
-    // attachments end-to-end.
-    const wrappedText = wrapSteerReminder(buildAgentUserContent(input.message))
-    const pending: PendingSteer = { input }
-    this.pendingSteers.push(pending)
-    void session.steer(wrappedText).catch((error) => {
-      this.removePendingSteer(pending)
-      if (this.closed) return
-      logger.error('pi steer failed', error as Error)
-      this.eventQueue.push({ type: 'error', error })
-    })
+    // Paths stay in the prompt so tools can open the file. Audio and video also
+    // carry compact analysis; pi's native image channel stays unused.
+    const steer = (content: string) => {
+      const wrappedText = wrapSteerReminder(content)
+      const pending: PendingSteer = { input }
+      this.pendingSteers.push(pending)
+      void session.steer(wrappedText).catch((error) => {
+        this.removePendingSteer(pending)
+        if (this.closed) return
+        logger.error('pi steer failed', error as Error)
+        this.eventQueue.push({ type: 'error', error })
+      })
+    }
+
+    if (!hasAgentMediaAttachment(input.message)) {
+      steer(buildAgentUserContent(input.message))
+      return true
+    }
+
+    void collectAgentMediaNotes(input.message)
+      .then((notes) => {
+        if (this.closed) return
+        steer(buildAgentUserContent(input.message, notes))
+      })
+      .catch((error) => {
+        if (this.closed) return
+        logger.error('pi media analysis failed', error as Error)
+        this.eventQueue.push({ type: 'error', error })
+      })
     return true
   }
 
