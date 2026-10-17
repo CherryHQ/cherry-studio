@@ -325,8 +325,9 @@ type AgentSessionRuntimeEntry = {
   /**
    * Provenance of NATIVE Claude subagents, keyed by the SDK's per-session-set `agent_id`. Unlike the
    * bridge children above these have no parent linkage (a native child never forwards a caller id),
-   * so each binds to the turn that was current when the SDK announced it. Keyed entries are the ones
-   * still announced as running; `SubagentStop` removes them.
+   * so each binds to the turn that was current when the SDK announced it. `SubagentStop` does NOT
+   * remove entries — the SDK lets that hook continue the same child via additionalContext — so a
+   * binding lives until the connection resets, the only authoritative termination for its child.
    */
   nativeChildOrigins?: Map<string, boolean>
 }
@@ -3308,8 +3309,8 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       abortController: receiveOnlyTurn.abortController,
       // The wake delivers the background work's result to whichever chat or scheduled fire spawned
-      // it — but only once every owed work has drained. While the connection still lists detached
-      // tasks, the stashed recipients belong to THOSE works' wakes.
+      // it — but only once the stashed obligation's own tasks have drained; another fire's
+      // still-running task in the live set must neither delay nor steal the claim.
       carryChannelListeners: this.wakeClaimsStashedRecipients(entry),
       listeners: [
         this.createPersistenceListener(entry, syntheticMessage),
@@ -3321,14 +3322,15 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /**
    * Whether this wake may claim the topic's stashed channel recipients. The stash is bound to the
-   * background work owing a delivery: while the connection still lists detached tasks, those works'
-   * wakes own the recipients, and an earlier settler must not post its output to their chats — or
-   * consume the stash the real owner still needs. An empty membership (or a driver that publishes
-   * none) means every owed work has completed, so this wake is the last delivery route.
+   * work owing a delivery: it recorded the task ids its fire saw pending, and the claim discharges
+   * once those very ids have left the driver's live set. Session-wide emptiness would strand the
+   * first settler's delivery and let a later unrelated wake post its output to those chats — the
+   * live set legitimately mixes concurrent fires' tasks.
    */
   private wakeClaimsStashedRecipients(entry: AgentSessionRuntimeEntry): boolean {
     const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
-    return (tasks ?? []).length === 0
+    const listed = new Set((tasks ?? []).map((task) => task.id))
+    return application.get('AiStreamManager').stashedWakeRecipientsDischarged(entry.topicId, listed)
   }
 
   /**
@@ -3626,11 +3628,6 @@ export class AgentSessionRuntimeService extends BaseService {
     if (origins.has(nativeSubagentId)) return
     const turn = this.currentTurn(entry)
     origins.set(nativeSubagentId, turn === undefined || turn.headless === true)
-  }
-
-  /** Release one native Claude child's binding; it makes no further calls. */
-  releaseNativeChildOrigin(sessionId: string, nativeSubagentId: string): void {
-    this.entries.get(sessionId)?.nativeChildOrigins?.delete(nativeSubagentId)
   }
 
   /** Whether a native child runs under unattended authority. An unbound child fails closed. */

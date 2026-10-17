@@ -226,7 +226,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // Bind each native child to the turn that spawned it, before it can call a tool. `agent_id` is
   // per-session-set, so the binding is what stops a still-running child from inheriting whichever
   // turn is live when it finally calls (a headless child must stay headless under a desktop
-  // follow-up). Dropped on stop so long-lived sessions don't retain every completed child.
+  // follow-up). The binding lives until the connection resets — SubagentStop is NOT authoritative.
   const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStart') return {}
     application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id)
@@ -235,12 +235,12 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
+  // The authorization binding deliberately stays: the SDK lets a SubagentStop hook continue the
+  // same child via additionalContext, so only the connection reset (which killed the child) may
+  // release it — otherwise the continued child's unattributed calls inherit the foreground turn.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
     sessionState().disposeBashScope(sessionId, input.agent_id)
-    // A stopped child issues no further MCP calls, so it must stop holding the unattributed-call
-    // denial open: the session can resolve its own authority again once unattended work is gone.
-    application.get('AgentSessionRuntimeService').releaseNativeChildOrigin(sessionId, input.agent_id)
     return {}
   }
 

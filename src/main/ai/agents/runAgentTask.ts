@@ -45,6 +45,7 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY } from '@shared/ai/agentSessionBackgroundTasks'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -287,9 +288,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       // reporting to the wake so a failed wake still reaches the subscribed chats.
       for (const listener of channelListeners) listener.enableErrorDelivery()
       // Bind the recipients to this fire's outstanding obligation explicitly: only the fire knows
-      // its background work still owes the chats a delivery. A later stream replacement must not
-      // stash whatever it finds, or an unrelated wake revives a chat this fire already served.
-      application.get('AiStreamManager').stashWakeChannelListeners(topicId, channelListeners)
+      // its background work still owes the chats a delivery. The live task set rides along as the
+      // stash's claim debt, so a concurrent fire's task can neither delay nor steal the claim.
+      const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(session.id))
+      application
+        .get('AiStreamManager')
+        .stashWakeChannelListeners(topicId, channelListeners, new Set((tasks ?? []).map((task) => task.id)))
     }
     settle()
   }

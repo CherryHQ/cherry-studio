@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   terminateHeldTopicStream: vi.fn(),
   finalizeHeldTopicStream: vi.fn(async () => undefined),
   clearPendingChannelListeners: vi.fn(),
+  stashedWakeRecipientsDischarged: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -101,6 +102,8 @@ beforeEach(() => {
   mocks.getLastRuntimeResumeToken.mockReturnValue(null)
   mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
   mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
+  // Real-method default: no stash on the topic → the wake may carry (nothing owed anywhere).
+  mocks.stashedWakeRecipientsDischarged.mockReturnValue(true)
   mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
   mocks.applicationGet.mockImplementation((name: string) => {
     if (name === 'AiStreamManager') {
@@ -114,7 +117,8 @@ beforeEach(() => {
         resolveToolApproval: mocks.resolveToolApproval,
         terminateHeldTopicStream: mocks.terminateHeldTopicStream,
         finalizeHeldTopicStream: mocks.finalizeHeldTopicStream,
-        clearPendingChannelListeners: mocks.clearPendingChannelListeners
+        clearPendingChannelListeners: mocks.clearPendingChannelListeners,
+        stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged
       }
     }
     if (name === 'CacheService') {
@@ -335,10 +339,11 @@ describe('subagent settlement wake (incident replay)', () => {
     void service.closeSession('session-1')
   })
 
-  // The stashed recipients are bound to the work owing their delivery. A wake that settles while
-  // the connection still lists other detached work delivers THAT work's result — it must not
-  // claim recipients whose owing task is still running (or strand them by consuming the stash).
-  it('does not let a wake claim the stashed recipients while other background work still runs', async () => {
+  // The stash is bound to the tasks its fire saw pending — not to session-wide emptiness. A wake
+  // whose owing tasks have left the driver's live set claims the recipients even while ANOTHER
+  // fire's unrelated task is still listed; the old session-wide emptiness rule stranded A's
+  // delivery and let B's later wake post B's output to A's external chats.
+  it('claims the stashed recipients once the owed task ids leave the driver’s live set', async () => {
     const service = new AgentSessionRuntimeService()
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
 
@@ -368,8 +373,53 @@ describe('subagent settlement wake (incident replay)', () => {
     handleRuntimeEvent({ type: 'turn-complete' })
     service.markTurnTerminal('session-1', 'success')
 
-    // The connection still lists another fire's detached task — not the work this wake delivers.
+    // The driver now lists another fire's detached task; this wake's own owed task has drained.
     mocks.cacheGetShared.mockReturnValue([{ id: 'task-b', type: 'task', description: 'Another fire’s work' }])
+    mocks.stashedWakeRecipientsDischarged.mockReturnValue(true)
+
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    // The claim question is asked of the stash itself, against the driver's live set.
+    expect(mocks.stashedWakeRecipientsDischarged).toHaveBeenCalledWith('agent-session:session-1', new Set(['task-b']))
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(expect.objectContaining({ carryChannelListeners: true }))
+    void service.closeSession('session-1')
+  })
+
+  it('withholds the claim while the stash’s own owed tasks are still listed', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      },
+      occupancy: {}
+    }
+    const reader = service
+      .openTurnStream({
+        sessionId: 'session-1',
+        turnId: currentTurn(entry).turnId,
+        signal: new AbortController().signal
+      })
+      .getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    handleRuntimeEvent({ type: 'turn-complete' })
+    service.markTurnTerminal('session-1', 'success')
+
+    // The stash's own work is still pending — the wake delivering a different task's result must
+    // not claim (or strand) the recipients.
+    mocks.cacheGetShared.mockReturnValue([{ id: 'task-a', type: 'task', description: 'The fire’s own work' }])
+    mocks.stashedWakeRecipientsDischarged.mockReturnValue(false)
 
     handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
     await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))

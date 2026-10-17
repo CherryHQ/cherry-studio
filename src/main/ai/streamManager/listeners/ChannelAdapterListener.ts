@@ -173,12 +173,13 @@ export class ChannelAdapterListener implements StreamListener {
     // when a wake emits through this carried listener, and text arriving during the await below
     // belongs to that wake, not to this execution.
     const text = sanitizeChannelOutput(this.takeOwnText(attemptId)).text.trim()
-    // A predecessor's finalize can still be in flight when this execution's terminal arrives on the
-    // same listener (chain-hold gap, background wake). Its `completeStream` owns the chat's single
-    // adapter controller until it settles, so this one has to wait its turn.
-    await this.updateChain
-    if (!this.owesDelivery(attemptId)) return
-
+    // The delivery decision and the terminal's chain position are both taken synchronously: a wake
+    // chunk arriving while the outstanding draft settles must queue behind this terminal, not slip
+    // ahead of it (or flip this execution's dedup decision under it).
+    if (!this.owesDelivery(attemptId)) {
+      await this.updateChain
+      return
+    }
     this.delivered = true
     if (attemptId !== undefined) this.deliveredAttempts.add(attemptId)
     try {
@@ -199,10 +200,13 @@ export class ChannelAdapterListener implements StreamListener {
     // Same rule as `finish`: drop this execution's text before yielding, so a wake emitting through
     // this carried listener during the await does not inherit or re-ship it.
     this.takeOwnText(result.attemptId)
-    // Same ordering rule as `finish`: a predecessor's finalize owns the chat's single adapter
-    // controller until it settles.
-    await this.updateChain
-    if (!this.owesDelivery(result.attemptId)) return
+    // Same synchronous discipline as `finish`: decide delivery and reserve the terminal's chain
+    // position before yielding — a wake chunk queued while the outstanding draft settles must land
+    // behind this error terminal, not ahead of it on the chat's single controller.
+    if (!this.owesDelivery(result.attemptId)) {
+      await this.updateChain
+      return
+    }
     this.delivered = true
     if (result.attemptId !== undefined) this.deliveredAttempts.add(result.attemptId)
     const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
