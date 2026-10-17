@@ -460,7 +460,7 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 ### 11.4 用量与预算
 
 - 计入 goal 的回合里开出的后台运行（派出、转后台、`message_subagent` 续接）属于该 goal，按 `(sessionId, run)` 记。口径与用量相同：发出这次调用的请求计入了 goal（goal 轮里，或 goal 已武装时的通知轮里），它开出的运行就归 goal；人类回合开出或续接的运行不属于它。这样一次运行的用量在结果送到模型时计入一次：通知的 `details.subagents[].usage`，或模型 `stop_subagent` 结果的 `details.usage`；同一次运行被几个结果带到（例如重叠的两次 `stop_subagent` 拿到同一个结果）也只算一次。送达时 goal 没在跑（未武装，例如重建后用户的下一条消息带着它；或已暂停、已停下）也照样计入：用量从 branch 算出（L5 spec §6.1），`/goal resume` 的余量判断和重建都看得到。
-- 预算用完、goal 进入收尾或停止时：拒绝新的后台派出（`subagent` 返回 `The goal's budget is used up; background subagents cannot be started.`），并停掉当前运行属于该 goal、正在跑的后台子代理（`stoppedBy: 'budget'`）。
+- 预算用完、goal 进入收尾或停止时：拒绝新的后台派出（`subagent` 返回 `The goal's budget is used up; background subagents cannot be started.`），并停掉当前运行属于该 goal、正在跑的后台子代理（`stoppedBy: 'budget'`）。停掉子代理不看 settle 走哪条分支：每个 turn 结束时（回复、工具结果和随这一 turn 送达的结果都已在 branch 上）和每次 settle 开始时，只要算出的用量达到预算就停；`confirm-each-round` 的暂停、让路给排队的用户消息都不会跳过它；goal 已暂停或已停下时，送达的结果把用量推过预算，同样停掉它还在跑的子代理。只有预算用完才停子代理：暂停、用户中止或其他停止原因（预算之内）都让它们继续跑。
 - goal 与子代理表在同一个包里，goal 通过包内接口（不对外导出）查询运行中的后台子代理、停止它们。
 
 ### 11.5 审批事件归属
@@ -612,3 +612,4 @@ goal 在 settle 做决定时（L5 spec §6.2 的 decide），原来的 `hasRunni
 2026-10-18，按 PR #21693 的 cherry-pr-review 评审修订：
 
 22. 11.3：通知轮不是 goal 轮，进展也按此算（L5 spec 6.1 的 `goalProgress`）：自己开出一轮的通知结束当前 goal 轮，通知轮里的回复和工具结果不算进那一轮；随运行开头送达的通知属于那一轮。L5 改为从 branch 算进展后，branch 上原来没有在这里结束一轮的标记。
+23. 11.4：预算用完时停掉 goal 的后台子代理，改为在每个 turn 结束和每次 settle 开始时检查，不再放在 settle 决定续跑的分支里，也不看 goal 当时的阶段。原来 `confirm-each-round` 的暂停先返回，超出预算后子代理仍在跑，之后的 settle 因为 goal 已暂停也不再检查；让路给排队用户消息的 settle 同样跳过它（到下一次 settle 才停）。
