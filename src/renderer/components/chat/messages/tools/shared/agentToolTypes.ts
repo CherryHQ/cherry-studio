@@ -49,7 +49,6 @@ import type {
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 import * as z from 'zod'
 
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
@@ -368,7 +367,8 @@ export function extractLaunchReceiptId(output: unknown): string | undefined {
 
 /** dsh's own name for the receipt that resumes a child; other runtimes spell it `SendMessage`. */
 const DSH_SEND_MESSAGE_TOOL_NAME = 'send_message'
-const DSH_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.dsh.transport
+// dsh is retired upstream; the literal keeps historical dsh transcripts readable.
+const DSH_TRANSPORT = 'dsh-agent'
 
 /** The runtime that produced a part, as the transport its adapter stamped onto the call. */
 function getCherryTransport(part: unknown): string | undefined {

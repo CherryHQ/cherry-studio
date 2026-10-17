@@ -24,11 +24,30 @@ The explicit profile/restart operation prepares Windows connections by closing n
 
 ## Execution contract
 
+Manual runs accept any branch in the current repository or a `v*` release tag as
+the `ref` input. The resolver pins it to an exact commit before either platform
+checks out the application; fork references and raw commit SHAs are not inputs.
+Ambiguous branch/tag names require `refs/heads/...` or `refs/tags/...`.
+
+GitHub's **Use workflow from** selector chooses the controller branch, while `ref`
+chooses the application under test. To validate workflow and test changes before
+merging, select the PR branch for both, or use:
+
+```sh
+gh workflow run e2e-regression-test.yml --repo CherryHQ/cherry-studio \
+  --ref feature/e2e-fix -f ref=feature/e2e-fix -f task=all
+```
+
 Branch runs prepare `rebuild:electron` and `build:utility-process` once after installing
 application dependencies. The controller then launches the development server directly,
 including on profile switches and persistence-test restarts. Local controller runs must
 perform the same preparation in the target checkout before `launch`; release installers
 do not need it. Restarting still stops the owned application and preserves its profile.
+Branch launches invoke the checkout's dotenv and electron-vite entry points through Node,
+so package-manager subprocesses cannot escape the owned process group. Each profile sets
+`CS_DEV_PROFILE_ROOT` inside the run directory to isolate boot configuration, migration
+state, user data, and logs from developer instances. Launches disable occluded-window
+backgrounding so Playwright actionability checks keep receiving animation frames.
 
 The workflow keeps ten separately timed steps. Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
 `cases.ts` is the execution manifest. The workflow task dropdown lists `all` and every task ID from the manifest. When adding a task, update the workflow options too; the manifest tests enforce that the lists stay in sync.

@@ -1,3 +1,4 @@
+import { matchesSearchText } from '@renderer/utils/pinyin'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 
@@ -20,7 +21,7 @@ export const buildKnowledgeBaseGroupSections = (
   const unknownGroupIds: string[] = []
 
   for (const base of bases) {
-    if (normalizedSearch && !base.name.toLowerCase().includes(normalizedSearch)) {
+    if (normalizedSearch && !matchesSearchText(base.name, normalizedSearch)) {
       continue
     }
 

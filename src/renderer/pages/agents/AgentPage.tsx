@@ -29,7 +29,7 @@ import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTab, useCurrentTabId, useTabs } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -110,6 +110,11 @@ const AgentPage = () => {
   const isSkillIntent = routeSearch.intent === 'skill'
   const isPreparedIntent = isFeedbackIntent || isSkillIntent
   const currentTabId = useCurrentTabId()
+  const currentTab = useCurrentTab()
+  const agentPinPending = currentTab?.metadata?.agentPinPending === true
+  const currentTabRef = useRef(currentTab)
+  currentTabRef.current = currentTab
+  const { updateTab } = useTabs()
   const routeSessionId = routeSearch.sessionId
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
@@ -515,9 +520,19 @@ const AgentPage = () => {
 
   useEffect(() => {
     const generation = ++routeAgentActivationGenerationRef.current
-    if (!routeAgentId || routeSessionId || activeSessionId || isAgentsLoading || !routeAgentExists) return
+    const enteredByPin = agentPinPending
+    const activationResolved = Boolean(routeAgentId) && !routeSessionId
 
-    closeSurface()
+    if (enteredByPin || activationResolved) {
+      closeSurface()
+    }
+    if (enteredByPin && currentTabRef.current) {
+      const metadata = { ...currentTabRef.current.metadata }
+      delete metadata.agentPinPending
+      updateTab(currentTabRef.current.id, { metadata })
+    }
+    if (!routeAgentId || routeSessionId) return
+    if (activeSessionId || isAgentsLoading || !routeAgentExists) return
     const pendingRequest = routeAgentSessionRequestRef.current
     const sessionPromise =
       pendingRequest?.agentId === routeAgentId
@@ -549,13 +564,16 @@ const AgentPage = () => {
   }, [
     activeSessionId,
     activateSession,
+    agentPinPending,
     closeSurface,
+    currentTabId,
     isAgentsLoading,
     resolveEmptySession,
     routeAgentExists,
     routeAgentId,
     routeSessionId,
-    t
+    t,
+    updateTab
   ])
 
   const showMissingAgentSelection = useCallback(() => {

@@ -223,7 +223,7 @@ function replaceAgentSessionMessageFileRefsTx(
     ...new Set(
       (data.parts ?? [])
         .filter((part) => part.type === 'file')
-        .map((part) => readCherryMeta(part)?.fileEntryId)
+        .flatMap((part) => [readCherryMeta(part)?.fileEntryId, readCherryMeta(part)?.workingFileEntryId])
         .filter((id): id is string => Boolean(id))
     )
   ]
