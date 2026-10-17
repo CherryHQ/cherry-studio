@@ -19,7 +19,14 @@ describe('classifyFfprobeResult', () => {
           { codec_type: 'video', disposition: { attached_pic: 1 } }
         ]
       })
-    ).toEqual({ durationMs: 180_500, hasAudio: true, hasVideo: false, mime: 'audio/mpeg', kind: 'audio' })
+    ).toEqual({
+      durationMs: 180_500,
+      hasAudio: true,
+      hasVideo: false,
+      mime: 'audio/mpeg',
+      kind: 'audio',
+      audioStartMs: 0
+    })
   })
 
   it('uses EBML DocType ahead of the ambiguous matroska,webm format name', () => {
@@ -29,6 +36,25 @@ describe('classifyFfprobeResult', () => {
     }
     expect(classifyFfprobeResult(probe, { ebmlDocType: 'webm' }).mime).toBe('video/webm')
     expect(classifyFfprobeResult(probe, { ebmlDocType: 'matroska' }).mime).toBe('video/x-matroska')
+  })
+
+  it('keeps the audio delay that remains after FFmpeg removes the container start', () => {
+    expect(
+      classifyFfprobeResult({
+        format: { duration: '10', start_time: '0', format_name: 'mov,mp4' },
+        streams: [
+          { codec_type: 'video', start_time: '0', duration: '10' },
+          { codec_type: 'audio', start_time: '2.0', duration: '8' }
+        ]
+      }).audioStartMs
+    ).toBe(2_000)
+
+    expect(
+      classifyFfprobeResult({
+        format: { duration: '10', start_time: '1.5', format_name: 'mp4' },
+        streams: [{ codec_type: 'audio', start_time: '1.5', duration: '10' }]
+      }).audioStartMs
+    ).toBe(0)
   })
 
   it('sniffs WebM and Matroska DocType elements from bounded headers', () => {

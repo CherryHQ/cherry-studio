@@ -23,6 +23,11 @@ export interface ClassifiedMediaProbe {
   hasVideo: boolean
   mime: string
   kind: 'audio' | 'video' | 'unknown'
+  /**
+   * Audio stream start after FFmpeg has removed the container format start.
+   * Extracted WAV timestamps begin at zero, so analysis adds this once.
+   */
+  audioStartMs?: number
 }
 
 function parseDurationMs(...candidates: Array<string | undefined>): number {
@@ -168,7 +173,18 @@ export function classifyFfprobeResult(
     ebmlDocType: options.ebmlDocType
   })
   const kind: ClassifiedMediaProbe['kind'] = hasVideo ? 'video' : hasAudio ? 'audio' : 'unknown'
-  return { durationMs, hasAudio, hasVideo, mime, kind }
+  return { durationMs, hasAudio, hasVideo, mime, kind, audioStartMs: audioTimelineOffsetMs(probe) }
+}
+
+/** Offset that remains once FFmpeg drops the container format start and rewrites WAV time to zero. */
+function audioTimelineOffsetMs(probe: FfprobeResult): number {
+  const audio = (probe.streams ?? []).find((stream) => stream.codec_type === 'audio')
+  const audioStartSeconds = parseFiniteSeconds(audio?.start_time)
+  if (audioStartSeconds == null) return 0
+  const formatStartSeconds = parseFiniteSeconds(probe.format?.start_time) ?? 0
+  const offsetSeconds = audioStartSeconds - formatStartSeconds
+  if (!Number.isFinite(offsetSeconds) || offsetSeconds <= 0) return 0
+  return Math.round(offsetSeconds * 1000)
 }
 
 export function planFrameTimestamps(durationMs: number, maxFrames: number, targetIntervalMs: number): number[] {
