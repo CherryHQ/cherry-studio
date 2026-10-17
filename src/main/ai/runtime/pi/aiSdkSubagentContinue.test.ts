@@ -20,7 +20,7 @@ import {
   untilStopped,
   waitFor
 } from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, MODEL, streamTextPort, tempDir } from './aiSdkSupport'
+import { createTestSession, finish, hostStore, NATIVE_MODEL, streamTextPort, tempDir } from './aiSdkSupport'
 import { textOf } from './aiSdkToolResults'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
@@ -70,7 +70,7 @@ describe('continuing a finished subagent', () => {
         description: 'Check A',
         fork: false,
         background: true,
-        modelKey: `${MODEL.provider}/${MODEL.id}`
+        modelKey: `${NATIVE_MODEL.provider}/${NATIVE_MODEL.id}`
       })
       expect(subagentStates(parent.entries).map((state) => [state.run, state.status])).toEqual([
         [2, 'running'],
