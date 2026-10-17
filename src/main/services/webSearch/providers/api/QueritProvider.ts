@@ -91,19 +91,9 @@ export class QueritProvider extends BaseWebSearchProvider {
     return this.buildContentsResponse(context, contentsPayload)
   }
 
-  /**
-   * Querit endpoints live under `/v1`. Accept an API host configured with or without that
-   * version segment (`https://api.querit.ai` or `https://api.querit.ai/v1`) instead of
-   * requesting `/v1/v1/...`, which the gateway rejects with 404.
-   */
   private resolveQueritUrl(capability: 'searchKeywords' | 'fetchUrls', endpoint: 'search' | 'contents'): string {
     const url = new URL(this.resolveApiUrl(capability, endpoint))
-    const segments = url.pathname.split('/').filter(Boolean)
-    const hasVersion = segments.length >= 2 && segments[segments.length - 2] === 'v1'
-    if (!hasVersion) {
-      segments.splice(segments.length - 1, 0, 'v1')
-    }
-    url.pathname = `/${segments.join('/')}`
+    url.pathname = url.pathname.replace(/\/(?:v1\/)?(search|contents)$/, '/v1/$1')
     return url.toString()
   }
 
