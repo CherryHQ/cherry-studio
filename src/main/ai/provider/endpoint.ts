@@ -4,7 +4,7 @@
  */
 
 import { ENDPOINT_CONNECTION_FAMILY } from '@cherrystudio/provider-registry'
-import { resolveEndpointBaseUrl } from '@shared/ai/endpointConnection'
+import { resolveEndpointBaseUrl } from '@main/ai/provider/endpointConnection'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'

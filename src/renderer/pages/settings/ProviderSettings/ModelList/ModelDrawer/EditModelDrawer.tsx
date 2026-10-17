@@ -193,11 +193,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               }}
               onNameChange={setName}
               onNameBlur={() => {
-                if (name !== model.name) autoSave({ name: name || model.name })
+                autoSave({ name: name || model.name })
               }}
               onGroupChange={setGroup}
               onGroupBlur={() => {
-                if (group !== (model.group ?? '')) autoSave({ group })
+                autoSave({ group })
               }}
               onEndpointTypesChange={(next) => {
                 const nextEndpointTypes = [...next]

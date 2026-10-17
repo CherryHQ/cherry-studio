@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
-import { resolveEndpointBaseUrl } from '@shared/ai/endpointConnection'
+import { resolveEndpointBaseUrl } from '@main/ai/provider/endpointConnection'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 // Stub the registry loader so the preset lookup returns a minimal CherryIN row
