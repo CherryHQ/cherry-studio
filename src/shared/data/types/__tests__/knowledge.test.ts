@@ -92,6 +92,29 @@ describe('KnowledgeSearchResultSchema', () => {
     expect(KnowledgeSearchResultSchema.parse(result)).toEqual(result)
   })
 
+  it('accepts only structured rerank fallback warnings', () => {
+    const result = {
+      pageContent: 'alpha',
+      score: 0.1,
+      scoreKind: 'ranking',
+      rank: 1,
+      metadata: {
+        itemId: '0198f3f2-7d1a-7abc-8def-123456789abc',
+        itemType: 'note',
+        source: 'note-1',
+        chunkIndex: 0,
+        tokenCount: 1
+      },
+      chunkId: 'chunk-1',
+      warning: { kind: 'rerank_failed', reason: 'provider_error' }
+    }
+
+    expect(KnowledgeSearchResultSchema.parse(result)).toEqual(result)
+    expect(() =>
+      KnowledgeSearchResultSchema.parse({ ...result, warning: { ...result.warning, providerBody: 'secret' } })
+    ).toThrow()
+  })
+
   it('rejects search results without required metadata fields', () => {
     const invalidResult = {
       ...result,
