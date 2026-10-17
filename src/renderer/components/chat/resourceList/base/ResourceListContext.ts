@@ -147,6 +147,13 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   isGroupHeaderIconVisible?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => boolean
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
+  /**
+   * Optional label for a super-group boundary rendered as its own stateless row above the group's
+   * own header (e.g. the agent custom-group label in the agent-session "group" display mode). The
+   * row only presents text — no collapse, click, drag or count — and never renders for a group
+   * whose own header is absent. Undefined = no label row.
+   */
+  getGroupLabelAbove?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
   getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void

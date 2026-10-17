@@ -2,6 +2,7 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
+import { useCallback } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -111,38 +112,45 @@ vi.mock('@cherrystudio/ui', () => ({
   PopoverTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key
-  })
-}))
+vi.mock('react-i18next', () => {
+  // Keep `t` stable across renders like real i18next, so unstable mock
+  // identities do not mask stale-closure bugs in memoized callbacks.
+  const t = (key: string) => key
+  return {
+    useTranslation: () => ({
+      t
+    })
+  }
+})
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
-    if (key === 'assistant.tab.sort_type') {
-      return [
-        preferenceMocks.sortType,
-        (value: unknown) => {
-          preferenceMocks.sortType = value as 'list' | 'tags'
-          preferenceMocks.setSortType(value)
-          preferenceMocks.setPreference(key, value)
+    // Keep the setter identity stable across re-renders like the real
+    // preference hook, so stale-closure bugs in consumers are not masked.
+    const setPreferenceValue = useCallback(
+      (nextValue: unknown) => {
+        if (key === 'assistant.tab.sort_type') {
+          preferenceMocks.sortType = nextValue as 'list' | 'tags'
+          preferenceMocks.setSortType(nextValue)
+        } else {
+          preferenceMocks.values.set(key, nextValue)
         }
-      ]
+        preferenceMocks.setPreference(key, nextValue)
+        // Sidebar shortcut mutations call `.catch` on the returned
+        // promise; resolve so those toggle paths do not throw.
+        return Promise.resolve()
+      },
+      [key]
+    )
+
+    if (key === 'assistant.tab.sort_type') {
+      return [preferenceMocks.sortType, setPreferenceValue]
     }
 
     const defaultValue =
       key === 'topic.tab.display_mode' ? 'assistant' : key === 'agent.session.display_mode' ? 'agent' : undefined
 
-    return [
-      preferenceMocks.values.get(key) ?? defaultValue,
-      (value: unknown) => {
-        preferenceMocks.values.set(key, value)
-        preferenceMocks.setPreference(key, value)
-        // Sidebar shortcut mutations call `.catch` on the returned
-        // promise; resolve so those toggle paths do not throw.
-        return Promise.resolve()
-      }
-    ]
+    return [preferenceMocks.values.get(key) ?? defaultValue, setPreferenceValue]
   }
 }))
 
@@ -1610,6 +1618,28 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
     })
+  })
+
+  it('stops agent tag grouping on the second consecutive grouping toggle (tags → list)', () => {
+    const props = {
+      activeAgentId: 'agent-1',
+      agentSessionsSource: createAgentSessionsSource(),
+      onSelectSession: vi.fn(),
+      onCreateSession: vi.fn(),
+      onShowMissingAgentSelection: vi.fn()
+    }
+    const { rerender } = render(<AgentResourceList {...props} />)
+
+    // sort_type === 'list' → the menu offers "group by tag"; the first
+    // click turns grouping on.
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.groups.group_by' })[0])
+    expect(preferenceMocks.setPreference).toHaveBeenLastCalledWith('agent.tab.sort_type', 'tags')
+
+    // The menu label flips to "ungroup"; the second click must turn
+    // grouping off, not write 'tags' again.
+    rerender(<AgentResourceList {...props} />)
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.groups.ungroup' })[0])
+    expect(preferenceMocks.setPreference).toHaveBeenLastCalledWith('agent.tab.sort_type', 'list')
   })
 
   it('clears the active agent selection while a resource view is active', () => {
