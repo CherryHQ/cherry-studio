@@ -174,6 +174,7 @@
   "settings.mcp.oauth.callback.title": "Autenticação Bem-Sucedida",
   "settings.mcp.oauth.cancelled": "A autorização foi cancelada.",
   "settings.mcp.oauth.not_completed": "A autorização no navegador não foi concluída.",
+  "settings.mcp.oauth.registration_required": "Este servidor não suporta o registo automático de clientes OAuth. O OAuth requer um cliente previamente registado. Para o GitHub, adicione Authorization=Bearer YOUR_GITHUB_PAT aos cabeçalhos deste servidor com o seu token de acesso pessoal, guarde e reinicie o servidor.",
   "settings.mcp.oauth.required": "É necessário iniciar sessão.",
   "settings.title": "Configurações",
   "tray.computer_use.active": "A controlar",
