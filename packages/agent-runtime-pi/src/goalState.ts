@@ -333,7 +333,8 @@ const requestTokens = (usage: Usage) => usage.input + usage.output + usage.cache
 
 /**
  * Spec §6.1: each piece of usage on the branch that counts toward a goal, with that goal's id. A
- * request counts when it was made in one of the goal's admitted rounds while the goal was active;
+ * request counts when it was made in one of the goal's admitted rounds while the goal was active,
+ * judged where its input ends (state written while it ran, a `/goal pause`, does not change that);
  * the usage a tool result reports (a subagent's requests) counts with the request that made its call.
  */
 function* countedUsage(entries: readonly SessionEntry[]): Generator<GoalUsage & { goalId: string }> {
@@ -341,28 +342,37 @@ function* countedUsage(entries: readonly SessionEntry[]): Generator<GoalUsage & 
   let goal: GoalSnapshot | undefined
   // The goal whose admitted round the branch is in: a person's message, any round message or another goal ends it.
   let round: string | undefined
+  // The goal a request whose input ends at the last message entry counts toward.
+  let requestGoal: string | undefined
   const callsFor = new Map<string, string | undefined>()
   for (const entry of entries) {
     if (isGoalState(entry)) {
       const data = entry.data as GoalSnapshot | GoalCleared
       goal = 'cleared' in data ? undefined : data
       if (goal?.id !== round) round = undefined
-    } else if (isRoundMessage(entry)) {
+      continue
+    }
+    if (entry.type !== 'message' && entry.type !== 'custom_message') continue
+    if (entry.type === 'message' && entry.message.role === 'assistant') {
+      const { message } = entry
+      for (const block of message.content) if (block.type === 'toolCall') callsFor.set(block.id, requestGoal)
+      if (requestGoal)
+        yield { goalId: requestGoal, tokens: requestTokens(message.usage), usd: message.usage.cost.total }
+      continue
+    }
+    if (isRoundMessage(entry)) {
       const details = entry.details as RoundDetails
       round = stale.has(details.id) ? undefined : details.goalId
     } else if (entry.type === 'message') {
       const { message } = entry
       if (message.role === 'user') round = undefined
-      else if (message.role === 'assistant') {
-        const counted = round !== undefined && goal?.id === round && goal.phase === 'active' ? round : undefined
-        for (const block of message.content) if (block.type === 'toolCall') callsFor.set(block.id, counted)
-        if (counted) yield { goalId: counted, tokens: requestTokens(message.usage), usd: message.usage.cost.total }
-      } else if (message.role === 'toolResult') {
+      else if (message.role === 'toolResult') {
         const counted = callsFor.get(message.toolCallId)
         if (counted && message.usage)
           yield { goalId: counted, tokens: message.usage.totalTokens, usd: message.usage.cost.total }
       }
     }
+    requestGoal = round !== undefined && goal?.id === round && goal.phase === 'active' ? round : undefined
   }
 }
 

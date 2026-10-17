@@ -9,6 +9,7 @@ import {
   approvals,
   askAtTurnEnd,
   crashedEntries,
+  goalNotices,
   goalPort,
   goalSession,
   heldGoalSession,
@@ -818,6 +819,41 @@ describe('goal self-reports', () => {
     })
     // The verifier gets the session's conversation, round prompt included.
     expect(seen[0]).toContain('<goal_round>')
+  })
+
+  // Breaks when a reply is judged by the goal state at its own position: a pause written while the
+  // reply's message_end handlers ran would drop a request made while the goal was active.
+  it('counts a request made while the goal was active although a pause lands before its reply', async () => {
+    let handling!: () => void
+    const pending = new Promise<void>((resolve) => (handling = resolve))
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    const slowReplyHandler: ExtensionFactory = (pi) => {
+      let replies = 0
+      pi.on('message_end', async (event) => {
+        if (event.message.role !== 'assistant' || replies++ > 0) return
+        handling()
+        await gate
+      })
+    }
+    const { session: s, host } = await goalSession([working], goalPort({ defaults: { budget: { tokens: 10 } } }), {
+      laterExtensions: [slowReplyHandler]
+    })
+    const run = promptIdle(s, '/goal Keep working')
+    await pending
+    await s.prompt('/goal pause')
+    release()
+    await run
+    await s.waitForIdle()
+
+    // One 17-token request against a 10-token budget.
+    await s.prompt('/goal resume')
+    expect(goalNotices(host.entries).at(-1)).toMatchObject({
+      level: 'error',
+      text: expect.stringMatching(/raise max_goal_rounds or the budget/)
+    })
+    await s.prompt('/goal')
+    expect(notices(host.entries).at(-1)).toContain('Tokens: 17')
   })
 
   // Breaks when the request that stops the goal is left out of the stop's snapshot: a rebuilt session
