@@ -165,7 +165,7 @@ async function expectRebuildAgrees(entries: SessionEntry[], live: unknown, port:
     agentDir: tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     sessionManager: SessionManager.inMemory(cwd, undefined, entries),
-    extensionFactories: [...binding.extensionFactories, createGoalExtension({ ...port, onApproval: undefined })]
+    extensionFactories: [createGoalExtension({ ...port, onApproval: undefined })]
   })
   try {
     const view = live as { goal: unknown; activation?: string }
