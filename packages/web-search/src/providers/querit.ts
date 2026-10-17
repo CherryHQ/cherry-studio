@@ -2,10 +2,11 @@ import * as z from 'zod'
 
 import { WEB_SEARCH_PROVIDER_CATALOG } from '../catalog'
 import { apiUrl, bearer, checkProviderError, invalidResponse, requestJson } from '../protocols/http'
-import type { WebSearchProviderModule } from '../types'
+import type { ProtocolContext, WebSearchProviderModule } from '../types'
 
-const QueritSearchResponseSchema = z.object({
-  error_code: z.number(),
+const QueritStatusSchema = z.object({ error_code: z.coerce.number() })
+
+const QueritSearchResponseSchema = QueritStatusSchema.extend({
   error_msg: z.string(),
   query_context: z.object({
     query: z.string()
@@ -24,8 +25,7 @@ const QueritSearchResponseSchema = z.object({
   })
 })
 
-const QueritContentsResponseSchema = z.object({
-  error_code: z.number(),
+const QueritContentsResponseSchema = QueritStatusSchema.extend({
   error_msg: z.string(),
   results: z
     .array(
@@ -42,6 +42,18 @@ const QueritContentsResponseSchema = z.object({
     .default([])
 })
 
+function queritUrl(apiHost: string, endpoint: 'search' | 'contents'): string {
+  const url = new URL(apiUrl(apiHost, endpoint))
+  url.pathname = url.pathname.replace(/\/(?:v1\/)?(search|contents)$/, '/v1/$1')
+  return url.toString()
+}
+
+function checkQueritError(context: ProtocolContext, value: unknown): void {
+  const parsed = QueritStatusSchema.safeParse(value)
+  if (parsed.success && parsed.data.error_code === 200) return
+  checkProviderError(context, value, 'error_code')
+}
+
 export const querit: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.querit,
   async execute(context) {
@@ -50,7 +62,7 @@ export const querit: WebSearchProviderModule = {
       const payload = await requestJson(
         context,
         {
-          url: apiUrl(context.apiHost, '/v1/search'),
+          url: queritUrl(context.apiHost, 'search'),
           method: 'POST',
           headers: bearer(context),
           body: {
@@ -62,7 +74,7 @@ export const querit: WebSearchProviderModule = {
           }
         },
         QueritSearchResponseSchema,
-        (value) => checkProviderError(context, value, 'error_code')
+        (value) => checkQueritError(context, value)
       )
       return payload.results.result.flatMap((item) => {
         const url = item.url?.trim()
@@ -81,13 +93,13 @@ export const querit: WebSearchProviderModule = {
     const payload = await requestJson(
       context,
       {
-        url: apiUrl(context.apiHost, '/v1/contents'),
+        url: queritUrl(context.apiHost, 'contents'),
         method: 'POST',
         headers: bearer(context),
         body: { urls: [call.input.trim()], format: 'markdown', extrasMeta: true }
       },
       QueritContentsResponseSchema,
-      (value) => checkProviderError(context, value, 'error_code')
+      (value) => checkQueritError(context, value)
     )
     const page = payload.results[0]
     const content = page?.content?.trim()

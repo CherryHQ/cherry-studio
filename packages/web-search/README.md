@@ -51,6 +51,10 @@ detect region or retry another endpoint.
 `apiHost: undefined` uses a public default. An explicit empty address fails validation. SearXNG
 and Crawl4AI have no default deployment. Local `fetch` and Desktop DuckDuckGo remain host-owned.
 
+Querit accepts API hosts with or without `/v1` and numeric-string response codes. Crawl4AI uses
+the Cloud `/scrape` protocol for `crawl4ai.com` and its subdomains, requiring an API key. Other
+hosts retain the self-hosted `/md` protocol with an optional token.
+
 ## Transport and errors
 
 Implement `WebSearchTransport.request` with the host network stack. Requests contain a complete

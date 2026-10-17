@@ -195,6 +195,129 @@ describe('portable provider contracts', () => {
   })
 })
 
+describe('Querit and Crawl4AI deployment contracts', () => {
+  it.each(['https://api.querit.ai/v1', 'https://api.querit.ai/v1/'])(
+    'accepts string success codes and an already versioned Querit API host %s',
+    async (apiHost) => {
+      const searchProvider = setup(
+        querit,
+        JSON.stringify({ ...JSON.parse(fixture('querit-response.json')), error_code: '200' })
+      )
+      const searchResult = await searchProvider.client.execute({
+        ...search('querit'),
+        capability: 'searchKeywords',
+        config: { apiHost, maxResults: 4 }
+      })
+      expect(searchProvider.requests[0].url).toBe('https://api.querit.ai/v1/search')
+      expect(searchResult.results[0].content).toBe('Querit Content')
+
+      const fetchProvider = setup(
+        querit,
+        JSON.stringify({ ...JSON.parse(fixture('querit-contents-response.json')), error_code: '200' })
+      )
+      const fetchResult = await fetchProvider.client.execute({
+        providerId: 'querit',
+        capability: 'fetchUrls',
+        input: 'https://querit.example/article',
+        config: { apiHost },
+        credentials: { apiKey: 'test-key' }
+      })
+      expect(fetchProvider.requests[0].url).toBe('https://api.querit.ai/v1/contents')
+      expect(fetchResult.results[0].content).toBe('# Querit Article\n\nQuerit crawled markdown content.')
+    }
+  )
+
+  it.each(['searchKeywords', 'fetchUrls'] as const)(
+    'preserves Querit string error codes for %s',
+    async (capability) => {
+      const { client } = setup(querit, JSON.stringify({ error_code: '401', error_msg: 'Invalid credential' }))
+      await expect(
+        client.execute(
+          capability === 'searchKeywords'
+            ? search('querit')
+            : {
+                providerId: 'querit',
+                capability,
+                input: 'https://querit.example/article',
+                config: {},
+                credentials: { apiKey: 'test-key' }
+              }
+        )
+      ).rejects.toMatchObject({ kind: 'provider', providerCode: '401', message: 'Invalid credential' })
+    }
+  )
+
+  it.each(['https://crawl4ai.com', 'https://api.crawl4ai.com'])(
+    'uses the authenticated Cloud scrape protocol for %s',
+    async (apiHost) => {
+      const { client, requests } = setup(crawl4ai, JSON.stringify({ ok: true, markdown: '  # Example Domain  ' }))
+      const url = 'https://example.com'
+      const result = await client.execute({
+        providerId: 'crawl4ai',
+        capability: 'fetchUrls',
+        input: url,
+        config: { apiHost },
+        credentials: { apiKey: 'cloud-key' }
+      })
+      expect(requests[0].url).toBe(`${apiHost}/scrape`)
+      expect(JSON.parse(requests[0].body!)).toEqual({ url, format: 'md' })
+      expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer cloud-key')
+      expect(result.results).toEqual([{ title: url, content: '# Example Domain', url, sourceInput: url }])
+    }
+  )
+
+  it('rejects Crawl4AI Cloud requests without a key before making a network request', async () => {
+    const { client, requests } = setup(crawl4ai, '{}')
+    await expect(
+      client.execute({
+        providerId: 'crawl4ai',
+        capability: 'fetchUrls',
+        input: 'https://example.com',
+        config: { apiHost: 'https://api.crawl4ai.com' }
+      })
+    ).rejects.toMatchObject({ kind: 'configuration', code: 'api_key_missing' })
+    expect(requests).toEqual([])
+  })
+
+  it.each([
+    [{ ok: false }, 'provider', 'provider_error'],
+    [{ ok: true, markdown: '   ' }, 'invalid_response', 'empty_content'],
+    [{ ok: 'true', markdown: 'Invalid success flag' }, 'invalid_response', 'schema_mismatch']
+  ])('rejects unsuccessful, empty, or malformed Crawl4AI Cloud results: %j', async (payload, kind, code) => {
+    const { client } = setup(crawl4ai, JSON.stringify(payload))
+    await expect(
+      client.execute({
+        providerId: 'crawl4ai',
+        capability: 'fetchUrls',
+        input: 'https://example.com',
+        config: { apiHost: 'https://api.crawl4ai.com' },
+        credentials: { apiKey: 'cloud-key' }
+      })
+    ).rejects.toMatchObject({ kind, code })
+  })
+
+  it.each(['http://localhost:11235/proxy', 'https://crawl4ai.com.example.org/proxy'])(
+    'keeps the token-optional self-hosted protocol for %s',
+    async (apiHost) => {
+      const url = 'https://example.com'
+      const { client, requests } = setup(
+        crawl4ai,
+        JSON.stringify({ url, markdown: '  Self-hosted page  ', success: true })
+      )
+      const result = await client.execute({
+        providerId: 'crawl4ai',
+        capability: 'fetchUrls',
+        input: url,
+        config: { apiHost }
+      })
+      expect(requests[0].url).toBe(`${apiHost}/md`)
+      expect(JSON.parse(requests[0].body!)).toEqual({ url, f: 'fit' })
+      expect(new Headers(requests[0].headers).has('authorization')).toBe(false)
+      expect(result.results).toEqual([{ title: url, content: 'Self-hosted page', url, sourceInput: url }])
+    }
+  )
+})
+
 describe('Exa MCP content contracts', () => {
   it.each(['exa-mcp-response.txt', 'exa-mcp-highlights-response.txt'])(
     'retains search content from %s',
