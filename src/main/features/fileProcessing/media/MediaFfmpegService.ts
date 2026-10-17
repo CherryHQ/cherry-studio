@@ -22,6 +22,12 @@ import type { ClassifiedMediaProbe } from './probeClassification'
 
 const logger = loggerService.withContext('MediaFfmpegService')
 
+function observedRejection(reason: unknown): Promise<never> {
+  const rejected = Promise.reject(reason)
+  void rejected.catch(() => undefined)
+  return rejected
+}
+
 export type MediaProbeRequest = Omit<MediaProbeInput, 'pidRegistryPath'>
 export type MediaExtractAudioRequest = Omit<MediaExtractAudioInput, 'pidRegistryPath'>
 export type MediaExtractFramesRequest = Omit<MediaExtractFramesInput, 'pidRegistryPath'>
@@ -72,16 +78,39 @@ export class MediaFfmpegService extends BaseService {
     input: Omit<MediaFfmpegContract['methods'][M]['input'], 'pidRegistryPath'>,
     options: UtilityProcessRequestOptions<MediaFfmpegContract['methods'][M]['event']>
   ): Promise<MediaFfmpegContract['methods'][M]['output']> {
+    const signal = options.signal
+    if (signal?.aborted) return observedRejection(signal.reason)
+
     const generation = this.generation
-    const run = this.gate.then(
-      () => this.request(method, input, options, generation),
-      () => this.request(method, input, options, generation)
+    let waiting = true
+    let rejectWaiting: (reason?: unknown) => void = () => undefined
+    const caller = new Promise<MediaFfmpegContract['methods'][M]['output']>((resolve, reject) => {
+      rejectWaiting = reject
+      const start = () => {
+        waiting = false
+        if (signal?.aborted) {
+          reject(signal.reason)
+          return
+        }
+        return this.request(method, input, options, generation).then(resolve, reject)
+      }
+      const queued = this.gate.then(start, start)
+      this.gate = queued.then(
+        () => undefined,
+        () => undefined
+      )
+    })
+    // `queued` already has a rejection handler. `caller` can reject while a
+    // consumer is still attaching its own, so observe it without swallowing it.
+    void caller.catch(() => undefined)
+    signal?.addEventListener(
+      'abort',
+      () => {
+        if (waiting) rejectWaiting(signal.reason)
+      },
+      { once: true }
     )
-    this.gate = run.then(
-      () => undefined,
-      () => undefined
-    )
-    return run
+    return caller
   }
 
   private async request<M extends keyof MediaFfmpegContract['methods'] & string>(
