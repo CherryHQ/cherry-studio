@@ -9,7 +9,7 @@ import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import { ClientMcpConnection } from '../connections/ClientMcpConnection'
 
 const mcpCatalogMock = vi.hoisted(() => ({
-  clearSharedToolsCache: vi.fn(),
+  invalidateTools: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
 }))
 
