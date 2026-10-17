@@ -17,7 +17,6 @@ import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
-import { agentTaskRunService } from '@data/services/AgentTaskRunService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
@@ -162,11 +161,7 @@ export class AgentSessionService {
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length === 0) return
-    if (kind === 'membership')
-      effects.push(
-        { endpoint: '/agent-workspaces', kind: 'membership' },
-        { endpoint: '/agent-task-dashboard', kind: 'membership' }
-      )
+    if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
     notifyDataApiDataChange(effects)
   }
 
@@ -1080,7 +1075,6 @@ export class AgentSessionService {
       throw DataApiErrorFactory.notFound('Session', missingId)
     }
     if (trashedIds.length === 0) return { trashedIds, taskScheduleIds: [], deliveryResults: [] }
-    agentTaskRunService.reviewDeletedTx(tx, { sessionIds: trashedIds })
 
     const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, trashedIds)
     const taskScheduleIds = rows.flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
@@ -1243,15 +1237,14 @@ export class AgentSessionService {
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
-    const sessions = tx
-      .select({ id: sessionsTable.id })
-      .from(sessionsTable)
+    const deletedSessions = tx
+      .delete(sessionsTable)
       .where(eq(sessionsTable.workspaceId, workspaceId))
+      .returning({ id: sessionsTable.id })
       .all()
-    return this.deleteByIdsTx(
-      tx,
-      sessions.map((session) => session.id)
-    )
+    const sessionIds = deletedSessions.map((session) => session.id)
+    pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
+    return sessionIds
   }
 
   deleteByAgentId(agentId: string, options: { permanent?: boolean } = {}): DeleteAgentSessionsResult {
@@ -1438,7 +1431,6 @@ export class AgentSessionService {
   private deleteByIdsTx(tx: DbOrTx, ids: string[]): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
-    agentTaskRunService.reviewDeletedTx(tx, { sessionIds: uniqueIds })
 
     const rows = tx
       .delete(sessionsTable)

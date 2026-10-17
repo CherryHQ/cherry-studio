@@ -474,12 +474,8 @@ export const aiRequestSchemas = {
     output: ScheduledTaskEntitySchema
   }),
   'ai.agent.task_dashboard.stop': defineRoute({
-    input: z.strictObject({ runIds: z.array(z.uuid()).min(1).max(500) }),
+    input: z.strictObject({ runIds: z.array(z.string().min(1).max(200)).min(1).max(500) }),
     output: z.array(z.strictObject({ id: z.string(), result: z.enum(['cancelled', 'skipped', 'failed']) }))
-  }),
-  'ai.agent.task_dashboard.view_session': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1), automatic: z.boolean().default(false) }),
-    output: z.void()
   }),
   'ai.agent.task.update': defineRoute({
     input: agentTaskRefSchema.extend({ patch: agentTaskPatchSchema }),

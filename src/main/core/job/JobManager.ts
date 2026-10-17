@@ -8,7 +8,6 @@ import {
   BaseService,
   DependsOn,
   type Disposable,
-  Emitter,
   Injectable,
   Phase,
   SERVICE_STOP_TIMEOUT_MS,
@@ -142,12 +141,6 @@ interface RecoveryResumePoint {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['SchedulerService'])
 export class JobManager extends BaseService {
-  private readonly jobChanged = this.registerDisposable(new Emitter<JobSnapshot>())
-  readonly onJobChanged = this.jobChanged.event
-  private readonly recoveryCompleted = this.registerDisposable(new Emitter<void>())
-  readonly onRecoveryCompleted = this.recoveryCompleted.event
-  startupRecoveryComplete = false
-
   isExecuting(jobId: string): boolean {
     return this.inFlightExecuted.has(jobId)
   }
@@ -501,8 +494,6 @@ export class JobManager extends BaseService {
     }
 
     logger.info('JobManager startup recovery complete', { schedules: schedules.length })
-    this.startupRecoveryComplete = true
-    this.recoveryCompleted.fire()
   }
 
   protected override async onStop(): Promise<void> {
@@ -1738,8 +1729,6 @@ export class JobManager extends BaseService {
    * `JOB_HANDLER_TIMEOUT` (vs the generic `JOB_HANDLER_THREW`).
    */
   private spawnExecute(row: JobRow): void {
-    const startedSnapshot = jobService.getById(row.id)
-    if (startedSnapshot) this.publishState(startedSnapshot)
     const handler = this.handlers.get(row.type)
     if (!handler) {
       logger.error('spawnExecute: missing handler — finalizing as failed', { type: row.type, id: row.id })
@@ -1779,6 +1768,8 @@ export class JobManager extends BaseService {
       resolveExecuted = resolve
     })
     this.inFlightExecuted.set(row.id, executed)
+    const startedSnapshot = jobService.getById(row.id)
+    if (startedSnapshot) this.publishState(startedSnapshot)
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
     if (row.timeoutMs && row.timeoutMs > 0) {
@@ -2420,7 +2411,6 @@ export class JobManager extends BaseService {
 
   /** Push a job snapshot to the cross-window shared cache (renderer hooks read this). */
   private publishState(snapshot: JobSnapshot): void {
-    this.jobChanged.fire(snapshot)
     application.get('CacheService').setShared(`${JOB_STATE_KEY_PREFIX}${snapshot.id}`, snapshot, 60_000)
   }
 
