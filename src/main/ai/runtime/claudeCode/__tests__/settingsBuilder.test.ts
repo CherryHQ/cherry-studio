@@ -524,6 +524,30 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(fromRow.permissionMode).toBe('plan')
   })
 
+  it('spawns a reassigned session under the new agent row, not the previous agent override', async () => {
+    // The override is the approving agent's property: after the session moved to another agent,
+    // that agent's Plan Only row decides again — the old approval must not hand it file edits.
+    mocks.getAgent.mockImplementation((agentId: string) => ({
+      id: agentId,
+      model: 'provider-1::model-1',
+      mcps: [],
+      configuration: { permission_mode: 'plan' }
+    }))
+    const reassigned = {
+      id: 'session-1',
+      agentId: 'agent-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
+    try {
+      const settings = await buildClaudeCodeSessionSettings(reassigned as never, {} as never)
+      expect(settings.permissionMode).toBe('plan')
+    } finally {
+      clearSessionEffectivePermissionMode('session-1')
+    }
+  })
+
   it('only overrides commit attribution when the preference explicitly turns it off', async () => {
     const session = {
       id: 'session-1',
