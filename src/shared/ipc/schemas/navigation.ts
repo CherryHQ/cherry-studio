@@ -56,7 +56,8 @@ export const navigationRequestSchemas = {
   'navigation.focus_or_open_conversation': defineRoute({
     input: z.object({
       target: conversationNavigationTargetSchema,
-      title: z.string()
+      title: z.string(),
+      messageId: z.string().min(1).nullable().optional()
     }),
     output: z.void()
   }),
@@ -92,6 +93,7 @@ export type NavigationEventSchemas = {
     requestId: string
     target: ConversationNavigationTarget
     title: string
+    messageId?: string | null
   }
   // Broadcast fall-through for a deep link whose host matched no dedicated handler
   // (e.g. the PPIO OAuth callback, which has an empty host). Carries the raw url + query

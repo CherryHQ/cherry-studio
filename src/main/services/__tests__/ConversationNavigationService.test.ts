@@ -118,6 +118,40 @@ describe('ConversationNavigationService', () => {
     }
   })
 
+  it('serializes different anchors while coalescing the same anchor without opening a second tab', async () => {
+    const first = service.focusOrOpen(target, 'Task', null, 'first')
+    expect(service.focusOrOpen(target, 'Task', null, 'first')).toBe(first)
+    const second = service.focusOrOpen(target, 'Task', null, null)
+    const firstId = ownershipRequestId()
+    service.reportOwnership(firstId, 'main-1', false)
+    service.reportOwnership(firstId, 'sub-1', true)
+    await vi.waitFor(() =>
+      expect(mocks.send).toHaveBeenCalledWith('sub-1', 'navigation.conversation_focus_or_open_requested', {
+        requestId: firstId,
+        target,
+        title: 'Task',
+        messageId: 'first'
+      })
+    )
+    service.reportOwnership(firstId, 'sub-1', true)
+    await first
+    await vi.waitFor(() => expect(ownershipRequestId()).not.toBe(firstId))
+    const nextId = ownershipRequestId()
+    service.reportOwnership(nextId, 'main-1', false)
+    service.reportOwnership(nextId, 'sub-1', true)
+    await vi.waitFor(() =>
+      expect(mocks.send).toHaveBeenCalledWith('sub-1', 'navigation.conversation_focus_or_open_requested', {
+        requestId: nextId,
+        target,
+        title: 'Task',
+        messageId: null
+      })
+    )
+    service.reportOwnership(nextId, 'sub-1', true)
+    await second
+    expect(mocks.openRouteInMainWindow).not.toHaveBeenCalled()
+  })
+
   it('focuses the one window that currently owns the conversation', async () => {
     const navigation = service.focusOrOpen(target, 'Refactor project', 'main-1')
     const requestId = ownershipRequestId()
@@ -220,31 +254,45 @@ describe('ConversationNavigationService', () => {
     expect(mocks.showMainWindow).toHaveBeenCalledOnce()
   })
 
-  it('cold-opens the main route when no full-chrome window exists', async () => {
-    let mainWindowCreated = false
-    mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
-      mainWindowCreated && type === WindowType.Main ? [windowInfo('main-1', WindowType.Main)] : []
-    )
-    mocks.openRouteInMainWindow.mockImplementation(() => {
-      mainWindowCreated = true
-    })
+  it.each([undefined, null, 'older-message'])(
+    'cold-opens and delivers the requested anchor (%s)',
+    async (messageId) => {
+      let mainWindowCreated = false
+      mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+        mainWindowCreated && type === WindowType.Main ? [windowInfo('main-1', WindowType.Main)] : []
+      )
+      mocks.openRouteInMainWindow.mockImplementation(() => {
+        mainWindowCreated = true
+      })
 
-    const navigation = service.focusOrOpen(target, 'Refactor project')
+      const navigation = service.focusOrOpen(target, 'Refactor project', null, messageId)
 
-    expect(mocks.openRouteInMainWindow).toHaveBeenCalledWith('/app/agents?sessionId=session-1')
-    await vi.waitFor(() =>
+      expect(mocks.openRouteInMainWindow).toHaveBeenCalledWith('/app/agents?sessionId=session-1')
+      await vi.waitFor(() =>
+        expect(
+          mocks.send.mock.calls.filter(([, event]) => event === 'navigation.conversation_ownership_requested')
+        ).not.toHaveLength(0)
+      )
+      const requestId = ownershipRequestId()
+      service.reportOwnership(requestId, 'main-1', true)
+      if (messageId !== undefined) {
+        await vi.waitFor(() =>
+          expect(mocks.send).toHaveBeenCalledWith('main-1', 'navigation.conversation_focus_or_open_requested', {
+            requestId,
+            target,
+            title: 'Refactor project',
+            messageId
+          })
+        )
+        service.reportOwnership(requestId, 'main-1', true)
+      }
+      await navigation
+
       expect(
-        mocks.send.mock.calls.filter(([, event]) => event === 'navigation.conversation_ownership_requested')
-      ).not.toHaveLength(0)
-    )
-    const requestId = ownershipRequestId()
-    service.reportOwnership(requestId, 'main-1', true)
-    await navigation
-
-    expect(
-      mocks.send.mock.calls.filter(([, event]) => event === 'navigation.conversation_focus_or_open_requested')
-    ).toHaveLength(0)
-  })
+        mocks.send.mock.calls.filter(([, event]) => event === 'navigation.conversation_focus_or_open_requested')
+      ).toHaveLength(messageId === undefined ? 0 : 1)
+    }
+  )
 
   it('does not query hidden pooled subwindows for tab ownership', async () => {
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>

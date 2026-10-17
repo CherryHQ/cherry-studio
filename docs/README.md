@@ -67,6 +67,7 @@
 | [Architecture Overview](./references/architecture/README.md) | Cross-process architecture entry point covering the Electron process model, data flow, data systems, and monorepo map |
 | [Main Process Architecture (`src/main`)](./references/architecture/main-process.md) | Canonical reference for src/main top-level directories, the closed category set, and inter-directory dependency rules |
 | [Naming Conventions](./references/architecture/naming-conventions.md) | Authoritative naming rules for files, directories, and identifiers, including singular/plural and barrel policies |
+| [Task result notifications](./references/architecture/notification-results.md) | Task result notification publication, durable consumption, delivery policy and navigation boundaries |
 | [Renderer Architecture](./references/architecture/renderer.md) | Canonical reference for the src/renderer type-by-domain layout and its strictly downward dependency layering |
 | [Shared Layer Architecture (`src/shared` / `@shared`)](./references/architecture/shared-layer.md) | Defines what belongs in the @shared cross-process primitive layer, its closed top-level set, and import rules |
 | [Utility Process Architecture](./references/architecture/utility-process.md) | Architecture of the utility-process subsystem — ownership, lifecycle boundaries, build isolation, design decisions, and historical experiment evidence |

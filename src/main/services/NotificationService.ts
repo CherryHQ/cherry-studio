@@ -5,6 +5,7 @@ import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { messageService } from '@data/services/MessageService'
@@ -26,7 +27,11 @@ import {
 } from '@shared/ai/agentSessionContextUsage'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { CreateNotificationRecordInput } from '@shared/data/types/notification'
+import {
+  NotificationTaskResultSchema,
+  type CreateNotificationRecordInput,
+  type TaskResultNotificationInput
+} from '@shared/data/types/notification'
 import { hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
@@ -35,6 +40,7 @@ import {
   type Notification,
   type NotificationSource
 } from '@shared/types/notification'
+import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 import { openNotificationInMainWindow, openRouteInMainWindow } from './mainWindowNavigation'
 
@@ -142,22 +148,34 @@ export class NotificationService extends BaseService {
 
   public async publish(
     input: CreateNotificationRecordInput,
-    options: { source?: NotificationSource; completion?: boolean } = {}
+    options: { source?: NotificationSource; completion?: boolean; recordOnly?: boolean } = {}
   ): Promise<boolean> {
     let committed = false
     try {
       const preferences = application.get('PreferenceService')
-      if (!preferences.get(`app.notification.center.${input.category}.enabled`)) return true
-      if (
-        (input.kind === 'task-completion' || input.kind === 'queue-completion') &&
+      const enabled = preferences.get(`app.notification.center.${input.category}.enabled`)
+      const result = input.target?.result
+      const completion = input.kind === 'task-completion' || input.kind === 'queue-completion'
+      const active =
+        enabled &&
+        (completion || !!result) &&
         input.target?.kind === 'conversation' &&
         getFullChromeWindowInfos().some((window) => window.isFocused) &&
         (await application.get('ConversationNavigationService').isActiveInFocusedWindow(input.target))
-      )
-        return true
-      const record = notificationRecordService.create(input)
+      const suppressed = !enabled || (active && (completion || result?.status === 'succeeded'))
+      const recordOnly = options.recordOnly || result?.status === 'cancelled' || (!!result && active)
+      const initial = {
+        ...input,
+        readAt: result && recordOnly ? Date.now() : input.readAt
+      }
+      const record = result
+        ? notificationRecordService.consumeTaskResult(input.eventKey, suppressed ? null : initial)
+        : suppressed
+          ? null
+          : notificationRecordService.create(initial)
       if (!record) return true
       committed = true
+      if (recordOnly) return true
       const windows = getFullChromeWindowInfos()
       const focused = windows.find((window) => window.isFocused)
       const owner = focused ?? windows.find((window) => window.type === WindowType.Main) ?? windows[0]
@@ -170,7 +188,7 @@ export class NotificationService extends BaseService {
         }
       }
       if (focused) {
-        if (options.completion || input.category === 'usage') {
+        if (options.completion || result || input.category === 'usage') {
           application.get('IpcApiService').send(focused.id, 'notification.present', record)
         }
         return true
@@ -200,6 +218,39 @@ export class NotificationService extends BaseService {
     }
   }
 
+  /** Capability seam for a future authoritative runtime adapter; this registers no completion listener. */
+  public async publishTaskResult(input: TaskResultNotificationInput): Promise<boolean> {
+    try {
+      if (!input.resultId.trim() || !Number.isSafeInteger(input.finishedAt) || input.finishedAt < 0) return false
+      const result = NotificationTaskResultSchema.parse(input)
+      if (result.errorSummary) {
+        result.errorSummary = Array.from(redactSecretTokens(redactSecretText(result.errorSummary)))
+          .slice(0, 500)
+          .join('')
+      }
+      return this.publish(
+        {
+          eventKey: `task-result:${JSON.stringify([result.source, input.resultId])}`,
+          category: 'system',
+          kind: 'task-result',
+          title: {
+            succeeded: t('notification.result.succeeded'),
+            failed: t('notification.result.failed'),
+            interrupted: t('notification.result.interrupted'),
+            cancelled: t('notification.result.cancelled')
+          }[result.status],
+          message: result.errorSummary ? `${result.name}: ${result.errorSummary}` : result.name,
+          createdAt: input.finishedAt,
+          target: { ...input.target, result }
+        },
+        { source: 'assistant', completion: result.status === 'succeeded' }
+      )
+    } catch (error) {
+      logger.warn('Invalid task result notification', { error })
+      return false
+    }
+  }
+
   public async activateNotification(id: string): Promise<void> {
     const record = notificationRecordService.getById(id)
     if (!record) throw new Error(t('notification.center.target_unavailable'))
@@ -219,7 +270,16 @@ export class NotificationService extends BaseService {
       const conversation = { conversationType: target.conversationType, conversationId: target.conversationId }
       await application
         .get('ConversationNavigationService')
-        .focusOrOpen(conversation, this.resolveConversationName(target))
+        .focusOrOpen(conversation, this.resolveConversationName(target), null, target.messageId)
+    } else if (target.kind === 'scheduled-task') {
+      try {
+        if (!agentTaskService.getTaskById(target.taskId)) throw new Error('Deleted task')
+      } catch {
+        throw new Error(t('notification.center.target_unavailable'))
+      }
+      openRouteInMainWindow(
+        `/settings/scheduled-tasks/${encodeURIComponent(target.taskId)}?notificationId=${encodeURIComponent(id)}`
+      )
     } else if (target.kind === 'settings') {
       openRouteInMainWindow(`/settings/${target.tab}`)
     } else if (target.kind === 'knowledge') {

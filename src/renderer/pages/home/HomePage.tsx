@@ -312,10 +312,14 @@ const HomePage: FC = () => {
   // While the bound topic is still loading, keep the tab's stored title/icon instead of stamping
   // a generic one.
   const targetTopicId = activeTopicId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
   })
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
   const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
 
@@ -749,6 +753,7 @@ const HomePage: FC = () => {
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             resourcePaneCount={topicResourcePaneCount}
           />

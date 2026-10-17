@@ -55,6 +55,7 @@ function NotificationItem({
   const announcement = record.target?.kind === 'announcement' ? record.target : null
   const expandable = !!(release || announcement)
   const Icon = notificationCategoryIcons[record.category]
+  const isError = record.target?.result?.status === 'failed' || record.target?.result?.status === 'interrupted'
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
 
   const activate = async () => {
@@ -104,7 +105,10 @@ function NotificationItem({
           className="h-auto min-w-0 flex-1 items-start justify-start gap-3 whitespace-normal px-2 py-2 text-left"
           disabled={activating}
           onClick={() => void activate()}>
-          <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <Icon
+            aria-hidden="true"
+            className={`mt-0.5 size-4 shrink-0 ${isError ? 'text-error' : 'text-muted-foreground'}`}
+          />
           <span className="min-w-0 flex-1">
             <span className="mb-2 flex items-center gap-2 font-medium">
               {record.readAt === null && (
@@ -116,13 +120,25 @@ function NotificationItem({
                 <NotificationTitle record={record} />
               </span>
             </span>
-            <span className="block max-h-[2lh] overflow-hidden break-words text-sm text-muted-foreground">
+            <span
+              className={`block max-h-[2lh] overflow-hidden break-words text-sm ${isError ? 'text-error' : 'text-muted-foreground'}`}>
               {notificationPreview(record.message)}
             </span>
             <time
               dateTime={new Date(record.createdAt).toISOString()}
               className="mt-1 block text-xs text-muted-foreground">
               {new Date(record.createdAt).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}
+              {record.target?.result?.durationMs !== undefined && (
+                <>
+                  {' '}
+                  ·{' '}
+                  {new Intl.NumberFormat(i18n.language, {
+                    style: 'unit',
+                    unit: 'second',
+                    maximumFractionDigits: 1
+                  }).format(record.target?.result.durationMs / 1000)}
+                </>
+              )}
             </time>
           </span>
         </Button>
