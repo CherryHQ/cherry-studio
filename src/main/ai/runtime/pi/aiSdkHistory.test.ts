@@ -1,10 +1,20 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import type { AssistantMessage, Message } from '@earendil-works/pi-ai'
+import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import { encodeProviderMetadata } from './aiSdkMetadata'
 import { AI_SDK_API } from './aiSdkProvider'
-import { createTestSession, finish, MODEL, plain, scriptedModel, streamTextPort, textParts } from './aiSdkSupport'
+import {
+  createTestSession,
+  finish,
+  MODEL,
+  plain,
+  scriptedModel,
+  streamTextPort,
+  tempDir,
+  textParts
+} from './aiSdkSupport'
 
 const zeroUsage: AssistantMessage['usage'] = {
   input: 0,
@@ -20,8 +30,9 @@ function assistant(content: AssistantMessage['content'], from: Partial<Assistant
     role: 'assistant',
     content,
     api: AI_SDK_API,
-    provider: MODEL.provider,
-    model: MODEL.id,
+    // The native identity the binding derives from MODEL's Cherry id `cherry::bridged-model`.
+    provider: 'cherry',
+    model: 'bridged-model',
     usage: zeroUsage,
     stopReason: 'stop',
     timestamp: 1,
@@ -51,6 +62,42 @@ describe('history seeded into a fresh session', () => {
 
     const second = scriptedModel([[...textParts('t', 'You are Li.'), finish('stop')]])
     const { session } = await createTestSession({ port: streamTextPort(second.model).port, history })
+    await session.prompt("What's my name?")
+
+    expect(assistantsOf(second.calls[0].prompt)).toEqual([
+      [
+        { type: 'reasoning', text: 'remember the name', providerOptions: { anthropic: { signature: 'sig-1' } } },
+        { type: 'text', text: 'Hi Li.' }
+      ]
+    ])
+  })
+
+  // Breaks when the native identity depends on how a binding is set up rather than on the Cherry
+  // model: Pi replays reasoning and signatures only to the same provider/api/model.
+  it('replays signed reasoning to the same Cherry model through a new binding after reopening', async () => {
+    const first = scriptedModel([
+      [
+        { type: 'reasoning-start', id: 'r' },
+        { type: 'reasoning-delta', id: 'r', delta: 'remember the name' },
+        { type: 'reasoning-end', id: 'r', providerMetadata: { anthropic: { signature: 'sig-1' } } },
+        ...textParts('t', 'Hi Li.'),
+        finish('stop')
+      ]
+    ])
+    const cwd = tempDir('cwd')
+    const manager = SessionManager.create(cwd, tempDir('sessions'))
+    const earlier = await createTestSession({ cwd, port: streamTextPort(first.model).port, sessionManager: manager })
+    await earlier.session.prompt('My name is Li.')
+    await earlier.dispose()
+
+    const second = scriptedModel([[...textParts('t', 'You are Li.'), finish('stop')]])
+    const { session } = await createTestSession({
+      cwd,
+      port: streamTextPort(second.model).port,
+      // The same Cherry model, renamed and with other limits since the session was saved.
+      model: { ...MODEL, name: 'Bridged model (renamed)', contextWindow: 64_000 },
+      sessionManager: SessionManager.open(manager.getSessionFile()!)
+    })
     await session.prompt("What's my name?")
 
     expect(assistantsOf(second.calls[0].prompt)).toEqual([

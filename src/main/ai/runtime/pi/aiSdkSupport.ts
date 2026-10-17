@@ -15,8 +15,7 @@ import { type AiSdkModel, createAiSdkModelBinding } from './aiSdkModelBinding'
 import { type ModelCallPort, type ModelCallRequest, type ModelCallSideChannel } from './aiSdkTypes'
 
 export const MODEL: AiSdkModel = {
-  provider: 'cherry',
-  id: 'bridged-model',
+  id: 'cherry::bridged-model',
   name: 'Bridged model',
   reasoning: true,
   input: ['text', 'image'],

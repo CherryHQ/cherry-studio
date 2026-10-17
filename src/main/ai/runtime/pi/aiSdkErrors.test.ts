@@ -1,15 +1,9 @@
-import {
-  type AssistantMessage,
-  InMemoryCredentialStore,
-  isContextOverflow,
-  normalizeContext
-} from '@earendil-works/pi-ai'
-import { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import { type AssistantMessage, isContextOverflow, normalizeContext } from '@earendil-works/pi-ai'
 import { APICallError } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
-import { createAiSdkProvider } from './aiSdkProvider'
+import { createAiSdkModelBinding } from './aiSdkModelBinding'
 import { createTestSession, lastAssistant, MODEL, streamTextPort } from './aiSdkSupport'
 import { type ModelCallInfo, type ModelCallPort } from './aiSdkTypes'
 
@@ -103,22 +97,12 @@ describe('model call failures', () => {
       requestBodyValues: {},
       statusCode: 400
     })
-    const runtime = await ModelRuntime.create({
-      credentials: new InMemoryCredentialStore(),
-      modelsPath: null,
-      refreshOnCreate: false
+    const { modelRuntime, model } = await createAiSdkModelBinding({
+      port: streamTextPort(failingModel(overflow)).port,
+      requestOptions: undefined,
+      model: MODEL
     })
-    const { provider, ...spec } = MODEL
-    runtime.registerProvider(
-      provider,
-      createAiSdkProvider({
-        port: streamTextPort(failingModel(overflow)).port,
-        requestOptions: undefined,
-        models: [spec]
-      })
-    )
-    const model = runtime.getModel(provider, spec.id)!
-    const message = await runtime
+    const message = await modelRuntime
       .streamSimple(model, normalizeContext({ messages: [{ role: 'user', content: 'hi', timestamp: 1 }] }))
       .result()
 

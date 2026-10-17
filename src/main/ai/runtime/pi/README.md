@@ -20,8 +20,14 @@ plugins. It must not install another agent loop or replace Pi's context with Che
 
 `aiSdkProvider.ts` converts streaming text, reasoning, tool calls, errors and usage back to native
 Pi events. `aiSdkMessages.ts` applies native replay rules before conversion. `aiSdkMetadata.ts`
-keeps provider metadata in Pi signature fields. Use stable provider/model identities so native
-history replay recognizes the same model after reopening a session.
+keeps provider metadata in Pi signature fields.
+
+The binding takes a Cherry model and derives its native identity from Cherry's unique model id
+(`providerId::modelId`) alone: the Pi provider is the Cherry provider id, the Pi model id is the
+Cherry model id and the API is `ai-sdk`. Pi replays a stored reply's reasoning and signatures only
+to that same provider/api/model, so a session reopened through a new binding for the same Cherry
+model keeps them, whatever its name or limits now are. Subagent model keys (`provider/id`, kept in
+a subagent's origin for continuations) follow the same rule.
 
 The binding guards malformed and unfinished tool calls before approvals, isolating its tracking by
 native session ID. Original provider errors and parts Pi cannot display use the model-call side
