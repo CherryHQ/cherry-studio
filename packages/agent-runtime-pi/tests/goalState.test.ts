@@ -394,11 +394,12 @@ describe('progress and prompts', () => {
   })
 
   it('exposes the view the tools return', () => {
-    expect(goalView(undefined, unused)).toEqual({ goal: null })
-    const view = goalView(createGoal('g', limits, {}, 1), { tokens: 12, usd: 0.5 })
+    const counts = { usage: { tokens: 12, usd: 0.5 }, progress: { progressRounds: 2, noProgressRounds: 0 } }
+    expect(goalView(undefined, counts)).toEqual({ goal: null })
+    const view = goalView(createGoal('g', limits, {}, 1), counts)
     expect(view).toMatchObject({
       activation: 'armed',
-      goal: { objective: 'g', phase: 'active', tokensUsed: 12, costUsed: 0.5 }
+      goal: { objective: 'g', phase: 'active', tokensUsed: 12, costUsed: 0.5, progressRounds: 2 }
     })
     expect('wrapUpDone' in (view as any).goal).toBe(false)
     expect('armed' in (view as any).goal).toBe(false)
