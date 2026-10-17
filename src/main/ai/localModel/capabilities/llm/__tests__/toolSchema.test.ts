@@ -100,6 +100,58 @@ describe('toGbnfJsonSchema', () => {
     expect(toToolArguments(schema, generated)).toEqual({ target: { id: 'x' } })
   })
 
+  it('decides what a null means from the union branch the arguments came from', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        query: {
+          oneOf: [
+            { type: 'object', properties: { kind: { const: 'list' }, limit: { type: 'integer' } }, required: ['kind'] },
+            {
+              type: 'object',
+              properties: { kind: { const: 'set' }, limit: { type: ['integer', 'null'] } },
+              required: ['kind', 'limit']
+            }
+          ]
+        }
+      },
+      required: ['query']
+    }
+
+    expect(generates(schema, { query: { kind: 'list', limit: null } })).toBe(true)
+    expect(toToolArguments(schema, { query: { kind: 'list', limit: null } })).toEqual({ query: { kind: 'list' } })
+    expect(toToolArguments(schema, { query: { kind: 'set', limit: null } })).toEqual({
+      query: { kind: 'set', limit: null }
+    })
+  })
+
+  it('removes unset optional arguments inside tuple elements', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        pair: {
+          type: 'array',
+          prefixItems: [
+            { type: 'object', properties: { id: { type: 'string' }, limit: { type: 'integer' } }, required: ['id'] },
+            { type: 'string' }
+          ]
+        }
+      },
+      required: ['pair']
+    }
+    const generated = { pair: [{ id: 'x', limit: null }, 'y'] }
+
+    expect(generates(schema, generated)).toBe(true)
+    expect(toToolArguments(schema, generated)).toEqual({ pair: [{ id: 'x' }, 'y'] })
+  })
+
+  it('keeps an explicit null that an allOf property accepts', () => {
+    const schema = { type: 'object', properties: { limit: { allOf: [{ type: ['integer', 'null'] }] } } }
+
+    expect(generates(schema, { limit: null })).toBe(true)
+    expect(toToolArguments(schema, { limit: null })).toEqual({ limit: null })
+  })
+
   it('removes unset optional arguments inside the values of a dictionary', () => {
     const schema = {
       type: 'object',

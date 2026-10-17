@@ -1,9 +1,9 @@
+import { isEqual } from 'es-toolkit'
 import type { GbnfJsonSchema } from 'node-llama-cpp'
 
 type Schema = Record<string, unknown>
 
 const IMMUTABLE_TYPES = new Set(['string', 'number', 'integer', 'boolean', 'null'])
-const STRUCTURED_TYPES = new Set(['object', 'array'])
 const GRAMMAR_FORMATS = new Set(['date-time', 'time', 'date'])
 const ANY_VALUE: Schema = {
   oneOf: [
@@ -28,7 +28,7 @@ export function toGbnfJsonSchema(schema: unknown): GbnfJsonSchema {
 
 /** The arguments a tool receives: generated params without the nulls standing in for omitted optional ones. */
 export function toToolArguments(schema: unknown, params: unknown): unknown {
-  return stripUnsetOptionals(isRecord(schema) ? [schema] : [], params, {})
+  return stripUnsetOptionals(schema, params, {})
 }
 
 function convert(input: unknown, outerDefs: Schema): Schema {
@@ -99,67 +99,94 @@ function convert(input: unknown, outerDefs: Schema): Schema {
   }
 }
 
-/** `schemas` are every schema the value may have been generated from, e.g. each branch of a union. */
-function stripUnsetOptionals(schemas: Schema[], value: unknown, outerDefs: Schema): unknown {
-  const defs = schemas.reduce((all, schema) => withLocalDefs(schema, all), outerDefs)
-  const seen = new Set<Schema>()
-  const shapes = schemas.flatMap((schema) => alternatives(schema, defs, seen))
+function stripUnsetOptionals(input: unknown, value: unknown, outerDefs: Schema): unknown {
+  if (!isRecord(input)) return value
+  const defs = withLocalDefs(input, outerDefs)
+  const schema = branchFor(expand(input, defs), value, defs)
   if (Array.isArray(value)) {
-    const items = shapes.flatMap((shape) => (isRecord(shape.items) ? [shape.items] : []))
-    return value.map((item) => stripUnsetOptionals(items, item, defs))
+    return value.map((item, index) => stripUnsetOptionals(itemSchema(schema, index), item, defs))
   }
   if (!isRecord(value)) return value
+  const properties = isRecord(schema.properties) ? schema.properties : {}
+  const required = requiredKeys(schema)
   return Object.fromEntries(
     Object.entries(value)
-      .filter(([key, item]) => item !== null || !isUnsetOptional(shapes, key, defs))
-      .map(([key, item]) => [key, stripUnsetOptionals(propertySchemas(shapes, key), item, defs)])
+      .filter(([key, item]) => {
+        const declared = Object.hasOwn(properties, key)
+        return !(item === null && declared && !required.has(key) && !acceptsNull(properties[key], defs))
+      })
+      .map(([key, item]) => {
+        const declared = Object.hasOwn(properties, key)
+        return [key, stripUnsetOptionals(declared ? properties[key] : schema.additionalProperties, item, defs)]
+      })
   )
 }
 
-/** A null is a placeholder when some shape declares the key optional and none lets it be null. */
-function isUnsetOptional(shapes: Schema[], key: string, defs: Schema): boolean {
-  let optional = false
-  for (const shape of shapes) {
-    if (!isRecord(shape.properties) || !(key in shape.properties)) continue
-    if (acceptsNull(shape.properties[key], defs)) return false
-    if (!requiredKeys(shape).has(key)) optional = true
-  }
-  return optional
-}
-
-function propertySchemas(shapes: Schema[], key: string): Schema[] {
-  return shapes.flatMap((shape) => {
-    const declared = isRecord(shape.properties) && key in shape.properties
-    const schema = declared ? (shape.properties as Schema)[key] : shape.additionalProperties
-    return isRecord(schema) ? [schema] : []
-  })
-}
-
-/** The shapes a value of `schema` can take: references followed, `allOf` merged and unions spread. */
-function alternatives(schema: Schema, defs: Schema, seen: Set<Schema>): Schema[] {
-  if (seen.has(schema)) return []
+/** The union branch the grammar generated `value` from, so only that branch decides what a null means. */
+function branchFor(schema: Schema, value: unknown, defs: Schema, seen = new Set<Schema>()): Schema {
+  const union = schema.anyOf ?? schema.oneOf
+  if (!Array.isArray(union) || seen.has(schema)) return schema
   seen.add(schema)
-  const merged = expand(schema, defs)
-  const union = merged.anyOf ?? merged.oneOf
-  if (!Array.isArray(union)) return [merged]
-  return union.filter(isRecord).flatMap((option) => alternatives(option, defs, seen))
+  const branch = union
+    .filter(isRecord)
+    .map((option) => expand(option, defs))
+    .find((option) => matches(option, value, defs))
+  return branch ? branchFor(branch, value, defs, seen) : schema
 }
 
-function acceptsNull(input: unknown, defs: Schema, seen = new Set<Schema>()): boolean {
+function acceptsNull(schema: unknown, defs: Schema): boolean {
+  return matches(schema, null, defs)
+}
+
+/** Whether the grammar built from `input` can produce `value`, with optional properties set to null. */
+function matches(input: unknown, value: unknown, defs: Schema, seen = new Set<Schema>()): boolean {
   if (!isRecord(input)) return true
   if (seen.has(input)) return false
   seen.add(input)
-  if (Array.isArray(input.allOf)) return false
-  const schema = resolveRef(input, defs)
-  if (schema !== input) return acceptsNull(schema, defs, seen)
+  const schema = expand(input, defs)
   if (typeof schema.$ref === 'string') return false
-  if ('const' in schema) return schema.const === null
-  if (Array.isArray(schema.enum)) return schema.enum.includes(null)
+  if ('const' in schema) return isEqual(schema.const, value)
+  if (Array.isArray(schema.enum)) return schema.enum.some((option) => isEqual(option, value))
   const union = schema.anyOf ?? schema.oneOf
-  if (Array.isArray(union)) return union.some((option) => acceptsNull(option, defs, seen))
+  if (Array.isArray(union)) return union.some((option) => matches(option, value, defs, seen))
   const types = Array.isArray(schema.type) ? schema.type : [schema.type ?? inferType(schema)]
-  // An unknown or missing type becomes "any value", which includes null.
-  return types.some((type) => type === 'null' || !(IMMUTABLE_TYPES.has(type) || STRUCTURED_TYPES.has(type)))
+  return types.some((type) => matchesType(schema, type, value, defs))
+}
+
+function matchesType(schema: Schema, type: unknown, value: unknown, defs: Schema): boolean {
+  switch (type) {
+    case 'null':
+      return value === null
+    case 'string':
+    case 'boolean':
+    case 'number':
+      return typeof value === type
+    case 'integer':
+      return Number.isInteger(value)
+    case 'array':
+      return Array.isArray(value) && value.every((item, index) => matches(itemSchema(schema, index), item, defs))
+    case 'object': {
+      if (!isRecord(value)) return false
+      const properties = isRecord(schema.properties) ? schema.properties : undefined
+      const required = requiredKeys(schema)
+      if ([...required].some((key) => !Object.hasOwn(value, key))) return false
+      const additional = schema.additionalProperties ?? !properties
+      return Object.entries(value).every(([key, item]) => {
+        if (!properties || !Object.hasOwn(properties, key))
+          return additional !== false && matches(additional, item, defs)
+        return (item === null && !required.has(key)) || matches(properties[key], item, defs)
+      })
+    }
+    default:
+      // An unknown or missing type becomes "any value".
+      return true
+  }
+}
+
+function itemSchema(schema: Schema, index: number): unknown {
+  return Array.isArray(schema.prefixItems) && index < schema.prefixItems.length
+    ? schema.prefixItems[index]
+    : schema.items
 }
 
 /** One object schema from `allOf`, with each part's reference chain resolved first so its fields survive. */
