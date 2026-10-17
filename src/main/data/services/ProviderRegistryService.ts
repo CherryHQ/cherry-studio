@@ -975,10 +975,21 @@ class ProviderRegistryService {
     }
   }
 
-  /** Resolve the main-only wire profile for one already materialized request model. */
+  /**
+   * Resolve the main-only wire profile for one already materialized request
+   * model. The model argument is structural — only the identity and endpoint
+   * fields below are read — so control generation can resolve the same profile
+   * from a not-yet-materialized row (dto/id) without fabricating a full Model.
+   */
   resolveReasoningProfile(
     provider: ReasoningProviderContext,
-    model: Model,
+    model: {
+      id: string
+      apiModelId?: string
+      presetModelId?: string | null
+      endpointTypes?: EndpointType[]
+      reasoning?: RuntimeReasoning
+    },
     endpointType?: EndpointType
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(provider)
