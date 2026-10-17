@@ -7,6 +7,8 @@
 
 import type { Span } from '@opentelemetry/api'
 
+import type { DbOrTx } from '@data/db/types'
+import type { CreateUserMessageWithPlaceholdersResult } from '@data/services/MessageService'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -72,6 +74,9 @@ export interface DispatchContext {
   expectedAgentId?: string
   /** Assert caller admission preconditions inside the message reservation transaction. */
   beforePersist?: () => void
+  /** Associate remote command identity with reservations before runtime activation. */
+  onPersist?: (tx: DbOrTx, result: CreateUserMessageWithPlaceholdersResult) => void
+  beforeActivate?: () => void
 }
 
 export interface ChatContextProvider {

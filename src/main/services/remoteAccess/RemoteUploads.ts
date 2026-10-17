@@ -1,12 +1,13 @@
 import { application } from '@application'
-import type { UploadChunk } from '@cherrystudio/remote-protocol'
 import {
-  agentUploadLimits,
-  type AgentUploadComplete,
-  type AgentUploadMetadata,
-  type AgentUploadReference,
-  type AgentUploadResume
-} from '@cherrystudio/remote-protocol/agent'
+  uploadLimits,
+  type UploadChunk,
+  type UploadComplete,
+  type UploadDomain,
+  type UploadMetadata,
+  type UploadReference,
+  type UploadResume
+} from '@cherrystudio/remote-protocol'
 import { RemoteRpcError } from '@cherrystudio/remote-transport'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { loggerService } from '@logger'
@@ -16,7 +17,9 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 
 const logger = loggerService.withContext('RemoteUploads')
-export type UploadOwner = { deviceId: string; grantId: string; peerIdentity: string }
+export type DeviceGrant = { deviceId: string; grantId: string; peerIdentity: string }
+export type UploadOwner = DeviceGrant & { domain: UploadDomain }
+const ownerKinds = { agent: 'remote-agent', assistant: 'remote-assistant' } as const
 
 export class RemoteUploads {
   private sweeping = false
@@ -24,20 +27,21 @@ export class RemoteUploads {
     return Boolean(
       apiGatewayPairedDeviceService
         .getRemoteAuthorization(owner.deviceId, owner.peerIdentity)
-        ?.grants.some((grant) => grant.domain === 'agent' && grant.grantId === owner.grantId)
+        ?.grants.some((grant) => grant.domain === owner.domain && grant.grantId === owner.grantId)
     )
   }
   scope(owner: UploadOwner): FileIntakeOwner {
     return {
-      ownerId: JSON.stringify(['remote-agent', owner.deviceId, owner.grantId, owner.peerIdentity]),
+      ownerId: JSON.stringify([ownerKinds[owner.domain], owner.deviceId, owner.grantId, owner.peerIdentity]),
       quotaKey: owner.deviceId
     }
   }
   private parseOwner(ownerId: string): UploadOwner | undefined {
     try {
       const [kind, deviceId, grantId, peerIdentity] = JSON.parse(ownerId)
-      if (kind === 'remote-agent' && [deviceId, grantId, peerIdentity].every((value) => typeof value === 'string'))
-        return { deviceId, grantId, peerIdentity }
+      const domain = (Object.keys(ownerKinds) as UploadDomain[]).find((key) => ownerKinds[key] === kind)
+      if (domain && [deviceId, grantId, peerIdentity].every((value) => typeof value === 'string'))
+        return { domain, deviceId, grantId, peerIdentity }
     } catch {
       /* Other file intake owners are not remote devices. */
     }
@@ -53,19 +57,19 @@ export class RemoteUploads {
       throw error
     }
   }
-  prepare(owner: UploadOwner, input: AgentUploadMetadata) {
+  prepare(owner: UploadOwner, input: UploadMetadata) {
     return this.run(owner, (scope) => application.get('FileIntakeService').prepare(scope, input))
   }
   get(owner: UploadOwner, id: string) {
     return this.run(owner, (scope) => application.get('FileIntakeService').get(scope, id))
   }
-  resume(owner: UploadOwner, input: AgentUploadResume) {
+  resume(owner: UploadOwner, input: UploadResume) {
     return this.run(owner, (scope) => application.get('FileIntakeService').resume(scope, input))
   }
   write(owner: UploadOwner, input: UploadChunk) {
     return this.run(owner, (scope) => application.get('FileIntakeService').write(scope, input))
   }
-  complete(owner: UploadOwner, input: AgentUploadComplete) {
+  complete(owner: UploadOwner, input: UploadComplete) {
     return this.run(owner, (scope) => application.get('FileIntakeService').complete(scope, input))
   }
   cancel(owner: UploadOwner, id: string) {
@@ -73,7 +77,7 @@ export class RemoteUploads {
   }
   withFiles<T>(
     owner: UploadOwner,
-    refs: AgentUploadReference[],
+    refs: UploadReference[],
     run: (parts: CherryMessagePart[]) => Promise<T>
   ): Promise<T> {
     if (!this.authorized(owner))
@@ -82,7 +86,7 @@ export class RemoteUploads {
     return this.run(owner, (scope) =>
       application.get('FileIntakeService').withEntries(scope, refs, async (entries) => {
         if (!this.authorized(owner)) throw new RemoteRpcError('GRANT_REVOKED', 'Upload authorization expired')
-        if (entries.reduce((sum, entry) => sum + entry.byteLength, 0) > agentUploadLimits.messageBytes)
+        if (entries.reduce((sum, entry) => sum + entry.byteLength, 0) > uploadLimits.messageBytes)
           throw new RemoteRpcError('RESOURCE_EXHAUSTED', 'Attachments exceed the message limit')
         const manager = application.get('FileManager')
         return run(

@@ -1289,10 +1289,15 @@ export class MessageService {
    * already belong to a group (inherit case).
    */
   createUserMessageWithPlaceholders(
-    input: CreateUserMessageWithPlaceholdersInput
+    input: CreateUserMessageWithPlaceholdersInput,
+    hooks?: {
+      beforePersist?: () => void
+      onPersist?: (tx: DbOrTx, result: CreateUserMessageWithPlaceholdersResult) => void
+    }
   ): CreateUserMessageWithPlaceholdersResult {
     let activityChanged = false
     const result = application.get('DbService').withWriteTx((tx) => {
+      hooks?.beforePersist?.()
       // Validate topic
       this.getActiveTopicTx(tx, input.topicId)
       let latestActivityAt: number | null = null
@@ -1429,7 +1434,9 @@ export class MessageService {
         preserveActiveNode: input.preserveActiveNode === true
       })
 
-      return { userMessage, placeholders }
+      const reserved = { userMessage, placeholders }
+      hooks?.onPersist?.(tx, reserved)
+      return reserved
     })
     const changedIds = [result.userMessage.id, ...result.placeholders.map((placeholder) => placeholder.id)]
     notifyDataApiDataChange([
@@ -1707,7 +1714,9 @@ export class MessageService {
    */
   applyToolApprovalDecisions(
     anchorId: string,
-    decisions: ApprovalDecision[]
+    decisions: ApprovalDecision[],
+    onPersist?: (tx: DbOrTx) => void,
+    resume = false
   ): {
     parts: CherryMessagePart[]
     appliedApprovalIds: string[]
@@ -1742,10 +1751,15 @@ export class MessageService {
           existing.stats ?? undefined
         )
         tx.update(messageTable)
-          .set({ data: { ...existing.data, parts: after }, stats: stats ?? null })
+          .set({
+            data: { ...existing.data, parts: after },
+            stats: stats ?? null,
+            ...(resume ? { status: 'pending' as const } : {})
+          })
           .where(eq(messageTable.id, anchorId))
           .run()
         getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, completedAt)
+        onPersist?.(tx)
       }
       return {
         response: { parts: after, appliedApprovalIds, alreadySettledApprovalIds },
@@ -2227,6 +2241,25 @@ export class MessageService {
     this.getAddressableMessageRowTx(db, nodeId)
     const pathRows = this.getPathRowsToNodeTx(db, nodeId)
     return pathRows.map(rowToMessage)
+  }
+
+  isMessageOnBranch(topicId: string, anchorId: string, messageId: string): boolean {
+    const rows = application.get('DbService').getDb().all<{ id: string }>(sql`
+      WITH RECURSIVE ancestors AS (
+        SELECT id, parent_id, siblings_group_id FROM message
+        WHERE id = ${anchorId} AND topic_id = ${topicId} AND deleted_at IS NULL
+        UNION ALL
+        SELECT m.id, m.parent_id, m.siblings_group_id FROM message m INNER JOIN ancestors a ON m.id = a.parent_id
+        WHERE m.topic_id = ${topicId} AND m.deleted_at IS NULL
+      ) SELECT m.id FROM message m WHERE m.id = ${messageId} AND m.topic_id = ${topicId}
+        AND m.deleted_at IS NULL AND (
+          m.id IN (SELECT id FROM ancestors) OR EXISTS (
+            SELECT 1 FROM ancestors a WHERE a.siblings_group_id > 0
+              AND a.siblings_group_id = m.siblings_group_id AND a.parent_id = m.parent_id
+          )
+        ) LIMIT 1
+    `)
+    return rows.length > 0
   }
 
   /**

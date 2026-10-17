@@ -14,6 +14,10 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./assistant": {
+      "types": "./dist/assistant.d.ts",
+      "default": "./dist/assistant.js"
+    },
     "./failure": {
       "types": "./dist/failure.d.ts",
       "default": "./dist/failure.js"

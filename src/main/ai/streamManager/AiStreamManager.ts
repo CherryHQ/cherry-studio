@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
 
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
-import type { UIMessageChunk } from 'ai'
+import { isToolUIPart, type UIMessageChunk } from 'ai'
 
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
@@ -21,10 +22,12 @@ import {
 } from '@main/core/lifecycle'
 import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
+import { topicService } from '@main/data/services/TopicService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -32,7 +35,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -51,6 +54,7 @@ import type {
 } from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
 import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
+import type { DispatchContext } from './context/ChatContextProvider'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -402,44 +406,139 @@ export class AiStreamManager extends BaseService {
     logger.info('AiStreamManager initialized')
   }
 
-  /**
-   * Single locked dispatch entry point for chat streams. Both `ai.stream.open`
-   * and the tool-approval continue path (`AiService.respondToolApproval`)
-   * route through here so the per-topic `dispatchLock` serialises every dispatch
-   * on a topic — not just opens. `prepareDispatch` is async and writes a PENDING
-   * placeholder off a `hasLiveStream` snapshot; without one lock covering both
-   * entry points, a concurrent open and approval-continue on the same topic could
-   * both see "no live stream" and orphan a row.
-   */
-  async dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+  /** Keep reservation and runtime activation serialized with approval continuation on the same topic. */
+  async dispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    admission: Omit<DispatchContext, 'hasLiveStream'> = {}
+  ): Promise<AiStreamOpenResponse> {
     // Gate on the boot reconcile so a placeholder written here is never clobbered by it.
     // No-op after boot (resolved promise); the only caller it can actually block is a
     // stream opened in the boot window before reconcile finished.
     await this.reconciled
-    return this.withDispatchLock(req.topicId, async () => {
-      // A renderer submit can land while the previous turn's terminal dispatch is still running;
-      // admitting now would evict that stream before its terminal lifecycle ran (see startAgentSessionRun).
-      await this.whenTerminalDispatchSettled(req.topicId)
+    return this.withDispatchLock(req.topicId, () => this.dispatchLocked(subscriber, req, admission))
+  }
 
-      // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
-      // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
-      // writes the user/pending-assistant rows. `steer-continuation` is exempt: it only originates
-      // from `startNextChatTurn`, which is itself gated; the exemption covers the microtask race
-      // where a pause lands between that gate and this one, and the grandfathered launch is
-      // awaited by `drainInFlight` via `inFlightChatContinuations`.
-      if (this.isWriteQuiesced && req.trigger !== 'steer-continuation') {
-        return {
-          mode: 'blocked' as const,
-          reason: 'paused' as const
+  private async dispatchLocked(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    admission: Omit<DispatchContext, 'hasLiveStream'> = {}
+  ): Promise<AiStreamOpenResponse> {
+    // A renderer submit can land while the previous turn's terminal dispatch is still running;
+    // admitting now would evict that stream before its terminal lifecycle ran (see startAgentSessionRun).
+    await this.whenTerminalDispatchSettled(req.topicId)
+
+    // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
+    // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
+    // writes the user/pending-assistant rows. `steer-continuation` is exempt: it only originates
+    // from `startNextChatTurn`, which is itself gated; the exemption covers the microtask race
+    // where a pause lands between that gate and this one, and the grandfathered launch is
+    // awaited by `drainInFlight` via `inFlightChatContinuations`.
+    if (this.isWriteQuiesced && req.trigger !== 'steer-continuation') {
+      return {
+        mode: 'blocked' as const,
+        reason: 'paused' as const
+      }
+    }
+    const dispatch = dispatchStreamRequest(this, subscriber, req, admission)
+    this.inFlightDispatches.set(dispatch, req.topicId)
+    try {
+      return await dispatch
+    } finally {
+      this.inFlightDispatches.delete(dispatch)
+    }
+  }
+
+  async respondAssistantToolApproval(
+    payload: AiToolApprovalRespondRequest,
+    subscriber: StreamListener,
+    hooks: {
+      beforeDecision?: () => void
+      onDecisionPersist?: (tx: DbOrTx) => void
+      beforeContinue?: () => void
+    } = {}
+  ): Promise<AiToolApprovalRespondResponse> {
+    if (!payload.topicId || !payload.anchorId) return { ok: false }
+    const topicId = payload.topicId
+    const anchorId = payload.anchorId
+    await this.reconciled
+    return this.withDispatchLock(topicId, async () => {
+      await this.whenTerminalDispatchSettled(topicId)
+      if (this.isWriteQuiesced || this.hasLiveStream(topicId)) return { ok: false }
+      hooks.beforeDecision?.()
+      const anchor = messageService.getById(anchorId)
+      if (anchor.topicId !== topicId || anchor.role !== 'assistant') return { ok: false }
+      const selected = topicService.getById(topicId)
+      if (anchor.messageSnapshot && anchor.messageSnapshot.id !== selected.assistantId) return { ok: false }
+      const decision = {
+        approvalId: payload.approvalId,
+        approved: payload.approved,
+        ...(payload.reason !== undefined ? { reason: payload.reason } : {}),
+        ...(payload.updatedInput !== undefined ? { updatedInput: payload.updatedInput } : {})
+      }
+      const parts = anchor.data.parts ?? []
+      const target = parts.find(
+        (part) => isToolUIPart(part) && 'approval' in part && part.approval?.id === payload.approvalId
+      )
+      if (!target) return { ok: false }
+      if (isToolUIPart(target) && target.state !== 'approval-requested') return { ok: true }
+      const projectedParts = applyApprovalDecisions(parts, [decision])
+      if (projectedParts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')) {
+        const applied = messageService.applyToolApprovalDecisions(anchorId, [decision], hooks.onDecisionPersist)
+        return { ok: Boolean(applied?.appliedApprovalIds.length) }
+      }
+      const revision = topicService.getRemoteHistoryRevision(topicId)
+      const historySnapshot = () =>
+        JSON.stringify(
+          messageService.getPathToNode(anchorId).map(({ id, parentId, data, modelId, messageSnapshot }) => ({
+            id,
+            parentId,
+            data,
+            modelId,
+            messageSnapshot
+          }))
+        )
+      const expectedHistory = historySnapshot()
+      const result = await this.dispatchLocked(
+        subscriber,
+        {
+          trigger: 'continue-conversation',
+          topicId,
+          parentAnchorId: anchorId,
+          approvalDecisions: [decision]
+        },
+        {
+          beforePersist: () => {
+            hooks.beforeContinue?.()
+            const current = topicService.getById(topicId)
+            if (
+              current.assistantId !== selected.assistantId ||
+              current.activeNodeId !== selected.activeNodeId ||
+              topicService.getRemoteHistoryRevision(topicId) !== revision
+            )
+              throw new Error('Topic changed during approval continuation')
+          },
+          beforeActivate: () => {
+            hooks.beforeContinue?.()
+            const current = topicService.getById(topicId)
+            if (
+              current.assistantId !== selected.assistantId ||
+              current.activeNodeId !== selected.activeNodeId ||
+              historySnapshot() !== expectedHistory
+            )
+              throw new Error('Conversation changed while preparing approval continuation')
+            const applied = messageService.applyToolApprovalDecisions(
+              anchorId,
+              [decision],
+              hooks.onDecisionPersist,
+              true
+            )
+            if (!applied?.appliedApprovalIds.includes(payload.approvalId))
+              throw new Error('Approval changed while preparing continuation')
+          }
         }
-      }
-      const admission = dispatchStreamRequest(this, subscriber, req)
-      this.inFlightDispatches.set(admission, req.topicId)
-      try {
-        return await admission
-      } finally {
-        this.inFlightDispatches.delete(admission)
-      }
+      )
+      return { ok: result.mode !== 'blocked' }
     })
   }
 

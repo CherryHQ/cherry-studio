@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, MonitorSmartphone, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowRight, MonitorSmartphone, MoreHorizontal, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -9,7 +9,6 @@ import { useTranslation } from 'react-i18next'
 import type { RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
   Alert,
-  Badge,
   Button,
   Checkbox,
   IndicatorLight,
@@ -19,6 +18,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -47,7 +51,8 @@ import { MobileAppShowcase } from './MobileAppShowcase'
 const LAN_HOST = '0.0.0.0'
 const CAPABILITY_LABEL = {
   configuration: 'deviceConnections.capabilities.configuration',
-  agent: 'deviceConnections.capabilities.agent'
+  agent: 'deviceConnections.capabilities.agent',
+  assistant: 'deviceConnections.capabilities.assistant'
 } as const
 
 type Invitation = OutputFor<'api_gateway.remote.create_invitation'>
@@ -71,6 +76,11 @@ const DeviceConnectionsSettings: FC = () => {
   const { trigger: deleteDevice, isLoading: isRevoking } = useMutation('DELETE', '/api-gateway/paired-devices/:id', {
     refresh: ['/api-gateway/paired-devices']
   })
+  const { trigger: deleteCapability } = useMutation(
+    'DELETE',
+    '/api-gateway/paired-devices/:id/capabilities/:capability',
+    { refresh: ['/api-gateway/paired-devices'] }
+  )
 
   const onboardingComplete = step === 'complete' || devices.length > 0
   const pairingActive = onboardingComplete || step === 'connect'
@@ -91,6 +101,7 @@ const DeviceConnectionsSettings: FC = () => {
   const [isCreatingInvitation, setIsCreatingInvitation] = useState(false)
   const [isUpdatingLan, setIsUpdatingLan] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
+  const [revokingCapability, setRevokingCapability] = useState<string>()
   const invitationRequestId = useRef(0)
   const claimRequestId = useRef(0)
 
@@ -101,6 +112,17 @@ const DeviceConnectionsSettings: FC = () => {
     setClaims([])
     setIsCreatingInvitation(false)
   }, [])
+
+  const revokeCapability = async (deviceId: string, capability: RemoteCapability) => {
+    setRevokingCapability(`${deviceId}:${capability}`)
+    try {
+      await deleteCapability({ params: { id: deviceId, capability } })
+    } catch {
+      toast.error(t('common.delete_failed'))
+    } finally {
+      setRevokingCapability(undefined)
+    }
+  }
 
   const refreshClaims = useCallback(async () => {
     if (!connectionReady || !pairingActive) return
@@ -505,30 +527,60 @@ const DeviceConnectionsSettings: FC = () => {
                       {devices.map((device) => (
                         <div key={device.id} className="flex items-center justify-between gap-3 py-2">
                           <div className="min-w-0">
-                            <div className="truncate font-medium text-sm">{device.name}</div>
+                            <div id={`paired-device-${device.id}`} className="truncate font-medium text-sm">
+                              {device.name}
+                            </div>
                             <div className="text-muted-foreground text-xs">
                               {device.platform} · {new Date(device.createdAt).toLocaleDateString()}
                             </div>
                             {device.remoteAccess && (
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                {device.remoteAccess.capabilities.map((capability) => (
-                                  <Badge key={capability} variant="outline">
-                                    {t(CAPABILITY_LABEL[capability])}
-                                  </Badge>
-                                ))}
+                              <div className="mt-1 text-muted-foreground text-xs leading-5">
+                                {device.remoteAccess.capabilities
+                                  .map((capability) => t(CAPABILITY_LABEL[capability]))
+                                  .join(' · ')}
                               </div>
                             )}
                           </div>
-                          <Tooltip content={t('deviceConnections.devices.revoke')}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              loading={revokingId === device.id}
-                              aria-label={t('deviceConnections.devices.revoke')}
-                              onClick={() => void revokeDevice(device.id)}>
-                              {revokingId !== device.id && <Trash2 size={14} />}
-                            </Button>
-                          </Tooltip>
+                          <DropdownMenu>
+                            <Tooltip content={t('common.more')}>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="shrink-0 text-muted-foreground"
+                                  disabled={isRevoking || Boolean(revokingCapability)}
+                                  loading={revokingId === device.id || revokingCapability?.startsWith(`${device.id}:`)}
+                                  aria-label={t('common.more')}
+                                  aria-describedby={`paired-device-${device.id}`}>
+                                  <MoreHorizontal className="size-4" aria-hidden="true" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                            </Tooltip>
+                            <DropdownMenuContent align="end">
+                              {device.remoteAccess && device.remoteAccess.capabilities.length > 0 && (
+                                <>
+                                  {device.remoteAccess.capabilities.map((capability) => (
+                                    <DropdownMenuItem
+                                      key={capability}
+                                      disabled={isRevoking || Boolean(revokingCapability)}
+                                      onSelect={() => void revokeCapability(device.id, capability)}>
+                                      {t('deviceConnections.devices.revokeCapability', {
+                                        capability: t(CAPABILITY_LABEL[capability])
+                                      })}
+                                    </DropdownMenuItem>
+                                  ))}
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={isRevoking || Boolean(revokingCapability)}
+                                onSelect={() => void revokeDevice(device.id)}>
+                                <Trash2 className="size-4" aria-hidden="true" />
+                                {t('deviceConnections.devices.revoke')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       ))}
                     </div>

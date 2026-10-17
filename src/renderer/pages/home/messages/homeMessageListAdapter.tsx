@@ -1,4 +1,4 @@
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
@@ -86,6 +86,7 @@ interface HomeMessageListParams {
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
+  afterMessages?: ReactNode
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -105,6 +106,7 @@ export function useHomeMessageListProviderValue({
   imageActionConsumer,
   onBindRuntime,
   onStartBranchDraft,
+  afterMessages,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -807,9 +809,11 @@ export function useHomeMessageListProviderValue({
       getMessageActivityState,
       isMessageTranslating,
       ...pickMessageLeafState(leafCapabilities),
-      getTranslationLanguageLabel
+      getTranslationLanguageLabel,
+      afterMessages
     }),
     [
+      afterMessages,
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,

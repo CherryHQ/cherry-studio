@@ -11,5 +11,11 @@ export const apiGatewayPairedDeviceHandlers: HandlersFor<ApiGatewayPairedDeviceS
       apiGatewayPairedDeviceService.delete(params.id)
       return undefined
     }
+  },
+  '/api-gateway/paired-devices/:id/capabilities/:capability': {
+    DELETE: async ({ params }) => {
+      apiGatewayPairedDeviceService.revokeRemoteCapability(params.id, params.capability)
+      return undefined
+    }
   }
 }

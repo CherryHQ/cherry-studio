@@ -1,6 +1,14 @@
 import * as z from 'zod'
 
 import { remoteFailureSchema } from '../errors'
+import {
+  uploadMetadataSchema,
+  uploadReferenceSchema,
+  uploadReferencesSchema,
+  uploadStateSchema,
+  uploadResumeSchema,
+  uploadCompleteSchema
+} from '../uploads'
 import { decimal, digest, opaqueId, pageOf, pageParams, timestamp, unicodeText } from '../values'
 import { attachmentSelectionSchema, attachmentDraftSubmissionSchema } from './attachmentDrafts'
 import { agentCheckpointDescriptorSchema, agentCheckpointPageSchema } from './checkpoints'
@@ -15,14 +23,6 @@ import {
   partSchema,
   sessionSchema
 } from './resources'
-import {
-  uploadMetadataSchema,
-  uploadReferenceSchema,
-  uploadReferencesSchema,
-  uploadStateSchema,
-  uploadResumeSchema,
-  uploadCompleteSchema
-} from './uploads'
 
 const method = <P extends z.ZodType, R extends z.ZodType>(params: P, result: R) => ({
   params,

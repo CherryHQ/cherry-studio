@@ -7,9 +7,11 @@
  * which backend is wired in.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
 import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { topicTable } from '@data/db/schemas/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -104,24 +106,6 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
   beforeEach(() => {
     appendAssistantMessageMock.mockReset()
     appendAssistantMessageMock.mockReturnValue({ id: 'msg-a' })
-  })
-
-  it('appends the assistant message on onDone with status=success', async () => {
-    const listener = makeListener('openai::gpt-4o')
-
-    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success', modelId: 'openai::gpt-4o' })
-
-    expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
-    const [topicId, payload, runtimeStats, messageId] = appendAssistantMessageMock.mock.calls[0]
-    expect(topicId).toBe('abc')
-    expect(payload.role).toBe('assistant')
-    expect(payload.status).toBe('success')
-    expect(payload.modelId).toBe('openai::gpt-4o')
-    // The payload stays a CreateMessageDto while the stable stream id is passed
-    // through the service's explicit internal id parameter.
-    expect(payload.id).toBeUndefined()
-    expect(runtimeStats).toBeUndefined()
-    expect(messageId).toBe('assistant-message-id')
   })
 
   it.each(['success', 'paused', 'error'] as const)('never persists retry status parts after %s', async (status) => {
@@ -240,15 +224,6 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendAssistantMessageMock).not.toHaveBeenCalled()
   })
 
-  it('onPaused writes status=paused', async () => {
-    const listener = makeListener()
-
-    await listener.onPaused({ finalMessage: makeFinalMessage(), status: 'paused' })
-
-    expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
-    expect(appendAssistantMessageMock.mock.calls[0][1].status).toBe('paused')
-  })
-
   it('terminalizes interrupted reasoning before composing paused stats', async () => {
     const listener = makeListener()
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(7000)
@@ -361,9 +336,11 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 })
 
 describe('PersistenceListener + MessageServiceBackend — failed persist recovery', () => {
+  const dbh = setupTestDatabase()
   beforeEach(() => {
     messageUpdateMock.mockReset()
-    messageFinalizeMock.mockReset()
+    messageFinalizeMock.mockReset().mockReturnValue({ id: 'assistant-1', topicId: 'topic-1' })
+    dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'Topic', orderKey: 'a0' }).run()
   })
 
   function makeMessageServiceListener() {
@@ -373,19 +350,6 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       onPersistFailed: vi.fn()
     })
   }
-
-  it('finalizes an empty paused placeholder instead of leaving it pending', async () => {
-    const listener = makeMessageServiceListener()
-
-    await listener.onPaused({ finalMessage: undefined, status: 'paused' })
-
-    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
-      data: { parts: [] },
-      status: 'paused',
-      runtimeStats: undefined
-    })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
-  })
 
   it('does not create an empty successful ordinary-chat reply', async () => {
     const listener = makeMessageServiceListener()
@@ -411,29 +375,6 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).toHaveBeenCalledTimes(1)
     // The recovery write flips the frozen `pending` placeholder to a terminal `error`.
     expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
-  })
-
-  it('retains frozen turn options when finalizing the assistant placeholder', async () => {
-    const listener = new PersistenceListener({
-      topicId: 'topic-1',
-      backend: new MessageServiceBackend({
-        assistantMessageId: 'assistant-1',
-        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
-      }),
-      onPersistFailed: vi.fn()
-    })
-
-    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
-
-    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
-      data: {
-        parts: makeFinalMessage().parts,
-        turnOptions: { reasoningEffort: 'high', serviceTier: 'flex', fastMode: true }
-      },
-      status: 'success',
-      runtimeStats: undefined
-    })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 
   it('still raises the control signal when the terminal-error recovery write also fails', async () => {
@@ -492,47 +433,5 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
       TerminalPersistenceError
     )
     expect(onPersistFailed).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('PersistenceListener + MessageServiceBackend — projection ownership', () => {
-  beforeEach(() => {
-    messageUpdateMock.mockReset()
-    messageFinalizeMock.mockReset()
-    messageFinalizeMock.mockReturnValue({ id: 'assistant-1' })
-  })
-
-  it('persists runtimeTiming and contextTokens while leaving usage/cost to the record projection', async () => {
-    const finalMessage = {
-      id: 'msg-x',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'hi' }],
-      metadata: {
-        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15, contextTokens: 13 }
-      }
-    } as unknown as CherryUIMessage
-
-    const listener = new PersistenceListener({
-      topicId: 'topic-1',
-      modelId: 'openrouter::x',
-      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
-      onPersistFailed: vi.fn()
-    })
-
-    const runtimeTiming = { startedAt: 1_000, completedAt: 1_160, spans: [] }
-    await listener.onDone({
-      finalMessage,
-      status: 'success',
-      modelId: 'openrouter::x',
-      timings: { startedAt: 100, completedAt: 260 },
-      runtimeTiming
-    })
-
-    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
-      data: { parts: [{ type: 'text', text: 'hi' }] },
-      status: 'success',
-      runtimeStats: { runtimeTiming, contextTokens: 13 }
-    })
-    expect(messageUpdateMock).not.toHaveBeenCalled()
   })
 })

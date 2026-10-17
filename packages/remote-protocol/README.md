@@ -1,8 +1,9 @@
 # Remote protocol
 
-Portable schemas and pure Agent recovery functions shared by Desktop and Mobile.
+Portable schemas and pure Agent/Assistant recovery functions shared by Desktop and Mobile.
 The root owns JSON-RPC and connection contracts. Agent and configuration transfer
 have separate exports; neither owns sockets, keys, persistence or reconnection.
+
 The root also owns the shared discovery service type, TXT format and fixed WebSocket
 path. These are Cherry peer interoperability contracts, not listener or routing policy.
 
@@ -97,3 +98,70 @@ They must never replace expired upload references inside an already submitted co
 
 Uploaded file history uses a revision-bound content reference, never a desktop filesystem path.
 Content pages are read under the current Agent grant and checked against the complete digest.
+
+Wire protocol 2 also advertises `connection.hello.uploadsVersion: 1`: the same transfer through
+domain-neutral `uploads.prepare/get/resume/complete/cancel`. Each call names the owning
+`domain` (`agent` or `assistant`); DATA records carry the same `domain` and are acknowledged with
+`uploads.ack`. Records without `domain` remain the Agent path acknowledged by `agent.uploads.ack`.
+Uploads are scoped to that domain's grant: a message can only reference uploads owned by its own
+grant, and revoking one capability cancels only that capability's uploads. Neutral limits are
+advertised as `upload*` keys with the same values as their `agentUpload*` counterparts.
+
+## Assistant access
+
+`./assistant` exports the Assistant schemas, command encoding, checkpoint installation,
+and event reducer. Desktop advertises `connection.hello.assistantVersion: 1` only on
+wire protocol 2. New clients offer `[2, 1]` and require version 2 plus this capability
+before requesting Assistant authorization. Protocol 1 retains its two-domain
+authorization view during pairing, authentication and refresh, even when the device
+also has an Assistant grant. Package versions and wire versions remain independent.
+
+An `assistant` grant authorizes all active desktop Assistants and existing topic history.
+It does not authorize provider credential export. Approval adds missing grants while
+preserving existing IDs; revocation removes only the requested capability.
+
+The first contract supports text and uploaded files with the desktop Assistant's default model,
+current-branch history, independent model/message stream identity, expected-execution
+cancellation, and ordinary approval/denial. Model selection, branch editing and configuration
+mutation are excluded. Question forms, MCP OAuth, elicitation and browser confirmation
+require the desktop; interaction resources state whether a decision is remotely answerable.
+
+Read `assistant.topics.get` before paging messages. Every history/part/content read carries
+the selected `parentAnchorId` and `historyRevision`; cursors additionally bind the grant.
+History pages start with the latest messages and keep chronological order within each page.
+The current branch includes its multi-model reply groups, identified by `replyGroupId`;
+ordinary sibling branches remain outside the view.
+Catalog pages are bounded by both item count and encoded byte size. Treat their cursors as opaque;
+the next cursor advances only over returned entries, including when a byte limit shortens the page.
+Message revisions use the view's history revision, so any visible mutation invalidates
+its content references. Messages preserve their producing Assistant and model snapshots.
+Files uploaded by a paired device expose revision-bound file references; other historical
+attachments expose metadata only.
+Message headers carry `partCount`; historical headers leave `partIds` empty and clients
+page through `assistant.parts.list`. Each `part.updated` names `afterPartId` (`null` for
+the first part), positioning both new and replaced parts within their message; an unknown
+predecessor requires recovery. Checkpoint parts follow the message's canonical order.
+These rebuild the ordered part IDs, keeping large tool transcripts out of individual message headers.
+
+Sends attach files through `uploads.*` with `domain: 'assistant'` and the same limits and
+checksum rules as Agent attachments; text may be empty when files are attached.
+`assistant.attachments.present` publishes a topic's in-progress selection to the desktop,
+matching `agent.attachments.present`.
+
+Create/send/cancel/respond use stable command IDs and `assistant.commands.get` for uncertain
+outcomes. A receipt records admission independently of runtime and persistence results.
+An interrupted command is never automatically replayed. Sends also name the expected
+Assistant configuration, branch anchor and history revision; stale or busy sends conflict.
+Approval responses bind the message, execution, view/configuration revisions and input digest.
+
+Subscribe and read checkpoint pages. Fetch streamed text, reasoning and tool-input references
+while the checkpoint lease is held. Pass content keyed by `contentId:revision` to
+`installAssistantCheckpoint(descriptor, pages, content, integrity)`; it verifies byte length,
+SHA-256 and UTF-8 and materializes those parts. Only activate after installation succeeds:
+activation releases the checkpoint's content lease.
+Alternatively, reconnect with the last applied cursor and replay the retained suffix.
+`applyAssistantEvents` applies a batch atomically; fetch and verify referenced content before
+retrying a `content` result. Acknowledge only applied cursors. Gaps/epoch changes and
+`assistant.subscriptions.resetRequired` require a fresh checkpoint. Closing a subscription
+does not cancel desktop execution. Terminal events distinguish saved results from
+persistence failures; refresh history after a durable terminal result.

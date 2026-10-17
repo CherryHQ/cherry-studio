@@ -5,7 +5,7 @@ import type { RemoteFailure } from '@cherrystudio/remote-protocol'
 import { createUpdateTimestamps } from './_columnHelpers'
 import { apiGatewayPairedDeviceTable } from './apiGatewayPairedDevice'
 
-/** Durable receipts for remote Agent commands, keyed by device + authorization generation + command. */
+/** Durable receipts for remote conversation commands, keyed by device + authorization generation + command. */
 export const remoteCommandTable = sqliteTable(
   'remote_command',
   {
@@ -18,6 +18,7 @@ export const remoteCommandTable = sqliteTable(
     identityDigest: text().notNull(),
     status: text().$type<'accepted' | 'applied' | 'rejected' | 'interrupted'>().notNull(),
     sessionId: text(),
+    topicId: text(),
     executionId: text(),
     result: text({ mode: 'json' }).$type<unknown>(),
     error: text({ mode: 'json' }).$type<RemoteFailure>(),

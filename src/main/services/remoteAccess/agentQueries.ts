@@ -25,6 +25,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { toContentRole, type Message } from '@shared/data/types/message'
 import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
@@ -43,7 +44,7 @@ export const inputDigest = (input: unknown): string => sha256(utf8(JSON.stringif
 export type PartContent = { text: string } | { ref: ContentRef }
 
 export function contentOf(contentId: string, revision: string, text: string): PartContent {
-  if (text.length <= INLINE_TEXT_LIMIT) return { text }
+  if (text.length <= INLINE_TEXT_LIMIT && Buffer.byteLength(JSON.stringify(text)) <= 8192) return { text }
   const bytes = utf8(text)
   return {
     ref: { contentId, revision, byteLength: String(bytes.length), mediaType: 'text/plain', sha256: sha256(bytes) }
@@ -116,8 +117,11 @@ function dataPart(partId: string, revision: string, name: string, value: unknown
 }
 
 /** Persisted parts get index-based IDs; live parts use stream IDs and are tombstoned once history commits. */
-export function projectPersistedParts(message: AgentSessionMessageEntity): ProjectedPart[] {
-  const revision = revisionOf(message.updatedAt)
+export function projectPersistedParts(
+  message: Pick<Message, 'id' | 'data' | 'modelId' | 'updatedAt'>,
+  revision = revisionOf(message.updatedAt),
+  files = true
+): ProjectedPart[] {
   const projected: ProjectedPart[] = []
   ;(message.data.parts ?? []).forEach((part: CherryMessagePart, index) => {
     const partId = `${message.id}:${index}`
@@ -128,7 +132,7 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
           revision,
           kind: part.type,
           content: contentOf(partId, revision, part.text),
-          state: 'completed'
+          state: part.state === 'streaming' ? 'streaming' : 'completed'
         },
         text: part.text
       })
@@ -146,8 +150,14 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
         },
         text: input
       })
-      if (part.state === 'output-available' || part.state === 'output-error') {
-        const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
+      if (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied') {
+        const output = JSON.stringify(
+          part.state === 'output-error'
+            ? part.errorText
+            : part.state === 'output-denied'
+              ? 'denied'
+              : (part.output ?? null)
+        )
         projected.push({
           part: {
             partId: `${partId}:out`,
@@ -156,7 +166,7 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
             toolName: getToolName(part),
             toolCallId: part.toolCallId,
             content: contentOf(`${partId}:out`, revision, output),
-            state: part.state === 'output-error' ? 'failed' : 'completed'
+            state: part.state === 'output-error' || part.state === 'output-denied' ? 'failed' : 'completed'
           },
           text: output
         })
@@ -168,7 +178,7 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
       )
     } else if (part.type === 'file') {
       const metadata = readCherryMeta(part)?.remoteAttachment
-      if (metadata && readCherryMeta(part)?.fileEntryId) {
+      if (files && metadata && readCherryMeta(part)?.fileEntryId) {
         projected.push({
           text: '',
           part: {
@@ -217,7 +227,11 @@ export function toMessageModel(
   return result.success ? result.data : undefined
 }
 
-export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+export function toMessage(
+  message: Pick<Message, 'id' | 'role' | 'data' | 'stats' | 'modelId' | 'messageSnapshot' | 'status' | 'updatedAt'>,
+  revision = revisionOf(message.updatedAt),
+  partIds?: string[]
+): AgentMessage {
   const usage = toMessageUsage(message.stats)
   const model = toMessageModel(message)
   const error = message.data.parts?.find((part) => part.type === 'data-error')
@@ -225,9 +239,9 @@ export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
     messageId: message.id,
     ...(usage ? { usage } : {}),
     ...(model ? { model } : {}),
-    revision: revisionOf(message.updatedAt),
-    role: message.role,
-    partIds: projectPersistedParts(message).map(({ part }) => part.partId),
+    revision,
+    role: toContentRole(message.role),
+    partIds: partIds ?? projectPersistedParts(message, revision).map(({ part }) => part.partId),
     status: message.status,
     ...(message.status === 'error'
       ? {
@@ -252,7 +266,7 @@ export function listMessages(
   const page = notFound(() =>
     agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: limit ?? DEFAULT_PAGE })
   )
-  return { items: page.items.map(toMessage), nextCursor: page.nextCursor ?? null }
+  return { items: page.items.map((message) => toMessage(message)), nextCursor: page.nextCursor ?? null }
 }
 
 export function listParts(
@@ -389,28 +403,48 @@ export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParam
 
 /** Resolve bytes only through a current message reference, never a client-supplied file path. */
 export async function readPersistedFileContent(params: AgentParams<'agent.content.read'>) {
-  const [messageId] = params.contentId.split(':')
-  const index = Number(params.contentId.slice(messageId.length + 1))
-  if (`${messageId}:${index}` !== params.contentId) return undefined
+  const target = partTarget(params.contentId)
+  if (!target) return undefined
   let message: AgentSessionMessageEntity
   try {
-    message = agentSessionMessageService.getSessionMessage(params.sessionId, messageId)
+    message = agentSessionMessageService.getSessionMessage(params.sessionId, target.messageId)
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return undefined
     throw error
   }
-  const part = message.data.parts?.[index]
-  if (part?.type !== 'file') return undefined
-  const meta = readCherryMeta(part)
-  if (!meta?.remoteAttachment || !meta.fileEntryId) return undefined
+  const file = uploadedFileOf(message.data.parts?.[target.index])
+  if (!file) return undefined
   if (revisionOf(message.updatedAt) !== params.revision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'Content revision expired')
+  return readUploadedFile(file, params)
+}
+
+/** Split a `messageId:index` content ID that addresses a persisted message part. */
+export function partTarget(contentId: string): { messageId: string; index: number } | undefined {
+  const [messageId] = contentId.split(':')
+  const index = Number(contentId.slice(messageId.length + 1))
+  return `${messageId}:${index}` === contentId ? { messageId, index } : undefined
+}
+
+/** Only remote uploads carry the digest that file pages are verified against. */
+export function uploadedFileOf(part: CherryMessagePart | undefined) {
+  if (part?.type !== 'file') return undefined
+  const meta = readCherryMeta(part)
+  return meta?.remoteAttachment && meta.fileEntryId
+    ? { fileEntryId: meta.fileEntryId, ...meta.remoteAttachment }
+    : undefined
+}
+
+export async function readUploadedFile<P extends { offset: string; maxBytes: number }>(
+  file: { fileEntryId: string; byteLength: number; sha256: string },
+  params: P
+) {
   const offset = Number(params.offset)
-  const { byteLength, sha256 } = meta.remoteAttachment
+  const { byteLength, sha256 } = file
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > byteLength)
     throw new RemoteRpcError('NOT_FOUND', 'Invalid file offset')
   const handle = await open(
-    application.get('FileManager').getPhysicalPath(FileEntryIdSchema.parse(meta.fileEntryId)),
+    application.get('FileManager').getPhysicalPath(FileEntryIdSchema.parse(file.fileEntryId)),
     'r'
   )
   try {

@@ -16,7 +16,7 @@ export interface RemoteCommandKey {
 }
 
 export type RemoteCommandOutcome =
-  | { status: 'applied'; sessionId?: string; executionId?: string; result?: unknown }
+  | { status: 'applied'; sessionId?: string; topicId?: string; executionId?: string; result?: unknown }
   | { status: 'rejected'; error: RemoteFailure }
   | { status: 'interrupted'; error: RemoteFailure }
 
@@ -27,6 +27,7 @@ function toReceipt(row: RemoteCommandRow): CommandReceipt {
     status: row.status,
     admittedAt: new Date(row.admittedAt).toISOString(),
     ...(row.sessionId ? { sessionId: row.sessionId } : {}),
+    ...(row.topicId ? { topicId: row.topicId } : {}),
     ...(row.executionId ? { executionId: row.executionId } : {}),
     ...(row.result !== null && row.result !== undefined ? { result: row.result as CommandReceipt['result'] } : {}),
     ...(row.error ? { error: row.error } : {})
@@ -53,7 +54,7 @@ export class RemoteCommandService {
 
   apply(
     key: RemoteCommandKey,
-    input: { method: string; identityDigest: string; sessionId?: string },
+    input: { method: string; identityDigest: string; sessionId?: string; topicId?: string },
     write: (tx: DbOrTx) => RemoteCommandOutcome
   ) {
     return application.get('DbService').withWriteTx((tx) => {
@@ -80,7 +81,7 @@ export class RemoteCommandService {
   /** Returns the existing receipt for an identical retry, or records a fresh `accepted` receipt. */
   admit(
     key: RemoteCommandKey,
-    input: { method: string; identityDigest: string; sessionId?: string }
+    input: { method: string; identityDigest: string; sessionId?: string; topicId?: string }
   ):
     | { kind: 'existing'; receipt: CommandReceipt }
     | { kind: 'conflict' }
@@ -112,6 +113,7 @@ export class RemoteCommandService {
           identityDigest: input.identityDigest,
           status: 'accepted',
           sessionId: input.sessionId ?? null,
+          topicId: input.topicId ?? null,
           admittedAt: Date.now()
         })
         .returning()
@@ -127,6 +129,7 @@ export class RemoteCommandService {
         ? {
             status: outcome.status,
             ...(outcome.sessionId ? { sessionId: outcome.sessionId } : {}),
+            ...(outcome.topicId ? { topicId: outcome.topicId } : {}),
             executionId: outcome.executionId ?? null,
             ...(outcome.result !== undefined ? { result: outcome.result } : {})
           }

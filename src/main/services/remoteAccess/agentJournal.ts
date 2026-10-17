@@ -40,7 +40,6 @@ import {
   utf8
 } from './agentQueries'
 import { toMessageUsage } from './agentUsage'
-import { RemoteUploads } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentJournal')
 const integrity = { sha256 }
@@ -877,7 +876,13 @@ class RemoteAgentListener implements StreamListener {
 
 /** Shared journals: one per session regardless of how many devices subscribe. */
 export class RemoteAgentHub {
-  readonly uploads = new RemoteUploads()
+  constructor(private readonly onAppend: () => void = () => {}) {}
+  get replayBytes(): number {
+    return [...this.journals.values()].reduce((bytes, journal) => bytes + journal.replayBytes, 0)
+  }
+  trimReplay(maxBytes: number): void {
+    this.enforceReplayBudget(maxBytes)
+  }
   private readonly journals = new Map<string, SessionJournal>()
 
   publishSession(sessionId: string): void {
@@ -895,7 +900,10 @@ export class RemoteAgentHub {
         oldest.dispose()
         this.journals.delete(oldest.sessionId)
       }
-      journal = new SessionJournal(sessionId, () => this.enforceReplayBudget())
+      journal = new SessionJournal(sessionId, () => {
+        this.enforceReplayBudget()
+        this.onAppend()
+      })
       this.journals.set(sessionId, journal)
     }
     journal.lastUsedAt = Date.now()
@@ -913,7 +921,6 @@ export class RemoteAgentHub {
   }
 
   sweep(): void {
-    this.uploads.sweep()
     for (const journal of this.journals.values()) {
       if (journal.disposable && journal.lastUsedAt <= Date.now() - remoteLimits.replayMs) {
         journal.dispose()
@@ -922,9 +929,9 @@ export class RemoteAgentHub {
     }
   }
 
-  private enforceReplayBudget(): void {
+  private enforceReplayBudget(maxBytes: number = remoteLimits.globalReplayBytes): void {
     const journals = [...this.journals.values()].sort((a, b) => a.oldestReplayAt - b.oldestReplayAt)
-    let excess = journals.reduce((bytes, journal) => bytes + journal.replayBytes, 0) - remoteLimits.globalReplayBytes
+    let excess = journals.reduce((bytes, journal) => bytes + journal.replayBytes, 0) - maxBytes
     for (const journal of journals) {
       if (excess <= 0) break
       const before = journal.replayBytes

@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto'
 
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { omit } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -58,7 +59,7 @@ function rowToTopic(row: TopicRow): Topic {
   // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
   // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
   // from data-api-in-main.md applies cleanly.
-  const clean = nullsToUndefined(row)
+  const clean = nullsToUndefined(omit(row, ['remoteHistoryRevision']))
   return {
     ...clean,
     lastActivityAt: timestampToISO(row.lastActivityAt),
@@ -121,6 +122,18 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
+  getRemoteHistoryRevision(topicId: string): string {
+    const row = application
+      .get('DbService')
+      .getDb()
+      .select({ revision: topicTable.remoteHistoryRevision })
+      .from(topicTable)
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .get()
+    if (!row) throw DataApiErrorFactory.notFound('Topic', topicId)
+    return String(row.revision)
+  }
+
   notifyReadModelChange(
     topicIds: readonly string[],
     kind: 'membership' | 'projection',
@@ -287,7 +300,8 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  private createTx(tx: DbOrTx, dto: CreateTopicDto): TopicRow {
+  createTx(tx: DbOrTx, dto: CreateTopicDto): TopicRow {
+    if (dto.assistantId) assertActiveAssistantTx(tx, dto.assistantId)
     const createdAt = Date.now()
     const topicRow = insertWithOrderKey(
       tx,
@@ -682,12 +696,13 @@ export class TopicService {
    * one pagination contract (pinned-first, then manual order); recency ordering
    * for the time-grouped view is applied by the renderer over the loaded list.
    */
-  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
+  listByCursor(query: ListTopicsQuery & { assistantId?: string } = {}): CursorPaginationResponse<Topic> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')
     const search = buildSearchPredicate(query.q)
     const idFilter = query.ids ? inArray(topicTable.id, query.ids) : undefined
+    const assistantFilter = query.assistantId ? eq(topicTable.assistantId, query.assistantId) : undefined
     const inTrash = query.inTrash === true
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
@@ -703,7 +718,7 @@ export class TopicService {
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-        .where(and(isNull(topicTable.deletedAt), idFilter, pinAfter, search))
+        .where(and(isNull(topicTable.deletedAt), idFilter, assistantFilter, pinAfter, search))
         .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
         .limit(limit + 1)
         .all()
@@ -761,6 +776,7 @@ export class TopicService {
         and(
           inTrash ? isNotNull(topicTable.deletedAt) : isNull(topicTable.deletedAt),
           idFilter,
+          assistantFilter,
           notInArray(topicTable.id, pinnedSubquery),
           topicAfter,
           search

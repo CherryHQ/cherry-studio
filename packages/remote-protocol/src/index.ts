@@ -33,3 +33,24 @@ export type { DirectEndpoint } from './discovery'
 
 export { uploadTransferLimits, uploadChunkHeaderSchema, uploadAckSchema, isUploadChunk } from './records'
 export type { UploadChunkHeader, UploadChunk, UploadAck } from './records'
+export {
+  uploadLimits,
+  uploadDomainSchema,
+  uploadMetadataSchema,
+  uploadReferenceSchema,
+  uploadReferencesSchema,
+  uploadCompleteSchema,
+  uploadResumeSchema,
+  uploadStateSchema,
+  uploadMethods
+} from './uploads'
+export type {
+  UploadDomain,
+  UploadMethod,
+  UploadParams,
+  UploadComplete,
+  UploadMetadata,
+  UploadReference,
+  UploadState,
+  UploadResume
+} from './uploads'

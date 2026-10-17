@@ -40,12 +40,12 @@ import {
   toSessionSummary
 } from './agentQueries'
 import type { AgentSubscriptions } from './agentSubscriptions'
-import type { UploadOwner } from './RemoteUploads'
+import type { DeviceGrant, RemoteUploads, UploadOwner } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentHandlers')
 
 export interface AgentAccess {
-  requireAgent(): UploadOwner
+  requireAgent(): DeviceGrant
   /** Runs after the pending reply has been queued to the wire, so activation never leaks events ahead of its response. */
   afterReply(fn: () => void): void
 }
@@ -56,7 +56,8 @@ export function registerAgentMethods(
   rpc: RemoteRpcServer<void>,
   access: AgentAccess,
   hub: RemoteAgentHub,
-  subscriptions: AgentSubscriptions
+  subscriptions: AgentSubscriptions,
+  uploads: RemoteUploads
 ): void {
   const on = <M extends AgentMethod>(
     name: M,
@@ -191,27 +192,28 @@ export function registerAgentMethods(
     if (!bytes) throw new RemoteRpcError('NOT_FOUND', 'Content not found')
     return { contentId, revision, ...sliceContent(bytes, offset, maxBytes) }
   })
+  const agentUploads = (auth: Auth): UploadOwner => ({ ...auth, domain: 'agent' })
   const presence = application.get('AttachmentPresenceService')
   const generation = presence.connection()
   on('agent.attachments.present', (params, auth) => {
     getSession(params.sessionId)
-    return presence.present(hub.uploads.scope(auth), auth, generation, params)
+    return presence.present(uploads.scope(agentUploads(auth)), auth, generation, params)
   })
-  on('agent.uploads.prepare', (params, auth) => hub.uploads.prepare(auth, params))
-  on('agent.uploads.get', ({ uploadId }, auth) => hub.uploads.get(auth, uploadId))
-  on('agent.uploads.resume', (params, auth) => hub.uploads.resume(auth, params))
-  on('agent.uploads.complete', (params, auth) => hub.uploads.complete(auth, params))
+  on('agent.uploads.prepare', (params, auth) => uploads.prepare(agentUploads(auth), params))
+  on('agent.uploads.get', ({ uploadId }, auth) => uploads.get(agentUploads(auth), uploadId))
+  on('agent.uploads.resume', (params, auth) => uploads.resume(agentUploads(auth), params))
+  on('agent.uploads.complete', (params, auth) => uploads.complete(agentUploads(auth), params))
   on('agent.uploads.cancel', ({ uploadId }, auth) => {
-    return hub.uploads.cancel(auth, uploadId)
+    return uploads.cancel(agentUploads(auth), uploadId)
   })
   on('agent.messages.send', (params, auth) => {
     return command(auth, 'agent.messages.send', params, params.sessionId, async () => {
       if (params.attachmentDraft)
         throw new RemoteRpcError('NOT_FOUND', 'Previous attachment draft is no longer available; prepare a new send')
-      const scope = hub.uploads.scope(auth)
+      const scope = uploads.scope(agentUploads(auth))
       presence.submitting(scope, params.selectionId, params.commandId)
       try {
-        return await hub.uploads.withFiles(auth, params.attachments ?? [], async (attachments) => {
+        return await uploads.withFiles(agentUploads(auth), params.attachments ?? [], async (attachments) => {
           const started = await hub.journal(params.sessionId).startRun(
             params.text,
             summaryOf(params.sessionId).agentId,
@@ -337,7 +339,7 @@ export function registerAgentMethods(
   })
   on('agent.sessions.subscribe', (params) => {
     getSession(params.sessionId)
-    return subscriptions.subscribe(params)
+    return subscriptions.subscribeSession(params)
   })
   on('agent.checkpoints.read', (params) => subscriptions.readCheckpoint(params))
   on('agent.subscriptions.activate', (params) => {

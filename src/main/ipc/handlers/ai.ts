@@ -189,7 +189,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       application.get('AgentLifecycleService').deleteActiveAgentPermanently(agentId, deleteSessions)
     ),
   'ai.agent.attachment_selections.list': ({ sessionId }) =>
-    application.get('AttachmentPresenceService').list(sessionId),
+    application.get('AttachmentPresenceService').list({ sessionId }),
+  'ai.topic.attachment_selections.list': ({ topicId }) =>
+    application.get('AttachmentPresenceService').list({ topicId }),
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),

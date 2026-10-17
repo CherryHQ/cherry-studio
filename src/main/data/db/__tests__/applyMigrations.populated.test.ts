@@ -8,6 +8,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
+import { TOPIC_REMOTE_REVISION_STATEMENTS } from '@data/db/schemas/topic'
 import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
 import type { DbType } from '@data/db/types'
 
@@ -59,6 +60,12 @@ describe('applyMigrations over a populated database', () => {
   let sqlite: Database.Database
   let db: DbType
 
+  function applyBaselineMigrations(beforeTag?: string): void {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), beforeTag))
+    // Historical schemas predate the revision column used by the current boot-time triggers.
+    sqlite.exec(TOPIC_REMOTE_REVISION_STATEMENTS.filter((statement) => statement.startsWith('DROP TRIGGER')).join(';'))
+  }
+
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-migrate-populated-'))
     sqlite = new Database(join(tempDir, 'test.db'))
@@ -71,7 +78,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('adds diagnostic history to a populated database and retains it after reopening', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyBaselineMigrations()
     const now = Date.now()
     sqlite
       .prepare(
@@ -100,7 +107,7 @@ describe('applyMigrations over a populated database', () => {
 
   it('preserves legacy paired devices and creates durable receipts with device cascade', () => {
     sqlite.pragma('foreign_keys = ON')
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0025_remote-access'))
+    applyBaselineMigrations('0025_remote-access')
     const insertDevice = sqlite.prepare(`INSERT INTO api_gateway_paired_device
       (id, name, platform, token_hash, created_at, updated_at)
       VALUES (?, ?, 'ios', ?, 1000, 2000)`)
@@ -115,7 +122,8 @@ describe('applyMigrations over a populated database', () => {
         updated_at: 2000,
         peer_identity: null,
         configuration_grant_id: null,
-        agent_grant_id: null
+        agent_grant_id: null,
+        assistant_grant_id: null
       }))
     )
     const insertReceipt = sqlite.prepare(`INSERT INTO remote_command
@@ -183,7 +191,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('classifies only proven heartbeat sessions while preserving conversation data', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0024_lying_shatterstar'))
+    applyBaselineMigrations('0024_lying_shatterstar')
     const now = Date.now()
     sqlite
       .prepare(`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
@@ -245,7 +253,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
+    applyBaselineMigrations('0019_colorful_gladiator')
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
@@ -269,7 +277,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('carries mini_app rows through the kind rebuild and calls every pre-existing one a site', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
+    applyBaselineMigrations('0019_colorful_gladiator')
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mini_app (app_id, name, url, order_key, created_at, updated_at)
@@ -297,7 +305,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('widens the ai_usage_record source_type check to accept mini-app without dropping records', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
+    applyBaselineMigrations('0019_colorful_gladiator')
     const now = Date.now()
     // A REALISTIC row, because the table carries four composite identity checks: an
     // `invocation` needs a provider and model, a non-null `source_type` needs a
@@ -341,7 +349,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
+    applyBaselineMigrations('0012_sink_endpoint_dialect')
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO user_provider
@@ -404,7 +412,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('quarantines legacy channel sessions without changing conversation history', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0011_rare_vertigo'))
+    applyBaselineMigrations('0011_rare_vertigo')
     const now = Date.now()
     sqlite
       .prepare(
@@ -473,7 +481,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0004_fresh_roland_deschain'))
+    applyBaselineMigrations('0004_fresh_roland_deschain')
     seedBaselineRows()
 
     applyMigrations(db, resolveMigrationsPath())
@@ -511,7 +519,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('keeps the recreated table enforcing its constraints on new writes', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0004_fresh_roland_deschain'))
+    applyBaselineMigrations('0004_fresh_roland_deschain')
     seedBaselineRows()
     applyMigrations(db, resolveMigrationsPath())
 
@@ -542,7 +550,7 @@ describe('applyMigrations over a populated database', () => {
     // Stop before 0003 adds cleanup_policy. This reproduces an rc.1 database whose one-shot
     // migration created a referenced file after the fixed journal timestamp used by the first
     // implementation of this backfill.
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0003_slow_proudstar'))
+    applyBaselineMigrations('0003_slow_proudstar')
     const oldFixedCutoff = 1785514531244
     const fileCreatedAt = oldFixedCutoff + 60_000
     const migrationCompletedAt = fileCreatedAt + 60_000
@@ -1000,7 +1008,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('enables existing skills globally without changing per-agent preferences', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_abnormal_may_parker'))
+    applyBaselineMigrations('0008_abnormal_may_parker')
     const now = Date.now()
     sqlite
       .prepare(
@@ -1034,7 +1042,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('preserves populated prompts when adding visibility and bindings', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0015_chief_morgan_stark'))
+    applyBaselineMigrations('0015_chief_morgan_stark')
     sqlite
       .prepare(
         `INSERT INTO prompt (id, title, content, order_key, created_at, updated_at)
@@ -1096,7 +1104,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('moves legacy sticky session pointers into the constrained relation', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0005_slow_obadiah_stane'))
+    applyBaselineMigrations('0005_slow_obadiah_stane')
     const now = Date.now()
     sqlite
       .prepare(
@@ -1186,7 +1194,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
+    applyBaselineMigrations('0020_wooden_fat_cobra')
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO job
@@ -1217,7 +1225,7 @@ describe('applyMigrations over a populated database', () => {
     // Pinned to the 0007 backfill migration: the default tip baseline would drift
     // forward past it once a later migration exists, and the NOT NULL
     // last_activity_at recreate would reject the seed rows below.
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0007_flimsy_mentor'))
+    applyBaselineMigrations('0007_flimsy_mentor')
 
     sqlite
       .prepare(

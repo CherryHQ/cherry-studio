@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { remoteFailureSchema } from './errors'
+import { uploadDomainSchema } from './uploads'
 import { decimal, opaqueId } from './values'
 
 export const uploadTransferLimits = Object.freeze({
@@ -14,13 +15,15 @@ export const uploadChunkHeaderSchema = z.strictObject({
   requestId: opaqueId,
   uploadId: opaqueId,
   writerEpoch: decimal,
-  offset: decimal
+  offset: decimal,
+  /** Absent only on legacy Agent records, which are acknowledged with `agent.uploads.ack`. */
+  domain: uploadDomainSchema.optional()
 })
 export type UploadChunkHeader = z.infer<typeof uploadChunkHeaderSchema>
 export type UploadChunk = UploadChunkHeader & { bytes: Uint8Array }
 export const uploadAckSchema = z.strictObject({
   jsonrpc: z.literal('2.0'),
-  method: z.literal('agent.uploads.ack'),
+  method: z.enum(['agent.uploads.ack', 'uploads.ack']),
   params: z.discriminatedUnion('ok', [
     z.strictObject({
       ok: z.literal(true),

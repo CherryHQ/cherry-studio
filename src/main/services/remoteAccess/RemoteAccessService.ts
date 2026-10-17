@@ -16,11 +16,13 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { RemoteAgentHub } from './agentJournal'
+import { RemoteAssistantHub } from './assistantJournal'
 import { loadDesktopIdentity } from './deviceIdentity'
 import { RemoteAdvertisement } from './RemoteAdvertisement'
 import { RemoteConnection } from './RemoteConnection'
 import { RemotePairing } from './RemotePairing'
 import { RemoteTokens } from './RemoteTokens'
+import { RemoteUploads } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAccessService')
 const transportLog: ChannelOptions['logger'] = {
@@ -52,7 +54,17 @@ export class RemoteAccessService extends BaseService {
   private endpointRevision = 0
   private readonly pairing = new RemotePairing()
   private readonly tokens = new RemoteTokens()
-  private readonly hub = new RemoteAgentHub()
+  private readonly hub = new RemoteAgentHub(() => this.enforceReplayBudget())
+  private readonly assistantHub = new RemoteAssistantHub(() => this.enforceReplayBudget())
+  private readonly snapshotBudget = { bytes: 0 }
+  private readonly uploads = new RemoteUploads()
+  private enforceReplayBudget(): void {
+    const excess = this.hub.replayBytes + this.assistantHub.replayBytes - remoteLimits.globalReplayBytes
+    if (excess <= 0) return
+    const trimAssistant = Math.min(excess, this.assistantHub.replayBytes)
+    this.assistantHub.trimReplay(this.assistantHub.replayBytes - trimAssistant)
+    this.hub.trimReplay(Math.max(0, this.hub.replayBytes - (excess - trimAssistant)))
+  }
   private readonly connections = new Map<
     RemoteSocket,
     { address: string; openedAt: number; abort: AbortController; remote?: RemoteConnection }
@@ -71,6 +83,8 @@ export class RemoteAccessService extends BaseService {
     this.registerInterval(() => {
       this.tokens.sweep()
       this.hub.sweep()
+      this.assistantHub.sweep()
+      this.uploads.sweep()
       for (const [socket, entry] of this.connections) {
         try {
           entry.remote?.sweep()
@@ -86,6 +100,7 @@ export class RemoteAccessService extends BaseService {
       this.pairing.clear()
       this.tokens.clear()
       this.hub.dispose()
+      this.assistantHub.dispose()
       for (const socket of this.connections.keys()) socket.close(1001, 'Service stopping')
     })
   }
@@ -131,7 +146,7 @@ export class RemoteAccessService extends BaseService {
       this.endpoint.identity = deviceIdentityId(identity)
       this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
     }
-    return { ...this.pairing.create(), desktopIdentity: deviceIdentityId(identity), protocolVersions: [1] }
+    return { ...this.pairing.create(), desktopIdentity: deviceIdentityId(identity), protocolVersions: [2, 1] }
   }
 
   pendingClaims() {
@@ -194,7 +209,7 @@ export class RemoteAccessService extends BaseService {
     const channel = await acceptSecureChannel(stream, {
       identity: await this.getIdentity(),
       logger: transportLog,
-      protocolVersions: [1],
+      protocolVersions: [2, 1],
       signal: AbortSignal.any([entry.abort.signal, AbortSignal.timeout(10_000)])
     })
     const remote = new RemoteConnection(
@@ -203,7 +218,10 @@ export class RemoteAccessService extends BaseService {
       this.tokens,
       () => application.get('IpcApiService').broadcast('api_gateway.remote.pairing_changed', undefined),
       this.hub,
-      () => this.getConnectionEndpoints()
+      () => this.getConnectionEndpoints(),
+      this.assistantHub,
+      this.snapshotBudget,
+      this.uploads
     )
     entry.remote = remote
     let windowStart = Date.now()

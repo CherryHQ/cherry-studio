@@ -1,17 +1,17 @@
 import * as z from 'zod'
 
+import { uploadLimits, uploadMetadataSchema, type uploadStateSchema } from '../uploads'
 import { decimal, opaqueId } from '../values'
-import { agentUploadLimits, uploadMetadataSchema, type uploadStateSchema } from './uploads'
 
 export const attachmentDraftItemSchema = uploadMetadataSchema.extend({ attachmentId: opaqueId })
 export const attachmentDraftManifestSchema = z
   .array(attachmentDraftItemSchema)
-  .max(agentUploadLimits.files)
+  .max(uploadLimits.files)
   .refine(
     (items) =>
       new Set(items.map((item) => item.attachmentId)).size === items.length &&
       new Set(items.map((item) => item.uploadId)).size === items.length &&
-      items.reduce((sum, item) => sum + item.byteLength, 0) <= agentUploadLimits.messageBytes
+      items.reduce((sum, item) => sum + item.byteLength, 0) <= uploadLimits.messageBytes
   )
 export const attachmentDraftSubmissionSchema = z.strictObject({ draftId: opaqueId, manifestRevision: decimal })
 export type AgentAttachmentDraftItem = z.infer<typeof attachmentDraftItemSchema>

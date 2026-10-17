@@ -568,7 +568,7 @@ describe('DeviceConnectionsSettings', () => {
 
     expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Pairing request' })).toHaveTextContent('123456')
-    await user.click(screen.getByRole('checkbox', { name: 'Import providers and models' }))
+    await user.click(screen.getByRole('checkbox', { name: enUS['deviceConnections.capabilities.configuration'] }))
     await user.click(screen.getByRole('button', { name: 'Approve' }))
 
     expect(requestMock).toHaveBeenCalledWith('api_gateway.remote.decide_pairing', {
@@ -722,7 +722,8 @@ describe('DeviceConnectionsSettings', () => {
     const user = userEvent.setup()
     const { rerender } = render(<DeviceConnectionsSettings />)
 
-    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.devices.revoke'] }))
+    await user.click(screen.getByRole('button', { name: enUS['common.more'] }))
+    await user.click(await screen.findByRole('menuitem', { name: enUS['deviceConnections.devices.revoke'] }))
     rerender(<DeviceConnectionsSettings />)
 
     expect(trigger).toHaveBeenCalledWith({ params: { id: device.id } })
@@ -732,7 +733,7 @@ describe('DeviceConnectionsSettings', () => {
     } else {
       expect(screen.getByText(device.name)).toBeInTheDocument()
       expect(toast.error).toHaveBeenCalledWith(enUS['common.delete_failed'])
-      expect(screen.getByRole('button', { name: enUS['deviceConnections.devices.revoke'] })).toBeEnabled()
+      expect(screen.getByRole('button', { name: enUS['common.more'] })).toBeEnabled()
     }
   })
 })
