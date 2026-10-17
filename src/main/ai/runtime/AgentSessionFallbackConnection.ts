@@ -107,11 +107,6 @@ export function classifyRuntimeFallbackError(error: unknown): string | undefined
  */
 const NON_CONTENT_CHUNK_TYPES = new Set(['start', 'start-step', 'finish-step', 'finish', 'message-metadata', 'abort'])
 
-/** Teardown is best-effort: a failing close must never reject the close that ordered it. */
-function closeQuietly(connection?: AgentRuntimeConnection): Promise<void> {
-  return Promise.resolve(connection?.close()).catch(() => undefined)
-}
-
 /**
  * Rebuilds a Pi/DSH connection once when a provider fails before producing turn content. It owns
  * one stable event stream, so the host keeps its existing turn, persistence listener, and renderer
@@ -135,7 +130,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   /** Settles when an in-flight rebuild connect does, so close() cannot outrun a rebuild it cannot see. */
   private pendingConnect?: Promise<void>
   /** Teardown of a replacement discard() is closing; close() joins it so the host's closing barrier
-   *  releases only after the replacement's own shutdown settles. */
+   *  releases only after the replacement's own shutdown settles — inheriting a rejection as one. */
   private pendingTeardown?: Promise<void>
   private trace?: AgentRuntimeTraceContext
   /** True while a fallback replacement is starting up: the host still reconciles the connection it
@@ -271,21 +266,35 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     await this.pendingConnect
     const pending = this.pendingConnection
     this.pendingConnection = undefined
-    // A discard() raced by this close is still tearing its replacement down; joining that teardown
-    // keeps the host's closing barrier up until the replacement's shutdown settles.
-    await Promise.all([this.current.close(), closeQuietly(pending), this.pendingTeardown])
-    this.queue.close()
+    try {
+      // A discard() raced by this close is still tearing its replacement down; joining that teardown
+      // keeps the host's closing barrier up until the replacement's shutdown settles — and a
+      // shutdown that rejects must reject this close too, or the host archives with the replacement
+      // teardown unconfirmed.
+      const legs = [
+        Promise.resolve(this.current.close()),
+        Promise.resolve(pending?.close()),
+        Promise.resolve(this.pendingTeardown)
+      ]
+      const outcomes = await Promise.allSettled(legs)
+      const failed = outcomes.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected')
+      if (failed) throw failed.reason
+    } finally {
+      this.queue.close()
+    }
   }
 
   /** Closes a rebuilt connection that the swap never took over. */
   private async discard(connection: AgentRuntimeConnection): Promise<void> {
     if (this.pendingConnection !== connection) return
     this.pendingConnection = undefined
-    // Retain the teardown for close(): a close that raced the connect wakes on the very microtask
-    // this discard clears `pendingConnection` on, and must still join the replacement's shutdown.
-    const teardown = closeQuietly(connection)
+    // Retain the raw shutdown for close(): a close that raced the connect wakes on the very
+    // microtask this discard clears `pendingConnection` on, and must join — and observe the failure
+    // of — the replacement's shutdown. The detached catch defuses the rejection when no close comes.
+    const teardown = Promise.resolve(connection.close())
     this.pendingTeardown ??= teardown
-    await teardown
+    teardown.catch(() => undefined)
+    await teardown.catch(() => undefined)
   }
 
   private async pump(): Promise<void> {
