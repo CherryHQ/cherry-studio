@@ -333,6 +333,24 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
   })
 
+  // A base64 conversion past the runtime string limit (a large TIFF, say) fails native
+  // materialization on a vision caller — the note above would erase the only reference
+  // a path-forwarding caller's local-path fallback can still deliver.
+  it('keeps a native image whose materialization failed as a file part for a path-forwarding caller', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'tiff' })
+    resolveMock.mockResolvedValueOnce(null)
+    const part = fileWithEntry('e1', 'scan.tiff', 'image/tiff')
+
+    const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
+      attachments: [{ fileEntryId: 'e1', handle: 'scan.tiff', displayName: 'scan.tiff' }],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: true,
+      keepUnroutableFileParts: true
+    })
+
+    expect(out.parts).toEqual([part])
+  })
+
   it('uses the empty-extraction note', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
     extractMock.mockResolvedValueOnce('   ')

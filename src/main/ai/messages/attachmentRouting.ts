@@ -15,8 +15,10 @@
  * Content is always inlined, so visibility never depends on the model choosing
  * to call `read_file` — weak and non-tool models see it too. Other failures
  * (missing entry, parse error, native materialization) degrade to a model-visible
- * note rather than silently dropping the file or failing the request. Unreadable
- * non-vision images stop the request, except under a path-forwarding caller.
+ * note rather than silently dropping the file or failing the request — a
+ * path-forwarding caller keeps the part instead, so its local-path fallback still
+ * has the file reference. Unreadable non-vision images stop the request, except
+ * under a path-forwarding caller.
  * Legacy / gateway parts (no `fileEntryId`)
  * keep the eager materialization path, but their image/audio/video parts remain
  * capability-gated.
@@ -131,9 +133,10 @@ export interface PrepareChatContext {
   budget?: AttachmentBudget
   /**
    * Path-forwarding caller (agent runtime): keep a first-party part that routing cannot
-   * turn into model input — an unlisted extension (`FILE_TYPE.OTHER`) or a non-vision
-   * image whose OCR yields no text — as a file part instead of replacing it with a note
-   * or failing the request, so the caller's local-path fallback still has the file reference.
+   * turn into model input — a native part whose inline materialization fails, an unlisted
+   * extension (`FILE_TYPE.OTHER`), or a non-vision image whose OCR yields no text — as a
+   * file part instead of replacing it with a note or failing the request, so the caller's
+   * local-path fallback still has the file reference.
    */
   keepUnroutableFileParts?: boolean
   signal?: AbortSignal
@@ -280,7 +283,9 @@ async function prepareChatMessage<T extends UIMessage>(
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
-          kept.push(noteOf(handle))
+          // A path-forwarding caller keeps the part for local-path delivery (same
+          // fallback as unlisted extensions); only ordinary chat degrades to the note.
+          kept.push(ctx.keepUnroutableFileParts ? part : noteOf(handle))
         }
         continue
       }
