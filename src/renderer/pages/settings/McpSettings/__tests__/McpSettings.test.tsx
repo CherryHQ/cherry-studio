@@ -236,6 +236,17 @@ describe('McpSettings', () => {
     expect(clipboardWriteText).toHaveBeenCalledWith(formatMcpLogs([...logs, liveLog]))
   })
 
+  it('places server instructions immediately after resources', () => {
+    currentSearch = {}
+    currentServer = { ...currentServer, isActive: true }
+    render(<McpSettings />)
+
+    const tabs = screen.getAllByRole('radio')
+    const resources = screen.getByRole('radio', { name: 'settings.mcp.tabs.resources' })
+    const instructions = screen.getByRole('radio', { name: 'settings.mcp.instructions.title' })
+    expect(tabs.indexOf(instructions)).toBe(tabs.indexOf(resources) + 1)
+  })
+
   it('defers tools/prompts/resources fetches until the matching tab is first opened', async () => {
     currentSearch = {}
     currentServer = {
