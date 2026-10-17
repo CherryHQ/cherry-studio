@@ -59,6 +59,7 @@ import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
+import { createSenseNovaImageFetch, isSenseNovaApiURL } from './sensenova'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
 
@@ -850,6 +851,9 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
       ...ctx.baseConfig,
       ...commonOptions,
       name: ctx.actualProvider.id,
+      ...(isGenerateImageModel(ctx.model) && isSenseNovaApiURL(ctx.baseConfig.baseURL)
+        ? { fetch: createSenseNovaImageFetch(customFetch) }
+        : {}),
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
