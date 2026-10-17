@@ -15,6 +15,7 @@ import {
 import { dirname, join } from 'node:path'
 
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
+import { createSceneCandidateBuckets } from '@main/features/fileProcessing/media/frameSelection'
 import { mediaFfmpegCommandEnv } from '@main/features/fileProcessing/media/mediaFfmpegLoader'
 import type {
   MediaExtractedAudioChunk,
@@ -143,7 +144,12 @@ async function runCommand(
   args: string[],
   signal: AbortSignal,
   logger: Logger,
-  options: { ffmpeg?: boolean; pidRegistryPath?: string; maxPacketPts?: boolean } = {}
+  options: {
+    ffmpeg?: boolean
+    pidRegistryPath?: string
+    onStderrLine?: (line: string) => void
+    maxPacketPts?: boolean
+  } = {}
 ): Promise<{ stdout: string; truncated: boolean; maxPacketPtsSeconds?: number }> {
   signal.throwIfAborted()
   const guardedArgs = [
@@ -169,9 +175,14 @@ async function runCommand(
     let truncated = false
     let settled = false
     let killReason: unknown
+    let pendingStderrLine = ''
     const packetPts = options.maxPacketPts ? createPacketPtsTracker() : undefined
     const childStdout = child.stdout
     const childStderr = child.stderr
+    const publishStderrLine = (line: string) => {
+      if (!options.onStderrLine || line.length === 0) return
+      options.onStderrLine(line)
+    }
 
     const finish = (error?: unknown) => {
       if (settled) return
@@ -207,13 +218,22 @@ async function runCommand(
       truncated ||= appended.truncated
     })
     childStderr.on('data', (chunk: string) => {
-      stderr = appendBounded(stderr, chunk).value
+      if (!options.onStderrLine) {
+        stderr = appendBounded(stderr, chunk).value
+        return
+      }
+      const parts = `${pendingStderrLine}${chunk}`.split(/\r?\n/)
+      pendingStderrLine = parts.pop() ?? ''
+      if (pendingStderrLine.length > 2_000) pendingStderrLine = ''
+      for (const line of parts) publishStderrLine(line)
     })
     signal.addEventListener('abort', onAbort, { once: true })
     if (signal.aborted) onAbort()
 
     child.on('error', finish)
     child.on('close', (code) => {
+      if (pendingStderrLine) publishStderrLine(pendingStderrLine)
+      pendingStderrLine = ''
       if (killReason !== undefined) return finish(killReason)
       if (code === 0) return finish()
       // stderr may contain private media paths and metadata, so never include it.
@@ -475,5 +495,57 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       if (existsSync(outputPath)) frames.push({ path: outputPath, timestampMs: seekMs })
     }
     return { frames }
+  },
+
+  async detectSceneChanges(
+    { filePath, durationMs, sampleFps, scoreThreshold, scanEdgePx, maxCandidates, pidRegistryPath },
+    { signal, logger }
+  ) {
+    if (!Number.isFinite(durationMs) || durationMs < 0) throw new TypeError('durationMs must be non-negative')
+    if (durationMs === 0) return { changes: [] }
+    const fps = requireInteger('sampleFps', sampleFps, 1, 12)
+    const edge = requireInteger('scanEdgePx', scanEdgePx, 64, 320)
+    const candidateLimit = requireInteger('maxCandidates', maxCandidates, 1, 256)
+    if (!Number.isFinite(scoreThreshold) || scoreThreshold <= 0 || scoreThreshold >= 1) {
+      throw new TypeError('scoreThreshold must be between 0 and 1')
+    }
+
+    const { ffmpegPath } = requireInitData()
+    const buckets = createSceneCandidateBuckets(durationMs, candidateLimit)
+    let timestampMs: number | undefined
+    // First frame of each floor(t*fps) bucket keeps its source PTS. scale stays before rgb24.
+    // rgb24 stays before scene: the built-in score ignores same-luma color cuts.
+    const filter = `select='isnan(prev_selected_t)+gt(floor(t*${fps}),floor(prev_selected_t*${fps}))',scale=${edge}:-2,format=rgb24,select='gt(scene,${scoreThreshold.toString()})',metadata=print`
+    await runCommand(
+      ffmpegPath,
+      ['-y', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
+      signal,
+      logger,
+      {
+        ffmpeg: true,
+        pidRegistryPath,
+        onStderrLine: (line) => {
+          const time = /pts_time:\s*([0-9]*\.?[0-9]+)/.exec(line)
+          if (time?.[1]) {
+            // Floor so a seek cannot start after the frame that produced this PTS.
+            // No -copyts: FFmpeg already removed the format start, so this matches input -ss.
+            timestampMs = Math.floor(Number(time[1]) * 1000)
+            return
+          }
+          const score = /lavfi\.scene_score=\s*([0-9]*\.?[0-9]+)/.exec(line)
+          if (!score?.[1] || timestampMs == null) return
+          buckets.add({ timestampMs, score: Number(score[1]) })
+          timestampMs = undefined
+        }
+      }
+    )
+    return { changes: buckets.list() }
   }
+}
+
+function requireInteger(name: string, value: number, min: number, max: number): number {
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new TypeError(`${name} must be an integer from ${min} to ${max}`)
+  }
+  return value
 }
