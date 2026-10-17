@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   askAtTurnEnd,
-  crashedTranscript,
+  crashedEntries,
   goalNotices,
   goalPort,
   goalSession,
@@ -20,10 +20,10 @@ import {
   say,
   snapshots,
   working
-} from './goalSupport'
-import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './subagentSupport'
-import { finish, plain, tempDir, textParts } from './support'
-import { textOf, toolResults } from './toolResults'
+} from './aiSdkGoalSupport'
+import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './aiSdkSubagentSupport'
+import { finish, plain, tempDir, textParts } from './aiSdkSupport'
+import { textOf, toolResults } from './aiSdkToolResults'
 
 /** One round per command or resume, so command tests see a settled goal. */
 const confirmEachRound = goalPort({ defaults: { autonomy: () => 'confirm-each-round' } })
@@ -355,12 +355,12 @@ describe('/goal command', () => {
     expect(held.aborted(1)).toBe(true)
   })
 
-  // Breaks when the command aborts any turn of an active goal: one restored from the transcript is
+  // Breaks when the command aborts any turn of an active goal: one restored from the entries is
   // not armed, so the user's own turn would be cut off.
   it.each(['pause', 'clear'])('/goal %s on a goal that is not armed leaves the running turn alone', async (command) => {
     const cwd = tempDir('cwd')
-    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
-    const { session: s, held } = await heldGoalSession(goalPort(), { cwd, transcript })
+    const entries = await crashedEntries('Keep working', goalPort(), cwd)
+    const { session: s, held } = await heldGoalSession(goalPort(), { cwd, entries })
     const run = s.prompt('hello')
     await held.started(1)
     await s.prompt(`/goal ${command}`)
@@ -372,8 +372,8 @@ describe('/goal command', () => {
   // Breaks when resume re-arms an active goal without checking its capacity: the crash left its only round admitted.
   it('resume refuses an active goal that has no round left', async () => {
     const cwd = tempDir('cwd')
-    const transcript = await crashedTranscript('Keep working', goalPort({ defaults: { maxGoalRounds: 1 } }), cwd)
-    const { session: s, host, calls } = await goalSession([working], goalPort(), { cwd, transcript })
+    const entries = await crashedEntries('Keep working', goalPort({ defaults: { maxGoalRounds: 1 } }), cwd)
+    const { session: s, host, calls } = await goalSession([working], goalPort(), { cwd, entries })
     await promptIdle(s, '/goal resume')
     expect(goalNotices(host.entries)).toEqual([
       { text: 'raise max_goal_rounds or the budget before resuming', level: 'error' }
@@ -467,10 +467,10 @@ describe('goal continuation', () => {
     await promptIdle(live.session, '/goal Keep working')
     expect(rounds(live.host.entries).map((round) => round.round)).toEqual([1, 2])
     expect(lastSnapshot(live.host.entries)).toMatchObject({ roundsStarted: 1 })
-    const transcript = plain(live.host.entries)
+    const entries = plain(live.host.entries)
 
     await promptIdle(live.session, 'what next?')
-    const rebuilt = await goalSession([working], goalPort(), { cwd, transcript })
+    const rebuilt = await goalSession([working], goalPort(), { cwd, entries })
     await promptIdle(rebuilt.session, 'what next?')
 
     expect(roundsSent(live.calls[1].prompt)).toEqual([1])

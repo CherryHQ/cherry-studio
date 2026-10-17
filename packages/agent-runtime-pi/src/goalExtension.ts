@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
-import { StringEnum, Type } from '@earendil-works/pi-ai'
+import { type Api, type Message, type Model, StringEnum, Type } from '@earendil-works/pi-ai'
+import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
 import {
   type AgentBeforeSettleEvent,
   type AgentBeforeSettleEventResult,
@@ -43,7 +44,6 @@ import {
   unadmittedRounds,
   withUsage
 } from './goalState'
-import { type ConversationModelMessage, toModelMessages } from './modelMessages'
 import { isSubagentSession } from './subagent'
 
 export interface GoalApprovalEvent {
@@ -60,7 +60,8 @@ export interface GoalVerifier {
      * The session's whole context after compaction (not cut), after the session model's replay rules,
      * shaped like the compaction summarizer's input.
      */
-    messages: ConversationModelMessage[]
+    messages: Message[]
+    model: Model<Api>
     signal: AbortSignal
   }): Promise<{ verdict: 'met' | 'not_met' | 'impossible'; reason: string }>
 }
@@ -460,9 +461,9 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     })
 
     /** The conversation as the session model would get it, for the host's verifier (spec §9). */
-    const conversation = (ctx: ExtensionContext): ConversationModelMessage[] => {
+    const conversation = (ctx: ExtensionContext): Message[] => {
       const { messages } = buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId())
-      return toModelMessages(convertToLlm(withoutUnadmittedRounds(messages, ctx)), ctx.model!)
+      return transformMessages(convertToLlm(withoutUnadmittedRounds(messages, ctx)), ctx.model!)
     }
     const finishGoal = (): AgentToolResult<unknown> => {
       stop('complete')
@@ -483,6 +484,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
             objective: goal.objective,
             claim,
             messages: conversation(ctx),
+            model: ctx.model!,
             signal: signal ?? new AbortController().signal
           })
         } catch (error) {
