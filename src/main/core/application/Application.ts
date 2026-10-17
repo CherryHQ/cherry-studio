@@ -39,7 +39,13 @@ export class Application {
   private container: ServiceContainer
   private lifecycleManager: LifecycleManager
   private isBootstrapped = false
-  private isShuttingDown = false
+  private shutdownPromise: Promise<void> | undefined
+  private shutdownDeadline = 0
+  private exitRequested = false
+  private hasExited = false
+  private isRelaunching = false
+  private relaunchOptions: Electron.RelaunchOptions | undefined
+  private quitHandlersRegistered = false
   private _isQuitting = false
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
@@ -193,6 +199,7 @@ export class Application {
     // Check for boot config corruption BEFORE starting any services
     if (bootConfigService.hasLoadError()) {
       await this.handleBootConfigError()
+      if (this.isRelaunching) return
       // If we reach here, user chose "Continue with Defaults"
     }
 
@@ -248,13 +255,15 @@ export class Application {
    * shutdown was clean is stated on the `Shutdown complete` line — that is the
    * first line to read when diagnosing one.
    */
-  public async shutdown(): Promise<void> {
-    if (this.isShuttingDown) {
-      logger.warn('Already shutting down')
-      return
+  public shutdown(): Promise<void> {
+    if (!this.shutdownPromise) {
+      this.shutdownDeadline = performance.now() + SHUTDOWN_TIMEOUT_MS
+      this.shutdownPromise = this.performShutdown()
     }
+    return this.shutdownPromise
+  }
 
-    this.isShuttingDown = true
+  private async performShutdown(): Promise<void> {
     this._isQuitting = true
     logger.info('Shutting down...')
 
@@ -398,7 +407,14 @@ export class Application {
    * Relaunch the app, with dev mode warning
    */
   public relaunch(options?: Electron.RelaunchOptions): void {
-    if (isDev || !app.isPackaged) {
+    if (this.isRelaunching) return
+    if (!this.canQuit()) {
+      logger.info('Relaunch prevented', { reasons: [...this.quitPreventionHolds.values()] })
+      return
+    }
+    this.isRelaunching = true
+    const canRelaunch = !isDev && app.isPackaged
+    if (!canRelaunch) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       dialog.showMessageBoxSync({
         type: 'info',
@@ -407,26 +423,57 @@ export class Application {
         detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
         buttons: ['OK']
       })
-      app.exit(0)
-      return
     }
 
     // Platform-specific fixes
-    if (isLinux && process.env.APPIMAGE) {
+    if (canRelaunch && isLinux && process.env.APPIMAGE) {
       options = options || {}
       options.execPath = process.env.APPIMAGE
       options.args = options.args || []
       options.args.unshift('--appimage-extract-and-run')
     }
 
-    if (isWin && isPortable) {
+    if (canRelaunch && isWin && isPortable) {
       options = options || {}
       options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
       options.args = options.args || []
     }
 
-    app.relaunch(options)
-    app.exit(0)
+    this.relaunchOptions = options
+    // Preboot has no lifecycle resources and must not continue startup after a restart request.
+    if (!this.quitHandlersRegistered) {
+      this.finishExit()
+      return
+    }
+
+    this.shutdownAndExit()
+  }
+
+  private shutdownAndExit(): void {
+    if (this.exitRequested) return
+    this.exitRequested = true
+    const shutdown = this.shutdown()
+    const remaining = Math.max(0, this.shutdownDeadline - performance.now())
+    // A timer bounds asynchronous cleanup only; it cannot preempt blocking native code.
+    const timer = setTimeout(() => this.finishExit(true), remaining)
+    void shutdown
+      .catch((error) => logger.error('Error during shutdown:', error as Error))
+      .finally(() => {
+        clearTimeout(timer)
+        this.finishExit()
+      })
+  }
+
+  private finishExit(timedOut = false): void {
+    if (this.hasExited) return
+    this.hasExited = true
+    if (timedOut) logger.warn('Forced exit after shutdown timeout')
+    if (this.isRelaunching && !isDev && app.isPackaged) app.relaunch(this.relaunchOptions)
+    if (timedOut && !this.isRelaunching) {
+      process.exit(1)
+    } else {
+      app.exit(0)
+    }
   }
 
   /**
@@ -435,40 +482,8 @@ export class Application {
    * even before app.whenReady() resolves.
    */
   private setupSignalHandlers(): void {
-    // Last resort, not the working mechanism. Starvation is handled one level
-    // down by the per-service ceiling in `LifecycleManager.stopAll()`; this fuse
-    // only catches the case where enough services burn their whole ceiling to
-    // exhaust SHUTDOWN_TIMEOUT_MS, at which point truncating is correct. Like
-    // every timer here it is powerless against a synchronously blocking
-    // `onStop()`, which never yields the event loop for it to fire on.
-    const forceExit = (): void => {
-      logger.warn('Forced exit after shutdown timeout')
-      process.exit(1)
-    }
-
-    process.on('SIGINT', async () => {
-      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
-      try {
-        await this.shutdown()
-      } catch (error) {
-        logger.error('Error during shutdown:', error as Error)
-      } finally {
-        clearTimeout(timer)
-        app.exit(0)
-      }
-    })
-
-    process.on('SIGTERM', async () => {
-      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
-      try {
-        await this.shutdown()
-      } catch (error) {
-        logger.error('Error during shutdown:', error as Error)
-      } finally {
-        clearTimeout(timer)
-        app.exit(0)
-      }
-    })
+    process.on('SIGINT', () => this.shutdownAndExit())
+    process.on('SIGTERM', () => this.shutdownAndExit())
   }
 
   /**
@@ -477,6 +492,7 @@ export class Application {
    * so quit is handled correctly even during early bootstrap stages.
    */
   private setupQuitHandlers(): void {
+    this.quitHandlersRegistered = true
     // before-quit: gate check + mark quitting. Does NOT preventDefault unless blocking.
     app.on('before-quit', (event) => {
       if (!this.canQuit()) {
@@ -491,22 +507,8 @@ export class Application {
 
     // will-quit: all windows closed, perform actual cleanup
     app.on('will-quit', (event) => {
-      if (this.isShuttingDown) return // Already shutting down (SIGINT/SIGTERM path), let it exit
-
       event.preventDefault()
-
-      // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
-      const timer = setTimeout(() => {
-        logger.warn('Forced exit after shutdown timeout (will-quit)')
-        process.exit(1)
-      }, SHUTDOWN_TIMEOUT_MS)
-
-      this.shutdown()
-        .catch((err) => logger.error('Error during shutdown:', err as Error))
-        .finally(() => {
-          clearTimeout(timer)
-          app.exit(0)
-        })
+      this.shutdownAndExit()
     })
   }
 
