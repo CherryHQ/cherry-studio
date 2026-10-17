@@ -1,8 +1,10 @@
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { CompactionSink } from '@shared/ai/compaction'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -170,6 +172,7 @@ vi.mock('@application', async () => {
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
+const { inLoopCompactionFeature } = await import('@main/ai/runtime/aiSdk/params/features/inLoopCompaction')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 const { WebContentsListener } = await import('../listeners/WebContentsListener')
@@ -426,6 +429,112 @@ describe('AiStreamManager', () => {
   // ── send (start path) ──────────────────────────────────────────────
 
   describe('send (start)', () => {
+    it('persists a stopped in-loop summary without its pending anchor while retaining completed folds', async () => {
+      vi.useRealTimers()
+      let summarizerStarted = false
+      const summarizer: LanguageModelV3 = {
+        specificationVersion: 'v3',
+        provider: 'test',
+        modelId: 'summarizer',
+        supportedUrls: {},
+        async doGenerate({ abortSignal }) {
+          summarizerStarted = true
+          return new Promise((_, reject) => {
+            abortSignal?.addEventListener('abort', () => reject(abortSignal.reason), { once: true })
+          })
+        },
+        async doStream() {
+          throw new Error('The summarizer must use generateText')
+        }
+      }
+      mockStreamText.mockImplementation(async (request) => {
+        const signal = (request.requestOptions as { signal: AbortSignal }).signal
+        const sink = (request as AiStreamRequest & { compactionSink: CompactionSink }).compactionSink
+        let streamController!: ReadableStreamDefaultController<UIMessageChunk>
+        const prepareStep = inLoopCompactionFeature.contributeHooks!({
+          request,
+          model: { id: 'test', contextWindow: 100_000 },
+          provider: {
+            defaultChatEndpoint: 'anthropic-messages',
+            endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
+          },
+          contextSettings: { enabled: true, compress: { enabled: true, thresholdPercent: 80 } },
+          compressionModel: { languageModel: summarizer, contextWindow: 100_000 },
+          signal,
+          compactionSink: (id: string, data: Parameters<CompactionSink>[1]) => {
+            sink(id, data)
+            if (data.status === 'compacting') streamController.enqueue({ type: 'text-end', id: 'partial' })
+          }
+        } as any).prepareStep!
+        return new ReadableStream<UIMessageChunk>({
+          async start(controller) {
+            streamController = controller
+            controller.enqueue({ type: 'start', messageId: 'stopped-message' })
+            controller.enqueue({ type: 'text-start', id: 'partial' })
+            controller.enqueue({ type: 'text-delta', id: 'partial', delta: 'Partial answer' })
+            sink('completed-fold', { status: 'done', phase: 'in-loop', startedAt: new Date().toISOString() })
+            await new Promise((resolve) => setImmediate(resolve))
+            try {
+              await prepareStep({
+                messages: [
+                  { role: 'user', content: 'word '.repeat(40_000) },
+                  { role: 'assistant', content: 'word '.repeat(40_000) },
+                  { role: 'user', content: 'word '.repeat(10_000) }
+                ]
+              } as any)
+            } catch (error) {
+              if (error !== signal.reason) throw error
+            } finally {
+              controller.close()
+            }
+          }
+        })
+      })
+      let persisted: { status: string; finalMessage?: CherryUIMessage } | undefined
+      const persistence = new PersistenceListener({
+        topicId: 'stopped-compaction',
+        backend: {
+          kind: 'test',
+          persistAssistant: (input) => {
+            persisted = structuredClone(input)
+          }
+        },
+        onPersistFailed: () => {}
+      })
+      const observer = new FakeListener('observe-compaction')
+      startSingle(mgr, {
+        topicId: 'stopped-compaction',
+        modelId: 'provider-a::model-a',
+        request: req('stopped-compaction'),
+        listeners: [persistence, observer]
+      })
+      await flushUntil(() => summarizerStarted)
+      await flushUntil(() =>
+        Boolean(
+          mgr
+            .inspect('stopped-compaction')
+            ?.executions[0].finalMessage?.parts.some(
+              (part) => part.type === 'data-compaction-anchor' && part.data.status === 'compacting'
+            )
+        )
+      )
+      mgr.abort('stopped-compaction', 'provider-a::model-a')
+      await flushUntil(() => persisted !== undefined)
+      expect(persisted?.status).toBe('paused')
+      const reloaded = JSON.parse(JSON.stringify(persisted?.finalMessage)) as CherryUIMessage
+      expect(reloaded.parts).toEqual([
+        expect.objectContaining({ type: 'text', text: 'Partial answer' }),
+        expect.objectContaining({
+          type: 'data-compaction-anchor',
+          id: 'completed-fold',
+          data: expect.objectContaining({ status: 'done' })
+        })
+      ])
+      expect(observer.pausedResults).toHaveLength(1)
+      expect(observer.errorResults).toEqual([])
+      expect(observer.doneResults).toEqual([])
+    })
+
     it('creates an active stream and launches an execution loop against AiService.streamText', () => {
       const snap = startSingle(mgr, {
         topicId: 'a',

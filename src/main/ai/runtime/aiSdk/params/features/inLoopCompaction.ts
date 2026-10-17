@@ -198,6 +198,7 @@ export const inLoopCompactionFeature: RequestFeature = {
     let compactionDisabled = false
     return {
       prepareStep: async ({ messages, steps }) => {
+        scope.signal?.throwIfAborted()
         const candidate = foldCache
           ? [...foldCache.compactedPrefix, ...messages.slice(foldCache.consumedCount)]
           : messages
@@ -229,6 +230,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         let compacted: ModelMessage[]
         try {
           compacted = await compactModelMessages(candidate, model, {
+            abortSignal: scope.signal,
             keepRecentTurns,
             maxOutputTokens,
             maxInputTokens: Math.max(
@@ -236,26 +238,25 @@ export const inLoopCompactionFeature: RequestFeature = {
               Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
             )
           })
+          scope.signal?.throwIfAborted()
         } catch (error) {
+          scope.compactionSink?.(anchorId, {
+            status: 'skipped',
+            phase: 'in-loop',
+            startedAt,
+            completedAt: new Date().toISOString()
+          })
           // `compactModelMessages` propagates provider errors. Letting one out of
           // `prepareStep` kills the whole chat turn, so a compressor that is
           // misconfigured or rate-limited would take the conversation down with
           // it — the opposite of what a context-management aid should do (the
           // turn-start path already degrades to un-compacted history here).
           // A user abort is different: that IS the turn ending, so it propagates.
+          scope.signal?.throwIfAborted()
           if (isAbortError(error)) throw error
           compactionDisabled = true
           logger.warn('in-loop compaction failed; continuing without it for this request', {
             error: error instanceof Error ? error.message : String(error)
-          })
-          // Clear the spinner: the turn continues (un-compacted), so leaving a
-          // permanent "compacting…" on screen would misreport the state. Nothing was
-          // folded, so this settles as `skipped` rather than claiming a compaction.
-          scope.compactionSink?.(anchorId, {
-            status: 'skipped',
-            phase: 'in-loop',
-            startedAt,
-            completedAt: new Date().toISOString()
           })
           return foldCache ? { messages: candidate } : undefined
         }
