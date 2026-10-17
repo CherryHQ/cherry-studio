@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { compactSettingsFieldClassName, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getWebSearchCapabilityTitleKey } from '@renderer/utils/webSearchProviderMeta'
 
@@ -11,9 +11,8 @@ import { WebSearchProviderSetting } from './components/WebSearchProviderSetting'
 import { useWebSearchProviderLists } from './hooks/useWebSearchProviderLists'
 
 const webSearchFieldClassName =
-  '[&_input[data-slot=input]]:h-8 [&_input[data-slot=input]]:rounded-lg [&_input[data-slot=input]]:border-border-subtle ' +
-  '[&_input[data-slot=input]]:bg-muted/30 [&_input[data-slot=input]]:px-2.5 [&_input[data-slot=input]]:shadow-none ' +
-  '[&_input[data-slot=input]:focus-visible]:ring-[1px] [&_input[data-slot=input]:focus-visible]:ring-ring/35 ' +
+  compactSettingsFieldClassName +
+  ' ' +
   '[&_textarea[data-slot=textarea-input]]:rounded-lg [&_textarea[data-slot=textarea-input]]:border-border-subtle ' +
   '[&_textarea[data-slot=textarea-input]]:bg-muted/30 [&_textarea[data-slot=textarea-input]]:shadow-none ' +
   '[&_textarea[data-slot=textarea-input]:focus-visible]:ring-[1px] ' +

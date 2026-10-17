@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SecretInput } from '@renderer/components/SecretInput'
 import {
   SettingDivider,
   SettingGroup,
@@ -118,13 +119,11 @@ const NotionSettings: FC = () => {
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
         <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
           <RowFlex className="w-full min-w-0 items-center gap-1.25">
-            <Input
-              type="password"
+            <SecretInput
               value={notionApiKey || ''}
               onChange={handleNotionTokenChange}
               onBlur={handleNotionTokenChange}
               placeholder={t('settings.data.notion.api_key_placeholder')}
-              style={{ width: '100%' }}
             />
             <Button onClick={handleNotionConnectionCheck} variant="outline" className="h-9 shrink-0">
               {t('settings.data.notion.check.button')}
