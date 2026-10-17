@@ -129,6 +129,8 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private backgroundWorkActive = false
   private attempted = false
   private closed = false
+  /** The memoized whole-close operation; every caller shares its pending or rejected outcome. */
+  private closePromise?: Promise<void>
   private pendingConnection?: AgentRuntimeConnection
   /** Settles when an in-flight rebuild connect does, so close() cannot outrun a rebuild it cannot see. */
   private pendingConnect?: Promise<void>
@@ -255,7 +257,14 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   }
 
   async close(): Promise<void> {
-    if (this.closed) return
+    // Memoized as one operation: a retry while the shutdown is still settling (the host's 20-second
+    // close barrier expired) or after it rejected joins the original outcome — reporting a fresh
+    // success would clear failedClosures and archive the workspace with teardown unconfirmed.
+    this.closePromise ??= this.closeOnce()
+    return this.closePromise
+  }
+
+  private async closeOnce(): Promise<void> {
     this.closed = true
     // A rebuild is invisible until connect() hands it to `pendingConnection`, and it runs this
     // session's work from then on — wait for the handoff so it cannot outlive the close.
