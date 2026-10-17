@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { WEB_SEARCH_PROVIDER_CATALOG } from '@cherrystudio/web-search/catalog'
+
 import { WEB_SEARCH_PROVIDER_IDS } from '../../preference/preferenceTypes'
 import {
   PRESETS_WEB_SEARCH_PROVIDERS,
@@ -31,6 +33,14 @@ describe('web search provider schemas', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+
+  it('keeps Exa MCP fetching disabled on Desktop even though the shared protocol supports it', () => {
+    expect(WEB_SEARCH_PROVIDER_CATALOG['exa-mcp'].capabilities.some((item) => item.capability === 'fetchUrls')).toBe(
+      true
+    )
+    const exaMcp = PRESETS_WEB_SEARCH_PROVIDERS.find((provider) => provider.id === 'exa-mcp')
+    expect(exaMcp?.capabilities.map((item) => item.feature)).toEqual(['searchKeywords'])
   })
 
   it('models Jina as one provider with keyword search and URL fetch capabilities', () => {
