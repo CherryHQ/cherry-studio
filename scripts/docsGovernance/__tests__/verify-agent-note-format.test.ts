@@ -213,6 +213,19 @@ Risk.
     )
   })
 
+  it('validates criteria from every acceptance-criteria section', () => {
+    const duplicateSection = proposed
+      .replace('A user observes the promised result.', 'A user observes the promised result. (verification: renderer)')
+      .replace(
+        '- AC2 — The failure case is rejected.',
+        '## Acceptance criteria\n\n* AC2 — The failure case is rejected. (verification: unit)'
+      )
+
+    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', duplicateSection)).toContain(
+      'Acceptance criteria entries must match `- AC1 — <observable outcome> (verification: <owner>)`'
+    )
+  })
+
   it.each([
     ['asterisk', '* AC2 — The failure case is rejected. (verification: unit)'],
     ['plus', '+ AC2 — The failure case is rejected. (verification: unit)'],

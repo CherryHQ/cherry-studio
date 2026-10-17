@@ -59,7 +59,7 @@ const parseSections = (content: string, root: Root): { headings: string[]; secti
       if (candidate.type === 'heading' && candidate.depth === 2) break
       end += 1
     }
-    if (!sections.has(heading)) sections.set(heading, root.children.slice(index + 1, end))
+    sections.set(heading, [...(sections.get(heading) ?? []), ...root.children.slice(index + 1, end)])
   }
   return { headings, sections }
 }

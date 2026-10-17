@@ -113,6 +113,18 @@ describe('Agent Note lifecycle transitions', () => {
     )
   })
 
+  it('requires evidence for criteria in every acceptance-criteria section', () => {
+    const duplicateSection = proposed.replace(
+      '- AC2 — Second outcome. (verification: docs gate)',
+      '## Acceptance criteria\n\n- AC2 — Second outcome. (verification: docs gate)'
+    )
+    const incomplete = implemented.replace('- AC2 — `pnpm docs:check`: catches documentation drift.\n', '')
+
+    expect(checkAgentNoteTransition(proposedPath, duplicateSection, implementedPath, incomplete).errors).toContain(
+      'Verification is missing AC2'
+    )
+  })
+
   it('rejects duplicate verification evidence for one acceptance criterion', () => {
     const duplicate = implemented.replace(
       '- AC2 — `pnpm docs:check`: catches documentation drift.',
