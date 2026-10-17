@@ -91,12 +91,12 @@ export function useProviders(
 // ─── Layer 2: Single read + write + delete ────────────────────────────
 export function useProviderById(providerId: string | null | undefined) {
   const resolvedProviderId = providerId ?? ''
-  const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', {
+  const { data, isLoading, error, refetch, mutate } = useQuery('/providers/:providerId', {
     params: { providerId: resolvedProviderId },
     enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
-  return { provider: data, isLoading, error, refetch }
+  return { provider: data, isLoading, error, refetch, mutate }
 }
 
 export function useProvider(providerId: string | null | undefined) {

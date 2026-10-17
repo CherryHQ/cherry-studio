@@ -23,12 +23,21 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children }: any) => React.createElement('div', null, children),
     PopoverContent: ({ children }: any) => React.createElement('div', null, children),
     PopoverTrigger: ({ children }: any) => children,
+    Select: ({ children }: any) => React.createElement('div', null, children),
+    SelectContent: ({ children }: any) => React.createElement('div', null, children),
+    SelectItem: ({ children }: any) => React.createElement('div', null, children),
+    SelectTrigger: ({ children, ...props }: any) => React.createElement('button', props, children),
+    SelectValue: () => React.createElement('span', null, 'value'),
     Tooltip: ({ children }: any) => children
   }
 })
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args)
+  useProvider: (...args: any[]) => {
+    const result = useProviderMock(...args)
+    const mutate = result?.mutate ?? vi.fn().mockResolvedValue(result?.provider)
+    return { ...result, mutate }
+  }
 }))
 
 vi.mock('../../components/ProviderImageEndpointFields', () => ({
@@ -229,6 +238,45 @@ describe('ProviderCustomHeaderDrawer', () => {
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         providerSettings: { extraHeaders: { toString: null } }
       })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not overwrite a newer reasoning format when saving without changing the selector', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const mutateMock = vi.fn().mockResolvedValue({
+      ...provider,
+      endpointConfigs: {
+        ...provider.endpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://openai.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        endpointConfigs: {
+          ...provider.endpointConfigs,
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://openai.example.com',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        }
+      },
+      updateProvider: updateProviderMock,
+      mutate: mutateMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledTimes(1))
+    expect(updateProviderMock.mock.calls[0][0].endpointConfigs[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toMatchObject({
+      reasoningFormat: { type: 'self-hosted' }
     })
     expect(onClose).toHaveBeenCalledTimes(1)
   })

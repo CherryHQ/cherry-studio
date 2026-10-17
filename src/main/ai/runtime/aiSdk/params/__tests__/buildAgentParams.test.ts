@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { mapReasoningEffortToProviderOptions } from '@main/features/apiGateway/adapters/converters/providerOptionsMapper'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
@@ -468,6 +469,8 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
     expect(result.nativeFileSupport).toMatchObject({ audio: true, video: false })
     expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
+    // Vertex MaaS keeps `chat_template_kwargs` in providerOptions so assistant custom
+    // parameters can override the provider-option reasoning profile.
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
         reasoningEffort: 'high',
@@ -1547,6 +1550,183 @@ describe('buildAgentParams assistant-less reasoning', () => {
       'request captured'
     )
     expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
+  })
+
+  it('injects self-hosted disable kwargs into the Responses HTTP body from call overrides alone', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body))
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai',
+        providerSettings: { apiKey: 'sk-test', baseURL: 'https://vllm.example/v1', fetch: innerFetch }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom-vllm',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'openai',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-vllm::qwen3',
+      providerId: 'custom-vllm',
+      apiModelId: 'qwen3',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          providerOptions: { openai: { chat_template_kwargs: { enable_thinking: false } } }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions?.openai?.chat_template_kwargs).toBeUndefined()
+    const wrappedFetch = result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch
+    await wrappedFetch('https://vllm.example/v1/responses', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'qwen3' })
+    })
+    expect(requestBody).toMatchObject({ chat_template_kwargs: { enable_thinking: false } })
+  })
+
+  it('injects self-hosted disable kwargs from gateway-mapped reasoning_effort none on Responses', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body))
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai',
+        providerSettings: { apiKey: 'sk-test', baseURL: 'https://vllm.example/v1', fetch: innerFetch }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom-vllm',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'openai',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-vllm::qwen3',
+      providerId: 'custom-vllm',
+      apiModelId: 'qwen3',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+    const gatewayReasoningOverrides = mapReasoningEffortToProviderOptions(provider, model, 'none')
+    expect(gatewayReasoningOverrides?.openai).toMatchObject({
+      chat_template_kwargs: { enable_thinking: false }
+    })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: { providerOptions: gatewayReasoningOverrides }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions?.openai?.chat_template_kwargs).toBeUndefined()
+    const wrappedFetch = result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch
+    await wrappedFetch('https://vllm.example/v1/responses', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'qwen3' })
+    })
+    expect(requestBody).toMatchObject({ chat_template_kwargs: { enable_thinking: false } })
+  })
+
+  it('lets assistant openai namespace kwargs override a self-hosted Responses profile on the HTTP body', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body))
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai',
+        providerSettings: { apiKey: 'sk-test', baseURL: 'https://vllm.example/v1', fetch: innerFetch }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom-vllm',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'openai',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-vllm::qwen3',
+      providerId: 'custom-vllm',
+      apiModelId: 'qwen3',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        reasoning_effort: 'auto',
+        customParameters: [
+          {
+            name: 'openai',
+            type: 'json',
+            value: JSON.stringify({ chat_template_kwargs: { enable_thinking: false } })
+          }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    const wrappedFetch = result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch
+    await wrappedFetch('https://vllm.example/v1/responses', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'qwen3' })
+    })
+    expect(requestBody).toMatchObject({ chat_template_kwargs: { enable_thinking: false } })
   })
 
   it('serializes gateway reasoning overrides with Responses storage disabled', async () => {
