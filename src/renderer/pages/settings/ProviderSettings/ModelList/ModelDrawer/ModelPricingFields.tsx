@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next'
 import { Plus, Trash2 } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -267,7 +267,6 @@ function translateErrors(errors: ModelPricingDraftErrors, t: TFunction) {
 
 export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProps) {
   const { t } = useTranslation()
-  const committedPricingRef = useRef(pricing)
   const [unit, setUnit] = useState<'token' | 'image'>(() =>
     getModelImagePriceDraft(pricing) === '' ? 'token' : 'image'
   )
@@ -279,29 +278,21 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
   const [draft, setDraft] = useState<ModelPricingDraft>(() => createModelPricingDraft(pricing))
   const [errors, setErrors] = useState<ModelPricingDraftErrors>([])
 
-  const commitPricing = useCallback(
-    (nextPricing: NonNullable<Model['pricing']>) => {
-      committedPricingRef.current = nextPricing
-      onCommit(nextPricing)
-    },
-    [onCommit]
-  )
-
   const commitImagePrice = (nextPrice?: string, nextCurrencySymbol = currencySymbol) => {
-    const result = buildModelImagePricing(committedPricingRef.current, nextCurrencySymbol, nextPrice)
+    const result = buildModelImagePricing(pricing, nextCurrencySymbol, nextPrice)
     if (nextPrice !== undefined) setImageError(result.error)
-    if (result.pricing) commitPricing(result.pricing)
+    if (result.pricing) onCommit(result.pricing)
   }
 
   const commitDraft = useCallback(
     (nextDraft: ModelPricingDraft, nextCurrencySymbol: ModelPricingCurrencySymbol = currencySymbol) => {
-      const result = buildModelPricingFromDraft(committedPricingRef.current, nextDraft, nextCurrencySymbol)
+      const result = buildModelPricingFromDraft(pricing, nextDraft, nextCurrencySymbol)
       setErrors(result.errors)
       if (result.pricing) {
-        commitPricing(result.pricing)
+        onCommit(result.pricing)
       }
     },
-    [commitPricing, currencySymbol]
+    [currencySymbol, onCommit, pricing]
   )
 
   const handleTierChange = useCallback((tierIndex: number, field: ModelPricingDraftField, value: string) => {
@@ -408,7 +399,7 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
               onBlur={(value) => {
                 const nextPrice = value === null ? '' : String(value)
                 setImagePrice(nextPrice)
-                if (nextPrice !== getModelImagePriceDraft(committedPricingRef.current)) commitImagePrice(nextPrice)
+                if (nextPrice !== getModelImagePriceDraft(pricing)) commitImagePrice(nextPrice)
               }}
             />
             <span className={drawerClasses.valueSuffix}>

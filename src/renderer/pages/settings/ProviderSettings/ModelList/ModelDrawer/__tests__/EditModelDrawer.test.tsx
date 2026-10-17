@@ -209,6 +209,59 @@ describe('EditModelDrawer', () => {
     })
   })
 
+  it.each([
+    { scenario: 'new', initial: undefined, value: '0.08', expected: 0.08 },
+    { scenario: 'updated', initial: 0.02, value: '0.08', expected: 0.08 },
+    { scenario: 'free', initial: 0.02, value: '0', expected: 0 },
+    { scenario: 'cleared', initial: 0.02, value: '', expected: undefined }
+  ])('retains the $scenario image rate across More settings remounts', async ({ initial, value, expected }) => {
+    const user = userEvent.setup()
+    const model = makePricingModel()
+    if (initial !== undefined) model.pricing!.perImage = { price: initial, unit: 'image' }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    await user.click(screen.getByRole('button', { name: 'currency-image' }))
+    const imagePrice = screen.getByLabelText('models.price.per_image')
+    await user.clear(imagePrice)
+    if (value) await user.type(imagePrice, value)
+    await user.tab()
+    await waitFor(() => expect(updateModelMock.mock.lastCall?.[2].pricing.perImage?.price).toBe(expected))
+
+    await user.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    expect(screen.queryByLabelText('models.price.per_image')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
+    await user.clear(screen.getByLabelText('models.price.input'))
+    await user.type(screen.getByLabelText('models.price.input'), '4')
+    await user.tab()
+
+    await waitFor(() => {
+      const saved = updateModelMock.mock.lastCall?.[2].pricing
+      expect(saved?.input.perMillionTokens).toBe(4)
+      expect(saved?.perImage).toEqual(expected === undefined ? undefined : { price: expected, unit: 'image' })
+    })
+  })
+
+  it('resets the retained price when selecting a different model', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makePricingModel()} />
+    )
+    await user.click(screen.getByRole('button', { name: 'currency-image' }))
+    await user.type(screen.getByLabelText('models.price.per_image'), '0.08')
+    await user.tab()
+    const nextModel = { ...makePricingModel(), id: 'openai::second-model' as Model['id'] }
+    rerender(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={nextModel} />)
+    expect(screen.getByLabelText('models.price.input')).toHaveValue('3')
+    await user.clear(screen.getByLabelText('models.price.input'))
+    await user.type(screen.getByLabelText('models.price.input'), '4')
+    await user.tab()
+    await waitFor(() => {
+      expect(updateModelMock.mock.lastCall?.slice(0, 2)).toEqual(['openai', 'second-model'])
+      expect(updateModelMock.mock.lastCall?.[2].pricing).not.toHaveProperty('perImage')
+    })
+  })
+
   it('preserves token drafts and stored rates while saving and reopening an image price', async () => {
     const user = userEvent.setup()
     const model = makeTieredPricingModel()
