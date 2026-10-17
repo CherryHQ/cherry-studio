@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createWebSearchClient } from '../createWebSearchClient'
 import { bocha } from '../providers/bocha'
 import { crawl4ai } from '../providers/crawl4ai'
+import { deepseek } from '../providers/deepseek'
 import { exa } from '../providers/exa'
 import { exaMcp } from '../providers/exaMcp'
 import { firecrawl } from '../providers/firecrawl'
@@ -316,6 +317,69 @@ describe('Querit and Crawl4AI deployment contracts', () => {
       expect(result.results).toEqual([{ title: url, content: 'Self-hosted page', url, sourceInput: url }])
     }
   )
+})
+
+describe('DeepSeek Search and Fetch contracts', () => {
+  const SEARCH_PAYLOAD = {
+    results: [
+      { title: 'With summary', url: 'https://example.com/1', snippet: 'Teaser 1', summary: 'Summary 1' },
+      { title: 'Snippet only', url: 'https://example.com/2', snippet: 'Teaser 2', summary: '' },
+      { title: 'Neither', url: 'https://example.com/3' }
+    ]
+  }
+
+  it('searches /v1/tools/search with a bearer token and prefers the model-oriented summary', async () => {
+    const { client, requests } = setup(deepseek, JSON.stringify(SEARCH_PAYLOAD))
+    const result = await client.execute(search('deepseek'))
+
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/tools/search')
+    expect(requests[0].method).toBe('POST')
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: 'hello', count: 4 })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      { title: 'With summary', url: 'https://example.com/1', content: 'Summary 1', sourceInput: 'hello' },
+      { title: 'Snippet only', url: 'https://example.com/2', content: 'Teaser 2', sourceInput: 'hello' },
+      { title: 'Neither', url: 'https://example.com/3', content: '', sourceInput: 'hello' }
+    ])
+  })
+
+  it('trims the query before sending it and treats an empty result list as zero hits', async () => {
+    const { client, requests } = setup(deepseek, JSON.stringify({ results: [] }))
+    const result = await client.execute({ ...search('deepseek'), input: '  padded query  ' })
+
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: 'padded query', count: 4 })
+    expect(result.results).toEqual([])
+  })
+
+  it('fetches /v1/tools/fetch and keeps the requested URL when the page has no title', async () => {
+    const { client, requests } = setup(deepseek, JSON.stringify({ title: '', content: '# Page\n\nBody text.' }))
+    const url = 'https://example.com/article?a=1'
+    const result = await client.execute({
+      providerId: 'deepseek',
+      capability: 'fetchUrls',
+      input: url,
+      config: { apiHost: 'https://service.example/proxy' },
+      credentials: { apiKey: 'test-key' }
+    })
+
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/tools/fetch')
+    expect(JSON.parse(requests[0].body!)).toEqual({ url })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([{ title: url, url, content: '# Page\n\nBody text.', sourceInput: url }])
+  })
+
+  it('rejects a fetch response without page content', async () => {
+    const { client } = setup(deepseek, JSON.stringify({ title: 'Page', content: '   ' }))
+    await expect(
+      client.execute({
+        providerId: 'deepseek',
+        capability: 'fetchUrls',
+        input: 'https://example.com/article',
+        config: { apiHost: 'https://service.example/proxy' },
+        credentials: { apiKey: 'test-key' }
+      })
+    ).rejects.toMatchObject({ kind: 'invalid_response', code: 'empty_content' })
+  })
 })
 
 describe('Exa MCP content contracts', () => {

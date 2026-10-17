@@ -45,6 +45,7 @@ vi.mock('@main/services/RegionService', () => ({
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
 import { Crawl4AIProvider } from '../api/Crawl4AIProvider'
+import { DeepSeekProvider } from '../api/DeepSeekProvider'
 import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
@@ -1699,6 +1700,72 @@ describe('main web search API providers', () => {
       kind: 'invalid_response',
       code: 'empty_content',
       providerId: 'querit'
+    })
+  })
+
+  it('routes DeepSeek search and fetch through the shared protocol with the configured API key', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        results: [{ title: 'DeepSeek Result', url: 'https://deepseek.example/1', summary: 'Summary for the model.' }]
+      })
+    )
+    const searchDriver = createProviderDriver(
+      DeepSeekProvider,
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKeys: ['deepseek-key'],
+        apiHost: 'https://api.deepseek.com'
+      })
+    )
+
+    const searched = await searchDriver.searchKeywords('DeepSeek V4 release', runtimeConfig)
+    const searchRequest = toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])
+
+    expect(searchRequest.url).toBe('https://api.deepseek.com/v1/tools/search')
+    expect(searchRequest.method).toBe('POST')
+    expect(searchRequest.headers.authorization).toBe('Bearer deepseek-key')
+    expect(searchRequest.body).toEqual({ query: 'DeepSeek V4 release', count: 4 })
+    expect(searched.results).toEqual([
+      {
+        title: 'DeepSeek Result',
+        content: 'Summary for the model.',
+        url: 'https://deepseek.example/1',
+        sourceInput: 'DeepSeek V4 release'
+      }
+    ])
+
+    fetchMock.mockResolvedValue(
+      createJsonResponse({ title: 'Fetched Page', content: '# Fetched Page\n\nMarkdown body.' })
+    )
+    const fetchDriver = createProviderDriver(
+      DeepSeekProvider,
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKeys: ['deepseek-key'],
+        capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.deepseek.com' }]
+      })
+    )
+
+    const fetched = await fetchDriver.fetchUrls('https://deepseek.example/article', runtimeConfig)
+    const fetchRequest = toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])
+
+    expect(fetchRequest.url).toBe('https://api.deepseek.com/v1/tools/fetch')
+    expect(fetchRequest.body).toEqual({ url: 'https://deepseek.example/article' })
+    expect(fetched).toEqual({
+      query: 'https://deepseek.example/article',
+      providerId: 'deepseek',
+      capability: 'fetchUrls',
+      inputs: ['https://deepseek.example/article'],
+      results: [
+        {
+          title: 'Fetched Page',
+          content: '# Fetched Page\n\nMarkdown body.',
+          url: 'https://deepseek.example/article',
+          sourceInput: 'https://deepseek.example/article'
+        }
+      ]
     })
   })
 

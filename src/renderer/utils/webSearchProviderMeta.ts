@@ -105,6 +105,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.duckduckgo',
     iconRef: providerIconRef('duck'),
     officialWebsite: 'https://duckduckgo.com'
+  },
+  deepseek: {
+    descriptionKey: 'settings.tool.websearch.provider_description.deepseek',
+    iconRef: providerIconRef('deepseek'),
+    officialWebsite: 'https://api-docs.deepseek.com/guides/search',
+    apiKeyWebsite: 'https://platform.deepseek.com/api_keys'
   }
 }
 

@@ -112,6 +112,18 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models DeepSeek as one provider with keyword search and URL fetch capabilities', () => {
+    const deepseek = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'deepseek')
+
+    expect(deepseek).toBeDefined()
+    expect(deepseek!.capabilities.map((capability) => capability.feature)).toEqual(['searchKeywords', 'fetchUrls'])
+    expect(deepseek!.capabilities.every((capability) => capability.requiresApiKey)).toBe(true)
+    expect(deepseek!.capabilities.map((capability) => capability.apiHost)).toEqual([
+      'https://api.deepseek.com',
+      'https://api.deepseek.com'
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 
