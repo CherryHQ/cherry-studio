@@ -577,13 +577,15 @@ The driver converts Claude SDK messages into runtime events:
   attachment materialization. The driver applies that correlation before invocation accounting
   and the fork checkpoint. A frame whose `user_message_uuid` or `user_message_uuids` names
   another send is omitted, including the untagged frames that follow its first `message_start`
-  until this send's id appears. A folded batch still settles when the stamped id is anywhere
-  in `user_message_uuids`. Once the user message is queued, a result that omits both fields
-  still settles: a fatal session error, a `hook_stopped` success, a `local_command` success
-  when this send is a slash command (an alias such as `/cost` may be reported as `/usage`, and
-  a namespaced name is kept; ordinary text does not accept `local_command`), a zero-turn
-  boundary, and output from a producer that does not echo the id. Before the
-  message is queued, an unlinked success does not settle, including `hook_stopped` and
+  until this send's id appears. Foreign `thinking_tokens` progress is omitted without taking
+  that reply-stream ownership, so a later untagged host answer can still enter. A folded batch
+  still settles when the stamped id is anywhere in `user_message_uuids`. Once the user message
+  is queued, a result that omits both fields still settles: a fatal session error, a
+  `hook_stopped` success, a `local_command` success when this send is a slash command (an
+  alias such as `/cost` may be reported as `/usage`, and a namespaced name is kept; ordinary
+  text does not accept `local_command`), a zero-turn boundary, and output from a producer
+  that does not echo the id. Before the message is queued, an unlinked success does not
+  settle, including `hook_stopped` and
   `local_command`; a fatal error result still surfaces. An unlinked empty success after the
   message is queued can still be stored. Cumulative `total_cost_usd` is not used. The
   historical report did not retain the result frame. Task notifications, autonomous wakes,

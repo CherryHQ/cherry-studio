@@ -259,6 +259,11 @@ function readHostCorrelationIds(message: SDKMessage): string[] {
   return ids
 }
 
+/** Thinking progress can name a send. It is not a reply stream and must not change stream ownership. */
+function isThinkingTokensProgress(message: SDKMessage): boolean {
+  return message.type === 'system' && message.subtype === 'thinking_tokens'
+}
+
 function summarizeSdkContentBlock(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) return { type: typeof value }
 
@@ -521,7 +526,10 @@ export class ClaudeCodeStreamAdapter {
   private hostLocalCommand?: string
   /** False while attachment IO is still running; that success cannot answer this send. */
   private hostInputQueued = true
-  /** A frame named some other send; unstamped frames stay dropped until this send is echoed. */
+  /**
+   * A reply-stream frame named some other send. Untagged frames stay dropped until this send is
+   * echoed. Thinking progress does not set or clear this flag.
+   */
   private ignoringForeignTurn = false
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
   private backgroundWorkReleasePending = false
@@ -708,7 +716,8 @@ export class ClaudeCodeStreamAdapter {
       this.autonomousTurn = true
     }
 
-    // thinking_tokens is turn progress stamped with user_message_uuid. Other system
+    // thinking_tokens is turn progress stamped with user_message_uuid. It is omitted when
+    // foreign or prequeue-unlinked, without taking reply-stream ownership. Other system
     // messages stay session-scoped and skip this gate.
     if (
       this.turnActive &&
@@ -767,12 +776,13 @@ export class ClaudeCodeStreamAdapter {
     if (!this.turnActive || !this.hostUserMessageUuid || this.autonomousTurn) return false
     if ('parent_tool_use_id' in message && message.parent_tool_use_id != null) return false
     const ids = readHostCorrelationIds(message)
+    const thinkingProgress = isThinkingTokensProgress(message)
     if (ids.includes(this.hostUserMessageUuid)) {
-      this.ignoringForeignTurn = false
+      if (!thinkingProgress) this.ignoringForeignTurn = false
       return false
     }
     if (ids.length > 0) {
-      this.ignoringForeignTurn = true
+      if (!thinkingProgress) this.ignoringForeignTurn = true
       return true
     }
     if (message.type === 'result') {

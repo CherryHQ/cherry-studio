@@ -1562,6 +1562,65 @@ describe('ClaudeCodeStreamAdapter', () => {
         })
       })
 
+      it('does not let foreign thinking progress drop a later untagged host answer', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        const foreign = thinkingTokens(77, otherUserMessageUuid)
+        expect(deliver(adapter, foreign)).toEqual({ omitFromHostTurn: true, result: { type: 'continue' } })
+
+        adapter.handleMessage(messageStart(undefined, 'req-untagged'))
+        for (const event of textEvents('answer')) adapter.handleMessage(event)
+        const settled = adapter.handleMessage(successResult({ num_turns: 1, result: 'answer', usage: zeroUsage }))
+
+        expect(settled).toMatchObject({ type: 'result' })
+        expect(parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)).toEqual(['answer'])
+        expect(parts.map(reasoningTokens).filter((value) => value != null)).toEqual([])
+        expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+      })
+
+      it('does not let foreign thinking progress take ownership of an untagged host stream', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        adapter.handleMessage(messageStart(hostUserMessageUuid, 'req-ours'))
+        for (const event of textEvents('ours')) adapter.handleMessage(event)
+        expect(deliver(adapter, thinkingTokens(77, otherUserMessageUuid))).toEqual({
+          omitFromHostTurn: true,
+          result: { type: 'continue' }
+        })
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: ' more' } })
+        )
+        adapter.handleMessage(successResult({ num_turns: 1, result: 'ours more', usage: zeroUsage }))
+
+        expect(parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)).toEqual(['ours', ' more'])
+        expect(parts.map(reasoningTokens).filter((value) => value != null)).toEqual([])
+      })
+
+      it('does not let matching thinking progress end a foreign reply-stream ignore', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        adapter.handleMessage(messageStart(otherUserMessageUuid, 'req-foreign'))
+        expect(deliver(adapter, thinkingTokens(40, hostUserMessageUuid))).toEqual({
+          omitFromHostTurn: false,
+          result: { type: 'continue' }
+        })
+        for (const event of textEvents('foreign')) adapter.handleMessage(event)
+        expect(parts.filter((part) => part.type === 'text-delta')).toEqual([])
+        expect(parts.map(reasoningTokens).filter((value) => value != null)).toEqual([40])
+
+        adapter.handleMessage(messageStart(hostUserMessageUuid, 'req-ours'))
+        for (const event of textEvents('ours')) adapter.handleMessage(event)
+        adapter.handleMessage(successResult({ num_turns: 1, result: 'ours', usage: zeroUsage }))
+
+        expect(parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)).toEqual(['ours'])
+      })
+
       it('keeps a thinking_tokens estimate that names the host send', () => {
         const { adapter, parts } = createAdapter()
         adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
