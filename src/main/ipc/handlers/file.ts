@@ -6,8 +6,10 @@ import {
   getMetadataByPath,
   readByPath,
   readChunkByPath,
+  readDeviceNotesPath,
   safeOpen,
   showInFolder as showPathInFolder,
+  writeDeviceNotesPath,
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
@@ -153,6 +155,14 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.show_in_folder': async (handle) => {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
+  },
+  // This PC's Notes folder choice. A pure sidecar module, not FileManager
+  // state — the handlers own the notes scope, FileManager stays generic.
+  'file.notes.get_device_path': async () => {
+    return readDeviceNotesPath(application.getPath('feature.notes.device_file'))
+  },
+  'file.notes.set_device_path': async ({ path }) => {
+    await writeDeviceNotesPath(application.getPath('feature.notes.device_file'), path)
   },
   'file.tree.create': async ({ rootPath, options }, { senderId }) => {
     try {
