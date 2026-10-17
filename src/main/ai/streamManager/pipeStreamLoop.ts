@@ -6,6 +6,7 @@
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
 
 import { type CherryUIMessage } from '@shared/data/types/message'
+import type { ErrorStage } from '@shared/utils/errorCategory'
 
 export interface PipeStreamLoopOptions {
   onChunk: (chunk: UIMessageChunk) => void
@@ -21,8 +22,9 @@ export interface PipeStreamLoopResult {
   streamErrorText?: string
   /** Upstream, setup or broadcast failure. Wrapped to distinguish a thrown `undefined` from no error. */
   threw?: { error: unknown }
-  /** SDK accumulation or snapshot callback failure; never stops the broadcast branch. */
-  accumulationError?: { error: unknown }
+  /** SDK accumulation or snapshot callback failure; never stops the broadcast branch.
+   *  `stage` names the failing phase so a malformed-chunk failure is not mistaken for a persist-write failure. */
+  accumulationError?: { error: unknown; stage: ErrorStage }
   /** Captured before accumulator drain. */
   broadcastCompletedAt: number
 }
@@ -35,9 +37,9 @@ export async function pipeStreamLoop(
   let finalMessage: CherryUIMessage | undefined
   let streamErrorText: string | undefined
   let threw: { error: unknown } | undefined
-  let accumulationError: { error: unknown } | undefined
-  const onAccumulationError = (error: unknown) => {
-    accumulationError ??= { error }
+  let accumulationError: { error: unknown; stage: ErrorStage } | undefined
+  const onAccumulationError = (error: unknown, stage: ErrorStage) => {
+    accumulationError ??= { error, stage }
   }
   const boundary = new TransformStream<UIMessageChunk, UIMessageChunk>()
   const [forBroadcast, forAccum] = boundary.readable.tee()
@@ -103,7 +105,7 @@ async function runAccumulator(
   source: ReadableStream<UIMessageChunk>,
   seed: CherryUIMessage | undefined,
   onSnapshot: (message: CherryUIMessage) => void,
-  onError: (error: unknown) => void
+  onError: (error: unknown, stage: ErrorStage) => void
 ): Promise<void> {
   // Provider error chunks are handled by broadcast; the SDK also calls onError for them.
   const input = source.pipeThrough(
@@ -115,18 +117,23 @@ async function runAccumulator(
   )
   let reader: ReadableStreamDefaultReader<CherryUIMessage> | undefined
   try {
-    reader = readUIMessageStream<CherryUIMessage>({ stream: input, message: seed, onError }).getReader()
+    // Malformed chunk sequences (e.g. a reasoning-end with an unopened ID) fail here: provider-output parsing.
+    reader = readUIMessageStream<CherryUIMessage>({
+      stream: input,
+      message: seed,
+      onError: (error) => onError(error, 'parse')
+    }).getReader()
     while (true) {
       const { done, value } = await reader.read()
       if (done) return
       try {
         onSnapshot(value)
       } catch (error) {
-        onError(error)
+        onError(error, 'runtime')
       }
     }
   } catch (error) {
-    onError(error)
+    onError(error, 'parse')
     // Setup can fail before the SDK acquires input; do not await tee cancellation while broadcast is live.
     void input.cancel(error).catch(() => {})
   } finally {
