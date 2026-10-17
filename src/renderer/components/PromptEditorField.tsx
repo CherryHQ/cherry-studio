@@ -93,6 +93,7 @@ interface PromptEditorFieldProps {
   maxHeight?: string
   autoFocus?: boolean
   fill?: boolean
+  disabled?: boolean
 }
 
 export function PromptEditorField({
@@ -109,7 +110,8 @@ export function PromptEditorField({
   minHeight = '200px',
   maxHeight = '50vh',
   autoFocus = false,
-  fill = false
+  fill = false,
+  disabled = false
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -140,7 +142,7 @@ export function PromptEditorField({
   // CodeMirror only focuses on clicks that land on its content. Clicking the gutter or the
   // empty area below the text leaves the editor unfocused, so forward those clicks manually.
   const handleEditorAreaMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (effectiveShowPreview) return
+    if (disabled || effectiveShowPreview) return
     if ((event.target as HTMLElement).closest('.cm-content')) return
     event.preventDefault()
     codeEditorRef.current?.focus?.()
@@ -161,7 +163,7 @@ export function PromptEditorField({
             type="button"
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
-            disabled={value.length === 0}
+            disabled={disabled || value.length === 0}
             className="flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 font-normal text-muted-foreground! text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
             {effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
             <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
@@ -176,7 +178,8 @@ export function PromptEditorField({
           className={cn(
             'min-w-0 max-w-full overflow-hidden rounded-md border bg-background transition-all',
             fill && 'flex min-h-0 flex-1 flex-col',
-            hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring'
+            hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring',
+            disabled && 'cursor-not-allowed opacity-50'
           )}>
           {effectiveShowPreview ? (
             <div
@@ -185,7 +188,7 @@ export function PromptEditorField({
                 fill && 'min-h-0 flex-1'
               )}
               style={fill ? undefined : { minHeight, maxHeight }}
-              onDoubleClick={() => setShowPreview(false)}>
+              onDoubleClick={() => !disabled && setShowPreview(false)}>
               <StaticMarkdown id={previewId}>{previewValue || value}</StaticMarkdown>
             </div>
           ) : (
@@ -197,6 +200,7 @@ export function PromptEditorField({
               autoFocus={autoFocus}
               language="markdown"
               onChange={handleChange}
+              editable={!disabled}
               options={{ foldGutter: false, lineNumbers: false }}
               expanded={false}
               className={fill ? 'min-h-0 flex-1' : undefined}

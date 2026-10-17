@@ -2492,7 +2492,7 @@ describe('AgentPage', () => {
     ['agent.manage.title', 'resource-catalog-agent', 'message-target'],
     ['agent.manage.title', 'resource-catalog-agent', null]
   ])('reveals the conversation for dashboard navigation from %s (%s, %s)', async (button, surface, messageId) => {
-    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-initial', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
     render(<AgentPage />)
     fireEvent.click(screen.getByRole('button', { name: button! }))
