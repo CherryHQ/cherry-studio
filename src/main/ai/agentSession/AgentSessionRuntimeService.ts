@@ -118,8 +118,10 @@ import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import {
+  agentPermissionEditEpoch,
   clearSessionEffectivePermissionMode,
   getSessionEffectivePermissionMode,
+  retireAgentSessionPermissionModes,
   setSessionEffectivePermissionMode
 } from './sessionPermissionOverrides'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
@@ -816,11 +818,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
     // An explicit permission-mode edit is the user's own choice again — retire any approved-plan
-    // session override so every session of the agent follows the row from here on.
+    // session override for every session of the agent. Overrides outlive their runtime entry (a
+    // handoff restores one after `closeSession` removed it), so entry ownership cannot decide here.
     if (updates.configuration && Object.prototype.hasOwnProperty.call(updates.configuration, 'permission_mode')) {
-      for (const entry of this.entries.values()) {
-        if (entry.agentId === agentId) clearSessionEffectivePermissionMode(entry.sessionId)
-      }
+      retireAgentSessionPermissionModes(agentId)
     }
     const reconciles: Promise<void>[] = []
     for (const entry of this.entries.values()) {
@@ -1592,7 +1593,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // so it is recorded as a session-scoped effective permission for the replacement connections
     // instead of reconciling every session of the agent out of its Plan Only restriction.
     if (agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan') {
-      setSessionEffectivePermissionMode(entry.sessionId, 'acceptEdits')
+      setSessionEffectivePermissionMode(entry.sessionId, entry.agentId, 'acceptEdits')
     }
 
     logger.info('Stopping approved plan turn for execution-model handoff', {
@@ -1629,11 +1630,18 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.liveTurn(entry) && this.liveTurn(entry) !== turn) return
     // Capture before pausing: the pause aborts the stream whose listener runs `closeSession`, which
     // retires the override synchronously — reading afterwards would hand the restart `plan` again.
+    // The edit epoch rides along: an explicit permission edit landing while the teardown awaits is
+    // newer than this handoff and must not be resurrected past it.
     const approvedPermission = getSessionEffectivePermissionMode(entry.sessionId)
+    const permissionEditEpoch = agentPermissionEditEpoch(entry.agentId)
     streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
     await this.closeSession(entry.sessionId)
-    if (approvedPermission && agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan') {
-      setSessionEffectivePermissionMode(entry.sessionId, approvedPermission)
+    if (
+      approvedPermission &&
+      agentPermissionEditEpoch(entry.agentId) === permissionEditEpoch &&
+      agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan'
+    ) {
+      setSessionEffectivePermissionMode(entry.sessionId, entry.agentId, approvedPermission)
     }
   }
 
