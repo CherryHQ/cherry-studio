@@ -526,6 +526,7 @@ export interface PreferenceSchemas {
     'feature.voice.speech.speed': number
     // target-key-definitions/complex/complex
     'feature.voice.speech.voice_id': string
+    'image.retry.max_attempts': number
     // target-key-definitions/complex/complex
     'menu.presentation_mode': PreferenceTypes.MenuPresentationMode
     // target-key-definitions/complex/complex
@@ -863,6 +864,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.voice.speech.model_id': '',
     'feature.voice.speech.speed': 1,
     'feature.voice.speech.voice_id': '',
+    'image.retry.max_attempts': 2,
     'menu.presentation_mode': 'cherry',
     'shortcut.app.fullscreen.exit': { binding: ['Escape'], enabled: true },
     'shortcut.app.print': { binding: ['CommandOrControl', 'P'], enabled: true },
@@ -914,7 +916,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 288
+ * - 总配置项: 289
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0

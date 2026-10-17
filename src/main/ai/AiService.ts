@@ -89,6 +89,7 @@ import {
   buildApiKeyFallbackModels,
   buildFallbackModels,
   createRetryableWrap,
+  readImageMaxRetries,
   readRetryPolicy
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
@@ -1053,7 +1054,9 @@ export class AiService extends BaseService {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: structured.n ?? 1,
-      maxRetries: request.requestOptions?.maxRetries ?? 0,
+      // Single-shot image calls otherwise surface an upstream gateway 504 with
+      // no second chance; the SDK retries transient errors with backoff (abort-aware).
+      maxRetries: request.requestOptions?.maxRetries ?? readImageMaxRetries(),
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
       ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
       ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
@@ -1543,6 +1546,8 @@ export class AiService extends BaseService {
         } else {
           probe = this.generateImage({
             ...probeRequest,
+            // Health checks are single-shot: never spend billable retries on a probe.
+            requestOptions: { ...probeRequest.requestOptions, maxRetries: 0 },
             prompt: 'a red circle',
             ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
             paramValues: probeParams,
