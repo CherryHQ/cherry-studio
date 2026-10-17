@@ -3,6 +3,7 @@ import {
   type AgentSession,
   createAgentSession,
   type CreateAgentSessionOptions,
+  createEventBus,
   DefaultResourceLoader,
   type ExtensionFactory,
   type ModelRuntime,
@@ -15,7 +16,7 @@ import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compa
 import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
 import { recallExtension } from './recall'
 import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
-import { subagentExtension, type SubagentPort } from './subagent'
+import { createSubagentExtension, type SubagentPort } from './subagent'
 
 export type AgentRuntimeModel = Model<Api>
 
@@ -72,12 +73,34 @@ export function setSessionRequirements(modelRuntime: ModelRuntime, requirements:
   sessionRequirements.set(modelRuntime, requirements)
 }
 
+/** Pi event-bus channel: the host's `abort()` is stopping the running run for the user. */
+export const USER_ABORT = 'cherry.user-abort'
+
 export interface AgentRuntimeSession {
   session: AgentSession
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
   dispose(): Promise<void>
+  /**
+   * `session.prompt`, for every user turn the host starts: until Pi starts the run (while commands and
+   * `input` handlers run), it reports the session idle, and a background result must not start a run
+   * then. Called while a run settles (from `onEvent`'s `turn-complete`), it runs once that settle and
+   * any run Pi started meanwhile are over, and resolves or rejects as that prompt does.
+   */
   prompt(text: string, options?: Parameters<AgentSession['prompt']>[1]): Promise<void>
+  /** `session.compact`, for every manual compaction the host starts, for the same reason. */
+  compact(customInstructions?: string): Promise<void>
+  /**
+   * `session.abort()`, for every stop the user makes (the host's stop button): it counts as the
+   * user's even when it lands in a run the runtime is ending itself (a goal withdrawing a round).
+   */
   abort(): Promise<void>
+  /** The user stops a background subagent (the host's stop button); false when it is not running. */
+  stopSubagent(sessionId: string): boolean
+  /**
+   * The user moves a running foreground subagent to the background: its call returns at once and
+   * the same run goes on, ending in a notification. False for any other subagent.
+   */
+  backgroundSubagent(sessionId: string): boolean
 }
 
 /**
@@ -96,6 +119,15 @@ async function buildSession(
   const { modelRuntime, model } = options
   const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
   const events = new SessionEvents(sessionManager, options.onEvent ?? (() => {}))
+  // Pi defers a prompt made while it dispatches agent_settled and returns before it runs; `held` waits instead.
+  let settling: { over: Promise<void>; end: () => void } | undefined
+  const settleWatch: ExtensionFactory = (pi) => {
+    pi.on('agent_settled', () => {
+      let end!: () => void
+      settling = { over: new Promise((resolve) => (end = resolve)), end }
+    })
+  }
+
   const { compaction } = options
   const summarize = compaction?.summarize
     ? (request: Parameters<NonNullable<AgentRuntimeCompaction['summarize']>>[0]) => {
@@ -103,30 +135,38 @@ async function buildSession(
         return compaction.summarize!(request)
       }
     : undefined
+
+  const subagents =
+    options.subagents &&
+    createSubagentExtension({
+      port: options.subagents,
+      // A fork keeps `subagent` so its tools match the parent's; a fresh subagent has none.
+      createSession: ({ fork, beforeModelRequest: beforeChildRequest, ...overrides }) =>
+        buildSession(
+          {
+            ...options,
+            ...overrides,
+            modelRuntime: overrides.modelRuntime ?? options.modelRuntime,
+            subagents: fork ? options.subagents : undefined
+          },
+          beforeChildRequest
+        ),
+      parentSession: sessionManager,
+      parentModel: options.model,
+      emit: (event) => options.onEvent?.(event),
+      offload: options.offload
+    })
   // A subagent's session is built here too, so it gets them whatever its host's `configure` returns.
   const required = sessionRequirements.get(modelRuntime)
   const extensionFactories = [
+    // First, so the watch covers every other extension's agent_settled handler.
+    settleWatch,
     ...(required?.extensionFactories ?? []),
     ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : []),
     ...(options.recall ? [recallExtension(() => sessionManager.getBranch())] : []),
-    ...(options.subagents
-      ? [
-          subagentExtension({
-            port: options.subagents,
-            parentSession: sessionManager,
-            createSession: ({ fork, beforeModelRequest: beforeChildRequest, ...overrides }) =>
-              buildSession(
-                {
-                  ...options,
-                  ...overrides,
-                  subagents: fork ? options.subagents : undefined
-                },
-                beforeChildRequest
-              )
-          })
-        ]
-      : []),
+    ...(subagents ? [subagents.extension] : []),
     ...(options.extensionFactories ?? []),
+    // Last, so it sees what other `tool_result` handlers made of the output.
     ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
   ]
   const settingsManager = SettingsManager.inMemory({
@@ -142,7 +182,9 @@ async function buildSession(
       }
     })
   })
+  const eventBus = createEventBus()
   const resourceLoader = new DefaultResourceLoader({
+    eventBus,
     cwd,
     agentDir,
     settingsManager,
@@ -180,17 +222,47 @@ async function buildSession(
       return stream(model, context, options)
     }
   }
-  session.subscribe((event) => events.handle(event))
+  session.subscribe((event) => {
+    events.handle(event)
+    if (event.type !== 'agent_settled') return
+    settling?.end()
+    settling = undefined
+  })
+  // State entries are in the session before extensions bind, so `session_start` sees them.
   await session.bindExtensions({})
   const baseTools = session.getActiveToolNames()
   events.setBaseTools(baseTools)
   if (events.activatedTools.length > 0) session.setActiveToolsByName([...baseTools, ...events.activatedTools])
+
   events.flush()
 
+  const held = async (run: () => Promise<unknown>) => {
+    const release = subagents?.controls.hold() ?? (() => {})
+    try {
+      if (settling) {
+        await settling.over
+        // A run Pi deferred during the settle (a notification) goes first, as Pi would order them.
+        await session.waitForIdle()
+      }
+      await run()
+    } finally {
+      release()
+    }
+  }
   return {
     session,
-    prompt: (text, promptOptions) => session.prompt(text, promptOptions),
-    abort: () => session.abort(),
+    prompt: (text, promptOptions) => held(() => session.prompt(text, promptOptions)),
+    compact: (customInstructions) => held(() => session.compact(customInstructions)),
+    abort() {
+      // Pi reports a run aborted only when one is active; that run's abort is the user's.
+      if (session.isStreaming) {
+        eventBus.emit(USER_ABORT, undefined)
+        subagents?.controls.userAbort()
+      }
+      return session.abort()
+    },
+    stopSubagent: (sessionId) => subagents?.controls.stopSubagent(sessionId) ?? false,
+    backgroundSubagent: (sessionId) => subagents?.controls.backgroundSubagent(sessionId) ?? false,
     async dispose() {
       try {
         await session.abort()
