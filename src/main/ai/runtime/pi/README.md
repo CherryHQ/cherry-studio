@@ -6,9 +6,10 @@ is developed separately and is not yet used by that connection.
 ## AI SDK model binding
 
 `createAiSdkModelBinding` constructs a native Pi `ModelRuntime` and model for Cherry's AI SDK
-execution path. Pass its model runtime, model, settings and extension factories to the Pi session
-builder. Put the returned factories before approval handlers. The binding disables Pi retries;
-Cherry's AI SDK request layer owns retries.
+execution path. Pass its model runtime and model to the Pi session builder. Through the builder's
+session requirements, every session on that runtime, subagents' included, installs the binding's
+tool-call guard ahead of its own extensions and runs with Pi's retry off, whatever settings the
+host gives: Cherry's AI SDK request layer owns retries.
 
 Each Pi request is converted to AI SDK messages and tools without `execute`. The supplied model
 call performs one `streamText` step; Pi alone executes tools and decides whether another step or
