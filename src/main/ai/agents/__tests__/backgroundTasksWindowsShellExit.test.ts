@@ -1,4 +1,5 @@
 import type * as ChildProcessModule from 'node:child_process'
+import { writeFileSync } from 'node:fs'
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -30,9 +31,14 @@ import {
 } from '../backgroundTasks'
 
 const nodeBin = `"${process.execPath}"`
-const TABLE_HEADER = '"ProcessId","ParentProcessId"'
+const TABLE_HEADER = '"ProcessId","ParentProcessId","CreationDate"'
+/** The creation stamp the fake identity query reports for the runner and the shell it spawned. */
+const SPAWN_STAMP = '20261017000000.000000+480'
 
-describe('a Windows task whose shell exits before its work', () => {
+// The suite simulates the Windows process table on a POSIX host: the stand-in probe is a shell
+// script, which a real Windows runner cannot execute, so the simulation itself only runs where
+// there is no real PowerShell to answer instead of the fake table.
+describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits before its work', () => {
   let storageDir: string
   let shimDir: string
   let fakeTable: string
@@ -45,7 +51,23 @@ describe('a Windows task whose shell exits before its work', () => {
     fakeTable = path.join(shimDir, 'table.csv')
     await writeFile(fakeTable, rows)
     const shim = path.join(shimDir, 'powershell.exe')
-    await writeFile(shim, `#!/bin/sh\nsed "s/@PPID@/$PPID/g" "$BG_FAKE_TABLE" 2>/dev/null\nexit 0\n`)
+    // The spawn-time identity query (a `-Filter` select of the creation stamps) is answered from
+    // the runner's own pid — the shim's $PPID — and the shell pid named in the filter itself.
+    const fingerprintQuery = [
+      'case "$*" in',
+      '*-Filter*)',
+      '  shell_pid=$(printf \'%s\' "$*" | sed -n "s/.*ProcessId=[0-9][0-9]* or ProcessId=\\([0-9][0-9]*\\).*/\\1/p")',
+      '  printf \'"ProcessId","CreationDate"\\n\'',
+      '  printf \'"%s","20261017000000.000000+480"\\n\' "$PPID"',
+      '  if [ -n "$shell_pid" ]; then printf \'"%s","20261017000000.000000+480"\\n\' "$shell_pid"; fi',
+      '  ;;',
+      '*)',
+      '  sed "s/@PPID@/$PPID/g" "$BG_FAKE_TABLE" 2>/dev/null',
+      '  ;;',
+      'esac',
+      'exit 0'
+    ].join('\n')
+    await writeFile(shim, `#!/bin/sh\n${fingerprintQuery}\n`)
     await chmod(shim, 0o755)
     process.env.PATH = `${shimDir}${path.delimiter}${process.env.PATH}`
     process.env.BG_FAKE_TABLE = fakeTable
@@ -109,7 +131,7 @@ describe('a Windows task whose shell exits before its work', () => {
     // Every successful probe is itself a runner child in the very table it reads. Counted as
     // work, the tree can never read as drained and no task ever completes; only the shell may
     // descend from the runner.
-    await useFakeProbe(`${TABLE_HEADER}\n"999999","@PPID@"\n`)
+    await useFakeProbe(`${TABLE_HEADER}\n"999999","@PPID@","${SPAWN_STAMP}"\n`)
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "process.exit(0)"`,
@@ -136,7 +158,7 @@ describe('a Windows task whose shell exits before its work', () => {
       cwd: storageDir
     })
     const shellPid = await waitForShellPid(record.id)
-    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}"\n`)
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n`)
 
     // The shell is gone and its orphan keeps working: the runner anchors the task, so the
     // record must still read running.
@@ -157,7 +179,7 @@ describe('a Windows task whose shell exits before its work', () => {
       cwd: storageDir
     })
     const shellPid = await waitForShellPid(record.id)
-    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}"\n`)
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n`)
     await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
 
     letTaskkillThrough()
@@ -178,7 +200,7 @@ describe('a Windows task whose shell exits before its work', () => {
       cwd: storageDir
     })
     const shellPid = await waitForShellPid(record.id)
-    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}"\n`)
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n`)
     await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
 
     letTaskkillThrough()
@@ -209,4 +231,118 @@ describe('a Windows task whose shell exits before its work', () => {
       { timeout: 10_000, interval: 100 }
     )
   })
+
+  it('refuses to force-kill a recorded pid an unrelated process has taken over', async () => {
+    // The shell exited and Windows handed its pid to a stranger, which has since forked a child
+    // of its own; the task's real orphan worker was created before the takeover. A closure that
+    // trusts the recorded pid alone force-kills the stranger's tree, so the sweep must verify
+    // each recorded root's creation stamp and spare everything the replacement brought along.
+    const onExit = vi.fn()
+    const requested: string[][] = []
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 200)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    // pid `shellPid` now names the replacement, `8888` is the replacement's own child, and
+    // `999999` is the task's orphan worker, created before the replacement took the pid.
+    await writeFakeRows(
+      [
+        TABLE_HEADER,
+        `"${shellPid}","4","20261017000010.000000+480"`,
+        `"8888","${shellPid}","20261017000011.000000+480"`,
+        `"999999","${shellPid}","20261017000005.000000+480"`
+      ].join('\n') + '\n'
+    )
+
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      const called = args[1] as string[]
+      requested.push(called)
+      // The orphan's kill lands: the table no longer reports it, so verification can pass.
+      if (called.includes('999999')) writeFileSync(fakeTable, `${TABLE_HEADER}\n`)
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    expect(stopped?.status).toBe('stopped')
+    expect(requested.some((args) => args.includes('999999'))).toBe(true)
+    expect(requested.flat()).not.toContain(String(shellPid))
+    expect(requested.flat()).not.toContain('8888')
+    expect(onExit).toHaveBeenCalledTimes(1)
+  }, 20_000)
+
+  it('keeps a kill survivor unresolved when the killed runner reports its own exit', async () => {
+    // Kill takes the runner down while a worker behind the dead shell survives: the runner's
+    // close event must not convert the stop into a finished task. The completion may only
+    // publish once the table verifies the worker is truly gone.
+    const startOnExit = vi.fn()
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir,
+      onExit: startOnExit
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n`)
+    letTaskkillThrough()
+
+    const withheld = stopDetachedBackgroundTask(storageDir, record.id, true, vi.fn())
+    // Kill reaches the runner itself: its close event fires while the worker is still listed.
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    process.kill(record.pid, 'SIGKILL')
+    await expect(withheld).resolves.toMatchObject({ status: 'running', stopRequestedAt: expect.any(String) })
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+
+    // The unresolved record holds: no completion, no notification, while the survivor works on.
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    expect(startOnExit).not.toHaveBeenCalled()
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+
+    // The survivor is gone: only then does the verified drain publish the kill.
+    await writeFakeRows(`${TABLE_HEADER}\n`)
+    await vi.waitFor(
+      async () => {
+        await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'stopped' })
+      },
+      { timeout: 10_000, interval: 100 }
+    )
+    await vi.waitFor(() => expect(startOnExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+  }, 30_000)
+
+  it('keeps counting a grandchild whose worker parent died between polls', async () => {
+    // shell → worker → child: once the worker exits, the surviving child's parent pid no longer
+    // connects to any recorded root. The polls must remember the members they verified — the
+    // worker's death may not drop its already-observed descendants from the tree.
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 300)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(
+      `${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n"888888","999999","${SPAWN_STAMP}"\n`
+    )
+    // Both members are verified by earlier polls; then the worker exits and only the child is left.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    await writeFakeRows(`${TABLE_HEADER}\n"888888","999999","${SPAWN_STAMP}"\n`)
+
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+
+    // The child is gone too: the tree reads empty and the runner may settle.
+    await writeFakeRows(`${TABLE_HEADER}\n`)
+    await vi.waitFor(
+      async () => {
+        await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({
+          status: 'completed'
+        })
+      },
+      { timeout: 10_000, interval: 100 }
+    )
+  }, 30_000)
 })

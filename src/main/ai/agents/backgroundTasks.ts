@@ -226,15 +226,45 @@ delete env.ELECTRON_RUN_AS_NODE
 const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })
 // The shell pid is the one member of the tree the app cannot rediscover once the shell has
 // exited — taskkill follows live parents only — so the app records it and seeds its own walk
-// with it, reaching the work the shell left behind across the dead link.
+// with it, reaching the work the shell left behind across the dead link. The creation stamps
+// ride along: a pid is only a number, and one that has turned over reads a different stamp,
+// so a stop can refuse an occupant that is not the process this app spawned.
+const stamps = {}
 try {
-  require('node:fs').writeFileSync(process.argv[2], JSON.stringify({ shellPid: task.pid || 0 }))
+  const identities = execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      'Get-CimInstance Win32_Process -Filter "ProcessId=' +
+        process.pid +
+        ' or ProcessId=' +
+        task.pid +
+        '" | Select-Object ProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
+    ],
+    { encoding: 'utf8', timeout: 5000, windowsHide: true }
+  )
+  for (const row of String(identities).split('\\n')) {
+    const fields = row.replace(/"/g, '').trim().split(',')
+    if (fields.length !== 2 || !Number(fields[0]) || !fields[1]) continue
+    if (Number(fields[0]) === process.pid) stamps.runnerCreatedAt = fields[1]
+    else if (task.pid && Number(fields[0]) === task.pid) stamps.shellCreatedAt = fields[1]
+  }
+} catch (error) {}
+try {
+  require('node:fs').writeFileSync(process.argv[2], JSON.stringify({ shellPid: task.pid || 0, ...stamps }))
 } catch (error) {}
 task.on('error', () => process.exit(1))
 task.on('exit', (code, signal) => {
   const status = signal ? 1 : (code == null ? 1 : code)
   let emptyReadings = 0
   let timer = null
+  // Members an earlier poll verified as the task's work, each under the creation stamp it was
+  // seen with. A worker's death orphans the children it forked — their parent pid no longer
+  // reaches any live row — so this memory is what keeps such a descendant counted after the
+  // parent that would have vouched for it is gone.
+  const known = new Map()
   const settle = () => {
     if (timer) clearInterval(timer)
     process.exit(status)
@@ -248,7 +278,7 @@ task.on('exit', (code, signal) => {
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Csv -NoTypeInformation'
+          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
         ],
         { encoding: 'utf8', timeout: 5000, windowsHide: true }
       )
@@ -258,30 +288,53 @@ task.on('exit', (code, signal) => {
       if (error.code === 'ENOENT') settle()
       return
     }
-    // Everything descended from this runner's shell is the work; each row found inside that
-    // closure seeds the next round, so a worker whose own parent has exited is still accounted
-    // for. The table also holds this very probe — the runner's own supervision, reading as a
-    // child of the runner — and only the shell may descend from the runner: any other row
-    // parented there is supervision, not the task's work.
     const shellPid = Number(task.pid) || 0
-    const seeds = new Set([process.pid, shellPid])
+    const rows = []
+    for (const row of String(table).split('\\n')) {
+      const fields = row.replace(/"/g, '').trim().split(',')
+      const pid = Number(fields[0])
+      if (fields.length !== 3 || !pid || !fields[2]) continue
+      rows.push({ pid, ppid: Number(fields[1]), created: fields[2] })
+    }
+    const byPid = new Map(rows.map((row) => [row.pid, row]))
+    const keep = new Set()
+    for (const row of rows) {
+      // This runner itself, and every row it parents except the shell, is the task's own
+      // supervision — this very probe — not the task's work.
+      if (row.pid === process.pid) continue
+      if (row.ppid === process.pid && row.pid !== shellPid) continue
+      // A member still reading the stamp it was verified under is still the work; the same pid
+      // reading a different stamp is a reuse, refused like any stranger.
+      if (known.get(row.pid) === row.created) {
+        keep.add(row.pid)
+        continue
+      }
+      // A row the shell left behind, or one whose parent an earlier poll verified, is work from
+      // across a dead link — unless a live replacement took that pid after the row appeared,
+      // in which case the row is the replacement's, not this task's.
+      if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
+        const parent = byPid.get(row.ppid)
+        if (!parent || row.created < parent.created) keep.add(row.pid)
+      }
+    }
     let grew = true
     while (grew) {
       grew = false
-      for (const row of String(table).split('\\n')) {
-        const fields = row.replace(/"/g, '').trim().split(',')
-        const pid = Number(fields[0])
-        if (fields.length !== 2 || !pid || seeds.has(pid)) continue
-        if (Number(fields[1]) === process.pid && pid !== shellPid) continue
-        if (seeds.has(Number(fields[1]))) {
-          seeds.add(pid)
+      for (const row of rows) {
+        if (keep.has(row.pid) || row.pid === process.pid) continue
+        if (row.ppid === process.pid && row.pid !== shellPid) continue
+        if (keep.has(row.ppid)) {
+          keep.add(row.pid)
           grew = true
         }
       }
     }
+    for (const row of rows) {
+      if (keep.has(row.pid)) known.set(row.pid, row.created)
+    }
     // A job the shell just backgrounded can surface a beat late, so the tree must read empty
     // twice before the anchor may leave.
-    if (seeds.size > 2) {
+    if (keep.size > 0) {
       emptyReadings = 0
       return
     }
@@ -487,6 +540,17 @@ export async function startDetachedBackgroundTask(
         const poll = setTimeout(() => void settleThroughGroupDrain(), LEADERLESS_GROUP_POLL_MS)
         poll.unref?.()
         return
+      }
+      // A plain Windows exit is supervised by the runner itself — it leaves only once its own
+      // probe read the tree empty. A stop that killed the runner enjoys no such guarantee: work
+      // it never reached may still be listed, so its record must stay unresolved — running,
+      // owned, unpublishing nothing — until the recorded evidence proves the tree empty.
+      if (process.platform === 'win32' && record.pid > 0 && (await hasStopRequest(input.storageDir, id))) {
+        if (!(await verifyWindowsTaskTerminated(input.storageDir, record))) {
+          const poll = setTimeout(() => void settleThroughGroupDrain(), LEADERLESS_GROUP_POLL_MS)
+          poll.unref?.()
+          return
+        }
       }
       if (taking) clearInterval(taking)
       ownedTaskGroups.delete(id)
@@ -718,6 +782,18 @@ async function stopDetachedBackgroundTaskUnlocked(
     await writeRecord(storageDir, record)
     return undefined
   }
+  // The recorded runner pid is a number the OS may have handed to someone else since the spawn —
+  // a crash or an earlier kill frees it. Its creation stamp is the one the runner captured while
+  // it was provably ours, so a live occupant reading a different stamp is a stranger and the kill
+  // is refused: the record stays running, unresolved, and stoppable once it can be accounted for.
+  if (process.platform === 'win32' && !(await isWindowsRunnerVerified(storageDir, record))) {
+    logger.warn('Refusing to kill a recorded pid whose occupant is not the spawned runner', {
+      taskId: record.id,
+      pid: record.pid
+    })
+    await writeRecord(storageDir, record)
+    return undefined
+  }
   try {
     if (process.platform === 'win32') {
       await execTaskkill(['/PID', String(record.pid), '/T', ...(force ? ['/F'] : [])])
@@ -888,10 +964,28 @@ async function waitForGroupDrain(pgid: number): Promise<boolean> {
   return true
 }
 
-/** A live row of the Windows process table: a pid and the parent it was created under. */
+/** A live row of the Windows process table: a pid, the parent it was created under, and when. */
 interface WindowsProcessRow {
   pid: number
   ppid: number
+  created: string
+}
+
+/**
+ * A recorded root of the kill walk — the runner or the shell — with the creation stamp it was
+ * captured under while it was provably this task's. A live occupant reading a different stamp is
+ * a pid the OS has since handed to someone else.
+ */
+interface WindowsTaskRoot {
+  pid: number
+  created?: string
+}
+
+/** The identity evidence the runner wrote at spawn, read back by the stop and purge paths. */
+interface WindowsTaskEvidence {
+  shellPid: number
+  runnerCreatedAt?: string
+  shellCreatedAt?: string
 }
 
 /**
@@ -908,7 +1002,7 @@ async function readWindowsProcessTable(): Promise<WindowsProcessRow[] | null> {
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Csv -NoTypeInformation'
+          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
         ],
         { timeout: 5_000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 },
         (error, stdout) => {
@@ -920,11 +1014,11 @@ async function readWindowsProcessTable(): Promise<WindowsProcessRow[] | null> {
     const rows: WindowsProcessRow[] = []
     for (const row of String(stdout).split('\n')) {
       const fields = row.replace(/"/g, '').trim().split(',')
-      if (fields.length !== 2) continue
+      if (fields.length !== 3) continue
       const pid = Number(fields[0])
       const ppid = Number(fields[1])
-      if (!pid || !ppid) continue
-      rows.push({ pid, ppid })
+      if (!pid || !ppid || !fields[2]) continue
+      rows.push({ pid, ppid, created: fields[2] })
     }
     return rows
   } catch {
@@ -936,47 +1030,95 @@ async function readWindowsProcessTable(): Promise<WindowsProcessRow[] | null> {
  * The live processes that still belong to the task, found from the pid roots this app recorded —
  * the runner and the shell that may have exited before its work. A row names its parent even
  * after that parent has exited, so this walk crosses the dead link that `taskkill /T`, which
- * follows live parents only, cannot.
+ * follows live parents only, cannot. A recorded pid is only a number, so every root with a
+ * captured creation stamp is verified first: a live occupant reading a different stamp is a
+ * stranger, refused outright together with everything it has since forked — the rows it parents
+ * count as this task's orphans only when they were created before the replacement took over.
  */
-function collectTaskProcessPids(rows: WindowsProcessRow[], roots: number[]): Set<number> {
-  const closure = new Set(roots)
+function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoot[]): Set<number> {
+  const byPid = new Map(rows.map((row) => [row.pid, row]))
+  const rootPids = new Set(roots.map((root) => root.pid))
+  const verified = new Set<number>()
+  for (const root of roots) {
+    const row = byPid.get(root.pid)
+    if (row && (!root.created || row.created === root.created)) verified.add(row.pid)
+  }
+  const work = new Set<number>()
+  for (const row of rows) {
+    if (verified.has(row.pid) || !rootPids.has(row.ppid)) continue
+    const occupant = byPid.get(row.ppid)
+    if (occupant && !verified.has(occupant.pid) && row.created >= occupant.created) continue
+    work.add(row.pid)
+  }
   for (let grew = true; grew;) {
     grew = false
     for (const row of rows) {
-      if (closure.has(row.pid) || !closure.has(row.ppid)) continue
-      closure.add(row.pid)
-      grew = true
+      if (verified.has(row.pid) || work.has(row.pid)) continue
+      if (work.has(row.ppid) || verified.has(row.ppid)) {
+        work.add(row.pid)
+        grew = true
+      }
     }
   }
-  return closure
+  for (const pid of verified) work.add(pid)
+  return work
 }
 
 /**
- * The shell pid the runner recorded at spawn. Absent — an older record, or a failed write — it
- * establishes nothing: without that root no walk can cross the shell's exit.
+ * The identity evidence the runner recorded at spawn: the shell pid, plus the creation stamps
+ * captured while the runner and the shell were provably this task's. Absent — an older record,
+ * or a failed write or identity query — a stamp establishes nothing and the walk degrades to
+ * the recorded pids alone.
  */
-async function readTaskShellPid(storageDir: string, taskId: string): Promise<number | undefined> {
+async function readTaskEvidence(storageDir: string, taskId: string): Promise<WindowsTaskEvidence | undefined> {
   try {
     const parsed = JSON.parse(
       await readFile(path.join(storageDir, `${taskId}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
-    ) as { shellPid?: number }
+    ) as { shellPid?: number; runnerCreatedAt?: string; shellCreatedAt?: string }
     const pid = Number(parsed.shellPid)
-    return Number.isInteger(pid) && pid > 0 ? pid : undefined
+    if (!Number.isInteger(pid) || pid <= 0) return undefined
+    return {
+      shellPid: pid,
+      ...(typeof parsed.runnerCreatedAt === 'string' && parsed.runnerCreatedAt
+        ? { runnerCreatedAt: parsed.runnerCreatedAt }
+        : {}),
+      ...(typeof parsed.shellCreatedAt === 'string' && parsed.shellCreatedAt
+        ? { shellCreatedAt: parsed.shellCreatedAt }
+        : {})
+    }
   } catch {
     return undefined
   }
 }
 
 /**
+ * Whether the recorded runner pid may be signalled. A live occupant is only the process this app
+ * spawned while it reads the stamp captured at spawn; a dead one is nothing to refuse — nothing
+ * here is signalled, and the walk below still reaches the shell's side of the tree. Without a
+ * captured stamp there is nothing to check against, so the pre-stamp behavior stands.
+ */
+async function isWindowsRunnerVerified(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
+  const evidence = await readTaskEvidence(storageDir, record.id)
+  if (!evidence?.runnerCreatedAt) return true
+  const rows = await readWindowsProcessTable()
+  if (!rows) return false
+  const row = rows.find((candidate) => candidate.pid === record.pid)
+  return !row || row.created === evidence.runnerCreatedAt
+}
+
+/**
  * Whether the Windows kill is proven complete. `taskkill /T` cannot reach a worker past a shell
  * that has already exited — the worker survives it behind the dead link — so survivors are
- * looked up through the recorded shell pid and killed directly, and only a table reading with
+ * looked up through the recorded roots and killed directly, and only a table reading with
  * nothing of the task's left may call the task stopped.
  */
 async function verifyWindowsTaskTerminated(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
-  const shellPid = await readTaskShellPid(storageDir, record.id)
-  if (!shellPid) return false
-  const roots = [record.pid, shellPid]
+  const evidence = await readTaskEvidence(storageDir, record.id)
+  if (!evidence) return false
+  const roots: WindowsTaskRoot[] = [
+    { pid: record.pid, created: evidence.runnerCreatedAt },
+    { pid: evidence.shellPid, created: evidence.shellCreatedAt }
+  ]
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
   for (;;) {
     const rows = await readWindowsProcessTable()
@@ -990,6 +1132,20 @@ async function verifyWindowsTaskTerminated(storageDir: string, record: Backgroun
     }
     if (Date.now() >= deadline) return false
     await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+  }
+}
+
+/**
+ * Whether the task's record carries a stop request. The runner's close event may fire while a
+ * kill is in flight, and the spawn closure only holds the record as it was at start — the disk
+ * is where the request shows.
+ */
+async function hasStopRequest(storageDir: string, taskId: string): Promise<boolean> {
+  try {
+    const current = await readRecord(storageDir, `${taskId}${BACKGROUND_TASK_RECORD_EXT}`)
+    return current?.stopRequestedAt !== undefined
+  } catch {
+    return true
   }
 }
 

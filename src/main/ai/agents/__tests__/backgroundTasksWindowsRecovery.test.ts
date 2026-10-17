@@ -26,7 +26,10 @@ import { listDetachedBackgroundTasks, startDetachedBackgroundTask } from '../bac
 
 const nodeBin = `"${process.execPath}"`
 
-describe('a Windows task whose record write fails', () => {
+// The suite simulates the Windows runner on a POSIX host: it relies on no real PowerShell being
+// on PATH so the runner settles the moment its probe cannot run. A real Windows host answers the
+// probe for real, and the spawn-to-close timing the assertions rest on never holds there.
+describe.skipIf(process.platform === 'win32')('a Windows task whose record write fails', () => {
   let storageDir: string
   let realPlatform: NodeJS.Platform
 
