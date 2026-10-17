@@ -1045,10 +1045,11 @@ async function readWindowsProcessTable(): Promise<WindowsProcessRow[] | null> {
  * The live processes that still belong to the task, found from the pid roots this app recorded —
  * the runner and the shell that may have exited before its work. A row names its parent even
  * after that parent has exited, so this walk crosses the dead link that `taskkill /T`, which
- * follows live parents only, cannot. A recorded pid is only a number, so every root with a
- * captured creation stamp is verified first: a live occupant reading a different stamp is a
- * stranger, refused outright together with everything it has since forked — the rows it parents
- * count as this task's orphans only when they were created before the replacement took over.
+ * follows live parents only, cannot. A recorded pid is only a number, so a root is verified only
+ * under the creation stamp it was captured with: a live occupant reading a different stamp — or
+ * a root this app holds no stamp for — is a stranger, refused outright together with everything
+ * it has since forked; the rows it parents count as this task's orphans only when they were
+ * created before the replacement took over.
  */
 function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoot[]): Set<number> {
   const byPid = new Map(rows.map((row) => [row.pid, row]))
@@ -1056,7 +1057,9 @@ function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoo
   const verified = new Set<number>()
   for (const root of roots) {
     const row = byPid.get(root.pid)
-    if (row && (!root.created || row.created === root.created)) verified.add(row.pid)
+    // No stamp, no verification: a live occupant on a root nothing ties to the original process
+    // is a stranger the sweep must spare, however plausible the bare pid looks.
+    if (row && row.created === root.created) verified.add(row.pid)
   }
   const work = new Set<number>()
   for (const row of rows) {
@@ -1077,6 +1080,15 @@ function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoo
   }
   for (const pid of verified) work.add(pid)
   return work
+}
+
+/**
+ * Whether a live row sits on a recorded root this app holds no stamp for. Such an occupant is no
+ * kill target — nothing ties it to the task — but its presence is not excludable either, so it
+ * holds the task's termination unproven until identity for that root exists.
+ */
+function hasUnidentifiedRootOccupant(rows: WindowsProcessRow[], roots: WindowsTaskRoot[]): boolean {
+  return roots.some((root) => !root.created && rows.some((row) => row.pid === root.pid))
 }
 
 /**
@@ -1165,7 +1177,7 @@ async function verifyWindowsTaskTerminated(storageDir: string, record: Backgroun
     if (rows) {
       const closure = collectTaskProcessPids(rows, roots)
       const survivors = rows.filter((row) => closure.has(row.pid))
-      if (survivors.length === 0) return true
+      if (survivors.length === 0 && !hasUnidentifiedRootOccupant(rows, roots)) return true
       for (const survivor of survivors) {
         await execTaskkill(['/PID', String(survivor.pid), '/F']).catch(() => undefined)
       }
