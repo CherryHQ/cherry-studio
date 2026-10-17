@@ -116,26 +116,6 @@ export function setCommandAvailability(id: string, isAvailable: (editor: Editor)
   }
 }
 
-// Convenience functions for common scenarios
-export function disableCommandsWhen(commandIds: string[], condition: (editor: Editor) => boolean): void {
-  commandIds.forEach((id) => {
-    setCommandAvailability(id, (editor) => !condition(editor))
-  })
-}
-
-export function hideToolbarCommandsWhen(commandIds: string[], condition: () => boolean): void {
-  if (condition()) {
-    commandIds.forEach((id) => unregisterToolbarCommand(id))
-  } else {
-    commandIds.forEach((id) => {
-      const cmd = getCommand(id)
-      if (cmd) {
-        cmd.showInToolbar = true
-      }
-    })
-  }
-}
-
 // Default command definitions
 const DEFAULT_COMMANDS: Command[] = [
   {

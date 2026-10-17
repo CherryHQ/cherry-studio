@@ -26,17 +26,9 @@ export type KnowledgeFileItem = KnowledgeItem & {
   content: FileMetadata
 }
 
-export const isKnowledgeFileItem = (item: KnowledgeItem): item is KnowledgeFileItem => {
-  return item.type === 'file'
-}
-
 export type KnowledgeVideoItem = KnowledgeItem & {
   type: 'video'
   content: FileMetadata[]
-}
-
-export const isKnowledgeVideoItem = (item: KnowledgeItem): item is KnowledgeVideoItem => {
-  return item.type === 'video'
 }
 
 export type KnowledgeNoteItem = KnowledgeItem & {
@@ -45,17 +37,9 @@ export type KnowledgeNoteItem = KnowledgeItem & {
   sourceUrl?: string
 }
 
-export const isKnowledgeNoteItem = (item: KnowledgeItem): item is KnowledgeNoteItem => {
-  return item.type === 'note'
-}
-
 export type KnowledgeDirectoryItem = KnowledgeItem & {
   type: 'directory'
   content: string
-}
-
-export const isKnowledgeDirectoryItem = (item: KnowledgeItem): item is KnowledgeDirectoryItem => {
-  return item.type === 'directory'
 }
 
 export type KnowledgeUrlItem = KnowledgeItem & {
@@ -63,17 +47,9 @@ export type KnowledgeUrlItem = KnowledgeItem & {
   content: string
 }
 
-export const isKnowledgeUrlItem = (item: KnowledgeItem): item is KnowledgeUrlItem => {
-  return item.type === 'url'
-}
-
 export type KnowledgeSitemapItem = KnowledgeItem & {
   type: 'sitemap'
   content: string
-}
-
-export const isKnowledgeSitemapItem = (item: KnowledgeItem): item is KnowledgeSitemapItem => {
-  return item.type === 'sitemap'
 }
 
 export type KnowledgeGeneralItem = KnowledgeItem & {

@@ -320,6 +320,25 @@ export function CommandMenuItems({
   )
 }
 
+function useCommandShortcutLabelResolver(
+  context: ReturnType<typeof useCommandContextReader>,
+  shortcutPreferences: ReturnType<typeof useCommandShortcutPreferences>
+) {
+  return useCallback(
+    (command: CommandId) => {
+      const rule = findKeybindingRule(command)
+      const preference = rule ? shortcutPreferences[command] : undefined
+
+      return getCommandShortcutLabel(command, preference, {
+        context,
+        isMac,
+        platform: platform as SupportedPlatform
+      })
+    },
+    [context, shortcutPreferences]
+  )
+}
+
 export function CommandContextMenu({
   location,
   children,
@@ -351,19 +370,7 @@ export function CommandContextMenu({
   const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
   const pendingItems = pendingExtraItems ?? extraItems
-  const resolveShortcutLabel = useCallback(
-    (command: CommandId) => {
-      const rule = findKeybindingRule(command)
-      const preference = rule ? shortcutPreferences[command] : undefined
-
-      return getCommandShortcutLabel(command, preference, {
-        context,
-        isMac,
-        platform: platform as SupportedPlatform
-      })
-    },
-    [context, shortcutPreferences]
-  )
+  const resolveShortcutLabel = useCommandShortcutLabelResolver(context, shortcutPreferences)
   const resolveExtraItemShortcutLabels = useCallback(
     (items: readonly CommandContextMenuExtraItem[]): readonly CommandContextMenuExtraItem[] => {
       if (!hasShortcutCommands(items)) return items
@@ -747,18 +754,7 @@ export function CommandPopupMenu({
   const pendingCherryActionRef = useRef<(() => void) | null>(null)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
-  const resolveShortcutLabel = useCallback(
-    (command: CommandId) => {
-      const rule = findKeybindingRule(command)
-      const preference = rule ? shortcutPreferences[command] : undefined
-      return getCommandShortcutLabel(command, preference, {
-        context,
-        isMac,
-        platform: platform as SupportedPlatform
-      })
-    },
-    [context, shortcutPreferences]
-  )
+  const resolveShortcutLabel = useCommandShortcutLabelResolver(context, shortcutPreferences)
   const decoratedExtraItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
     if (!hasShortcutCommands(extraItems)) return extraItems
     const decorate = (source: readonly CommandContextMenuExtraItem[]): CommandContextMenuExtraItem[] =>

@@ -15,13 +15,6 @@ export interface TaskRecordLike {
   tasks?: TaskRecordLike[]
 }
 
-export interface NormalizedTaskLike {
-  id?: string
-  title?: string
-  activeText?: string
-  status?: NormalizedTaskStatus
-}
-
 const TITLE_KEYS = ['subject', 'task', 'description', 'activeForm'] as const
 const ID_KEYS = ['id', 'taskId', 'task_id'] as const
 
@@ -53,10 +46,6 @@ export function getTaskField(record: TaskRecordLike, keys: readonly (keyof TaskR
 
 export function isOrdinalTaskTitle(value: string | undefined): boolean {
   return !!value && /^#?\d+$/.test(value.trim())
-}
-
-export function normalizeTaskTitle(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
 export function getTaskId(record: TaskRecordLike): string | undefined {
@@ -100,22 +89,5 @@ export function normalizeTaskStatus(value: TaskScalar): NormalizedTaskStatus | u
       return 'error'
     default:
       return undefined
-  }
-}
-
-export function normalizeTaskLike(
-  value: TaskRecordLike | undefined,
-  fallbackId?: string
-): NormalizedTaskLike | undefined {
-  if (!value) return undefined
-  const id = getTaskId(value) ?? fallbackId
-  const title = getTaskTitle(value, id)
-  if (!id && !title) return undefined
-
-  return {
-    id,
-    title,
-    activeText: getTaskActiveText(value),
-    status: normalizeTaskStatus(value.status)
   }
 }

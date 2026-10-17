@@ -1,20 +1,3 @@
-/**
- * 判断字符串是否是 json 字符串
- * @param {any} str 字符串
- * @returns {boolean} 是否为 json 字符串
- */
-export function isJSON(str: any): boolean {
-  if (typeof str !== 'string') {
-    return false
-  }
-
-  try {
-    return typeof JSON.parse(str) === 'object'
-  } catch (e) {
-    return false
-  }
-}
-
 // TODO: unknown 代替 any
 /**
  * 尝试解析 JSON 字符串，如果解析失败则返回 null。

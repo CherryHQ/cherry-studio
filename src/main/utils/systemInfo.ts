@@ -19,19 +19,6 @@ export interface SystemInfo {
 }
 
 /**
- * Get basic system constants for quick access
- * @returns {Object} Basic system constants
- */
-export function getSystemConstants() {
-  return {
-    platform: process.platform,
-    arch: process.arch,
-    osRelease: os.release(),
-    appVersion: app.getVersion()
-  }
-}
-
-/**
  * Get system information
  * @returns {SystemInfo} Complete system information object
  */

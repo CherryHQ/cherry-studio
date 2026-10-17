@@ -291,11 +291,8 @@ export class AiSdkSpanAdapter {
     return { inputs, outputs }
   }
 
-  /**
-   * Extract outputs for top-level LLM spans.
-   */
-  private static extractLLMOutputs(attributes: Record<string, any>): any {
-    const outputs: any = {}
+  private static extractResponseOutputs(attributes: Record<string, any>): Record<string, any> {
+    const outputs: Record<string, any> = {}
 
     if (attributes['ai.response.text']) {
       outputs.text = attributes['ai.response.text']
@@ -306,6 +303,16 @@ export class AiSdkSpanAdapter {
     if (attributes['ai.response.finishReason']) {
       outputs.finishReason = attributes['ai.response.finishReason']
     }
+
+    return outputs
+  }
+
+  /**
+   * Extract outputs for top-level LLM spans.
+   */
+  private static extractLLMOutputs(attributes: Record<string, any>): any {
+    const outputs = this.extractResponseOutputs(attributes)
+
     if (attributes['ai.settings.maxOutputTokens']) {
       outputs.maxOutputTokens = attributes['ai.settings.maxOutputTokens']
     }
@@ -317,17 +324,7 @@ export class AiSdkSpanAdapter {
    * Extract outputs for provider spans.
    */
   private static extractProviderOutputs(attributes: Record<string, any>): any {
-    const outputs: any = {}
-
-    if (attributes['ai.response.text']) {
-      outputs.text = attributes['ai.response.text']
-    }
-    if (attributes['ai.response.toolCalls']) {
-      outputs.toolCalls = this.parseAttributeValue(attributes['ai.response.toolCalls'])
-    }
-    if (attributes['ai.response.finishReason']) {
-      outputs.finishReason = attributes['ai.response.finishReason']
-    }
+    const outputs = this.extractResponseOutputs(attributes)
 
     // Performance metrics specific to doStream.
     if (attributes['ai.response.msToFirstChunk']) {
