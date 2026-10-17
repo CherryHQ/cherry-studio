@@ -51,6 +51,12 @@
 | [Tool Approval](./references/ai/tool-approval.md) | Main-as-writer tool approval through ai.tool.respond_approval, approval-requested parts, and persistent MCP decisions |
 | [Tool Registry](./references/ai/tool-registry.md) | Unified aiSdk ToolEntry registry — built-in web/kb tools, MCP sync, meta-tools, and deferred exposition |
 | [Text Translation](./references/ai/translation.md) | Text translation flow from renderer callers through translate.open to Main streaming, including Home message persistence ownership |
+| [AI SDK v7 — Research Conclusions](./references/ai/unified-runtime/aisdk-v7-research.md) | AI SDK v7 research conclusions, composable agents, unified reasoning, media capabilities, and Cherry adoption boundaries |
+| [FilesV4 and SkillsV4 — Upload Migration Boundaries](./references/ai/unified-runtime/large-file-upload-port.md) | FilesV4 attachment lifecycle migration and separate SkillsV4 adoption decisions, with scoped references and acceptance gates |
+| [AI SDK Upgrade & Unified Runtime — Migration Assessment](./references/ai/unified-runtime/migration-plan.md) | Post-upgrade migration plan for Agent controls, images, recovery, media, tools, and Harness cutover |
+| [AI SDK v7 and Runtime Migration](./references/ai/unified-runtime/README.md) | AI SDK v7 research conclusions and implementation plans for SDK controls, files, images, tools, media, and Harness |
+| [Phase 1 — Upgrade AI SDK Before Migrating Features](./references/ai/unified-runtime/sdk-upgrade-plan.md) | Phase one AI SDK v6 to v7 implementation plan with dependency closure, codemod coverage, manual semantic migration, and acceptance gates |
+| [Phases 2–3 — Tool Search and Code Mode](./references/ai/unified-runtime/tool-discovery-plan.md) | Post-SDK-upgrade Tool Search and Code Mode implementation phases, replacement maps, approval gaps, and black-box acceptance |
 
 ### API Gateway
 
