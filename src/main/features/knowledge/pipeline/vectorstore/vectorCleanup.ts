@@ -4,7 +4,11 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 const logger = loggerService.withContext('KnowledgeVectorCleanup')
 
-export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: string[]): Promise<void> {
+export async function deleteKnowledgeItemVectors(
+  base: KnowledgeBase,
+  itemIds: string[],
+  options: { allowPartialMaterialProgress?: boolean } = {}
+): Promise<void> {
   const uniqueItemIds = [...new Set(itemIds)]
   if (uniqueItemIds.length === 0) {
     return
@@ -16,15 +20,16 @@ export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: s
     return
   }
 
-  // Delete every id with a single collectIndexGarbage pass at the end (each material's
-  // row delete is its own short transaction; see KnowledgeIndexStore.deleteMaterials).
+  // Delete every id with one end-of-delete garbage-collection traversal.
   // The old per-id Promise.allSettled loop ran the two full-table GC scans once per item,
   // so deleting a folder of N files scanned the whole embedding/content table N times —
-  // the multi-second main-process freeze on large (PDF-heavy) folders. A failure partway
-  // leaves whatever was already deleted committed; that is safe because this call always
-  // precedes the knowledge_item DB row deletion (see subtreePurge.ts), so a retry
-  // re-discovers exactly the materials still left.
-  await store.deleteMaterials(uniqueItemIds)
+  // the multi-second main-process freeze on large (PDF-heavy) folders. Partial material
+  // progress is reserved for delete jobs whose `deleting` rows and durable retry make it safe.
+  if (options.allowPartialMaterialProgress) {
+    await store.deleteMaterials(uniqueItemIds, { allowPartialMaterialProgress: true })
+  } else {
+    await store.deleteMaterials(uniqueItemIds)
+  }
 }
 
 /**

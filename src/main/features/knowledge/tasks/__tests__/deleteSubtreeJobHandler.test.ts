@@ -65,7 +65,7 @@ describe('delete-subtree job handler', () => {
     expect(cancelMock).toHaveBeenCalledWith('check-job', 'knowledge-delete-subtree')
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
-    expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'])
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'], { allowPartialMaterialProgress: true })
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
     // The freed index pages are reclaimed once, after the purge.
     expect(reclaimSpaceMock).toHaveBeenCalledTimes(1)
