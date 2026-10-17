@@ -29,6 +29,8 @@ const lastText = (fn: ReturnType<typeof vi.fn<(...args: any[]) => any>>): string
 
 /** Mirrors the hook's internal MAX_BACKLOG (not exported). */
 const MAX_BACKLOG = 400
+/** Mirrors the hook's internal per-frame reveal cap (not exported). */
+const MAX_CATCHUP_PER_FRAME = 240
 
 beforeEach(() => {
   clock = 0
@@ -108,18 +110,34 @@ describe('useSmoothStream', () => {
     expect(onUpdate).toHaveBeenLastCalledWith('hi')
   })
 
-  // Hard latency ceiling while streaming: with a 1000-grapheme backlog the
-  // catch-up frame drains down to exactly MAX_BACKLOG (400). Frame 1 reveals
-  // MIN_STEP (1); frame 2 catches up: 999 - 400 = 599 → displayed 600.
-  it('caps backlog to MAX_BACKLOG while streaming', () => {
+  // Hard latency ceiling while streaming, reached GRADUALLY: a 1000-grapheme
+  // backlog must never land as one giant reveal (the old behavior drained
+  // straight to MAX_BACKLOG=400 in a single frame — a visible
+  // freeze-then-jump, with that frame's markdown re-parse scaling with the
+  // dump). Frames reveal ≤ MAX_CATCHUP_PER_FRAME each, converge to the
+  // MAX_BACKLOG bound quickly, and strand nothing.
+  it('caps backlog to MAX_BACKLOG while streaming, catching up gradually', () => {
     const onUpdate = vi.fn()
     const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
 
     act(() => result.current.addChunk('a'.repeat(1000)))
     act(() => tick(16)) // frame 1: MIN_STEP → 1
-    act(() => tick(16)) // frame 2: catch-up → 600
+    const lens: number[] = []
+    for (let f = 0; f < 4; f++) {
+      act(() => tick(16))
+      lens.push(lastText(onUpdate).length)
+    }
+    let prev = 1
+    for (const len of lens) {
+      expect(len - prev).toBeLessThanOrEqual(MAX_CATCHUP_PER_FRAME)
+      prev = len
+    }
+    // Converged to (near) the MAX_BACKLOG bound within those frames.
+    expect(lens[lens.length - 1]).toBeGreaterThanOrEqual(1000 - MAX_BACKLOG)
 
-    expect(lastText(onUpdate).length).toBe(600)
+    // Nothing is stranded: the controller drains the rest.
+    act(() => tick(16, 300))
+    expect(lastText(onUpdate)).toBe('a'.repeat(1000))
   })
 
   // Once the source is done, every queued grapheme is already final. Keeping
@@ -139,7 +157,8 @@ describe('useSmoothStream', () => {
   })
 
   // After a long background gap (rAF frozen) the resume frame must not dump
-  // the whole queue — dt is clamped and MAX_BACKLOG bounds the catch-up.
+  // the whole queue — dt is clamped, MAX_BACKLOG bounds the target, and the
+  // catch-up cap keeps the reveal gradual.
   it('bounds the queue after a long background gap instead of dumping it', () => {
     const onUpdate = vi.fn()
     const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
@@ -148,8 +167,81 @@ describe('useSmoothStream', () => {
     act(() => tick(16)) // frame 1: MIN_STEP → 1
     act(() => tick(100_000)) // tab hidden ~100s, then one resume frame
 
-    expect(lastText(onUpdate).length).toBe(600)
-    expect(lastText(onUpdate).length).toBeLessThan(1000)
+    expect(lastText(onUpdate).length).toBe(1 + MAX_CATCHUP_PER_FRAME)
+    // Full reveal needs the jitter cushion (rate × target) to decay — the
+    // controller deliberately holds ~target graphemes back while the stream
+    // is still open. That decay takes a few simulated seconds.
+    act(() => tick(100, 60))
+    expect(lastText(onUpdate)).toBe('a'.repeat(1000))
+  })
+
+  // Claude-code-shaped episode: seconds of silence (tool call, gateway
+  // buffering) then the buffered text arrives as ONE burst. The burst must
+  // never land as a single-frame jump, and must still finish revealing well
+  // within a second.
+  it('reveals a post-stall burst gradually instead of one-frame dumping it', () => {
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
+
+    act(() => result.current.addChunk('a'.repeat(300)))
+    act(() => tick(16, 20))
+    act(() => tick(16, 300)) // fully drain before the stall
+    const beforeBurst = lastText(onUpdate).length
+    expect(beforeBurst).toBe(300)
+
+    act(() => tick(100, 80)) // ~8s stall, queue empty, still streaming
+    act(() => result.current.addChunk('b'.repeat(2400)))
+
+    const lens: number[] = []
+    for (let f = 0; f < 40; f++) {
+      act(() => tick(16))
+      lens.push(lastText(onUpdate).length - beforeBurst)
+    }
+    let prev = 0
+    for (const len of lens) {
+      expect(len - prev).toBeLessThanOrEqual(MAX_CATCHUP_PER_FRAME)
+      prev = len
+    }
+    // Full reveal once the jitter cushion decays (the controller holds
+    // ~target graphemes back while the stream is open by design).
+    act(() => tick(100, 400))
+    expect(lastText(onUpdate).length - beforeBurst).toBe(2400)
+  })
+
+  // Each playout update re-runs O(displayed chars) of markdown work
+  // downstream, so the cadence coarsens once the text is long: past the
+  // 20K-char tier, consecutive reveals are ≥ 32ms apart instead of every
+  // frame. Character velocity is unaffected (the rate controller governs it).
+  it('coarsens playout cadence once the displayed text is long', () => {
+    const events: Array<{ at: number; len: number }> = []
+    const onUpdate = (text: string) => events.push({ at: clock, len: text.length })
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
+
+    act(() => result.current.addChunk('a'.repeat(30_000)))
+    act(() => tick(16, 400))
+
+    expect(events[events.length - 1].len).toBe(30_000)
+    let prevAt = -1
+    let sawLong = false
+    for (const e of events) {
+      if (e.len <= 20_000) continue
+      sawLong = true
+      if (prevAt >= 0) expect(e.at - prevAt).toBeGreaterThanOrEqual(32)
+      prevAt = e.at
+    }
+    expect(sawLong).toBe(true)
+  })
+
+  // Short text stays at the caller's cadence — the adaptive floor only ever
+  // raises the delay, never lowers it.
+  it('keeps per-frame cadence for short text', () => {
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
+
+    act(() => result.current.addChunk('a'.repeat(200)))
+    const callsBefore = onUpdate.mock.calls.length
+    act(() => tick(16, 12))
+    expect(onUpdate.mock.calls.length - callsBefore).toBeGreaterThanOrEqual(10)
   })
 
   it('reset clears the queue and does not resurrect old text', () => {
