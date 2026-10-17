@@ -1,6 +1,6 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { createTestSession, finish, hostStore, scriptedModel, gatewayModel, textParts } from '@test-helpers/piGateway'
+import { createTestSession, finish, hostStore, NATIVE_MODEL, scriptedModel, gatewayModel, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -146,7 +146,7 @@ describe('subagent', () => {
         parentToolCallId: 'call_a',
         fork: false,
         description: 'Check module A',
-        modelKey: `${MODEL.provider}/${MODEL.id}`
+        modelKey: `${NATIVE_MODEL.provider}/${NATIVE_MODEL.id}`
       }
     })
     expect(new Set(childEntries.map((entry) => entry.id)).size).toBe(childEntries.length)
