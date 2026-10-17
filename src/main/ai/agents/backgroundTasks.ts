@@ -255,9 +255,16 @@ try {
     else if (task.pid && Number(fields[0]) === task.pid) stamps.shellCreatedAt = fields[1]
   }
 } catch (error) {}
-try {
-  require('node:fs').writeFileSync(process.argv[2], JSON.stringify({ shellPid: task.pid || 0, ...stamps }))
-} catch (error) {}
+// The evidence is read by the app while this runner keeps writing it, so every write lands
+// through a sibling and a rename: a torn read must never be what a stop walks from.
+const writeEvidence = (payload) => {
+  try {
+    const staging = process.argv[2] + '.tmp'
+    require('node:fs').writeFileSync(staging, JSON.stringify(payload))
+    require('node:fs').renameSync(staging, process.argv[2])
+  } catch (error) {}
+}
+writeEvidence({ shellPid: task.pid || 0, ...stamps })
 task.on('error', () => process.exit(1))
 task.on('exit', (code, signal) => {
   const status = signal ? 1 : (code == null ? 1 : code)
@@ -335,6 +342,13 @@ task.on('exit', (code, signal) => {
     for (const row of rows) {
       if (keep.has(row.pid)) known.set(row.pid, row.created)
     }
+    // The ancestry memory rides in the evidence file: a kill destroys this runner together with
+    // it, and the stamps recorded here are what keep its observations attributable afterwards.
+    writeEvidence({
+      shellPid: task.pid || 0,
+      ...stamps,
+      known: Array.from(known, ([pid, created]) => ({ pid, created }))
+    })
     // A job the shell just backgrounded can surface a beat late, so the tree must read empty
     // twice before the anchor may leave.
     if (keep.size > 0) {
@@ -1001,6 +1015,8 @@ interface WindowsTaskEvidence {
   shellPid: number
   runnerCreatedAt?: string
   shellCreatedAt?: string
+  /** Descendants the runner verified while it lived, each under the stamp it was seen with. */
+  known?: WindowsTaskRoot[]
 }
 
 /**
@@ -1101,7 +1117,7 @@ async function readTaskEvidence(storageDir: string, taskId: string): Promise<Win
   try {
     const parsed = JSON.parse(
       await readFile(path.join(storageDir, `${taskId}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
-    ) as { shellPid?: number; runnerCreatedAt?: string; shellCreatedAt?: string }
+    ) as { shellPid?: number; runnerCreatedAt?: string; shellCreatedAt?: string; known?: unknown }
     const pid = Number(parsed.shellPid)
     if (!Number.isInteger(pid) || pid <= 0) return undefined
     return {
@@ -1111,11 +1127,30 @@ async function readTaskEvidence(storageDir: string, taskId: string): Promise<Win
         : {}),
       ...(typeof parsed.shellCreatedAt === 'string' && parsed.shellCreatedAt
         ? { shellCreatedAt: parsed.shellCreatedAt }
-        : {})
+        : {}),
+      ...readKnownEntries(parsed.known)
     }
   } catch {
     return undefined
   }
+}
+
+/**
+ * The descendants the runner verified while it lived, read back from the evidence. Only entries
+ * carrying both a pid and the stamp it was seen under are identity — a bare number authorizes
+ * nothing.
+ */
+function readKnownEntries(known: unknown): { known: WindowsTaskRoot[] } | {} {
+  if (!Array.isArray(known)) return {}
+  const entries: WindowsTaskRoot[] = []
+  for (const entry of known as Array<{ pid?: unknown; created?: unknown }>) {
+    const pid = Number(entry?.pid)
+    const created = entry?.created
+    if (Number.isInteger(pid) && pid > 0 && typeof created === 'string' && created) {
+      entries.push({ pid, created })
+    }
+  }
+  return entries.length > 0 ? { known: entries } : {}
 }
 
 /**
@@ -1167,9 +1202,13 @@ async function verifyWindowsTaskTerminated(storageDir: string, record: Backgroun
   // differ, so holding the record open would strand it past every control path: the runner's own
   // absence is the termination proof.
   if (!evidence) return !isPidAlive(record.pid)
+  // The descendants the runner verified while it lived ride in the evidence: a kill destroys the
+  // runner and its ancestry memory together, and these stamps are what keep its observations
+  // attributable — and killable — after it is gone.
   const roots: WindowsTaskRoot[] = [
     { pid: record.pid, created: evidence.runnerCreatedAt },
-    { pid: evidence.shellPid, created: evidence.shellCreatedAt }
+    { pid: evidence.shellPid, created: evidence.shellCreatedAt },
+    ...(evidence.known ?? [])
   ]
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
   for (;;) {

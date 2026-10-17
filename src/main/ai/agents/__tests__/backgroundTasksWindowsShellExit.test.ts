@@ -379,14 +379,15 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     await useFakeProbe(TABLE_HEADER)
     const record = await startDetachedBackgroundTask({
       storageDir,
-      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 300)"`,
       cwd: storageDir
     })
     const shellPid = await waitForShellPid(record.id)
     await writeFakeRows(
       `${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n"888888","999999","${SPAWN_STAMP}"\n`
     )
-    // Both members are observed and remembered; then the worker exits and its row goes with it.
+    // Both members are observed and remembered across the polls the shell's exit starts; then the
+    // worker exits and its row goes with it.
     await new Promise((resolve) => setTimeout(resolve, 1_500))
     await writeFakeRows(`${TABLE_HEADER}\n"888888","999999","${SPAWN_STAMP}"\n`)
 
