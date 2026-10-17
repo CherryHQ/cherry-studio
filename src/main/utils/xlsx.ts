@@ -67,18 +67,55 @@ function plainText(value: unknown): string {
   return ''
 }
 
-// A time of day or an elapsed duration reaches ExcelJS as a Date on day 0 (1899-12-30 or 1904-01-01).
-// Outside quotes and [...], a day, a year, or a month without an hour or second shows a date.
-function formatDate(date: Date, numFmt: string, date1904: boolean): string {
-  // Rounded to the second, as Excel shows it: a NOW() stamp of 14:04:59.9 reads 14:05:00
-  const time = Math.round(date.getTime() / 1000) * 1000
-  const iso = new Date(time).toISOString()
-  const elapsed = /\[(h+|m+|s+)\]/i.exec(numFmt)
-  const tokens = numFmt.replace(/"[^"]*"|\[[^\]]*\]/g, '')
-  if (!elapsed && (/[dy]/i.test(tokens) || (/m/i.test(tokens) && !/[hs]/i.test(tokens)))) {
-    return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 19).replace('T', ' ')
+// Which calendar and clock parts a number format shows. Quoted text, escaped, padding and fill
+// characters and [...] sections are not tokens. `y` and `d` show the date, `h`, `s` and AM/PM the
+// time. `m` and `mm` are minutes right after an hour or right before a second and a month
+// otherwise, as in Excel; `mmm` and longer always name the month.
+function dateFormatParts(numFmt: string): { date: boolean; time: boolean } {
+  const code = numFmt.toLowerCase()
+  const tokens: string[] = []
+  for (let i = 0; i < code.length; i++) {
+    const c = code[i]
+    if (c === '"' || c === '[') {
+      const end = code.indexOf(c === '"' ? '"' : ']', i + 1)
+      if (end < 0) break
+      i = end
+    } else if (c === '\\' || c === '_' || c === '*') {
+      i++
+    } else if (code.startsWith('am/pm', i) || code.startsWith('a/p', i)) {
+      tokens.push('ampm')
+      i += code.startsWith('am/pm', i) ? 4 : 2
+    } else if ('ymdhs'.includes(c)) {
+      let end = i
+      while (code[end + 1] === c) end++
+      tokens.push(code.slice(i, end + 1))
+      i = end
+    }
   }
-  if (!elapsed) return iso.slice(11, 19)
+  let date = false
+  let time = false
+  tokens.forEach((token, index) => {
+    if (token[0] === 'y' || token[0] === 'd') date = true
+    else if (token[0] === 'h' || token[0] === 's' || token === 'ampm') time = true
+    else if (token.length <= 2 && (tokens[index - 1]?.[0] === 'h' || tokens[index + 1]?.[0] === 's')) time = true
+    else date = true
+  })
+  return { date, time }
+}
+
+// A time of day or an elapsed duration reaches ExcelJS as a Date on day 0 (1899-12-30 or 1904-01-01).
+function formatDate(date: Date, numFmt: string, date1904: boolean): string {
+  const elapsed = /\[(h+|m+|s+)\]/i.exec(numFmt)
+  if (!elapsed) {
+    const parts = dateFormatParts(numFmt)
+    // A date-only format shows the day as stored: rounding first would carry 23:59:59.9 into the
+    // next day, and the time of day is hidden
+    if (parts.date && !parts.time) return date.toISOString().slice(0, 10)
+    // Rounded to the second, as Excel shows it: a NOW() stamp of 14:04:59.9 reads 14:05:00
+    const iso = new Date(Math.round(date.getTime() / 1000) * 1000).toISOString()
+    return parts.date ? iso.slice(0, 19).replace('T', ' ') : iso.slice(11, 19)
+  }
+  const time = Math.round(date.getTime() / 1000) * 1000
   const seconds = (time - (date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30))) / 1000
   const pad = (n: number) => String(n).padStart(2, '0')
   // Elapsed minutes count in minutes: [mm]:ss of 25 hours reads 1500:00

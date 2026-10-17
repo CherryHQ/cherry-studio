@@ -74,7 +74,12 @@ describe('extractXlsxText', () => {
       ['1899-12-30T18:00:00.000Z', 'h:mm" daily"', '18:00:00'],
       ['1899-12-31T12:00:00.000Z', '[h]:mm:ss', '36:00:00'],
       ['1899-12-31T01:00:30.000Z', '[mm]:ss', '1500:30'],
-      ['2024-09-30T00:00:00.000Z', 'mmmm', '2024-09-30']
+      ['2024-09-30T00:00:00.000Z', 'mmmm', '2024-09-30'],
+      // A date-only format keeps the stored day and hides its time, even close to midnight
+      ['2024-09-30T23:59:59.900Z', 'yyyy-mm-dd', '2024-09-30'],
+      ['2024-09-30T14:05:00.000Z', 'yyyy-mm-dd', '2024-09-30'],
+      // A month next to a clock time is still a month
+      ['2024-09-30T14:05:00.000Z', 'mmm hh:mm', '2024-09-30 14:05:00']
     ]
     const data = await xlsxBytes((workbook) => {
       const row = workbook.addWorksheet('Dates').getRow(1)
