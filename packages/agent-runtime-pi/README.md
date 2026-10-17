@@ -25,8 +25,14 @@ keep Pi's retry off.
 
 The builder uses in-memory settings and session state, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
+Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
+built-in tool is enabled unless `builtinTools` names it. Workspace `AGENTS.md` / `CLAUDE.md` files
+load only with `contextFiles: true`, and skills only from the host's `skillPaths`.
 `dispose()` aborts execution, lets extensions handle `session_shutdown`, then disposes the session.
 Pi is ESM-only; CommonJS hosts must load the package with dynamic `import()`.
+
+Known gap: Pi's resource loader still resolves its discovery directories while it loads; the
+`no*` flags and prompt overrides discard everything it finds there.
 
 ## Cherry integration
 

@@ -10,14 +10,14 @@ import { type AiSdkModelSpec, type AiSdkProviderOptions, createAiSdkProvider } f
  * A Cherry model for the binding. Its native identity comes from Cherry's unique id alone: the Pi
  * provider is the Cherry provider id and the Pi model id the Cherry model id. Pi replays reasoning
  * and signatures only to the same provider/api/model, so a session reopened with a new binding for
- * the same Cherry model keeps them, and subagent model keys (`provider/id`) stay valid.
+ * the same Cherry model keeps them.
  */
 export type AiSdkModel = Omit<AiSdkModelSpec, 'id'> & { id: UniqueModelId }
 
 /**
  * Cherry supplies one AI SDK request per Pi step, including native compaction requests. Every
- * session built on the returned runtime, subagents' included, gets the binding's tool-call guard
- * and runs with Pi's retry off.
+ * session built on the returned runtime gets the binding's tool-call guard and runs with Pi's
+ * retry off.
  */
 export async function createAiSdkModelBinding<TRequestOptions>(
   options: Omit<AiSdkProviderOptions<TRequestOptions>, 'models' | 'onInvalidToolCall'> & { model: AiSdkModel }
