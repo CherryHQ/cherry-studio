@@ -779,6 +779,41 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.runtimeState.queue).toEqual([])
       void service.closeSession('session-1')
     })
+
+    // An empty completion is dispatched on the ERROR path with `isTopicDone=false`, because the
+    // stream manager had already selected chaining on the SDK's clean finish. The runtime owns that
+    // turn regardless of the flag: skipping the release strands the queued follow-up, since nothing
+    // else will ever schedule its drain.
+    it('drains a queued follow-up when an empty completion is downgraded and chained', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = {
+        ...entry.runtimeState.execution,
+        stream: 'open',
+        admission: 'admitted'
+      }
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+
+      const downgraded = {
+        error: { name: 'AgentRuntimeError', message: 'This turn produced no output.', stack: null },
+        failure: { message: 'This turn produced no output.', retryable: false, failure: {} }
+      }
+      void terminalListener(handle).onError({ error: downgraded.error, isTopicDone: false, downgradedTo: downgraded })
+
+      await vi.waitFor(() => {
+        expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+        expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
+      })
+
+      // The queued follow-up really ran: a fresh assistant row for it was saved and its turn opened.
+      expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
+      expect(entry.runtimeState.queue).toEqual([])
+      expect(entry.runtimeState.lastTerminal).toBe('error')
+      void service.closeSession('session-1')
+    })
   })
 
   it('keeps the active usage source frozen when the agent is edited or deleted mid-turn', () => {
@@ -1005,6 +1040,42 @@ describe('AgentSessionRuntimeService', () => {
         retryDelayMs: 36_000,
         errorStatus: 500,
         errorCategory: 'server_error'
+      })
+    })
+
+    it('updates a durable retry summary on the active assistant message', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      ;(service as any).currentTurn(entry).controller = { enqueue }
+
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+
+      expect(enqueue).toHaveBeenCalledWith({
+        type: 'data-agent-api-retry',
+        id: 'agent-api-retry-assistant-1',
+        data: { ...retryEvent.retry, startedAt: expect.any(String) }
+      })
+    })
+
+    it('buffers a retry on an admitted turn until its stream controller opens', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const turn = (service as any).currentTurn(entry)
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+
+      const enqueue = vi.fn()
+      turn.controller = { enqueue }
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'flush-transition' })
+      expect(enqueue).toHaveBeenCalledWith({
+        type: 'data-agent-api-retry',
+        id: 'agent-api-retry-assistant-1',
+        data: { ...retryEvent.retry, startedAt: expect.any(String) }
       })
     })
 
@@ -1244,6 +1315,65 @@ describe('AgentSessionRuntimeService', () => {
         mocks.startRuntimeTurn.mock.invocationCallOrder[0]
       )
 
+      void service.closeSession('session-1')
+    })
+
+    // A1 finished cleanly and the steer was already injected, so the only thing left is launching
+    // A2. Persistence then reclassifies A1's row as `error` (its only content was a cardless tool
+    // such as EnterPlanMode), and dispatch forwards that classification with `isTopicDone=false`.
+    // The stored classification describes the row, not who owns the steer continuation — letting it
+    // drive settlement replaces the transition with `idle`, which discards the accepted steer inputs
+    // and the buffered post-steer chunks and never launches A2.
+    it('still launches the steer continuation when persistence downgrades the source turn', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: { close: vi.fn(), send: vi.fn(), events: [] },
+        occupancy: {}
+      }
+      entry.runtimeState.execution = {
+        ...entry.runtimeState.execution,
+        stream: 'open',
+        admission: 'admitted'
+      }
+
+      const sourceTurnId = entry.currentTurn.turnId
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+      })
+      expect(entry.runtimeState.execution.kind).toBe('steer-transition')
+      expect(entry.runtimeState.execution).toMatchObject({ sourceStream: 'awaiting-persistence' })
+
+      mocks.saveMessage.mockClear()
+      mocks.startRuntimeTurn.mockClear()
+
+      const downgraded = {
+        error: { name: 'AgentRuntimeError', message: 'This turn produced no output.', stack: null },
+        failure: { message: 'This turn produced no output.', retryable: false, failure: {} }
+      }
+      const onTurnTerminal = vi.fn()
+      service.onTurnTerminal(onTurnTerminal)
+      void terminalListener(handle).onError({ error: downgraded.error, isTopicDone: false, downgradedTo: downgraded })
+
+      await vi.waitFor(() => expect(entry.currentTurn.userMessage.id).toBe('user-2'))
+      const continuation = entry.currentTurn
+      expect(continuation.turnId).not.toBe(sourceTurnId)
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'steer-transition',
+        continuationTurn: continuation
+      })
+      expect(entry.runtimeState.lastTerminal).toBe('error')
+      // The steer still carries the work onto a new row, so subscribers must not finalize on this
+      // one — the stored status reflects the downgrade, the boundary does not.
+      expect(onTurnTerminal).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        assistantMessageId: 'assistant-1',
+        status: 'error',
+        boundary: 'row-roll'
+      })
       void service.closeSession('session-1')
     })
 
@@ -4165,7 +4295,7 @@ describe('AgentSessionRuntimeService', () => {
           id: 'assistant-1',
           role: 'assistant',
           status: 'paused',
-          data: { parts: [] },
+          data: { parts: [{ type: 'data-agent-paused', data: {} }] },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },
@@ -6017,14 +6147,18 @@ describe('AgentSessionRuntimeService', () => {
     }
     await persistenceListener(handle).onDone(result)
 
+    // The empty success is stored as an error, and the claim rides along so terminal dispatch
+    // publishes that classification rather than the SDK's clean finish.
     expect(result.persistence).toEqual({
       status: 'saved',
+      downgradedToError: true,
       message: {
         messageId: 'assistant-1',
         messageRevision: '1767225600000',
         historyRevision: '1767225601000'
       }
     })
+    expect(result.downgradedTo?.error).toMatchObject({ name: 'AgentRuntimeError' })
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
@@ -6033,8 +6167,16 @@ describe('AgentSessionRuntimeService', () => {
         message: {
           id: 'assistant-1',
           role: 'assistant',
-          status: 'success',
-          data: { parts: [] },
+          // An empty success is downgraded to a terminal error by the persistence backend.
+          status: 'error',
+          data: {
+            parts: [
+              {
+                type: 'data-error',
+                data: expect.objectContaining({ name: 'AgentRuntimeError', reason: 'empty-success-terminal' })
+              }
+            ]
+          },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },
