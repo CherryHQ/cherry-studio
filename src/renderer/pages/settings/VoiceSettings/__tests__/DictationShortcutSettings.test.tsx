@@ -36,7 +36,7 @@ describe('dictation shortcut settings', () => {
     const hold = screen.getByRole('button', { name: 'Long press' })
     await user.click(hold)
     for (const code of ['ControlLeft', 'ShiftLeft', 'KeyA']) fireEvent.keyDown(hold, { code, key: code })
-    fireEvent.keyUp(hold, { code: 'KeyA', key: 'a' })
+    fireEvent.keyUp(hold, { code: 'KeyA', key: 'a', ctrlKey: true, shiftKey: true })
     if (enabled) {
       expect(screen.getByRole('alert')).toHaveTextContent('already in use')
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
@@ -69,6 +69,31 @@ describe('dictation shortcut settings', () => {
     fireEvent.keyUp(hold, { code: 'KeyB', key: 'b' })
     expect(screen.getByRole('alert')).toHaveTextContent('at most one non-modifier key')
     expect(hold).toHaveAttribute('aria-pressed', 'false')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
+  })
+
+  it.each(['ControlLeft', 'MetaLeft'])('does not save a stale %s after its release was intercepted', async (code) => {
+    render(<DictationShortcutSettings />)
+    const hold = screen.getByRole('button', { name: 'Long press' })
+    await user.click(hold)
+    fireEvent.keyDown(hold, { code, key: code, ctrlKey: code === 'ControlLeft', metaKey: code === 'MetaLeft' })
+    // A main-process accelerator can consume the next keydown and subsequent releases.
+    fireEvent.keyDown(hold, { code: 'ShiftLeft', key: 'Shift', shiftKey: true })
+    fireEvent.keyUp(hold, { code: 'ShiftLeft', key: 'Shift' })
+    expect(screen.getByRole('alert')).toHaveTextContent('Use up to 3 keys')
+    expect(hold).toHaveAttribute('aria-pressed', 'false')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
+  })
+
+  it('rejects combining both sides of one modifier instead of masking an intercepted release', async () => {
+    render(<DictationShortcutSettings />)
+    const hold = screen.getByRole('button', { name: 'Long press' })
+    await user.click(hold)
+    fireEvent.keyDown(hold, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    fireEvent.keyDown(hold, { code: 'ControlRight', key: 'Control', ctrlKey: true })
+    fireEvent.keyDown(hold, { code: 'ShiftLeft', key: 'Shift', ctrlKey: true, shiftKey: true })
+    fireEvent.keyUp(hold, { code: 'ShiftLeft', key: 'Shift', ctrlKey: true })
+    expect(screen.getByRole('alert')).toHaveTextContent('Use up to 3 keys')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
   })
 

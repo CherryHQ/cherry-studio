@@ -5874,7 +5874,7 @@
   "settings.voice.shortcuts.left": "Left",
   "settings.voice.shortcuts.record": "Press a key or combination…",
   "settings.voice.shortcuts.right": "Right",
-  "settings.voice.shortcuts.rules": "Use up to 3 keys, including Ctrl, Alt, Shift, or Win/Command, with at most one non-modifier key. Left and right keys are distinct. Escape cancels.",
+  "settings.voice.shortcuts.rules": "Use up to 3 keys, including at least one modifier key and at most one non-modifier key. Left/right modifiers are distinct; choose one side per modifier. Press Escape to cancel.",
   "settings.voice.shortcuts.save_failed": "Could not save the shortcut.",
   "settings.voice.shortcuts.toggle.description": "In the app, press once to start dictation and again to stop.",
   "settings.voice.shortcuts.toggle.label": "Short press",

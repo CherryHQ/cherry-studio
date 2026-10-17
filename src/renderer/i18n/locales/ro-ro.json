@@ -5874,7 +5874,7 @@
   "settings.voice.shortcuts.left": "Stânga",
   "settings.voice.shortcuts.record": "Apăsați o tastă sau o combinație…",
   "settings.voice.shortcuts.right": "Dreapta",
-  "settings.voice.shortcuts.rules": "Folosește până la 3 taste, inclusiv Ctrl, Alt, Shift sau Win/Command, cu cel mult o tastă care nu este modificatoare. Tastele din stânga și din dreapta sunt distincte. Escape anulează înregistrarea combinației.",
+  "settings.voice.shortcuts.rules": "Folosiți cel mult 3 taste, dintre care cel puțin o tastă modificatoare și cel mult o tastă obișnuită. Tastele modificatoare din stânga și din dreapta sunt distincte; alegeți o singură parte pentru fiecare tip. Apăsați Escape pentru a anula.",
   "settings.voice.shortcuts.save_failed": "Scurtătura nu a putut fi salvată.",
   "settings.voice.shortcuts.toggle.description": "În aplicație, apăsați o dată pentru a începe dictarea și din nou pentru a opri.",
   "settings.voice.shortcuts.toggle.label": "Apăsare scurtă",

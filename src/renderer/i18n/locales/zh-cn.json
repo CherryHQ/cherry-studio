@@ -5874,7 +5874,7 @@
   "settings.voice.shortcuts.left": "左",
   "settings.voice.shortcuts.record": "请按下按键或组合键…",
   "settings.voice.shortcuts.right": "右",
-  "settings.voice.shortcuts.rules": "最多使用 3 个键，必须包含 Ctrl、Alt、Shift 或 Win/Command，且最多包含 1 个普通键。区分左右按键，按 Esc 取消录入。",
+  "settings.voice.shortcuts.rules": "最多使用 3 个键，至少包含 1 个修饰键，最多包含 1 个普通键。区分左右修饰键，同类仅可选一侧。按 Esc 取消录入。",
   "settings.voice.shortcuts.save_failed": "无法保存快捷键。",
   "settings.voice.shortcuts.toggle.description": "在应用内按一次开始听写，再按一次停止。",
   "settings.voice.shortcuts.toggle.label": "短按",

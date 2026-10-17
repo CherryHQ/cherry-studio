@@ -5874,7 +5874,7 @@
   "settings.voice.shortcuts.left": "左",
   "settings.voice.shortcuts.record": "キーまたはキーの組み合わせを押してください…",
   "settings.voice.shortcuts.right": "右",
-  "settings.voice.shortcuts.rules": "最大 3 キーまで指定でき、Ctrl、Alt、Shift、Win/Command のいずれかを含める必要があります。修飾キー以外は 1 キーまでです。左右のキーは区別されます。Esc で入力をキャンセルします。",
+  "settings.voice.shortcuts.rules": "最大 3 キーまで指定でき、修飾キーを 1 つ以上含める必要があります。修飾キー以外は 1 キーまでです。左右の修飾キーは区別され、同じ種類では片側のみ選択できます。Esc で入力をキャンセルします。",
   "settings.voice.shortcuts.save_failed": "ショートカットを保存できませんでした。",
   "settings.voice.shortcuts.toggle.description": "アプリ内で一度押すと開始し、もう一度押すと停止します。",
   "settings.voice.shortcuts.toggle.label": "短押し",

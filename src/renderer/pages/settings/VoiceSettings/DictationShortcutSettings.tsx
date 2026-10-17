@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { CircleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,9 +18,11 @@ import {
 } from '@renderer/utils/dictationShortcut'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { resolveCommandByKeybinding } from '@shared/utils/command'
+import { getShortcutBindingFromKeyboardEvent, isShortcutModifier } from '@shared/utils/shortcut'
 
 function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
   const { t } = useTranslation()
+  const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
   const [value, setValue] = usePreference(`feature.voice.dictation.${mode}_shortcut`)
   const [other] = usePreference(`feature.voice.dictation.${mode === 'hold' ? 'toggle' : 'hold'}_shortcut`)
   const [recording, setRecording] = useState(false)
@@ -55,7 +57,18 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
   return (
     <SettingRow id={`setting-voice-dictation-${mode}`} className="scroll-mt-6 flex-wrap gap-3">
       <div className="flex flex-col gap-1">
-        <SettingRowTitle>{label}</SettingRowTitle>
+        <SettingRowTitle className="gap-1.5">
+          {label}
+          <Tooltip content={t('settings.voice.shortcuts.rules')} asChild>
+            <span
+              role="img"
+              tabIndex={0}
+              aria-label={t('settings.voice.shortcuts.rules')}
+              className="text-muted-foreground inline-flex shrink-0 rounded-sm outline-none focus-visible:bg-accent">
+              <CircleAlert size={14} aria-hidden="true" />
+            </span>
+          </Tooltip>
+        </SettingRowTitle>
         <SettingDescription>
           {t(
             mode === 'hold'
@@ -109,16 +122,20 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
             event.stopPropagation()
             const candidate = parseDictationShortcut([...pressed.current].join('+')).join('+')
             pressed.current.delete(event.code)
-            if (!candidate) {
+            const eventBinding = getShortcutBindingFromKeyboardEvent(event, platform)
+            const lostModifier = getDictationShortcutBinding([...pressed.current].join('+'), platform)
+              .filter(isShortcutModifier)
+              .some((modifier) => !eventBinding.includes(modifier))
+            if (!candidate || lostModifier) {
               setError('invalid')
               setRecording(false)
               return
             }
             const commandConflict = resolveCommandByKeybinding({
-              binding: getDictationShortcutBinding(candidate, isMac ? 'darwin' : isWin ? 'win32' : 'linux'),
+              binding: getDictationShortcutBinding(candidate, platform),
               preferences,
               context: commandContext,
-              platform: isMac ? 'darwin' : isWin ? 'win32' : 'linux'
+              platform
             })
             if (candidate === parseDictationShortcut(other).join('+') || commandConflict) {
               setError('conflict')
@@ -149,10 +166,8 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
 }
 
 export function DictationShortcutSettings() {
-  const { t } = useTranslation()
   return (
     <>
-      <SettingDescription>{t('settings.voice.shortcuts.rules')}</SettingDescription>
       <ShortcutRow mode="hold" />
       <SettingDivider />
       <ShortcutRow mode="toggle" />

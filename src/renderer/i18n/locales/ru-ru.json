@@ -5874,7 +5874,7 @@
   "settings.voice.shortcuts.left": "Левый",
   "settings.voice.shortcuts.record": "Нажмите клавишу или сочетание…",
   "settings.voice.shortcuts.right": "Правый",
-  "settings.voice.shortcuts.rules": "Используйте до 3 клавиш, включая Ctrl, Alt, Shift или Win/Command, и не более одной клавиши, не являющейся модификатором. Левые и правые клавиши различаются. Escape отменяет ввод.",
+  "settings.voice.shortcuts.rules": "Используйте до 3 клавиш: хотя бы одну клавишу-модификатор и не более одной обычной клавиши. Левые и правые модификаторы различаются; для каждого типа выберите только одну сторону. Нажмите Escape для отмены.",
   "settings.voice.shortcuts.save_failed": "Не удалось сохранить сочетание клавиш.",
   "settings.voice.shortcuts.toggle.description": "В приложении нажмите один раз для начала диктовки и ещё раз для остановки.",
   "settings.voice.shortcuts.toggle.label": "Короткое нажатие",

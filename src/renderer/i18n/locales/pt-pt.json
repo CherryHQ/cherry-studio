@@ -5874,7 +5874,7 @@
   "settings.voice.shortcuts.left": "Esquerda",
   "settings.voice.shortcuts.record": "Prima uma tecla ou combinação…",
   "settings.voice.shortcuts.right": "Direita",
-  "settings.voice.shortcuts.rules": "Use até 3 teclas, incluindo Ctrl, Alt, Shift ou Win/Command, com no máximo uma tecla não modificadora. As teclas da esquerda e da direita são distintas. Escape cancela.",
+  "settings.voice.shortcuts.rules": "Utilize até 3 teclas, incluindo pelo menos uma tecla modificadora e, no máximo, uma tecla não modificadora. As teclas modificadoras da esquerda e da direita são distintas; escolha apenas um lado por modificador. Prima Escape para cancelar.",
   "settings.voice.shortcuts.save_failed": "Não foi possível guardar o atalho.",
   "settings.voice.shortcuts.toggle.description": "Na aplicação, prima uma vez para iniciar o ditado e novamente para parar.",
   "settings.voice.shortcuts.toggle.label": "Pressão breve",

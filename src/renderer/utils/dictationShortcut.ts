@@ -1,3 +1,4 @@
+import type { SupportedPlatform } from '@shared/types/command'
 import {
   formatKeyDisplay,
   getShortcutBindingFromKeyboardEvent,
@@ -7,7 +8,7 @@ import {
   type ShortcutToken
 } from '@shared/utils/shortcut'
 
-const modifierCodes: Record<string, ShortcutToken> = {
+const MODIFIER_CODES: Record<string, ShortcutToken> = {
   ControlLeft: 'Ctrl',
   ControlRight: 'Ctrl',
   AltLeft: 'Alt',
@@ -21,12 +22,13 @@ const modifierCodes: Record<string, ShortcutToken> = {
 export function parseDictationShortcut(value: string): string[] {
   if (!value) return []
   const codes = value.split('+')
-  const modifiers = codes.filter((code) => modifierCodes[code])
+  const modifiers = codes.filter((code) => MODIFIER_CODES[code])
   if (codes.length > 3 || modifiers.length === 0 || codes.length - modifiers.length > 1) return []
+  if (new Set(modifiers.map((code) => MODIFIER_CODES[code])).size !== modifiers.length) return []
   if (new Set(codes).size !== codes.length) return []
   if (
     codes.some((code) => {
-      if (modifierCodes[code]) return false
+      if (MODIFIER_CODES[code]) return false
       const token = normalizeShortcutToken(code)
       return !token || isShortcutModifier(token) || token === 'Escape'
     })
@@ -49,19 +51,19 @@ export function formatDictationShortcut(value: string, isMac: boolean, left: str
   return parseDictationShortcut(value)
     .sort((a, b) => (order.includes(a) ? order.indexOf(a) : 8) - (order.includes(b) ? order.indexOf(b) : 8))
     .map((code) => {
-      const token = modifierCodes[code] ?? normalizeShortcutToken(code)!
+      const token = MODIFIER_CODES[code] ?? normalizeShortcutToken(code)!
       const label = formatKeyDisplay(token, isMac)
-      return modifierCodes[code] ? `${code.endsWith('Left') ? left : right} ${label}` : label
+      return MODIFIER_CODES[code] ? `${code.endsWith('Left') ? left : right} ${label}` : label
     })
     .join(' + ')
 }
 
-export function getDictationShortcutBinding(value: string, platform: 'darwin' | 'win32' | 'linux'): ShortcutBinding {
+export function getDictationShortcutBinding(value: string, platform: SupportedPlatform): ShortcutBinding {
   const codes = parseDictationShortcut(value)
-  const code = codes.find((code) => !modifierCodes[code]) ?? codes[0] ?? ''
+  const code = codes.find((code) => !MODIFIER_CODES[code]) ?? codes[0] ?? ''
   return getShortcutBindingFromKeyboardEvent(
     {
-      key: modifierCodes[code] ?? code,
+      key: MODIFIER_CODES[code] ?? code,
       code,
       ctrlKey: codes.some((code) => code.startsWith('Control')),
       altKey: codes.some((code) => code.startsWith('Alt')),
