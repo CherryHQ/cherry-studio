@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useMessageStreamingLayers } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -35,7 +35,7 @@ import InputBar from './components/InputBar'
 // rendering chain (ChatMarkdown, CodeMirror, katex, mermaid). The default
 // 'home' route never renders them, so they stay out of the first paint and
 // only load when a feature is actually invoked.
-const ChatWindow = React.lazy(() => import('../chat/ChatWindow'))
+const QuickAssistantMessageList = React.lazy(() => import('./QuickAssistantMessageList'))
 const TranslateWindow = React.lazy(() => import('../translate/TranslateWindow'))
 
 // Size-stable fallback: the shell (input bar / footer) renders synchronously
@@ -59,9 +59,8 @@ const supportsVoicePlayback = (route: MiniRoute) => route === 'chat' || route ==
  */
 export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] => {
   return messages.map((msg) => {
-    if (!msg.parts) return msg
     let changed = false
-    const newParts = msg.parts.map((part) => {
+    const newParts = msg.parts?.map((part) => {
       if ((part.type !== 'text' && part.type !== 'reasoning') || part.state !== 'streaming') return part
 
       changed = true
@@ -78,7 +77,14 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
 
       return withCherryMeta({ ...part, state: 'done' }, patch)
     })
-    return changed ? { ...msg, parts: newParts } : msg
+    const statusChanged = msg.metadata?.status !== 'success'
+    if (!changed && !statusChanged) return msg
+
+    return {
+      ...msg,
+      ...(newParts ? { parts: newParts } : {}),
+      metadata: { ...msg.metadata, status: 'success' }
+    }
   })
 }
 
@@ -246,13 +252,20 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     [completedAssistants, liveAssistants]
   )
 
-  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
+  const historyMessages = useMemo(() => [...chatMessages, ...completedAssistants], [chatMessages, completedAssistants])
+  const liveParts = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
-    for (const message of [...chatMessages, ...allAssistants]) {
+    for (const message of liveAssistants) {
       next[message.id] = message.parts ?? []
     }
     return next
-  }, [allAssistants, chatMessages])
+  }, [liveAssistants])
+  const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
+    messages: historyMessages,
+    overlay: liveParts,
+    executions: activeExecutions,
+    liveAssistants
+  })
 
   // Interleave user messages (from state.messages) with assistant turns
   // (accumulated completed + live). The assumption: users and assistants
@@ -270,28 +283,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       }
       const a = allAssistants[i]
       if (a) {
-        out.push({
-          ...a,
-          metadata: {
-            ...a.metadata,
-            status: a.id === latestAssistantId && isPending ? 'pending' : 'success'
-          }
-        })
+        const status = a.id === latestAssistantId && isPending ? 'pending' : 'success'
+        out.push(a.metadata?.status === status ? a : { ...a, metadata: { ...a.metadata, status } })
       }
     }
     return out
   }, [chatMessages, allAssistants, liveAssistants, isPending])
-
-  const messageItems = useMemo(
-    () =>
-      displayMessages.map((message) =>
-        toMessageListItem(message, {
-          assistantId: currentAssistant?.id,
-          topicId: temporaryTopicId ?? ''
-        })
-      ),
-    [currentAssistant?.id, displayMessages, temporaryTopicId]
-  )
 
   const latestAssistantUIMsg = useMemo(() => allAssistants[allAssistants.length - 1], [allAssistants])
 
@@ -312,7 +309,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [stopChat, setMessages, clearExecutionMessages])
 
   const isLoading = isPreparing || isStreaming
-  const isOutputted = messageItems.some((message) => message.role === 'assistant')
+  const isOutputted = displayMessages.some((message) => message.role === 'assistant')
   const dictationTargetId =
     temporaryTopicId && (route === 'home' || route === 'chat') ? `quick-assistant-input:${temporaryTopicId}` : undefined
 
@@ -561,12 +558,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             </div>
           )}
           <Suspense fallback={<LazyBranchFallback />}>
-            <ChatWindow
+            <QuickAssistantMessageList
               route={route}
+              topicId={temporaryTopicId ?? 'pending-temp'}
               assistant={currentAssistant ?? null}
+              model={currentModel}
               isOutputted={isOutputted}
-              messages={messageItems}
+              messages={displayMessages}
               partsByMessageId={partsByMessageId}
+              streamingLayers={streamingLayers}
             />
           </Suspense>
           {flowError && (

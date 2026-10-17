@@ -234,8 +234,8 @@ vi.mock('../components/ClipboardPreview', () => ({
     clipboardText ? <div data-testid="clipboard-preview">{clipboardText}</div> : null
 }))
 
-vi.mock('../../chat/ChatWindow', () => ({
-  default: () => <div data-testid="chat-window" />
+vi.mock('../QuickAssistantMessageList', () => ({
+  default: () => <div data-testid="quick-assistant-message-list" />
 }))
 
 vi.mock('../../translate/TranslateWindow', () => ({
@@ -265,6 +265,7 @@ describe('finalizeLiveMessages', () => {
     const unchangedMessage = {
       id: 'done-message',
       role: 'assistant',
+      metadata: { status: 'success' },
       parts: [{ type: 'text', text: 'done', state: 'done' }]
     } as CherryUIMessage
 
@@ -283,6 +284,9 @@ describe('finalizeLiveMessages', () => {
 describe('HomeWindow', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
+    state.messages = []
+    state.activeExecutions = []
+    state.liveAssistants = []
     state.quickModel = {
       id: 'anthropic::claude-sonnet',
       modelId: 'claude-sonnet',
