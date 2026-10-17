@@ -473,6 +473,10 @@ export const aiRequestSchemas = {
     // never has to re-read through DataApi to learn what was persisted.
     output: ScheduledTaskEntitySchema
   }),
+  'ai.agent.task_dashboard.stop': defineRoute({
+    input: z.strictObject({ runIds: z.array(z.string().min(1).max(200)).min(1).max(500) }),
+    output: z.array(z.strictObject({ id: z.string(), result: z.enum(['cancelled', 'skipped', 'failed']) }))
+  }),
   'ai.agent.task.update': defineRoute({
     input: agentTaskRefSchema.extend({ patch: agentTaskPatchSchema }),
     output: ScheduledTaskEntitySchema

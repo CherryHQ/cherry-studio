@@ -49,6 +49,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
 
 export type ValidatedAgentDispatch = {
   sessionId: string
+  sourceJobId?: string
   topicId: string
   agentId: string
   agentUpdatedAt: string
@@ -77,6 +78,8 @@ export type PersistedAgentDispatch = {
 }
 
 export interface AgentSessionTurnAuthority {
+  /** Job provenance supplied by the main-process scheduler, never renderer request data. */
+  sourceJobId?: string
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
 }
@@ -144,6 +147,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       : !agentSessionMessageService.hasSessionMessages(sessionId)
     return {
       sessionId,
+      ...(authority.sourceJobId !== undefined ? { sourceJobId: authority.sourceJobId } : {}),
       topicId: req.topicId,
       agentId,
       agentUpdatedAt: agent.updatedAt,
@@ -243,6 +247,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     try {
       runtime = application.get('AgentSessionRuntimeService').beginTurn({
         sessionId: validated.sessionId,
+        sourceJobId: validated.sourceJobId,
         topicId: validated.topicId,
         agentId: validated.agentId,
         agentType: validated.agentType,

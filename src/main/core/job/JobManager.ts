@@ -141,6 +141,9 @@ interface RecoveryResumePoint {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['SchedulerService'])
 export class JobManager extends BaseService {
+  isExecuting(jobId: string): boolean {
+    return this.inFlightExecuted.has(jobId)
+  }
   private readonly handlers = new Map<string, JobHandler>()
   private readonly queues = new Map<string, DispatchQueue>()
   private readonly abortControllers = new Map<string, AbortController>()
@@ -1765,6 +1768,8 @@ export class JobManager extends BaseService {
       resolveExecuted = resolve
     })
     this.inFlightExecuted.set(row.id, executed)
+    const startedSnapshot = jobService.getById(row.id)
+    if (startedSnapshot) this.publishState(startedSnapshot)
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
     if (row.timeoutMs && row.timeoutMs > 0) {
@@ -1790,6 +1795,8 @@ export class JobManager extends BaseService {
         const dbService = application.get('DbService')
         jobService.setMetadataTx(dbService.getDb(), row.id, merged)
         row.metadata = merged
+        const updated = jobService.getById(row.id)
+        if (updated) this.publishState(updated)
       },
       reportProgress: (progress, detail) => {
         application.get('CacheService').setShared(`${JOB_PROGRESS_KEY_PREFIX}${row.id}`, { progress, detail }, 60_000)

@@ -332,6 +332,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       await ctx.patchMetadata({ sessionId: session.id })
       const started = await startAgentSessionRun({
         sessionId: session.id,
+        sourceJobId: ctx.jobId,
         userParts: [{ type: 'text', text: effectivePrompt }],
         listeners: [sentinel, ...channelListeners],
         headless: true,
