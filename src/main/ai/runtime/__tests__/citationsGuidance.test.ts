@@ -20,6 +20,8 @@ describe('buildCitationsGuidance', () => {
     expect(out).toContain('mcp__cherry-tools__kb_search')
     expect(out).toContain('mcp__cherry-tools__kb_read')
     expect(out).not.toContain('web_search')
+    expect(out).toContain('search for relevant passages in more than one source')
+    expect(out).toContain('Match each claim to the results that actually support it')
   })
 
   it('mentions both tool groups when both are available', () => {

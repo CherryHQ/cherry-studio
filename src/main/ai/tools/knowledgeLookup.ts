@@ -79,7 +79,7 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-Workflow: when a relevant base ID is already known (for example, from an attached knowledge base), call kb_search directly with that ID in baseIds. Call kb_list first only when no relevant base ID is known. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
+Workflow: when a relevant base ID is already known (for example, from an attached knowledge base), call kb_search directly with that ID in baseIds. Call kb_list first only when no relevant base ID is known. For synthesis across documents, search with distinct relevant queries to gather evidence from multiple sources; use kb_read to verify wording and context within a document. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
 
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 

@@ -49,10 +49,15 @@ describe('makeEntitiesCodec', () => {
 
   it('snippet uses the shared citation preview cap', () => {
     expect(codec.snippet('  short  ')).toBe('short')
+    expect(codec.snippet('x'.repeat(800))).toHaveLength(800)
     const long = 'y'.repeat(CITATION_SNIPPET_MAX_CHARS + 200)
     const s = codec.snippet(long)
     expect(s).toHaveLength(CITATION_SNIPPET_MAX_CHARS + 1)
     expect(s.endsWith('…')).toBe(true)
+  })
+
+  it('preserves Unicode characters at the preview boundary', () => {
+    expect(codec.snippet(`${'x'.repeat(999)}😀tail`)).toBe(`${'x'.repeat(999)}…`)
   })
 })
 
