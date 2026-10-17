@@ -50,9 +50,11 @@ Pi events. `aiSdkMessages.ts` applies Pi's replay rules (`transformMessages`) be
   Cherry's unique model id (`providerId::modelId`) alone: the Pi provider is the Cherry provider
   id, the Pi model id is the Cherry model id and the API is `ai-sdk`. Pi replays a stored reply's
   reasoning and signatures only to that same provider/api/model, so a session reopened through a
-  new binding for the same Cherry model keeps them, whatever its name or limits now are. Pi 1.3.0
-  drops another model's reasoning from replay instead of sending it as plain text; that model's
-  text and tool calls are kept without their signatures.
+  new binding for the same Cherry model keeps them, whatever its name or limits now are. Subagent
+  model keys (`provider/id`, kept in a subagent's origin for its continuations) follow the same
+  rule, so a continued subagent finds its model again through a binding for that Cherry model.
+  Pi 1.3.0 drops another model's reasoning from replay instead of sending it as plain text; that
+  model's text and tool calls are kept without their signatures.
 
 ## Known gaps
 
