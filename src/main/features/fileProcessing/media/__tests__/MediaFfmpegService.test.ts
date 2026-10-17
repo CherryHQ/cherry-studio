@@ -27,9 +27,19 @@ vi.mock('@application', async () => {
     }
     throw new Error(`Unexpected service: ${name}`)
   })
-  mocked.application.getPath.mockImplementation((_key: string, filename?: string) =>
-    filename ? `${runtime.tempRoot}/${filename}` : runtime.tempRoot
-  )
+  mocked.application.getPath.mockImplementation((key: string, filename?: string) => {
+    if (key === 'app.temp') return filename ? join(runtime.tempRoot, filename) : runtime.tempRoot
+    if (key === 'app.root.resources.binaries') return join(runtime.tempRoot, 'resources', 'binaries')
+    if (key === 'feature.file_processing.ffmpeg.bin') {
+      const dir = join(runtime.tempRoot, 'registered', 'ffmpeg-bin')
+      return filename ? join(dir, filename) : dir
+    }
+    if (key === 'feature.file_processing.ffmpeg.lib') {
+      const dir = join(runtime.tempRoot, 'registered', 'ffmpeg-lib')
+      return filename ? join(dir, filename) : dir
+    }
+    throw new Error(`unexpected path key ${key}${filename ? `:${filename}` : ''}`)
+  })
   return mocked
 })
 
@@ -50,7 +60,10 @@ vi.mock('node:fs/promises', async () => {
 
 import { BaseService } from '@main/core/lifecycle'
 import { getConditions } from '@main/core/lifecycle/decorators'
+import { getBinaryName } from '@main/utils/binaryResolver'
 
+import { mediaFfmpegCommandEnv } from '../mediaFfmpegLoader'
+import { mediaFfmpegProcess } from '../mediaFfmpegProcess'
 import { MediaFfmpegService } from '../MediaFfmpegService'
 
 let service: MediaFfmpegService | undefined
@@ -75,13 +88,60 @@ afterEach(async () => {
 })
 
 describe('MediaFfmpegService lifecycle', () => {
-  it('is available only where a self-contained bundled runtime exists', () => {
+  it('is available where a bundled FFmpeg runtime exists', () => {
     const [condition] = getConditions(MediaFfmpegService)!
     const context = { arch: 'arm64' as const, cpuModel: '', env: process.env }
 
     expect(condition.matches({ ...context, platform: 'darwin' })).toBe(true)
     expect(condition.matches({ ...context, platform: 'win32' })).toBe(true)
-    expect(condition.matches({ ...context, platform: 'linux' })).toBe(false)
+    expect(condition.matches({ ...context, platform: 'linux' })).toBe(true)
+    expect(condition.matches({ ...context, platform: 'aix' })).toBe(false)
+  })
+
+  it('resolves the Linux tree and isolates its loader path from the utility-process env', () => {
+    expect(mediaFfmpegProcess.createEnv).toBeUndefined()
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { value: 'linux' })
+    try {
+      const init = mediaFfmpegProcess.createInitData?.()
+      if (!init || init instanceof Promise) throw new Error('expected sync init data')
+      const bin = join(runtime.tempRoot, 'registered', 'ffmpeg-bin')
+      const lib = join(runtime.tempRoot, 'registered', 'ffmpeg-lib')
+      expect(init.ffmpegPath).toBe(join(bin, 'ffmpeg'))
+      expect(init.ffprobePath).toBe(join(bin, 'ffprobe'))
+      expect(init.linuxLibraryDir).toBe(lib)
+      const env = mediaFfmpegCommandEnv(init.linuxLibraryDir, {
+        PATH: '/usr/bin',
+        LD_LIBRARY_PATH: '/usr/lib:/opt/lib',
+        LD_PRELOAD: '/tmp/inject.so',
+        DYLD_LIBRARY_PATH: '/opt/darwin',
+        HOME: '/home/a'
+      })
+      expect(env).toMatchObject({ PATH: '/usr/bin', HOME: '/home/a', LD_LIBRARY_PATH: init.linuxLibraryDir })
+      expect(env).not.toHaveProperty('LD_PRELOAD')
+      expect(env).not.toHaveProperty('DYLD_LIBRARY_PATH')
+      expect(env!.LD_LIBRARY_PATH).not.toContain('/usr/lib')
+    } finally {
+      Object.defineProperty(process, 'platform', original)
+    }
+  })
+
+  it('keeps Darwin and Windows executables flat with no loader env', () => {
+    const original = Object.getOwnPropertyDescriptor(process, 'platform')!
+    try {
+      for (const platform of ['darwin', 'win32'] as const) {
+        Object.defineProperty(process, 'platform', { value: platform })
+        const init = mediaFfmpegProcess.createInitData?.()
+        if (!init || init instanceof Promise) throw new Error('expected sync init data')
+        const root = join(runtime.tempRoot, 'resources', 'binaries', `${platform}-${process.arch}`)
+        expect(init.ffmpegPath).toBe(join(root, getBinaryName('ffmpeg')))
+        expect(init.ffprobePath).toBe(join(root, getBinaryName('ffprobe')))
+        expect(init.linuxLibraryDir).toBeUndefined()
+        expect(mediaFfmpegCommandEnv(init.linuxLibraryDir, { LD_LIBRARY_PATH: '/usr/lib' })).toBeUndefined()
+      }
+    } finally {
+      Object.defineProperty(process, 'platform', original)
+    }
   })
 
   it('waits for utility-process stop and rejects queued work after stopping', async () => {
