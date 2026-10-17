@@ -270,6 +270,10 @@ called while a run settles (from `onEvent`'s `turn-complete`, where Pi itself wo
 return at once) waits until that settle and any run Pi started during it are over, then runs, and
 resolves or rejects as it does.
 
+Subagent usage (a foreground result's `usage`, a notification's and a `stop_subagent` result's
+`details`) is for budgets: the host's AI SDK calls already account it, so it must not be billed
+again.
+
 Host obligation: the approval layer may auto-allow `subagent`, `message_subagent` and
 `stop_subagent` as long as `configure` returns the approval extension, so each call a subagent
 makes is approved on its own.
