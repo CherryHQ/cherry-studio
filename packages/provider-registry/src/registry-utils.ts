@@ -118,6 +118,38 @@ export function inferAdapterFamily(
   return ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY[endpointType] ?? 'openai-compatible'
 }
 
+/** Connection-root compatibility, not wire-format compatibility. Order defines fallback priority. */
+export const ENDPOINT_CONNECTION_FAMILY = {
+  'openai-chat-completions': 'openai-compatible',
+  'openai-responses': 'openai-compatible',
+  'openai-text-completions': 'openai-compatible',
+  'openai-image-generation': 'openai-compatible',
+  'openai-image-edit': 'openai-compatible',
+  'openai-embeddings': 'openai-compatible',
+  'openai-text-to-speech': 'openai-compatible',
+  'openai-audio-transcription': 'openai-compatible',
+  'openai-audio-translation': 'openai-compatible',
+  'openai-video-generation': 'openai-compatible',
+  'jina-rerank': 'openai-compatible',
+  'anthropic-messages': 'anthropic',
+  'google-generate-content': 'google',
+  'ollama-chat': 'ollama',
+  'ollama-generate': 'ollama'
+} as const satisfies Record<EndpointType, string>
+
+/** New API additionally shares one gateway root across its explicitly declared protocols. */
+export function canInheritEndpointConnection(
+  target: EndpointType,
+  source: EndpointType,
+  targetConfig?: Pick<RegistryEndpointConfig, 'adapterFamily'>,
+  sourceConfig?: Pick<RegistryEndpointConfig, 'adapterFamily'>
+): boolean {
+  return (
+    ENDPOINT_CONNECTION_FAMILY[target] === ENDPOINT_CONNECTION_FAMILY[source] ||
+    (targetConfig?.adapterFamily === 'newapi' && sourceConfig?.adapterFamily === 'newapi')
+  )
+}
+
 /**
  * Capability-exclusive endpoints imply a model capability: a model whose primary
  * endpoint is `jina-rerank` can only rerank, `openai-embeddings` can only embed,

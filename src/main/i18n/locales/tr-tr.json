@@ -168,6 +168,7 @@
   "paintings.comfyui.workflow_rejected": "ComfyUI iş akışını reddetti (HTTP {{status}})",
   "paintings.generate_failed": "Görüntü oluşturulamadı",
   "paintings.image_mix_failed": "Görüntüler harmanlanamadı",
+  "provider.errors.missing_connection": "{{provider}} üzerinde {{endpoint}} için bağlantı yapılandırılmamış. Sağlayıcı ayarlarında bu protokol için bir adres yapılandırın.",
   "selection.name": "Seçim Asistanı",
   "settings.mcp.oauth.callback.listen_error": "127.0.0.1:{{port}} adresinde OAuth geri çağrısı dinlenemedi ({{reason}}). Bağlantı noktasının kullanılabilir olduğundan emin olup yeniden deneyin.",
   "settings.mcp.oauth.callback.message": "Bu sayfayı kapatıp Cherry Studio'ya dönebilirsiniz",

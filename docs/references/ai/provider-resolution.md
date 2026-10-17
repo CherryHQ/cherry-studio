@@ -3,6 +3,8 @@ description: Endpoint resolution chain from provider.endpointConfigs and adapter
 sources:
   - src/main/ai/provider/endpoint.ts
   - src/main/ai/provider/config.ts
+  - src/main/ai/provider/endpointConnection.ts
+  - packages/provider-registry/src/registry-utils.ts
   - packages/aiCore/src/core/providers/core/initialization.ts
 ---
 
@@ -59,6 +61,58 @@ export function resolveAiSdkProviderId(provider, endpointType) {
   return appProviderIds['openai-compatible']
 }
 ```
+
+## Connection inheritance
+
+`resolveEndpointBaseUrl` in `src/main/ai/provider/endpointConnection.ts` resolves the
+address independently of the target adapter and wire protocol:
+
+1. Use the target endpoint's own non-empty address.
+2. Use the provider's default chat endpoint when its connection is compatible.
+3. Search compatible endpoints in the registry's fixed order (OpenAI Chat before
+   Responses, followed by task endpoints).
+4. Return an empty string when no compatible connection exists.
+
+The registry exhaustively classifies every `EndpointType`. OpenAI-style task
+endpoints, including rerank, share the OpenAI-compatible connection root;
+Google, Anthropic and Ollama have separate roots. New API additionally allows
+its explicitly `newapi`-tagged endpoints to share one gateway root across
+protocols. This does not allow an ordinary custom Gemini connection to supply
+an OpenAI Images request. A caller's preferred endpoint is usable when the
+model declares it and this same resolver finds a connection.
+
+When neither the model nor provider selects an endpoint, the runtime chooses
+the first configured address in registry order. An explicit model endpoint
+never falls back to another protocol. Model discovery retains the older
+`getBaseUrl` behavior; request builders use the strict resolver.
+
+An inherited complete URL such as `.../chat/completions#` contributes only its
+root; the target image or speech adapter supplies its own path. Explicit target
+URLs keep their endpoint suffix. Parse that suffix before URL formatting strips
+`#`, so the SDK cannot append the endpoint twice.
+
+Key-backed request builders reject a missing connection before selecting an API
+key or sending a request. SDK-derived Vertex/Bedrock addresses, local embedding,
+managed transports and OAuth defaults retain their own builder semantics.
+
+Runtime inheritance never mutates `endpointConfigs` or writes a resolved URL
+back to storage. Presets must not copy a primary connection URL into same-family
+task endpoints; omit the task URL while retaining adapter metadata. Explicit
+user overrides remain authoritative, and clearing one restores inheritance.
+
+Model forms edit `endpointTypes`, `capabilities`, `inputModalities` and
+`outputModalities` directly. Capabilities and modalities are independent
+multi-selections: enabling image generation does not replace Gemini
+`generateContent` with OpenAI Images or remove other model capabilities.
+Endpoint edits retain selection order and endpoints absent from the standard
+option list. List type filters remain derived views, not editable model fields.
+
+Editing submits only the changed fields, so renaming a catalog-backed model does
+not persist its inherited capabilities or modalities as overrides. Manual creation
+uses the provider's default endpoint unless a model/endpoint prefill supplies one;
+empty endpoints keep provider inheritance. There is no new stored type or purpose,
+and existing misconfigured rows are not rewritten automatically: users correct
+their endpoints directly in the model form.
 
 ## Variants
 

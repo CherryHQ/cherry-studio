@@ -587,3 +587,22 @@ describe('invariant: resolveAiSdkProviderId is deterministic for the registered 
     }
   }
 })
+
+describe('inherited endpoint preference', () => {
+  it('selects TTS from a multi-endpoint model without a dedicated speech URL', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'openai' },
+        [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]: { adapterFamily: 'openai' }
+      }
+    })
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]
+    })
+    expect(resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH,
+      baseUrl: 'https://relay.example/v1'
+    })
+  })
+})

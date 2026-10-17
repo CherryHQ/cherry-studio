@@ -168,6 +168,7 @@
   "paintings.comfyui.workflow_rejected": "ComfyUI отклонил рабочий процесс (HTTP {{status}})",
   "paintings.generate_failed": "Не удалось сгенерировать изображение",
   "paintings.image_mix_failed": "Не удалось объединить изображения",
+  "provider.errors.missing_connection": "Для {{endpoint}} у провайдера {{provider}} не настроено подключение. Укажите адрес для этого протокола в настройках провайдера.",
   "selection.name": "Помощник выбора",
   "settings.mcp.oauth.callback.listen_error": "Не удалось запустить приём обратного вызова OAuth на 127.0.0.1:{{port}} ({{reason}}). Убедитесь, что порт доступен, и повторите попытку.",
   "settings.mcp.oauth.callback.message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
