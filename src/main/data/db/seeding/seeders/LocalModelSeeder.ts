@@ -86,7 +86,9 @@ function createLocalLlmModelRow(model: LocalLlmModel): LocalModelRow {
     modelId: model.bundleId,
     name: model.name,
     group: model.group,
-    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+    // Off by default: Qwen3.5 reasons for thousands of tokens even on simple prompts.
+    reasoning: { controls: [{ kind: 'toggle', default: false }] },
     contextWindow: model.contextWindow,
     supportsStreaming: true,
     isEnabled: false
@@ -128,7 +130,12 @@ export class LocalModelSeeder implements ISeeder {
         )
         for (const model of models.filter((row) => existing.has(row.id))) {
           tx.update(userModelTable)
-            .set({ name: model.name, capabilities: model.capabilities, contextWindow: model.contextWindow })
+            .set({
+              name: model.name,
+              capabilities: model.capabilities,
+              reasoning: model.reasoning,
+              contextWindow: model.contextWindow
+            })
             .where(eq(userModelTable.id, model.id))
             .run()
         }

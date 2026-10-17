@@ -372,7 +372,8 @@ are long:
   checkpoint LlamaChat takes just before each reply's thought segment. Thinking is therefore turned
   off with a zero thought budget, not with a template that drops the thought block: the next turn
   then resumes from that checkpoint instead of re-reading the whole prompt.
-- Text and reasoning deltas stream back as events. Thinking is currently always off.
+- Text and reasoning deltas stream back as events. Thinking follows the model's reasoning toggle
+  (`reasoningEffort` in the provider options) and stays off when nothing is selected.
 - Tools reach node-llama-cpp as grammar-constrained functions. `toolSchema.ts` rewrites each JSON
   Schema into the subset its grammar compiles (`anyOf` → `oneOf`, untyped → any value, referenced
   `allOf` parts merged, …), since unknown shapes otherwise compile to `null`. The grammar requires

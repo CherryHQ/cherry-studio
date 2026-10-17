@@ -100,8 +100,7 @@ class LocalLlmLanguageModel implements LanguageModelV3 {
     const input: LlmGenerateInput = {
       messages: toLlmMessages(options.prompt),
       tools: options.toolChoice?.type === 'none' ? undefined : toLlmTools(options.tools, warnings),
-      // Qwen3.5 reasons for thousands of tokens on simple prompts; the reasoning toggle is not wired yet.
-      thinking: false,
+      thinking: isThinkingRequested(options),
       maxOutputTokens: options.maxOutputTokens,
       sampling: definedOnly({
         temperature: options.temperature,
@@ -201,6 +200,12 @@ function toToolCallParts(toolCalls: LlmToolCall[] | undefined) {
     toolName: call.name,
     input: JSON.stringify(call.params ?? {})
   }))
+}
+
+/** The reasoning toggle arrives as `reasoningEffort`; with no selection the model keeps its default, off. */
+function isThinkingRequested(options: LanguageModelV3CallOptions): boolean {
+  const effort = options.providerOptions?.[LOCAL_LLM_PROVIDER_ID]?.reasoningEffort
+  return effort !== undefined && effort !== 'none'
 }
 
 /** Options the local runtime does not implement; the request runs without them. */

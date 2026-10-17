@@ -138,6 +138,18 @@ describe('local-llm language model', () => {
     expect(parts.at(-1)).toMatchObject({ type: 'error' })
   })
 
+  it.each([
+    ['nothing selected', undefined, false],
+    ['the toggle off', { 'local-llm': { reasoningEffort: 'none' } }, false],
+    ['the toggle on', { 'local-llm': { reasoningEffort: 'medium' } }, true]
+  ])('thinks only when asked: %s', async (_case, providerOptions, thinking) => {
+    generate.mockResolvedValue(RESULT)
+
+    await readStream(callOptions({ providerOptions }))
+
+    expect(generate.mock.calls[0][1].thinking).toBe(thinking)
+  })
+
   it('overrides the recommended sampling only with values the request sets', async () => {
     generate.mockResolvedValue(RESULT)
 

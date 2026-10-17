@@ -104,19 +104,22 @@ describe('LocalModelSeeder', () => {
     expect(model.isEnabled).toBe(true)
   })
 
-  it('gives a chat model row from an earlier release the current tool support and context window', async () => {
+  it('gives a chat model row from an earlier release the current tool support, reasoning toggle and context window', async () => {
     const seeder = new LocalModelSeeder()
     seeder.run(dbh.db)
     const id = localLlmUniqueModelId('qwen3.5-4b-q4_k_m')
     await dbh.db
       .update(userModelTable)
-      .set({ capabilities: [], contextWindow: 32_768 })
+      .set({ capabilities: [], reasoning: null, contextWindow: 32_768 })
       .where(eq(userModelTable.id, id))
 
     seeder.run(dbh.db)
 
     const [model] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, id))
-    expect(model.capabilities).toContain(MODEL_CAPABILITY.FUNCTION_CALL)
+    expect(model.capabilities).toEqual(
+      expect.arrayContaining([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING])
+    )
+    expect(model.reasoning).toEqual({ controls: [{ kind: 'toggle', default: false }] })
     expect(model.contextWindow).toBe(65_536)
   })
 })
