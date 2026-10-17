@@ -383,6 +383,9 @@ const AgentPage = () => {
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)

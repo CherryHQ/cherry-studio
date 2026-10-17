@@ -10,6 +10,7 @@ import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrame
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import type * as CacheHooks from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { requestConversationLocate } from '@renderer/hooks/useConversationLocateRequest'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import { AGENT_TASK_DASHBOARD_CACHE_KEY, type DashboardEntry } from '@shared/ai/agentTaskDashboard'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -2483,6 +2484,24 @@ describe('AgentPage', () => {
     expect(agentPageMocks.navigate).toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
     expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['Open history records', 'history-records-view', 'message-target'],
+    ['Open history records', 'history-records-view', null],
+    ['agent.manage.title', 'resource-catalog-agent', 'message-target'],
+    ['agent.manage.title', 'resource-catalog-agent', null]
+  ])('reveals the conversation for dashboard navigation from %s (%s, %s)', async (button, surface, messageId) => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: button! }))
+    expect(screen.getByTestId(surface!)).toBeInTheDocument()
+
+    act(() => requestConversationLocate('agent-tab', 'session-initial', messageId))
+
+    await waitFor(() => expect(screen.queryByTestId(surface!)).not.toBeInTheDocument())
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-initial')
   })
 
   it('writes locate state into the current tab for a global-search session message', async () => {

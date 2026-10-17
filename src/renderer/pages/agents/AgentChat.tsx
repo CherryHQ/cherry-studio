@@ -348,7 +348,7 @@ const AgentChat = ({
   const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
 
   useEffect(() => {
-    if (!runtimeSessionId || (!locateMessageId && !locateToEnd)) {
+    if (centerSurface || !runtimeSessionId || (!locateMessageId && !locateToEnd)) {
       locateLoadRequestRef.current = undefined
       return
     }
@@ -373,6 +373,7 @@ const AgentChat = ({
     })
     return () => window.cancelAnimationFrame(frame)
   }, [
+    centerSurface,
     locateMessageId,
     locateToEnd,
     onLocateMessageHandled,
