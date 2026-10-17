@@ -40,6 +40,11 @@ const segmenter = new Intl.Segmenter(languages)
  *  - `MIN_STEP` is only a progress guarantee (anti-rounding-stall), NOT a
  *    speed floor — a high floor would over-drain a genuinely slow stream.
  *  - `MAX_BACKLOG` is a hard latency ceiling vs the live model.
+ *  - Catch-up is gradual: no streaming frame reveals more than
+ *    `MAX_CATCHUP_PER_FRAME` graphemes (scaling up for extreme backlogs), so
+ *    bursts never land as a one-frame jump.
+ *  - The playout cadence coarsens with displayed length (see
+ *    `ADAPTIVE_DELAY_TIERS`) to bound the O(n) markdown re-parse downstream.
  *  - First frame emits only `MIN_STEP` (no real `dt` / rate yet) so a burst
  *    that accumulated before mount isn't dumped in one frame.
  *
@@ -77,7 +82,38 @@ const MAX_BACKLOG = 400
 /** rAF doesn't fire in background tabs; on return `dt` would be huge and
  *  drain the whole queue. Clamp so a hidden→visible tab resumes smoothly. */
 const MAX_FRAME_DT_MS = 100
+/** Hard cap on what ONE streaming frame may reveal. Catch-up used to drain
+ *  straight to MAX_BACKLOG in a single frame, so a post-stall burst (tool
+ *  gap, gateway buffering) appeared as a freeze-then-jump of thousands of
+ *  chars — plus one giant markdown re-parse in that same frame. At 60fps this
+ *  still allows ~14K chars/s, far above any real generation rate. */
+const MAX_CATCHUP_PER_FRAME = 240
+/** Extreme backlogs (tab hidden for minutes) still fully drain within about
+ *  this many frames — the per-frame cap scales up to `queue/FRAMES`. */
+const CATCHUP_DRAIN_FRAMES = 60
 const MIN_STEP = 1
+
+/**
+ * Each playout update re-runs O(displayed chars) of markdown work downstream
+ * (streamdown's full-text remend pass + block re-lex: ≈2.5ms at 30KB, ≈4.9ms
+ * at 60KB). At a fixed ~60fps cadence that spent 130–255ms/s of main thread
+ * re-parsing on long answers, so the cadence coarsens with length. Character
+ * velocity is unchanged — the rate controller below still governs chars/s;
+ * only the re-render granularity coarsens, which long text hides naturally.
+ */
+const ADAPTIVE_DELAY_TIERS: ReadonlyArray<{ maxChars: number; delayMs: number }> = [
+  { maxChars: 8_000, delayMs: 0 },
+  { maxChars: 20_000, delayMs: 24 },
+  { maxChars: 40_000, delayMs: 33 },
+  { maxChars: Number.POSITIVE_INFINITY, delayMs: 50 }
+]
+
+function adaptiveMinDelayMs(displayedChars: number): number {
+  for (const tier of ADAPTIVE_DELAY_TIERS) {
+    if (displayedChars <= tier.maxChars) return tier.delayMs
+  }
+  return 50
+}
 
 export const useSmoothStream = ({
   onUpdate,
@@ -260,9 +296,11 @@ export const useSmoothStream = ({
 
     // Throttle on the *unclamped* elapsed so minDelay > MAX_FRAME_DT_MS still
     // works; clamp only the dt that drives the playout math (so a
-    // backgrounded-then-resumed tab doesn't dump the queue).
+    // backgrounded-then-resumed tab doesn't dump the queue). The floor is the
+    // caller's minDelay raised by the length-adaptive cadence.
     const elapsed = now - last
-    if (elapsed < minDelay) {
+    const min = Math.max(minDelay, adaptiveMinDelayMs(displayedTextRef.current.length))
+    if (elapsed < min) {
       animationFrameRef.current = requestAnimationFrame(renderLoop)
       return
     }
@@ -305,6 +343,13 @@ export const useSmoothStream = ({
       // Hard latency ceiling vs the live model.
       count = queue.length - MAX_BACKLOG
     }
+    // Catch-up is gradual: no single frame reveals more than
+    // MAX_CATCHUP_PER_FRAME (scaling up for extreme backlogs so a full drain
+    // never takes longer than ~CATCHUP_DRAIN_FRAMES). Post-stall bursts and
+    // cold-start estimator lag used to one-frame-dump hundreds–thousands of
+    // graphemes — a visible freeze-then-jump, compounded by that frame's
+    // markdown re-parse scaling with the dumped size.
+    count = Math.min(count, Math.max(MAX_CATCHUP_PER_FRAME, Math.ceil(queue.length / CATCHUP_DRAIN_FRAMES)))
 
     count = Math.min(count, queue.length)
 
