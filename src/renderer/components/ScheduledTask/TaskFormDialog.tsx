@@ -478,14 +478,13 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   )
 
   useEffect(() => {
-    // Never prune against an unloaded channel list: with the channels query
-    // still in flight (or failed) every draft binding would be dropped and the
-    // next save would silently clear the task's subscriptions.
-    if (!channelsReady) return
+    // Never prune against an unloaded channel list or before the owning Agent is set (the dialog can
+    // mount open): every draft binding would be dropped and the next save would clear subscriptions.
+    if (!channelsReady || !agentId) return
     setChannelIds((current) =>
       current.filter((channelId) => availableChannels.some((channel) => channel.id === channelId))
     )
-  }, [availableChannels, channelsReady])
+  }, [agentId, availableChannels, channelsReady])
 
   const isSystemWorkspace = workspaceId === null
   const selectedAgent = agents.find((agent) => agent.id === agentId)
