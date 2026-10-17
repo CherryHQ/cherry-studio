@@ -147,8 +147,11 @@ function htmlBlockTerminator(line: string): RegExp | null {
  */
 const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^[^\]]+\]:(.*)$/
 
-/** An ATX heading: up to three columns of indent, one to six `#`, then the heading's text. */
-const ATX_HEADING = /^ {0,3}#{1,6}[ \t]+(.*?)[ \t]*#*[ \t]*$/
+/**
+ * An ATX heading: up to three columns of indent, one to six `#`, then the heading's text — which
+ * may be empty, the bare `#` the parser still reads as a heading.
+ */
+const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]+(.*?)[ \t]*#*)?[ \t]*$/
 
 /**
  * The container markers a definition may sit behind — block quotes, list items, and any nesting of
@@ -313,9 +316,11 @@ function containerWhitespaceOpensCode(container: string): boolean {
  * A link reference definition label, which may leave its destination to a line of its own — and
  * may itself wrap onto the lines below, which `wrappedLinkLabel` reads. A label may hold an
  * escaped bracket (`[a\]b]`), so brackets only end the label when unescaped — and never an
- * unescaped opening one, which the parser reads as nesting the label cannot close.
+ * unescaped opening one, which the parser reads as nesting the label cannot close. The colon has
+ * to sit directly behind the closing bracket — `[label] : /url` is the prose it looks like —
+ * while what it leaves behind is the whitespace that may lead the destination.
  */
-const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\[])+)\][ \t]*:([ \t]*)([\s\S]*)$/
+const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\[])+)\]:([ \t]*)([\s\S]*)$/
 
 /**
  * The longest link label the parser accepts: 999 characters, counted in the source the label was
@@ -476,6 +481,43 @@ const HTML_BLOCK_TAGS = new Set([
  * parser reads `</pre>` and `<pre/>` as type 7, which cannot interrupt.
  */
 const HTML_RAW_TAGS = new Set(['pre', 'script', 'style', 'textarea'])
+
+/** The tags that take no closing one, so an opening tag of theirs holds no element open. */
+const VOID_HTML_ELEMENTS = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr'
+])
+
+/**
+ * Fold one line's tags into the stack of elements the renderer reads as open after it. A closing
+ * tag ends the nearest element of its own name — with the ones opened inside it, the way a
+ * renderer recovers from the nesting it was written with — and an opening one holds an element
+ * open unless it is void or closed itself where it stands. Only the tags an HTML block exposes
+ * are read here, which is where the renderer's elements are written whole.
+ */
+function trackHtmlElements(line: string, open: string[]): void {
+  for (const tag of line.matchAll(/<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:"[^"]*"|'[^']*'|[^>])*)>/g)) {
+    const name = tag[2].toLowerCase()
+    if (tag[1]) {
+      const at = open.lastIndexOf(name)
+      if (at >= 0) open.length = at
+    } else if (!/\/\s*$/.test(tag[3]) && !VOID_HTML_ELEMENTS.has(name)) {
+      open.push(name)
+    }
+  }
+}
 
 /**
  * A line opening an HTML block the parser takes even inside the construct it is reading: a comment,
@@ -771,6 +813,50 @@ function emphasisSpans(source: string): Set<number> {
   return spans
 }
 
+/** A run of tildes — the `~~` of `# foo~~bar~~baz`, whose pairing decides the text it renders. */
+const TILDE_RUN = /^~+/
+
+/**
+ * The tilde runs of `source` that the renderer reads as the markers of a strikethrough — which
+ * render no text of their own. The renderer turns single tildes away, so a run is eligible only
+ * at two markers, and it pairs a closing run with the nearest earlier one of its own length by
+ * the same flank tests emphasis reads; a run that pairs with nothing stays the text it was
+ * written as.
+ */
+function strikethroughSpans(source: string): Set<number> {
+  const spans = new Set<number>()
+  const open: number[] = []
+  for (let index = 0; index < source.length;) {
+    const character = source[index]
+    if (character === '\\') {
+      index += 2
+      continue
+    }
+    if (character !== '~') {
+      index += 1
+      continue
+    }
+    const run = TILDE_RUN.exec(source.slice(index))?.[0] ?? character
+    const end = index + run.length
+    if (run.length === 2) {
+      const left = micromarkClass(index > 0 ? source.charCodeAt(index - 1) : NaN)
+      const right = micromarkClass(source.charCodeAt(end))
+      const opens = right === undefined || (right === 'punctuation' && left !== undefined)
+      const closes = left === undefined || (left === 'punctuation' && right !== undefined)
+      const partner = open.length - 1
+      if (closes && partner >= 0) {
+        spans.add(open[partner])
+        spans.add(index)
+        open.pop()
+      } else if (opens) {
+        open.push(index)
+      }
+    }
+    index = end
+  }
+  return spans
+}
+
 /**
  * A character reference — the form micromark's `characterReference` construct accepts: a numeric
  * one up to seven decimal or six hexadecimal digits, or a named one up to thirty-one alphanumerics,
@@ -885,6 +971,8 @@ function headingRenderedText(source: string): string {
     // A label is inline content of its own, so its emphasis pairs within it rather than across the
     // link that holds it. Matched on first use, so a segment with no emphasis never pays the scan.
     let spans: Set<number> | null = null
+    // The strikethrough markers, matched the same way on their own first use.
+    let strikes: Set<number> | null = null
     let index = 0
     while (index < segment.length) {
       const character = segment[index]
@@ -928,6 +1016,11 @@ function headingRenderedText(source: string): string {
         const run = EMPHASIS_RUN.exec(segment.slice(index))?.[0] ?? character
         // Only a run that paired with a partner is the markers of a span; one that did not is text.
         if (!(spans ??= emphasisSpans(segment)).has(index)) text += run
+        index += run.length
+      } else if (character === '~') {
+        const run = TILDE_RUN.exec(segment.slice(index))?.[0] ?? character
+        // The same for a strikethrough: only the run that found its partner renders nothing.
+        if (!(strikes ??= strikethroughSpans(segment)).has(index)) text += run
         index += run.length
       } else if ((character === '[' && !entry.label) || (character === '!' && segment[index + 1] === '[')) {
         const open = index + (character === '!' ? 1 : 0)
@@ -1069,9 +1162,10 @@ function wrappedLinkLabel(
     counted += run.counted
     if (counted > MAX_LABEL_SOURCE_CHARS) return null
     if (run.closed) {
-      // The colon belongs on the line the label closes on: anything else there leaves the line a
-      // paragraph, the way a label closed without one does.
-      const after = /^[ \t]*:([ \t]*)([\s\S]*)$/.exec(run.rest)
+      // The colon belongs directly behind the closing bracket, on the line the label closes on:
+      // anything else there — including the whitespace a single-line definition may not carry
+      // between the two — leaves the line a paragraph.
+      const after = /^:([ \t]*)([\s\S]*)$/.exec(run.rest)
       if (!after) return null
       // The closing line's bracket and destination are appended below, so only its label content
       // survives it — the raw line still ends in `]: destination`, and joining it in whole would
@@ -1158,9 +1252,15 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // ever-longer string, so a title left open across a long document would cost its length squared.
   let titleClose: string | null = null
   let titleClosed = false
+  // Whether the optional title opened on the line below the destination rather than on the
+  // destination's own line. The parser accepts the destination-only definition before the attempt,
+  // so a failure there rewinds to it — where a failure on the destination's own line leaves the
+  // trailing text standing, and with it no definition at all.
+  let titleOpensBelow = false
   if (/^[ \t]*$/.test(tail)) {
     const below = continuation(lines[index + span], quotes, quoteColumns, labelColumn)
     if (below !== undefined && (LINK_TITLE.test(below) || LINK_TITLE_OPEN.test(below))) {
+      titleOpensBelow = true
       titleClose = titleClosingDelimiter(below)
       titleClosed = LINK_TITLE.test(below)
       body.push(below)
@@ -1174,9 +1274,17 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   }
   while (titleClose !== null && !titleClosed) {
     const next = continuation(lines[index + span], quotes, quoteColumns, labelColumn)
-    if (next === undefined) return null
-    const scan = scanTitleContinuation(next, titleClose)
-    if (scan === 'dead') return null
+    const scan = next === undefined ? undefined : scanTitleContinuation(next, titleClose)
+    // A blank line, or one the definition's container cannot follow, ends the title's paragraph —
+    // the attempt dies where the parser's would.
+    if (next === undefined || scan === 'dead') {
+      if (titleOpensBelow) {
+        body.pop()
+        span -= 1
+        break
+      }
+      return null
+    }
     body.push(next)
     span += 1
     titleClosed = scan === 'closed'
@@ -1261,6 +1369,13 @@ const LIST_ITEM = /^( {0,3})(?:([-+*])|(\d{1,9})([.)]))(?=[ \t]|$)/
 
 /** Not a list item but a thematic break, which ends the list above it. */
 const THEMATIC_BREAK = /^(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/
+
+/**
+ * The marker a definition list's description opens with, which the renderer reads as the term the
+ * paragraph above it holds — the colon takes whitespace or the line's end behind it, and text
+ * written directly behind it is the paragraph it looks like.
+ */
+const DEFINITION_LIST_DESCRIPTION = /^ {0,3}:(?=[ \t]|$)/
 
 /**
  * A block start at column 0. Lazy continuation is the only line a list item owns there, and it never
@@ -1418,6 +1533,13 @@ export function splitMarkdownChunks(
    * leaves the quote, and the HTML block it held, behind it.
    */
   let htmlBlockContainer: string | null = null
+  // The elements the HTML blocks read so far have left open. A blank line ends the parser's block,
+  // but not the element its opening tag began — the renderer holds everything below it inside that
+  // element until the closing tag turns up — so a boundary may not fall while one is open.
+  const htmlOpenElements: string[] = []
+  // The stack's height when the open block began, so the elements it opened can be given back when
+  // the container it was written behind ends with it.
+  let htmlBlockElementBase = 0
   let inDefinition = false
   let footnoteDefinition = false
   let run: ListRun | null = null
@@ -1519,10 +1641,15 @@ export function splitMarkdownChunks(
         htmlBlockContainer === null ? line : stripDefinitionContainer(line, containerParams(htmlBlockContainer))
       if (stripped !== null && !blank) {
         htmlBlockContent.push(stripped)
+        trackHtmlElements(stripped, htmlOpenElements)
         continue
       }
       closeHtmlBlock()
       htmlBlankBlock = false
+      // The elements a block written behind a container opened die with the container — the line
+      // that dropped the markers, or the blank that ends the quote or item, is what closes them in
+      // the renderer. Only a block at the top level leaves them spanning the blank that ends it.
+      if (htmlBlockContainer !== null || stripped === null) htmlOpenElements.length = htmlBlockElementBase
     }
     if (mathRun) {
       mathRun = trackMathRun(mathRun, line)
@@ -1622,6 +1749,8 @@ export function splitMarkdownChunks(
       htmlBlockContainer = container?.[0] ?? null
       htmlBlockStart = i
       htmlBlockContent = [uncontained]
+      htmlBlockElementBase = htmlOpenElements.length
+      trackHtmlElements(uncontained, htmlOpenElements)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -1756,7 +1885,7 @@ export function splitMarkdownChunks(
     if (!blank && !containerHoldsCode) {
       const atx = ATX_HEADING.exec(uncontained)
       if (atx) {
-        recordHeading(i, headingRenderedText(atx[1]))
+        recordHeading(i, headingRenderedText(atx[1] ?? ''))
       } else if (previousStatus === 'paragraph' && SETEXT_UNDERLINE.test(uncontained)) {
         // The underline completes the open paragraph, but only in the container that paragraph sits
         // in: a marker that opens a block of its own leaves it a line of prose instead.
@@ -1803,6 +1932,17 @@ export function splitMarkdownChunks(
     if (!blank) continue
     const followedBy = nextContent[i]
     if (followedBy >= 0 && INDENTED_LINE.test(lines[followedBy])) continue
+    // The paragraph the blank follows is the term of a description the next line opens — the
+    // renderer reads the two as one construct across the blank, and cut there the description
+    // renders the plain paragraph it is only without its term.
+    if (
+      i > 0 &&
+      lines[i - 1].trim() !== '' &&
+      followedBy >= 0 &&
+      DEFINITION_LIST_DESCRIPTION.test(pastQuoteMarkers(lines[followedBy]).content)
+    ) {
+      continue
+    }
     const nextItem = followedBy >= 0 ? LIST_ITEM.exec(lines[followedBy]) : null
     // A list is one block: its items number themselves from its first marker and its blank lines
     // are what make it loose, so only a blank line the list does not span is free.
@@ -1810,7 +1950,9 @@ export function splitMarkdownChunks(
       run !== null && nextItem !== null && nextItem[1] === run.indent && (nextItem[2] ?? nextItem[4]) === run.marker
     if (listContinues) continue
     run = null
-    if (bufferChars >= budgetChars) {
+    // An element a blank line only spans holds the blocks below it: one that never closes keeps
+    // every later boundary off, and the oversized fallback a chunk that size trips is the exit.
+    if (bufferChars >= budgetChars && htmlOpenElements.length === 0) {
       boundaries.push(i + 1)
       bufferChars = 0
     }

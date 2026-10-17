@@ -201,6 +201,27 @@ describe('splitMarkdownChunks', () => {
     expect(chunks[1].text).toContain('raw one\n\nraw two')
   })
 
+  it('keeps the html elements a blank line only spans in one chunk', () => {
+    // A blank line ends the parser's HTML block, but not the element its opening tag began: a
+    // boundary there closes `<details>` with only its summary inside and renders the body the next
+    // chunk holds outside the disclosure.
+    const content = 'filler\n\n'.repeat(3071) + '<details>\n<summary>Summary</summary>\n\nHidden content\n\n</details>'
+
+    // At the default budget the blank behind the summary is the first one the spent buffer reaches,
+    // so the construct is what holds the boundary off.
+    expect(chunksOf(content).find((chunk) => chunk.text.includes('<details>'))?.text).toContain(
+      '<details>\n<summary>Summary</summary>\n\nHidden content\n\n</details>'
+    )
+
+    // At a small budget the construct spans the boundary the summary's blank would otherwise be.
+    const windowed = chunksOf(
+      'para one\n\n' + '<details>\n<summary>Summary</summary>\n\nHidden content\n\n</details>',
+      10
+    )
+    expect(windowed).toHaveLength(2)
+    expect(windowed[1].text).toContain('<details>\n<summary>Summary</summary>\n\nHidden content\n\n</details>')
+  })
+
   it('does not end a chunk on a blank line that an indented continuation follows', () => {
     // That blank line is part of the block above it — a footnote definition or indented code block.
     const content = ['opening paragraph', '', '    indented body', '', 'after'].join('\n')
@@ -256,6 +277,23 @@ describe('splitMarkdownChunks', () => {
 
     expect(chunks).toHaveLength(4)
     expect(chunks[1].text).toContain('1. first\n1. second')
+  })
+
+  it('keeps a definition list term and the description its blank line introduces in one chunk', () => {
+    // The renderer reads the paragraph above the blank as the term of the description below it, so
+    // the construct spans the blank — cut there, the description renders the plain paragraph it is
+    // only without its term.
+    const content = 'filler\n\n'.repeat(3071) + 'Apple term\n\n: Fruit\n'
+
+    // At the default budget the term's blank is the first one the spent buffer reaches.
+    expect(chunksOf(content).find((chunk) => chunk.text.includes('Apple term'))?.text).toContain(
+      'Apple term\n\n: Fruit'
+    )
+
+    // At a small budget the blank windows freely before the term, but not between the two.
+    const windowed = chunksOf('para one\n\n' + 'Apple term\n\n: Fruit\n', 10)
+    expect(windowed).toHaveLength(2)
+    expect(windowed[1].text).toContain('Apple term\n\n: Fruit')
   })
 
   it('still windows the lists of a document where a heading ends the first one', () => {
@@ -583,6 +621,23 @@ describe('splitMarkdownChunks', () => {
     for (const chunk of chunks) {
       expect(chunk.text).toContain('https://example.com\n"the long\nspec title"')
     }
+  })
+
+  it('keeps the destination-only definition a next-line title abandons', () => {
+    // A title that opens on the line below the destination and never closes leaves the definition
+    // the destination-only one the parser accepted before the attempt — rejecting it whole left
+    // the reference literal in every chunk it reached.
+    const content = '[label]: /right\n"never closed\n\n' + 'filler\n\n'.repeat(3071) + 'see [label]'
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    const last = chunks[chunks.length - 1]
+    expect(last.text).toContain('see [label]')
+    expect(resolvedReferenceUrls(last.text)).toEqual(['/right'])
+    // The same failure on the destination's own line is still no definition at all: the leftover
+    // title text is what the whole line renders as.
+    expect(resolvedReferenceUrls('[label]: /right "abc"def\n\nsee [label]')).toEqual([])
   })
 
   it('leaves a paragraph that a blank line starts out of the definition behind it', () => {
@@ -1407,6 +1462,25 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('does not carry a definition whose colon leaves its closing bracket', () => {
+    // The parser reads the colon only directly behind the `]`, so `[label] : /wrong` is the prose
+    // it looks like — hoisted, it stood in front of the genuine definition and won the label. The
+    // wrapped label a line below closes owes its colon the same adjacency.
+    const content = ['[label] : /wrong', '', '[label]: /right', '', 'see [label]'].join('\n')
+
+    expect(resolvedReferenceUrls(content)).toEqual(['/right', '/right'])
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/right', '/right'])
+
+    const wrapped = ['[a', 'b] : /wrong', '', '[a]: /right', '', 'see [a]'].join('\n')
+
+    expect(resolvedReferenceUrls(wrapped)).toEqual(['/right'])
+    expect(chunksOf(wrapped, 1).flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual(['/right'])
+  })
+
   it('does not carry a definition whose marker sits five columns behind another marker', () => {
     // The parser reads a marker plus up to four columns of separator as that marker; a fifth
     // column — of whitespace between two markers, tabs expanding as the parser counts them —
@@ -2051,6 +2125,19 @@ describe('a definition shape that is paragraph text', () => {
       expect(chunk.text).toContain('[label]: /right')
     }
   })
+
+  it('carries the definition below a heading written as a bare hash', () => {
+    // A lone `#` is the empty ATX heading the parser reads, so the line under it opens fresh —
+    // holding paragraph state open kept the definition out, and the reference degraded to text.
+    const content = '#\n[label]: /right\n\n' + 'filler\n\n'.repeat(3071) + 'see [label]'
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    const last = chunks[chunks.length - 1]
+    expect(last.text).toContain('see [label]')
+    expect(resolvedReferenceUrls(last.text)).toEqual(['/right'])
+  })
 })
 
 describe('a definition shape inside a fence a container holds', () => {
@@ -2234,6 +2321,17 @@ describe('heading ids assigned from the text the renderer reads', () => {
 
     expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
     expect(renderedHeadingIds(content)).toEqual(['chunk--title', 'chunk--title-1'])
+  })
+
+  it('numbers a struck-through heading toward the text the renderer reads', () => {
+    // The renderer reads `~~bar~~` as the `del` it renders — no text of its own — so both headings
+    // read `foobarbaz` and the second takes the `-1` the link beside it points at. Counting the
+    // first under its literal tildes left the second as plain `foobarbaz` too, and the two ids
+    // collided.
+    const content = '# foo~~bar~~baz\n\n' + 'filler\n\n'.repeat(3100) + '# foobarbaz\n\n[jump](#foobarbaz-1)'
+
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+    expect(renderedHeadingIds(content)).toEqual(['chunk--foobarbaz', 'chunk--foobarbaz-1'])
   })
 
   it('numbers headings a setext paragraph spans by the whole paragraph', () => {
