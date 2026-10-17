@@ -1,11 +1,17 @@
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { type ExtensionFactory, ModelRuntime } from '@earendil-works/pi-coding-agent'
 
+import { setSessionRequirements } from '@cherrystudio/agent-runtime-pi'
+
 import { type AiSdkModelSpec, type AiSdkProviderOptions, createAiSdkProvider } from './aiSdkProvider'
 
 export type AiSdkModel = AiSdkModelSpec & { provider: string }
 
-/** Cherry supplies one AI SDK request per Pi step, including native compaction requests. */
+/**
+ * Cherry supplies one AI SDK request per Pi step, including native compaction requests. Every
+ * session built on the returned runtime, subagents' included, gets the binding's tool-call guard
+ * and runs with Pi's retry off.
+ */
 export async function createAiSdkModelBinding<TRequestOptions>(
   options: Omit<AiSdkProviderOptions<TRequestOptions>, 'models' | 'onInvalidToolCall'> & { model: AiSdkModel }
 ) {
@@ -43,11 +49,11 @@ export async function createAiSdkModelBinding<TRequestOptions>(
   )
   const model = modelRuntime.getModel(provider, modelSpec.id)
   if (!model) throw new Error(`Model ${provider}/${modelSpec.id} was not registered`)
-  return {
-    modelRuntime,
-    model,
-    // Install before approvals: malformed calls must never reach a host tool handler.
+  setSessionRequirements(modelRuntime, {
+    // Ahead of approvals: malformed calls must never reach a host tool handler.
     extensionFactories: [guard],
+    // Retries belong to the AI SDK call; Pi's would repeat each failed one.
     settings: { retry: { enabled: false } }
-  }
+  })
+  return { modelRuntime, model }
 }

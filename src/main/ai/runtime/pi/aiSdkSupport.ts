@@ -118,9 +118,7 @@ export async function createTestSession<TRequestOptions = undefined>(options: Te
     agentDir: options.agentDir ?? tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
-    ...binding,
-    settings: { ...options.settings, ...binding.settings },
-    extensionFactories: [...binding.extensionFactories, ...(options.extensionFactories ?? [])]
+    ...binding
   })
   onTestFinished(() => runtime.dispose())
   return runtime

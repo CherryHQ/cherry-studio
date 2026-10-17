@@ -3,7 +3,9 @@ export {
   type AgentRuntimeSession,
   type AgentRuntimeSessionOptions,
   type AgentRuntimeSettings,
-  createAgentRuntimeSession
+  createAgentRuntimeSession,
+  type SessionRequirements,
+  setSessionRequirements
 } from './session'
 
 export type { PiRuntime, PiRuntimeOptions, PiSessionOptions } from './runtime'

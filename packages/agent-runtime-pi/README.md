@@ -22,6 +22,12 @@ Native deltas accumulate once into ordered SDK messages, including preliminary/f
 owns credentials and provider registration, and closing a session does not unregister its providers.
 Settings, including retries and thinking level, retain native Pi semantics.
 
+The owner of a model runtime can require things of every session built on it with
+`setSessionRequirements(modelRuntime, { extensionFactories, settings })`: the builder installs those
+extension factories ahead of the session's own and applies those settings over the session's,
+whichever host builds the session. Cherry's AI SDK binding uses it for its tool-call guard and to
+keep Pi's retry off.
+
 The builder uses in-memory settings and session state, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
 `dispose()` aborts execution, lets extensions handle `session_shutdown`, then disposes the session.
@@ -30,8 +36,8 @@ Pi is ESM-only; CommonJS hosts must load the package with dynamic `import()`.
 ## Cherry integration
 
 Cherry's AI SDK provider bridge lives in `src/main/ai/runtime/pi/aiSdkModelBinding.ts`. It supplies
-native model configuration and installs its tool-call guard before approval handlers. AI SDK
-conversion, retries, provider metadata and request side channels stay in Cherry.
+native model configuration and, through session requirements, its tool-call guard ahead of approval
+handlers. AI SDK conversion, retries, provider metadata and request side channels stay in Cherry.
 
 This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
 bridge; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
