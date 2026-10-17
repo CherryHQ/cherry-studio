@@ -301,6 +301,49 @@ describe('retained-reply interruption hands B back only after A persists', () =>
   })
 
   /**
+   * Released-ownership ordering: A's reply can emit `finished` — the machine releases ownership —
+   * while its terminal persistence is still in flight. A retained reconcile reporting `invalid`
+   * in that window must still interrupt the reply (its turn exists), settle the row durably, and
+   * hand B's deferred input back with its launch scheduled. Gating the interruption on active
+   * ownership skips it instead: the execution is abandoned, A's row stays `pending`, and B's turn
+   * is adopted with nothing scheduled to open its stream.
+   */
+  it('interrupts a reply whose finished event released ownership before its row persisted', async () => {
+    const service = new AgentSessionRuntimeService()
+    const { entry, retained, reader, savedId } = await streamAutonomousReplyUnderDeferredSwitch(service)
+
+    // A's generation ends on its own; ownership releases while the row is still `pending`.
+    ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' }, retained)
+    expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', ownership: 'released' })
+    expect(persistedRows().get(savedId)).toBe('pending')
+
+    // The retained reconcile fails in that window.
+    await (service as any).reconcileRetainedConnection(entry, retained)
+
+    expect(retained.close).toHaveBeenCalled()
+    // A's reply is still interrupted to a durable `paused` row, and only then is B's deferred
+    // input adopted — with its launch actually scheduled.
+    await vi.waitFor(() => expect(persistedRows().get(savedId)).toBe('paused'))
+    await vi.waitFor(() => {
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
+    })
+    const managerInternals = manager as unknown as {
+      activeStreams: Map<string, { executions: Map<string, unknown> }>
+    }
+    await vi.waitFor(() => {
+      expect([...(managerInternals.activeStreams.get('agent-session:session-1')?.executions.keys() ?? [])]).toEqual([
+        switchedModelId
+      ])
+    })
+
+    void reader.cancel().catch(() => undefined)
+    void service.closeSession('session-1')
+  })
+
+  /**
    * Pre-registration gap: the interrupted reply is a receive-only turn whose launch saved its
    * placeholder but is still yielding inside `refreshTurnTraceContext` — its stream was never
    * registered, so `pauseRuntimeTurn` cannot abort it and `awaitAbortedExecutions` observes a
