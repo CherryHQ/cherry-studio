@@ -12,13 +12,14 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useCommandContextSnapshot, useCommandShortcutPreferences } from '@renderer/hooks/command'
 import {
+  dictationShortcutsConflict,
   formatDictationShortcut,
   getDictationShortcutBinding,
+  hasDictationCommandConflict,
   parseDictationShortcut
 } from '@renderer/utils/dictationShortcut'
 import { isMac, isWin } from '@renderer/utils/platform'
-import { resolveCommandByKeybinding } from '@shared/utils/command'
-import { getShortcutBindingFromKeyboardEvent, isShortcutModifier, type ShortcutBinding } from '@shared/utils/shortcut'
+import { getShortcutBindingFromKeyboardEvent, isShortcutModifier } from '@shared/utils/shortcut'
 
 function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
   const { t } = useTranslation()
@@ -131,15 +132,16 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
               setRecording(false)
               return
             }
-            const commandConflict = getDictationShortcutBinding(candidate, platform)
-              .reduce<ShortcutBinding[]>(
-                (bindings, key) => [...bindings, ...bindings.map((binding) => [...binding, key])],
-                [[]]
-              )
-              .some((binding) =>
-                resolveCommandByKeybinding({ binding, preferences, context: commandContext, platform })
-              )
-            if (candidate === parseDictationShortcut(other).join('+') || commandConflict) {
+            const commandConflict = hasDictationCommandConflict(candidate, {
+              preferences,
+              context: commandContext,
+              platform
+            })
+            const pairConflict =
+              mode === 'hold'
+                ? dictationShortcutsConflict(candidate, other)
+                : dictationShortcutsConflict(other, candidate)
+            if (pairConflict || commandConflict) {
               setError('conflict')
               setRecording(false)
               return

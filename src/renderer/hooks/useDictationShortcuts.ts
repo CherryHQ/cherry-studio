@@ -1,21 +1,31 @@
-import { useEffect } from 'react'
+import { use, useEffect, useRef } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandSharedPreferencesContext, useCommandContextSnapshot } from '@renderer/hooks/command'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import {
   dictationShortcutMatches,
+  dictationShortcutsConflict,
+  hasDictationCommandConflict,
   isDictationShortcutModifier,
   parseDictationShortcut
 } from '@renderer/utils/dictationShortcut'
-import { isMac } from '@renderer/utils/platform'
+import { isMac, isWin } from '@renderer/utils/platform'
+import type { SupportedPlatform } from '@shared/types/command'
 
 const HOLD_DELAY_MS = 300
 
 export function useDictationShortcuts(): void {
   const [hold] = usePreference('feature.voice.dictation.hold_shortcut')
   const [toggle] = usePreference('feature.voice.dictation.toggle_shortcut')
+  const preferences = use(CommandSharedPreferencesContext)?.shortcutPreferences
+  const context = useCommandContextSnapshot()
+  const platform: SupportedPlatform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
+  const commandState = useRef({ preferences, context, platform })
+  commandState.current = { preferences, context, platform }
 
   useEffect(() => {
+    if (dictationShortcutsConflict(hold, toggle)) return
     const pressed = new Set<string>()
     const consumed = new Set<string>()
     const clearNonModifiers = () => {
@@ -23,7 +33,12 @@ export function useDictationShortcuts(): void {
     }
     const holdCodes = parseDictationShortcut(hold)
     const toggleCodes = parseDictationShortcut(toggle)
+    // Lightweight windows do not mount a renderer command dispatcher.
+    const available = (shortcut: string) =>
+      !commandState.current.preferences || !hasDictationCommandConflict(shortcut, commandState.current)
+    const matches = (shortcut: string) => dictationShortcutMatches(shortcut, pressed) && available(shortcut)
     const isCompletingToggle = () =>
+      available(toggle) &&
       pressed.size < toggleCodes.length &&
       holdCodes.every((code) => pressed.has(code)) &&
       [...pressed].every((code) => toggleCodes.includes(code))
@@ -63,6 +78,7 @@ export function useDictationShortcuts(): void {
     const start = (mode: 'hold' | 'toggle') => {
       const snapshot = dictationService.getSnapshot()
       if (
+        !available(mode === 'hold' ? hold : toggle) ||
         !activateFocusedTarget() ||
         owned ||
         !['idle', 'failed'].includes(snapshot.phase) ||
@@ -93,22 +109,30 @@ export function useDictationShortcuts(): void {
         if (consumed.has(event.code)) consume(event)
         return
       }
+      // Recover modifiers whose release never reached this window.
+      for (const code of pressed) {
+        if (!isDictationShortcutModifier(code)) continue
+        const modifier = code.replace(/(Left|Right)$/, '')
+        // AltGraph can replace the Control/Alt flags while both physical keys remain held.
+        if (event.getModifierState('AltGraph') && (modifier === 'Control' || modifier === 'Alt')) continue
+        if (!event.getModifierState(modifier)) pressed.delete(code)
+      }
       if (isMac && event.metaKey && !isDictationShortcutModifier(event.code)) clearNonModifiers()
       pressed.add(event.code)
       clearTimer()
-      if (dictationShortcutMatches(toggle, pressed) && (owned || activateFocusedTarget())) {
+      if (matches(toggle) && (owned || activateFocusedTarget())) {
         consume(event)
         if (owned?.mode === 'hold') owned.mode = 'toggle'
         else if (owned) stopOwned()
         else start('toggle')
         return
       }
-      if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed)) {
+      if (owned?.mode === 'hold' && !matches(hold)) {
         if (isCompletingToggle()) {
           consume(event)
         } else stopOwned()
       }
-      if (dictationShortcutMatches(hold, pressed) && activateFocusedTarget()) {
+      if (matches(hold) && activateFocusedTarget()) {
         consume(event)
         timer = setTimeout(() => start('hold'), HOLD_DELAY_MS)
       }
@@ -119,7 +143,7 @@ export function useDictationShortcuts(): void {
       // macOS can omit character keyups while Command is held.
       if (isMac && event.code.startsWith('Meta')) clearNonModifiers()
       clearTimer()
-      if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed) && !isCompletingToggle()) {
+      if (owned?.mode === 'hold' && !matches(hold) && !isCompletingToggle()) {
         stopOwned()
       }
     }

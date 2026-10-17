@@ -1,4 +1,5 @@
 import type { SupportedPlatform } from '@shared/types/command'
+import { resolveCommandByKeybinding, type ResolveCommandByKeybindingOptions } from '@shared/utils/command'
 import {
   formatKeyDisplay,
   getShortcutBindingFromKeyboardEvent,
@@ -81,4 +82,19 @@ export function getDictationShortcutBinding(value: string, platform: SupportedPl
 export function dictationShortcutMatches(value: string, pressed: ReadonlySet<string>): boolean {
   const codes = parseDictationShortcut(value)
   return codes.length > 0 && codes.length === pressed.size && codes.every((code) => pressed.has(code))
+}
+
+export function dictationShortcutsConflict(hold: string, toggle: string): boolean {
+  const holdCodes = parseDictationShortcut(hold)
+  const toggleCodes = parseDictationShortcut(toggle)
+  return toggleCodes.length > 0 && toggleCodes.every((code) => holdCodes.includes(code))
+}
+
+export function hasDictationCommandConflict(
+  value: string,
+  options: Pick<ResolveCommandByKeybindingOptions, 'preferences' | 'context'> & { platform: SupportedPlatform }
+): boolean {
+  return getDictationShortcutBinding(value, options.platform)
+    .reduce<ShortcutBinding[]>((bindings, key) => [...bindings, ...bindings.map((binding) => [...binding, key])], [[]])
+    .some((binding) => resolveCommandByKeybinding({ ...options, binding }))
 }

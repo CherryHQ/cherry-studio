@@ -3,9 +3,12 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { KeyboardEventHandler } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 
+import { CommandProvider } from '@renderer/components/command/CommandProvider'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { useDictationShortcuts } from '@renderer/hooks/useDictationShortcuts'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type * as PlatformUtils from '@renderer/utils/platform'
+import { commandShortcutPreferenceKey } from '@shared/utils/command'
 
 const platform = vi.hoisted(() => ({ isMac: false }))
 vi.mock('@renderer/utils/platform', async (importOriginal) => ({
@@ -30,11 +33,17 @@ function Host({ onKeyDown }: { onKeyDown?: KeyboardEventHandler<HTMLTextAreaElem
   )
 }
 
+function CommandHost({ onClose }: { onClose: () => void }) {
+  useCommandHandler('tab.close', onClose)
+  return <Host />
+}
+
 describe('application-local dictation shortcuts', () => {
   let unbind: () => void
   let stop: Mock<() => Promise<void>>
   let cancel: Mock<() => Promise<void>>
   let start: ReturnType<typeof vi.spyOn>
+  const heldKeys = new Set<string>()
 
   const bindInput = () =>
     voiceTargetManager.bind({
@@ -47,6 +56,7 @@ describe('application-local dictation shortcuts', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    heldKeys.clear()
     platform.isMac = false
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltLeft')
@@ -65,12 +75,153 @@ describe('application-local dictation shortcuts', () => {
     vi.useRealTimers()
   })
 
-  const down = (code: string, repeat = false) => fireEvent.keyDown(window, { code, repeat })
-  const up = (code: string) => fireEvent.keyUp(window, { code })
+  const modifierFlags = () => ({
+    ctrlKey: heldKeys.has('ControlLeft') || heldKeys.has('ControlRight'),
+    altKey: heldKeys.has('AltLeft') || heldKeys.has('AltRight'),
+    shiftKey: heldKeys.has('ShiftLeft') || heldKeys.has('ShiftRight'),
+    metaKey: heldKeys.has('MetaLeft') || heldKeys.has('MetaRight')
+  })
+  const down = (code: string, repeat = false) => {
+    heldKeys.add(code)
+    return fireEvent.keyDown(window, { code, repeat, ...modifierFlags() })
+  }
+  const up = (code: string) => {
+    heldKeys.delete(code)
+    return fireEvent.keyUp(window, { code, ...modifierFlags() })
+  }
   const mount = () => {
     render(<Host />)
     screen.getByRole('textbox', { name: 'Dictation input' }).focus()
   }
+
+  it('keeps Alt release-to-stop after an intercepted Control release', () => {
+    mount()
+    fireEvent.keyDown(window, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    // A native command intercepted the remaining chord and its releases.
+    fireEvent.keyDown(window, { code: 'AltLeft', key: 'Alt', altKey: true })
+    expect(start).not.toHaveBeenCalled()
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).toHaveBeenCalledOnce()
+    fireEvent.keyUp(window, { code: 'AltLeft', key: 'Alt' })
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it('preserves a held run when Control and Alt are reported as AltGraph', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltLeft+ControlLeft+KeyE')
+    mount()
+    down('AltLeft')
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).toHaveBeenCalledOnce()
+    down('ControlLeft')
+    expect(fireEvent.keyDown(window, { code: 'KeyE', key: '€', modifierAltGraph: true })).toBe(false)
+    expect(stop).not.toHaveBeenCalled()
+    fireEvent.keyUp(window, { code: 'KeyE', key: '€', modifierAltGraph: true })
+    up('ControlLeft')
+    up('AltLeft')
+    expect(stop).not.toHaveBeenCalled()
+    expect(start).toHaveBeenCalledOnce()
+  })
+
+  it('allows a configured shortcut in a window without a command dispatcher', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'ControlLeft+KeyW')
+    MockUsePreferenceUtils.setPreferenceValue(commandShortcutPreferenceKey('tab.close'), {
+      binding: ['CommandOrControl', 'W'],
+      enabled: false
+    })
+    mount()
+    down('ControlLeft')
+    down('KeyW')
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).toHaveBeenCalledOnce()
+    up('KeyW')
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['ControlLeft', 'AltLeft', 'ShiftLeft'],
+    ['ShiftLeft', 'ControlLeft', 'AltLeft']
+  ])('does not activate a saved hold/toggle conflict in order %j', (...codes) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltLeft+ControlLeft+ShiftLeft')
+    mount()
+    for (const code of codes) expect(down(code)).toBe(true)
+    void act(() => vi.advanceTimersByTime(350))
+    for (const code of codes) up(code)
+    expect(start).not.toHaveBeenCalled()
+  })
+
+  it.each(['binding', 'enabled'] as const)('yields to a command after its %s changes', (change) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'ControlLeft+KeyB')
+    const preferenceKey = commandShortcutPreferenceKey('tab.close')
+    MockUsePreferenceUtils.setPreferenceValue(preferenceKey, {
+      binding: ['CommandOrControl', change === 'binding' ? 'W' : 'B'],
+      enabled: change === 'binding'
+    })
+    const closeTab = vi.fn()
+    const tree = () => (
+      <CommandProvider>
+        <CommandHost onClose={closeTab} />
+      </CommandProvider>
+    )
+    const { rerender } = render(tree())
+    const input = screen.getByRole('textbox', { name: 'Dictation input' })
+    input.focus()
+    fireEvent.keyDown(input, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    expect(fireEvent.keyDown(input, { code: 'KeyB', key: 'b', ctrlKey: true })).toBe(false)
+    void act(() => vi.advanceTimersByTime(100))
+    MockUsePreferenceUtils.setPreferenceValue(preferenceKey, { binding: ['CommandOrControl', 'B'], enabled: true })
+    rerender(tree())
+    void act(() => vi.advanceTimersByTime(300))
+    expect(start).not.toHaveBeenCalled()
+    fireEvent.keyUp(input, { code: 'KeyB', key: 'b', ctrlKey: true })
+    fireEvent.keyUp(input, { code: 'ControlLeft', key: 'Control' })
+    fireEvent.keyDown(input, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    fireEvent.keyDown(input, { code: 'KeyB', key: 'b', ctrlKey: true })
+    expect(closeTab).toHaveBeenCalledOnce()
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).not.toHaveBeenCalled()
+    fireEvent.keyUp(input, { code: 'KeyB', key: 'b', ctrlKey: true })
+    fireEvent.keyUp(input, { code: 'ControlLeft', key: 'Control' })
+    MockUsePreferenceUtils.setPreferenceValue(preferenceKey, { binding: ['CommandOrControl', 'B'], enabled: false })
+    rerender(tree())
+    fireEvent.keyDown(input, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    fireEvent.keyDown(input, { code: 'KeyB', key: 'b', ctrlKey: true })
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).toHaveBeenCalledOnce()
+    vi.mocked(dictationService.getSnapshot).mockReturnValue({
+      phase: 'recording',
+      elapsedMs: 0,
+      recoveryAvailable: false
+    })
+    MockUsePreferenceUtils.setPreferenceValue(preferenceKey, { binding: ['CommandOrControl', 'W'], enabled: true })
+    rerender(tree())
+    expect(cancel).not.toHaveBeenCalled()
+    fireEvent.keyUp(input, { code: 'KeyB', key: 'b', ctrlKey: true })
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it('leaves a newly conflicting toggle constituent available to its command', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltRight')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltLeft+ControlLeft+KeyB')
+    const closeTab = vi.fn()
+    const tree = () => (
+      <CommandProvider>
+        <CommandHost onClose={closeTab} />
+      </CommandProvider>
+    )
+    const { rerender } = render(tree())
+    const input = screen.getByRole('textbox', { name: 'Dictation input' })
+    input.focus()
+    MockUsePreferenceUtils.setPreferenceValue(commandShortcutPreferenceKey('tab.close'), {
+      binding: ['CommandOrControl', 'B'],
+      enabled: true
+    })
+    rerender(tree())
+    fireEvent.keyDown(input, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    fireEvent.keyDown(input, { code: 'KeyB', key: 'b', ctrlKey: true })
+    fireEvent.keyDown(input, { code: 'AltLeft', key: 'Alt', ctrlKey: true, altKey: true })
+    expect(closeTab).toHaveBeenCalledOnce()
+    expect(start).not.toHaveBeenCalled()
+  })
 
   it.each(['MetaLeft', 'MetaRight'])('recovers both defaults after a missing macOS keyup with %s', (code) => {
     platform.isMac = true

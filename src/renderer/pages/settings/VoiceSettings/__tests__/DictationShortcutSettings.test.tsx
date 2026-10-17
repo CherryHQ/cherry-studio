@@ -89,6 +89,7 @@ describe('dictation shortcut settings', () => {
   )
 
   it('allows a combination when its constituent command is disabled', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', '')
     render(
       <CommandSharedPreferencesContext
         value={{
@@ -184,6 +185,29 @@ describe('dictation shortcut settings', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.toggle_shortcut')).toBe(
       'AltLeft+ControlLeft'
     )
+  })
+  it.each(['hold', 'toggle'] as const)('rejects a %s edit that makes hold extend toggle', async (mode) => {
+    if (mode === 'toggle') {
+      MockUsePreferenceUtils.setPreferenceValue(
+        'feature.voice.dictation.hold_shortcut',
+        'AltLeft+ControlLeft+ShiftLeft'
+      )
+      MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltRight+ControlRight')
+    }
+    render(<DictationShortcutSettings />)
+    const button = screen.getByRole('button', { name: mode === 'hold' ? 'Long press' : 'Short press' })
+    const original = MockUsePreferenceUtils.getPreferenceValue(`feature.voice.dictation.${mode}_shortcut`)
+    await user.click(button)
+    fireEvent.keyDown(button, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    fireEvent.keyDown(button, { code: 'AltLeft', key: 'Alt', ctrlKey: true, altKey: true })
+    if (mode === 'hold') {
+      fireEvent.keyDown(button, { code: 'ShiftLeft', key: 'Shift', ctrlKey: true, altKey: true, shiftKey: true })
+      fireEvent.keyUp(button, { code: 'ShiftLeft', key: 'Shift', ctrlKey: true, altKey: true })
+    } else {
+      fireEvent.keyUp(button, { code: 'AltLeft', key: 'Alt', ctrlKey: true })
+    }
+    expect(screen.getByRole('alert')).toHaveTextContent('already in use')
+    expect(MockUsePreferenceUtils.getPreferenceValue(`feature.voice.dictation.${mode}_shortcut`)).toBe(original)
   })
   it('clears a shortcut and leaves Escape as a recording cancellation', async () => {
     render(<DictationShortcutSettings />)
