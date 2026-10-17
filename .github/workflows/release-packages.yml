@@ -59,6 +59,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Check changeset release policy
+        run: pnpm changeset:check
+
       - name: Build Packages
         run: pnpm packages:build
 

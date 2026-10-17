@@ -504,6 +504,12 @@ importers:
       '@changesets/cli':
         specifier: ^3.0.3
         version: 3.0.3
+      '@changesets/config':
+        specifier: ^4.0.1
+        version: 4.0.1
+      '@changesets/read':
+        specifier: ^1.0.1
+        version: 1.0.1
       '@cherrystudio/ai-core':
         specifier: workspace:*
         version: link:packages/aiCore

@@ -448,6 +448,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
+  const [polishing, setPolishing] = useState(false)
   const wasOpenRef = useRef(false)
   const initialDraftRef = useRef<TaskDraftSnapshot | null>(null)
   const { data: workspaces, refetch: refetchWorkspaces } = useQuery('/agent-workspaces')
@@ -587,6 +588,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                 error={submitted && !prompt.trim() ? t('settings.scheduledTasks.validation.prompt') : undefined}
                 resetPreviewKey={promptPreviewKey}
                 minHeight="100px"
+                disabled={polishing}
                 actions={
                   <PromptPolishActions
                     value={prompt}
@@ -598,6 +600,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                       setPrompt(value)
                       setPromptPreviewKey((key) => key + 1)
                     }}
+                    onRunningChange={setPolishing}
                   />
                 }
               />
