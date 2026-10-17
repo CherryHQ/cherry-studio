@@ -163,6 +163,22 @@ describe('routeToolResultMedia', () => {
     })
   })
 
+  it('leaves an empty tool-result image as an omitted note without relocating an image', () => {
+    const message = imageToolMessage('empty')
+    const toolResult = message.role === 'tool' && message.content[0]
+    if (!toolResult || toolResult.type !== 'tool-result' || toolResult.output.type !== 'content') {
+      throw new Error('Expected a content tool result')
+    }
+    toolResult.output.value[1] = { type: 'image-data', data: '', mediaType: 'image/png' }
+    const routed = routeToolResultMedia([message], VISION, NO_TOOL_MEDIA)
+    expect(routed).toHaveLength(1)
+    expect(JSON.stringify(routed)).toContain('[image attachment omitted: empty image payload]')
+    expect(JSON.stringify(routed)).not.toContain('image-data')
+    const nativeRouted = routeToolResultMedia([message], VISION, VISION)
+    expect(JSON.stringify(nativeRouted)).toContain('[image attachment omitted: empty image payload]')
+    expect(JSON.stringify(nativeRouted)).not.toContain('image-data')
+  })
+
   it('keeps native tool-result images on a capable wire and omits them for a non-vision model', () => {
     const message = imageToolMessage('one')
     expect(routeToolResultMedia([message], VISION, VISION)[0]).toBe(message)
