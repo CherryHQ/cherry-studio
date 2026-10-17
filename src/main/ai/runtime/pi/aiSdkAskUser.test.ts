@@ -1,9 +1,15 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-import { type AskUserPort, type AskUserRequest, type AskUserResponse, createAskUserExtension } from '../src'
-import { createTestSession, finish, hostStore, plain, scriptedModel, streamTextPort, textParts } from './support'
-import { textOf, toolOutputs, toolResults } from './toolResults'
+import {
+  type AskUserPort,
+  type AskUserRequest,
+  type AskUserResponse,
+  createAskUserExtension
+} from '@cherrystudio/agent-runtime-pi'
+
+import { createTestSession, finish, hostStore, plain, scriptedModel, streamTextPort, textParts } from './aiSdkSupport'
+import { textOf, toolOutputs, toolResults } from './aiSdkToolResults'
 
 const question = (text: string, extra: Record<string, unknown> = {}) => ({
   question: text,
@@ -245,16 +251,18 @@ describe('ask-user extension', () => {
     await live.session.prompt('Set up the app')
     await live.dispose()
 
-    const storedResult = live.host.entries.find((entry) => entry.kind === 'message' && entry.message.role === 'tool')
+    const storedResult = live.host.entries.find(
+      (entry) => entry.type === 'message' && entry.message.role === 'toolResult'
+    )
     expect(storedResult).toMatchObject({
-      details: { questions: [{ question: 'Which database?' }], answers: { 'Which database?': 'Postgres' } }
+      message: { details: { questions: [{ question: 'Which database?' }], answers: { 'Which database?': 'Postgres' } } }
     })
 
     const rebuilt = scriptedModel([reply('Postgres, as you said.')])
     const { session } = await createTestSession({
       port: streamTextPort(rebuilt.model).port,
       extensionFactories: [createAskUserExtension(hostPort(() => ({ status: 'unavailable' })).port)],
-      transcript: plain(live.host.entries)
+      entries: plain(live.host.entries)
     })
     await session.prompt('Which database did I pick?')
 
