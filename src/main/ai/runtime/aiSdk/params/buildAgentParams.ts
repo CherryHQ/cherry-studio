@@ -161,10 +161,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   // A marker minted on the last permitted tool step can never be read back —
   // the producing tool consumes that step and the loop ends.
   const hasReadBackStep = resolveToolCallLimit(assistant) > 1
-  // Every condition a <persisted-output> marker needs to appear this request;
-  // `resolveTruncateStorage` reuses the result rather than re-querying the row.
-  const canOffloadToolOutputs =
-    contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
+  // Share the anchor lookup between compaction and tool-output offloading to avoid duplicate DB reads.
+  const hasMessageAnchor =
+    contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId)
+  const canOffloadToolOutputs = hasMessageAnchor && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const toolSignals =
     !request.disableTools && canModelConsumeTools(model)
@@ -328,6 +328,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     mcpResourceServerIds,
     contextSettings,
     compressionModel,
+    hasMessageAnchor,
     compactionSink,
     webToolRoutes: finalWebToolRoutes,
     hasFileAttachments,

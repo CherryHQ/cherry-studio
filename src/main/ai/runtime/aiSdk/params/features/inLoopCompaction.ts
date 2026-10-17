@@ -135,17 +135,22 @@ export function computeKeepRecentTurns(messages: ModelMessage[], keepBudget: num
 export const inLoopCompactionFeature: RequestFeature = {
   name: 'in-loop-compaction',
   applies: (scope) => {
-    if (scope.request.contextOwner === 'caller') return false
+    if (!scope.hasMessageAnchor || scope.request.contextOwner === 'caller') return false
     const topicId = scope.request.conversation.topicId
     if (!topicId) return false
     if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false
-    return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
+    return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled)
   },
   contributeHooks: (scope) => {
     const compressor = scope.compressionModel
-    // `applies()` already guards compressionModel; this narrows the type.
-    if (!compressor) return {}
+    if (!compressor) {
+      scope.compactionSink?.(`compression-model:${scope.request.conversation.id}`, {
+        status: 'failed',
+        phase: 'turn-start'
+      })
+      return {}
+    }
     const model = compressor.languageModel
     // A budget against a known window is the whole point of compaction, but
     // `contextWindow` is optional on `Model` (custom / v1-imported / CherryAI
@@ -248,11 +253,8 @@ export const inLoopCompactionFeature: RequestFeature = {
           logger.warn('in-loop compaction failed; continuing without it for this request', {
             error: error instanceof Error ? error.message : String(error)
           })
-          // Clear the spinner: the turn continues (un-compacted), so leaving a
-          // permanent "compacting…" on screen would misreport the state. Nothing was
-          // folded, so this settles as `skipped` rather than claiming a compaction.
           scope.compactionSink?.(anchorId, {
-            status: 'skipped',
+            status: 'failed',
             phase: 'in-loop',
             startedAt,
             completedAt: new Date().toISOString()
