@@ -398,8 +398,9 @@ interface GoalBranch {
  * Spec §6.1, background subagent spec §11.3–11.4: the branch read once, so a live session and its
  * rebuild agree. A request counts toward goal G when G was active then and the request was made in
  * one of G's admitted rounds or, with G armed, in a turn a subagent notification started (one that
- * rode with a person's message or a round's start belongs to that turn). A tool result's usage counts
- * with the request that made its call, and so does the background run that call starts: it is G's.
+ * rode with a person's message or a round's start belongs to that turn), judged where its input ends
+ * (state written while it ran does not change that). A tool result's usage counts with the request
+ * that made its call, and so does the background run that call starts: it is G's.
  */
 function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
   const branch: GoalBranch = { counted: [], owners: new Map(), latestRuns: new Map(), deliveries: new Map() }
@@ -414,6 +415,8 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
   let round: string | undefined
   // No reply since the turn started: a notification now rides with that start.
   let starting = false
+  // The goal a request whose input ends at the last message entry counts toward, if any.
+  let requestGoal: string | undefined
   // The goal each call's request counted toward, if any.
   const calls = new Map<string, string | undefined>()
   for (const entry of entries) {
@@ -421,7 +424,21 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
       const data = entry.data as GoalSnapshot | GoalCleared
       goal = 'cleared' in data ? undefined : data
       if (goal?.id !== round) round = undefined
-    } else if (entry.type === 'custom_message' && entry.customType === GOAL_ROUND_TYPE) {
+      continue
+    }
+    if (entry.type === 'message' && entry.message.role === 'assistant') {
+      const { message } = entry
+      starting = false
+      for (const block of message.content) if (block.type === 'toolCall') calls.set(block.id, requestGoal)
+      if (requestGoal)
+        branch.counted.push({
+          goalId: requestGoal,
+          tokens: requestTokens(message.usage),
+          usd: message.usage.cost.total
+        })
+      continue
+    }
+    if (entry.type === 'custom_message' && entry.customType === GOAL_ROUND_TYPE) {
       const details = entry.details as RoundDetails
       turn = 'round'
       round = stale.has(details.id) ? undefined : details.goalId
@@ -440,28 +457,24 @@ function readGoalBranch(entries: readonly SessionEntry[]): GoalBranch {
         turn = 'human'
         round = undefined
         starting = true
-        continue
+      } else {
+        starting = false
+        if (message.role === 'toolResult') {
+          const stopped = stoppedRun(message)
+          if (stopped) deliver(stopped.sessionId, stopped.run, stopped.usage)
+          const started = backgroundRun(message)
+          if (started) branch.latestRuns.set(started.sessionId, started.run)
+          const goalId = calls.get(message.toolCallId)
+          if (goalId && message.usage)
+            branch.counted.push({ goalId, tokens: message.usage.totalTokens, usd: message.usage.cost.total })
+          if (goalId && started) branch.owners.set(runKey(started.sessionId, started.run), goalId)
+        }
       }
-      starting = false
-      if (message.role === 'assistant') {
-        const counts =
-          goal?.phase === 'active' &&
-          ((turn === 'round' && round === goal.id) || (turn === 'notification' && goal.armed))
-        const goalId = counts ? goal!.id : undefined
-        for (const block of message.content) if (block.type === 'toolCall') calls.set(block.id, goalId)
-        if (goalId) branch.counted.push({ goalId, tokens: requestTokens(message.usage), usd: message.usage.cost.total })
-      } else if (message.role === 'toolResult') {
-        const stopped = stoppedRun(message)
-        if (stopped) deliver(stopped.sessionId, stopped.run, stopped.usage)
-        const started = backgroundRun(message)
-        if (started) branch.latestRuns.set(started.sessionId, started.run)
-        const goalId = calls.get(message.toolCallId)
-        if (!goalId) continue
-        if (message.usage)
-          branch.counted.push({ goalId, tokens: message.usage.totalTokens, usd: message.usage.cost.total })
-        if (started) branch.owners.set(runKey(started.sessionId, started.run), goalId)
-      }
-    }
+    } else if (entry.type !== 'custom_message') continue
+    requestGoal =
+      goal?.phase === 'active' && ((turn === 'round' && round === goal.id) || (turn === 'notification' && goal.armed))
+        ? goal.id
+        : undefined
   }
   return branch
 }
