@@ -17,7 +17,8 @@ export interface ModelCallRequest<TRequestOptions = undefined> extends ModelCall
   /** Pi's tools without `execute`: the AI SDK returns tool calls and Pi runs them. */
   tools: ToolSet
   toolChoice: 'auto' | 'none' | undefined
-  maxOutputTokens: number | undefined
+  /** The call's cap or the model's `maxTokens`, fitted to the context window as Pi's providers do. */
+  maxOutputTokens: number
   temperature: number | undefined
   abortSignal: AbortSignal | undefined
   /** Host-chosen options (e.g. reasoning effort), forwarded verbatim; never derived from Pi's thinking level. */
