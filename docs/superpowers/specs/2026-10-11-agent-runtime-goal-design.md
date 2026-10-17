@@ -38,7 +38,7 @@ Cherry 正把 Pi 接入可替换的 agent runtime（L1 #21436 桥接、L2 #21437
 全部不依赖模型配合：
 
 1. 目标对象与状态机（沿用 DSH：`active / paused / blocked / complete`，revision 做 compare-and-set）。
-2. 续跑决策只在 `agent_before_settle` 做；用量不记账，每次需要时从 branch 算出（6.1），进展在 `turn_end` 记账；`agent_settled` 不续跑。
+2. 续跑决策只在 `agent_before_settle` 做；用量和进展都不记账，每次需要时从 branch 算出（6.1）；`agent_settled` 不续跑。
 3. 运行时硬停止：每个 goal 的轮数上限（默认由宿主给）、宿主级绝对上限、可选预算（token 数或金额）。触顶前给一次收尾轮。
 4. 停止压过续跑：中止、暂停、清除立即生效；三者在 UI 上是三个操作。
 5. "需要人"即停：自主轮里审批被拒、用户关掉提问、或处于无人值守 → 停下并给出原因码。
@@ -83,7 +83,7 @@ packages/agent-runtime-pi/tests/goal*.test.ts
 | `session_start` | 从 branch 上最后一条 `cherry.goal` 状态条目恢复目标；恢复的目标若已武装，写一条 `armed: false` 的快照（不升 revision，见 11）；订阅 `port.onApproval`（见 7.3） |
 | `session_shutdown` | 退订 `port.onApproval` |
 | `tool_call` | 轮内重复工具调用的检测（见 7.2） |
-| `turn_end` | 记账：本轮是否有进展、是否有待处理的停止请求 |
+| `turn_end` | 记下是否有待处理的停止请求（用户关掉了提问）；进展从 branch 算出（6.1） |
 | `agent_before_settle` | 唯一的续跑决策点（见 6） |
 | `turn_start` / `message_end` | 确认续跑被接纳，并在此刻按当前目标重新校验预约（见 6.3：命令开的轮看 round 消息的 `message_end`，在 `agent_before_settle` 续跑的轮看下一个 `turn_start` 时 branch 上最后一条 message 条目之后的 round 消息，其他扩展追加的条目跳过）；用户消息的 `message_end`：标记人类回合开始（见 6.1） |
 | `agent_settled` | 清理未被接纳的预约（记 `continuation_rejected`）；运行被中止时把 `active` 且已武装的目标记为 `paused / aborted`（见 7.6）；不做任何续跑 |
@@ -215,7 +215,7 @@ Summarize what is done, what is verified, and what remains, then stop.
 
 三种入口发出的第一轮都走 6.3 的预约与接纳，轮数同样只在被接纳后递增。
 
-### 6.1 用量从 branch 算出，`turn_end` 计进展
+### 6.1 用量和进展从 branch 算出
 
 只记 goal 轮里的 turn：从轮被接纳（6.3）起，到下一个人类回合开始或本次运行结束为止。人类回合开始时（用户消息的 `message_end`；Pi 在 `turn_start` 之后才把消息写进 branch，所以不能在 `turn_start` 读 branch 判断）清零无进展计数和 blocked 计数（7.2、7.5），这个回合的用量和工具调用不计入 goal。
 
@@ -225,9 +225,10 @@ Summarize what is done, what is verified, and what remains, then stop.
 - 一条工具结果自带的 usage 跟着发出这次调用的请求走：那条 assistant 条目计入 G，它就计入 G。前台子代理运行中执行了 `/goal pause`，它返回后照样计入，`/goal resume` 的余量判断能看到。
 - 快照里的 `tokensUsed` / `costUsed` 是写入那一刻算出的值，供宿主展示和遥测（3.1 第 12 条），运行时不读回。
 
-每个 turn 结束时记录进展（只在内存里，随下一条快照持久化；settle 时没有别的快照要写，例如让路给排队的用户消息，就立即写一条；轮中途停下时，到停下为止的进展写进停止快照）：
+进展也不在内存里记，和用量一样由 `goalProgress(branch, goalId)` 每次从 branch 算出（`update_goal(complete)` 的退化检查、settle 的无进展判断和提示轮、写快照）。一轮从它被接纳的 round 消息起，到下一条 round 消息（不论是否被接纳：提交它的那次 settle 结束了上一轮）、用户消息，或让 goal 停下、解除武装的快照为止；被用户中止的轮（停止快照的 `lastStop.code` 为 `aborted`）不计。还在跑的轮按"到现在为止"计。快照的 `progressRounds` 是写入时算出的值（把这条快照当作已经写入），只给宿主展示，运行时不读回；settle 时没有别的快照要写、而算出的值变了（例如让路给排队的用户消息），就补写一条：
 
-- `progress`：按轮计，一轮里任一 turn 满足即算有进展：有成功的非只读工具调用（`toolResults` 里存在 `isError !== true` 且工具不在集合 `read / grep / find / ls / tool_search / vcc_recall / get_goal / todo_write / AskUserQuestion` 中的结果），或这一轮最后一条带文字的 assistant 回复与上一轮的归一化后不同。只调工具、没有文字的 turn 不更新"上一轮的文字"。`todo_write` 和 `AskUserQuestion` 不算进展，否则只改 todo 或只提问的轮会绕过无进展检测。
+- `progress`：按轮计，满足任一条即算有进展：这一轮到目前为止有成功的非只读工具结果（`isError !== true` 且工具不在集合 `read / grep / find / ls / tool_search / vcc_recall / get_goal / todo_write / AskUserQuestion` 中；同一批里先于 `update_goal(complete)` 完成的结果也算，goal 工具按顺序执行），或这一轮最后一条带文字的 assistant 回复与上一轮的归一化后不同。只调工具、没有文字的轮不更新"上一轮的文字"。`todo_write` 和 `AskUserQuestion` 不算进展，否则只改 todo 或只提问的轮会绕过无进展检测。
+- 无进展计数：连续没有进展的轮数，还在跑的轮按已结束计；用户消息清零；goal 被武装（创建、resume）时连同"上一轮的文字"一起清零。
 - 计入的请求：token 为 `usage.input + usage.output + usage.cacheRead + usage.cacheWrite`，金额为条目的 `usage.cost.total`（L1 在 `toPiUsage` 里用当时模型的 `cost` 单价算出，L2 把它存进 transcript；没有它的旧条目按 0 计，换模型后也不按新单价重算）。
 - 工具自带的用量：带 `usage` 的工具结果加 `usage.totalTokens` 和 `usage.cost.total`（L2 把它存进 transcript）。不认工具名：目前只有 `subagent` 带 usage（L4 把子代理各次回复的用量之和放在 `AgentToolResult.usage` 上），以后别的工具带上 usage 也会被计入。宿主已为子代理的每次请求记过账，这里只计入 goal 预算，不重复计费。
 - `truncated`：assistant `stopReason === 'length'`。
@@ -547,3 +548,4 @@ L4（前台子代理，PR #21578）已完成，L5 基于它实现：包内任务
 2026-10-18，按 PR #21607 的 cherry-pr-review 评审修订：
 
 10. 一次请求按它开始时的状态判断（6.1）：assistant 条目看它之前最近的一条 message 条目处的 goal 状态。原来按回复自己的位置判断，`/goal pause` 在回复的 `message_end` 处理器还没跑完时写下的快照排在回复之前，这次请求的用量被丢掉，`resume` 能越过已经用完的预算。Pi 1.3.0 仍先等全部 `message_end` 处理器跑完再写入消息。
+11. 进展也是 branch 的纯函数（6.1、7.2）：`goalProgress` 从 branch 算出每轮的进展和无进展计数，去掉内存里的 `toolProgress`、`previousText`、`noProgressRounds`。原来工具进展只在 `turn_end` 记下，同一批里先成功的工具、再 `update_goal(complete)` 时，退化检查看不到这次进展而拒绝完成。

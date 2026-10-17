@@ -767,6 +767,37 @@ describe('goal self-reports', () => {
     expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete', roundsStarted: 1, progressRounds: 1 })
   })
 
+  // Breaks when the check reads progress kept at turn_end: work earlier in the same sequential batch
+  // (update_goal runs sequentially) would not count, and the goal could not complete without a verifier.
+  it('without a verifier, work earlier in the same batch lets the goal complete', async () => {
+    const workAndComplete = (prompt: LanguageModelV3Prompt, call: number) => {
+      if (roundStart(prompt) !== undefined) return [toolCallPart(`g${call}`, 'get_goal', {}), finish('tool-calls')]
+      const last = prompt.at(-1)
+      if (
+        last?.role !== 'tool' ||
+        !last.content.some((part) => part.type === 'tool-result' && part.toolName === 'get_goal')
+      )
+        return say(`reply ${call}`)
+      const { goal } = readGoal(prompt)
+      return [
+        toolCallPart(`e${call}`, 'echo', { value: 'x' }),
+        toolCallPart(`u${call}`, 'update_goal', {
+          goal_id: goal!.id,
+          revision: goal!.revision,
+          action: 'complete',
+          evidence: 'the echo ran'
+        }),
+        finish('tool-calls')
+      ]
+    }
+    const { session: s, host } = await goalSession([workAndComplete], goalPort(), { tools: [echoTool] })
+    await promptIdle(s, '/goal Keep working')
+
+    const [completed] = updates(s)
+    expectCompletion(completed)
+    expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'complete', roundsStarted: 1, progressRounds: 1 })
+  })
+
   // Breaks when the fallback reads the round state outside a goal round: an aborted round's work, never
   // counted, would let a later human turn complete the goal (that turn's own echo is not counted either).
   it("without a verifier, an aborted round's work does not count in a later human turn", async () => {
