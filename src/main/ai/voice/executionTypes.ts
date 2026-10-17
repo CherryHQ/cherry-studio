@@ -3,6 +3,8 @@ import type { LocalSpeechModelId, LocalTranscriptionModelId } from '@shared/ai/l
 import type {
   SpeechInputKind,
   SpeechOutputKind,
+  SpeechPcmFormat,
+  SpeechPcmChunk,
   TranscriptionInputKind,
   TranscriptionOutputKind
 } from '@shared/ai/voice'
@@ -14,10 +16,18 @@ export interface VoiceExecution {
   cancel(): Promise<void>
 }
 
-export type SpeechSource = SpeechResult & { readonly kind: typeof SpeechOutputKind.Audio }
+export type SpeechSource =
+  | (SpeechResult & { readonly kind: typeof SpeechOutputKind.Audio })
+  | {
+      readonly kind: typeof SpeechOutputKind.PcmStream
+      readonly format: SpeechPcmFormat
+      readonly chunks: AsyncIterable<SpeechPcmChunk>
+    }
 
-export interface SpeechExecution extends VoiceExecution {
-  readonly output: Promise<SpeechSource>
+type SpeechSourceByKind = { [Source in SpeechSource as Source['kind']]: Source }
+
+export interface SpeechExecution<Output extends SpeechOutputKind = SpeechOutputKind> extends VoiceExecution {
+  readonly output: Promise<SpeechSourceByKind[Output]>
   /** Producer completion is independent of playback completion. */
   readonly completed: Promise<void>
 }
@@ -37,7 +47,7 @@ export interface TranscriptionExecution extends VoiceExecution {
 export interface SpeechRequest {
   readonly modelId: LocalSpeechModelId
   readonly input: { readonly kind: typeof SpeechInputKind.Text; readonly text: string }
-  readonly output: typeof SpeechOutputKind.Audio
+  readonly output: SpeechOutputKind
   readonly options: Readonly<SpeechOptions>
 }
 
@@ -48,11 +58,17 @@ export interface TranscriptionRequest {
   readonly options: Readonly<TranscriptionOptions>
 }
 
-export interface SpeechOperation {
-  readonly input: SpeechRequest['input']['kind']
-  readonly output: SpeechRequest['output']
-  start(input: SpeechRequest['input'], options: Readonly<SpeechOptions>, signal?: AbortSignal): SpeechExecution
-}
+export type SpeechOperation = {
+  [Output in SpeechOutputKind]: {
+    readonly input: SpeechRequest['input']['kind']
+    readonly output: Output
+    start(
+      input: SpeechRequest['input'],
+      options: Readonly<SpeechOptions>,
+      signal?: AbortSignal
+    ): SpeechExecution<Output>
+  }
+}[SpeechOutputKind]
 
 export interface TranscriptionOperation {
   readonly input: TranscriptionRequest['input']['kind']

@@ -18,6 +18,7 @@ import {
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 import { SpeechInputKind, SpeechOutputKind, TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
+import type { SpeechStreamEvent } from '@shared/ai/voice'
 import { LOCAL_MODEL_DOWNLOAD_RESULTS } from '@shared/data/presets/localModel'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
 import { voiceErrorCodes } from '@shared/ipc/errors/voice'
@@ -65,6 +66,9 @@ const speechInput = sessionAdmission
   .extend({
     modelId: z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, QWEN3_TTS_MODEL_ID, KOKORO_TTS_MODEL_ID]).optional(),
     text: z.string().trim().min(1).max(10_000),
+    preferStream: z.boolean().optional(),
+    remainingText: z.array(z.string().trim().min(1).max(10_000)).max(1000).optional(),
+    retryAttemptId: z.number().int().positive().optional(),
     voice: z.string().min(1).max(256).optional(),
     preferenceResolution: z.literal(true).optional(),
     language,
@@ -150,6 +154,7 @@ export type VoiceSessionEvent =
     }
 
 export type VoiceEventSchemas = {
+  'ai.voice.stream_event': SpeechStreamEvent
   'ai.voice.session_event': VoiceSessionEvent
 }
 
@@ -200,7 +205,21 @@ export const voiceRequestSchemas = {
     output: z.strictObject({
       sessionId: z.uuid(),
       requestId: z.uuid(),
-      output: z.strictObject({ id: z.uuid(), url: z.url(), mimeType: z.literal('audio/wav') }),
+      output: z.discriminatedUnion('kind', [
+        z.strictObject({
+          kind: z.literal(SpeechOutputKind.Audio),
+          id: z.uuid(),
+          url: z.url(),
+          mimeType: z.literal('audio/wav')
+        }),
+        z.strictObject({
+          kind: z.literal(SpeechOutputKind.PcmStream),
+          id: z.uuid(),
+          sampleRate: z.number().int().positive(),
+          channels: z.number().int().positive(),
+          capacityFrames: z.number().int().positive()
+        })
+      ]),
       playback: playbackStateSchema,
       resolved: z
         .strictObject({
@@ -213,6 +232,11 @@ export const voiceRequestSchemas = {
     })
   }),
   'ai.speech.abort': defineRoute({ input: abort, output: z.void() }),
+  'ai.voice.stream.attach': defineRoute({ input: abort.extend({ attemptId: revision }), output: z.void() }),
+  'ai.voice.stream.acknowledge': defineRoute({
+    input: abort.extend({ attemptId: revision, frames: revision }),
+    output: z.void()
+  }),
   'ai.transcription.generate': defineRoute({
     input: request.extend({
       modelId: asrModelId.optional(),

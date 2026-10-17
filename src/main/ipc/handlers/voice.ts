@@ -18,6 +18,10 @@ async function callVoice<T>(
 }
 
 export const voiceHandlers: IpcHandlersFor<typeof voiceRequestSchemas> = {
+  'ai.voice.stream.attach': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.attachStream(owner, input)),
+  'ai.voice.stream.acknowledge': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.acknowledgeStream(owner, input)),
   'ai.voice.resources.open_settings': (_input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.openSystemVoiceSettings(owner)),
   'ai.voice.transcription.resolve': (input, { senderId }) =>

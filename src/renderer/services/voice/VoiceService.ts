@@ -11,6 +11,7 @@ import {
   type LocalVoiceModelId,
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
+import type { SpeechStreamEvent, SpeechStreamIdentity } from '@shared/ai/voice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { voiceRequestSchemas, VoiceSessionEvent, VoiceSessionState } from '@shared/ipc/schemas/voice'
@@ -28,7 +29,10 @@ interface VoiceIpc {
     route: R,
     ...args: InputFor<R> extends void ? [] : [input: InputFor<R>]
   ): Promise<OutputFor<R>>
-  on(event: 'ai.voice.session_event', callback: (payload: EventPayload<'ai.voice.session_event'>) => void): () => void
+  on<E extends 'ai.voice.session_event' | 'ai.voice.stream_event'>(
+    event: E,
+    callback: (payload: EventPayload<E>) => void
+  ): () => void
 }
 
 interface VoiceServiceOptions {
@@ -132,6 +136,8 @@ export class VoiceService {
   private readonly createId: () => string
   private readonly readTranscriptionPreferences: NonNullable<VoiceServiceOptions['readTranscriptionPreferences']>
   private readonly readSpeechPreferences: NonNullable<VoiceServiceOptions['readSpeechPreferences']>
+  private readonly streamListeners = new Set<(event: SpeechStreamEvent) => void>()
+  private unsubscribeStream?: () => void
   private readonly stateListeners = new Set<() => void>()
   private readonly commandListeners = new Set<(event: VoiceCommandEvent) => void>()
   private readonly interruptionListeners = new Set<() => void>()
@@ -250,6 +256,9 @@ export class VoiceService {
 
     try {
       this.subscriptionGeneration = generation
+      this.unsubscribeStream = this.ipc.on('ai.voice.stream_event', (event) => {
+        if (generation === this.lifecycleGeneration) this.streamListeners.forEach((listener) => listener(event))
+      })
       this.unsubscribeEvent = this.ipc.on('ai.voice.session_event', (event) => this.handleEvent(generation, event))
       this.ownerWindow.addEventListener('beforeunload', this.handleBeforeUnload)
     } catch (error) {
@@ -513,6 +522,19 @@ export class VoiceService {
     }
   }
 
+  subscribeStream = (listener: (event: SpeechStreamEvent) => void): (() => void) => {
+    this.streamListeners.add(listener)
+    return () => this.streamListeners.delete(listener)
+  }
+
+  attachStream(identity: SpeechStreamIdentity): Promise<void> {
+    return this.invoke(() => this.ipc.request('ai.voice.stream.attach', identity))
+  }
+
+  acknowledgeStream(identity: SpeechStreamIdentity, frames: number): Promise<void> {
+    return this.invoke(() => this.ipc.request('ai.voice.stream.acknowledge', { ...identity, frames }))
+  }
+
   abortSpeech(operation: Pick<VoiceOperation<unknown>, 'sessionId' | 'requestId'>): Promise<void> {
     const { sessionId, requestId } = operation
     return this.invoke(() => this.ipc.request('ai.speech.abort', { sessionId, requestId }))
@@ -638,6 +660,8 @@ export class VoiceService {
 
   private detach(generation?: number): void {
     if (generation !== undefined && this.subscriptionGeneration !== generation) return
+    this.unsubscribeStream?.()
+    this.unsubscribeStream = undefined
     this.unsubscribeEvent?.()
     this.unsubscribeEvent = undefined
     this.subscriptionGeneration = undefined
@@ -728,6 +752,7 @@ export class VoiceService {
     this.detach()
     this.lifecycleGeneration += 1
     this.initialization = undefined
+    this.streamListeners.clear()
     this.stateListeners.clear()
     this.commandListeners.clear()
     this.interruptionListeners.clear()
@@ -769,7 +794,7 @@ export class VoiceService {
         sequence.reservationToken !== reservation.token ||
         sequence.activeSpeechToken ||
         sequence.activeReleaseToken ||
-        sequence.outputId ||
+        (sequence.outputId && input.retryAttemptId === undefined) ||
         input.chunkIndex === undefined ||
         input.chunkCount === undefined ||
         input.chunkCount !== sequence.chunkCount ||

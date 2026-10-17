@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 
@@ -604,7 +605,11 @@ export class DictationService {
   }
 
   private stopActiveTracks(active: ActiveDictation): void {
-    active.spectrum?.dispose()
+    void active.spectrum
+      ?.dispose()
+      .catch((error) =>
+        loggerService.withContext('DictationService').warn('Could not close dictation spectrum', { error })
+      )
     active.spectrum = undefined
     if (!active.stream) return
     this.stopTracks(active.stream)

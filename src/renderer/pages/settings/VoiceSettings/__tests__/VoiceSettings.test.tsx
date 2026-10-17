@@ -1165,12 +1165,15 @@ describe('VoiceSettings', () => {
     let onSessionEvent: ((event: VoiceSessionEvent) => void) | undefined
     const ipc = {
       request: vi.fn(),
-      on: vi.fn((_channel: string, listener: (event: VoiceSessionEvent) => void) => {
-        onSessionEvent = listener
-        return () => {
-          onSessionEvent = undefined
+      on: vi.fn<NonNullable<NonNullable<ConstructorParameters<typeof VoiceService>[0]>['ipc']>['on']>(
+        (channel, listener) => {
+          if (channel !== 'ai.voice.session_event') return () => undefined
+          onSessionEvent = listener as (event: VoiceSessionEvent) => void
+          return () => {
+            onSessionEvent = undefined
+          }
         }
-      })
+      )
     }
     let first = true
     let revision = 0
@@ -1202,7 +1205,12 @@ describe('VoiceSettings', () => {
         return {
           sessionId: input.sessionId,
           requestId: input.requestId,
-          output: { id: crypto.randomUUID(), url: 'cherry-media://audio/preview', mimeType: 'audio/wav' },
+          output: {
+            kind: 'audio',
+            id: crypto.randomUUID(),
+            url: 'cherry-media://audio/preview',
+            mimeType: 'audio/wav'
+          },
           playback: playbackState
         }
       }

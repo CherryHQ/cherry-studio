@@ -266,7 +266,7 @@ describe('voice admission coordination through the renderer coordinators', () =>
   function createPlayback(voiceOwner = owner()) {
     const listeners = new Set<(event: VoiceSessionEvent) => void>()
     clientListeners.push(listeners)
-    const ipc = {
+    const ipc: NonNullable<NonNullable<ConstructorParameters<typeof VoiceService>[0]>['ipc']> = {
       request: async <R extends keyof typeof voiceRequestSchemas>(
         route: R,
         ...args: InputFor<R> extends void ? [] : [input: InputFor<R>]
@@ -274,10 +274,12 @@ describe('voice admission coordination through the renderer coordinators', () =>
         const parsed = voiceRequestSchemas[route].input.parse(args[0]) as InputFor<R>
         return voiceHandlers[route](parsed, { senderId: voiceOwner.windowId })
       },
-      on: (_event: 'ai.voice.session_event', callback: (payload: VoiceSessionEvent) => void): (() => void) => {
-        listeners.add(callback)
+      on: (event, callback) => {
+        if (event !== 'ai.voice.session_event') return () => undefined
+        const listener = callback as (payload: VoiceSessionEvent) => void
+        listeners.add(listener)
         return () => {
-          listeners.delete(callback)
+          listeners.delete(listener)
         }
       }
     }

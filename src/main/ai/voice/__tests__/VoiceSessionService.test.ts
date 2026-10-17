@@ -25,7 +25,8 @@ import {
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   WINDOWS_ASR_MODEL_ID,
-  WINDOWS_TTS_MODEL_ID
+  WINDOWS_TTS_MODEL_ID,
+  QWEN3_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 
 import type * as LocalAdapters from '../localAdapters'
@@ -268,6 +269,114 @@ describe('VoiceSessionService file and admission contract', () => {
     }
     return { input: request, result: await service.speech(ownerValue, request) }
   }
+
+  it('publishes a stream before producer completion, isolates owners and retains playback until acknowledged EOF', async () => {
+    const finished = Promise.withResolvers<void>()
+    const adapters = await import('../localAdapters')
+    vi.spyOn(adapters, 'getSpeechOperations').mockReturnValue([
+      {
+        input: 'text',
+        output: 'pcm-stream',
+        start: () => ({
+          output: Promise.resolve({
+            kind: 'pcm-stream',
+            format: { sampleRate: 24000, channels: 1 },
+            chunks: (async function* () {
+              yield { startFrame: 0, samples: new Float32Array(4096).fill(0.2) }
+              await finished.promise
+            })()
+          }),
+          completed: finished.promise,
+          closed: finished.promise,
+          cancel: async () => {
+            finished.resolve()
+          }
+        })
+      }
+    ])
+    const { input, result } = await speech(a, {
+      modelId: QWEN3_TTS_MODEL_ID,
+      voice: 'ryan',
+      language: 'en-US',
+      preferStream: true
+    })
+    expect(result.output).toMatchObject({ kind: 'pcm-stream', sampleRate: 24000, channels: 1 })
+    expect(result.playback.synthesis).toBe('generating')
+    const identity = { sessionId: input.sessionId, requestId: input.requestId, attemptId: result.playback.attemptId }
+    expect(runtime.send.mock.calls.filter((call) => call[1] === 'ai.voice.stream_event')).toEqual([])
+    expect(() => service.attachStream(owner(), identity)).toThrow('forbidden_owner')
+    service.attachStream(a, identity)
+    await vi.waitFor(() => expect(runtime.send.mock.calls.some((call) => call[2].type === 'pcm')).toBe(true))
+    await service.reportPlayback(a, { ...identity, commandRevision: 0, phase: 'playing' })
+    finished.resolve()
+    await vi.waitFor(() =>
+      expect(service.getState(a)).toMatchObject({ phase: 'playing', playback: { synthesis: 'completed' } })
+    )
+    service.acknowledgeStream(a, { ...identity, attemptId: identity.attemptId + 1, frames: 4096 })
+    await expect(
+      service.reportPlayback(a, { ...identity, commandRevision: 0, phase: 'completed' })
+    ).rejects.toMatchObject({ reason: 'invalid_request' })
+    service.acknowledgeStream(a, { ...identity, frames: 4096 })
+    await expect(
+      service.reportPlayback(a, { ...identity, commandRevision: 0, phase: 'completed' })
+    ).resolves.toMatchObject({ phase: 'idle' })
+  })
+
+  it('closes the old stream before retry admission and gives the replacement a fresh attempt', async () => {
+    const adapters = await import('../localAdapters')
+    const lifetimes: Array<ReturnType<typeof Promise.withResolvers<void>>> = []
+    vi.spyOn(adapters, 'getSpeechOperations').mockReturnValue([
+      {
+        input: 'text',
+        output: 'pcm-stream',
+        start: () => {
+          const lifetime = Promise.withResolvers<void>()
+          lifetimes.push(lifetime)
+          return {
+            output: Promise.resolve({
+              kind: 'pcm-stream',
+              format: { sampleRate: 24000, channels: 1 },
+              chunks: (async function* () {
+                await lifetime.promise
+                yield { startFrame: 0, samples: new Float32Array(1) }
+              })()
+            }),
+            completed: lifetime.promise,
+            closed: lifetime.promise,
+            cancel: async () => {
+              lifetime.resolve()
+            }
+          }
+        }
+      }
+    ])
+    const { input, result } = await speech(a, {
+      modelId: QWEN3_TTS_MODEL_ID,
+      voice: 'ryan',
+      language: 'en-US',
+      preferStream: true,
+      chunkIndex: 0,
+      chunkCount: 1
+    })
+    await service.reportPlayback(a, {
+      sessionId: input.sessionId,
+      attemptId: result.playback.attemptId,
+      commandRevision: 0,
+      phase: 'failed'
+    })
+    const retry = await service.controlPlayback(a, { sessionId: input.sessionId, command: 'retry' })
+    expect(retry.phase).not.toBe('idle')
+    if (retry.phase === 'idle') throw new Error('Missing retry admission')
+    const replacement = await service.speech(a, {
+      ...input,
+      requestId: randomUUID(),
+      retryAttemptId: retry.playback!.attemptId
+    })
+    expect(replacement.playback.attemptId).toBeGreaterThan(result.playback.attemptId)
+    expect(lifetimes).toHaveLength(2)
+    await service.discard(a, input.sessionId)
+    expect(service.getState(a).phase).toBe('idle')
+  })
   async function report(
     ownerValue: VoiceOwner,
     input: {
@@ -358,7 +467,7 @@ describe('VoiceSessionService file and admission contract', () => {
         service.speech(a, { ...first.input, ...change, requestId: randomUUID(), chunkIndex: 1 })
       ).rejects.toMatchObject({ reason: 'invalid_request' })
       const second = await service.speech(a, { ...first.input, requestId: randomUUID(), chunkIndex: 1 })
-      expect(second.output.mimeType).toBe('audio/wav')
+      expect(second.output).toMatchObject({ kind: 'audio', mimeType: 'audio/wav' })
     }
   )
 
@@ -1328,7 +1437,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(await readdir(directory)).toEqual([])
     expect((await stat(directory)).mode & 0o777).toBe(0o700)
     expect(await readFile(sibling)).toEqual(wav())
-    expect((await speech()).result.output.mimeType).toBe('audio/wav')
+    expect((await speech()).result.output).toMatchObject({ kind: 'audio', mimeType: 'audio/wav' })
   })
 
   it('drains scratch work before restart reconciliation removes stale directories', async () => {
@@ -1359,7 +1468,7 @@ describe('VoiceSessionService file and admission contract', () => {
     await stop
     await service._doInit()
     expect(await readdir(application.getPath('feature.voice.temp'))).toEqual([])
-    expect((await speech()).result.output.mimeType).toBe('audio/wav')
+    expect((await speech()).result.output).toMatchObject({ kind: 'audio', mimeType: 'audio/wav' })
   })
 
   it('keeps state events and structured logs free of text, transcript, bytes, and paths', async () => {
@@ -1758,7 +1867,7 @@ describe('VoiceSessionService file and admission contract', () => {
       text: 'speech',
       voice: 'exact'
     })
-    expect(result.output.mimeType).toBe('audio/wav')
+    expect(result.output.kind === 'audio' && result.output.mimeType).toBe('audio/wav')
   })
 
   it('preserves an explicit cross-platform speech selection when its readiness rejects it', async () => {

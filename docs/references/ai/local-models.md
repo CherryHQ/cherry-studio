@@ -45,7 +45,8 @@ src/main/ai/localModel/
     ├── capabilityHooks.ts         ← removal behavior keyed by capability
     ├── embedding/                 ← facade, protocol, pooling, model paths, limits
     ├── ocr/                       ← facade, protocol, model paths
-    └── asr/                       ← facade, protocol, FunASR model paths
+    ├── asr/                       ← facade, protocol, FunASR model paths
+    └── tts/                       ← facade, complete WAV and bounded PCM contracts
 ```
 
 ## The catalog is the only per-model code
@@ -252,7 +253,8 @@ runtime profile; `UtilityProcessManager` owns spawning, cancellation, idle relea
   a process's execution provider is fixed at session creation.
 - **One request at a time** through a `concurrency: 1` queue. A single native inference
   session gains nothing from concurrent calls, and this lets several callers reach the same
-  instance with no other coordination.
+  instance with no other coordination. A streamed execution retains its slot until `closed`,
+  including cancellation cleanup; returning its handle does not release the queue.
 - **Terminate cancellation** for inference, so aborting a native call cannot leave it running.
 - **Idle release** after 60s and process teardown during application shutdown.
 
@@ -352,8 +354,8 @@ rather than on a user's machine.
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.
-- No streaming inference. Every request is one round trip with a complete result; a
-  transcription capability that wants partial output would add a response frame type.
+- ASR, embedding and OCR still return complete results. Qwen3-TTS also supports bounded PCM
+  output; continuous ASR input and transcription revisions are separate capabilities.
 
 
 ## Downloadable Qwen3-TTS
@@ -383,8 +385,27 @@ providers; Sherpa 1.13.6 does not implement Qwen3-TTS.
 
 The MLX utility process loads one model directory at a time and exits after 60 seconds idle.
 Cancellation terminates and awaits the process so native work and its allocator cannot outlive
-ownership. The adapter currently returns a complete WAV through the existing media/playback
-path; native audio chunks do not imply application-level streaming (#21662).
+ownership. The adapter offers both complete WAV and `pcm-stream` output. Preview and read-aloud
+prefer PCM when the selected model declares it; other adapters retain complete audio.
+
+`TtsInferenceService.stream()` publishes a typed execution handle while keeping its queue slot
+through child cleanup. The child sends the authoritative format before interleaved Float32 PCM,
+applies speed conversion once, and splits writes into at most 4,096 source frames. MLX uses a
+one-second native audio buffer and two queued text segments. Utility-process output is capped at
+four messages / 131,072 bytes, with one pending writer and a 65,536-byte message limit.
+
+Playback attaches after installing its listener and Worklet. Main limits outstanding renderer
+audio to one second of source frames; cumulative acknowledgements represent actual Worklet
+consumption, so pausing propagates backpressure to inference. Playback starts after 500 ms of
+source audio, or EOF for shorter clips, within the same one-second capacity. The AudioContext uses the source
+sample rate and lets the browser resample for the output device. Producer EOF and playback drain
+are separate: the session remains owned until the final source frame is consumed and the output
+timestamp passes the tail. PCM does not create a full WAV or enter the media cache.
+
+Model loading and unblocked producer reads have 120-second budgets. Attachment has a 15-second
+budget, and a stream retains resources for at most 15 minutes, including pauses. The existing
+five-minute generated-audio limit still applies to complete WAV requests; PCM is bounded by stream retention. Explicit playback retry closes the previous
+execution before generating a new attempt with the frozen voice, language and speed.
 
 Voice identity and synthesis language are separate. `locale` is the voice's default; optional
 `languages` enumerates its supported synthesis languages. Without `languages`, a system voice

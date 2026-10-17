@@ -4,7 +4,10 @@ import { pathToFileURL } from 'node:url'
 import type * as MlxTtsRuntime from '@cherrystudio/mlx-tts'
 import type { TtsModel } from '@cherrystudio/mlx-tts'
 import type { TtsInferenceContract, TtsInitData } from '@main/ai/localModel/capabilities/tts/protocol'
-import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
+import type {
+  UtilityProcessHandlers,
+  UtilityProcessStreamHandlers
+} from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 
 import { KokoroTts } from './KokoroTts'
 
@@ -90,6 +93,57 @@ export const ttsHandlers: UtilityProcessHandlers<TtsInferenceContract> = {
       }
     } finally {
       await writer.close()
+    }
+  }
+}
+
+export const ttsStreamHandlers: UtilityProcessStreamHandlers<TtsInferenceContract> = {
+  async synthesize(input, { signal, write }) {
+    const model = await loadModel(input.modelDir)
+    signal.throwIfAborted()
+    const { sampleRate, channels } = model.capabilities
+    await write({ metadata: { type: 'format', sampleRate, channels } })
+    const stream = model.synthesizeStream(input.text, {
+      voice: input.voice,
+      language: input.language,
+      signal,
+      maxDurationSeconds: 120,
+      chunkDurationMs: 160,
+      audioBufferSeconds: 1,
+      queuedSegments: 2
+    })
+    const completed = stream.completed.then(
+      (result) => ({ result }),
+      (error) => ({ error })
+    )
+    let frames = 0
+    try {
+      for await (const chunk of runtime!.changeAudioSpeed(stream, input.speed)) {
+        signal.throwIfAborted()
+        if (
+          chunk.sampleRate !== sampleRate ||
+          chunk.channels !== channels ||
+          chunk.startSample !== frames ||
+          chunk.samples.length % channels
+        )
+          throw new Error('Invalid speech PCM sequence')
+        const frameCount = chunk.samples.length / channels
+        for (let offset = 0; offset < frameCount; offset += 4096) {
+          const samples = chunk.samples.subarray(offset * channels, Math.min(offset + 4096, frameCount) * channels)
+          await write({
+            metadata: { type: 'pcm', startFrame: frames + offset },
+            payload: new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength)
+          })
+        }
+        frames += frameCount
+      }
+      const outcome = await completed
+      if ('error' in outcome) throw outcome.error
+      if (outcome.result.finishReason !== 'eos') throw new Error('Speech output was truncated')
+      return { frames }
+    } finally {
+      stream.cancel()
+      await completed
     }
   }
 }

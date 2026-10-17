@@ -2,14 +2,17 @@ import { loggerService } from '@logger'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoicePlaybackState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
+import type { OutputFor } from '@shared/ipc/types'
 
-import { createAudioSpectrum, type AudioSpectrum } from './audioSpectrum'
+import { FinitePlayback } from './FinitePlayback'
+import { PcmPlayback } from './PcmPlayback'
 import {
   planReadableText,
   type ReadableTextMode,
   type ReadableTextPlan,
   type ReadableTextTrigger
 } from './readableText'
+import type { SpeechPlayback } from './speechPlaybackTypes'
 import {
   VoiceDomainError,
   type SpeechPreferenceInput,
@@ -54,6 +57,9 @@ export type SpeechPlaybackStartResult =
 
 type PlaybackVoiceService = Pick<
   VoiceService,
+  | 'subscribeStream'
+  | 'attachStream'
+  | 'acknowledgeStream'
   | 'initialize'
   | 'readSpeechPreferenceInput'
   | 'subscribeCommands'
@@ -97,17 +103,19 @@ interface PlaybackRun {
   operation?: VoiceOperation<unknown>
   audioFailureRevision: number
   playAttempt?: Promise<void>
+  preparing?: Promise<void>
   playCommandRevision?: number
   outputId?: string
-  outputUrl?: string
-  audio?: HTMLAudioElement
-  spectrum?: AudioSpectrum
+  output?: OutputFor<'ai.speech.generate'>['output']
+  requestId?: string
+  audio?: SpeechPlayback
+  audioCleanup?: Promise<void>
   ended?: EventListener
   failed?: EventListener
   cleanup?: Promise<void>
   cleanupError?: VoiceDomainError
   detachAbort?: () => void
-  pendingEnded?: HTMLAudioElement
+  pendingEnded?: SpeechPlayback
 }
 
 const logger = loggerService.withContext('SpeechPlaybackService')
@@ -172,6 +180,11 @@ export class SpeechPlaybackService {
     if (this.initialization) return this.initialization
     const generation = this.lifecycleGeneration
     this.unsubscribeState = this.voice.subscribe(() => {
+      const state = this.voice.getSnapshot()
+      if (state.phase !== 'idle' && state.playback?.failure) {
+        const run = this.runs.get(state.sessionId)
+        if (run?.output?.kind === 'pcm-stream') void this.disposeAudio(run).catch(() => undefined)
+      }
       if (this.visibleRun) this.publish(this.visibleRun)
     })
     this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
@@ -181,7 +194,7 @@ export class SpeechPlaybackService {
       this.runs.forEach((run) => {
         if (!run.stopped) {
           run.interrupted = true
-          run.audio?.pause()
+          void run.audio?.pause().catch(() => undefined)
         }
       })
     })
@@ -354,6 +367,8 @@ export class SpeechPlaybackService {
       ...(sessionId && { sessionId }),
       ...(preferences.modelId && { modelId: preferences.modelId }),
       text: chunks[index],
+      preferStream: true,
+      remainingText: chunks.slice(index + 1),
       ...(preferences.voice && { voice: preferences.voice }),
       ...(preferences.language && { language: preferences.language }),
       speed: preferences.speed,
@@ -391,7 +406,8 @@ export class SpeechPlaybackService {
         run.speed = result.resolved.speed
       }
       run.outputId = result.output.id
-      run.outputUrl = result.output.url
+      run.output = result.output
+      run.requestId = result.requestId
       this.acceptTarget(run, result.playback)
       await this.executeTarget(run)
     } catch (error) {
@@ -448,27 +464,78 @@ export class SpeechPlaybackService {
       return
     }
     if (run.releasing) return
-    if (run.outputUrl && run.audioAttemptId !== target.attemptId) {
-      this.disposeAudio(run)
-      run.playAttempt = undefined
-      run.failedAttempt = undefined
-      const audio = this.createAudio(run.outputUrl)
-      run.audio = audio
-      run.spectrum = createAudioSpectrum(audio)
-      run.audioAttemptId = target.attemptId
-      run.ended = () => void this.handleEnded(run, audio)
-      run.failed = () => void this.failPlayback(run, 'operation_failed', audio)
-      audio.addEventListener('ended', run.ended)
-      audio.addEventListener('error', run.failed)
+    if (target.pendingCommand === 'retry' && run.output?.kind === 'pcm-stream') {
+      await this.disposeAudio(run)
+      if (run.stopped || run.operation) return
+      run.output = undefined
+      run.outputId = undefined
+      run.index = 0
+      run.completed = 0
+      const operation = this.voice.generateSpeech({
+        ...this.speechInput(
+          { text: '', trigger: run.trigger, sourceLabel: run.sourceLabel, sourceEntityId: run.sourceEntityId },
+          { modelId: run.modelId, voice: run.voice, language: run.language, speed: run.speed ?? 1 },
+          run.chunks,
+          0,
+          run.sessionId
+        ),
+        retryAttemptId: target.attemptId
+      })
+      run.operation = operation
+      await this.finishGeneration(run, operation)
+      return
     }
+    if (run.output && run.audioAttemptId !== target.attemptId) await this.preparePlayback(run)
+    if (run.stopped) return
     if (this.isPaused(run)) {
-      run.audio?.pause()
+      await run.audio?.pause()
       await this.report(run, 'paused')
     } else if (run.audio) {
       await this.playAudio(run)
     } else if (!run.operation) {
       await this.generateNext(run)
     }
+  }
+
+  private preparePlayback(run: PlaybackRun): Promise<void> {
+    if (run.preparing) return run.preparing.then(() => this.preparePlayback(run))
+    const target = run.target!
+    const preparing = (async () => {
+      if (run.output && run.audioAttemptId !== target.attemptId) {
+        await this.disposeAudio(run)
+        if (run.stopped) return
+        run.playAttempt = undefined
+        run.failedAttempt = undefined
+        let audio: SpeechPlayback
+        switch (run.output.kind) {
+          case 'audio':
+            audio = new FinitePlayback(this.createAudio(run.output.url))
+            break
+          case 'pcm-stream':
+            audio = new PcmPlayback(
+              { sessionId: run.sessionId, requestId: run.requestId!, attemptId: target.attemptId },
+              run.output,
+              run.output.capacityFrames,
+              {
+                subscribe: this.voice.subscribeStream.bind(this.voice),
+                attach: this.voice.attachStream.bind(this.voice),
+                acknowledge: this.voice.acknowledgeStream.bind(this.voice)
+              }
+            )
+            break
+        }
+        run.audio = audio
+        run.audioAttemptId = target.attemptId
+        run.ended = () => void this.handleEnded(run, audio)
+        run.failed = () => void this.failPlayback(run, 'operation_failed', audio)
+        audio.addEventListener('ended', run.ended)
+        audio.addEventListener('error', run.failed)
+      }
+    })().finally(() => {
+      if (run.preparing === preparing) run.preparing = undefined
+    })
+    run.preparing = preparing
+    return preparing
   }
 
   private report(
@@ -504,7 +571,7 @@ export class SpeechPlaybackService {
 
   private async performPlay(
     run: PlaybackRun,
-    audio: HTMLAudioElement | undefined,
+    audio: SpeechPlayback | undefined,
     target: VoicePlaybackState,
     failureRevision: number
   ): Promise<void> {
@@ -516,11 +583,6 @@ export class SpeechPlaybackService {
     assertPlayable()
     if (this.isPaused(run)) return
     try {
-      if (run.spectrum) {
-        await run.spectrum.resume()
-        assertPlayable()
-        if (this.isPaused(run)) return
-      }
       await audio.play()
     } catch (error) {
       assertPlayable()
@@ -534,7 +596,7 @@ export class SpeechPlaybackService {
     }
     assertPlayable()
     if (this.isPaused(run)) {
-      audio.pause()
+      await audio.pause()
       return
     }
     await this.report(run, 'playing', undefined, target)
@@ -548,7 +610,7 @@ export class SpeechPlaybackService {
     void this.handleEnded(run, audio)
   }
 
-  private async handleEnded(run: PlaybackRun, audio: HTMLAudioElement): Promise<void> {
+  private async handleEnded(run: PlaybackRun, audio: SpeechPlayback): Promise<void> {
     if (run.stopped || run.audio !== audio || run.releasing || !run.outputId) return
     if (run.playAttempt || run.operation) {
       run.pendingEnded = audio
@@ -557,16 +619,17 @@ export class SpeechPlaybackService {
     if (run.failedAttempt === run.audioAttemptId) return
     run.releasing = true
     const outputId = run.outputId
-    this.disposeAudio(run)
     try {
+      await this.disposeAudio(run)
       try {
         await this.report(run, 'ended')
-        await this.voice.releaseOutput({ sessionId: run.sessionId, outputId })
+        if (run.output?.kind === 'audio') await this.voice.releaseOutput({ sessionId: run.sessionId, outputId })
         this.assertCurrent(run)
         run.outputId = undefined
-        run.outputUrl = undefined
-        run.completed += 1
-        run.index += 1
+        const count = run.output?.kind === 'pcm-stream' ? run.chunks.length : 1
+        run.output = undefined
+        run.completed += count
+        run.index += count
       } finally {
         run.releasing = false
       }
@@ -607,7 +670,7 @@ export class SpeechPlaybackService {
     const attemptId = run.target?.attemptId
     run.failedAttempt = attemptId
     run.audioFailureRevision += 1
-    audio?.pause()
+    await audio?.pause().catch(() => undefined)
     try {
       await this.report(run, 'failed', reason)
     } catch (error) {
@@ -667,9 +730,10 @@ export class SpeechPlaybackService {
     run.detachAbort?.()
     run.detachAbort = undefined
     run.cleanupError = undefined
-    this.disposeAudio(run)
+    const localCleanup = this.disposeAudio(run)
     const cleanup = (async () => {
       const tasks = [
+        localCleanup,
         run.target?.desired === 'stopped'
           ? this.report(run, 'stopped').then(() => undefined)
           : this.voice.discardSession(run.sessionId)
@@ -712,25 +776,26 @@ export class SpeechPlaybackService {
     this.publishFailure(run.sourceLabel, run.chunks.length, reason)
   }
 
-  private disposeAudio(run: PlaybackRun): void {
+  private disposeAudio(run: PlaybackRun): Promise<void> {
     run.pendingEnded = undefined
     const audio = run.audio
-    if (audio) {
-      audio.pause()
-      if (run.ended) audio.removeEventListener('ended', run.ended)
-      if (run.failed) audio.removeEventListener('error', run.failed)
-      audio.removeAttribute('src')
-      audio.load()
-    }
-    run.spectrum?.dispose()
-    run.spectrum = undefined
     run.audio = undefined
     run.audioAttemptId = undefined
+    if (audio) {
+      if (run.ended) audio.removeEventListener('ended', run.ended)
+      if (run.failed) audio.removeEventListener('error', run.failed)
+    }
     run.ended = undefined
     run.failed = undefined
+    if (!audio) return run.audioCleanup ?? Promise.resolve()
+    const cleanup = audio.close().then(() => {
+      if (run.audioCleanup === cleanup) run.audioCleanup = undefined
+    })
+    run.audioCleanup = cleanup
+    return cleanup
   }
 
-  private assertCurrent(run: PlaybackRun, audio?: HTMLAudioElement): void {
+  private assertCurrent(run: PlaybackRun, audio?: SpeechPlayback): void {
     if (
       run.stopped ||
       run.generation !== this.lifecycleGeneration ||
@@ -758,7 +823,7 @@ export class SpeechPlaybackService {
       phase: state.phase as Exclude<SpeechPlaybackPhase, 'idle'>,
       sourceLabel: run.sourceLabel,
       progress: { completed: run.completed, total: run.chunks.length },
-      ...(run.spectrum && { analyser: run.spectrum.analyser }),
+      ...(run.audio?.analyser && { analyser: run.audio.analyser }),
       ...(state.playback.failure && { error: state.playback.failure.reason })
     })
   }
