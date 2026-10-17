@@ -17,9 +17,9 @@ import {
   toolResults,
   untilStopped,
   waitFor
-} from './subagentSupport'
-import { createTestSession, finish, hostStore, plain, streamTextPort, textParts } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, hostStore, plain, streamTextPort, textParts } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 const BG_B = { description: 'Check B', prompt: 'TASK-B', background: true }
@@ -292,7 +292,7 @@ describe('stopping subagents', () => {
       port: streamTextPort(model).port,
       tools: [slowWork],
       subagents: host.port,
-      transcript: plain(parent.entries)
+      entries: plain(parent.entries)
     })
     await rebuilt.prompt('Go on with A')
     const refused = toolResultOf(rebuilt.session, 'call_msg')
@@ -367,7 +367,7 @@ describe('stopping subagents', () => {
       port: streamTextPort(model).port,
       tools: [slowWork],
       subagents: host.port,
-      transcript: plain(parent.entries)
+      entries: plain(parent.entries)
     })
     await rebuilt.prompt('And now?')
     expect(notified(calls)).toEqual([])

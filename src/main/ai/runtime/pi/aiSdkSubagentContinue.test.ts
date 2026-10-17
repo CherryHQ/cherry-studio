@@ -1,8 +1,8 @@
 import { Type } from '@earendil-works/pi-ai'
-import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { SessionEntry } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, defineTool, type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { TranscriptEntry } from '../src'
 import {
   gate,
   NOTE,
@@ -19,9 +19,9 @@ import {
   toolResults,
   untilStopped,
   waitFor
-} from './subagentSupport'
-import { createTestSession, finish, hostStore, MODEL, streamTextPort } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, hostStore, MODEL, streamTextPort, tempDir } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
@@ -33,49 +33,57 @@ const message = (toolCallId: string, id: string, text: string) => [
 describe('continuing a finished subagent', () => {
   // Breaks when a continuation starts from an empty context instead of the stored transcript, runs
   // in the foreground, sends no notification, or gives the host other settings than the first run.
-  it('continues it in the background from its stored transcript and notifies the parent', async () => {
-    const host = storingSubagentPort()
-    const parent = hostStore()
-    const { model, calls } = routedModel(({ userText, lastText }) => {
-      if (userText.includes('TASK-A')) return reply(lastText === 'ALSO-CHECK-C' ? 'REPORT-C' : 'REPORT-A')
-      if (lastText === 'Check A') return [subagentCall('call_a', TASK_A), finish('tool-calls')]
-      if (lastText === 'Ask A to check C') return message('call_msg', host.subagents[0].sessionId, 'ALSO-CHECK-C')
-      return reply('OK.')
-    })
-    const { session } = await createTestSession({
-      port: streamTextPort(model).port,
-      subagents: host.port,
-      onEvent: parent.onEvent
-    })
-    await session.prompt('Check A')
-    await session.prompt('Ask A to check C')
-    await waitFor(() => notified(calls).length === 1)
+  it.each([false, true])(
+    'continues native child storage and notifies the parent (persistent: %s)',
+    async (persistent) => {
+      const host = storingSubagentPort()
+      const parent = hostStore()
+      const cwd = tempDir('parent')
+      const { model, calls } = routedModel(({ userText, lastText }) => {
+        if (userText.includes('TASK-A')) return reply(lastText === 'ALSO-CHECK-C' ? 'REPORT-C' : 'REPORT-A')
+        if (lastText === 'Check A') return [subagentCall('call_a', TASK_A), finish('tool-calls')]
+        if (lastText === 'Ask A to check C') return message('call_msg', host.subagents[0].sessionId, 'ALSO-CHECK-C')
+        return reply('OK.')
+      })
+      const { session } = await createTestSession({
+        cwd,
+        sessionManager: persistent ? SessionManager.create(cwd, tempDir('children')) : undefined,
+        port: streamTextPort(model).port,
+        subagents: host.port,
+        onEvent: parent.onEvent
+      })
+      await session.prompt('Check A')
+      await session.prompt('Ask A to check C')
+      await waitFor(() => notified(calls).length === 1)
 
-    const { sessionId } = host.subagents[0]
-    expect(textOf(toolResultOf(session, 'call_msg'))).toBe(
-      `Subagent ${sessionId} resumed in the background with your message; you will be notified when it finishes.`
-    )
-    const resumed = calls.filter((call) => call.userText.includes('TASK-A')).at(-1)!
-    expect(resumed.lastText).toBe('ALSO-CHECK-C')
-    expect(resumed.options.prompt.some((entry) => JSON.stringify(entry).includes('REPORT-A'))).toBe(true)
-    expect(host.subagents[1]).toEqual({
-      parentToolCallId: 'call_a',
-      continuedBy: 'call_msg',
-      sessionId,
-      description: 'Check A',
-      fork: false,
-      background: true,
-      modelKey: MODEL.key
-    })
-    expect(subagentStates(parent.entries).map((state) => [state.run, state.status])).toEqual([
-      [2, 'running'],
-      [2, 'finished']
-    ])
-    expect(notified(calls)[0].lastText).toBe(`${NOTE}\n\n- "Check A" (id: ${sessionId}) completed:\n  REPORT-C`)
-    const stored = host.transcripts.get(sessionId)!
-    expect(stored.filter((entry) => entry.kind === 'state' && entry.type === 'cherry.subagent-origin')).toHaveLength(1)
-    expect(new Set(stored.map((entry) => entry.id)).size).toBe(stored.length)
-  })
+      const { sessionId } = host.subagents[0]
+      expect(textOf(toolResultOf(session, 'call_msg'))).toBe(
+        `Subagent ${sessionId} resumed in the background with your message; you will be notified when it finishes.`
+      )
+      const resumed = calls.filter((call) => call.userText.includes('TASK-A')).at(-1)!
+      expect(resumed.lastText).toBe('ALSO-CHECK-C')
+      expect(resumed.options.prompt.some((entry) => JSON.stringify(entry).includes('REPORT-A'))).toBe(true)
+      expect(host.subagents[1]).toEqual({
+        parentToolCallId: 'call_a',
+        continuedBy: 'call_msg',
+        sessionId,
+        description: 'Check A',
+        fork: false,
+        background: true,
+        modelKey: `${MODEL.provider}/${MODEL.id}`
+      })
+      expect(subagentStates(parent.entries).map((state) => [state.run, state.status])).toEqual([
+        [2, 'running'],
+        [2, 'finished']
+      ])
+      expect(notified(calls)[0].lastText).toBe(`${NOTE}\n\n- "Check A" (id: ${sessionId}) completed:\n  REPORT-C`)
+      const stored = host.branches.get(sessionId)!
+      expect(
+        stored.filter((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-origin')
+      ).toHaveLength(1)
+      expect(new Set(stored.map((entry) => entry.id)).size).toBe(stored.length)
+    }
+  )
 
   // Breaks when stop_subagent ends a subagent for good, or a subagent the user stopped can be revived.
   it('continues a subagent the model stopped but refuses one the user stopped', async () => {
@@ -238,8 +246,8 @@ describe('continuing a finished subagent', () => {
     expect(toolResultOf(runtime.session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
     // What the host holds when the app closed while `work` ran: the reply with the call, no result.
     const { sessionId } = host.subagents[0]
-    const stored = host.transcripts.get(sessionId)!
-    const cut = stored.findIndex((entry) => entry.kind === 'message' && entry.message.role === 'assistant')
+    const stored = host.branches.get(sessionId)!
+    const cut = stored.findIndex((entry) => entry.type === 'message' && entry.message.role === 'assistant')
     stored.splice(cut + 1)
 
     await runtime.prompt('Go on with A')
@@ -256,7 +264,7 @@ describe('continuing a finished subagent', () => {
       'Your previous run was interrupted. Check the current state of the workspace first and do not redo work that is already done.\n\nGO-ON'
     )
     expect(
-      stored.filter((entry: TranscriptEntry) => entry.kind === 'message' && entry.message.role === 'tool')
+      stored.filter((entry: SessionEntry) => entry.type === 'message' && entry.message.role === 'toolResult')
     ).toHaveLength(1)
   })
 
@@ -281,8 +289,13 @@ describe('continuing a finished subagent', () => {
 
   // Breaks when a missing transcript lets a continuation start from nothing, or the failed
   // continuation keeps its background slot (review focus: the cap would fill with failures).
-  it('fails when the host cannot load the transcript, and frees the slot', async () => {
+  it.each(['missing', 'wrong-id'])('refuses %s child storage and frees the slot', async (failure) => {
     const host = storingSubagentPort()
+    if (failure === 'wrong-id')
+      host.port.load = async (id) => {
+        const manager = host.sessions.get(id)!.sessionManager
+        return SessionManager.inMemory(manager.getCwd(), undefined, manager.getBranch())
+      }
     const { model } = routedModel(({ userText, lastText }) => {
       if (userText.includes('TASK-')) return reply('REPORT')
       if (lastText === 'Check A') return [subagentCall('call_a', TASK_A), finish('tool-calls')]
@@ -299,11 +312,11 @@ describe('continuing a finished subagent', () => {
       subagents: { ...host.port, maxBackground: 1 }
     })
     await session.prompt('Check A')
-    host.transcripts.delete(host.subagents[0].sessionId)
+    if (failure === 'missing') host.branches.delete(host.subagents[0].sessionId)
     await session.prompt('Ask A again')
 
     expect(textOf(toolResultOf(session, 'call_msg'))).toBe(
-      `Subagent ${host.subagents[0].sessionId} cannot be continued: its transcript is not available.`
+      `Subagent ${host.subagents[0].sessionId} cannot be continued: its native session is not available.`
     )
     await session.prompt('Check B in the background')
     expect(textOf(toolResultOf(session, 'call_b'))).toMatch(/^Subagent started in the background/)

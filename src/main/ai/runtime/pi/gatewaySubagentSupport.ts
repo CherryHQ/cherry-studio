@@ -1,6 +1,7 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3Message, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type, type ToolResultMessage } from '@earendil-works/pi-ai'
-import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { SessionEntry } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, defineTool, type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 
@@ -11,10 +12,10 @@ import {
   type SubagentPort,
   type SubagentSessionOptions,
   type SubagentState,
-  type SubagentView,
-  type TranscriptEntry
-} from '../src'
-import { finish, textParts } from './support'
+  type SubagentView
+} from '@cherrystudio/agent-runtime-pi'
+
+import { finish, textParts } from './aiSdkSupport'
 
 export interface RoutedCall {
   /** Role of the last prompt message: `user` on a new request, `tool` after tool results. */
@@ -138,31 +139,44 @@ export function recordingSubagentPort(
   return { port, subagents, events, sessions }
 }
 
-/**
- * A host port that also stores every subagent's transcript, as the host persists it (JSON copies,
- * appended per `sessionId` across runs), and loads it back to continue the subagent.
- */
+/** Native branch snapshots for crash fixtures; persistent managers reopen their own files. */
 export function storingSubagentPort(
   extra: (subagent: Subagent) => SubagentSessionOptions | Promise<SubagentSessionOptions> = () => ({})
 ) {
   const recording = recordingSubagentPort(extra)
-  const transcripts = new Map<string, TranscriptEntry[]>()
+  const branches = new Map<string, SessionEntry[]>()
   const port: SubagentPort = {
     async configure(subagent) {
       const options = await recording.port.configure(subagent)
-      const stored = transcripts.get(subagent.sessionId) ?? []
-      transcripts.set(subagent.sessionId, stored)
+      const stored = branches.get(subagent.sessionId) ?? []
+      branches.set(subagent.sessionId, stored)
+      let manager: SessionManager | undefined
+      const snapshot = () => {
+        if (manager) stored.splice(0, stored.length, ...JSON.parse(JSON.stringify(manager.getBranch())))
+      }
       return {
         ...options,
-        onEvent: (event) => {
-          if (event.type === 'transcript-append') stored.push(...JSON.parse(JSON.stringify(event.entries)))
+        onSessionCreated(session) {
+          manager = session.sessionManager
+          snapshot()
+          options.onSessionCreated?.(session)
+        },
+        onEvent(event) {
+          snapshot()
           options.onEvent?.(event)
         }
       }
     },
-    load: async (sessionId) => transcripts.get(sessionId)
+    async load(id) {
+      const entries = branches.get(id)
+      const manager = recording.sessions.get(id)?.sessionManager
+      if (!entries || !manager) return undefined
+      return manager.isPersisted()
+        ? SessionManager.open(manager.getSessionFile()!)
+        : SessionManager.inMemory(manager.getCwd(), { id }, entries)
+    }
   }
-  return { ...recording, port, transcripts }
+  return { ...recording, port, branches }
 }
 
 /** Tool results in a call's prompt, in order. */
@@ -250,9 +264,9 @@ export const noteTool = defineTool({
 })
 
 /** Every `cherry.subagent-state` snapshot in the parent's transcript, in order. */
-export const subagentStates = (entries: readonly TranscriptEntry[]): SubagentState[] =>
+export const subagentStates = (entries: readonly SessionEntry[]): SubagentState[] =>
   entries.flatMap((entry) =>
-    entry.kind === 'state' && entry.type === SUBAGENT_STATE_TYPE ? [entry.data as unknown as SubagentState] : []
+    entry.type === 'custom' && entry.customType === SUBAGENT_STATE_TYPE ? [entry.data as SubagentState] : []
   )
 
 /** The lists the parent's `subagents` events carried, in order. */
