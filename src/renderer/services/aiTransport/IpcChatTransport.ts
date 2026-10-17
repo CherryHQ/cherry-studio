@@ -1,7 +1,9 @@
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { providerErrorText } from '@renderer/utils/error'
 import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -79,7 +81,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     }
     if (result.status === 'error') {
       return new ReadableStream<UIMessageChunk>({
-        start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
+        start: (c) => c.error(new Error(providerErrorText(result.error).trim() || i18n.t('error.unknown')))
       })
     }
 
@@ -192,7 +194,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           ipcApi.on('ai.stream.error', (data) => {
             if (!matchesStream(data)) return
-            errorStream(new Error(data.error.message ?? 'Unknown stream error'))
+            errorStream(new Error(providerErrorText(data.error).trim() || i18n.t('error.unknown')))
           })
         )
 
