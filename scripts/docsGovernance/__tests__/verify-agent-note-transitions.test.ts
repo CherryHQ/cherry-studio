@@ -160,7 +160,9 @@ describe('Agent Note lifecycle transitions', () => {
   it.each([
     ['* AC2 — Second outcome. (verification: docs gate)'],
     ['+ AC2 — Second outcome. (verification: docs gate)'],
-    ['  - AC2 — Second outcome. (verification: docs gate)']
+    ['  - AC2 — Second outcome. (verification: docs gate)'],
+    ['- [ ] AC2 — Second outcome. (verification: docs gate)'],
+    ['- [x] AC2 — Second outcome. (verification: docs gate)']
   ])('rejects a source criterion with unsupported list syntax: %s', (entry) => {
     const malformed = proposed.replace('- AC2 — Second outcome. (verification: docs gate)', entry)
     const incomplete = implemented.replace('- AC2 — `pnpm docs:check`: catches documentation drift.\n', '')

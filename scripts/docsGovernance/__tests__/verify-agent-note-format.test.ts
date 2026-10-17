@@ -233,6 +233,8 @@ Risk.
     ['ordered', '1. AC2 — The failure case is rejected. (verification: unit)'],
     ['quoted', '> - AC2 — The failure case is rejected. (verification: unit)'],
     ['formatted', '- **AC2** — The failure case is rejected. (verification: unit)'],
+    ['unchecked task', '- [ ] AC2 — The failure case is rejected. (verification: unit)'],
+    ['checked task', '- [x] AC2 — The failure case is rejected. (verification: unit)'],
     ['multiline', '- AC2 — The failure case is rejected.\n  (verification: unit)']
   ])('rejects an AC entry using an unsupported %s syntax variant', (_name, entry) => {
     const unsupportedMarker = proposed

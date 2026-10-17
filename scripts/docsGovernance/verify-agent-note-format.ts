@@ -88,7 +88,10 @@ const parseEntries = (content: string, nodes: RootContent[], kind: 'acceptance' 
     const paragraph = entryParagraph(item)
     if (!paragraph) continue
     const labelPattern = kind === 'acceptance' ? /^(AC\d+)\b/u : /^(AC\d+|Regression)\b/u
-    const label = labelPattern.exec(visibleText(paragraph).trimStart())?.[1]
+    const entryText = visibleText(paragraph)
+      .trimStart()
+      .replace(/^\[[ xX]\]\s+/u, '')
+    const label = labelPattern.exec(entryText)?.[1]
     if (!label) continue
     if (!rootItems.has(item)) {
       malformed.push(label)
