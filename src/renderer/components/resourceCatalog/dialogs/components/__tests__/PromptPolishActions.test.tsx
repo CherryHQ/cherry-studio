@@ -318,17 +318,18 @@ describe('PromptPolishActions', () => {
     expect(onChange).toHaveBeenCalledWith('Polished prompt')
   })
 
-  it('does not apply a fallback response after the fallback source changes', async () => {
+  it('keeps a generated prompt after the fallback source changes, with undo to reject it', async () => {
     const request = deferredResponse()
     mocks.fetchGenerate.mockReturnValueOnce(request.promise)
-    const onChange = vi.fn()
-    render(<Harness initialValue="" fallbackSource="Alpha Agent" onChangeSpy={onChange} />)
+    render(<Harness initialValue="" fallbackSource="Alpha Agent" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'library.config.prompt.generate' }))
     fireEvent.click(screen.getByRole('button', { name: 'change fallback source' }))
     await act(async () => request.resolve('Generated Alpha instructions'))
 
-    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByTestId('value')).toHaveTextContent('Generated Alpha instructions')
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(screen.getByTestId('value')).toBeEmptyDOMElement()
   })
 
   it('does not apply a response after the action becomes disabled', async () => {

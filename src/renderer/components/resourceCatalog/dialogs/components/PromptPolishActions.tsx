@@ -61,17 +61,15 @@ export function PromptPolishActions({
   const usesFallback = !value.trim()
   const generationSource = usesFallback ? (fallbackSource?.trim() ?? '') : value
   const actionLabel = t(usesFallback ? 'library.config.prompt.generate' : 'library.config.prompt.polish')
-  const generationSourceRef = useRef(generationSource)
   const onChangeRef = useRef(onChange)
   const onRunningChangeRef = useRef(onRunningChange)
 
   useLayoutEffect(() => {
     valueRef.current = value
     disabledRef.current = disabled
-    generationSourceRef.current = generationSource
     onChangeRef.current = onChange
     onRunningChangeRef.current = onRunningChange
-  }, [disabled, generationSource, onChange, onRunningChange, value])
+  }, [disabled, onChange, onRunningChange, value])
 
   useEffect(() => {
     return () => {
@@ -161,7 +159,6 @@ export function PromptPolishActions({
         requestIdRef.current !== requestId ||
         controller.signal.aborted ||
         valueRef.current !== original ||
-        generationSourceRef.current !== source ||
         disabledRef.current
       ) {
         return
@@ -182,12 +179,7 @@ export function PromptPolishActions({
       setRestoreState({ original, polished })
       onChangeRef.current(polished)
     } catch (error) {
-      if (
-        requestIdRef.current !== requestId ||
-        valueRef.current !== original ||
-        generationSourceRef.current !== source ||
-        disabledRef.current
-      ) {
+      if (requestIdRef.current !== requestId || valueRef.current !== original || disabledRef.current) {
         return
       }
 
