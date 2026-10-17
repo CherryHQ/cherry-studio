@@ -222,13 +222,23 @@ export function isBareVertexApiHost(host: string): boolean {
 }
 
 /**
- * Normalise an Ollama base URL: strip trailing `/v1` / `/api` / `/chat`,
- * append `/api`.
+ * Matches one or more trailing `/api` segments so a pasted base URL that already
+ * carries the Ollama suffix does not double up, e.g. `/api`, `/api/api`.
+ */
+const TRAILING_API_SEGMENTS_REGEX = /(?:\/api)+$/
+
+/**
+ * Normalise an Ollama base URL to exactly one `/api` suffix.
+ *
+ * Only the literal `/api` suffix is stripped: path segments like `/api/ollama`
+ * or `/models` are the user's own proxy mount, not an endpoint to remove, and a
+ * single-label hostname may itself spell an endpoint word.
+ *
+ * @example
+ * formatOllamaApiHost('http://localhost:11434/api') // 'http://localhost:11434/api'
+ * formatOllamaApiHost('https://proxy.example.com/api/ollama') // 'https://proxy.example.com/api/ollama/api'
  */
 export function formatOllamaApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host)
-    ?.replace(/\/v1$/, '')
-    ?.replace(/\/api$/, '')
-    ?.replace(/\/chat$/, '')
+  const normalizedHost = withoutTrailingSlash(host).replace(TRAILING_API_SEGMENTS_REGEX, '')
   return formatApiHost(normalizedHost + '/api', false)
 }

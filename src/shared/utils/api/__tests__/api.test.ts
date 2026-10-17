@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatApiHost,
   formatApiKeys,
+  formatOllamaApiHost,
   getTrailingApiVersion,
   hasApiVersion,
   isBareVertexApiHost,
@@ -383,6 +384,45 @@ describe('api', () => {
       ''
     ])('treats %s as a user override', (host) => {
       expect(isBareVertexApiHost(host)).toBe(false)
+    })
+  })
+
+  describe('formatOllamaApiHost', () => {
+    it.each([
+      'http://localhost:11434',
+      'http://localhost:11434/',
+      'http://localhost:11434/api',
+      'http://localhost:11434/api/',
+      'http://localhost:11434/api/api'
+    ])('normalises %s to exactly one /api base', (host) => {
+      expect(formatOllamaApiHost(host)).toBe('http://localhost:11434/api')
+    })
+
+    it('keeps a path-scoped proxy prefix intact', () => {
+      expect(formatOllamaApiHost('https://proxy.example.com/ollama/api')).toBe('https://proxy.example.com/ollama/api')
+    })
+
+    it('does not treat a proxy mount segment as an endpoint', () => {
+      expect(formatOllamaApiHost('https://proxy.example.com/api/ollama')).toBe(
+        'https://proxy.example.com/api/ollama/api'
+      )
+    })
+
+    it('keeps a proxy mount that spells an endpoint word', () => {
+      expect(formatOllamaApiHost('https://proxy.example.com/models/api')).toBe('https://proxy.example.com/models/api')
+    })
+
+    it('keeps a single-label hostname that spells an endpoint word', () => {
+      expect(formatOllamaApiHost('http://models')).toBe('http://models/api')
+    })
+
+    it.each([
+      'http://localhost:11434/v1',
+      'http://localhost:11434/chat',
+      'http://localhost:11434/api/chat',
+      'http://localhost:11434/v1/chat/completions'
+    ])('appends /api to non-/api endpoint paths (%s)', (host) => {
+      expect(formatOllamaApiHost(host)).toBe(`${host}/api`)
     })
   })
 })

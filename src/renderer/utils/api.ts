@@ -15,11 +15,14 @@ export {
   withoutTrailingSlash
 } from '@shared/utils/api'
 
+/**
+ * Matches one or more trailing `/api` segments so a pasted base URL that already
+ * carries the Ollama suffix does not double up, e.g. `/api`, `/api/api`.
+ */
+const TRAILING_API_SEGMENTS_REGEX = /(?:\/api)+$/
+
 export function formatOllamaApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host)
-    ?.replace(/\/v1$/, '')
-    ?.replace(/\/api$/, '')
-    ?.replace(/\/chat$/, '')
+  const normalizedHost = withoutTrailingSlash(host).replace(TRAILING_API_SEGMENTS_REGEX, '')
   return formatApiHost(normalizedHost + '/api', false)
 }
 
