@@ -19,8 +19,7 @@ import { type AiSdkModel, createAiSdkModelBinding } from './aiSdkModelBinding'
 import { type ModelCallPort, type ModelCallRequest, type ModelCallSideChannel } from './aiSdkTypes'
 
 export const MODEL: AiSdkModel = {
-  provider: 'cherry',
-  id: 'bridged-model',
+  id: 'cherry::bridged-model',
   name: 'Bridged model',
   reasoning: true,
   input: ['text', 'image'],
@@ -121,9 +120,7 @@ export async function createTestSession<TRequestOptions = undefined>(options: Te
     agentDir: options.agentDir ?? tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
-    ...binding,
-    settings: { ...options.settings, ...binding.settings },
-    extensionFactories: [...binding.extensionFactories, ...(options.extensionFactories ?? [])]
+    ...binding
   })
   onTestFinished(() => runtime.dispose())
   return runtime
