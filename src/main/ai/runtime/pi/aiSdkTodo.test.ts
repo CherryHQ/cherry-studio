@@ -1,9 +1,11 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createTodoExtension, type TranscriptEntry } from '../src'
-import { createTestSession, finish, hostStore, plain, scriptedModel, streamTextPort, textParts } from './support'
-import { textOf, toolOutputs, toolResults } from './toolResults'
+import { createTodoExtension } from '@cherrystudio/agent-runtime-pi'
+
+import { createTestSession, finish, hostStore, plain, scriptedModel, streamTextPort, textParts } from './aiSdkSupport'
+import { textOf, toolOutputs, toolResults } from './aiSdkToolResults'
 
 const todoCall = (id: string, todos: unknown): LanguageModelV3StreamPart[] => [
   { type: 'tool-call', toolCallId: id, toolName: 'todo_write', input: JSON.stringify({ todos }) },
@@ -11,14 +13,13 @@ const todoCall = (id: string, todos: unknown): LanguageModelV3StreamPart[] => [
 ]
 
 /** Where a host reads the list back from its stored transcript: the last successful `todo_write` result. */
-const latestStoredList = (entries: readonly TranscriptEntry[]) =>
+const latestStoredList = (entries: readonly SessionEntry[]) =>
   entries.findLast(
     (entry) =>
-      entry.kind === 'message' &&
-      entry.message.role === 'tool' &&
-      entry.message.content.some(
-        (part) => part.type === 'tool-result' && part.toolName === 'todo_write' && part.output.type === 'text'
-      )
+      entry.type === 'message' &&
+      entry.message.role === 'toolResult' &&
+      entry.message.toolName === 'todo_write' &&
+      !entry.message.isError
   )
 
 describe('todo extension', () => {
@@ -126,15 +127,14 @@ describe('todo extension', () => {
     await earlier.dispose()
 
     expect(latestStoredList(host.entries)).toMatchObject({
-      message: { content: [{ toolCallId: 'call_2' }] },
-      details: { todos: latest }
+      message: { toolCallId: 'call_2', details: { todos: latest } }
     })
 
     const rebuilt = scriptedModel([[...textParts('c', 'Still on the hotel.'), finish('stop')]])
     const { session } = await createTestSession({
       port: streamTextPort(rebuilt.model).port,
       extensionFactories: [createTodoExtension()],
-      transcript: plain(host.entries)
+      entries: plain(host.entries)
     })
     await session.prompt('Where are we?')
 
