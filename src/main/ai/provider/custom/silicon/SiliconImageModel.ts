@@ -99,9 +99,19 @@ export class SiliconImageModel implements ImageModelV3 {
 
     const url = this.config.url({ path: '/images/generations', modelId: this.modelId })
     const fetchFn = this.config.fetch ?? globalThis.fetch
+    // SiliconFlow's watermark control is a request header, not a body field: the
+    // explicit "AI-generated" watermark defaults to on, and only an explicit
+    // `X-Enable-Watermark: 0` turns it off (the implicit watermark always
+    // applies). Absent a declared `addWatermark` switch we leave the header off
+    // so a user-set header in provider settings survives untouched.
+    // https://api-docs.siliconflow.cn/docs/api/images-generations-post
+    const watermarkHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (typeof bag.addWatermark === 'boolean') {
+      watermarkHeaders['X-Enable-Watermark'] = bag.addWatermark ? '1' : '0'
+    }
     const response = await fetchFn(url, {
       method: 'POST',
-      headers: mergeHeaders(this.config.headers(), headers, { 'Content-Type': 'application/json' }),
+      headers: mergeHeaders(this.config.headers(), headers, watermarkHeaders),
       body: JSON.stringify(body),
       signal: abortSignal
     })
