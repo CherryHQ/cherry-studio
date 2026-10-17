@@ -57,6 +57,11 @@ Decided per file part in `prepareChatMessages`
   model that accepts images must have **Vision** enabled under Provider Settings
   → model input modalities; that user override takes precedence over the catalog
   and sends the native image without running OCR.
+- When a current-turn image does go out as OCR text on the chat path, `AiService`
+  writes a persisted `data-attachment-notice` part (`kind: 'image-ocr'`) at the
+  start of the assistant reply. The renderer shows it as a short localized note
+  that points to a vision-capable model or the model's **Vision** setting
+  (`prepareChatMessages` reports each fallback through `onImageOcrFallback`).
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.

@@ -2220,6 +2220,7 @@
   "message.api.check.model.title": "Seleccione el modelo a verificar",
   "message.api.connection.failed": "Conexión fallida",
   "message.api.connection.success": "Conexión exitosa",
+  "message.attachment_notice.image_ocr": "{{names}} se envió como texto extraído (OCR) porque este modelo no admite entrada de imágenes. Para enviar imágenes directamente, elige un modelo con visión o activa Visión para este modelo en la configuración del proveedor.",
   "message.attachments.pasted_image": "Imagen del portapapeles",
   "message.attachments.pasted_text": "Archivo del portapapeles",
   "message.backup.cleanup_failed": "La copia de seguridad se completó, pero no se pudieron limpiar las copias antiguas.",

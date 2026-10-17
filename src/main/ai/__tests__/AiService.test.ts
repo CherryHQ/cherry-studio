@@ -240,6 +240,8 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
 
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
+const { Agent } = await import('../runtime/aiSdk/Agent')
+const attachmentRouting = await import('../messages/attachmentRouting')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
 const { messageService } = await import('@main/data/services/MessageService')
 
@@ -1586,6 +1588,53 @@ describe('AiService tool approval', () => {
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
     expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
     expect(mockBuildFallbackModels).not.toHaveBeenCalled()
+  })
+
+  it('writes an attachment notice when a current-turn image is sent as OCR text (#21446)', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    })
+    const prepareSpy = vi.spyOn(attachmentRouting, 'prepareChatMessages').mockImplementation(async (messages, ctx) => {
+      ctx.onImageOcrFallback?.({ messageId: 'old-turn', displayName: 'old.png' })
+      ctx.onImageOcrFallback?.({ messageId: 'current-turn', displayName: 'screenshot.png' })
+      return messages
+    })
+    const streamSpy = vi.spyOn(Agent.prototype, 'stream').mockReturnValue(new ReadableStream())
+    const writeSpy = vi.spyOn(Agent.prototype, 'write').mockImplementation(() => {})
+
+    try {
+      await service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        messages: [
+          { id: 'old-turn', role: 'user', parts: [] },
+          { id: 'current-turn', role: 'user', parts: [] }
+        ],
+        requestOptions: { maxRetries: 0, signal: new AbortController().signal }
+      })
+
+      expect(writeSpy).toHaveBeenCalledExactlyOnceWith({
+        type: 'data-attachment-notice',
+        id: 'attachment-notice',
+        data: { kind: 'image-ocr', fileNames: ['screenshot.png'] }
+      })
+    } finally {
+      prepareSpy.mockRestore()
+      streamSpy.mockRestore()
+      writeSpy.mockRestore()
+    }
   })
 
   it('wires API key failover when model retry is disabled', async () => {

@@ -2220,6 +2220,7 @@
   "message.api.check.model.title": "Denetim için kullanılacak modeli seçin",
   "message.api.connection.failed": "Bağlantı başarısız oldu",
   "message.api.connection.success": "Bağlantı başarılı",
+  "message.attachment_notice.image_ocr": "Bu model görsel girişini desteklemediği için {{names}} çıkarılmış metin (OCR) olarak gönderildi. Görselleri doğrudan göndermek için görsel destekli bir model seçin veya Sağlayıcı Ayarları'nda bu model için Görme özelliğini etkinleştirin.",
   "message.attachments.pasted_image": "Yapıştırılan Görsel",
   "message.attachments.pasted_text": "Yapıştırılan Metin",
   "message.backup.cleanup_failed": "Yedekleme tamamlandı ancak eski yedekler temizlenemedi.",

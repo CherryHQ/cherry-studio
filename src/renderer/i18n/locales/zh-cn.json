@@ -2220,6 +2220,7 @@
   "message.api.check.model.title": "请选择要检测的模型",
   "message.api.connection.failed": "连接失败",
   "message.api.connection.success": "连接成功",
+  "message.attachment_notice.image_ocr": "{{names}} 已作为 OCR 提取的文本发送，因为当前模型不支持图片输入。如需直接发送图片，请选择支持视觉的模型，或在服务商设置中为该模型开启“视觉”能力。",
   "message.attachments.pasted_image": "剪切板图片",
   "message.attachments.pasted_text": "剪切板文件",
   "message.backup.cleanup_failed": "备份已完成，但旧备份清理失败。",
