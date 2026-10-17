@@ -33,7 +33,7 @@ Code fences remain byte-identical, including comments. Normal links keep the sam
 
 ## Phase 2 scope
 
-The discovery roots live in `scripts/translation-pairing.manifest.json` and initially cover:
+The discovery roots live in `scripts/docsGovernance/translation-pairing.manifest.json` and initially cover:
 
 - active Agent Notes and the Agent Notes README;
 - root `CONTRIBUTING.md`;

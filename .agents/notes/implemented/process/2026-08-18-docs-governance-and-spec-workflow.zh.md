@@ -80,7 +80,7 @@ sources: # code paths this document describes; directories preferred
 
 ### P3 — Gates
 
-三个新脚本,全部是 `tsx scripts/*.ts`,遵循仓库较新的脚本惯例(导出函数 + `scripts/__tests__/` 下的测试,同 `i18n-check-values.ts`):
+文档治理命令统一位于 `scripts/docsGovernance/`,导出函数及其同位测试位于 `scripts/docsGovernance/__tests__/`:
 
 - `verify-doc-structure`——`references/` 根的封闭集;每个域目录有 `README.md`。
 - `verify-doc-frontmatter`——必填字段齐全;每个 `sources` 路径存在。它抓住的是特定一类腐烂:主题已被删除或搬走的文档——`middleware.md` 与 `message-system.md` 正是此类——在代码移动当天即被抓住。**它是存在性检查,不是新鲜度检查**:主题原地变化、或文件在某个宽目录条目内部移动而导致的过时,门禁仍是绿的。语义过时由 Phase 4 的反向查询和评审负责,不在这里。
@@ -153,9 +153,9 @@ sources: # code paths this document describes; directories preferred
 ## Verification
 
 - AC1 — [Phase 0b 审计结果](./2026-08-19-phase-0b-doc-audit-outcomes.md)加 `pnpm docs:check`:保留逐域审计记录,并拒绝结构或链接回归。
-- AC2 — `pnpm exec vitest run --project scripts scripts/__tests__/verify-doc-frontmatter.test.ts scripts/__tests__/gen-doc-index.test.ts scripts/__tests__/find-affected-docs.test.ts` 加 `pnpm docs:check`:捕获缺失的 source owner 和过时的生成索引。
-- AC3 — `pnpm exec vitest run --project scripts scripts/__tests__/verify-agent-note-format.test.ts scripts/__tests__/verify-agent-note-transitions.test.ts` 加 `pnpm docs:check`:捕获无效生命周期结构、fenced-code 伪装、非法移动和不完整 AC 证据。
-- AC4 — `pnpm exec vitest run --project scripts scripts/__tests__/translation-pairing.test.ts` 加 `pnpm docs:check`:捕获不完整三件套、配对结构不一致、过时 hash 以及 staged hook 使用的 index/worktree 不一致。
-- AC5 — `pnpm exec vitest run --project scripts scripts/__tests__/change-scope.test.ts scripts/__tests__/find-affected-docs.test.ts` 加 `pnpm skills:check`:捕获 scope plane 错误,并让 PR/review/stack consumer 始终使用显式 base。
+- AC2 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/verify-doc-frontmatter.test.ts scripts/docsGovernance/__tests__/gen-doc-index.test.ts scripts/docsGovernance/__tests__/find-affected-docs.test.ts` 加 `pnpm docs:check`:捕获缺失的 source owner 和过时的生成索引。
+- AC3 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/verify-agent-note-format.test.ts scripts/docsGovernance/__tests__/verify-agent-note-transitions.test.ts` 加 `pnpm docs:check`:捕获无效生命周期结构、fenced-code 伪装、非法移动和不完整 AC 证据。
+- AC4 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/translation-pairing.test.ts` 加 `pnpm docs:check`:捕获不完整三件套、配对结构不一致、过时 hash 以及 staged hook 使用的 index/worktree 不一致。
+- AC5 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/change-scope.test.ts scripts/docsGovernance/__tests__/find-affected-docs.test.ts` 加 `pnpm skills:check`:捕获 scope plane 错误,并让 PR/review/stack consumer 始终使用显式 base。
 - AC6 — `pnpm skills:check` 加 `pnpm docs:check`:校验携带 Note、Spec、AC、实际 verification、自动化豁免和最终 note 现实的 agent 入口与双语 workflow 契约。
-- AC7 — `pnpm exec vitest run --project scripts scripts/__tests__/translation-pairing.test.ts` 加 `pnpm docs:check`:保持 discovery root 由 manifest 驱动,使 Phase 3 无需替换架构即可扩展语料。
+- AC7 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/translation-pairing.test.ts` 加 `pnpm docs:check`:保持 discovery root 由 manifest 驱动,使 Phase 3 无需替换架构即可扩展语料。

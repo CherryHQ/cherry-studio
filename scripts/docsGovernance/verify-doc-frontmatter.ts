@@ -4,7 +4,7 @@ import * as path from 'path'
 
 import matter from 'gray-matter'
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT = path.resolve(__dirname, '../..')
 
 export type FrontmatterRule = { requireSources: boolean }
 

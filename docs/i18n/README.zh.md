@@ -33,7 +33,7 @@ Sidecar 是一致性指纹，不是翻译质量证明。修改任一侧后，只
 
 ## Phase 2 范围
 
-发现根位于 `scripts/translation-pairing.manifest.json`，初始覆盖：
+发现根位于 `scripts/docsGovernance/translation-pairing.manifest.json`，初始覆盖：
 
 - active Agent Note 与 Agent Notes README；
 - 根 `CONTRIBUTING.md`；

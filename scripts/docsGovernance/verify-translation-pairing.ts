@@ -16,8 +16,8 @@ import {
   validatePairContent
 } from './translation-pairing'
 
-const ROOT = path.resolve(__dirname, '..')
-const MANIFEST = 'scripts/translation-pairing.manifest.json'
+const ROOT = path.resolve(__dirname, '../..')
+const MANIFEST = 'scripts/docsGovernance/translation-pairing.manifest.json'
 
 type Reader = (file: string) => Buffer | undefined
 type PairState = 'ok' | 'missing' | 'out-of-sync' | 'invalid' | 'deleted'

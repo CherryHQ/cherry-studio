@@ -6,7 +6,7 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT = path.resolve(__dirname, '../..')
 const CLASSES = new Set(['feature', 'bug-fix', 'simplification', 'architecture', 'process', 'testing'])
 const LIFECYCLES = new Set(['proposed', 'implemented', 'rejected'])
 const NOTE_NAME = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/

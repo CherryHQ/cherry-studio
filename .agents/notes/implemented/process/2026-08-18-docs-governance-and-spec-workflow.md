@@ -80,7 +80,7 @@ The admission criterion for any future field: it must carry something the path, 
 
 ### P3 — Gates
 
-Three new scripts, all `tsx scripts/*.ts` following the repo's newer script convention (exported functions plus tests under `scripts/__tests__/`, like `i18n-check-values.ts`):
+The documentation-governance commands live together under `scripts/docsGovernance/`, with exported functions and colocated tests under `scripts/docsGovernance/__tests__/`:
 
 - `verify-doc-structure` — closed set at the `references/` root; every domain directory has a `README.md`.
 - `verify-doc-frontmatter` — required fields present; every `sources` path exists. This catches one specific class of rot — the doc whose subject was deleted or moved away, which is exactly what `middleware.md` and `message-system.md` were — on the day the code moves. **It is an existence test, not a freshness test**: a doc that goes stale while its paths survive (behavior changed in place, or a file moved within a broad directory entry) stays green. Semantic staleness is caught by the Phase 4 reverse lookup and by review, not here.
@@ -153,9 +153,9 @@ Quality precedes translation throughout: a doc is audited current before it is p
 ## Verification
 
 - AC1 — [Phase 0b audit outcomes](./2026-08-19-phase-0b-doc-audit-outcomes.md) plus `pnpm docs:check`: preserves the domain audit record and rejects structural or link regressions.
-- AC2 — `pnpm exec vitest run --project scripts scripts/__tests__/verify-doc-frontmatter.test.ts scripts/__tests__/gen-doc-index.test.ts scripts/__tests__/find-affected-docs.test.ts` plus `pnpm docs:check`: catches missing source ownership and stale generated indexes.
-- AC3 — `pnpm exec vitest run --project scripts scripts/__tests__/verify-agent-note-format.test.ts scripts/__tests__/verify-agent-note-transitions.test.ts` plus `pnpm docs:check`: catches invalid lifecycle structure, fenced-code impostors, illegal moves, and incomplete AC evidence.
-- AC4 — `pnpm exec vitest run --project scripts scripts/__tests__/translation-pairing.test.ts` plus `pnpm docs:check`: catches incomplete triplets, mismatched paired structure, stale hashes, and index/worktree inconsistencies used by the staged hook.
-- AC5 — `pnpm exec vitest run --project scripts scripts/__tests__/change-scope.test.ts scripts/__tests__/find-affected-docs.test.ts` plus `pnpm skills:check`: catches scope-plane mistakes and keeps PR/review/stack consumers on an explicit base.
+- AC2 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/verify-doc-frontmatter.test.ts scripts/docsGovernance/__tests__/gen-doc-index.test.ts scripts/docsGovernance/__tests__/find-affected-docs.test.ts` plus `pnpm docs:check`: catches missing source ownership and stale generated indexes.
+- AC3 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/verify-agent-note-format.test.ts scripts/docsGovernance/__tests__/verify-agent-note-transitions.test.ts` plus `pnpm docs:check`: catches invalid lifecycle structure, fenced-code impostors, illegal moves, and incomplete AC evidence.
+- AC4 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/translation-pairing.test.ts` plus `pnpm docs:check`: catches incomplete triplets, mismatched paired structure, stale hashes, and index/worktree inconsistencies used by the staged hook.
+- AC5 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/change-scope.test.ts scripts/docsGovernance/__tests__/find-affected-docs.test.ts` plus `pnpm skills:check`: catches scope-plane mistakes and keeps PR/review/stack consumers on an explicit base.
 - AC6 — `pnpm skills:check` plus `pnpm docs:check`: validates the agent entry points and paired workflow contract carrying Note, Spec, AC, actual verification, automation exemption, and final-note reality.
-- AC7 — `pnpm exec vitest run --project scripts scripts/__tests__/translation-pairing.test.ts` plus `pnpm docs:check`: keeps discovery roots manifest-driven so Phase 3 expands the corpus without replacing the architecture.
+- AC7 — `pnpm exec vitest run --project scripts scripts/docsGovernance/__tests__/translation-pairing.test.ts` plus `pnpm docs:check`: keeps discovery roots manifest-driven so Phase 3 expands the corpus without replacing the architecture.
