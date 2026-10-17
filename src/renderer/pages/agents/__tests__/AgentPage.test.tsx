@@ -2495,12 +2495,12 @@ describe('AgentPage', () => {
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-initial', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
     render(<AgentPage />)
-    fireEvent.click(screen.getByRole('button', { name: button! }))
-    expect(screen.getByTestId(surface!)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: button }))
+    expect(screen.getByTestId(surface)).toBeInTheDocument()
 
     act(() => requestConversationLocate('agent-tab', 'session-initial', messageId))
 
-    await waitFor(() => expect(screen.queryByTestId(surface!)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByTestId(surface)).not.toBeInTheDocument())
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-initial')
   })
 
