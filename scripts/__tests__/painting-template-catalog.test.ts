@@ -96,6 +96,7 @@ const expectedVariableCounts: Record<string, number> = {
 const expectedAppLocaleFiles = [
   'locales/en-us.json',
   'locales/zh-cn.json',
+  'locales/az-az.json',
   'locales/de-de.json',
   'locales/el-gr.json',
   'locales/es-es.json',

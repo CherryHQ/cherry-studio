@@ -4,6 +4,7 @@ import { application } from '@application'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 
+import azAZ from './locales/az-az.json'
 import deDE from './locales/de-de.json'
 import elGR from './locales/el-gr.json'
 import EnUs from './locales/en-us.json'
@@ -32,7 +33,8 @@ const locales = Object.fromEntries(
     ['pt-PT', ptPT],
     ['ro-RO', roRO],
     ['vi-VN', viVN],
-    ['tr-TR', trTR]
+    ['tr-TR', trTR],
+    ['az-AZ', azAZ]
   ].map(([locale, translation]) => [locale, { translation }])
 )
 

@@ -78,6 +78,7 @@ const rendererI18nDir = path.join(process.cwd(), 'src/renderer/i18n')
 const unnamedTranslations = [
   'locales/en-us',
   'locales/zh-cn',
+  'locales/az-az',
   'locales/de-de',
   'locales/el-gr',
   'locales/es-es',
