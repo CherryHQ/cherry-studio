@@ -100,4 +100,4 @@ export function headersWithoutCredentials(provider: Provider): Record<string, st
   return mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider))
 }
 
-export { routeToEndpoint } from '@shared/ai/endpointConnection'
+export { routeToEndpoint } from '@main/ai/provider/endpointConnection'

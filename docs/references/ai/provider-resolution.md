@@ -3,7 +3,7 @@ description: Endpoint resolution chain from provider.endpointConfigs and adapter
 sources:
   - src/main/ai/provider/endpoint.ts
   - src/main/ai/provider/config.ts
-  - src/shared/ai/endpointConnection.ts
+  - src/main/ai/provider/endpointConnection.ts
   - packages/provider-registry/src/registry-utils.ts
   - packages/aiCore/src/core/providers/core/initialization.ts
 ---
@@ -64,7 +64,7 @@ export function resolveAiSdkProviderId(provider, endpointType) {
 
 ## Connection inheritance
 
-`resolveEndpointBaseUrl` in `src/shared/ai/endpointConnection.ts` resolves the
+`resolveEndpointBaseUrl` in `src/main/ai/provider/endpointConnection.ts` resolves the
 address independently of the target adapter and wire protocol:
 
 1. Use the target endpoint's own non-empty address.
