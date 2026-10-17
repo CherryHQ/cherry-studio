@@ -136,6 +136,7 @@ import { meta as riverflowMeta } from './riverflow/meta'
 import { meta as runwayMeta } from './runway/meta'
 import { meta as searxngMeta } from './searxng/meta'
 import { meta as sensetimeMeta } from './sensetime/meta'
+import { meta as serpkiteMeta } from './serpkite/meta'
 import { meta as serplyMeta } from './serply/meta'
 import { meta as siliconMeta } from './silicon/meta'
 import { meta as skyworkMeta } from './skywork/meta'
@@ -301,6 +302,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   riverflow: riverflowMeta,
   runway: runwayMeta,
   searxng: searxngMeta,
+  serpkite: serpkiteMeta,
   serply: serplyMeta,
   sensetime: sensetimeMeta,
   silicon: siliconMeta,

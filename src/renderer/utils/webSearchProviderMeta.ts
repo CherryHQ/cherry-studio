@@ -77,6 +77,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
   },
+  serpkite: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serpkite',
+    iconRef: providerIconRef('serpkite'),
+    officialWebsite: 'https://serpkite.com',
+    apiKeyWebsite: 'https://app.serpkite.com/keys'
+  },
   serply: {
     descriptionKey: 'settings.tool.websearch.provider_description.serply',
     iconRef: providerIconRef('serply'),

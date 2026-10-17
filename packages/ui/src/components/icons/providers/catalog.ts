@@ -139,6 +139,7 @@ import { RiverflowIcon } from './riverflow'
 import { RunwayIcon } from './runway'
 import { SearxngIcon } from './searxng'
 import { SensetimeIcon } from './sensetime'
+import { SerpKiteIcon } from './serpkite'
 import { SerplyIcon } from './serply'
 import { SiliconIcon } from './silicon'
 import { SkyworkIcon } from './skywork'
@@ -304,6 +305,7 @@ export const PROVIDER_ICON_CATALOG = {
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
+  serpkite: SerpKiteIcon,
   serply: SerplyIcon,
   sensetime: SensetimeIcon,
   silicon: SiliconIcon,

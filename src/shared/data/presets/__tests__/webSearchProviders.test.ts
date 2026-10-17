@@ -88,6 +88,20 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models SerpKite as an API-key-authenticated keyword search provider', () => {
+    const serpkite = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'serpkite')
+
+    expect(serpkite).toBeDefined()
+    expect(serpkite!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serpkite.com'
+      }
+    ])
+  })
+
   it('models Serply as an API-key-authenticated keyword search provider', () => {
     const serply = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'serply')
 

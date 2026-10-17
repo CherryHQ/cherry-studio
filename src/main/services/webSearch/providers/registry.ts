@@ -11,6 +11,7 @@ import { JinaProvider } from './api/JinaProvider'
 import { ParallelProvider } from './api/ParallelProvider'
 import { QueritProvider } from './api/QueritProvider'
 import { SearxngProvider } from './api/SearxngProvider'
+import { SerpKiteProvider } from './api/SerpKiteProvider'
 import { SerplyProvider } from './api/SerplyProvider'
 import { TavilyProvider } from './api/TavilyProvider'
 import { ZhipuProvider } from './api/ZhipuProvider'
@@ -36,5 +37,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   crawl4ai: Crawl4AIProvider,
   parallel: ParallelProvider,
   serply: SerplyProvider,
-  duckduckgo: DuckduckgoProvider
+  duckduckgo: DuckduckgoProvider,
+  serpkite: SerpKiteProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>
