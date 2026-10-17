@@ -42,13 +42,25 @@ describe('AgentSessionMessageBackend', () => {
     expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId).status).toBe('error')
   })
 
-  it('terminalizes an empty successful Agent reply on its reserved placeholder', async () => {
+  it('classifies an empty successful Agent reply as a runtime-completion error', async () => {
     const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId })
     const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
     await listener.onDone({ status: 'success', finalMessage: undefined })
     expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)).toMatchObject({
-      status: 'success',
-      data: { parts: [] }
+      status: 'error',
+      data: {
+        parts: [
+          {
+            type: 'data-error',
+            data: {
+              name: 'AgentRuntimeError',
+              message: 'Agent runtime completion produced no response content.',
+              code: 'EMPTY_AGENT_COMPLETION',
+              stage: 'runtime-completion'
+            }
+          }
+        ]
+      }
     })
   })
 
