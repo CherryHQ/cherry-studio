@@ -32,7 +32,7 @@ export interface SharedArtifact {
   provenance?: CatalogProvenance
 }
 
-export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx' | 'mlx-node'
+export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx' | 'mlx-node' | 'node-llama-cpp'
 
 export type DownloadUrls = readonly string[] | { china: string; global: string }
 

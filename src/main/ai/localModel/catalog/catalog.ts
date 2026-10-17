@@ -192,6 +192,47 @@ export const SHARED_ARTIFACTS = {
         ]
       }
     }
+  },
+  /** llama.cpp prebuilt binaries for the `node-llama-cpp` JS loader (patched via
+   * patches/node-llama-cpp@3.22.1.patch to read `CHERRY_NODE_LLAMA_CPP_BINS_DIR`). The loader
+   * looks for `<binsDir>/<folder>/llama-addon.node`, so `installSubdir` must end in the
+   * package's own bins folder name. `version` must match package.json's pin. */
+  'node-llama-cpp': {
+    id: 'node-llama-cpp',
+    version: '3.22.1',
+    installDirKey: 'feature.llama_cpp.binary',
+    provenance: {
+      license: {
+        spdx: 'MIT',
+        url: 'https://github.com/withcatai/node-llama-cpp/blob/0ad4a867b05f35def42ffc84d501e9a55077b531/LICENSE'
+      },
+      upstream: {
+        url: 'https://github.com/withcatai/node-llama-cpp',
+        revision: '0ad4a867b05f35def42ffc84d501e9a55077b531'
+      }
+    },
+    // macOS Apple Silicon only for now; Windows/Linux need their CUDA/Vulkan/CPU variant rules.
+    platforms: {
+      'darwin-arm64': {
+        packageName: '@node-llama-cpp/mac-arm64-metal',
+        tarballSha256: '6315f36a1af49e83a7535cdccffe2e633b70119e3ab96871853849efc9be9a93',
+        tarballPrefix: 'package/bins/mac-arm64-metal/',
+        installSubdir: '3.22.1/mac-arm64-metal',
+        entryFile: 'llama-addon.node',
+        supportFiles: [
+          '_nlcBuildMetadata.json',
+          'libggml-base.dylib',
+          'libggml-blas.so',
+          'libggml-cpu-apple_m1.so',
+          'libggml-cpu-apple_m2_m3.so',
+          'libggml-cpu-apple_m4.so',
+          'libggml-metal.so',
+          'libggml.metal.v0.5.0.dylib',
+          'libllama-common.dylib',
+          'libllama.metal.v0.5.0.dylib'
+        ]
+      }
+    }
   }
 } as const satisfies Record<SharedArtifactId, SharedArtifact>
 

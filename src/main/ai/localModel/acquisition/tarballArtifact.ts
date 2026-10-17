@@ -87,9 +87,14 @@ function tarballUrls(
   if (platform.tarballUrls) {
     return orderDownloadUrls(platform.tarballUrls, registryOrder[0] === 'npmmirror' ? 'china-first' : 'global-first')
   }
-  const { packageName } = platform
-  const { version } = artifact
-  return registryOrder.map((id) => `${NPM_REGISTRIES[id]}/${packageName}/-/${packageName}-${version}.tgz`)
+  return registryOrder.map(
+    (id) => `${NPM_REGISTRIES[id]}/${platform.packageName}/-/${tarballFileName(platform, artifact.version)}`
+  )
+}
+
+/** npm names a tarball after the unscoped package: `@scope/name` publishes `name-<version>.tgz`. */
+function tarballFileName(platform: ArtifactPlatformFiles, version: string): string {
+  return `${platform.packageName.split('/').pop()}-${version}.tgz`
 }
 
 /**
@@ -108,7 +113,7 @@ export async function installArtifact(
 
   const tmpDir = artifactStagingDir(artifact)
   await fs.promises.mkdir(tmpDir, { recursive: true })
-  const tarballPath = path.join(tmpDir, `${platform.packageName}-${artifact.version}.tgz`)
+  const tarballPath = path.join(tmpDir, tarballFileName(platform, artifact.version))
   const extractDir = path.join(tmpDir, `extract-${currentPlatformKey()}`)
 
   try {

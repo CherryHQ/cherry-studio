@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import { FUNASR_SUPPORTED_PLATFORM_KEYS } from '@shared/ai/localVoice'
@@ -151,6 +153,21 @@ describe('local model catalog', () => {
         'sherpa-onnx-cxx-api.dll'
       ])
     })
+  })
+
+  it('downloads node-llama-cpp binaries built for the JS loader the app ships', () => {
+    const appPackage = JSON.parse(readFileSync(new URL('../../../../../../package.json', import.meta.url), 'utf8'))
+
+    expect(SHARED_ARTIFACTS['node-llama-cpp'].version).toBe(appPackage.dependencies['node-llama-cpp'])
+  })
+
+  it('installs node-llama-cpp binaries under the folder name its loader looks up', () => {
+    for (const files of Object.values(SHARED_ARTIFACTS['node-llama-cpp'].platforms)) {
+      const packageFolder = files.tarballPrefix.split('/').filter(Boolean).pop()
+      expect(files.installSubdir.split('/').pop()).toBe(packageFolder)
+      expect(files.entryFile).toBe('llama-addon.node')
+      expect(files.supportFiles).toContain('_nlcBuildMetadata.json')
+    }
   })
 
   it('throws on an unknown file key rather than yielding an undefined path', () => {

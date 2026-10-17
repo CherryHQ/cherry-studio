@@ -1,0 +1,14 @@
+diff --git a/dist/config.js b/dist/config.js
+--- a/dist/config.js
++++ b/dist/config.js
+@@ -9,7 +9,9 @@
+ const env = envVar.from(process.env);
+ export const llamaDirectory = path.join(__dirname, "..", "llama");
+ export const llamaToolchainsDirectory = path.join(llamaDirectory, "toolchains");
+-export const llamaPrebuiltBinsDirectory = path.join(__dirname, "..", "bins");
++// PATCHED by Cherry Studio (patches/node-llama-cpp@3.22.1.patch): prebuilt binaries are not
++// bundled; LocalModel downloads them on demand and points the loader at that directory.
++export const llamaPrebuiltBinsDirectory = process.env.CHERRY_NODE_LLAMA_CPP_BINS_DIR || path.join(__dirname, "..", "bins");
+ export const llamaLocalBuildBinsDirectory = path.join(llamaDirectory, "localBuilds");
+ export const llamaBinsGrammarsDirectory = path.join(__dirname, "..", "llama", "grammars");
+ export const projectTemplatesDirectory = path.join(__dirname, "..", "templates");
