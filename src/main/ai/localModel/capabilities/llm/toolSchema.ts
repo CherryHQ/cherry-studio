@@ -288,10 +288,15 @@ function mergeObjectSchemas(target: Schema, source: Schema): Schema {
   const part = omit(source, ['allOf'])
   const hasProperties = isRecord(target.properties) || isRecord(part.properties)
   const hasRequired = Array.isArray(target.required) || Array.isArray(part.required)
+  const properties: Schema = { ...(target.properties as Schema) }
+  for (const [key, value] of Object.entries((part.properties as Schema) ?? {})) {
+    // Both parts constrain this property, so its value must meet both.
+    properties[key] = Object.hasOwn(properties, key) ? { allOf: [properties[key], value] } : value
+  }
   return {
     ...target,
     ...part,
-    ...(hasProperties && { properties: { ...(target.properties as Schema), ...(part.properties as Schema) } }),
+    ...(hasProperties && { properties }),
     ...(hasRequired && {
       required: [...((target.required as string[]) ?? []), ...((part.required as string[]) ?? [])]
     })

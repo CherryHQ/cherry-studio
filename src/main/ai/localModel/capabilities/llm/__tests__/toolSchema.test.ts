@@ -322,6 +322,29 @@ describe('toGbnfJsonSchema', () => {
     expect(generates(schema, { b: 'b' })).toBe(false)
   })
 
+  it('keeps the constraints of every allOf part that declares the same property', () => {
+    const schema = {
+      allOf: [
+        {
+          type: 'object',
+          properties: { filter: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+          required: ['filter']
+        },
+        {
+          type: 'object',
+          properties: { filter: { type: 'object', properties: { limit: { type: 'integer' } }, required: ['limit'] } },
+          required: ['filter']
+        }
+      ]
+    }
+
+    expect(generates(schema, { filter: { id: 'row-1', limit: 1 } })).toBe(true)
+    expect(generates(schema, { filter: { limit: 1 } })).toBe(false)
+    expect(toToolArguments(schema, { filter: { id: 'row-1', limit: 1 } })).toEqual({
+      filter: { id: 'row-1', limit: 1 }
+    })
+  })
+
   it('follows a chain of references in an allOf part without dropping the other parts', () => {
     const schema = {
       allOf: [{ $ref: '#/$defs/Alias' }, { type: 'object', properties: { b: { type: 'string' } }, required: ['b'] }],
