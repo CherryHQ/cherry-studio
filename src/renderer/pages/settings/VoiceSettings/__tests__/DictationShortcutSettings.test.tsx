@@ -72,6 +72,46 @@ describe('dictation shortcut settings', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
   })
 
+  it.each(['hold', 'toggle'] as const)(
+    'rejects a %s binding that forms an enabled command before completion',
+    async (mode) => {
+      render(<DictationShortcutSettings />)
+      const button = screen.getByRole('button', { name: mode === 'hold' ? 'Long press' : 'Short press' })
+      const original = MockUsePreferenceUtils.getPreferenceValue(`feature.voice.dictation.${mode}_shortcut`)
+      await user.click(button)
+      fireEvent.keyDown(button, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+      fireEvent.keyDown(button, { code: 'KeyW', key: 'w', ctrlKey: true })
+      fireEvent.keyDown(button, { code: 'AltLeft', key: 'Alt', ctrlKey: true, altKey: true })
+      fireEvent.keyUp(button, { code: 'AltLeft', key: 'Alt', ctrlKey: true })
+      expect(screen.getByRole('alert')).toHaveTextContent('already in use')
+      expect(MockUsePreferenceUtils.getPreferenceValue(`feature.voice.dictation.${mode}_shortcut`)).toBe(original)
+    }
+  )
+
+  it('allows a combination when its constituent command is disabled', async () => {
+    render(
+      <CommandSharedPreferencesContext
+        value={{
+          shortcutPreferences: { 'tab.close': { binding: ['CommandOrControl', 'W'], enabled: false } },
+          menuPresentationMode: undefined
+        }}>
+        <DictationShortcutSettings />
+      </CommandSharedPreferencesContext>
+    )
+    const hold = screen.getByRole('button', { name: 'Long press' })
+    await user.click(hold)
+    fireEvent.keyDown(hold, { code: 'ControlLeft', key: 'Control', ctrlKey: true })
+    fireEvent.keyDown(hold, { code: 'KeyW', key: 'w', ctrlKey: true })
+    fireEvent.keyDown(hold, { code: 'AltLeft', key: 'Alt', ctrlKey: true, altKey: true })
+    fireEvent.keyUp(hold, { code: 'AltLeft', key: 'Alt', ctrlKey: true })
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe(
+        'AltLeft+ControlLeft+KeyW'
+      )
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it.each(['ControlLeft', 'MetaLeft'])('does not save a stale %s after its release was intercepted', async (code) => {
     render(<DictationShortcutSettings />)
     const hold = screen.getByRole('button', { name: 'Long press' })

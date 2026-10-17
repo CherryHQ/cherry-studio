@@ -1,5 +1,11 @@
 # @cherrystudio/file-preview
 
+## 0.1.2
+
+### Patch Changes
+
+- [#19894](https://github.com/CherryHQ/cherry-studio/pull/19894) [`ff3a9c6`](https://github.com/CherryHQ/cherry-studio/commit/ff3a9c6beabd1e9613e0a6f77e217207578d409b) Thanks [@SiinXu](https://github.com/SiinXu)! - Show a PowerPoint-specific fallback when a PPTX archive exceeds the previewer's ZIP safety limits. This is separate from files whose compressed source is larger than 25 MiB, and it reuses the existing external-open action.
+
 ## 0.1.1
 
 ### Patch Changes

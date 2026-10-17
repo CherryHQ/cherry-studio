@@ -91,8 +91,6 @@ export function useDictationShortcuts(): void {
         consume(event)
         if (owned?.mode === 'hold') owned.mode = 'toggle'
         else if (owned) stopOwned()
-        else if (dictationService.getSnapshot().phase === 'recording')
-          void dictationService.stop().catch(() => undefined)
         else start('toggle')
         return
       }

@@ -123,6 +123,20 @@ describe('application-local dictation shortcuts', () => {
     expect(start).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['starting', 'recording'] as const)('leaves a UI-owned %s run untouched by the toggle shortcut', (phase) => {
+    vi.mocked(dictationService.getSnapshot).mockReturnValue({ phase, elapsedMs: 0, recoveryAvailable: false })
+    const globalStop = vi.spyOn(dictationService, 'stop').mockResolvedValue(undefined)
+    mount()
+    down('ControlLeft')
+    down('AltLeft')
+    up('AltLeft')
+    up('ControlLeft')
+    fireEvent.blur(window)
+    expect(globalStop).not.toHaveBeenCalled()
+    expect(stop).not.toHaveBeenCalled()
+    expect(start).not.toHaveBeenCalled()
+  })
+
   it.each(['hold', 'toggle'] as const)('consumes matching %s repeats without another recording action', (mode) => {
     MockUsePreferenceUtils.setPreferenceValue(`feature.voice.dictation.${mode}_shortcut`, 'Backspace+ControlLeft')
     mount()
