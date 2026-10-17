@@ -325,6 +325,18 @@ The request path resolves one profile from exact provider-model, endpoint overri
 
 See [Reasoning Control](../../../packages/provider-registry/docs/reasoning-control.md) for the schemas, precedence rules, and UI-to-request data flow.
 
+## Native code execution
+
+In a chat using Grok 4.7 through the xAI Responses endpoint, enable **Server-side code execution**
+in the composer tools menu. This opt-in is stored per assistant and is off for existing assistants.
+It lets the model execute code on xAI's servers; it does not enable the local Python code-block runner.
+Other models and endpoints do not receive the tool, even if the assistant retains the toggle.
+
+Native calls appear in the conversation. The pinned xAI SDK currently emits an empty result
+for streamed native calls and omits detailed code/output fields; full execution output display
+requires an upstream SDK improvement. The assistant's final answer remains available. Native
+in-conversation image generation is separate and is not enabled by this setting.
+
 ## File Locations
 
 | What | Where |

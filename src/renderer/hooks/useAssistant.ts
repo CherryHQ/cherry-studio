@@ -231,9 +231,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     const nextProvider = providersRef.current.find((provider) => provider.id === next.providerId)
     const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings, nextProvider)
     const settingsPatch =
-      extraSettings || reasoning || webSearch
-        ? { ...currentAssistant.settings, ...reasoning, ...webSearch, ...extraSettings }
-        : undefined
+      extraSettings || reasoning || webSearch ? { ...reasoning, ...webSearch, ...extraSettings } : undefined
     return patchAssistantRef.current(
       currentId,
       settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
