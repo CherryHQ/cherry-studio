@@ -84,7 +84,8 @@ function declaredEfforts(model: Model): Exclude<ReasoningEffort, 'none' | 'auto'
 
 /**
  * Project a selection onto what this model declares: the value itself, the
- * nearest effort it does declare, or `undefined` when it declares none.
+ * nearest effort it does declare, `auto` for a toggle-only model, or
+ * `undefined` when it declares nothing that can express it.
  *
  * Exported for a caller that must know whether reasoning will be active before
  * the pipeline resolves the invocation. That is only the model half of the
@@ -106,7 +107,9 @@ export function resolveSelection(
   if (selection === 'auto') {
     return selectable.includes(selection) || declared.length > 0 ? selection : undefined
   }
-  if (declared.length === 0) return undefined
+  // A toggle-only model has no tier to project onto; an explicit effort (or a budget mapped to
+  // one) can only mean "on".
+  if (declared.length === 0) return selectable.includes('auto') ? 'auto' : undefined
 
   return nearestThinkingOption(selection, declared)
 }

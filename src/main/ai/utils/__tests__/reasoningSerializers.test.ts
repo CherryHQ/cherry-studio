@@ -195,6 +195,16 @@ describe('automatic effort against a model that does not declare it', () => {
     expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'medium' })
   })
 
+  it.each(['low', 'high'] as const)('turns a toggle-only model on when %s effort is requested', (selection) => {
+    const toggleOnly = makeModel({
+      reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+    })
+    const invocation = resolveReasoningInvocation({ selection, model: toggleOnly, profile: autoWire('medium') })
+
+    expect(invocation.kind).toBe('auto')
+    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'medium' })
+  })
+
   // An explicit selection was already clamped to the model; its map entry is a vendor rename.
   it('leaves an explicitly selected effort untouched by the projection', () => {
     const invocation = resolveReasoningInvocation({

@@ -285,9 +285,9 @@ describe('translateService.resolveRequestParameters', () => {
     expect(params.callOverrides.temperature).toBeUndefined()
   })
 
-  it('keeps temperature when the model declares no effort the stored selection can reach', () => {
-    // claude-sonnet-4-5 and four siblings declare only none/auto, so a stored 'high'
-    // resolves to nothing and no thinking is sent — the temperature must survive it.
+  it('drops temperature when a stored effort turns a toggle-only model on', () => {
+    // claude-sonnet-4-5 and four siblings declare only none/auto, so a stored 'high' can only
+    // mean "on": Main sends adaptive thinking, which Anthropic rejects alongside a temperature.
     enableAll()
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
     const model = makeModel({
@@ -297,7 +297,7 @@ describe('translateService.resolveRequestParameters', () => {
       reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
     })
 
-    expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBe(0.3)
+    expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBeUndefined()
   })
 
   it('keeps temperature when a stored auto reaches a model whose vocabulary cannot offer it', () => {
