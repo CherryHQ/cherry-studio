@@ -2334,6 +2334,18 @@ describe('heading ids assigned from the text the renderer reads', () => {
     expect(renderedHeadingIds(content)).toEqual(['chunk--foobarbaz', 'chunk--foobarbaz-1'])
   })
 
+  it('keeps the backslash a heading renders before a non-punctuation character', () => {
+    // Markdown preserves a backslash before anything but ASCII punctuation, so `C:\Users` renders
+    // with the backslash and slugs as `c-users-alice`. Dropping every backslash keyed the first
+    // heading `cusersalice`, the duplicate below went unsuffixed, and the link beside it aimed at
+    // a fragment no chunk mounted.
+    const filler = ['', 'x'.repeat(64), '']
+    const content = ['# C:\\Users\\Alice', ...filler, '# C-Users-Alice', '', '[jump](#c-users-alice-1)'].join('\n')
+
+    expect(chunkHeadingIds(content, 1)).toEqual(renderedHeadingIds(content))
+    expect(renderedHeadingIds(content)).toEqual(['chunk--c-users-alice', 'chunk--c-users-alice-1'])
+  })
+
   it('numbers headings a setext paragraph spans by the whole paragraph', () => {
     // The renderer reads the heading as the paragraph's text `a\nb`, one `a-b` base with `# a-b`.
     const content = ['a', 'b', '===', '', '# a-b', ''].join('\n')
