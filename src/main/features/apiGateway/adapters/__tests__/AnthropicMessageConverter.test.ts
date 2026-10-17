@@ -1,8 +1,10 @@
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import { asSchema } from 'ai'
+import { asSchema, convertToModelMessages, generateText } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { appendInternalAgentContinuation } from '../../utils/agentContinuation'
+import { normalizeAnthropicToolHistory } from '../../utils/anthropicToolHistory'
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
 
 const converter = new AnthropicMessageConverter()
@@ -192,6 +194,152 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
       input: { city: 'SF' },
       output: '72F'
     })
+  })
+
+  it.each([null, undefined, '', '   ', 42])(
+    'replays a tool call with invalid id/name %j and its result',
+    async (value) => {
+      const request = params({
+        messages: [
+          { role: 'assistant', content: [{ type: 'tool_use', id: value, name: value, input: { path: '/tmp/a' } }] },
+          {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: value, content: 'No such tool', is_error: true }]
+          }
+        ] as unknown as MessageCreateParams['messages']
+      })
+      const original = structuredClone(request)
+      const messages = await convertToModelMessages(converter.toUIMessages(request))
+      expect(messages).toEqual([
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: expect.stringMatching(/^toolu_\S+$/),
+              toolName: 'unknown_tool',
+              input: { path: '/tmp/a' }
+            }
+          ]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: expect.any(String),
+              toolName: 'unknown_tool',
+              output: { type: 'text', value: 'No such tool' }
+            }
+          ]
+        }
+      ])
+      const call = messages
+        .flatMap((message) => (message.role === 'assistant' && Array.isArray(message.content) ? message.content : []))
+        .find((part) => part.type === 'tool-call')!
+      const result = messages.flatMap((message) => (message.role === 'tool' ? message.content : []))[0]
+      expect(result).toMatchObject({ toolCallId: call.toolCallId })
+      expect(request).toEqual(original)
+
+      const provider = createOpenAICompatible({
+        name: 'test',
+        baseURL: 'https://provider.test/v1',
+        fetch: async (_url, init) => {
+          const body = JSON.parse(String(init?.body))
+          const wireCall = body.messages[0].tool_calls[0]
+          expect(wireCall).toMatchObject({
+            id: expect.stringMatching(/^toolu_\S+$/),
+            function: { name: 'unknown_tool', arguments: '{"path":"/tmp/a"}' }
+          })
+          expect(body.messages[1]).toMatchObject({ role: 'tool', tool_call_id: wireCall.id, content: 'No such tool' })
+          return Response.json({
+            id: 'completion',
+            model: 'test-model',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'Recovered' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }
+          })
+        }
+      })
+      const response = await generateText({ model: provider.chatModel('test-model'), messages, maxRetries: 0 })
+      expect(response.text).toBe('Recovered')
+    }
+  )
+
+  it('keeps missing-id results distinct across turns and beside valid parallel calls', async () => {
+    const request = params({
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: null, name: null, input: {} },
+            { type: 'tool_use', id: 'valid', name: 'read_file', input: {} }
+          ]
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'valid', content: 'file contents' },
+            { type: 'tool_result', tool_use_id: null, content: 'first error' }
+          ]
+        },
+        { role: 'assistant', content: [{ type: 'tool_use', id: null, name: 'read_file', input: {} }] },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: null, content: 'second result' }] }
+      ] as unknown as MessageCreateParams['messages']
+    })
+    const normalized = normalizeAnthropicToolHistory(request.messages)
+    expect(normalized.status).toBe('unchanged')
+    const messages = await convertToModelMessages(converter.toUIMessages(request))
+    const calls = messages
+      .flatMap((message) => (message.role === 'assistant' && Array.isArray(message.content) ? message.content : []))
+      .filter((part) => part.type === 'tool-call')
+    const results = messages
+      .flatMap((message) => (message.role === 'tool' ? message.content : []))
+      .filter((part) => part.type === 'tool-result')
+    expect(new Set(calls.map((call) => call.toolCallId)).size).toBe(3)
+    expect(calls[1]).toMatchObject({ toolCallId: 'valid', toolName: 'read_file' })
+    expect(results.map((result) => result.toolCallId)).toEqual(calls.map((call) => call.toolCallId))
+    expect(results.map((result) => result.output)).toEqual([
+      { type: 'text', value: 'first error' },
+      { type: 'text', value: 'file contents' },
+      { type: 'text', value: 'second result' }
+    ])
+  })
+
+  it('pairs missing-id parallel results in order and anchors images to the repaired call', () => {
+    const messages = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: null, name: 'first', input: {} },
+              { type: 'tool_use', name: 'second', input: {} }
+            ]
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'tool_result', tool_use_id: null, content: 'first result' },
+              {
+                type: 'tool_result',
+                content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }]
+              }
+            ]
+          }
+        ] as unknown as MessageCreateParams['messages']
+      })
+    )
+    const calls = messages[0].parts.filter((part) => part.type === 'dynamic-tool')
+    expect(calls).toHaveLength(2)
+    expect(calls[0]).toMatchObject({ toolName: 'first', output: 'first result', state: 'output-available' })
+    expect(calls[1]).toMatchObject({ toolName: 'second', state: 'output-available' })
+    expect(calls[0].toolCallId).not.toBe(calls[1].toolCallId)
+    const anchor = `[tool-result attachment call_id="${calls[1].toolCallId}" image=1]`
+    expect(calls[1].output).toContain(anchor)
+    expect(messages[1].parts).toEqual([
+      { type: 'text', text: anchor },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }
+    ])
   })
 
   it('relocates tool_result images into user file parts and keeps placeholders in the output', () => {
