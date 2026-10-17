@@ -246,6 +246,10 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
 
     /** Per-goal runtime state starts over whenever the goal changes identity or re-arms. */
     const usedUp = () => runtime.goal !== undefined && budgetExceeded(runtime.goal, usage())
+    /** Spec §11.4: a used-up budget stops the goal's running background subagents, whatever stops or continues it. */
+    const stopSubagentsPastBudget = () => {
+      if (runtime.goal && usedUp()) subagents?.stopForBudget(goalSubagents(branch(), runtime.goal.id))
+    }
     const resetGoalRuntime = () => {
       runtime.reservation = undefined
       runtime.repeat = { key: undefined, count: 0 }
@@ -640,8 +644,6 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
       }
       // Pi continues for a queued user message, not for an extension message that starts no turn.
       if (event.context.pendingMessages.some((message) => message.role === 'user')) return undefined
-      // Spec §11.4: the goal's own background subagents stop with its budget.
-      if (usedUp()) subagents?.stopForBudget(goalSubagents(branch(), goal.id))
       if (progress().noProgressRounds >= STOP_AFTER_ROUNDS) {
         stop('no_progress')
         return undefined
@@ -690,6 +692,8 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
     })
 
     pi.on('turn_end', (event) => {
+      // The turn's reply, its tool results and any result delivered with it are on the branch now.
+      stopSubagentsPastBudget()
       if (!runtime.goal || !runtime.inGoalRound || event.message.role !== 'assistant') return
       for (const result of event.toolResults) {
         // Stored sessions and thrown calls carry no `outcome`.
@@ -703,6 +707,7 @@ export function createGoalExtension(port: GoalPort): ExtensionFactory {
 
     pi.on('agent_before_settle', (event, ctx) => {
       if (runtime.inSubagent) return undefined
+      stopSubagentsPastBudget()
       // A request the host aborted through its own signal settles here; agent_settled reports aborted: false.
       if (event.outcome === 'aborted') {
         runtime.inGoalRound = false
