@@ -3,11 +3,12 @@ import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createAskUserExtension, type GoalSnapshot } from '../src'
+import { createAskUserExtension, type GoalSnapshot } from '@cherrystudio/agent-runtime-pi'
+
 import {
   approvals,
   askAtTurnEnd,
-  crashedTranscript,
+  crashedEntries,
   goalPort,
   goalSession,
   heldGoalSession,
@@ -23,10 +24,10 @@ import {
   say,
   snapshots,
   working
-} from './goalSupport'
-import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './subagentSupport'
-import { finish, lastAssistant, MODEL, plain, scriptedModel, tempDir, textParts } from './support'
-import { textOf, toolResults } from './toolResults'
+} from './aiSdkGoalSupport'
+import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './aiSdkSubagentSupport'
+import { finish, lastAssistant, MODEL, plain, scriptedModel, tempDir, textParts } from './aiSdkSupport'
+import { textOf, toolResults } from './aiSdkToolResults'
 
 describe('goal caps and budgets', () => {
   it('runs the last allowed round as a wrap-up, then blocks with round_limit', async () => {
@@ -142,8 +143,8 @@ describe('goal caps and budgets', () => {
       const ran = texts.filter((_, index) => index !== 1)
       expect(calls.map((call) => roundPrompts(call.prompt))).toEqual(ran.map((_, index) => ran.slice(0, index + 1)))
 
-      // So does a session rebuilt from the transcript.
-      const rebuilt = await goalSession([working], goalPort(), { transcript: plain(host.entries) })
+      // So does a session rebuilt from the entries.
+      const rebuilt = await goalSession([working], goalPort(), { entries: plain(host.entries) })
       await promptIdle(rebuilt.session, 'What is left?')
       expect(roundPrompts(rebuilt.calls[0].prompt)).toEqual(ran)
     }
@@ -498,34 +499,34 @@ describe('goal stops for people, errors and aborts', () => {
     })
   })
 
-  // Breaks when any failing turn stops an active goal: one restored from the transcript is not
+  // Breaks when any failing turn stops an active goal: one restored from the entries is not
   // armed, so an unrelated human turn that fails would mark it blocked.
   it('a failed model request in a human turn leaves an unarmed goal alone', async () => {
     const cwd = tempDir('cwd')
-    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
+    const entries = await crashedEntries('Keep working', goalPort(), cwd)
     const {
       session: s,
       host,
       calls
     } = await goalSession([() => [{ type: 'error', error: new Error('upstream exploded') }]], goalPort(), {
       cwd,
-      transcript
+      entries
     })
     await promptIdle(s, 'hello')
     await s.prompt('/goal')
 
     expect(calls).toHaveLength(1)
     // The session's start disarms the restored goal; nothing else changes it.
-    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(transcript)!, armed: false }])
+    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(entries)!, armed: false }])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
   })
 
-  // Breaks when any aborted run pauses an active goal: one restored from the transcript is not armed,
+  // Breaks when any aborted run pauses an active goal: one restored from the entries is not armed,
   // so aborting an unrelated human turn would mark it paused.
   it('aborting a human turn leaves an unarmed goal alone', async () => {
     const cwd = tempDir('cwd')
-    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
-    const { session: s, host, held } = await heldGoalSession(goalPort(), { cwd, transcript })
+    const entries = await crashedEntries('Keep working', goalPort(), cwd)
+    const { session: s, host, held } = await heldGoalSession(goalPort(), { cwd, entries })
     const run = s.prompt('hello')
     await held.started(1)
     await s.abort()
@@ -534,7 +535,7 @@ describe('goal stops for people, errors and aborts', () => {
 
     expect(held.aborted(1)).toBe(true)
     // The session's start disarms the restored goal; nothing else changes it.
-    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(transcript)!, armed: false }])
+    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(entries)!, armed: false }])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
   })
 
@@ -639,14 +640,14 @@ describe('goal stops for people, errors and aborts', () => {
     })
   })
 
-  // Breaks when a host-signal abort pauses any active goal: one restored from the transcript is not armed.
+  // Breaks when a host-signal abort pauses any active goal: one restored from the entries is not armed.
   it('a request the host aborts in a human turn leaves an unarmed goal alone', async () => {
     const cwd = tempDir('cwd')
-    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
+    const entries = await crashedEntries('Keep working', goalPort(), cwd)
     const stopButton = new AbortController()
     const { session: s, host } = await openGoalSession(slowModel().model, goalPort(), {
       cwd,
-      transcript,
+      entries,
       hostSignal: stopButton.signal
     })
     abortAtReply(s, stopButton, 1)
@@ -655,7 +656,7 @@ describe('goal stops for people, errors and aborts', () => {
 
     expect(lastAssistant(s).stopReason).toBe('aborted')
     // The session's start disarms the restored goal; nothing else changes it.
-    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(transcript)!, armed: false }])
+    expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(entries)!, armed: false }])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])
   })
 
@@ -837,7 +838,7 @@ describe('goal self-reports', () => {
       lastStop: { code: 'model_blocked' }
     })
 
-    const rebuilt = await goalSession([working], port, { cwd, transcript: plain(live.host.entries) })
+    const rebuilt = await goalSession([working], port, { cwd, entries: plain(live.host.entries) })
     await promptIdle(rebuilt.session, '/goal resume')
     expect(notices(rebuilt.host.entries).at(-1)).toBe('raise max_goal_rounds or the budget before resuming')
     expect(rebuilt.calls).toHaveLength(0)
@@ -869,9 +870,9 @@ describe('goal self-reports', () => {
     )
     void crashed.prompt('/goal Keep working')
     await atWork
-    const transcript = plain(host.entries)
+    const entries = plain(host.entries)
 
-    const rebuilt = await goalSession([working], port, { cwd, transcript })
+    const rebuilt = await goalSession([working], port, { cwd, entries })
     await promptIdle(rebuilt.session, '/goal resume')
     expect(notices(rebuilt.host.entries).at(-1)).toBe('raise max_goal_rounds or the budget before resuming')
     expect(rebuilt.calls).toHaveLength(0)

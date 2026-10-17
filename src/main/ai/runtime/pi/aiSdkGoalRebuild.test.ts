@@ -1,11 +1,13 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createGoalExtension, type TranscriptEntry } from '../src'
+import { createGoalExtension } from '@cherrystudio/agent-runtime-pi'
+
 import {
   approvals,
-  crashedTranscript,
+  crashedEntries,
   goalPort,
   goalSession,
   lastSnapshot,
@@ -17,7 +19,7 @@ import {
   roundStart,
   snapshots,
   working
-} from './goalSupport'
+} from './aiSdkGoalSupport'
 import {
   outputText,
   recordingSubagentPort,
@@ -25,15 +27,15 @@ import {
   subagentCall,
   toolCallPart,
   toolResults
-} from './subagentSupport'
-import { finish, MODEL, plain, tempDir, textParts } from './support'
+} from './aiSdkSubagentSupport'
+import { finish, MODEL, plain, tempDir, textParts } from './aiSdkSupport'
 
 describe('goal across sessions', () => {
   // Breaks when session_start restores the goal armed: the first message's settle would start round 2.
   it('a session rebuilt after a crash mid-round restores the goal disarmed, and resume continues it', async () => {
     const cwd = tempDir('cwd')
-    const transcript = await crashedTranscript('Keep working', goalPort({ defaults: { maxGoalRounds: 3 } }), cwd)
-    const { session: s, host, calls } = await goalSession([working], goalPort(), { cwd, transcript })
+    const entries = await crashedEntries('Keep working', goalPort({ defaults: { maxGoalRounds: 3 } }), cwd)
+    const { session: s, host, calls } = await goalSession([working], goalPort(), { cwd, entries })
 
     await promptIdle(s, 'hello again')
     expect(calls).toHaveLength(1)
@@ -52,8 +54,8 @@ describe('goal across sessions', () => {
   // judged never run, the request loses its prompt and the round's usage goes uncounted.
   it('a round resumed after a crash between its commit and its start is sent once and counted', async () => {
     const cwd = tempDir('cwd')
-    const store: { entries?: TranscriptEntry[] } = {}
-    let crashed: TranscriptEntry[] | undefined
+    const store: { entries?: SessionEntry[] } = {}
+    let crashed: SessionEntry[] | undefined
     let turns = 0
     // Loaded before the goal extension, so it sees round 2 committed but not yet admitted.
     const crashAtSecondTurn: ExtensionFactory = (pi) => {
@@ -69,7 +71,7 @@ describe('goal across sessions', () => {
     await promptIdle(live.session, '/goal Keep working')
     expect(rounds(crashed!).map((round) => round.round)).toEqual([1, 2])
 
-    const { session: s, host, calls } = await goalSession([working], goalPort(), { cwd, transcript: crashed })
+    const { session: s, host, calls } = await goalSession([working], goalPort(), { cwd, entries: crashed })
     await promptIdle(s, '/goal resume')
     const roundsSent = (prompt: LanguageModelV3Prompt) => prompt.flatMap((message) => roundStart([message]) ?? [])
     expect(roundStart(calls[0].prompt)).toBe(2)
@@ -82,14 +84,14 @@ describe('goal across sessions', () => {
   // Breaks when a model without tool calling still gets the goal tools or the command, or the goal is left looking runnable.
   it('a model without tool calling gets no goal tools or command, and an active goal is marked unsupported', async () => {
     const cwd = tempDir('cwd')
-    const transcript = await crashedTranscript('Keep working', goalPort(), cwd)
+    const entries = await crashedEntries('Keep working', goalPort(), cwd)
     const {
       session: s,
       host,
       calls
     } = await goalSession([working], goalPort({ modelSupportsTools: () => false }), {
       cwd,
-      transcript
+      entries
     })
     await promptIdle(s, '/goal')
 
@@ -112,7 +114,7 @@ describe('goal across sessions', () => {
 
     const { session: s, host } = await goalSession([working], goalPort({ modelSupportsTools: () => false }), {
       cwd,
-      transcript: plain(paused.host.entries)
+      entries: plain(paused.host.entries)
     })
     await promptIdle(s, 'hello')
     expect(snapshots(host.entries)).toEqual([])
@@ -141,7 +143,7 @@ describe('goal across sessions', () => {
     )
     await promptIdle(s, '/goal Finish the OBJECTIVE-MARKER work')
 
-    expect(host.entries.some((entry) => entry.kind === 'compaction')).toBe(true)
+    expect(host.entries.some((entry) => entry.type === 'compaction')).toBe(true)
     const afterCompaction = calls.find((call) => JSON.stringify(call.prompt).includes('SUMMARY-MARKER'))!
     expect(JSON.stringify(afterCompaction.prompt)).not.toContain('step 1:')
     expect(JSON.stringify(afterCompaction.prompt.at(-1))).toContain('OBJECTIVE-MARKER')
