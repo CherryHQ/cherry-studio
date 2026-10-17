@@ -1419,27 +1419,17 @@ describe('utils/image', () => {
         FakeImage.latest = this
       }
     }
-    const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:svg-source')
-    const revokeObjectURL = vi.fn<(url: string) => void>()
-    const objectUrlDescriptors = new Map<string, PropertyDescriptor | undefined>()
 
     const makeSvg = () => {
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
       svg.setAttribute('viewBox', '0 0 20 10')
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-      text.textContent = '中文'
+      text.textContent = '中文 🌸 # & %'
       svg.append(text)
       return svg
     }
 
     beforeEach(() => {
-      for (const [name, fn] of [
-        ['createObjectURL', createObjectURL],
-        ['revokeObjectURL', revokeObjectURL]
-      ] as const) {
-        objectUrlDescriptors.set(name, Object.getOwnPropertyDescriptor(URL, name))
-        Object.defineProperty(URL, name, { configurable: true, value: fn })
-      }
       FakeImage.latest = undefined
       vi.stubGlobal('Image', FakeImage)
       vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
@@ -1449,42 +1439,28 @@ describe('utils/image', () => {
     })
 
     afterEach(() => {
-      for (const [name, descriptor] of objectUrlDescriptors) {
-        if (descriptor) {
-          Object.defineProperty(URL, name, descriptor)
-        } else {
-          Reflect.deleteProperty(URL, name)
-        }
-      }
-      createObjectURL.mockClear()
-      revokeObjectURL.mockClear()
       vi.unstubAllGlobals()
       vi.restoreAllMocks()
     })
 
-    it('loads the serialized SVG through an SVG blob URL and revokes it after drawing', async () => {
+    it('preserves Unicode labels and SVG dimensions when rasterizing', async () => {
       const pending = svgToCanvas(makeSvg(), 2)
-
-      expect(FakeImage.latest?.src).toBe('blob:svg-source')
-      const [blob] = createObjectURL.mock.calls[0]
-      expect(blob.type).toMatch(/^image\/svg\+xml/)
-      expect(new TextDecoder().decode(await readBlobBytes(blob))).toContain('<text>中文</text>')
-      expect(revokeObjectURL).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      const response = dataUrlToBlob(FakeImage.latest!.src)
+      const xml = new TextDecoder().decode(await readBlobBytes(response))
+      const svg = new DOMParser().parseFromString(xml, 'image/svg+xml')
+      expect(svg.querySelector('text')?.textContent).toBe('中文 🌸 # & %')
 
       FakeImage.latest?.onload?.()
       const canvas = await pending
-
       expect([canvas.width, canvas.height]).toEqual([40, 20])
-      expect(revokeObjectURL).toHaveBeenCalledWith('blob:svg-source')
     })
 
-    it('rejects and revokes the blob URL when the SVG image fails to load', async () => {
+    it('rejects when the SVG image fails to load', async () => {
       const pending = svgToCanvas(makeSvg())
-
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
       FakeImage.latest?.onerror?.()
-
       await expect(pending).rejects.toThrow('Failed to load SVG image')
-      expect(revokeObjectURL).toHaveBeenCalledWith('blob:svg-source')
     })
   })
 })

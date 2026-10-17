@@ -1,20 +1,10 @@
-/**
- * MCP resource read tool — deep-read companion to `mcp_resource_list`.
- *
- * The model passes a `(serverId, uri)` pair from `mcp_resource_list` (or from a resource the user
- * attached in the composer, whose chip carries both). The server is resolved from the request's
- * frozen scope, and the uri must appear in that server's published list — neither is taken on the
- * model's word.
- *
- * Being `truncatable: false`, this tool caps its own output: a page is at most the request's
- * tool-output cap, and `nextOffset` continues it. Without that, an arbitrarily large resource would
- * land whole in the model's context with no layer left to trim it.
- */
+/** Read published resources/templates or conversation-embedded resources with bounded pages and image delivery. */
 
 import { type ToolResultOutput } from '@ai-sdk/provider-utils'
 import { tool } from 'ai'
 
 import { application } from '@application'
+import { mcpToolResourceKey } from '@main/ai/messages/mcpToolResources'
 import { isPathInside, openReadableFileSnapshot, realpath } from '@main/utils/file'
 import {
   MCP_RESOURCE_READ_CHAR_CAP,
@@ -33,7 +23,7 @@ import type { ToolEntry } from '../types'
 
 export const MCP_RESOURCE_READ_DESCRIPTION =
   'Read the content of an MCP resource. Pass the serverId and uri exactly as returned by ' +
-  'mcp_resource_list, or as carried by a resource the user attached. Long resources come back one ' +
+  'mcp_resource_list, expanded from that server’s uriTemplate, a resource the user attached, or an MCP tool result. Long resources come back one ' +
   'page at a time — continue with the returned nextOffset. Binary blobs are decoded to temporary ' +
   'files and returned as blobSavedTo paths, never as base64.'
 
@@ -89,6 +79,9 @@ const mcpResourceReadTool = tool({
     // cannot resolve, means prompt (the execute below rejects it anyway).
     try {
       const { request } = getToolCallContext(options)
+      const { serverId, uri } = input as { serverId: string; uri: string }
+      // Embedded bytes were already delivered by an authorized tool call; no server read occurs.
+      if (request.mcpToolResources?.has(mcpToolResourceKey(serverId, uri))) return false
       const server = resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds).find(
         (candidate) => candidate.id === (input as { serverId?: string }).serverId
       )
@@ -103,9 +96,17 @@ const mcpResourceReadTool = tool({
     return readScopedMcpResource(resolveMcpResourceServers(request.assistant, request.mcpResourceServerIds), {
       serverId,
       uri,
+      embeddedResources: request.mcpToolResources,
       offset,
       charCap: request.toolOutputCharCap ?? MCP_RESOURCE_READ_CHAR_CAP,
-      signal: request.abortSignal
+      signal: request.abortSignal,
+      interactionContext: {
+        windowId: request.windowId,
+        topicId: request.topicId,
+        requestId: options.toolCallId,
+        model: request.model,
+        roots: request.roots
+      }
     })
   }
 })
@@ -123,6 +124,6 @@ export function createMcpResourceReadToolEntry(): ToolEntry {
     // approval card (same rule as force-prompt MCP tools).
     defer: 'never',
     tool: mcpResourceReadTool,
-    applies: (scope) => (scope.mcpResourceServerIds?.size ?? 0) > 0
+    applies: (scope) => (scope.mcpResourceServerIds?.size ?? 0) > 0 || scope.mcpToolIds.size > 0
   }
 }

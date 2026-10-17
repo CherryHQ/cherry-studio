@@ -1,4 +1,4 @@
-import { BookOpen, CircleQuestionMark, MessageSquareText, Sparkles, Stethoscope } from 'lucide-react'
+import { BookOpen, CircleQuestionMark, FileArchive, MessageSquareText, Sparkles, Stethoscope } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,11 +15,13 @@ const logger = loggerService.withContext('HelpMenu')
 export function HelpMenu({
   layout,
   onFeedbackClick,
-  onOverlayOpenChange
+  onOverlayOpenChange,
+  placement = 'right'
 }: {
   layout: SidebarVisibleLayout
   onFeedbackClick: () => void
   onOverlayOpenChange?: (open: boolean) => void
+  placement?: 'right' | 'bottom'
 }) {
   const { t, i18n } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
@@ -29,6 +31,7 @@ export function HelpMenu({
   const menuOpenRef = useRef(false)
   const onOverlayOpenChangeRef = useRef(onOverlayOpenChange)
   const pendingActionRef = useRef<(() => void | Promise<void>) | null>(null)
+  const isHeader = placement === 'bottom'
 
   useEffect(() => {
     onOverlayOpenChangeRef.current = onOverlayOpenChange
@@ -75,8 +78,12 @@ export function HelpMenu({
         variant="ghost"
         size="icon"
         aria-label={t('help.title')}
-        className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground">
-        <CircleQuestionMark size={18} strokeWidth={1.6} />
+        className={
+          isHeader
+            ? 'flex size-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground'
+            : 'flex size-7 items-center justify-center rounded-none bg-transparent text-muted-foreground opacity-55 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100 focus-visible:bg-transparent focus-visible:text-foreground focus-visible:opacity-100 active:bg-transparent data-[state=open]:bg-transparent data-[state=open]:text-foreground data-[state=open]:opacity-100 dark:text-muted-foreground dark:hover:text-foreground [&_svg]:text-current'
+        }>
+        <CircleQuestionMark size={isHeader ? 16 : 18} strokeWidth={isHeader ? 1.8 : 1.6} />
       </Button>
     ) : (
       <Button
@@ -94,7 +101,7 @@ export function HelpMenu({
       <Popover open={menuOpen} onOpenChange={handleMenuOpenChange}>
         <Tooltip
           content={t('help.title')}
-          placement="right"
+          placement={placement}
           delay={800}
           fullWidthTrigger={layout !== 'icon'}
           isDisabled={layout !== 'icon'}>
@@ -102,7 +109,7 @@ export function HelpMenu({
         </Tooltip>
         <PopoverContent
           align="end"
-          side="right"
+          side={placement}
           sideOffset={8}
           className="w-52 rounded-xl p-1.5"
           onCloseAutoFocus={(event) => {
@@ -133,6 +140,17 @@ export function HelpMenu({
               icon={<BookOpen size={16} />}
               label={t('help.guide')}
               onClick={() => runAfterClose(openDocs)}
+            />
+            <MenuItem
+              size="sm"
+              className="h-8"
+              icon={<FileArchive size={16} />}
+              label={t('settings.about.feedback.diagnostics.title')}
+              onClick={() =>
+                runAfterClose(async () => {
+                  await DoctorPopup.show({ initialPanel: 'report' })
+                })
+              }
             />
             <MenuItem
               size="sm"

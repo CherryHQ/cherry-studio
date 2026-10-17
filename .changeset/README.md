@@ -30,6 +30,12 @@ This will:
 
 > **Note**: CI will check that PRs modifying packages include a changeset.
 
+Run `pnpm changeset:check` to validate pending changesets. Do not include packages
+listed in `config.json`'s `ignore` setting: their changesets survive versioning and
+prevent the release action from reaching npm publication. PR CI and the release
+workflow reject these entries. Empty changesets (`pnpm changeset add --empty`)
+remain valid for changes that need no package release.
+
 ### Versioning and publishing
 
 Versioning and publishing are handled automatically by CI — you do **not** need to run `changeset version` or `changeset publish` locally. See the [CI/CD Integration](#cicd-integration) section below.
@@ -47,14 +53,20 @@ See `config.json` for the changeset configuration:
 
 | Package | Description |
 | --- | --- |
+| `@cherrystudio/web-search` | Portable web-search protocols and optional content utilities |
+| `@cherrystudio/provider-registry` | Cross-platform provider/model catalogs, schemas, and lookup |
 | `@cherrystudio/ai-core` | Unified AI Provider Interface |
 | `@cherrystudio/ai-sdk-provider` | AI SDK provider bundle with CherryIN routing |
 | `@cherrystudio/extension-table-plus` | Table extension for Tiptap |
+| `@cherrystudio/file-preview` | Portable React previews for PDF, DOCX, PPTX, XLSX and images |
+| `@cherrystudio/remote-protocol` | Remote access schemas and Agent recovery contracts |
+| `@cherrystudio/remote-transport` | Encrypted Noise XX transport and JSON-RPC |
 
 ### Dependency relationships
 
 ```
 ai-core (peer-depends on) → ai-sdk-provider
+remote-transport → remote-protocol
 ```
 
 Changeset automatically handles updating peer dependency ranges when `ai-sdk-provider` is published.

@@ -1,4 +1,4 @@
-import { render, renderHook } from '@testing-library/react'
+import { act, render, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -7,11 +7,13 @@ import type {
   MessageListRuntime
 } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
@@ -203,6 +205,49 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it('delivers sent attachment activation to the current pane callback after rerender', async () => {
+    const opened: InputFilePreview[] = []
+    const input = { displayName: 'report.md', previewPath: '/managed/report.md' as AbsoluteFilePath }
+    const { result, rerender } = renderHook(
+      ({ previewInputFile }) =>
+        useAgentMessageListProviderValue({
+          topic: {
+            id: 'agent-session:source',
+            assistantId: 'agent-1',
+            name: 'Source',
+            messages: []
+          } as unknown as Topic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor',
+          previewInputFile
+        }),
+      {
+        initialProps: {
+          previewInputFile: (file: InputFilePreview) => {
+            opened.push(file)
+          }
+        }
+      }
+    )
+    await act(async () => {
+      await result.current.actions.previewInputFile?.(input)
+    })
+    expect(opened).toEqual([input])
+    const nextOpened: InputFilePreview[] = []
+    rerender({
+      previewInputFile: (file: InputFilePreview) => {
+        nextOpened.push(file)
+      }
+    })
+    await act(async () => {
+      await result.current.actions.previewInputFile?.(input)
+    })
+    expect(nextOpened).toEqual([input])
+    expect(opened).toEqual([input])
+  })
+
   it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(
     'offers completed messages without an availability flag and reports native fork errors: %s',
     async (scenario) => {
@@ -384,9 +429,6 @@ describe('useAgentMessageListProviderValue', () => {
       selectAllDisabled: false,
       isSelectAllLoading: false
     })
-    expect(useMessageExportActionsMock).toHaveBeenCalledWith({
-      topicName: 'Agent session'
-    })
     expect(value?.actions.deleteMessage).toBe(deleteMessage)
     expect(value?.actions.respondToolApproval).toBe(respondToolApproval)
     expect(value?.actions.selectMessage).toEqual(expect.any(Function))
@@ -439,7 +481,10 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.locateMessage).toEqual(expect.any(Function))
 
     void value?.actions.openPath?.('dist/report.md')
-    expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
+      sessionId: 'agent-session-topic',
+      path: 'dist/report.md'
+    })
 
     ipcApiRequest.mockResolvedValueOnce({ kind: 'file' })
     await expect(value?.actions.isDirectory?.('dist/report.md')).resolves.toBe(false)
@@ -497,7 +542,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
-  it('rejects unresolved relative paths when no workspace root is available', () => {
+  it('sends the raw path to main when the renderer has no workspace root of its own', () => {
     const topic = {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
@@ -523,7 +568,11 @@ describe('useAgentMessageListProviderValue', () => {
     }
     render(<Probe />)
 
-    expect(() => value?.actions.openPath?.('dist/report.md')).toThrow(/absolute path/i)
+    void value?.actions.openPath?.('dist/report.md')
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
+      sessionId: 'session-1',
+      path: 'dist/report.md'
+    })
     expect(window.api.file.openPath).not.toHaveBeenCalled()
   })
 

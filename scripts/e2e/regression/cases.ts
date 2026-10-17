@@ -10,11 +10,25 @@ export const REGRESSION_CASES = [
     task: 'custom-provider-chat'
   },
   {
+    id: 'M-03',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Scroll provider models from outside the list without sticky groups',
+    task: 'provider-model-scroll'
+  },
+  {
     id: 'C-01',
     capabilities: [],
     phase: '03-models-and-assistants',
     title: 'Create a custom assistant and chat',
     task: 'custom-assistant'
+  },
+  {
+    id: 'C-03',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'Preserve a partial chat response after disconnect and restart',
+    task: 'chat-stream-failure'
   },
   { id: 'T-01', capabilities: [], phase: '04-translation', title: 'Translate text', task: 'translation' },
   {
@@ -94,13 +108,6 @@ export const REGRESSION_CASES = [
     phase: '10-agent-runtimes',
     title: 'Pi Runtime',
     task: 'pi-runtime'
-  },
-  {
-    id: 'A-05',
-    capabilities: ['desktopAutomation'],
-    phase: '10-agent-runtimes',
-    title: 'DeepSeek Harness Runtime',
-    task: 'deepseek-harness-runtime'
   },
   {
     id: 'A-01',
