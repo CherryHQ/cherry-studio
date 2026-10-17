@@ -1,7 +1,8 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { SubagentPort } from '../src'
+import type { SubagentPort } from '@cherrystudio/agent-runtime-pi'
+
 import {
   gate,
   outputText,
@@ -16,9 +17,9 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './subagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort, textParts } from './support'
-import { textOf } from './toolResults'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, hostStore, streamTextPort, textParts } from './aiSdkSupport'
+import { textOf } from './aiSdkToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 
@@ -57,7 +58,7 @@ describe('background subagents', () => {
     await waitFor(() => subagentStates(parent.entries).length === 2)
     const view = { sessionId, parentToolCallId: 'call_a', description: 'Check A' }
     expect(subagentStates(parent.entries)).toEqual([
-      { ...view, fork: false, background: true, modelKey: 'cherry::bridged-model', run: 1, status: 'running' },
+      { ...view, fork: false, background: true, modelKey: 'cherry/bridged-model', run: 1, status: 'running' },
       expect.objectContaining({
         ...view,
         run: 1,

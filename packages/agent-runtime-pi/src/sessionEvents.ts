@@ -6,10 +6,13 @@ import {
   type SessionManager
 } from '@earendil-works/pi-coding-agent'
 
+import type { SubagentView } from './subagentRegistry'
+
 const TOOL_LOADOUT_STATE = 'cherry.tool-loadout'
 
 export type CompactionReason = 'manual' | 'threshold' | 'overflow'
 export type AgentRuntimeEvent =
+  | { type: 'subagents'; subagents: SubagentView[] }
   | { type: 'session-append'; entries: SessionEntry[] }
   | { type: 'compaction-start'; reason: CompactionReason }
   | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string }

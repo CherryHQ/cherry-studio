@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import type { AssistantMessage } from '@earendil-works/pi-ai'
+import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai'
 import { type AgentSession, type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 import { type LanguageModel, simulateReadableStream, streamText } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
@@ -16,10 +16,14 @@ import {
 } from '@cherrystudio/agent-runtime-pi'
 
 import { type AiSdkModel, createAiSdkModelBinding } from './aiSdkModelBinding'
+import { AI_SDK_API } from './aiSdkProvider'
 import { type ModelCallPort, type ModelCallRequest, type ModelCallSideChannel } from './aiSdkTypes'
 
-export const MODEL: AiSdkModel = {
-  id: 'cherry::bridged-model',
+export const MODEL: Model<Api> = {
+  api: AI_SDK_API,
+  baseUrl: 'https://unused.test',
+  provider: 'cherry',
+  id: 'bridged-model',
   name: 'Bridged model',
   reasoning: true,
   input: ['text', 'image'],
@@ -120,7 +124,31 @@ export async function createTestSession<TRequestOptions = undefined>(options: Te
     agentDir: options.agentDir ?? tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
-    ...binding
+    ...binding,
+    subagents: options.subagents && {
+      ...options.subagents,
+      async configure(child) {
+        const configured = await options.subagents!.configure(child)
+        const childBinding =
+          configured.model && !child.fork && !configured.modelRuntime
+            ? await createAiSdkModelBinding({
+                port,
+                requestOptions: requestOptions as TRequestOptions,
+                sideChannel,
+                model: configured.model
+              })
+            : binding
+        return {
+          ...configured,
+          ...(!child.fork && configured.model && !configured.modelRuntime
+            ? { model: childBinding.model, modelRuntime: childBinding.modelRuntime }
+            : {}),
+          extensionFactories: [...childBinding.extensionFactories, ...(configured.extensionFactories ?? [])]
+        }
+      }
+    },
+    settings: { ...options.settings, ...binding.settings },
+    extensionFactories: [...binding.extensionFactories, ...(options.extensionFactories ?? [])]
   })
   onTestFinished(() => runtime.dispose())
   return runtime
