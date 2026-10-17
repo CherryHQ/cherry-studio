@@ -5,7 +5,9 @@ import { generateText, simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
-import type { CompactionSummarizer, CompactionSummaryRequest } from '../src'
+import type { CompactionSummarizer, CompactionSummaryRequest } from '@cherrystudio/agent-runtime-pi'
+
+import { toModelMessages } from './aiSdkMessages'
 import {
   createTestSession,
   finish,
@@ -17,7 +19,7 @@ import {
   gatewayModel,
   tempDir,
   textParts
-} from './support'
+} from './gatewaySupport'
 
 const PAGE_CHARS = 9_000 // ~2.6k tokens per tool result
 
@@ -134,7 +136,7 @@ describe('Pi compaction through the port', () => {
     expect(finalPrompt.length).toBeLessThan(JSON.stringify(agentCalls[2].prompt).length)
     expect(lastAssistant(session).content).toEqual([{ type: 'text', text: 'Done reading.' }])
 
-    const compaction = host.entries.find((entry) => entry.kind === 'compaction')
+    const compaction = host.entries.find((entry) => entry.type === 'compaction')
     expect(host.events.filter((event) => event.type.startsWith('compaction-'))).toEqual([
       { type: 'compaction-start', reason: 'threshold' },
       { type: 'compaction-end', reason: 'threshold', entryId: compaction?.id }
@@ -144,7 +146,7 @@ describe('Pi compaction through the port', () => {
       port: gatewayModel(next.model).port,
       model: { ...MODEL, contextWindow: 9_000 },
       tools: [fetchPage],
-      transcript: host.entries
+      entries: host.entries
     })
     await rebuilt.session.prompt('And now?')
     const rebuiltPrompt = JSON.stringify(next.calls[0].prompt)
@@ -178,7 +180,7 @@ describe('Pi compaction through the port', () => {
     await session.compact()
 
     const next = scriptedModel([[...textParts('n', 'ok'), finish('stop')]])
-    const rebuilt = await createTestSession({ port: gatewayModel(next.model).port, transcript: host.entries })
+    const rebuilt = await createTestSession({ port: gatewayModel(next.model).port, entries: host.entries })
     await rebuilt.session.prompt('Third')
     const prompt = JSON.stringify(next.calls[0].prompt)
     expect(prompt).toMatch(/SUMMARY-MARKER/)
@@ -218,7 +220,7 @@ describe('Pi compaction through the port', () => {
 
     const next = scriptedModel([[...textParts('n', 'ok'), finish('stop')]])
     const transcript = plain(host.entries)
-    const rebuilt = await createTestSession({ cwd, port: gatewayModel(next.model).port, transcript })
+    const rebuilt = await createTestSession({ cwd, port: gatewayModel(next.model).port, entries: transcript })
     await session.prompt('Third')
     await rebuilt.session.prompt('Third')
     expect(JSON.stringify(calls.at(-1)!.prompt)).not.toMatch(/QUESTION-ONE/)
@@ -253,8 +255,10 @@ describe('host summarizer', () => {
       { reason: 'manual', instructions: 'keep the user facts', previousSummary: undefined },
       { reason: 'manual', instructions: undefined, previousSummary: 'HOST-SUMMARY-1' }
     ])
-    expect(requests[0].messages).toContainEqual({ role: 'user', content: [{ type: 'text', text: 'My name is Li' }] })
-    expect(host.entries.flatMap((entry) => (entry.kind === 'compaction' ? [entry.summary] : []))).toEqual([
+    expect(requests[0].messages).toContainEqual(
+      expect.objectContaining({ role: 'user', content: [{ type: 'text', text: 'My name is Li' }] })
+    )
+    expect(host.entries.flatMap((entry) => (entry.type === 'compaction' ? [entry.summary] : []))).toEqual([
       'HOST-SUMMARY-1',
       'HOST-SUMMARY-2'
     ])
@@ -285,18 +289,18 @@ describe('host summarizer', () => {
       })
     })
     // A host summarizer that sends the messages as they are, with its own instruction.
-    const summarize: CompactionSummarizer = async ({ messages, signal }) =>
+    const summarize: CompactionSummarizer = async ({ messages, model, signal }) =>
       (
         await generateText({
           model: summaryModel,
-          messages: [...messages, { role: 'user', content: 'Summarize the conversation.' }],
+          messages: [...toModelMessages(messages, model), { role: 'user', content: 'Summarize the conversation.' }],
           abortSignal: signal,
           maxRetries: 0
         })
       ).text
     const host = hostStore()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [fetchPage],
       compaction: { reserveTokens: 16_384, keepRecentTokens: 1, summarize },
       onEvent: host.onEvent
@@ -308,7 +312,7 @@ describe('host summarizer', () => {
     expect(host.events.filter((event) => event.type === 'compaction-end')).toEqual([
       { type: 'compaction-end', reason: 'manual', entryId: expect.any(String) }
     ])
-    expect(host.entries.flatMap((entry) => (entry.kind === 'compaction' ? [entry.summary] : []))).toEqual([
+    expect(host.entries.flatMap((entry) => (entry.type === 'compaction' ? [entry.summary] : []))).toEqual([
       'HOST-SUMMARY'
     ])
   })
@@ -334,7 +338,7 @@ describe('host summarizer', () => {
 
     expect(timeline).not.toContain('model:summarize')
     expect(lastAssistant(session).content).toEqual([{ type: 'text', text: 'Done reading.' }])
-    expect(host.entries.some((entry) => entry.kind === 'compaction')).toBe(false)
+    expect(host.entries.some((entry) => entry.type === 'compaction')).toBe(false)
     const ends = host.events.filter((event) => event.type === 'compaction-end')
     expect(ends.length).toBeGreaterThan(0)
     expect(ends).toEqual(
