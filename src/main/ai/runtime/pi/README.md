@@ -12,7 +12,9 @@ Cherry's AI SDK request layer owns retries.
 
 Each Pi request is converted to AI SDK messages and tools without `execute`. The supplied model
 call performs one `streamText` step; Pi alone executes tools and decides whether another step or
-compaction is needed. This callback can invoke ai-core's executor with model middleware and request
+compaction is needed. Every request sets `maxOutputTokens` as Pi's built-in providers do: the
+call's cap, or the model's `maxTokens` when Pi gives none (its agent never does), lowered to what
+the context window leaves after the context estimate and a 4,096-token margin (at least 1). This callback can invoke ai-core's executor with model middleware and request
 plugins. It must not install another agent loop or replace Pi's context with Cherry chat history.
 
 `aiSdkProvider.ts` converts streaming text, reasoning, tool calls, errors and usage back to native

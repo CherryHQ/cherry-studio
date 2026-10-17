@@ -17,6 +17,7 @@ import {
   type TranscriptContext,
   type Usage
 } from '@earendil-works/pi-ai'
+import { clampMaxTokensToContext } from '@earendil-works/pi-ai/api/simple-options'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import type { FinishReason, LanguageModelUsage, ProviderMetadata, TextStreamPart, ToolSet } from 'ai'
 
@@ -163,7 +164,8 @@ function streamModelCall<TRequestOptions>(
         messages: toModelMessages(context, model),
         tools: toToolSet(context),
         toolChoice: options?.toolChoice,
-        maxOutputTokens: options?.maxTokens,
+        // As every built-in Pi provider: Pi's agent passes no cap, so the model's ceiling, fitted to the context.
+        maxOutputTokens: clampMaxTokensToContext(model, context, options?.maxTokens ?? model.maxTokens),
         temperature: options?.temperature,
         abortSignal: signal,
         options: provider.requestOptions
