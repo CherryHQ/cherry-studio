@@ -80,9 +80,10 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
     createDefaults: { permissionMode: 'auto' },
-    // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
-    // the same routability rule as the gateway model catalog.
-    isModelCompatible: (_provider, model) => isGatewayRoutableModel(model),
+    // Claude Code reaches non-native providers through the local API Gateway, so its picker
+    // hides models the gateway cannot serve (unroutable or disabled).
+    isModelCompatible: (provider, model) =>
+      provider?.isEnabled !== false && model.isEnabled !== false && isGatewayRoutableModel(model),
     transport: 'claude-agent',
     builtinTools: () =>
       claudeUserFacingTools().map((tool) => ({
@@ -114,6 +115,8 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     // free-quota default is barred too — like claude, pi must not drive it directly.
     isModelCompatible: (provider, model) =>
       !!provider &&
+      provider.isEnabled !== false &&
+      model.isEnabled !== false &&
       isPiCompatibleModel(provider, model) &&
       !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
     transport: 'pi-agent',

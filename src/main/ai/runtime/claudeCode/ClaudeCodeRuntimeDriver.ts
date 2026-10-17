@@ -526,7 +526,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.fastMode === true,
       input.knowledgeBaseIds
     )
-    if (!derived.ok) return 'invalid'
+    if (!derived.ok) {
+      // A disabled/unroutable model is a configuration error the user must see. Invalidating would
+      // close the session silently; a rebuild reconnects through the cold build, whose availability
+      // check throws this message into the turn.
+      if (derived.reason === 'model-unavailable') return 'rebuild'
+      return 'invalid'
+    }
     const baseline = this.connectionConfig
     // A connection without its materialized baseline cannot prove what the subprocess serves.
     if (!baseline) return 'rebuild'
