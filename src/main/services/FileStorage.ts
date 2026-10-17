@@ -38,6 +38,7 @@ import {
   readTextFileWithAutoEncoding,
   sanitizeFilename
 } from '@main/utils/legacyFile'
+import { extractXlsxText } from '@main/utils/xlsx'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
@@ -422,6 +423,10 @@ class FileStorage {
 
     if (documentExts.includes(fileExtension)) {
       try {
+        if (fileExtension === '.xlsx') {
+          return await extractXlsxText(await fs.promises.readFile(filePath))
+        }
+
         if (fileExtension === '.doc') {
           // Awaited, so a failure reaches the catch below like every other
           // document read here; returning the promise would settle it outside.
