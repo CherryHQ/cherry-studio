@@ -382,6 +382,29 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it('does not replay chunks a listening branch already received from the stream start', async () => {
+    const start: UIMessageChunk = { type: 'start' }
+    mock.mockApi.streamAttach.mockResolvedValueOnce({
+      status: 'attached',
+      bufferedChunks: [
+        { topicId: TOPIC, executionId: A, attemptId: 1, chunk: start },
+        { topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('Paris') }
+      ] satisfies StreamChunkPayload[]
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    sub.listen()
+
+    mock.emitChunk(TOPIC, A, start)
+    mock.emitChunk(TOPIC, A, textChunk('Paris'))
+    const stream = sub.register(A, undefined, 1)
+    await tick()
+    mock.emitChunk(TOPIC, A, textChunk(' is'))
+    mock.emitDone(TOPIC, A, 'success', true)
+
+    expect(await readAll(stream)).toEqual([start, textChunk('Paris'), textChunk(' is')])
+    sub.dispose()
+  })
+
   it('demuxes attach-replay bufferedChunks by executionId', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',

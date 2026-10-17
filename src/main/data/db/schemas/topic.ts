@@ -20,6 +20,8 @@ export const topicTable = sqliteTable(
     assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
     // Active node ID in the message tree
     activeNodeId: text(),
+    // Retained temporary chats expire; permanent conversations leave this NULL.
+    expiresAt: integer(),
 
     traceId: text(),
 
@@ -33,6 +35,7 @@ export const topicTable = sqliteTable(
     ...createUpdateDeleteTimestamps
   },
   (t) => [
+    index('topic_expires_at_idx').on(t.expiresAt),
     index('topic_last_activity_at_idx').on(t.lastActivityAt),
     index('topic_updated_at_idx').on(t.updatedAt),
     orderKeyIndex('topic')(t),

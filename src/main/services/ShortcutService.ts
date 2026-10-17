@@ -138,7 +138,7 @@ export class ShortcutService extends BaseService {
           return toContextValue(preferenceService.get(key as PreferenceKeyType))
         }
         const preferences = Object.fromEntries(
-          localKeybindings.map((rule) => [rule.command, preferenceService.get(rule.preferenceKey)])
+          relevantKeybindings.map((rule) => [rule.command, preferenceService.get(rule.preferenceKey)])
         ) as Partial<Record<CommandId, PreferenceShortcutType>>
         const command = resolveCommandByKeybinding({
           binding: getShortcutBindingFromKeyboardEvent(
@@ -156,7 +156,14 @@ export class ShortcutService extends BaseService {
           context,
           platform: process.platform as SupportedPlatform,
           scope: 'main',
-          canExecuteCommand: (candidate) => localCommands.has(candidate) && this.handlers.has(candidate)
+          canExecuteCommand: (candidate) => {
+            if (!this.handlers.has(candidate)) return false
+            if (localCommands.has(candidate)) return true
+            const rule = globalKeybindings.find((binding) => binding.command === candidate)
+            return (
+              !!rule && ![...this.registeredAccelerators.values()].some((entry) => entry.key === rule.preferenceKey)
+            )
+          }
         })
 
         if (!command) return

@@ -2016,6 +2016,27 @@ describe('AiStreamManager', () => {
   // ── grace period ────────────────────────────────────────────────
 
   describe('grace period', () => {
+    it('delivers the pending coalesced text of a listener that attach replaces', () => {
+      const wc = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new WebContentsListener(wc as unknown as Electron.WebContents, 'a')]
+      })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'Paris' })
+      const sentDeltas = () =>
+        wc.send.mock.calls
+          .filter(([, , payload]) => payload?.chunk?.type === 'text-delta')
+          .map(([, , p]) => p.chunk.delta)
+      expect(sentDeltas()).toEqual([])
+
+      mgr.attach(wc as unknown as Electron.WebContents, { topicId: 'a' })
+
+      expect(sentDeltas()).toEqual(['Paris'])
+    })
+
     it('attach returns compact replay chunks', () => {
       startSingle(mgr, {
         topicId: 'a',

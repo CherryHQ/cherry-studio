@@ -1,3 +1,6 @@
+import { useEffect } from 'react'
+
+import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -8,6 +11,7 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
+import { isLinux, isLinuxWayland } from '@renderer/utils/platform'
 
 import HomeWindow from './home/HomeWindow'
 
@@ -21,6 +25,37 @@ function QuickAssistantRuntime(): null {
   useLanguageSync()
   useAutoReadPreferenceSync()
   useCustomCss()
+  useEffect(() => {
+    if (!isLinuxWayland) return
+    const idle = requestIdleCallback(
+      () => {
+        // Warm the display code without creating or sending a conversation.
+        void import('./chat/ChatWindow').catch((error) => {
+          loggerService.withContext('QuickAssistant').warn('Failed to preload floating chat display', error as Error)
+        })
+      },
+      { timeout: 100 }
+    )
+    return () => cancelIdleCallback(idle)
+  }, [])
+  useEffect(() => {
+    if (isLinuxWayland) {
+      // Wayland windows are transparent: clip everything, including modal overlays,
+      // to the card's rounded corners so nothing paints outside them.
+      const previousClip = document.body.style.clipPath
+      document.body.style.clipPath = 'inset(0 round var(--cs-radius-2xl))'
+      return () => {
+        document.body.style.clipPath = previousClip
+      }
+    }
+    // X11 windows are opaque, so paint the themed color behind the rounded card.
+    if (!isLinux) return
+    const previous = document.documentElement.style.backgroundColor
+    document.documentElement.style.backgroundColor = 'var(--background)'
+    return () => {
+      document.documentElement.style.backgroundColor = previous
+    }
+  }, [])
 
   return null
 }

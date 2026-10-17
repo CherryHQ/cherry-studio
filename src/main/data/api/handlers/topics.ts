@@ -73,6 +73,9 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     POST: async ({ params }) => topicService.restore(params.id)
   },
 
+  '/topics/:id/persist': {
+    POST: async ({ params }) => topicService.persist(params.id)
+  },
   '/topics/:id/move': {
     POST: async ({ params, body }) => {
       const parsed = MoveTopicSchema.parse(body)

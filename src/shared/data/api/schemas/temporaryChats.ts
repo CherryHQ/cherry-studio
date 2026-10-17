@@ -11,11 +11,16 @@
  * at the type level to keep full alignment with the persistent API surface.
  */
 
+import * as z from 'zod'
+
 import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 
 import type { CreateMessageDto } from './messages'
 import type { CreateTopicDto } from './topics'
+
+export const TEMPORARY_CHAT_LIFETIME_MS = 24 * 60 * 60 * 1000
+export const PersistTemporaryChatSchema = z.strictObject({ temporary: z.boolean().optional() })
 
 // ============================================================================
 // Responses
@@ -112,6 +117,7 @@ export type TemporaryChatSchemas = {
   '/temporary/topics/:id/persist': {
     POST: {
       params: { id: string }
+      body?: z.infer<typeof PersistTemporaryChatSchema>
       response: PersistTemporaryChatResponse
     }
   }

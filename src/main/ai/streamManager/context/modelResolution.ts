@@ -28,15 +28,23 @@ export function resolveModels(mentionedModelIds: UniqueModelId[] | undefined, de
  * Assistant model when `assistantId` is given, otherwise the
  * `chat.default_model_id` preference. Returned `assistantId` is
  * `undefined` (not a sentinel) for assistant-less topics.
+ *
+ * `selectedModelId` is the model the user picked for this turn. It stands in
+ * when the assistant has no model (for example, its model was deleted), so the
+ * turn still runs with the assistant's other settings.
  */
-export function resolveAssistantModelId(assistantId: string | null | undefined): {
+export function resolveAssistantModelId(
+  assistantId: string | null | undefined,
+  selectedModelId?: UniqueModelId
+): {
   assistantId: string | undefined
   defaultModelId: UniqueModelId
 } {
   if (assistantId) {
     const assistant = assistantDataService.getById(assistantId)
-    if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
-    return { assistantId, defaultModelId: assistant.modelId }
+    const defaultModelId = assistant.modelId ?? selectedModelId
+    if (!defaultModelId) throw new Error(`Assistant ${assistantId} has no model configured`)
+    return { assistantId, defaultModelId }
   }
 
   const defaultModelId = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null

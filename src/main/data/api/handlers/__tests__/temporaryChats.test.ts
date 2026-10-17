@@ -139,7 +139,7 @@ describe('temporaryChatHandlers', () => {
       const result = await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
         reqEnvelope({ params: { id: 'tid-123' } })
       )
-      expect(persistMock).toHaveBeenCalledWith('tid-123')
+      expect(persistMock).toHaveBeenCalledWith('tid-123', false)
       expect(result).toEqual({ topicId: 'tid-123', messageCount: 4 })
     })
   })
