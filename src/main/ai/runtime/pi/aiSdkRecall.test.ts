@@ -1,12 +1,13 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { Type } from '@earendil-works/pi-ai'
-import { defineTool } from '@earendil-works/pi-coding-agent'
+import { defineTool, type SessionEntry } from '@earendil-works/pi-coding-agent'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
-import type { AgentRuntimeEvent, TranscriptEntry } from '../src'
-import { createTestSession, finish, hostStore, plain, streamTextPort, textParts } from './support'
+import type { AgentRuntimeEvent } from '@cherrystudio/agent-runtime-pi'
+
+import { createTestSession, finish, hostStore, plain, streamTextPort, textParts } from './aiSdkSupport'
 
 /** Agent requests follow `script`; requests without tools are Pi's own compaction summaries. */
 function respondingModel(script: (call: number) => LanguageModelV3StreamPart[]) {
@@ -30,12 +31,11 @@ const recall = (id: string, input: object): LanguageModelV3StreamPart[] => [
 ]
 const reply = (text: string) => [...textParts('t', text), finish('stop')]
 
-const recallOutputs = (entries: readonly TranscriptEntry[]) =>
+const recallOutputs = (entries: readonly SessionEntry[]) =>
   entries.flatMap((entry) => {
-    if (entry.kind !== 'message' || entry.message.role !== 'tool') return []
-    const [part] = entry.message.content
-    return part.type === 'tool-result' && part.toolName === 'vcc_recall' && part.output.type === 'text'
-      ? [part.output.value]
+    if (entry.type !== 'message' || entry.message.role !== 'toolResult') return []
+    return entry.message.toolName === 'vcc_recall'
+      ? entry.message.content.flatMap((part) => (part.type === 'text' ? [part.text] : []))
       : []
   })
 
@@ -74,7 +74,7 @@ describe('vcc_recall', () => {
     const rebuilt = await createTestSession({
       port: streamTextPort(second.model).port,
       recall: true,
-      transcript: plain(host.entries),
+      entries: plain(host.entries),
       onEvent: rebuiltHost.onEvent
     })
     await rebuilt.session.prompt('Show me that entry in full')
@@ -83,11 +83,11 @@ describe('vcc_recall', () => {
   })
 
   it('numbers entries of the running turn the way they are numbered once the host stores them', async () => {
-    const committed: TranscriptEntry[] = []
-    const pending: TranscriptEntry[] = []
+    const committed: SessionEntry[] = []
+    const pending: SessionEntry[] = []
     // This host writes a turn's entries only when the turn completes.
     const onEvent = (event: AgentRuntimeEvent) => {
-      if (event.type === 'transcript-append') pending.push(...plain(event.entries))
+      if (event.type === 'session-append') pending.push(...plain(event.entries))
       if (event.type === 'turn-complete') committed.push(...pending.splice(0))
     }
     const lookup = defineTool({
@@ -127,7 +127,7 @@ describe('vcc_recall', () => {
       port: streamTextPort(second.model).port,
       tools: [lookup],
       recall: true,
-      transcript: [...committed],
+      entries: [...committed],
       onEvent: rebuiltHost.onEvent
     })
     await rebuilt.session.prompt('Show that order entry')

@@ -1,15 +1,15 @@
+import type { Api, Message, Model } from '@earendil-works/pi-ai'
+import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
 import { convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
-import { type ConversationModelMessage, toModelMessages } from './modelMessages'
-import type { CompactionReason } from './transcriptTap'
+import type { CompactionReason } from './sessionEvents'
 
 export interface CompactionSummaryRequest {
   reason: CompactionReason
-  /**
-   * The messages being folded, as the session model saw them: failed replies are left out and tool
-   * calls without a result get one, so they can go to the AI SDK as they are.
-   */
-  messages: ConversationModelMessage[]
+  sessionId: string
+  model: Model<Api>
+  /** Native messages after Pi replay rules, before provider conversion. */
+  messages: Message[]
   /** Summary of the previous compaction, to carry forward. */
   previousSummary?: string
   /** Focus given to a manual compaction (`session.compact(instructions)`). */
@@ -30,7 +30,7 @@ export interface AgentRuntimeCompaction {
   reserveTokens: number
   /** Recent context kept verbatim. */
   keepRecentTokens: number
-  /** Without it, Pi's default summarizer runs on the session model through the port. */
+  /** Without it, Pi's default summarizer runs on the session model through its native model runtime. */
   summarize?: CompactionSummarizer
 }
 
@@ -45,7 +45,9 @@ export function compactionSummaryExtension(
       try {
         const summary = await summarize({
           reason: event.reason,
-          messages: toModelMessages(
+          sessionId: ctx.sessionManager.getSessionId(),
+          model: ctx.model!,
+          messages: transformMessages(
             convertToLlm([...preparation.messagesToSummarize, ...preparation.turnPrefixMessages]),
             ctx.model!
           ),

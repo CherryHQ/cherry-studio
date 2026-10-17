@@ -2,13 +2,14 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 import type { LanguageModelV3CallOptions, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { Type } from '@earendil-works/pi-ai'
-import { defineTool } from '@earendil-works/pi-coding-agent'
+import { Type, type ToolResultMessage } from '@earendil-works/pi-ai'
+import { defineTool, type SessionEntry } from '@earendil-works/pi-coding-agent'
 import { APICallError, simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
-import type { ToolOutputStore, TranscriptMessageEntry } from '../src'
+import type { ToolOutputStore } from '@cherrystudio/agent-runtime-pi'
+
 import {
   createTestSession,
   finish,
@@ -19,7 +20,7 @@ import {
   streamTextPort,
   tempDir,
   textParts
-} from './support'
+} from './aiSdkSupport'
 
 const WINDOW = 9_000
 const tokensOf = (prompt: LanguageModelV3Prompt) => Math.ceil(JSON.stringify(prompt).length / 4)
@@ -77,10 +78,11 @@ const toolCall = (id: string, toolName: string, input: object): LanguageModelV3S
   input: JSON.stringify(input)
 })
 
-const toolEntries = (entries: unknown[]) =>
-  (entries as TranscriptMessageEntry[]).flatMap((entry) =>
-    entry.kind === 'message' && entry.message.role === 'tool' ? [entry.message.content[0]] : []
-  )
+const toolEntries = (entries: SessionEntry[]) =>
+  entries.flatMap((entry) => (entry.type === 'message' && entry.message.role === 'toolResult' ? [entry.message] : []))
+
+const resultText = (message: ToolResultMessage) =>
+  message.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 
 describe('tool output offload', () => {
   it('keeps a tool result larger than the context window from ending the turn', async () => {
@@ -110,8 +112,8 @@ describe('tool output offload', () => {
     })
     expect(Math.max(...calls.map((call) => tokensOf(call.prompt)))).toBeLessThanOrEqual(WINDOW)
     const [stored] = toolEntries(host.entries)
-    expect(stored).toMatchObject({ type: 'tool-result', output: { type: 'text' } })
-    const marker = (stored as { output: { value: string } }).output.value
+    expect(stored).toMatchObject({ role: 'toolResult', content: [expect.objectContaining({ type: 'text' })] })
+    const marker = resultText(stored)
     expect(marker).toContain('Read the full content with the read tool')
     expect(marker.length).toBeLessThan(3_000)
     expect(readFileSync(/Full output saved to: (.+)/.exec(marker)![1], 'utf8')).toBe(OUTPUT)
@@ -156,17 +158,14 @@ describe('tool output offload', () => {
     })
     await session.prompt('Dump the table twice, fail, then read the dump back')
 
-    const [first, second, failure, read] = toolEntries(host.entries) as {
-      toolName: string
-      output: { type: string; value: string }
-    }[]
-    expect(second.output).toEqual(first.output)
+    const [first, second, failure, read] = toolEntries(host.entries)
+    expect(second.content).toEqual(first.content)
     expect(readdirSync(dir)).toHaveLength(1)
-    expect(failure.output.type).toBe('error-text')
-    expect(failure.output.value.length).toBeGreaterThan(20_000)
+    expect(failure.isError).toBe(true)
+    expect(resultText(failure).length).toBeGreaterThan(20_000)
     expect(read.toolName).toBe('read')
-    expect(read.output.value).toContain('row 799:')
-    expect(read.output.value).not.toContain('<persisted-output>')
+    expect(resultText(read)).toContain('row 799:')
+    expect(resultText(read)).not.toContain('<persisted-output>')
     expect(lastAssistant(session).stopReason).toBe('stop')
   })
 

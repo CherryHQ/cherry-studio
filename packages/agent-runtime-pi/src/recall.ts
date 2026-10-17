@@ -1,7 +1,5 @@
 import { Type } from '@earendil-works/pi-ai'
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
-
-import type { TranscriptEntry, TranscriptMessageEntry } from './transcript'
+import type { ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
 
 const SEARCH_PAGE = 5
 const RANGE_PAGE = 20
@@ -14,39 +12,48 @@ interface Recalled {
   text: string
 }
 
-function render(entry: TranscriptMessageEntry, index: number): Recalled {
-  const { message } = entry
-  const parts =
-    typeof message.content === 'string' ? [{ type: 'text' as const, text: message.content }] : message.content
-  const text = parts
-    .flatMap((part) => {
-      switch (part.type) {
-        case 'text':
-          return [part.text]
-        case 'image':
-          return ['[image]']
-        case 'tool-call':
-          return [`${part.toolName}(${JSON.stringify(part.input)})`]
-        case 'tool-result':
-          return [
-            part.output.type === 'text' || part.output.type === 'error-text'
-              ? part.output.value
-              : part.output.type === 'content'
-                ? part.output.value.map((item) => (item.type === 'text' ? item.text : '[image]')).join('\n')
-                : JSON.stringify(part.output)
-          ]
-        default:
-          return []
-      }
-    })
-    .join('\n')
-  const toolName = message.role === 'tool' && message.content[0]?.type === 'tool-result' && message.content[0].toolName
-  const label = entry.custom ? `custom:${entry.custom.type}` : toolName ? `tool_result:${toolName}` : message.role
-  return { index, label, text }
-}
-
-function recallable(transcript: readonly TranscriptEntry[]): Recalled[] {
-  return transcript.filter((entry): entry is TranscriptMessageEntry => entry.kind === 'message').map(render)
+function recallable(entries: readonly SessionEntry[]): Recalled[] {
+  const recalled: Recalled[] = []
+  for (const entry of entries) {
+    const message =
+      entry.type === 'custom_message'
+        ? { ...entry, role: 'custom' as const }
+        : entry.type === 'message'
+          ? entry.message
+          : undefined
+    if (
+      !message ||
+      (message.role !== 'user' &&
+        message.role !== 'assistant' &&
+        message.role !== 'toolResult' &&
+        message.role !== 'custom')
+    )
+      continue
+    const parts =
+      typeof message.content === 'string' ? [{ type: 'text' as const, text: message.content }] : message.content
+    const text = parts
+      .flatMap((part) => {
+        switch (part.type) {
+          case 'text':
+            return [part.text]
+          case 'image':
+            return ['[image]']
+          case 'toolCall':
+            return [`${part.name}(${JSON.stringify(part.arguments)})`]
+          default:
+            return []
+        }
+      })
+      .join('\n')
+    const label =
+      message.role === 'toolResult'
+        ? `tool_result:${message.toolName}`
+        : message.role === 'custom'
+          ? `custom:${message.customType}`
+          : message.role
+    recalled.push({ index: recalled.length, label, text })
+  }
+  return recalled
 }
 
 const line = ({ index, label, text }: Recalled, snippet = text) => `#${index} [${label}] ${snippet}`
@@ -96,9 +103,9 @@ function expand(entries: Recalled[], indices: number[]): string {
 
 /**
  * `vcc_recall`: same name and parameters as pi-vcc's tool, so existing tool settings and approvals
- * apply. It reads the session's transcript: the full replayed path plus every entry since.
+ * apply. It reads the session's entries: the full replayed path plus every entry since.
  */
-export function recallExtension(transcript: () => readonly TranscriptEntry[]): ExtensionFactory {
+export function recallExtension(readEntries: () => readonly SessionEntry[]): ExtensionFactory {
   return (pi) => {
     pi.registerTool({
       name: 'vcc_recall',
@@ -147,7 +154,7 @@ export function recallExtension(transcript: () => readonly TranscriptEntry[]): E
         )
       }),
       async execute(_toolCallId, params) {
-        const entries = recallable(transcript())
+        const entries = recallable(readEntries())
         const text =
           params.mode === 'touched'
             ? "mode:'touched' is not available here; use query or range."
