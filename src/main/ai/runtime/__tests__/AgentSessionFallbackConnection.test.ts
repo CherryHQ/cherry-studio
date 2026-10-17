@@ -700,6 +700,55 @@ describe('Pi/DSH connection fallback', () => {
     expect(fallback.close).toHaveBeenCalledTimes(1)
   })
 
+  it('joins a still-settling close instead of reporting success to a retry', async () => {
+    const primary = fakeConnection()
+    let releaseClose!: () => void
+    primary.close.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseClose = resolve
+        })
+    )
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+
+    const first = wrapper.close()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The host's 20-second close barrier fired and closeSessionForArchive() is retrying while Pi
+    // teardown is still running: the retry must join the original shutdown, not read success.
+    let retried = false
+    const second = wrapper.close().then(() => {
+      retried = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(retried).toBe(false)
+
+    releaseClose()
+    await Promise.all([first, second])
+    expect(primary.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns the failed shutdown to a retry instead of a fresh success', async () => {
+    const primary = fakeConnection()
+    primary.close.mockRejectedValueOnce(new Error('pi shutdown failed'))
+    const driver = { connect: vi.fn() }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+
+    await expect(wrapper.close()).rejects.toThrow('pi shutdown failed')
+    // A retry after the failed teardown must observe the same failure — reporting success here
+    // clears failedClosures and lets the workspace archive while shutdown stays unconfirmed.
+    await expect(wrapper.close()).rejects.toThrow('pi shutdown failed')
+    expect(primary.close).toHaveBeenCalledTimes(1)
+  })
+
   it('rebuilds the fallback on the refreshed trace context, not the constructor frozen one', async () => {
     const primary = fakeConnection()
     const fallback = fakeConnection()
