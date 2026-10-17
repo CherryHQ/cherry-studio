@@ -1037,9 +1037,14 @@ export class AgentSessionRuntimeService extends BaseService {
    * settle on its own. Pause it first so the stream manager persists its row instead of leaving it
    * `pending`, then record the interruption through the machine; the caller confirms the settlement
    * so `resumeAfterAutonomous` hands the deferred input back.
+   *
+   * The test is the minted turn, not active ownership: a reply can emit `finished` — releasing
+   * ownership — while its terminal persistence is still in flight, and that in-flight turn is
+   * exactly the settlement the handoff must wait for. Only a reply whose turn was never created
+   * falls through to abandonment.
    */
   private interruptAutonomousReply(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
-    if (!isAgentSessionRuntimeAutonomous(entry.runtimeState)) return undefined
+    if (entry.runtimeState.execution.kind !== 'autonomous-turn') return undefined
     const turn = this.currentTurn(entry)
     if (!turn) return undefined
     // Mark the dissolve before aborting: the abort is synchronous, and the stream's abort listener
