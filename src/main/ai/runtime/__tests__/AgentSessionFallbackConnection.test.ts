@@ -749,6 +749,72 @@ describe('Pi/DSH connection fallback', () => {
     expect(primary.close).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects the raced close when the discarded replacement shutdown fails', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    fallback.close.mockRejectedValueOnce(new Error('replacement shutdown failed'))
+
+    const closing = wrapper.close()
+    // Handled here because the rejection settles while this test is still waiting on the rebuild;
+    // the closeRuntimeConnection caller attaches its handler synchronously and never sees this.
+    closing.catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    releaseConnect()
+    await vi.waitFor(() => expect(fallback.close).toHaveBeenCalled())
+
+    // The Stop raced the rebuild into discard(): the replacement's shutdown failed, and a fulfilled
+    // close here would clear failedClosures and let closeSessionForArchive() archive the workspace
+    // with that shutdown unconfirmed.
+    await expect(closing).rejects.toThrow('replacement shutdown failed')
+    await expect(wrapper.close()).rejects.toThrow('replacement shutdown failed')
+    expect(fallback.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects the raced close when the pending replacement shutdown fails', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    let releaseSend!: () => void
+    fallback.send.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        releaseSend = resolve
+      })
+    })
+    fallback.close.mockRejectedValueOnce(new Error('replacement shutdown failed'))
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 429 rate limit') })
+    await vi.waitFor(() => expect(fallback.send).toHaveBeenCalled())
+
+    // The Stop lands while the replay submission is in flight: close() tears the pending
+    // replacement down itself, and its failed shutdown must reject the close — reporting success
+    // clears failedClosures and lets the workspace archive while teardown stayed unconfirmed.
+    await expect(wrapper.close()).rejects.toThrow('replacement shutdown failed')
+    releaseSend()
+  })
+
   it('rebuilds the fallback on the refreshed trace context, not the constructor frozen one', async () => {
     const primary = fakeConnection()
     const fallback = fakeConnection()
