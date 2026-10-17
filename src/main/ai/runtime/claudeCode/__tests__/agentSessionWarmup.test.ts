@@ -122,6 +122,8 @@ const {
   buildClaudeCodeWarmQueryRequestForAgentSession,
   deriveConnectionConfig
 } = await import('../agentSessionWarmup')
+const { setSessionEffectivePermissionMode, clearSessionEffectivePermissionMode } =
+  await import('@main/ai/agentSession/sessionPermissionOverrides')
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
   const preferred =
@@ -1238,6 +1240,29 @@ describe('deriveConnectionConfig', () => {
     // mkdir / builtin-agent provisioning / shared snapshot update all live inside
     // buildClaudeCodeSessionSettings — derive must never enter it.
     expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
+  })
+
+  it('derives reconcile policy facts from the session-scoped effective permission over the agent row', async () => {
+    // An approved-plan session keeps its execution permission across replacement connections while
+    // the shared agent row still says `plan` — another session of the same agent must keep reading
+    // the row's `plan`.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { permission_mode: 'plan' }
+    })
+    setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
+    try {
+      const overridden = await deriveSignature()
+      expect(overridden.live.toolPolicy.permissionMode).toBe('acceptEdits')
+    } finally {
+      clearSessionEffectivePermissionMode('session-1')
+    }
+
+    const fromRow = await deriveSignature()
+    expect(fromRow.live.toolPolicy.permissionMode).toBe('plan')
   })
 
   it('does not start the gateway even when the route resolves to it', async () => {

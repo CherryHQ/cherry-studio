@@ -247,6 +247,8 @@ const {
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
 } = await import('../settingsBuilder')
+const { setSessionEffectivePermissionMode, clearSessionEffectivePermissionMode } =
+  await import('@main/ai/agentSession/sessionPermissionOverrides')
 const { ClaudeCodeSessionStateService } = await import('../ClaudeCodeSessionStateService')
 // One real instance per test file — the facade resolves it via application.get, and the real Maps
 // preserve the warm-pool resolve-by-id semantics the Bug A/Bug B and dispose tests exercise.
@@ -493,6 +495,57 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(settings.settings).toMatchObject({ cleanupPeriodDays: 365_000 })
+  })
+
+  it('spawns an approved-plan session into its session-scoped effective permission', async () => {
+    // The approved execution belongs to this session alone: the spawn must come up runnable even
+    // though the shared agent row still says `plan`, and without an override the row decides.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      mcps: [],
+      configuration: { permission_mode: 'plan' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
+    try {
+      const approved = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(approved.permissionMode).toBe('acceptEdits')
+    } finally {
+      clearSessionEffectivePermissionMode('session-1')
+    }
+
+    const fromRow = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    expect(fromRow.permissionMode).toBe('plan')
+  })
+
+  it('spawns a reassigned session under the new agent row, not the previous agent override', async () => {
+    // The override is the approving agent's property: after the session moved to another agent,
+    // that agent's Plan Only row decides again — the old approval must not hand it file edits.
+    mocks.getAgent.mockImplementation((agentId: string) => ({
+      id: agentId,
+      model: 'provider-1::model-1',
+      mcps: [],
+      configuration: { permission_mode: 'plan' }
+    }))
+    const reassigned = {
+      id: 'session-1',
+      agentId: 'agent-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
+    try {
+      const settings = await buildClaudeCodeSessionSettings(reassigned as never, {} as never)
+      expect(settings.permissionMode).toBe('plan')
+    } finally {
+      clearSessionEffectivePermissionMode('session-1')
+    }
   })
 
   it('only overrides commit attribution when the preference explicitly turns it off', async () => {

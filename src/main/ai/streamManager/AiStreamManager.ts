@@ -58,6 +58,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import { isToolPartSettled } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import type {
@@ -238,6 +239,13 @@ function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMes
     if (chunk.type === 'tool-input-available' && chunk.toolCallId === toolCallId) return chunk
   }
   return undefined
+}
+
+/** Whether the accumulated message already carries a terminal result for this tool call. */
+function toolCallSettledIn(message: CherryUIMessage | undefined, toolCallId: string): boolean {
+  return (message?.parts ?? []).some(
+    (part) => (part as CherryMessagePart & { toolCallId?: string }).toolCallId === toolCallId && isToolPartSettled(part)
+  )
 }
 
 /** The AI SDK `error` chunk carries only `error.message`, so rebuilding from it drops the
@@ -1067,6 +1075,51 @@ export class AiStreamManager extends BaseService {
     return false
   }
 
+  /**
+   * Resolve once the persistence accumulator holds a terminal result for `toolCallId` (`true`), or
+   * when `timeoutMs` elapses / the execution settles without one (`false`). A caller tearing a turn
+   * down on the user's behalf (the plan-execution model handoff) awaits this first so the approved
+   * tool's successful result reaches persistence before the pause finalizes the message.
+   */
+  awaitToolSettled(topicId: string, toolCallId: string, timeoutMs: number): Promise<boolean> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return Promise.resolve(false)
+    return new Promise<boolean>((resolve) => {
+      let settled = false
+      const finish = (result: boolean) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        for (const exec of stream.executions.values()) exec.toolSettleWaiters?.delete(toolCallId)
+        resolve(result)
+      }
+      const timer = setTimeout(() => finish(false), timeoutMs)
+      timer.unref?.()
+      for (const exec of stream.executions.values()) {
+        if (toolCallSettledIn(exec.finalMessage, toolCallId)) {
+          finish(true)
+          return
+        }
+        const waiters = (exec.toolSettleWaiters ??= new Map())
+        const callbacks = waiters.get(toolCallId) ?? new Set()
+        callbacks.add(finish)
+        waiters.set(toolCallId, callbacks)
+      }
+    })
+  }
+
+  /** Resolve `awaitToolSettled` waiters whose tool part settled; `force` resolves every waiter. */
+  private resolveToolSettleWaiters(exec: StreamExecution, force = false): void {
+    const waiters = exec.toolSettleWaiters
+    if (!waiters?.size) return
+    for (const [toolCallId, callbacks] of [...waiters]) {
+      const settled = toolCallSettledIn(exec.finalMessage, toolCallId)
+      if (!settled && !force) continue
+      waiters.delete(toolCallId)
+      for (const callback of callbacks) callback(settled)
+    }
+  }
+
   pauseRuntimeTurn(topicId: string, reason: string): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) return false
@@ -1404,6 +1457,7 @@ export class AiStreamManager extends BaseService {
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
 
     exec.status = 'done'
+    this.resolveToolSettleWaiters(exec, true)
     exec.runtimeTiming.closeOpenToolSpans()
     if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
       exec.runtimeTiming.closeOpenSpans()
@@ -1461,6 +1515,7 @@ export class AiStreamManager extends BaseService {
 
     const exec = stream.executions.get(modelId)
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted') return
+    this.resolveToolSettleWaiters(exec, true)
 
     // A turn torn down while a tool is still `approval-requested` (or any
     // in-flight tool) gets no `tool-output-*` to clear it. Clear the set so the
@@ -1515,6 +1570,7 @@ export class AiStreamManager extends BaseService {
 
     exec.status = 'error'
     exec.error = error
+    this.resolveToolSettleWaiters(exec, true)
     endRootSpan(exec, 'error', error)
 
     // Mirror of onExecutionPaused: clear the set so the status anchor drops;
@@ -2028,6 +2084,7 @@ export class AiStreamManager extends BaseService {
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
         exec.finalMessage = withCompactionAnchors(msg, exec)
+        this.resolveToolSettleWaiters(exec)
       }
     })
 
