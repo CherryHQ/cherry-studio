@@ -80,6 +80,31 @@ describe('goal and background subagents', () => {
     expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 2, lastStop: { code: 'round_limit' } })
   })
 
+  // Breaks when a notification turn's replies count as the round's (spec §11.3: it is no goal round):
+  // round 2, repeating the notification turn's reply, would not count as progress.
+  it("leaves a notification turn's replies out of the round that launched its subagent", async () => {
+    const held = gate()
+    const { model } = routedModel((call) => {
+      if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
+      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (call.lastRole === 'tool') return reply('Started A.')
+      return reply('Read the report.')
+    })
+    const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 3 } }), {
+      subagents: recordingSubagentPort().port
+    })
+    await promptIdle(s, '/goal Check A')
+    held.open()
+    await waitFor(() => lastSnapshot(host.entries)?.phase === 'blocked')
+
+    // Round 1 launched A and replied; round 2 replied anew; round 3 repeated round 2.
+    expect(lastSnapshot(host.entries)).toMatchObject({
+      roundsStarted: 3,
+      progressRounds: 2,
+      lastStop: { code: 'round_limit' }
+    })
+  })
+
   // Breaks when the abort that withdraws a stale round is taken for a user's stop: results would be
   // held back until the user speaks, and a goal waiting on its background subagents would stall.
   it('still delivers a background result after the goal withdrew a stale round, and goes on', async () => {
