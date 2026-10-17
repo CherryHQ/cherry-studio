@@ -5,25 +5,45 @@
 Concurrent handles share execution and observation. Releasing a handle stops its observation;
 shutdown aborts owned sessions and disposes their resources without deleting native storage.
 
-The caller supplies a borrowed native `ModelRuntime` and `Model`, a working directory and an agent
-directory. Credentials and provider registration remain with the caller. Closing the runtime leaves
-the supplied model runtime usable. This package has no AI SDK or Cherry application dependency.
 
-`createAgentRuntimeSession` constructs native sessions with explicit tools and extension factories.
-Resource discovery is disabled; workspace context and skill paths are opt-in. Native retry settings
-remain effective. Pi owns input preflight, busy steering/follow-up, the agent loop and tool execution.
+Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
+Pi owns the execution loop, tools, context accounting and compaction. The package has no AI SDK
+dependency and imports no Cherry application code.
 
-Pass a native `SessionManager.create` or `SessionManager.open` for file storage; omit it for in-memory
-storage. The host selects paths and records product-session associations. Native low-level `open`
-accepts a missing path as a new session, so the host must check file existence when reopening saved
-associations; the adapter rejects a returned session ID that differs from the requested thread.
+## Session builder
 
-Common observations normalize current native messages, live output and foreground activity. They
-are projections, not an archive or a storage replay source. Cherry model binding and execution
-extensions are added by subsequent layers; this adapter is not wired into the desktop runtime yet.
+`createAgentRuntimeSession({ modelRuntime, model, cwd, agentDir, ... })` returns a native
+`AgentSession` and an asynchronous `dispose()` method. The model runtime is borrowed: the caller
+owns credentials and provider registration, and closing a session does not unregister its providers.
+Settings, including retries and thinking level, retain native Pi semantics.
 
-```sh
-pnpm --filter @cherrystudio/agent-runtime build
-pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/nativeSession.test.ts packages/agent-runtime-pi/tests/runtime.test.ts
-pnpm --filter @cherrystudio/agent-runtime-pi typecheck
+The owner of a model runtime can require things of every session built on it with
+`setSessionRequirements(modelRuntime, { extensionFactories, settings })`: the builder installs those
+extension factories ahead of the session's own and applies those settings over the session's,
+whichever host builds the session. Cherry's AI SDK binding uses it for its tool-call guard and to
+keep Pi's retry off.
+
+The builder uses in-memory settings and session state, disables resource discovery, and accepts
+explicit tools, extension factories, system prompts, workspace context files and skill directories.
+Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
+built-in tool is enabled unless `builtinTools` names it. Workspace `AGENTS.md` / `CLAUDE.md` files
+load only with `contextFiles: true`, and skills only from the host's `skillPaths`.
+`dispose()` aborts execution, lets extensions handle `session_shutdown`, then disposes the session.
+Pi is ESM-only; CommonJS hosts must load the package with dynamic `import()`.
+
+Known gap: Pi's resource loader still resolves its discovery directories while it loads; the
+`no*` flags and prompt overrides discard everything it finds there.
+
+## Cherry integration
+
+Cherry's AI SDK provider bridge lives in `src/main/ai/runtime/pi/aiSdkModelBinding.ts`. It supplies
+native model configuration and, through session requirements, its tool-call guard ahead of approval
+handlers. AI SDK conversion, retries, provider metadata and request side channels stay in Cherry.
+
+This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
+bridge; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+
+```bash
+pnpm test:agent-runtime packages/agent-runtime-pi/tests/nativeSession.test.ts
+pnpm --filter @cherrystudio/agent-runtime typecheck
 ```
