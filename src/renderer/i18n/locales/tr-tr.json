@@ -3153,6 +3153,7 @@
   "provider.litellm": "LiteLLM",
   "provider.lmstudio": "LM Studio",
   "provider.local-embedding": "Yerel Modeller",
+  "provider.local-llm": "Yerel Modeller",
   "provider.longcat": "LongCat AI",
   "provider.mimo": "Xiaomi MiMo",
   "provider.mineru": "MinerU",

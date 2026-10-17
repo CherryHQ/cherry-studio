@@ -19,6 +19,7 @@ import type { VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
+import { LOCAL_LLM_PROVIDER_ID } from '@shared/data/presets/localLlm'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
@@ -26,6 +27,7 @@ import type { ComfyuiProvider, ComfyuiProviderSettings } from './custom/comfyui/
 import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import type { DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import type { LocalEmbeddingProviderSettings } from './custom/localEmbedding/localEmbeddingProvider'
+import type { LocalLlmProviderSettings } from './custom/localLlm/localLlmProvider'
 import type { MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
 import type { ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
 import type {
@@ -409,6 +411,13 @@ export const LocalEmbeddingExtension = ProviderExtension.create({
   typeof LOCAL_EMBEDDING_PROVIDER_ID
 >)
 
+/** Local chat models served by node-llama-cpp in a utility process (no auth, no network). Chat-only. */
+export const LocalLlmExtension = ProviderExtension.create({
+  name: LOCAL_LLM_PROVIDER_ID,
+  supportsImageGeneration: false,
+  create: async (settings) => (await import('./custom/localLlm/localLlmProvider')).createLocalLlmProvider(settings)
+} as const satisfies ProviderExtensionConfig<LocalLlmProviderSettings, ProviderV3, typeof LOCAL_LLM_PROVIDER_ID>)
+
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
@@ -439,5 +448,6 @@ export const extensions = [
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension,
-  LocalEmbeddingExtension
+  LocalEmbeddingExtension,
+  LocalLlmExtension
 ] as const

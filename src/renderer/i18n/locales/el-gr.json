@@ -3153,6 +3153,7 @@
   "provider.litellm": "LiteLLM",
   "provider.lmstudio": "LM Studio",
   "provider.local-embedding": "Τοπικά μοντέλα",
+  "provider.local-llm": "Τοπικά μοντέλα",
   "provider.longcat": "LongCat AI",
   "provider.mimo": "Xiaomi MiMo",
   "provider.mineru": "MinerU",

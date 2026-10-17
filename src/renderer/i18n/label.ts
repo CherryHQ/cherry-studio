@@ -96,6 +96,7 @@ const providerKeyMap = {
   'moonshot-global': 'provider.moonshot-global',
   zai: 'provider.zai',
   'local-embedding': 'provider.local-embedding',
+  'local-llm': 'provider.local-llm',
   opencode: 'provider.opencode',
   comfyui: 'provider.comfyui'
 } as const

@@ -3153,6 +3153,7 @@
   "provider.litellm": "LiteLLM",
   "provider.lmstudio": "LM Studio",
   "provider.local-embedding": "本地模型",
+  "provider.local-llm": "本地模型",
   "provider.longcat": "龙猫",
   "provider.mimo": "Xiaomi MiMo",
   "provider.mineru": "MinerU",
