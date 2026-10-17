@@ -1,0 +1,148 @@
+import { EventEmitter } from 'node:events'
+
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { getWindowMock } = vi.hoisted(() => ({
+  getWindowMock: vi.fn()
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    WindowManager: {
+      getWindow: getWindowMock
+    }
+  })
+})
+
+import {
+  bindNotesRelocationSessionOwnerWindow,
+  finalizeNotesRelocationAfterMigrate,
+  handleNotesRelocationOwnerWindowGone,
+  isNotesRelocationOwnerWindowAlive,
+  resetNotesRelocationOwnerLifecycleForTests
+} from '../notesRelocationOwnerLifecycle'
+import {
+  acquireNotesRelocationSession,
+  resetNotesRelocationSessionForTests,
+  setNotesRelocationMigrateInFlight
+} from '../notesRelocationSession'
+import {
+  registerRendererNotesEditsFlushWindow,
+  unregisterRendererNotesEditsFlushWindow
+} from '../requestRendererNotesEditsFlush'
+
+describe('notesRelocationOwnerLifecycle', () => {
+  function createOwnerWindow(): EventEmitter & {
+    isDestroyed: () => boolean
+    webContents: EventEmitter & { isDestroyed: () => boolean }
+  } {
+    const ownerWindow = new EventEmitter() as EventEmitter & {
+      isDestroyed: () => boolean
+      webContents: EventEmitter & { isDestroyed: () => boolean }
+    }
+    ownerWindow.isDestroyed = () => false
+    ownerWindow.webContents = new EventEmitter() as EventEmitter & { isDestroyed: () => boolean }
+    ownerWindow.webContents.isDestroyed = () => false
+    return ownerWindow
+  }
+
+  beforeEach(() => {
+    resetNotesRelocationSessionForTests()
+    resetNotesRelocationOwnerLifecycleForTests()
+    getWindowMock.mockReset()
+    unregisterRendererNotesEditsFlushWindow('owner-window')
+  })
+
+  it('reports when the owner window is no longer alive', () => {
+    getWindowMock.mockReturnValue(undefined)
+    expect(isNotesRelocationOwnerWindowAlive('owner-window')).toBe(false)
+
+    getWindowMock.mockReturnValue({ isDestroyed: () => true })
+    expect(isNotesRelocationOwnerWindowAlive('owner-window')).toBe(false)
+
+    getWindowMock.mockReturnValue({ isDestroyed: () => false })
+    expect(isNotesRelocationOwnerWindowAlive('owner-window')).toBe(true)
+  })
+
+  it('releases the session when the bound owner window closes', () => {
+    const ownerWindow = createOwnerWindow()
+    getWindowMock.mockReturnValue(ownerWindow)
+
+    acquireNotesRelocationSession('owner-window')
+    registerRendererNotesEditsFlushWindow('owner-window')
+
+    let released = false
+    bindNotesRelocationSessionOwnerWindow('owner-window', () => {
+      handleNotesRelocationOwnerWindowGone('owner-window', () => {
+        released = true
+      })
+    })
+
+    ownerWindow.emit('closed')
+
+    expect(released).toBe(true)
+  })
+
+  it('releases the session when the owner renderer process exits', () => {
+    const ownerWindow = createOwnerWindow()
+    getWindowMock.mockReturnValue(ownerWindow)
+
+    acquireNotesRelocationSession('owner-window')
+    registerRendererNotesEditsFlushWindow('owner-window')
+
+    let released = false
+    bindNotesRelocationSessionOwnerWindow('owner-window', () => {
+      handleNotesRelocationOwnerWindowGone('owner-window', () => {
+        released = true
+      })
+    })
+
+    ownerWindow.webContents.emit('render-process-gone')
+
+    expect(released).toBe(true)
+  })
+
+  it('keeps the session when the owner window closes during migration copy', () => {
+    const ownerWindow = createOwnerWindow()
+    getWindowMock.mockReturnValue(ownerWindow)
+
+    acquireNotesRelocationSession('owner-window')
+    registerRendererNotesEditsFlushWindow('owner-window')
+    setNotesRelocationMigrateInFlight(true)
+
+    let released = false
+    bindNotesRelocationSessionOwnerWindow('owner-window', () => {
+      handleNotesRelocationOwnerWindowGone('owner-window', () => {
+        released = true
+      })
+    })
+
+    ownerWindow.emit('closed')
+
+    expect(released).toBe(false)
+    setNotesRelocationMigrateInFlight(false)
+  })
+
+  it('releases the session after migrate when the owner became unavailable during copy', () => {
+    const ownerWindow = createOwnerWindow()
+    getWindowMock.mockReturnValue(ownerWindow)
+
+    acquireNotesRelocationSession('owner-window')
+    setNotesRelocationMigrateInFlight(true)
+
+    bindNotesRelocationSessionOwnerWindow('owner-window', () => {
+      handleNotesRelocationOwnerWindowGone('owner-window', () => undefined)
+    })
+    ownerWindow.webContents.emit('render-process-gone')
+
+    setNotesRelocationMigrateInFlight(false)
+
+    let released = false
+    finalizeNotesRelocationAfterMigrate('owner-window', () => {
+      released = true
+    })
+
+    expect(released).toBe(true)
+  })
+})

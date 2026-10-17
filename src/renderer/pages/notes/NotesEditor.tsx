@@ -42,6 +42,7 @@ interface NotesEditorProps {
   voiceNoteId?: string
   currentContent: string
   contentLoadError?: Error
+  editsLocked?: boolean
   tokenCount: number
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
@@ -55,6 +56,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     voiceNoteId,
     currentContent,
     contentLoadError,
+    editsLocked = false,
     tokenCount,
     onMarkdownChange,
     editorRef,
@@ -231,6 +233,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     height="100%"
                     theme={activeCmTheme}
                     fontSize={settings.fontSize}
+                    editable={!editsLocked}
+                    readOnly={editsLocked}
                   />
                 </div>
               ) : (
@@ -240,7 +244,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   initialContent={currentContent}
                   onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
                   showToolbar={tmpViewMode === 'preview'}
-                  editable={tmpViewMode === 'preview'}
+                  editable={tmpViewMode === 'preview' && !editsLocked}
                   autoFocus={currentContent.trim().length === 0}
                   showTableOfContents={settings.showTableOfContents}
                   lineBreaks={settings.lineBreaks}
@@ -251,6 +255,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   fontFamily={settings.fontFamily}
                   fontSize={settings.fontSize}
                   enableSpellCheck={enableSpellCheck}
+                  trackImagePastesForRelocation
                   disabledCommands={DISABLED_RICH_EDITOR_COMMANDS}
                 />
               )}

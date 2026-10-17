@@ -780,4 +780,49 @@ describe('useFileEditSession', () => {
     await waitFor(() => expect(result.current.status).toBe('unsupported'))
     expect(result.current.unsupportedReason).toBe('mixed-line-endings')
   })
+
+  it('accepts draft updates while autosave is suppressed without scheduling a write', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+    const suppressAutosave = vi.fn(() => true)
+    const { result } = renderHook(() => useFileEditSession(handle, { suppressAutosave }), { wrapper })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+
+    act(() => result.current.setDraft('with image\n'))
+    expect(result.current.draft).toBe('with image\n')
+    expect(result.current.isDirty).toBe(true)
+    expect(writeCalls()).toHaveLength(0)
+    expect(suppressAutosave).toHaveBeenCalled()
+  })
+
+  it('rejects a departing relocation flush when unmount cannot persist a dirty draft', async () => {
+    vi.useFakeTimers()
+    try {
+      const diskFull = new Error('disk full')
+
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('clean\n')))
+      const { result, unmount } = renderHook(
+        () => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }),
+        { wrapper }
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      act(() => result.current.setDraft('dirty\n'))
+
+      ipcMocks.request.mockImplementation((route: string) => {
+        if (route === 'file.write_if_unchanged') {
+          return Promise.reject(diskFull)
+        }
+        return Promise.reject(new Error(`unexpected route: ${route}`))
+      })
+
+      await act(async () => {
+        unmount()
+        const { flushAllNotesEdits } = await import('../notesFileEditFlush')
+        await expect(flushAllNotesEdits()).rejects.toBe(diskFull)
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
