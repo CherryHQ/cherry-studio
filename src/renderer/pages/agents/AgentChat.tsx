@@ -224,8 +224,15 @@ const AgentChat = ({
   // Fail closed while the agent has not resolved: an unknown runtime must not become "every chat
   // model fits", or a plan-approval handoff would target models the agent cannot run.
   const agentModelFilter = useAgentModelFilter(activeAgent?.type, activeAgent !== undefined)
-  // Cloud quota availability gates the handoff target alongside runtime compatibility.
-  const { isModelUnavailable } = useCherryCloudModelAvailability()
+  // Cloud availability gates the handoff target alongside runtime compatibility: the agent picker
+  // hides models the server no longer entitles outright and quota exhausts the rest, so an
+  // unusable execution target keeps the plan on the agent's current model instead of a handoff
+  // the Cloud transport would refuse after the turn was stopped.
+  const { isModelHidden, isModelUnavailable } = useCherryCloudModelAvailability()
+  const isHandoffModelUnavailable = useCallback(
+    (model: Model) => isModelHidden(model, true) || isModelUnavailable(model),
+    [isModelHidden, isModelUnavailable]
+  )
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
@@ -277,7 +284,7 @@ const AgentChat = ({
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES,
     modelFilter: agentModelFilter,
-    isModelDisabled: isModelUnavailable,
+    isModelDisabled: isHandoffModelUnavailable,
     onPlanModelHandoff: (modelId) => {
       // The respond callback can outlive navigation and hold a stale session: only arm while the
       // session snapshot still matches what is on screen, so a cleared handoff cannot resurrect.
