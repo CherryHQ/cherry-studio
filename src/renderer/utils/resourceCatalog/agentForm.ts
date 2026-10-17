@@ -34,6 +34,7 @@ export interface AgentFormState {
   mcps: string[]
   /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
   knowledgeBaseIds: string[]
+  knowledgeBaseAccess: Record<string, 'read' | 'read-write'>
   skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
@@ -107,6 +108,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
+    knowledgeBaseAccess: { ...agent?.knowledgeBaseAccess },
     skillIds: [...skillIds],
     disabledTools: (agent?.disabledTools ?? []).map((name) =>
       agent?.type === 'pi' ? normalizePiDisabledToolId(name) : name
@@ -132,6 +134,12 @@ function initialLanguageFields(language: unknown): Pick<AgentFormState, 'languag
 
 export function applyAgentFormPatch(current: AgentFormState, patch: Partial<AgentFormState>): AgentFormState {
   const next: AgentFormState = { ...current, ...patch }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'knowledgeBaseIds')) {
+    next.knowledgeBaseAccess = Object.fromEntries(
+      next.knowledgeBaseIds.map((id) => [id, next.knowledgeBaseAccess[id] ?? 'read'])
+    )
+  }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
     next.permissionMode = normalizePermissionMode(patch.permissionMode)
@@ -188,6 +196,18 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
     dto.knowledgeBaseIds = next.knowledgeBaseIds
+    dirty = true
+  }
+  const baselineBindingIds = new Set(baseline.knowledgeBaseIds)
+  const accessUpdates = next.knowledgeBaseIds.filter(
+    (id) =>
+      !baselineBindingIds.has(id) ||
+      (baseline.knowledgeBaseAccess[id] ?? 'read') !== (next.knowledgeBaseAccess[id] ?? 'read')
+  )
+  if (accessUpdates.length > 0 || dto.knowledgeBaseIds !== undefined) {
+    dto.knowledgeBaseAccess = Object.fromEntries(
+      accessUpdates.map((id) => [id, next.knowledgeBaseAccess[id] ?? 'read'])
+    )
     dirty = true
   }
   const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)

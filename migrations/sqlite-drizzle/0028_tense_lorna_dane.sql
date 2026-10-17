@@ -1,0 +1,1 @@
+ALTER TABLE `agent_knowledge_base` ADD `access` text DEFAULT 'read-write' NOT NULL;

@@ -485,11 +485,19 @@ type ManageKnowledgeInput = {
  */
 export async function manageKnowledge(
   input: ManageKnowledgeInput,
-  allowedIds: readonly string[]
+  allowedIds: readonly string[],
+  accessByBaseId?: Readonly<Record<string, 'read' | 'read-write'>>
 ): Promise<KnowledgeManageResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
     logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
     return { error: `Knowledge base "${input.baseId}" is not available to this assistant.` }
+  }
+  // A supplied binding policy is authoritative. Deny before resolving KnowledgeService so
+  // no write side effect can occur, including when the model already has user approval.
+  if (accessByBaseId && accessByBaseId[input.baseId] !== 'read-write') {
+    return {
+      error: `Knowledge base "${input.baseId}" is read-only for this Agent; kb_manage ${input.action} is unavailable.`
+    }
   }
   try {
     const service = application.get('KnowledgeService')
