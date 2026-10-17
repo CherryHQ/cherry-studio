@@ -195,6 +195,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-robotics' },
   { pattern: 'gemma-?4' },
   // iflytek
+  { pattern: '^spark-x2' },
   { pattern: '^xopdeepseekv3\\d', toggle: true },
   { pattern: '^xopdeepseekv[4-9]', effort: ['none', 'high', 'max'] },
   { pattern: '^xopkimik(?:2[5-9]\\d*|[3-9]\\d*)', toggle: true },
