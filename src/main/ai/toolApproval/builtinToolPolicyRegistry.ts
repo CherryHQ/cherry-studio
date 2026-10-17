@@ -49,6 +49,7 @@ export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
   BROWSER: 'browser',
   COMPUTER: 'computer',
+  AUTOMATION: 'automation',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',
@@ -80,6 +81,8 @@ function tool(
  * omitting it is fail-closed for auto-approval because every consumer selects explicit entries.
  */
 const BUILTIN_TOOL_POLICIES = {
+  automationJs: tool(CHERRY_MCP_SERVER.AUTOMATION, 'js', 'auto'),
+  automationReset: tool(CHERRY_MCP_SERVER.AUTOMATION, 'reset', 'auto'),
   cherryWebSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_SEARCH_TOOL_NAME, 'auto'),
   cherryWebFetch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_FETCH_TOOL_NAME, 'auto'),
   cherryKnowledgeSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_SEARCH_TOOL_NAME, 'auto'),

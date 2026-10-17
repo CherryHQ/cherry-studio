@@ -305,6 +305,47 @@ describe('ModelService.update', () => {
     ).toMatchObject({ image: false, audio: false, video: false })
   })
 
+  it('preserves capability-only image support after an input-modality edit is persisted', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('custom', 'Custom'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('custom', 'capability-only', {
+        capabilities: ['image-recognition', 'function-call'],
+        inputModalities: null
+      })
+    )
+    const [original] = modelService.list({ providerId: 'custom' })
+    expect(original.inputModalities).toBeUndefined()
+    expect(isVisionModel(original)).toBe(true)
+
+    modelService.update('custom', 'capability-only', {
+      inputModalities: ['image', 'audio'],
+      capabilities: ['function-call']
+    })
+    const [persisted] = modelService.list({ providerId: 'custom' })
+    expect(persisted.capabilities).toEqual(['function-call'])
+    expect(persisted.inputModalities).toEqual(['image', 'audio'])
+    expect([isVisionModel(persisted), isAudioModel(persisted)]).toEqual([true, true])
+    expect(
+      resolveNativeFileSupport(
+        ProviderSchema.parse({
+          id: 'gemini',
+          name: 'Gemini',
+          apiKeys: [],
+          authType: 'api-key',
+          reportsActualCost: false,
+          settings: {},
+          isEnabled: true
+        }),
+        persisted,
+        {
+          endpointType: 'google-generate-content',
+          aiSdkProviderId: 'google',
+          runtimeProviderId: 'google'
+        }
+      )
+    ).toMatchObject({ image: true, audio: true, video: false })
+  })
+
   it('records an explicitly empty input-modality update as user-owned', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(
@@ -485,6 +526,28 @@ describe('ModelService.update', () => {
 
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
     expect(row.pricing).toEqual(pricing)
+  })
+
+  it.each([false, true])('round-trips an image-only price for a model with registry match %s', async (hasPreset) => {
+    await seedExistingModel()
+    if (hasPreset) {
+      resolveModelMock.mockReturnValue({
+        presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+        registryOverride: null,
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      })
+    }
+    const pricing = {
+      input: { perMillionTokens: null, currency: 'USD' as const },
+      output: { perMillionTokens: null, currency: 'USD' as const },
+      perImage: { price: 0.04, unit: 'image' as const }
+    }
+    modelService.update('openai', 'gpt-4o', { pricing })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing).toEqual(pricing)
+    modelService.update('openai', 'gpt-4o', { name: 'My image model' })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing).toEqual(pricing)
+    modelService.update('openai', 'gpt-4o', { pricing: { ...pricing, perImage: { price: 0, unit: 'image' } } })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing?.perImage).toEqual({ price: 0, unit: 'image' })
   })
 
   it('stores model group edits in the sparse group column', async () => {
@@ -2162,6 +2225,7 @@ describe('ModelService.delete', () => {
       })
     )
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -2350,6 +2414,7 @@ describe('ModelService.bulkDelete', () => {
       })
     ])
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,

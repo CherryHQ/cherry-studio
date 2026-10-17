@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { bundleFile, bundleForCapability } from '../../catalog/catalog'
+import { bundleFile, getModelBundle } from '../../catalog/catalog'
 import { localModelStorageService } from '../../installation/LocalModelStorageService'
 import type { OcrModelPaths } from './protocol'
 
@@ -11,7 +11,7 @@ import type { OcrModelPaths } from './protocol'
  */
 
 export function resolveOcrModelPaths(): OcrModelPaths {
-  const bundle = bundleForCapability('ocr')
+  const bundle = getModelBundle('pp-ocrv6-medium')
   const dir = localModelStorageService.resolveInstalledDir(bundle)
   const artifactsReady = bundle.requires.every((id) => localModelStorageService.isArtifactReady(id))
   if (!dir || !artifactsReady) throw new Error('the local OCR model is not fully downloaded')

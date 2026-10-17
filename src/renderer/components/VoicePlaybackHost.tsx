@@ -1,10 +1,10 @@
-import { Pause, Play, RotateCcw, Square, X } from 'lucide-react'
+import { AudioLines, Pause, Play, RotateCcw, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { BarVisualizer, Button, Tooltip } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
-import { VoiceDomainError, voiceService } from '@renderer/services/voice'
+import { speechPlaybackService, VoiceDomainError, voiceService } from '@renderer/services/voice'
 import type { VoicePlaybackControl, VoiceSessionPhase } from '@shared/ipc/schemas/voice'
 
 export interface VoicePlaybackBarProps {
@@ -18,6 +18,7 @@ export interface VoicePlaybackBarProps {
   readonly onPause: () => void
   readonly onResume: () => void
   readonly onStop: () => void
+  readonly analyser?: AnalyserNode
 }
 
 const INITIALIZATION_RETRY_DELAYS_MS = [250, 1_000] as const
@@ -40,7 +41,8 @@ export function VoicePlaybackBar({
   retrying = false,
   onPause,
   onResume,
-  onStop
+  onStop,
+  analyser
 }: VoicePlaybackBarProps) {
   const { t } = useTranslation()
   const canPause = availableCommands.includes('pause')
@@ -52,7 +54,8 @@ export function VoicePlaybackBar({
       role="status"
       aria-busy={pendingCommand !== null}
       aria-label={t('settings.voice.playback.title')}
-      className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg">
+      className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-full border border-border bg-popover py-2 pr-2 pl-4 text-popover-foreground shadow-lg">
+      <AudioLines aria-hidden className="size-4 shrink-0 text-primary" />
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{t('settings.voice.playback.source')}</div>
         <div className="truncate text-xs text-muted-foreground">
@@ -67,7 +70,13 @@ export function VoicePlaybackBar({
           )}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <BarVisualizer
+        aria-hidden
+        analyser={analyser}
+        state={phase === 'playing' ? 'speaking' : phase === 'generating' ? 'thinking' : undefined}
+        className="h-8 w-20 shrink sm:w-28"
+      />
+      <div className="flex shrink-0 items-center gap-1 border-l border-border pl-2">
         {playbackFailed ? (
           <>
             {onRetry && (
@@ -115,6 +124,11 @@ export function VoicePlaybackBar({
 export function VoicePlaybackHost(): React.ReactElement | null {
   const { t } = useTranslation()
   const state = useSyncExternalStore(voiceService.subscribe, voiceService.getSnapshot, voiceService.getSnapshot)
+  const playback = useSyncExternalStore(
+    speechPlaybackService.subscribe,
+    speechPlaybackService.getSnapshot,
+    speechPlaybackService.getSnapshot
+  )
   const sessionId = state.phase === 'idle' || state.source !== 'playback' ? undefined : state.sessionId
   const retryAvailable = state.phase !== 'idle' && Boolean(state.playback?.availableCommands.includes('retry'))
   const currentStateRef = useRef<FailureVersion>({ sessionId, revision: state.revision })
@@ -194,6 +208,7 @@ export function VoicePlaybackHost(): React.ReactElement | null {
 
   return (
     <VoicePlaybackBar
+      analyser={playback.analyser}
       phase={state.phase}
       source="playback"
       availableCommands={state.playback?.availableCommands ?? []}

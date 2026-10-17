@@ -884,12 +884,10 @@ describe('buildClaudeCodeSessionSettings', () => {
         { mcpServerSnapshots: snapshot as never },
         agent
       )
-      expect(settings.mcpServers?.browser).toBeDefined()
+      expect(settings.mcpServers?.automation).toBeDefined()
       expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
       expect(settings.mcpServers?.['remote-browser']).toBeDefined()
-      expect(settings.allowedTools).toEqual(
-        expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
-      )
+      expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__automation__js', 'mcp__automation__reset']))
       expect(settings.allowedTools).not.toContain('mcp__browser__*')
     } finally {
       await service._doStop()

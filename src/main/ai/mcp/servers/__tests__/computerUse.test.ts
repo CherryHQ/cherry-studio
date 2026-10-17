@@ -83,6 +83,7 @@ describe.each(['modern', 'legacy'] as const)('Agent Computer Use adapter (%s)', 
           screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture in fixture' } }
         }),
         act: vi.fn(),
+        ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn(), perform: vi.fn() },
         onClosed: () => () => {},
         openAppSession: async ({ appId }) => {
           events.push(`open:${id}`)

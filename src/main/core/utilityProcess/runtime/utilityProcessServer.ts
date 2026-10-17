@@ -20,6 +20,7 @@ import type {
   LogFrame,
   LogLevel,
   ResultFrame,
+  RemoteErrorShape,
   Unstamped
 } from '../protocol/frames'
 import { isConnectFrame, isMainFrame, matchesIdentity } from '../protocol/guards'
@@ -38,6 +39,7 @@ export interface UtilityProcessHandlerContext<Event> {
   signal: AbortSignal
   /** Streams a typed event to the caller's `onEvent`; ignored once the request has settled. */
   emit: (event: Event) => void
+  callHost(method: string, input: unknown): Promise<unknown>
   logger: UtilityProcessLogger
 }
 
@@ -83,6 +85,7 @@ interface ActiveRequest {
   controller: AbortController
   settled: boolean
   done: Promise<void>
+  hostReplies: Map<number, (outcome: { value: unknown } | { error: RemoteErrorShape }) => void>
 }
 
 type Handler = (input: unknown, context: UtilityProcessHandlerContext<unknown>) => unknown
@@ -177,7 +180,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
 
   const dispatch = (requestId: number, method: string, input: unknown): void => {
     const controller = new AbortController()
-    const request: ActiveRequest = { controller, settled: false, done: Promise.resolve() }
+    const request: ActiveRequest = { controller, settled: false, done: Promise.resolve(), hostReplies: new Map() }
     active.set(requestId, request)
     const emit = (event: unknown): void => {
       if (request.settled || tombstones.has(requestId)) return
@@ -188,11 +191,40 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         controller.abort(abortError(REQUEST_CANCELLED_CODE, 'event was not structured-cloneable'))
       }
     }
+    let nextCallId = 0
+    const callHost = (method: string, input: unknown): Promise<unknown> => {
+      if (request.settled || controller.signal.aborted) return Promise.reject(new Error('Request is no longer active'))
+      if (request.hostReplies.size >= 64) return Promise.reject(new Error('Too many concurrent host calls'))
+      return new Promise((resolve, reject) => {
+        const callId = ++nextCallId
+        const cleanup = () => {
+          request.hostReplies.delete(callId)
+          controller.signal.removeEventListener('abort', abort)
+        }
+        const abort = () => {
+          cleanup()
+          reject(controller.signal.reason)
+        }
+        request.hostReplies.set(callId, (outcome) => {
+          cleanup()
+          if ('error' in outcome) reject(Object.assign(new Error(outcome.error.message), outcome.error))
+          else resolve(outcome.value)
+        })
+        controller.signal.addEventListener('abort', abort, { once: true })
+        try {
+          post({ kind: 'host-call', requestId, callId, method, input })
+        } catch (error) {
+          cleanup()
+          reject(error)
+        }
+      })
+    }
     request.done = (async () => {
       try {
         const output = await handlers[method](input, {
           signal: controller.signal,
           emit,
+          callHost,
           logger: createLogger(requestId)
         })
         sendTerminal(requestId, request, { kind: 'result', requestId, output })
@@ -200,6 +232,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         sendTerminal(requestId, request, { kind: 'error', requestId, error: toRemoteError(error) })
       } finally {
         // Tracked until the handler settles, so shutdown waits for it even after an early terminal.
+        controller.abort(new Error('Request finished'))
         active.delete(requestId)
       }
     })()
@@ -255,6 +288,9 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         dispatch(data.requestId, data.method, data.input)
         return
       }
+      case 'host-reply':
+        active.get(data.requestId)?.hostReplies.get(data.callId)?.(data.outcome)
+        return
       case 'cancel': {
         const request = active.get(data.requestId)
         if (request !== undefined && !request.settled) {
