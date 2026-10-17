@@ -462,10 +462,12 @@ export class JobService {
   /**
    * Re-schedule a failed job for retry. Caller computes `scheduledAt = now + backoff(attempt+1)`.
    * Resets startedAt; preserves output/scheduleId/idempotencyKey.
+   * @returns Whether a running, uncancelled row was transitioned to delayed.
    */
-  setDelayedRetryTx(tx: DbOrTx, jobId: string, attempt: number, scheduledAt: number, error: JobError | null): void {
+  setDelayedRetryTx(tx: DbOrTx, jobId: string, attempt: number, scheduledAt: number, error: JobError | null): boolean {
     const now = Date.now()
-    tx.update(jobTable)
+    const result = tx
+      .update(jobTable)
       .set({
         status: 'delayed',
         attempt,
@@ -474,8 +476,9 @@ export class JobService {
         updatedAt: now,
         error
       })
-      .where(eq(jobTable.id, jobId))
+      .where(and(eq(jobTable.id, jobId), eq(jobTable.status, 'running'), eq(jobTable.cancelRequested, false)))
       .run()
+    return result.changes > 0
   }
 
   setCancelRequestedTx(tx: DbOrTx, jobId: string): void {
