@@ -281,8 +281,13 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
               (tab) => tab.type === 'route' && (destination.matchesTab?.(tab.url) ?? tab.url === destination.url)
             )
         if (existing) {
-          if (destination.metadata) {
-            updateTab(existing.id, { metadata: { ...existing.metadata, ...destination.metadata } })
+          if (existing.url !== destination.url && destination.replaceExistingUrl) {
+            updateTab(existing.id, {
+              url: destination.url,
+              title: destination.title,
+              icon: destination.icon,
+              metadata: undefined
+            })
           }
           if (existing.id !== activeTab?.id) setActiveTab(existing.id)
           return
@@ -294,8 +299,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
             openTab(destination.url, {
               forceNew: true,
               title: destination.title,
-              icon: destination.icon,
-              metadata: destination.metadata
+              icon: destination.icon
             })
             return
           }
@@ -303,7 +307,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
             url: destination.url,
             title: destination.title,
             icon: destination.icon,
-            metadata: destination.metadata ?? {}
+            metadata: undefined
           })
           return
         }
@@ -311,8 +315,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
       openTab(destination.url, {
         forceNew: true,
         title: destination.title,
-        icon: destination.icon,
-        metadata: destination.metadata
+        icon: destination.icon
       })
     },
     [activeTab, openTab, setActiveTab, tabs, updateTab]

@@ -57,12 +57,12 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   useEffect(() => {
     const currentHref = router.state.location.href
     if (tab.url !== currentHref) {
-      // Parse the query separately because search validation can lose parameters
-      // when the query is passed inside `to`.
-      const [pathname, search] = tab.url.split('?')
+      // Split path/query; a search function replaces leftover params so a
+      // sidebar `?agentId=` click cannot stay on All Agents.
+      const [pathname, query = ''] = tab.url.split('?')
       void router.navigate({
         to: pathname,
-        search: search ? Object.fromEntries(new URLSearchParams(search)) : undefined
+        search: () => Object.fromEntries(new URLSearchParams(query))
       })
     }
   }, [router, tab.url])
