@@ -487,4 +487,67 @@ describe('retained-reply interruption hands B back only after A persists', () =>
       void service.closeSession('session-1')
     })
   })
+
+  /**
+   * Pre-registration gap: A's autonomous reply completes and releases the background work while
+   * B's unadmitted stream is still suspending — before the delayed `startReceiveOnlyTurn` runs.
+   * The release must not retire the captured author there: the reply streams on A's connection,
+   * so its row would otherwise be minted on B's author/model.
+   */
+  it('attributes the delayed receive-only launch to A when the background work releases first', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = entryOf(service)
+    const retained = {
+      agentId: 'agent-1',
+      send: vi.fn(),
+      close: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('current' as const)
+    }
+    entry.runtimeState.connection = { kind: 'connected', connection: retained, occupancy: {} }
+    ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, retained)
+    service.markTurnTerminal('session-1', 'success')
+
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', name: 'Agent B', model: switchedModelId })
+    service.beginTurn({
+      ...baseTurnInput,
+      agentId: 'agent-2',
+      modelId: switchedModelId,
+      assistantMessageId: 'assistant-2',
+      messageSnapshot: { agentName: 'Agent B' } as any,
+      userMessage: userMessage('user-2')
+    })
+
+    mocks.saveMessage.mockClear()
+    ;(service as any).handleRuntimeEvent(
+      entry,
+      { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+      retained
+    )
+    // A's reply finishes and the work releases while B's unadmitted stream is still suspending —
+    // the receive-only launch for that reply has not minted its turn yet.
+    ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false }, retained)
+
+    await vi.waitFor(() => expect(mocks.saveMessage).toHaveBeenCalledTimes(1))
+    expect(mocks.saveMessage.mock.calls[0][0].message).toMatchObject({
+      modelId: baseTurnInput.modelId,
+      messageSnapshot: undefined
+    })
+
+    // The release must not strand the handoff: A's reply settles, then B's deferred input resumes.
+    const receiveOnlyTurn = entry.runtimeState.execution.turn
+    expect(receiveOnlyTurn).toBeDefined()
+    ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' }, retained)
+    service.markTurnTerminal('session-1', 'paused', receiveOnlyTurn!.turnId)
+    await vi.waitFor(() => {
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: expect.objectContaining({ assistantMessageId: 'assistant-2' })
+      })
+    })
+
+    void service.closeSession('session-1')
+  })
 })
