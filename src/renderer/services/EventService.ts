@@ -3,6 +3,7 @@ import Emittery from 'emittery'
 export const EventEmitter = new Emittery()
 
 export const EVENT_NAMES = {
+  TASK_DASHBOARD_HIDDEN: 'TASK_DASHBOARD_HIDDEN',
   SEND_MESSAGE: 'SEND_MESSAGE',
   EDIT_MESSAGE: 'EDIT_MESSAGE',
   CHAT_COMPLETION_PAUSED: 'CHAT_COMPLETION_PAUSED',

@@ -29,7 +29,7 @@ import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -55,6 +55,7 @@ import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
+import { AgentTaskDashboard } from './components/AgentTaskDashboard'
 import Sessions from './components/Sessions'
 import {
   createFeedbackComposerLaunch,
@@ -102,6 +103,7 @@ const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [panePosition, setPanePosition] = usePreference('agent.session.position')
+  const [showTaskDashboard] = usePreference('agent.task_dashboard.visible')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const routeSearch = agentsRouteApi.useSearch<AppRouter>()
   const navigate = useNavigate()
@@ -110,6 +112,7 @@ const AgentPage = () => {
   const isSkillIntent = routeSearch.intent === 'skill'
   const isPreparedIntent = isFeedbackIntent || isSkillIntent
   const currentTabId = useCurrentTabId()
+  const isActiveTab = useIsActiveTab()
   const routeSessionId = routeSearch.sessionId
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
@@ -375,10 +378,14 @@ const AgentPage = () => {
   // While the bound session is still loading, keep the tab's stored title/icon instead of stamping
   // a generic one.
   const targetSessionId = activeSessionId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
@@ -899,7 +906,6 @@ const AgentPage = () => {
     },
     [replacingSessionWorkspace, setActiveSession, setLastUsedWorkspaceId, setSessionWorkspace, visibleSession]
   )
-  const handleLocateMessageHandled = clearLocate
 
   // Classic layout = entity rail + right session panel; modern layout = one left navigation panel (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? null
@@ -1071,7 +1077,12 @@ const AgentPage = () => {
           <AgentChat
             centerSurface={centerSurface}
             conversationBootstrap={conversationBootstrap}
-            pane={pane}
+            pane={
+              <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                {showTaskDashboard && <AgentTaskDashboard enabled={shellPaneOpen && isActiveTab} />}
+                <div className="min-h-0 flex-1 overflow-hidden">{pane}</div>
+              </div>
+            }
             paneOpen={shellPaneOpen}
             panePosition="left"
             onPaneCollapse={() => setShellPaneOpenManually(false)}
@@ -1089,7 +1100,8 @@ const AgentPage = () => {
             onVisibleAgentChange={setLastUsedAgentId}
             onVisibleWorkspaceChange={setLastUsedWorkspaceId}
             locateMessageId={locateMessageId}
-            onLocateMessageHandled={handleLocateMessageHandled}
+            locateToEnd={locateToEnd}
+            onLocateMessageHandled={clearLocate}
             selectingMissingAgent={selectingMissingAgent}
             replacingSessionWorkspace={replacingSessionWorkspace}
             resourcePane={resourcePane}

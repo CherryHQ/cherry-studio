@@ -27,10 +27,7 @@ vi.mock('react-i18next', () => ({
 // Task commands ride IpcApi (`ai.agent.task.*`); only reads stay on DataApi.
 const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: requestMock,
-    on: () => () => {}
-  }
+  ipcApi: { request: requestMock }
 }))
 
 const taskEntity = { id: 't-1', agentId: 'agent-1', name: 'Task 1', enabled: true }

@@ -52,15 +52,18 @@ export const useTasks = (agentId: string | null) => {
 }
 
 /** All scheduled tasks across every agent — backs the settings overview page. */
-export const useAllTasks = () => {
+export const useAllTasks = (enabled = true) => {
   const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh } = usePaginatedQuery(
     '/agent-tasks',
     {
       limit: TASKS_PAGE_LIMIT,
+      enabled,
       swrOptions: { keepPreviousData: false }
     }
   )
-  useDataChange('/agent-tasks', () => refresh())
+  useDataChange('/agent-tasks', () => {
+    if (enabled) void refresh()
+  })
   return {
     tasks: items,
     total,

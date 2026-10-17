@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
 const {
   acknowledgeMainWindowNavigationMock,
   conversationNavigationServiceMock,
@@ -99,7 +103,45 @@ describe('navigationHandlers', () => {
 
     await navigationHandlers['navigation.focus_or_open_conversation']({ target, title: 'Research notes' }, ctx)
 
-    expect(conversationNavigationServiceMock.focusOrOpen).toHaveBeenCalledWith(target, 'Research notes', 'w1')
+    expect(conversationNavigationServiceMock.focusOrOpen).toHaveBeenCalledWith(
+      target,
+      'Research notes',
+      'w1',
+      undefined
+    )
+  })
+
+  it('preserves an explicit end-of-conversation request through IPC delegation', async () => {
+    const target = { conversationType: 'agent' as const, conversationId: 'session-1' }
+    await navigationHandlers['navigation.focus_or_open_conversation']({ target, title: 'Task', messageId: null }, ctx)
+    expect(conversationNavigationServiceMock.focusOrOpen).toHaveBeenCalledWith(target, 'Task', 'w1', null)
+  })
+
+  it('preserves an unavailable Agent session classification through the IPC error round trip', async () => {
+    conversationNavigationServiceMock.focusOrOpen.mockRejectedValueOnce(
+      DataApiErrorFactory.notFound('Session', 'deleted-session')
+    )
+    const error = await Promise.resolve(
+      navigationHandlers['navigation.focus_or_open_conversation'](
+        { target: { conversationType: 'agent', conversationId: 'deleted-session' }, title: 'Deleted task' },
+        ctx
+      )
+    ).then(
+      () => undefined,
+      (reason) => IpcError.fromJSON(IpcError.from(reason).toJSON())
+    )
+    expect(isAgentSessionNotFoundError(error)).toBe(true)
+  })
+
+  it('leaves unrelated navigation failures unchanged', async () => {
+    const failure = new Error('Ownership discovery failed')
+    conversationNavigationServiceMock.focusOrOpen.mockRejectedValueOnce(failure)
+    await expect(
+      navigationHandlers['navigation.focus_or_open_conversation'](
+        { target: { conversationType: 'agent', conversationId: 'session-1' }, title: 'Task' },
+        ctx
+      )
+    ).rejects.toBe(failure)
   })
 
   it('reports conversation ownership against the trusted caller window id', async () => {
