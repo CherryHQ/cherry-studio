@@ -9,7 +9,8 @@ type RenderOptions = { shouldRender?: () => boolean }
 const mocks = vi.hoisted(() => ({
   mermaid: {
     parse: vi.fn(),
-    render: vi.fn()
+    render: vi.fn(),
+    mermaidAPI: { getConfig: vi.fn() }
   },
   useMermaid: vi.fn(),
   useDebouncedRender: vi.fn(),
@@ -92,6 +93,7 @@ describe('MermaidPreview', () => {
     mocks.mermaid.render.mockResolvedValue({
       svg: '<svg><g transform="translate(undefined, NaN)">diagram</g></svg>'
     })
+    mocks.mermaid.mermaidAPI.getConfig.mockReturnValue({ themeVariables: { background: 'white' } })
 
     vi.stubGlobal(
       'MutationObserver',
@@ -121,6 +123,107 @@ describe('MermaidPreview', () => {
       container
     )
     expect(document.body).not.toContainElement(measureElement)
+  })
+
+  it('rejects a failed render without blocking the next diagram', async () => {
+    mocks.mermaid.parse.mockRejectedValueOnce(new Error('invalid diagram'))
+    render(<MermaidPreview>{content}</MermaidPreview>)
+    const container = mocks.containerRef.current!
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+
+    await expect(mocks.renderFunction!(content, container)).rejects.toThrow('invalid diagram')
+
+    await act(async () => {
+      await mocks.renderFunction!(content, container)
+    })
+
+    expect(mocks.renderSvgInShadowHost).toHaveBeenCalledWith(
+      '<svg><g transform="translate(0, 0)">diagram</g></svg>',
+      container
+    )
+  })
+
+  it('drops a queued render when its preview unmounts', async () => {
+    let finishFirstParse: ((value: boolean) => void) | undefined
+    mocks.mermaid.parse.mockImplementationOnce(() => new Promise<boolean>((resolve) => (finishFirstParse = resolve)))
+
+    const firstPreview = render(<MermaidPreview>{content}</MermaidPreview>)
+    const firstContainer = mocks.containerRef.current!
+    vi.spyOn(firstContainer, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+    const firstRender = mocks.renderFunction!(content, firstContainer)
+    await vi.waitFor(() => expect(finishFirstParse).toBeTypeOf('function'))
+
+    const staleContent = 'graph TD\nC-->D'
+    const stalePreview = render(<MermaidPreview>{staleContent}</MermaidPreview>)
+    const staleContainer = mocks.containerRef.current!
+    vi.spyOn(staleContainer, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+    const staleRender = mocks.renderFunction!(staleContent, staleContainer)
+    stalePreview.unmount()
+    expect(document.body).not.toContainElement(staleContainer)
+
+    await act(async () => {
+      finishFirstParse!(true)
+      await Promise.all([firstRender, staleRender])
+    })
+
+    expect(mocks.mermaid.parse).not.toHaveBeenCalledWith(staleContent)
+    expect(mocks.mermaid.render).not.toHaveBeenCalledWith('mermaid-test-id', staleContent, expect.anything())
+    expect(mocks.renderSvgInShadowHost.mock.calls.some(([, host]) => host === staleContainer)).toBe(false)
+    firstPreview.unmount()
+  })
+
+  it('drops an older queued render when the same preview requests a newer one', async () => {
+    let finishBlockerParse: ((value: boolean) => void) | undefined
+    mocks.mermaid.parse.mockImplementationOnce(() => new Promise<boolean>((resolve) => (finishBlockerParse = resolve)))
+
+    render(<MermaidPreview>{content}</MermaidPreview>)
+    const blockerContainer = mocks.containerRef.current!
+    vi.spyOn(blockerContainer, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+    const blockerRender = mocks.renderFunction!(content, blockerContainer)
+    await vi.waitFor(() => expect(finishBlockerParse).toBeTypeOf('function'))
+
+    render(<MermaidPreview>{content}</MermaidPreview>)
+    const container = mocks.containerRef.current!
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+    const oldContent = 'graph TD\nC-->D'
+    const newContent = 'graph TD\nE-->F'
+    const oldRender = mocks.renderFunction!(oldContent, container)
+    const newRender = mocks.renderFunction!(newContent, container)
+
+    await act(async () => {
+      finishBlockerParse!(true)
+      await Promise.all([blockerRender, oldRender, newRender])
+    })
+
+    expect(mocks.mermaid.parse).not.toHaveBeenCalledWith(oldContent)
+    expect(mocks.mermaid.parse).toHaveBeenCalledWith(newContent)
+    expect(mocks.renderSvgInShadowHost).toHaveBeenCalledWith(expect.anything(), container)
+  })
+
+  it('skips installing an active render after unmount and lets the next preview render', async () => {
+    let failFirstRender: ((error: Error) => void) | undefined
+    mocks.mermaid.render.mockImplementationOnce(() => new Promise((_, reject) => (failFirstRender = reject)))
+
+    const firstPreview = render(<MermaidPreview>{content}</MermaidPreview>)
+    const staleContainer = mocks.containerRef.current!
+    vi.spyOn(staleContainer, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+    const staleRender = mocks.renderFunction!(content, staleContainer)
+    await vi.waitFor(() => expect(failFirstRender).toBeTypeOf('function'))
+
+    const nextContent = 'graph TD\nC-->D'
+    render(<MermaidPreview>{nextContent}</MermaidPreview>)
+    const nextContainer = mocks.containerRef.current!
+    vi.spyOn(nextContainer, 'getBoundingClientRect').mockReturnValue({ width: 640 } as DOMRect)
+    const nextRender = mocks.renderFunction!(nextContent, nextContainer)
+    firstPreview.unmount()
+
+    await act(async () => {
+      failFirstRender!(new Error('late Mermaid failure'))
+      await Promise.all([staleRender, nextRender])
+    })
+
+    expect(mocks.renderSvgInShadowHost.mock.calls.some(([, host]) => host === staleContainer)).toBe(false)
+    expect(mocks.renderSvgInShadowHost.mock.calls.some(([, host]) => host === nextContainer)).toBe(true)
   })
 
   it('surfaces Mermaid initialization state ahead of render state', () => {

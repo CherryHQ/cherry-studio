@@ -78,6 +78,27 @@ describe('useDebouncedRender', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
+  it('keeps loading while a newer render is pending after an older one settles', async () => {
+    let finishFirst: (() => void) | undefined
+    let finishSecond: (() => void) | undefined
+    const renderFunction = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((resolve) => (finishFirst = resolve)))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => (finishSecond = resolve)))
+    const { result } = renderHook(() => useDebouncedRender('', renderFunction, { debounceDelay: 100 }))
+    result.current.containerRef.current = document.createElement('div')
+
+    act(() => result.current.triggerImmediateRender('first'))
+    act(() => result.current.triggerRender('second'))
+
+    await act(async () => finishFirst!())
+    expect(result.current.isLoading).toBe(true)
+
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    await act(async () => finishSecond!())
+    expect(result.current.isLoading).toBe(false)
+  })
+
   it('renders immediately with triggerImmediateRender and cancels pending debounced renders', async () => {
     const renderFunction = vi.fn(async () => {})
     const { result } = renderHook(() => useDebouncedRender('', renderFunction, { debounceDelay: 100 }))
