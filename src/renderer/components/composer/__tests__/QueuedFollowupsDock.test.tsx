@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,6 +7,16 @@ import i18n from '@renderer/i18n/resolver'
 vi.unmock('@cherrystudio/ui')
 
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
+
+const baseProps = () => ({
+  paused: false,
+  onTogglePause: vi.fn(),
+  onSteer: vi.fn(),
+  onEdit: vi.fn(),
+  onRemove: vi.fn(),
+  onReorder: vi.fn(),
+  onClearAll: vi.fn()
+})
 
 const items = [
   {
@@ -67,6 +77,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
     const toggle = screen.getByRole('button', { name: 'Queued (2)' })
@@ -93,7 +104,8 @@ describe('QueuedFollowupsDock', () => {
       onSteer: vi.fn(),
       onEdit: vi.fn(),
       onRemove: vi.fn(),
-      onReorder: vi.fn()
+      onReorder: vi.fn(),
+      onClearAll: vi.fn()
     }
     const { rerender } = render(<QueuedFollowupsDock {...props} />)
     const toggle = screen.getByRole('button', { name: 'Queued (2)' })
@@ -132,6 +144,7 @@ describe('QueuedFollowupsDock', () => {
     const onRemove = vi.fn()
     const onTogglePause = vi.fn()
     const onReorder = vi.fn()
+    const onClearAll = vi.fn()
 
     const { container } = render(
       <QueuedFollowupsDock
@@ -142,12 +155,15 @@ describe('QueuedFollowupsDock', () => {
         onEdit={onEdit}
         onRemove={onRemove}
         onReorder={onReorder}
+        onClearAll={onClearAll}
       />
     )
 
     await user.click(screen.getByRole('button', { name: 'Queued (2)' }))
     expect(screen.getByText('first')).toBeInTheDocument()
     expect(screen.getByText('second')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reorder queued message: first' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reorder queued message: second' })).toBeInTheDocument()
     expect(screen.queryByText('first https://example.com/docs')).not.toBeInTheDocument()
     // Composer token chip is rendered read-only from the stored draft tokens.
     expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')
@@ -164,6 +180,9 @@ describe('QueuedFollowupsDock', () => {
 
     await user.click(screen.getByLabelText('Pause auto-send'))
     expect(onTogglePause).toHaveBeenCalled()
+
+    fireEvent.click(screen.getByLabelText('Clear queue'))
+    expect(onClearAll).toHaveBeenCalled()
   })
 
   it('disables manual steer for a reserved branch while its caller reports the stream as live', async () => {
@@ -186,6 +205,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
         isSteerDisabled={(item) => item.payload.chatTarget?.mode === 'reserved-branch'}
         steerDisabledReason="wait for current"
       />
@@ -228,6 +248,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
 
@@ -268,6 +289,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
 
@@ -286,6 +308,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
     expect(container).toBeEmptyDOMElement()
@@ -302,6 +325,7 @@ describe('QueuedFollowupsDock', () => {
         onEdit={vi.fn()}
         onRemove={vi.fn()}
         onReorder={vi.fn()}
+        onClearAll={vi.fn()}
       />
     )
 
@@ -310,5 +334,112 @@ describe('QueuedFollowupsDock', () => {
     expect(container.querySelector('[data-composer-token-kind="knowledge"]')).toHaveTextContent('Notes')
     expect(container).not.toHaveTextContent(knowledgePrompt)
     expect(container).not.toHaveTextContent('kb-1')
+  })
+
+  it('collapses past the visible limit behind an expand toggle that reveals the rest', async () => {
+    const user = userEvent.setup()
+    const many = Array.from({ length: 7 }, (_unused, index) => ({
+      id: `${index}`,
+      draft: { text: `message ${index}`, tokens: [] },
+      payload: { text: `message ${index}`, userMessageParts: [] }
+    })) as any
+
+    render(<QueuedFollowupsDock items={many} {...baseProps()} />)
+    await user.click(screen.getByRole('button', { name: 'Queued (7)' }))
+
+    // Exactly the first 3 rows render; the remaining 4 sit behind the toggle.
+    for (let index = 0; index < 3; index += 1) {
+      expect(screen.getByText(`message ${index}`)).toBeInTheDocument()
+    }
+    for (let index = 3; index < 7; index += 1) {
+      expect(screen.queryByText(`message ${index}`)).not.toBeInTheDocument()
+    }
+    const expandToggle = screen.getByRole('button', { name: 'Expand 4 more…' })
+    expect(expandToggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(expandToggle)
+    for (let index = 0; index < 7; index += 1) {
+      expect(screen.getByText(`message ${index}`)).toBeInTheDocument()
+    }
+    expect(screen.getByRole('button', { name: 'Show less' })).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show less' }))
+    for (let index = 3; index < 7; index += 1) {
+      expect(screen.queryByText(`message ${index}`)).not.toBeInTheDocument()
+    }
+  })
+
+  it('does not offer the expand toggle within the visible limit', () => {
+    render(<QueuedFollowupsDock items={items} {...baseProps()} />)
+    expect(screen.queryByRole('button', { name: /Expand \d+ more/ })).not.toBeInTheDocument()
+  })
+
+  it('shows the failure banner with Skip / Retry / Abort actions for the failed head', () => {
+    const onRetryFailed = vi.fn()
+    const onSkipFailed = vi.fn()
+    const onAbortQueue = vi.fn()
+
+    render(
+      <QueuedFollowupsDock
+        items={items}
+        {...baseProps()}
+        failedItemId="2"
+        onRetryFailed={onRetryFailed}
+        onSkipFailed={onSkipFailed}
+        onAbortQueue={onAbortQueue}
+      />
+    )
+
+    expect(screen.getByText('Send failed')).toBeInTheDocument()
+    // The failed item's preview appears in both the banner and its own queued row.
+    expect(screen.getAllByText('second').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }))
+    expect(onSkipFailed).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onRetryFailed).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Abort remaining' }))
+    expect(onAbortQueue).toHaveBeenCalled()
+  })
+
+  it('shows no failure banner without a failed head', () => {
+    render(<QueuedFollowupsDock items={items} {...baseProps()} />)
+    expect(screen.queryByText('Send failed')).not.toBeInTheDocument()
+  })
+
+  it('disables Skip/Retry while the failed head is draining and Resume while a failure is unresolved', () => {
+    const onRetryFailed = vi.fn()
+    const onSkipFailed = vi.fn()
+    const onAbortQueue = vi.fn()
+
+    render(
+      <QueuedFollowupsDock
+        items={items}
+        {...baseProps()}
+        paused
+        failedItemId="2"
+        onRetryFailed={onRetryFailed}
+        onSkipFailed={onSkipFailed}
+        onAbortQueue={onAbortQueue}
+        isFailureDraining
+      />
+    )
+
+    // The banner is announced as an alert; Skip/Retry no-op mid-drain so they stay
+    // disabled, while Abort (drop everything) remains available throughout.
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Abort remaining' })).toBeEnabled()
+    // Resuming would clear the paused indicator without draining (the failure owns
+    // the queue), so the toggle stays disabled until the failure is resolved.
+    expect(screen.getByLabelText('Resume auto-send')).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }))
+    expect(onSkipFailed).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onRetryFailed).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Abort remaining' }))
+    expect(onAbortQueue).toHaveBeenCalled()
   })
 })
