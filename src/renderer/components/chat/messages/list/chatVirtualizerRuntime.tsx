@@ -152,7 +152,6 @@ export interface ChatVirtualizerRuntime<T> {
   dismissAutoscroll(): void
 }
 
-const SCROLL_WHEEL_DEBOUNCE_MS = 100
 type ScrollDirection = 'up' | 'down' | 'none'
 type PendingUserInput = { at: number; direction: ScrollDirection }
 // scrollToKey animates smoothly for nearby targets but jumps instantly once the
@@ -230,8 +229,6 @@ export function useChatVirtualizerRuntime<T>({
   const readNavigationActiveRef = useRef(false)
   const explicitNavigationBaseRef = useRef<ExplicitNavigationBase | null>(null)
   const lastScrollOffsetRef = useRef(0)
-  const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastWheelDirRef = useRef<ScrollDirection>('none')
   const clearAutoscrollSuppressTimer = useCallback(() => {
     if (autoscrollSuppressTimerRef.current) {
       clearTimeout(autoscrollSuppressTimerRef.current)
@@ -545,11 +542,6 @@ export function useChatVirtualizerRuntime<T>({
     clearAutoscrollIdleTimer()
     clearAutoscrollSuppressTimer()
     pendingUserInputRef.current = null
-    if (wheelTimeoutRef.current) {
-      clearTimeout(wheelTimeoutRef.current)
-      wheelTimeoutRef.current = null
-    }
-    lastWheelDirRef.current = 'none'
     settleUserScrollGesture()
   }, [clearAutoscrollIdleTimer, clearAutoscrollSuppressTimer, settleUserScrollGesture])
 
@@ -574,11 +566,6 @@ export function useChatVirtualizerRuntime<T>({
     } else {
       autoscrollActiveRef.current = true
     }
-    if (wheelTimeoutRef.current) {
-      clearTimeout(wheelTimeoutRef.current)
-      wheelTimeoutRef.current = null
-    }
-    lastWheelDirRef.current = 'none'
     markUserInput()
     clearAutoscrollIdleTimer()
     autoscrollIdleTimerRef.current = setTimeout(() => {
@@ -592,19 +579,9 @@ export function useChatVirtualizerRuntime<T>({
         autoscrollCandidateTimerRef.current = null
         clearAutoscrollSuppressTimer()
         pendingUserInputRef.current = null
-        if (wheelTimeoutRef.current) {
-          clearTimeout(wheelTimeoutRef.current)
-          wheelTimeoutRef.current = null
-        }
-        lastWheelDirRef.current = 'none'
         settleUserScrollGesture()
       }, AUTOSCROLL_CANDIDATE_MS)
       pendingUserInputRef.current = null
-      if (wheelTimeoutRef.current) {
-        clearTimeout(wheelTimeoutRef.current)
-        wheelTimeoutRef.current = null
-      }
-      lastWheelDirRef.current = 'none'
     }, AUTOSCROLL_IDLE_MS)
   }, [
     clearAutoscrollCandidateTimer,
@@ -810,11 +787,6 @@ export function useChatVirtualizerRuntime<T>({
       if (smoothScroll.isAnimating() && dir === 'up') {
         smoothScroll.cancel()
       }
-      lastWheelDirRef.current = dir
-      if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current)
-      wheelTimeoutRef.current = setTimeout(() => {
-        lastWheelDirRef.current = 'none'
-      }, SCROLL_WHEEL_DEBOUNCE_MS)
     },
     [markUserInput, smoothScroll, takeUserControl]
   )
@@ -859,14 +831,14 @@ export function useChatVirtualizerRuntime<T>({
     // intent. virtua's remeasure-compensation jumps and child `scrollIntoView`
     // calls also fire scroll events, with no preceding input.
     const pendingUserInput = pendingUserInputRef.current
-    const deltaDirection = getScrollDirection(delta)
-    const hasRecentUserScrollIntent = isUserScrollIntentPending(deltaDirection)
+    const direction = getScrollDirection(delta)
+    const hasRecentUserScrollIntent = isUserScrollIntentPending(direction)
     if (
       pendingUserInput &&
       performance.now() - pendingUserInput.at < USER_SCROLL_INPUT_WINDOW_MS &&
       pendingUserInput.direction !== 'none' &&
-      deltaDirection !== 'none' &&
-      pendingUserInput.direction !== deltaDirection
+      direction !== 'none' &&
+      pendingUserInput.direction !== direction
     ) {
       pendingUserInputRef.current = null
     }
@@ -875,8 +847,6 @@ export function useChatVirtualizerRuntime<T>({
       autoscrollActiveRef.current ||
       userScrollGestureRef.current ||
       hasRecentUserScrollIntent
-    const wheelDir = lastWheelDirRef.current
-    const direction = autoscrollActiveRef.current ? deltaDirection : wheelDir !== 'none' ? wheelDir : deltaDirection
     if (hasRecentUserScrollIntent && pendingUserInput?.direction === 'none' && direction !== 'none') {
       pendingUserInput.direction = direction
     }
@@ -961,7 +931,6 @@ export function useChatVirtualizerRuntime<T>({
   ])
 
   const onScrollEnd = useCallback(() => {
-    lastWheelDirRef.current = 'none'
     // virtua synthesizes scroll-end after a short quiet period. A user can
     // still be holding the native thumb while pausing to reverse direction.
     if (!scrollbarDragActiveRef.current) {

@@ -7,6 +7,7 @@ on:
     paths:
       - ".changeset/**"
       - "packages/provider-registry/**"
+      - "packages/web-search/**"
       - "packages/aiCore/**"
       - "packages/ai-sdk-provider/**"
       - "packages/extension-table-plus/**"
@@ -60,6 +61,11 @@ jobs:
 
       - name: Build Packages
         run: pnpm packages:build
+
+      - name: Check Web Search Package
+        run: |
+          pnpm --filter @cherrystudio/web-search test
+          pnpm --filter @cherrystudio/web-search test:package
 
       - name: Check Provider Registry Package
         run: pnpm --filter @cherrystudio/provider-registry test:package

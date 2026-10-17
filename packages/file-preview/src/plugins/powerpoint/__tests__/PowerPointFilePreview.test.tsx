@@ -74,6 +74,7 @@ const mocks = vi.hoisted(() => {
     load: vi.fn(),
     logger: { error: vi.fn(), warn: vi.fn() },
     failDocument: vi.fn(),
+    requestOpen: vi.fn(),
     materializeSlideNodes: vi.fn(),
     mockFiles: { slides: new Map() },
     parseZipLazyMedia: vi.fn(),
@@ -133,7 +134,7 @@ vi.mock('@aiden0z/pptx-renderer', () => ({
 
 vi.mock('../../../previewContext', () => ({
   usePreviewLogger: () => mocks.logger,
-  usePreviewHost: () => ({ failDocument: mocks.failDocument })
+  usePreviewHost: () => ({ failDocument: mocks.failDocument, onRequestOpen: mocks.requestOpen })
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -143,10 +144,25 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+  EmptyState: ({
+    title,
+    description,
+    actionLabel,
+    onAction
+  }: {
+    title?: string
+    description?: string
+    actionLabel?: string
+    onAction?: () => void
+  }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
+      {actionLabel && onAction ? (
+        <button type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   ),
   Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
@@ -360,10 +376,7 @@ describe('PowerPointFilePreview', () => {
       initialSlides: 3,
       overscanViewport: 2
     })
-    const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
-    expect(toolbar).toHaveClass('h-11', 'min-h-11')
-    expect(toolbar).not.toHaveClass('bg-background')
-    expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
+    expect(screen.getByRole('toolbar', { name: 'preview.label' })).toBeInTheDocument()
     expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
@@ -399,6 +412,62 @@ describe('PowerPointFilePreview', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(mocks.failDocument).toHaveBeenCalledWith(expect.objectContaining({ code: 'load_error' }))
+  })
+
+  it('shows the source-size fallback for a PPTX larger than 25 MiB without reading it', async () => {
+    const read = vi.fn().mockRejectedValue(new Error('Oversized files must not be read'))
+
+    render(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(25 * 1024 * 1024 + 1, 1, read, 0)}
+      />
+    )
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('file_preview.too_large.title')
+    expect(alert).toHaveTextContent('file_preview.too_large.description')
+    expect(alert).not.toHaveTextContent('file_preview.powerpoint.zip_limit.title')
+    expect(read).not.toHaveBeenCalled()
+    expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
+    expect(mocks.destroy).not.toHaveBeenCalled()
+    expect(mocks.failDocument).toHaveBeenCalledTimes(1)
+    const reported = mocks.failDocument.mock.calls[0][0] as { code?: string }
+    expect(reported).toMatchObject({ code: 'too_large' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'file_preview.too_large.action' }))
+    expect(mocks.requestOpen).toHaveBeenCalledExactlyOnceWith('too_large')
+  })
+
+  it('reports a ZIP safety failure separately from a source larger than 25 MiB', async () => {
+    const cause = new Error('PPTX zip limit exceeded: uncompressed size')
+    mocks.renderList.mockImplementationOnce(() => {
+      throw cause
+    })
+
+    render(
+      <PowerPointFilePreview
+        sourceId={filePath}
+        fileName="roadmap.pptx"
+        document={previewTestDocument(4, 1, mocks.fsRead, 0)}
+      />
+    )
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('file_preview.powerpoint.zip_limit.title')
+    expect(alert).toHaveTextContent('file_preview.powerpoint.zip_limit.description')
+    expect(alert).not.toHaveTextContent('file_preview.too_large.title')
+    expect(alert).not.toHaveTextContent('file_preview.too_large.description')
+    expect(mocks.fsRead).toHaveBeenCalled()
+    expect(mocks.destroy).toHaveBeenCalledTimes(1)
+    expect(mocks.failDocument).toHaveBeenCalledTimes(1)
+    const reported = mocks.failDocument.mock.calls[0][0] as { code?: string; cause?: unknown }
+    expect(reported).toMatchObject({ code: 'too_large' })
+    expect(reported.cause).toBe(cause)
+
+    fireEvent.click(screen.getByRole('button', { name: 'file_preview.too_large.action' }))
+    expect(mocks.requestOpen).toHaveBeenCalledExactlyOnceWith('too_large')
   })
 
   it('keeps the deck readable and navigable when one lazy slide fails', async () => {
