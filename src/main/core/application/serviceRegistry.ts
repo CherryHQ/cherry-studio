@@ -11,6 +11,7 @@ import { ChannelManager } from '@main/ai/channels'
 import { TtsInferenceService } from '@main/ai/localModel'
 import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
+import { LlmInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
@@ -185,6 +186,7 @@ export const services = {
   TtsInferenceService,
   EmbeddingInferenceService,
   OcrInferenceService,
+  LlmInferenceService,
   LocalModelService,
   KnowledgeService,
   KnowledgeVectorStoreService,

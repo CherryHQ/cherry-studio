@@ -4,7 +4,11 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { LOCAL_MODEL_STATUS_CACHE_KEY, type LocalModelStatusSnapshot } from '@shared/data/presets/localModel'
+import {
+  LOCAL_MODEL_BUNDLE_IDS,
+  LOCAL_MODEL_STATUS_CACHE_KEY,
+  type LocalModelStatusSnapshot
+} from '@shared/data/presets/localModel'
 
 import type { InstallState } from '../catalog/types'
 
@@ -85,7 +89,7 @@ describe('lifecycle', () => {
     await expect(localModelService._doInit()).resolves.toBeUndefined()
 
     const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
-    expect(swept).toEqual([EMBEDDING, OCR, ASR, 'qwen3-tts-0.6b-customvoice-8bit', 'kokoro-multi-lang-v1.1'].sort())
+    expect(swept).toEqual([...LOCAL_MODEL_BUNDLE_IDS].sort())
   })
 
   it('cancels an in-flight download on stop instead of leaving it to die with the process', async () => {

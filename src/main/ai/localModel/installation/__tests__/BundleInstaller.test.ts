@@ -459,3 +459,64 @@ describe('remove', () => {
     expect(order).toEqual(['deleted', 'preferences', 'artifacts', 'status'])
   })
 })
+
+describe('install state sync', () => {
+  // Stands in for state that must exist only while the model is installed (a model-selector row).
+  let listed: boolean | undefined
+  let syncInstallState: Mock<NonNullable<CapabilityHooks['syncInstallState']>>
+
+  beforeEach(() => {
+    listed = undefined
+    syncInstallState = vi.fn(async (installed: boolean) => {
+      listed = installed
+    })
+    manager = new BundleInstaller(
+      BUNDLE,
+      { terminateRuntimeThen: terminateRuntimeThen as CapabilityHooks['terminateRuntimeThen'], syncInstallState },
+      publishStatus,
+      finalizeSharedArtifacts
+    )
+  })
+
+  it('lists the model once its download completes', async () => {
+    await manager.download(GLOBAL_FIRST)
+
+    expect(listed).toBe(true)
+  })
+
+  it('leaves a cancelled download unlisted', async () => {
+    downloadBundleFiles.mockImplementation((_bundle, _files, options: { signal: AbortSignal }) => {
+      void manager.cancel()
+      return Promise.reject(options.signal.reason ?? new Error('aborted'))
+    })
+
+    await manager.download(GLOBAL_FIRST)
+
+    expect(listed).toBeUndefined()
+  })
+
+  it('unlists the model once its files are removed', async () => {
+    installComplete()
+
+    await manager.remove()
+
+    expect(listed).toBe(false)
+  })
+
+  it('reads the install state from disk at startup', async () => {
+    installComplete()
+    await manager.syncInstallState()
+    expect(listed).toBe(true)
+
+    rmSync(rootDir, { recursive: true, force: true })
+    await manager.syncInstallState()
+    expect(listed).toBe(false)
+  })
+
+  it('still reports a completed download as ready when the sync fails', async () => {
+    syncInstallState.mockRejectedValueOnce(new Error('database is locked'))
+
+    await expect(manager.download(GLOBAL_FIRST)).resolves.toBe('ready')
+    expect(statusUpdates().at(-1)).toMatchObject({ status: 'ready' })
+  })
+})

@@ -1,4 +1,4 @@
-import { Boxes, Download, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
+import { Boxes, Download, MessageSquareText, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,6 +49,11 @@ const MODEL_CARDS = {
     icon: <ScanText className="size-5" />,
     nameKey: 'settings.dependencies.localModels.ocr.name',
     sources: ['PaddlePaddle/PP-OCRv6_medium_det_onnx', 'PaddlePaddle/PP-OCRv6_medium_rec_onnx']
+  },
+  'qwen3.5-4b-q4_k_m': {
+    icon: <MessageSquareText className="size-5" />,
+    nameKey: 'settings.dependencies.localModels.chat.qwen3_5_4b',
+    sources: ['unsloth/Qwen3.5-4B-GGUF']
   }
 } as const satisfies Record<LocalModelBundleId, { icon: ReactNode; nameKey: string; sources: readonly string[] }>
 

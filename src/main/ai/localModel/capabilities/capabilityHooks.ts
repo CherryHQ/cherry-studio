@@ -1,8 +1,11 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import type { UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { LOCAL_LLM_PROVIDER_ID } from '@shared/data/presets/localLlm'
 import type { LocalModelBundleId, LocalModelCapability } from '@shared/data/presets/localModel'
 
 import type { CapabilityHooks } from '../installation/BundleInstaller'
@@ -23,6 +26,15 @@ const CAPABILITY_HOOKS: Record<LocalModelCapability, (modelId: LocalModelBundleI
   }),
   asr: (modelId) => ({
     terminateRuntimeThen: (after) => application.get('AsrInferenceService').removeModelThen(modelId, after)
+  }),
+  llm: (modelId) => ({
+    terminateRuntimeThen: (after) => application.get('LlmInferenceService').removeModelThen(modelId, after),
+    // The seeded model-selector row lists the model only while it can run.
+    syncInstallState: async (installed) => {
+      if (modelService.getByKey(LOCAL_LLM_PROVIDER_ID, modelId).isEnabled === installed) return
+      modelService.update(LOCAL_LLM_PROVIDER_ID, modelId, { isEnabled: installed })
+      notifyDataApiDataChange([{ endpoint: '/models', kind: 'membership' }])
+    }
   })
 }
 

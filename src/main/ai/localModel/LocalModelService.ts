@@ -46,6 +46,11 @@ export class LocalModelService extends BaseService {
     }
   }
 
+  protected async onAllReady(): Promise<void> {
+    // Files may have been added or deleted while the app was closed.
+    await Promise.all(ALL_MODEL_BUNDLE_IDS.map((id) => this.installerFor(id).syncInstallState()))
+  }
+
   protected async onStop(): Promise<void> {
     await Promise.all(ALL_MODEL_BUNDLE_IDS.map((id) => this.installerFor(id).settle()))
   }

@@ -34,7 +34,7 @@ export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[num
  * What a local model does. Capabilities classify models; execution and installation
  * address a selected bundle. Multiple bundles may provide the same capability.
  */
-export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr', 'asr', 'tts'] as const
+export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr', 'asr', 'tts', 'llm'] as const
 export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
 
 /**
@@ -50,7 +50,8 @@ export const LOCAL_MODEL_BUNDLE_IDS = [
   'pp-ocrv6-medium',
   'funasr-nano-int8',
   'qwen3-tts-0.6b-customvoice-8bit',
-  'kokoro-multi-lang-v1.1'
+  'kokoro-multi-lang-v1.1',
+  'qwen3.5-4b-q4_k_m'
 ] as const
 export type LocalModelBundleId = (typeof LOCAL_MODEL_BUNDLE_IDS)[number]
 
@@ -68,5 +69,6 @@ export const DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY = {
   embedding: 'qwen3-embedding-0.6b',
   ocr: 'pp-ocrv6-medium',
   asr: 'funasr-nano-int8',
-  tts: 'qwen3-tts-0.6b-customvoice-8bit'
+  tts: 'qwen3-tts-0.6b-customvoice-8bit',
+  llm: 'qwen3.5-4b-q4_k_m'
 } as const satisfies Record<LocalModelCapability, LocalModelBundleId>

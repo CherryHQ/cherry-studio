@@ -32,7 +32,7 @@ export interface SharedArtifact {
   provenance?: CatalogProvenance
 }
 
-export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx' | 'mlx-node'
+export type SharedArtifactId = 'onnxruntime-node' | 'sherpa-onnx' | 'mlx-node' | 'node-llama-cpp'
 
 export type DownloadUrls = readonly string[] | { china: string; global: string }
 
@@ -133,8 +133,15 @@ export interface ModelBundle {
   requires: SharedArtifactId[]
   /** Metadata inference needs but acquisition does not. `dtype` is the transformers.js
    * quantization selector, which must match the weights file the bundle actually installs. */
-  runtime?: { dtype?: string; architecture?: 'funasr-nano' | 'qwen3-tts' | 'kokoro' }
+  runtime?: { dtype?: string; architecture?: 'funasr-nano' | 'qwen3-tts' | 'kokoro'; chat?: ChatModelRuntime }
   provenance?: CatalogProvenance
+}
+
+/** How a local chat model runs: the context it may grow to and its publisher's recommended
+ * sampling. Request parameters override the sampling; without them small models loop. */
+export interface ChatModelRuntime {
+  maxContextSize: number
+  sampling: { temperature: number; topP: number; topK: number; presencePenalty: number }
 }
 
 /**
