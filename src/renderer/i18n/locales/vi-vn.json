@@ -5874,6 +5874,7 @@
   "settings.voice.shortcuts.left": "Trái",
   "settings.voice.shortcuts.record": "Nhấn một phím hoặc tổ hợp phím…",
   "settings.voice.shortcuts.right": "Phải",
+  "settings.voice.shortcuts.rules": "Dùng tối đa 3 phím, bao gồm Ctrl, Alt, Shift hoặc Win/Command, với nhiều nhất một phím không phải phím bổ trợ. Phím bên trái và bên phải được phân biệt. Nhấn Escape để hủy.",
   "settings.voice.shortcuts.save_failed": "Không thể lưu phím tắt.",
   "settings.voice.shortcuts.toggle.description": "Trong ứng dụng, nhấn một lần để bắt đầu và nhấn lần nữa để dừng.",
   "settings.voice.shortcuts.toggle.label": "Nhấn nhanh",

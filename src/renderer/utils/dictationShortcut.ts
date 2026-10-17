@@ -1,7 +1,7 @@
 import {
   formatKeyDisplay,
   getShortcutBindingFromKeyboardEvent,
-  isValidShortcut,
+  isShortcutModifier,
   normalizeShortcutToken,
   type ShortcutBinding,
   type ShortcutToken
@@ -21,9 +21,17 @@ const modifierCodes: Record<string, ShortcutToken> = {
 export function parseDictationShortcut(value: string): string[] {
   if (!value) return []
   const codes = value.split('+')
-  const tokens = codes.map((code) => modifierCodes[code] ?? normalizeShortcutToken(code))
-  if (tokens.some((token) => !token) || new Set(codes).size !== codes.length) return []
-  if (!codes.every((code) => modifierCodes[code]) && !isValidShortcut(tokens)) return []
+  const modifiers = codes.filter((code) => modifierCodes[code])
+  if (codes.length > 3 || modifiers.length === 0 || codes.length - modifiers.length > 1) return []
+  if (new Set(codes).size !== codes.length) return []
+  if (
+    codes.some((code) => {
+      if (modifierCodes[code]) return false
+      const token = normalizeShortcutToken(code)
+      return !token || isShortcutModifier(token) || token === 'Escape'
+    })
+  )
+    return []
   return codes.sort()
 }
 

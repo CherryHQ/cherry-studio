@@ -5874,6 +5874,7 @@
   "settings.voice.shortcuts.left": "Αριστερό",
   "settings.voice.shortcuts.record": "Πατήστε ένα πλήκτρο ή συνδυασμό…",
   "settings.voice.shortcuts.right": "Δεξί",
+  "settings.voice.shortcuts.rules": "Χρησιμοποιήστε έως 3 πλήκτρα, με τουλάχιστον ένα από τα Ctrl, Alt, Shift ή Win/Command και το πολύ ένα πλήκτρο που δεν είναι τροποποιητής. Τα αριστερά και δεξιά πλήκτρα διακρίνονται. Το Escape ακυρώνει την καταγραφή.",
   "settings.voice.shortcuts.save_failed": "Δεν ήταν δυνατή η αποθήκευση της συντόμευσης.",
   "settings.voice.shortcuts.toggle.description": "Στην εφαρμογή, πατήστε μία φορά για έναρξη και ξανά για διακοπή.",
   "settings.voice.shortcuts.toggle.label": "Σύντομο πάτημα",

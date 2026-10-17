@@ -5874,6 +5874,7 @@
   "settings.voice.shortcuts.left": "Gauche",
   "settings.voice.shortcuts.record": "Appuyez sur une touche ou une combinaison…",
   "settings.voice.shortcuts.right": "Droite",
+  "settings.voice.shortcuts.rules": "Utilisez jusqu’à 3 touches, dont Ctrl, Alt, Maj ou Win/Command, avec au plus une touche non modificatrice. Les touches de gauche et de droite sont distinctes. Échap annule la saisie.",
   "settings.voice.shortcuts.save_failed": "Impossible d’enregistrer le raccourci.",
   "settings.voice.shortcuts.toggle.description": "Dans l’application, appuyez une fois pour démarrer la dictée, puis à nouveau pour arrêter.",
   "settings.voice.shortcuts.toggle.label": "Appui court",

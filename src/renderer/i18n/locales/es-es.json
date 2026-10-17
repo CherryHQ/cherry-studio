@@ -5874,6 +5874,7 @@
   "settings.voice.shortcuts.left": "Izquierda",
   "settings.voice.shortcuts.record": "Pulsa una tecla o combinación…",
   "settings.voice.shortcuts.right": "Derecha",
+  "settings.voice.shortcuts.rules": "Usa hasta 3 teclas, incluida Ctrl, Alt, Mayús o Win/Command, y como máximo una tecla no modificadora. Se distinguen las teclas de la izquierda y la derecha. Escape cancela.",
   "settings.voice.shortcuts.save_failed": "No se pudo guardar el atajo.",
   "settings.voice.shortcuts.toggle.description": "En la aplicación, pulsa una vez para iniciar el dictado y otra para detenerlo.",
   "settings.voice.shortcuts.toggle.label": "Pulsación corta",

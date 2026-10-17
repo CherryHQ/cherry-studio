@@ -12,6 +12,7 @@ export function useDictationShortcuts(): void {
 
   useEffect(() => {
     const pressed = new Set<string>()
+    const consumed = new Set<string>()
     const holdCodes = parseDictationShortcut(hold)
     const toggleCodes = parseDictationShortcut(toggle)
     const isCompletingToggle = () =>
@@ -37,26 +38,28 @@ export function useDictationShortcuts(): void {
       owned = undefined
       void previous?.run.stop().catch(() => undefined)
     }
-    const canStart = () => {
+    const activateFocusedTarget = () => {
       const element = document.activeElement
-      const target = voiceTargetManager.captureCurrent()
       const surface = element?.closest('[data-voice-target-id]')
+      const targetId = surface?.getAttribute('data-voice-target-id')
+      if (!(element instanceof HTMLElement) || !surface || !targetId) return false
       return (
-        target?.owner === window &&
-        element instanceof HTMLElement &&
-        surface?.getAttribute('data-voice-target-id') === target.targetId &&
         ((element.isContentEditable &&
           (surface === element || surface.querySelector('[contenteditable="true"]') === element)) ||
           (surface === element &&
-            element.matches('textarea:not(:disabled):not([readonly]), input:not(:disabled):not([readonly])')))
+            element.matches('textarea:not(:disabled):not([readonly]), input:not(:disabled):not([readonly])'))) &&
+        voiceTargetManager.markCurrent(targetId) &&
+        voiceTargetManager.captureCurrent()?.owner === window
       )
     }
     const start = (mode: 'hold' | 'toggle') => {
+      const snapshot = dictationService.getSnapshot()
       if (
-        !canStart() ||
+        !activateFocusedTarget() ||
         owned ||
-        !['idle', 'failed'].includes(dictationService.getSnapshot().phase) ||
-        dictationService.getSnapshot().retryAvailable
+        !['idle', 'failed'].includes(snapshot.phase) ||
+        snapshot.retryAvailable ||
+        snapshot.recoveryAvailable
       )
         return
       const run = dictationService.startScoped()
@@ -69,26 +72,23 @@ export function useDictationShortcuts(): void {
           else owned.ready = true
         })
     }
+    const consume = (event: KeyboardEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.type === 'keydown' && !event.repeat) for (const code of pressed) consumed.add(code)
+    }
     const keydown = (event: KeyboardEvent) => {
+      // A fresh press ends ownership if its previous release happened outside this window.
+      if (!event.repeat) consumed.delete(event.code)
       if (event.isComposing || event.defaultPrevented) return
       if (event.repeat) {
-        if (
-          pressed.has(event.code) &&
-          (owned || canStart()) &&
-          (dictationShortcutMatches(hold, pressed) ||
-            dictationShortcutMatches(toggle, pressed) ||
-            (owned?.mode === 'hold' && isCompletingToggle()))
-        ) {
-          event.preventDefault()
-          event.stopPropagation()
-        }
+        if (consumed.has(event.code)) consume(event)
         return
       }
       pressed.add(event.code)
       clearTimer()
-      if (dictationShortcutMatches(toggle, pressed) && (owned || canStart())) {
-        event.preventDefault()
-        event.stopPropagation()
+      if (dictationShortcutMatches(toggle, pressed) && (owned || activateFocusedTarget())) {
+        consume(event)
         if (owned?.mode === 'hold') owned.mode = 'toggle'
         else if (owned) stopOwned()
         else if (dictationService.getSnapshot().phase === 'recording')
@@ -98,21 +98,19 @@ export function useDictationShortcuts(): void {
       }
       if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed)) {
         if (isCompletingToggle()) {
-          event.preventDefault()
-          event.stopPropagation()
+          consume(event)
         } else stopOwned()
       }
-      if (dictationShortcutMatches(hold, pressed) && canStart()) {
-        event.preventDefault()
-        event.stopPropagation()
+      if (dictationShortcutMatches(hold, pressed) && activateFocusedTarget()) {
+        consume(event)
         timer = setTimeout(() => start('hold'), HOLD_DELAY_MS)
       }
     }
     const keyup = (event: KeyboardEvent) => {
+      if (consumed.delete(event.code)) consume(event)
       pressed.delete(event.code)
       clearTimer()
       if (owned?.mode === 'hold' && !dictationShortcutMatches(hold, pressed) && !isCompletingToggle()) {
-        event.preventDefault()
         stopOwned()
       }
     }
@@ -121,12 +119,17 @@ export function useDictationShortcuts(): void {
       clearTimer()
       stopOwned()
     }
+    const focusout = () => {
+      clearTimer()
+      if (owned?.mode === 'hold') stopOwned()
+    }
     const visibility = () => {
       if (document.hidden) reset()
     }
     window.addEventListener('keydown', keydown, true)
     window.addEventListener('keyup', keyup, true)
     window.addEventListener('blur', reset)
+    window.addEventListener('focusout', focusout)
     document.addEventListener('visibilitychange', visibility)
     return () => {
       unsubscribe()
@@ -135,6 +138,7 @@ export function useDictationShortcuts(): void {
       window.removeEventListener('keydown', keydown, true)
       window.removeEventListener('keyup', keyup, true)
       window.removeEventListener('blur', reset)
+      window.removeEventListener('focusout', focusout)
       document.removeEventListener('visibilitychange', visibility)
     }
   }, [hold, toggle])

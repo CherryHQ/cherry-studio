@@ -5874,6 +5874,7 @@
   "settings.voice.shortcuts.left": "Sol",
   "settings.voice.shortcuts.record": "Bir tuşa veya tuş birleşimine basın…",
   "settings.voice.shortcuts.right": "Sağ",
+  "settings.voice.shortcuts.rules": "Ctrl, Alt, Shift veya Win/Command dahil en fazla 3 tuş kullanın. Değiştirici olmayan en fazla bir tuşa izin verilir. Sol ve sağ tuşlar farklıdır. Escape ile iptal edilir.",
   "settings.voice.shortcuts.save_failed": "Kısayol kaydedilemedi.",
   "settings.voice.shortcuts.toggle.description": "Uygulamada dikteyi başlatmak için bir kez, durdurmak için tekrar basın.",
   "settings.voice.shortcuts.toggle.label": "Kısa basma",

@@ -5874,6 +5874,7 @@
   "settings.voice.shortcuts.left": "左",
   "settings.voice.shortcuts.record": "請按下按鍵或組合鍵…",
   "settings.voice.shortcuts.right": "右",
+  "settings.voice.shortcuts.rules": "最多使用 3 個按鍵，必須包含 Ctrl、Alt、Shift 或 Win/Command，且最多包含 1 個一般按鍵。區分左右按鍵，按 Esc 取消錄入。",
   "settings.voice.shortcuts.save_failed": "無法儲存快捷鍵。",
   "settings.voice.shortcuts.toggle.description": "在應用程式內按一次開始聽寫，再按一次停止。",
   "settings.voice.shortcuts.toggle.label": "短按",

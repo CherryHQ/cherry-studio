@@ -1,5 +1,6 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +11,9 @@ import { DictationShortcutSettings } from '../DictationShortcutSettings'
 vi.unmock('@cherrystudio/ui')
 
 describe('dictation shortcut settings', () => {
+  let user: ReturnType<typeof userEvent.setup>
   beforeEach(async () => {
+    user = userEvent.setup()
     await i18n.changeLanguage('en-US')
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltLeft')
@@ -31,7 +34,7 @@ describe('dictation shortcut settings', () => {
       </ContextKeySnapshotContext>
     )
     const hold = screen.getByRole('button', { name: 'Long press' })
-    fireEvent.click(hold)
+    await user.click(hold)
     for (const code of ['ControlLeft', 'ShiftLeft', 'KeyA']) fireEvent.keyDown(hold, { code, key: code })
     fireEvent.keyUp(hold, { code: 'KeyA', key: 'a' })
     if (enabled) {
@@ -51,17 +54,65 @@ describe('dictation shortcut settings', () => {
     const hold = screen.getByRole('button', { name: 'Long press' })
     expect(hold).toHaveTextContent('Left Alt')
     expect(screen.getByRole('button', { name: 'Short press' })).toHaveTextContent('Left Ctrl + Left Alt')
-    fireEvent.click(hold)
+    await user.click(hold)
     fireEvent.keyDown(hold, { key: 'Alt', code: 'AltRight' })
     fireEvent.keyUp(hold, { key: 'Alt', code: 'AltRight' })
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltRight')
     )
   })
-  it('rejects an identical binding and preserves the existing shortcut', () => {
+  it('rejects multiple non-modifier keys instead of overlooking a command shortcut', async () => {
+    render(<DictationShortcutSettings />)
+    const hold = screen.getByRole('button', { name: 'Long press' })
+    await user.click(hold)
+    for (const code of ['ControlLeft', 'KeyW', 'KeyB']) fireEvent.keyDown(hold, { code, key: code })
+    fireEvent.keyUp(hold, { code: 'KeyB', key: 'b' })
+    expect(screen.getByRole('alert')).toHaveTextContent('at most one non-modifier key')
+    expect(hold).toHaveAttribute('aria-pressed', 'false')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
+  })
+
+  it.each([['ControlLeft', 'AltLeft', 'ShiftLeft', 'MetaLeft'], ['KeyA'], ['F8']])(
+    'rejects unsupported key sets %j',
+    async (...codes) => {
+      render(<DictationShortcutSettings />)
+      const hold = screen.getByRole('button', { name: 'Long press' })
+      await user.click(hold)
+      for (const code of codes) fireEvent.keyDown(hold, { code, key: code })
+      fireEvent.keyUp(hold, { code: codes.at(-1), key: codes.at(-1) })
+      expect(screen.getByRole('alert')).toHaveTextContent('Use up to 3 keys')
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
+    }
+  )
+
+  it.each(['[Enter]', '[Space]'])(
+    'enters shortcut recording with %s and ignores its activation release',
+    async (key) => {
+      render(<DictationShortcutSettings />)
+      const hold = screen.getByRole('button', { name: 'Long press' })
+      hold.focus()
+      await user.keyboard(key)
+      expect(hold).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
+    }
+  )
+
+  it('cancels shortcut recording when the window loses focus', async () => {
+    render(<DictationShortcutSettings />)
+    const hold = screen.getByRole('button', { name: 'Long press' })
+    await user.click(hold)
+    fireEvent.keyDown(hold, { code: 'AltRight', key: 'Alt' })
+    fireEvent.blur(window)
+    fireEvent.keyUp(hold, { code: 'AltRight', key: 'Alt' })
+    expect(hold).toHaveAttribute('aria-pressed', 'false')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
+  })
+
+  it('rejects an identical binding and preserves the existing shortcut', async () => {
     render(<DictationShortcutSettings />)
     const toggle = screen.getByRole('button', { name: 'Short press' })
-    fireEvent.click(toggle)
+    await user.click(toggle)
     fireEvent.keyDown(toggle, { key: 'Alt', code: 'AltLeft' })
     fireEvent.keyUp(toggle, { key: 'Alt', code: 'AltLeft' })
     expect(screen.getByRole('alert')).toHaveTextContent('already in use')
@@ -72,10 +123,10 @@ describe('dictation shortcut settings', () => {
   it('clears a shortcut and leaves Escape as a recording cancellation', async () => {
     render(<DictationShortcutSettings />)
     const hold = screen.getByRole('button', { name: 'Long press' })
-    fireEvent.click(hold)
+    await user.click(hold)
     fireEvent.keyDown(hold, { key: 'Escape', code: 'Escape' })
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
-    fireEvent.click(screen.getByRole('button', { name: 'Clear Long press' }))
+    await user.click(screen.getByRole('button', { name: 'Clear Long press' }))
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('')
     )

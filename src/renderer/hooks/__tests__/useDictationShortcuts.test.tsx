@@ -27,18 +27,21 @@ describe('application-local dictation shortcuts', () => {
   let cancel: Mock<() => Promise<void>>
   let start: ReturnType<typeof vi.spyOn>
 
-  beforeEach(() => {
-    vi.useFakeTimers()
-    MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltLeft')
-    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltLeft+ControlLeft')
-    unbind = voiceTargetManager.bind({
+  const bindInput = () =>
+    voiceTargetManager.bind({
       targetId: 'input',
       owner: window,
       sourceEntityId: 'input',
       captureReplaceRange: () => ({ from: 0, to: 0 }),
       replaceRange: () => true
     })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltLeft')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltLeft+ControlLeft')
+    unbind = bindInput()
     stop = vi.fn(async () => undefined)
     cancel = vi.fn(async () => undefined)
     start = vi
@@ -144,6 +147,41 @@ describe('application-local dictation shortcuts', () => {
     expect(start).toHaveBeenCalledOnce()
   })
 
+  it('keeps consuming an editing key until release when its modifier is released first', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'Backspace+ControlLeft')
+    mount()
+    down('ControlLeft')
+    down('Backspace')
+    void act(() => vi.advanceTimersByTime(350))
+    up('ControlLeft')
+    expect(stop).toHaveBeenCalledOnce()
+    expect(down('KeyX')).toBe(true)
+    expect(down('Backspace', true)).toBe(false)
+    expect(down('KeyX', true)).toBe(true)
+    up('KeyX')
+    up('Backspace')
+    expect(down('Backspace')).toBe(true)
+  })
+
+  it.each(['still held', 'released outside'] as const)('handles an editing key %s across window blur', (state) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'Backspace+ControlLeft')
+    mount()
+    down('ControlLeft')
+    down('Backspace')
+    void act(() => vi.advanceTimersByTime(350))
+    up('ControlLeft')
+    fireEvent.blur(window)
+    fireEvent.focus(window)
+    if (state === 'released outside') expect(down('Backspace')).toBe(true)
+    expect(down('Backspace', true)).toBe(state === 'released outside')
+    expect(up('Backspace')).toBe(state === 'released outside')
+    expect(down('Backspace')).toBe(true)
+    expect(down('Backspace', true)).toBe(true)
+    up('Backspace')
+    expect(start).toHaveBeenCalledOnce()
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
   it.each([
     ['starting', ['ControlLeft']],
     ['recording', ['ControlLeft']],
@@ -237,19 +275,53 @@ describe('application-local dictation shortcuts', () => {
   it('keeps a held run when an intermediate chord shrinks without releasing the hold key', () => {
     MockUsePreferenceUtils.setPreferenceValue(
       'feature.voice.dictation.toggle_shortcut',
-      'AltLeft+ControlLeft+MetaLeft+ShiftLeft'
+      'AltLeft+ControlLeft+ShiftLeft'
     )
     mount()
     down('AltLeft')
     void act(() => vi.advanceTimersByTime(350))
     down('ControlLeft')
-    down('ShiftLeft')
-    up('ShiftLeft')
     expect(stop).not.toHaveBeenCalled()
     up('ControlLeft')
     expect(stop).not.toHaveBeenCalled()
     up('AltLeft')
     expect(stop).toHaveBeenCalledOnce()
+  })
+
+  it.each(['AltLeft', 'ControlLeft+AltLeft'])('consumes key releases belonging to %s', (shortcut) => {
+    const onKeyUp = vi.fn()
+    mount()
+    window.addEventListener('keyup', onKeyUp)
+    const codes = shortcut.split('+')
+    for (const code of codes) down(code)
+    void act(() => vi.advanceTimersByTime(350))
+    for (const code of codes) expect(up(code)).toBe(false)
+    expect(onKeyUp).not.toHaveBeenCalled()
+    window.removeEventListener('keyup', onKeyUp)
+  })
+
+  it('does not start a delayed hold after focus leaves and returns to the input', () => {
+    mount()
+    const input = screen.getByRole('textbox', { name: 'Dictation input' })
+    down('AltLeft')
+    void act(() => vi.advanceTimersByTime(100))
+    screen.getByRole('textbox', { name: 'Search or YAML property' }).focus()
+    input.focus()
+    void act(() => vi.advanceTimersByTime(250))
+    up('AltLeft')
+    expect(start).not.toHaveBeenCalled()
+  })
+
+  it.each(['hold', 'toggle'] as const)('ignores an invalid saved %s binding', (mode) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', '')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', '')
+    MockUsePreferenceUtils.setPreferenceValue(`feature.voice.dictation.${mode}_shortcut`, 'ControlLeft+KeyW+KeyB')
+    mount()
+    down('ControlLeft')
+    expect(down('KeyW')).toBe(true)
+    expect(down('KeyB')).toBe(true)
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).not.toHaveBeenCalled()
   })
 
   it('stops its recording on window blur and can start after focus returns', () => {
@@ -261,6 +333,51 @@ describe('application-local dictation shortcuts', () => {
     down('AltLeft')
     void act(() => vi.advanceTimersByTime(300))
     expect(start).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['hold', 'toggle'] as const)('preserves retryable audio instead of starting %s dictation', (mode) => {
+    vi.mocked(dictationService.getSnapshot).mockReturnValue({
+      phase: 'failed',
+      elapsedMs: 1000,
+      recoveryAvailable: false,
+      retryAvailable: true
+    })
+    mount()
+    down('AltLeft')
+    if (mode === 'toggle') down('ControlLeft')
+    void act(() => vi.advanceTimersByTime(350))
+    up('AltLeft')
+    if (mode === 'toggle') up('ControlLeft')
+    expect(start).not.toHaveBeenCalled()
+
+    vi.mocked(dictationService.getSnapshot).mockReturnValue({
+      phase: 'failed',
+      elapsedMs: 0,
+      recoveryAvailable: false
+    })
+    down('AltLeft')
+    if (mode === 'toggle') down('ControlLeft')
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).toHaveBeenCalledOnce()
+    up('AltLeft')
+    if (mode === 'toggle') up('ControlLeft')
+  })
+
+  it.each(['hold', 'toggle'] as const)('starts %s after the focused input is rebound', (mode) => {
+    mount()
+    const input = document.activeElement
+    unbind()
+    unbind = bindInput()
+    expect(document.activeElement).toBe(input)
+    expect(voiceTargetManager.captureCurrent()).toBeNull()
+
+    down('AltLeft')
+    if (mode === 'toggle') down('ControlLeft')
+    void act(() => vi.advanceTimersByTime(350))
+    expect(start).toHaveBeenCalledOnce()
+    expect(voiceTargetManager.captureCurrent()?.targetId).toBe('input')
+    up('AltLeft')
+    if (mode === 'toggle') up('ControlLeft')
   })
 
   it('does not record from a stale target while another input is focused', () => {

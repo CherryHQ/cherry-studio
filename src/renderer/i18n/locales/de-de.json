@@ -5874,6 +5874,7 @@
   "settings.voice.shortcuts.left": "Links",
   "settings.voice.shortcuts.record": "Taste oder Tastenkombination drücken…",
   "settings.voice.shortcuts.right": "Rechts",
+  "settings.voice.shortcuts.rules": "Verwenden Sie bis zu 3 Tasten, darunter Strg, Alt, Umschalt oder Win/Command, mit höchstens einer Taste ohne Modifikatorfunktion. Linke und rechte Tasten werden unterschieden. Escape bricht die Eingabe ab.",
   "settings.voice.shortcuts.save_failed": "Tastenkürzel konnte nicht gespeichert werden.",
   "settings.voice.shortcuts.toggle.description": "In der App einmal drücken zum Starten und erneut zum Stoppen.",
   "settings.voice.shortcuts.toggle.label": "Kurzes Drücken",

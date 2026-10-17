@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -25,7 +25,7 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
   const [other] = usePreference(`feature.voice.dictation.${mode === 'hold' ? 'toggle' : 'hold'}_shortcut`)
   const [recording, setRecording] = useState(false)
   const [pending, setPending] = useState('')
-  const [error, setError] = useState<'conflict' | 'save_failed'>()
+  const [error, setError] = useState<'conflict' | 'invalid' | 'save_failed'>()
   const preferences = useCommandShortcutPreferences()
   const commandContext = new Map(useCommandContextSnapshot())
     .set('chat.active', true)
@@ -33,6 +33,22 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
     .set('input.composing', false)
     .set('webview.focused', false)
   const pressed = useRef(new Set<string>())
+  useEffect(() => {
+    if (!recording) return
+    const cancel = () => {
+      pressed.current.clear()
+      setRecording(false)
+    }
+    const visibility = () => {
+      if (document.hidden) cancel()
+    }
+    window.addEventListener('blur', cancel)
+    document.addEventListener('visibilitychange', visibility)
+    return () => {
+      window.removeEventListener('blur', cancel)
+      document.removeEventListener('visibilitychange', visibility)
+    }
+  }, [recording])
   const label = t(mode === 'hold' ? 'settings.voice.shortcuts.hold.label' : 'settings.voice.shortcuts.toggle.label')
   const display = (binding: string) =>
     formatDictationShortcut(binding, isMac, t('settings.voice.shortcuts.left'), t('settings.voice.shortcuts.right'))
@@ -49,7 +65,13 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
         </SettingDescription>
         {error && (
           <span role="alert" className="text-error">
-            {t(error === 'conflict' ? 'settings.voice.shortcuts.conflict' : 'settings.voice.shortcuts.save_failed')}
+            {t(
+              error === 'conflict'
+                ? 'settings.voice.shortcuts.conflict'
+                : error === 'invalid'
+                  ? 'settings.voice.shortcuts.rules'
+                  : 'settings.voice.shortcuts.save_failed'
+            )}
           </span>
         )}
       </div>
@@ -82,12 +104,16 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
             setPending([...pressed.current].sort().join('+'))
           }}
           onKeyUp={(event) => {
-            if (!recording) return
+            if (!recording || !pressed.current.has(event.code)) return
             event.preventDefault()
             event.stopPropagation()
-            const candidate = parseDictationShortcut(pending).join('+')
+            const candidate = parseDictationShortcut([...pressed.current].join('+')).join('+')
             pressed.current.delete(event.code)
-            if (!candidate) return
+            if (!candidate) {
+              setError('invalid')
+              setRecording(false)
+              return
+            }
             const commandConflict = resolveCommandByKeybinding({
               binding: getDictationShortcutBinding(candidate, isMac ? 'darwin' : isWin ? 'win32' : 'linux'),
               preferences,
@@ -123,8 +149,10 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
 }
 
 export function DictationShortcutSettings() {
+  const { t } = useTranslation()
   return (
     <>
+      <SettingDescription>{t('settings.voice.shortcuts.rules')}</SettingDescription>
       <ShortcutRow mode="hold" />
       <SettingDivider />
       <ShortcutRow mode="toggle" />
