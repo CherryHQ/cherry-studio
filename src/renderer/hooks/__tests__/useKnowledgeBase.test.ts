@@ -1,8 +1,9 @@
-import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import type { CreateKnowledgeBaseDto, KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { CreateKnowledgeBaseDto, KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 
 import {
   useCreateKnowledgeBase,
@@ -35,6 +36,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   groupId: null,
@@ -85,6 +87,7 @@ describe('useKnowledgeBases', () => {
 
     await waitFor(() => {
       expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/knowledge-bases', {
+        query: { sortBy: 'orderKey', sortOrder: 'asc' },
         limit: 100,
         enabled: undefined,
         swrOptions: { revalidateAll: true, revalidateFirstPage: false }
@@ -204,6 +207,7 @@ describe('useKnowledgeBases', () => {
     renderHook(() => useKnowledgeBases({ enabled: false }))
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/knowledge-bases', {
+      query: { sortBy: 'orderKey', sortOrder: 'asc' },
       limit: 100,
       enabled: false,
       swrOptions: { revalidateAll: false, revalidateFirstPage: false }

@@ -5,6 +5,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'xfyun-coding',
   name: 'iFlytek Astron Coding Plan',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {

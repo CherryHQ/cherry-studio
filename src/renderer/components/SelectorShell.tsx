@@ -1,14 +1,3 @@
-import {
-  Button,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Switch,
-  Tooltip,
-  usePortalContainer
-} from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Search, X } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
@@ -23,6 +12,18 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Switch,
+  Tooltip,
+  usePortalContainer
+} from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
 /**

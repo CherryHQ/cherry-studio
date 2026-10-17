@@ -1,3 +1,8 @@
+import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -25,15 +30,12 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
+import { CoalescingTask } from '@shared/utils/async'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
@@ -45,7 +47,10 @@ const submenuItemClassName =
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
-const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shadow-none flex-none justify-start')
+export const resourceDialogRailItemClassName = cn(
+  submenuItemClassName,
+  'data-[state=active]:!shadow-none flex-none justify-start'
+)
 
 const logger = loggerService.withContext('EditDialogShared')
 
@@ -64,7 +69,8 @@ export type ModelLabels = Record<ModelLabelKey, string | null>
 export type EditDialogBaseProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   /** Leaf tab id to open on first render (e.g. `tools.mcp`, `tools.skills`); falls back to `basic`. */
   initialTab?: string
 }
@@ -131,9 +137,8 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
  * save is in flight, a single follow-up pass is queued and runs (with the latest
  * `onSave`) once the current save settles — so the last edit is never dropped.
  *
- * Returns a `flush()` that runs/awaits the serialized save immediately; callers
- * (e.g. the close path) await it to persist pending edits before proceeding,
- * reusing the same queue instead of racing a second concurrent save.
+ * Returns `flush()` to save immediately and `getPendingSave()` to await the
+ * current drain before checking whether the form still needs to be saved.
  */
 export function useDebouncedAutoSave({
   enabled,
@@ -145,15 +150,13 @@ export function useDebouncedAutoSave({
   changeKey: string | null
   onSave: () => void | Promise<void>
   delay?: number
-}): () => Promise<void> {
+}): { flush: () => Promise<void>; getPendingSave: () => Promise<void> | undefined } {
   const onSaveRef = useRef(onSave)
   const changeKeyRef = useRef(changeKey)
-  const savingRef = useRef(false)
+  const saveTaskRef = useRef(new CoalescingTask())
   // `changeKey` captured when the in-flight save started; a follow-up pass is
   // only queued when the state has moved past it.
   const savedKeyRef = useRef<string | null>(null)
-  const pendingRef = useRef(false)
-  const inFlightRef = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     onSaveRef.current = onSave
@@ -161,25 +164,12 @@ export function useDebouncedAutoSave({
   })
 
   const flush = useCallback((): Promise<void> => {
-    if (savingRef.current) {
-      // A save is already running; queue one more pass only if the latest state
-      // differs from what that save captured (otherwise it already covers it).
-      if (changeKeyRef.current !== savedKeyRef.current) pendingRef.current = true
-      return inFlightRef.current
-    }
-    savingRef.current = true
-    inFlightRef.current = (async () => {
-      try {
-        do {
-          pendingRef.current = false
-          savedKeyRef.current = changeKeyRef.current
-          await onSaveRef.current()
-        } while (pendingRef.current)
-      } finally {
-        savingRef.current = false
-      }
-    })()
-    return inFlightRef.current
+    const task = saveTaskRef.current
+    if (task.promise && changeKeyRef.current === savedKeyRef.current) return task.promise
+    return task.run(() => {
+      savedKeyRef.current = changeKeyRef.current
+      return onSaveRef.current()
+    })
   }, [])
 
   useEffect(() => {
@@ -188,7 +178,9 @@ export function useDebouncedAutoSave({
     return () => clearTimeout(handle)
   }, [enabled, changeKey, delay, flush])
 
-  return flush
+  const getPendingSave = useCallback(() => saveTaskRef.current.promise, [])
+
+  return { flush, getPendingSave }
 }
 
 const HelpIconButton = ({
@@ -220,19 +212,21 @@ export function FieldLabelWithHelp({
   help,
   helpTrigger,
   className,
+  labelClassName,
   formLabel = true
 }: {
   label: string
   help?: ReactNode
   helpTrigger?: ReactNode
   className?: string
+  labelClassName?: string
   formLabel?: boolean
 }) {
   const { t } = useTranslation()
   const labelContent = formLabel ? (
-    <FormLabel className="font-normal">{label}</FormLabel>
+    <FormLabel className={cn('font-normal', labelClassName)}>{label}</FormLabel>
   ) : (
-    <span className="font-normal text-foreground text-sm leading-none">{label}</span>
+    <span className={cn('font-normal text-foreground text-sm leading-none', labelClassName)}>{label}</span>
   )
 
   return (
@@ -268,12 +262,14 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   form,
   portalContainer,
   formLabel = true,
+  labelClassName,
   disabled = false,
   onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
   portalContainer: HTMLElement | null
   formLabel?: boolean
+  labelClassName?: string
   disabled?: boolean
   onOpenKnowledgePage?: () => void
 }) {
@@ -318,6 +314,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               label={t('library.config.knowledge.linked')}
               help={t('library.config.knowledge.linked_hint')}
               formLabel={formLabel}
+              labelClassName={labelClassName}
             />
             <AddCatalogPopover
               items={catalog}
@@ -489,7 +486,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                             <MenuItem
                               label={child.label}
                               active={activeTab === child.id}
-                              className={railTabItemClassName}
+                              className={resourceDialogRailItemClassName}
                             />
                           </TabsTrigger>
                         ))
@@ -519,7 +516,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                               <MenuItem
                                 label={tab.label}
                                 active={activeTab === tab.id}
-                                className={railTabItemClassName}
+                                className={resourceDialogRailItemClassName}
                               />
                             </TabsTrigger>
                           )}
@@ -530,7 +527,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                                   <MenuItem
                                     label={child.label}
                                     active={activeTab === child.id}
-                                    className={railTabItemClassName}
+                                    className={resourceDialogRailItemClassName}
                                   />
                                 </TabsTrigger>
                               ))}
@@ -612,6 +609,7 @@ export function TextInputField({
   form,
   name,
   label,
+  labelClassName,
   description,
   placeholder,
   required = false,
@@ -620,6 +618,7 @@ export function TextInputField({
   form: UseFormReturn<any>
   name: 'name' | 'description'
   label: string
+  labelClassName?: string
   description?: string
   placeholder?: string
   required?: boolean
@@ -637,7 +636,8 @@ export function TextInputField({
           <FormLabel
             className={cn(
               layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal',
-              layout === 'row' && name === 'description' && 'self-start pt-3'
+              layout === 'row' && name === 'description' && 'self-start pt-3',
+              labelClassName
             )}>
             {label}
           </FormLabel>
@@ -670,10 +670,14 @@ export function CompactModelField({
   form,
   name,
   label,
+  labelClassName,
   description,
+  help,
   allowClear = false,
   emptyLabel,
   filter,
+  isModelDisabled,
+  includeAgentOnlyModels = false,
   portalContainer,
   modelLabels,
   setModelLabels,
@@ -685,11 +689,16 @@ export function CompactModelField({
   form: UseFormReturn<any>
   name: ModelLabelKey
   label: string
+  labelClassName?: string
   description?: string
+  /** Shown in a help tooltip beside the label. `description` stays inline below the field. */
+  help?: ReactNode
   allowClear?: boolean
   /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
   emptyLabel?: string
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
+  includeAgentOnlyModels?: boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -722,14 +731,33 @@ export function CompactModelField({
       name={name}
       render={({ field }) => (
         <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
-          <FormLabel className={layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal'}>{label}</FormLabel>
+          {help ? (
+            <FieldLabelWithHelp
+              label={label}
+              help={help}
+              // In row layout FormItem is a grid, so `justify-self-end` has to sit on the wrapper
+              // div that FieldLabelWithHelp renders around the label.
+              className={layout === 'row' ? 'justify-self-end' : undefined}
+              labelClassName={cn(
+                layout === 'row' ? 'font-normal text-muted-foreground text-[13px]' : 'font-normal',
+                labelClassName
+              )}
+            />
+          ) : (
+            <FormLabel
+              className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+              {label}
+            </FormLabel>
+          )}
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector
                 multiple={false}
+                includeAgentOnlyModels={includeAgentOnlyModels}
                 selectionType="id"
                 value={selectorValue}
                 filter={filter}
+                isModelDisabled={isModelDisabled}
                 portalContainer={portalContainer}
                 onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {
@@ -754,7 +782,7 @@ export function CompactModelField({
                     )}
                     chevronClassName={
                       allowClear && value
-                        ? 'group-hover/model-field:opacity-0 group-focus-within/model-field:opacity-0'
+                        ? 'group-hover/model-field:opacity-0 group-focus-within/model-field:opacity-0 no-hover:opacity-0'
                         : undefined
                     }
                   />
@@ -774,7 +802,7 @@ export function CompactModelField({
                     }
                     setModelLabels({ ...modelLabels, [name]: null })
                   }}
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100">
+                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:bg-muted focus-visible:text-foreground focus-visible:opacity-100 active:bg-muted group-focus-within/model-field:pointer-events-auto group-focus-within/model-field:opacity-100 group-hover/model-field:pointer-events-auto group-hover/model-field:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100">
                   <X size={12} />
                 </Button>
               ) : null}

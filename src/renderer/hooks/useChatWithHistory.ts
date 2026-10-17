@@ -1,11 +1,12 @@
 import { Chat, useChat } from '@ai-sdk/react'
+import type { ChatRequestOptions, FileUIPart } from 'ai'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { ChatRequestOptions, FileUIPart } from 'ai'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { useTopicDbRefreshOnAwaitingApproval } from './useTopicStreamStatus'
 import { useTopicStreamStatus } from './useTopicStreamStatus'
@@ -67,12 +68,10 @@ export function useChatWithHistory(
   })
 
   const stop = useCallback(async () => {
-    if (enabled) {
-      void ipcApi.request('ai.stream.abort', { topicId }).catch((err) => {
-        logger.warn('streamAbort failed', { topicId, err })
-      })
-    }
-    await sdkStop()
+    const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId }) : Promise.resolve()
+    const [mainAbortResult, sdkStopResult] = await Promise.allSettled([mainAbort, sdkStop()])
+    if (mainAbortResult.status === 'rejected') throw mainAbortResult.reason
+    if (sdkStopResult.status === 'rejected') throw sdkStopResult.reason
   }, [enabled, sdkStop, topicId])
 
   const refreshRef = useRef(refresh)

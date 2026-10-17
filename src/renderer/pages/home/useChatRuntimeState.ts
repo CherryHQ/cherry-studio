@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 // eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
@@ -6,10 +8,6 @@ import {
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
 import {
-  type TranslationOverlayEntry,
-  type TranslationOverlaySetter
-} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
 } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
@@ -17,7 +15,9 @@ import type { MessageListRuntime } from '@renderer/components/chat/messages/type
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
 import {
   type ConversationHistoryAdapter,
   type ReservedMessageSeedOptions,
@@ -30,6 +30,7 @@ import {
   useTopicOverlayHandoffOnTerminal,
   useTopicStreamStatus
 } from '@renderer/hooks/useTopicStreamStatus'
+import { autoReadService } from '@renderer/services/voice'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -37,9 +38,8 @@ import { isRenderableConversationMessage } from '@renderer/utils/message/message
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
-import { isBlankUserTurn } from '@shared/data/types/uiParts'
+import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
@@ -67,6 +67,7 @@ interface UseChatRuntimeStateParams {
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
+  composerModelId?: UniqueModelId
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
 }
 
@@ -115,13 +116,16 @@ export function useChatRuntimeState({
   activeNodeId,
   messagesCacheMutate,
   assistant,
+  composerModelId,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
+  const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
+  const errorToastsRef = useRef<ReturnType<typeof useConversationErrorToasts> | null>(null)
   const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
   const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
     messageListRuntimeRef.current = runtime
@@ -145,7 +149,6 @@ export function useChatRuntimeState({
   // anchor resolution — that snapshot now happens synchronously at the call
   // site inside `chatWriteActions.regenerateWithCapabilities`.
 
-  const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
   const [branchLiveActiveNodeOverride, setBranchLiveActiveNodeOverride] = useState<{
@@ -172,27 +175,6 @@ export function useChatRuntimeState({
       current && current.previousActiveNodeId !== activeNodeId ? null : current
     )
   }, [activeNodeId])
-  const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
-    setTranslationOverlayMap((prev) => {
-      if (entry == null) {
-        if (!(messageId in prev)) return prev
-        const next = { ...prev }
-        delete next[messageId]
-        return next
-      }
-      const existing = prev[messageId]
-      if (
-        existing &&
-        existing.content === entry.content &&
-        existing.targetLanguage === entry.targetLanguage &&
-        existing.sourceLanguage === entry.sourceLanguage
-      ) {
-        return prev
-      }
-      return { ...prev, [messageId]: entry }
-    })
-  }, [])
-
   const branchActiveExecutions = useMemo(
     () => mergeActiveExecutions([...activeExecutions], branchLiveExecutions),
     [activeExecutions, branchLiveExecutions]
@@ -215,7 +197,10 @@ export function useChatRuntimeState({
     disposeOverlay,
     reset: resetOverlay
   } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
-    onFinish: (executionId, event) => finishRef.current?.(executionId, event)
+    onFinish: (executionId, event) => {
+      errorToastsRef.current?.onFinish(executionId, event)
+      finishRef.current?.(executionId, event)
+    }
   })
 
   // Deterministic overlay→DB handoff at terminal (see hook docs); branch
@@ -226,8 +211,7 @@ export function useChatRuntimeState({
     messages,
     overlay,
     executions: branchActiveExecutions,
-    liveAssistants,
-    translationOverlay
+    liveAssistants
   })
   const activeAwaitingInputMessageId = useMemo(
     () =>
@@ -263,8 +247,13 @@ export function useChatRuntimeState({
   // comes from refreshed DB state, then Main starts the continuation after
   // every approval settles.
   const respondToolApproval = useToolApprovalBridge(topic.id)
+  const persistedPartsByMessageId = useMemo(
+    () => Object.fromEntries(uiMessages.map((message) => [message.id, message.parts])),
+    [uiMessages]
+  )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    persistedPartsByMessageId,
     streamingLayers,
     onRespond: respondToolApproval
   })
@@ -278,6 +267,7 @@ export function useChatRuntimeState({
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[], options: ReservedMessageSeedOptions = {}) => {
       const { activeExecutions: openedExecutions, preserveActiveNode } = options
+      errorToastsRef.current?.track(openedExecutions, reservedMessages)
       if (reservedMessages.length > 0) {
         const reservedExecutions = openedExecutions ?? []
         if (reservedExecutions.length > 0) {
@@ -349,7 +339,15 @@ export function useChatRuntimeState({
     historyAdapter,
     ensureConversation,
     buildStreamRequest,
-    refreshMetadata
+    refreshMetadata,
+    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
+    onError: (error, input) =>
+      errorToastsRef.current?.report(
+        error,
+        input.options?.mentionedModels?.length === 1
+          ? input.options.mentionedModels[0]
+          : (composerModelId ?? assistant?.modelId ?? undefined)
+      )
   })
 
   const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -365,6 +363,8 @@ export function useChatRuntimeState({
     branchLiveActiveNodeOverride?.previousActiveNodeId === activeNodeId
       ? branchLiveActiveNodeOverride.activeNodeId
       : activeNodeId
+  const branchFlowActiveNodeIdRef = useRef(branchFlowActiveNodeId)
+  branchFlowActiveNodeIdRef.current = branchFlowActiveNodeId
 
   useEffect(() => {
     if (!onBranchLiveStateChange) return
@@ -409,7 +409,15 @@ export function useChatRuntimeState({
   ])
 
   const handleExecutionFinish = useCallback(
-    (executionId: string, { attemptId, message, isError }: ExecutionFinishEvent) => {
+    (executionId: string, { attemptId, message, isAbort, isError }: ExecutionFinishEvent) => {
+      void autoReadService.consume({
+        enabled: autoReadEnabled,
+        message,
+        attemptId,
+        isAbort,
+        isError,
+        eligible: message.id === branchFlowActiveNodeIdRef.current
+      })
       const finishedKey = attemptId
       const treeCachePath = `/topics/${topic.id}/tree`
       void (async () => {
@@ -455,13 +463,13 @@ export function useChatRuntimeState({
         }
       })()
     },
-    [cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
+    [autoReadEnabled, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
   )
   finishRef.current = handleExecutionFinish
 
   const shouldRenderHomeComposer = false
 
-  const { actions: chatWriteActions } = useChatWriteActions({
+  const { actions: chatWriteActions, retryFailedMessage } = useChatWriteActions({
     topic,
     uiMessages: messages,
     activeNodeId,
@@ -478,19 +486,33 @@ export function useChatRuntimeState({
       isTopicAwaitingApproval ||
       turnPhase === 'persisting' ||
       turnPhase === 'opening',
-    assistant
+    assistant,
+    composerModelId
   })
+  const errorToasts = useConversationErrorToasts(topic.id, {
+    retry: retryFailedMessage,
+    trimContext: async () => {
+      if (!chatWriteActions.canStartNewContext || isTopicStreamPending) return false
+      const activeMessage = messages.find((message) => message.id === activeNodeId)
+      if (hasClearContextPart(activeMessage?.parts)) return false
+      await chatWriteActions.startNewContext()
+      return true
+    }
+  })
+  errorToastsRef.current = errorToasts
 
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        return await send({ text, options })
+        const sent = await send({ text, options })
+        if (sent) scrollToBottom()
+        return sent
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [send]
+    [scrollToBottom, send]
   )
 
   return {
@@ -503,8 +525,6 @@ export function useChatRuntimeState({
     locateMessage,
     sendMessage,
     composerChatTarget,
-    composerContext,
-    translationOverlay,
-    setTranslationOverlay
+    composerContext
   }
 }

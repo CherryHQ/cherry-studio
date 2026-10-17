@@ -1,8 +1,12 @@
+import type * as NodeModule from 'node:module'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mockCreateRequire = vi.hoisted(() => vi.fn())
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
   platformMock: { isWin: false },
@@ -37,6 +41,11 @@ const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, 
     subscribeMultipleChanges: vi.fn(() => () => {})
   }
 }))
+
+vi.mock('node:module', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeModule>()
+  return { ...actual, createRequire: mockCreateRequire }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -154,6 +163,7 @@ describe('BinaryManager', () => {
     vi.clearAllMocks()
     MockMainCacheServiceUtils.resetMocks()
     mockExecFileAsync.mockReset()
+    mockCreateRequire.mockReset().mockReturnValue({ resolve: vi.fn(() => '/mock/resolved-package') })
     platformMock.isWin = false
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
@@ -199,6 +209,15 @@ describe('BinaryManager', () => {
     expect(findExecutable).not.toHaveBeenCalled()
   })
 
+  it('initializes with binary management disabled when the Windows mise lookup fails', async () => {
+    platformMock.isWin = true
+    vi.mocked(findMiseExecutable).mockRejectedValue(new Error("Timed out resolving command 'mise' on Windows"))
+    const service = new BinaryManager()
+
+    await expect((service as any).onInit()).resolves.toBeUndefined()
+    expect((service as any).miseBin).toBeNull()
+  })
+
   it('starts the process-wide shell environment capture without awaiting it', async () => {
     vi.mocked(getRawShellEnv).mockReturnValue(new Promise<never>(() => {}))
     const service = new BinaryManager()
@@ -231,7 +250,7 @@ describe('BinaryManager', () => {
     // first registration only happens once onAllReady fires (all phases ready).
     it('does not touch PreferenceService during the initial-bootstrap onInit', async () => {
       const service = new BinaryManager()
-      ;(application.get as unknown as ReturnType<typeof vi.fn>).mockClear()
+      ;(application.get as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockClear()
 
       await (service as any).onInit()
 
@@ -302,6 +321,15 @@ describe('BinaryManager', () => {
 
     it('drops a custom entry whose normalized spec aliases a fixed catalog tool', async () => {
       setRegistry([{ name: 'myuv', tool: 'core:uv' }])
+      const service = new BinaryManager()
+
+      await runAllReadyTasks(service)
+
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
+    })
+
+    it('drops a custom Hermes recipe that aliases the Dashboard-enabled fixed recipe', async () => {
+      setRegistry([{ name: 'my-hermes', tool: 'pipx:hermes-agent' }])
       const service = new BinaryManager()
 
       await runAllReadyTasks(service)
@@ -561,6 +589,80 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('reports managed DeepSeek Harness as broken when its required scope package cannot resolve', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: '/opt/mise/installs/npm-deepseek-ai-dsh/0.1.1-rc.2/lib/bin.js\n', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      mockCreateRequire.mockImplementation((filename: string) => ({
+        resolve: (request: string) => {
+          if (request === '@deepseek-ai/dsh-agent-loop') {
+            return '/opt/mise/installs/npm-deepseek-ai-dsh/0.1.1-rc.2/node_modules/@deepseek-ai/dsh-agent-loop/lib/index.js'
+          }
+          if (request === '@deepseek-ai/dsh-scope') {
+            throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+              code: 'MODULE_NOT_FOUND'
+            })
+          }
+          throw new Error(`Unexpected package resolution: ${request}`)
+        }
+      }))
+
+      await expect(service.getToolSnapshots(['dsh'])).resolves.toMatchObject({
+        dsh: {
+          availability: { source: 'none' },
+          application: { status: 'broken', version: '0.1.1-rc.2' }
+        }
+      })
+    })
+
+    it('stays applied when the recipe restructured away the package that hosts its required peer', async () => {
+      // A renamed/absorbed host says the package graph moved on, not that this
+      // install is incomplete — failing closed would strand the tool at broken
+      // with a Retry that can never succeed.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'npm:@deepseek-ai/dsh': [{ version: '0.2.0', active: true }]
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') {
+          return { stdout: '/opt/mise/installs/npm-deepseek-ai-dsh/0.2.0/lib/bin.js\n', stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+      mockCreateRequire.mockImplementation((filename: string) => ({
+        resolve: (request: string) => {
+          throw Object.assign(new Error(`Cannot find package ${request} from ${filename}`), {
+            code: 'MODULE_NOT_FOUND'
+          })
+        }
+      }))
+
+      await expect(service.getToolSnapshots(['dsh'])).resolves.toMatchObject({
+        dsh: { application: { status: 'applied', version: '0.2.0' } }
+      })
+    })
+
     it('stays applied for a recipe with no eponymous bin, through a shim it does expose', async () => {
       // core:rust exposes rustc/cargo and no `rust`, so a name-keyed `mise which`
       // reports a working install as unusable (#19075).
@@ -751,6 +853,28 @@ describe('BinaryManager', () => {
       expect(snapshots.fd.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
     })
 
+    it('matches a fixed pipx recipe when mise omits its installation options', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ 'pipx:hermes-agent': [{ version: '0.19.0', active: true }] }), stderr: '' }
+        }
+        if (args[0] === 'which')
+          return { stdout: '/mock/mise/installs/pipx-hermes-agent/0.19.0/bin/hermes\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const snapshots = await service.getToolSnapshots(['hermes'])
+
+      expect(snapshots.hermes).toEqual({
+        name: 'hermes',
+        availability: { source: 'mise', path: '/mock/feature.binary.data/shims/hermes', version: '0.19.0' },
+        application: { status: 'applied', version: '0.19.0' }
+      })
+    })
+
     it('matches a non-runtime fixed recipe when mise reports its core-prefixed identity', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -848,6 +972,37 @@ describe('BinaryManager', () => {
       // The bundled binary always works — a failed install over it is pure noise.
       expect(snapshots.bun.availability.source).toBe('bundled')
       expect(snapshots.bun.operation).toBeUndefined()
+    })
+
+    it('drops a stale installing operation with no live mutation behind it', async () => {
+      // Phantom install (issue #20945): the operation says installing, but no
+      // mutation is genuinely in flight, so nothing will ever clear it.
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd.operation).toBeUndefined()
+    })
+
+    it('keeps installing while its mutation is genuinely in flight', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      ;(service as any).activeMutations.set('fd', { action: 'installByName', promise: Promise.resolve() })
+
+      const snapshots = await service.getToolSnapshots(['fd'])
+
+      expect(snapshots.fd.operation).toMatchObject({ status: 'installing', action: 'install' })
     })
 
     it('falls back from an owned missing mise shim to bundled, system, and none availability', async () => {
@@ -1115,12 +1270,12 @@ describe('BinaryManager', () => {
         expect(snapshots.bun).toEqual({
           name: 'bun',
           availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'system', path: '/usr/local/bin/fd' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
       })
 
@@ -1142,14 +1297,14 @@ describe('BinaryManager', () => {
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
       })
 
       it.each([
-        ['a non-object', JSON.stringify(['not', 'an', 'object'])],
-        ['invalid spec entries', JSON.stringify({ fd: {} })]
-      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout) => {
+        ['a non-object', JSON.stringify(['not', 'an', 'object']), 'mise ls --json returned a non-object shape'],
+        ['invalid spec entries', JSON.stringify({ fd: {} }), 'mise ls --json returned invalid entries for fd']
+      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout, message) => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
         ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
@@ -1161,7 +1316,7 @@ describe('BinaryManager', () => {
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'none' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message }
         })
       })
 
@@ -1416,6 +1571,31 @@ describe('BinaryManager', () => {
       })
       expect(miseArgs()).not.toContainEqual(['uninstall', '--all', 'core:node'])
       expect(manifestRef.value).toEqual([{ name: 'node', tool: 'core:node', requestedVersion: '22.0.0' }])
+      expect(operations()).toEqual({})
+    })
+
+    it('exits removing and retains the definition when the system probe rejects, then allows retry', async () => {
+      const service = makeService()
+      manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      vi.mocked(findCommandInShellEnv).mockRejectedValueOnce(new Error('Command lookup exited with code 2'))
+      const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+
+      const removal = service.removeTool({ name: 'mytool' })
+      broadcast.mockClear()
+
+      await expect(removal).resolves.toEqual({
+        status: 'cleanup_blocked',
+        reason: 'query_failed',
+        message: 'Command lookup exited with code 2'
+      })
+      expect(operations()).toEqual({})
+      expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
+      expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+      expect(broadcast).toHaveBeenCalledWith('binary.availability_changed', undefined)
+
+      await expect(service.removeTool({ name: 'mytool' })).resolves.toEqual({ status: 'removed' })
+      expect(manifestRef.value).toEqual([])
       expect(operations()).toEqual({})
     })
 
@@ -1932,6 +2112,41 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
+    it('passes a fixed npm lifecycle allowlist as typed mise tool options', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@vendor/native-cli': [{ version: '1.2.3', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/native-cli\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        (service as any).applyDefinition(
+          {
+            name: 'native-cli',
+            tool: 'npm:@vendor/native-cli',
+            npmAllowBuilds: ['@vendor/native-cli', 'better-sqlite3']
+          },
+          undefined,
+          []
+        )
+      ).resolves.toBeUndefined()
+
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+        'use',
+        '-g',
+        'node@22',
+        'npm:@vendor/native-cli[allow_builds=["\\u0040vendor/native-cli","better-sqlite3"]]@latest'
+      ])
+    })
+
     it('accepts a recipe whose bins are not named after it (core:rust ships rustc/cargo)', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -2264,6 +2479,45 @@ describe('BinaryManager', () => {
       expect(manifestRef.value).toEqual([])
     })
 
+    it.each([undefined, '11.0.0'])(
+      'records a system probe rejection with target %s and allows subsequent operations and retry',
+      async (targetVersion) => {
+        const service = makeService()
+        mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+        vi.mocked(findCommandInShellEnv).mockRejectedValueOnce(new Error('Command lookup exited with code 2'))
+        const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+        const request = { name: 'fd', ...(targetVersion ? { targetVersion } : {}) }
+
+        const install = service.installByName(request)
+        broadcast.mockClear()
+
+        await expect(install).rejects.toThrow('Command lookup exited with code 2')
+        const failed = {
+          status: 'failed',
+          action: 'install',
+          error: 'Command lookup exited with code 2',
+          ...(targetVersion ? { targetVersion } : {})
+        }
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({ fd: failed })
+        expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual(failed)
+        expect(broadcast).toHaveBeenCalledWith('binary.availability_changed', undefined)
+        expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
+
+        await expect(service.removeTool({ name: 'rg' })).resolves.toEqual({ status: 'removed' })
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
+          if (args[0] === 'ls')
+            return { stdout: JSON.stringify({ fd: [{ version: '11.0.0', active: true }] }), stderr: '' }
+          if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+          return { stdout: '', stderr: '' }
+        })
+
+        await expect(service.installByName(request)).resolves.toBeUndefined()
+        expect(miseArgs()).toContainEqual(['use', '-g', `fd@${targetVersion ?? 'latest'}`])
+        expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+      }
+    )
+
     it('re-installs an owned custom tool by name without writing Preference or mutating its recipe', async () => {
       const service = makeService()
       manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
@@ -2387,6 +2641,45 @@ describe('BinaryManager', () => {
         '--force',
         'node@22.23.2'
       ])
+    })
+
+    it('repairs an applied DeepSeek Harness whose required scope package is missing', async () => {
+      const service = makeService()
+      let reinstalled = false
+      ;(service as any).isolatedEnv = { env: { PATH: '/mock/mise/shims:/usr/bin' }, usesDefaultChinaPipIndex: false }
+      mockCreateRequire.mockImplementation(() => ({
+        resolve: (request: string) => {
+          if (request === '@deepseek-ai/dsh-agent-loop') return '/mock/dsh-agent-loop/lib/index.js'
+          if (request === '@deepseek-ai/dsh-scope' && !reinstalled) {
+            throw Object.assign(new Error(`Cannot find package ${request}`), { code: 'MODULE_NOT_FOUND' })
+          }
+          if (request === '@deepseek-ai/dsh-scope') return '/mock/dsh-scope/lib/index.js'
+          throw new Error(`Unexpected package resolution: ${request}`)
+        }
+      }))
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args.includes('npm:@deepseek-ai/dsh@latest')) reinstalled = true
+        if (args[0] === 'which' && args[1] === 'node') {
+          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
+        }
+        if (args[0] === 'which' && args[1] === 'npm') {
+          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/dsh/lib/bin.js\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'dsh' })).resolves.toBeUndefined()
+
+      expect(reinstalled).toBe(true)
+      expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest'])
     })
   })
 
@@ -2779,6 +3072,9 @@ describe('BinaryManager', () => {
     const UV_BIN = '/mock/cherry.bin/uv'
     const MANAGED_PYTHON = '/mock/feature.binary.data.uv_python/cpython-3.12.13/bin/python'
     const BABELDOC = { name: 'babeldoc-stream', tool: 'pipx:babeldoc-stream' }
+    const BABELDOC_INSTALL_PATH = '/mock/mise/installs/pipx-babeldoc-stream/0.6.4.post4'
+    const BABELDOC_ENVIRONMENT = `${BABELDOC_INSTALL_PATH}/babeldoc-stream`
+    const PINNED_BABELDOC = { ...BABELDOC, pipDependencies: ['bitstring<5'] }
     const uvCalls = (subcommand: string) =>
       mockExecFileAsync.mock.calls.filter(
         (call: any[]) => call[0] === UV_BIN && call[1][0] === 'python' && call[1][1] === subcommand
@@ -2801,6 +3097,100 @@ describe('BinaryManager', () => {
         return { stdout: '', stderr: '' }
       })
     }
+
+    const stubPinnedBabeldocInstall = () => {
+      stubManagedPythonInstall()
+      const managedInstall = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (args[0] === 'ls' && args[2] === BABELDOC.tool) {
+          return {
+            stdout: JSON.stringify({
+              [BABELDOC.tool]: [{ version: '0.6.4.post4', active: true, install_path: BABELDOC_INSTALL_PATH }]
+            }),
+            stderr: ''
+          }
+        }
+        return managedInstall(bin, args, opts)
+      })
+      ;(mockFsp.readdir as any).mockResolvedValue(['bin', 'babeldoc-stream'])
+      ;(mockFsp.access as any).mockImplementation(async (candidate: string) => {
+        if (candidate !== `${BABELDOC_ENVIRONMENT}/pyvenv.cfg`) throw new Error('ENOENT')
+      })
+    }
+
+    it('enforces a declared pin in the active mise install environment', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {
+        env: { PIP_INDEX_URL: 'https://pypi.example/simple' },
+        usesDefaultChinaPipIndex: false
+      }
+      stubPinnedBabeldocInstall()
+
+      await expect((service as any).installWithMise(PINNED_BABELDOC, undefined, [])).resolves.toBe('0.6.4.post4')
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        UV_BIN,
+        ['pip', 'install', '--python', BABELDOC_ENVIRONMENT, 'bitstring<5'],
+        expect.objectContaining({
+          env: expect.objectContaining({ PIP_INDEX_URL: 'https://pypi.example/simple', UV_PYTHON_DOWNLOADS: 'never' }),
+          timeout: 120_000
+        })
+      )
+    })
+
+    it('re-enforces the pin when mise reports the same version already installed', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubPinnedBabeldocInstall()
+
+      await (service as any).installWithMise(PINNED_BABELDOC, undefined, [])
+      await (service as any).installWithMise(PINNED_BABELDOC, undefined, [])
+
+      const pipCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'pip')
+      expect(pipCalls).toHaveLength(2)
+      expect(pipCalls.map((call: any[]) => call[1])).toEqual([
+        ['pip', 'install', '--python', BABELDOC_ENVIRONMENT, 'bitstring<5'],
+        ['pip', 'install', '--python', BABELDOC_ENVIRONMENT, 'bitstring<5']
+      ])
+    })
+
+    it('does not invoke uv pip install when the pipx definition has no pins', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+
+      await (service as any).installWithMise(BABELDOC, undefined, [])
+      expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'pip')).toHaveLength(0)
+    })
+
+    it('rejects the install when enforcing a declared pin fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubPinnedBabeldocInstall()
+      const managedInstall = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (bin === UV_BIN && args[0] === 'pip') throw new Error('bitstring unavailable')
+        return managedInstall(bin, args, opts)
+      })
+
+      await expect((service as any).installWithMise(PINNED_BABELDOC, undefined, [])).rejects.toThrow(
+        `Failed to update Python tool environment ${BABELDOC_ENVIRONMENT}: bitstring unavailable`
+      )
+    })
+
+    it('rejects a pinned install when mise reports no active install path', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      stubManagedPythonInstall()
+
+      await expect((service as any).installWithMise(PINNED_BABELDOC, undefined, [])).rejects.toThrow(
+        'mise did not report an active install path for babeldoc-stream'
+      )
+    })
 
     it('installs BabelDOC against an interpreter already in Cherry storage, without naming Python to mise', async () => {
       const service = new BinaryManager()
@@ -3151,6 +3541,46 @@ describe('BinaryManager', () => {
 
       await expect(installBabeldoc(service)).resolves.toBe('0.6.4')
       expect(attemptedIndexes()).toEqual([TSINGHUA, TENCENT, OFFICIAL])
+    })
+
+    it('tries each index in order when pinned dependency enforcement fails', async () => {
+      const service = chinaService()
+      const installPath = '/mock/mise/installs/pipx-babeldoc-stream/0.6.4'
+      stubMise([])
+      const managedInstall = mockExecFileAsync.getMockImplementation()!
+      mockExecFileAsync.mockImplementation(async (bin: string, args: string[], opts: any) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({
+              'pipx:babeldoc-stream': [{ version: '0.6.4', active: true, install_path: installPath }]
+            }),
+            stderr: ''
+          }
+        }
+        if (bin === UV_BIN && args[0] === 'pip' && opts.env['UV_DEFAULT_INDEX'] !== OFFICIAL) {
+          throw new Error('pin unavailable')
+        }
+        return managedInstall(bin, args, opts)
+      })
+      ;(mockFsp.readdir as any).mockResolvedValue(['babeldoc-stream'])
+      mockFsp.access.mockResolvedValue(undefined)
+
+      await expect(
+        (service as any).installWithMise(
+          {
+            name: 'babeldoc',
+            tool: 'pipx:babeldoc-stream',
+            requestedVersion: '0.6.4',
+            pipDependencies: ['bitstring<5']
+          },
+          undefined,
+          []
+        )
+      ).resolves.toBe('0.6.4')
+
+      const pinCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[0] === UV_BIN && call[1][0] === 'pip')
+      expect(pinCalls.map((call: any[]) => call[2].env['UV_DEFAULT_INDEX'])).toEqual([TSINGHUA, TENCENT, OFFICIAL])
+      expect(pinCalls.every((call: any[]) => call[1].at(-1) === 'bitstring<5')).toBe(true)
     })
 
     it('names every index it tried when none of them can install', async () => {
@@ -3654,6 +4084,42 @@ describe('BinaryManager', () => {
   })
 
   describe('Agent CLI inventory', () => {
+    it('cancels the owned mise query and does not proceed to shim traversal', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      let started!: () => void
+      const ready = new Promise<void>((resolve) => {
+        started = resolve
+      })
+      mockExecFileAsync.mockImplementation((_file: string, _args: string[], options: { signal: AbortSignal }) => {
+        const result = new Promise((_resolve, reject) =>
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        )
+        started()
+        return result
+      })
+      const controller = new AbortController()
+      const pending = service.getToolInventory(controller.signal)
+      await ready
+      const rejected = expect(pending).rejects.toThrow()
+      controller.abort()
+      await rejected
+      expect(mockFsp.readdir).not.toHaveBeenCalled()
+    })
+
+    it.each([undefined, new AbortController().signal])(
+      'reports query failure as unknown regardless of cancellation support (%s)',
+      async (signal) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+        mockExecFileAsync.mockRejectedValue(new Error('mise read failed'))
+        const inventory = await service.getToolInventory(signal)
+        expect(inventory.length).toBeGreaterThan(0)
+        expect(inventory.every((entry) => entry.status === 'unknown')).toBe(true)
+      }
+    )
     it('aggregates bundled, fixed, custom, and runtime tools without `mise which` or exposed paths', async () => {
       manifestRef.value = [{ name: 'acme', tool: 'npm:acme', requestedVersion: '1.2.3' }]
       const service = new BinaryManager()
@@ -3763,14 +4229,43 @@ describe('BinaryManager', () => {
       expect(mockExecFileAsync).toHaveBeenCalledTimes(2)
       expect(mockExecFileAsync.mock.calls.every((call: any[]) => call[1][0] === 'ls')).toBe(true)
     })
+
+    it('does not report installing for a phantom operation without a live mutation', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+
+      await expect(service.getToolInventory()).resolves.toContainEqual(
+        expect.objectContaining({ name: 'fd', status: 'not_installed' })
+      )
+    })
+
+    it('still reports installing while its mutation is genuinely in flight', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      MockMainCacheServiceUtils.setCacheValue('feature.binary.install_states', {
+        fd: { status: 'installing', action: 'install' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
+      ;(service as any).activeMutations.set('fd', { action: 'installByName', promise: Promise.resolve() })
+
+      await expect(service.getToolInventory()).resolves.toContainEqual(
+        expect.objectContaining({ name: 'fd', status: 'installing' })
+      )
+    })
   })
 
   describe('extractBundledBinaries', () => {
-    let mockFsp: Record<string, ReturnType<typeof vi.fn>>
+    let mockFsp: Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
 
     beforeEach(async () => {
       const fspModule = await import('node:fs/promises')
-      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn>>
+      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
     })
 
     it('skips extraction when bundled version matches installed version', async () => {

@@ -1,7 +1,7 @@
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 export type AvailableChannel = {
-  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'discord' | 'slack'
+  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'wecom' | 'dingtalk' | 'discord' | 'slack'
   name: string
   titleKey: string
   description: string
@@ -50,6 +50,29 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
     defaultConfig: { token_path: '', allowed_chat_ids: [] }
   },
   {
+    type: 'dingtalk',
+    name: 'DingTalk',
+    titleKey: 'agent.channels.dingtalk.title',
+    description: 'agent.channels.dingtalk.description',
+    available: true,
+    defaultConfig: {
+      client_id: '',
+      client_secret: '',
+      robot_code: '',
+      card_template_id: '',
+      allowed_chat_ids: [],
+      allowed_user_ids: []
+    }
+  },
+  {
+    type: 'wecom',
+    name: 'WeCom',
+    titleKey: 'agent.channels.wecom.title',
+    description: 'agent.channels.wecom.description',
+    available: true,
+    defaultConfig: { bot_id: '', secret: '', allowed_chat_ids: [], allowed_user_ids: [] }
+  },
+  {
     type: 'discord',
     name: 'Discord',
     titleKey: 'agent.channels.discord.title',
@@ -79,3 +102,5 @@ export type ChannelData = {
   createdAt?: number | null
   updatedAt?: number | null
 }
+
+export type ChannelUpdates = Partial<ChannelData> & { configPatch?: Record<string, unknown> }

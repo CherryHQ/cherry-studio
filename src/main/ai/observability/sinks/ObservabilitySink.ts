@@ -1,4 +1,5 @@
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+
 import type { SpanEntity } from '@shared/data/types/trace'
 
 export interface ObservabilitySink {

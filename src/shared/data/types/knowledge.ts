@@ -1,6 +1,7 @@
+import * as z from 'zod'
+
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { PosixRelativeFilePathSchema, resolvePosixRelativeSegments, sanitizeFilename } from '@shared/utils/file'
-import * as z from 'zod'
 
 import { GroupIdSchema } from './group'
 
@@ -145,7 +146,7 @@ export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema
 // Raw, user-typed delimiter in escaped form (e.g. "\\n\\n"); unescaped by the splitter.
 export const KnowledgeChunkSeparatorSchema = z.string()
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
-export const KnowledgeDocumentCountSchema = z.number().int().positive()
+export const KnowledgeDocumentCountSchema = z.number().int().min(0)
 export const KnowledgeBaseIdSchema = z.uuidv4()
 export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
@@ -165,6 +166,7 @@ export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
  */
 export const KnowledgeBaseEntitySchema = z.strictObject({
   id: KnowledgeBaseIdSchema,
+  orderKey: z.string().min(1),
   name: z.string().trim().min(1),
   groupId: GroupIdSchema.nullable(),
   dimensions: z.number().int().positive().nullable(),
@@ -188,7 +190,7 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
  * schema and the pre-write candidate schema so a rule is defined exactly once.
  */
 function refineKnowledgeBaseInvariants(
-  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'createdAt' | 'updatedAt'>,
+  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'orderKey' | 'createdAt' | 'updatedAt'>,
   ctx: z.RefinementCtx
 ): void {
   if (value.status === 'completed') {
@@ -245,6 +247,7 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
  * constraints — `id`/`createdAt`/`updatedAt` don't exist yet at write time.
  */
 export const KnowledgeBaseWriteSchema = KnowledgeBaseEntitySchema.omit({
+  orderKey: true,
   id: true,
   createdAt: true,
   updatedAt: true

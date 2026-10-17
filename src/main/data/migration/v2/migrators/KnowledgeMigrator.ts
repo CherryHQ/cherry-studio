@@ -3,6 +3,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import Database from 'better-sqlite3'
+import { eq, sql } from 'drizzle-orm'
+
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userModel'
@@ -14,7 +17,7 @@ import {
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from '@main/features/knowledge'
-import { copy, ensureDir } from '@main/utils/file'
+import { copy, ensureDir, foldPathSegment } from '@main/utils/file'
 import { sanitizeFilename } from '@main/utils/legacyFile'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
@@ -24,15 +27,13 @@ import {
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { MODEL_CAPABILITY, UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import Database from 'better-sqlite3'
-import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   expandLegacyDirectoryItem,
-  foldPathSegment,
   inferKnowledgeItemStatus,
   type LegacyKnowledgeBase,
   type LegacyKnowledgeBaseWithIdentity,
@@ -974,6 +975,13 @@ export class KnowledgeMigrator extends BaseMigrator {
       }
 
       // Cross-run idempotency lives at the engine level (verifyAndClearNewTables) — no onConflict guard needed here.
+      const baseOrderKeys = new Map(
+        assignOrderKeysInSequence(
+          [...this.preparedBases].sort(
+            (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) || (b.id ?? '').localeCompare(a.id ?? '')
+          )
+        ).map((base) => [base.id, base.orderKey])
+      )
       const legacyBaseIdByMigratedId = new Map(
         [...this.legacyBaseIdRemap.entries()].map(([legacyBaseId, migratedBaseId]) => [migratedBaseId, legacyBaseId])
       )
@@ -992,7 +1000,9 @@ export class KnowledgeMigrator extends BaseMigrator {
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
         ctx.db.transaction((tx) => {
-          tx.insert(knowledgeBaseTable).values(base).run()
+          tx.insert(knowledgeBaseTable)
+            .values({ ...base, orderKey: baseOrderKeys.get(base.id)! })
+            .run()
           transactionProcessed += 1
 
           for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
@@ -1166,8 +1176,14 @@ export class KnowledgeMigrator extends BaseMigrator {
     const errors: ValidationError[] = []
 
     try {
-      const baseResult = ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).get()
-      const itemResult = ctx.db.select({ count: sql<number>`count(*)` }).from(knowledgeItemTable).get()
+      const baseResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(knowledgeBaseTable)
+        .get()
+      const itemResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(knowledgeItemTable)
+        .get()
 
       const targetBaseCount = baseResult?.count ?? 0
       const targetItemCount = itemResult?.count ?? 0

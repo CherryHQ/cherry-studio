@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
-import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -12,13 +12,22 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import {
+  type AgentNotificationContext,
+  resolveAgentNotificationContext,
+  resolveLinkedNotifyChannel
+} from '@main/ai/runtime/agentMcpServers'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { getAppLanguage } from '@main/i18n'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import {
+  createAgentProxyEnvironmentFingerprint,
+  isAgentProxyEnvironmentKey,
+  mergeAgentLoopbackProxyBypass
+} from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -28,7 +37,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
   isOllamaProvider,
@@ -37,14 +46,9 @@ import {
 } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { getExtraHeaders } from '../../utils/provider'
-import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { getExtraHeaders, getProviderAppHeaders } from '../../utils/provider'
+import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
-import {
-  createAgentProxyEnvironmentFingerprint,
-  isAgentProxyEnvironmentKey,
-  mergeAgentLoopbackProxyBypass
-} from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -102,7 +106,6 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
   customHeaders?: string | Readonly<Record<string, string>>
   usageCapture: AgentSessionUsageCapture
-  internalRequestToken?: string
 }
 
 /** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
@@ -120,10 +123,11 @@ interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
   mcp: unknown[]
   skills: string[]
-  linkedChannelId: string | null
+  notificationContext: AgentNotificationContext
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
+  effectiveLanguage?: string | null
 }
 
 /**
@@ -132,6 +136,7 @@ interface ConnectionMaterializationFacts {
  * within the set is invisible; editing either input changes the fingerprint). Gateway routes hash
  * the stable per-install gateway key. External-cli routes have no key (subscription login) — constant.
  */
+
 function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
     .update(JSON.stringify([...material].sort()))
@@ -181,15 +186,23 @@ function buildUsageModels(
   const byModelId = new Map<
     string,
     {
+      apiModelId: string
       modelName: string | null
-      pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
+      pricingSnapshot: ReturnType<typeof createAiUsageCaptureContext>['pricingSnapshot']
       aliases: Set<string>
     }
   >()
   for (const { sdkModelId, ref } of entries) {
     const current = byModelId.get(ref.modelId) ?? {
+      apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
-      pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
+      pricingSnapshot: createAiUsageCaptureContext({
+        providerId: ref.providerId,
+        modelId: ref.modelId,
+        pricing: ref.model?.pricing,
+        billing: ref.provider?.settings?.billing,
+        invocationStartedAt: null
+      }).pricingSnapshot,
       aliases: new Set<string>()
     }
     current.aliases.add(sdkModelId)
@@ -199,6 +212,7 @@ function buildUsageModels(
   }
   return [...byModelId].map(([modelId, snapshot]) => ({
     modelId,
+    apiModelId: snapshot.apiModelId,
     modelName: snapshot.modelName,
     pricingSnapshot: snapshot.pricingSnapshot,
     aliases: [...snapshot.aliases]
@@ -304,7 +318,8 @@ export async function deriveConnectionConfig(
         connectionModelId ?? agent.model,
         reasoningEffort,
         fastMode,
-        selectedKnowledgeBaseIds
+        selectedKnowledgeBaseIds,
+        undefined
       )
     }
   } catch (error) {
@@ -367,9 +382,7 @@ async function deriveConnectionConfigFromSnapshot(
     )
   }
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
-  const linkedChannelId = materialized
-    ? materialized.linkedChannelId
-    : (agentChannelService.findBySessionId(session.id)?.id ?? null)
+  const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
@@ -380,12 +393,19 @@ async function deriveConnectionConfigFromSnapshot(
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
-    language: getAppLanguage(),
+    // Rebuild fact: language change invalidates the warm connection so the new
+    // language instruction is baked into the next prompt and prompt cache. This
+    // trades cache preservation for correctness — first turn after change pays
+    // full input-token cost until the new prefix is cached.
+    language:
+      materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName: agent.modelName || null,
+    browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
@@ -396,7 +416,7 @@ async function deriveConnectionConfigFromSnapshot(
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
-    linkedChannelId
+    notificationContext
   }
   const rebuildFactFingerprints = Object.fromEntries(
     Object.entries(rebuildFacts).map(([name, value]) => [
@@ -420,7 +440,7 @@ async function deriveConnectionConfigFromSnapshot(
   }
 }
 
-/** DB-definition facts for each referenced MCP server (read-only rows; no client connections). */
+/** Server definitions and connected metadata; never starts client connections. */
 function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots?: McpServerSnapshotMap): unknown[] {
   return [...(mcpIds ?? [])].sort().map((mcpId) => {
     const server = snapshots ? snapshots.get(mcpId) : mcpServerService.findByIdOrName(mcpId)
@@ -429,6 +449,7 @@ function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots
       mcpId,
       id: server.id,
       name: server.name,
+      instructions: application.get('McpRuntimeService').getConnectedServerInstructions(server.id) ?? null,
       type: server.type,
       command: server.command ?? null,
       args: server.args ?? null,
@@ -466,7 +487,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
-  const linkedChannelSnapshot = agentChannelService.findBySessionId(session.id)
+  const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
+  const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
 
   const uniqueModelId = connectionModelId ?? agent.model
@@ -508,6 +530,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -518,9 +541,12 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
+        notificationContext,
         knowledgeBaseIds: selectedKnowledgeBaseIds,
+        supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
-        fastMode: fastModeTransport === 'claude-code'
+        fastMode: fastModeTransport === 'claude-code',
+        effectiveLanguage
       },
       agent
     ),
@@ -541,12 +567,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route: toConnectionRouteFacts(route),
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
-      linkedChannelId: linkedChannelSnapshot?.id ?? null,
+      notificationContext,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
-      })
+      }),
+      effectiveLanguage
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -565,6 +592,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     key: settings.warmQueryKey ?? session.id,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
+    notificationContext,
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
@@ -682,25 +710,17 @@ function deriveRouteFacts(
   }
 
   const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
+    (ref) =>
+      requiresAgentGateway(ref.providerId) ||
+      ref.providerId !== primaryProvider.id ||
+      !usesAnthropicMessagesEndpoint(ref)
   )
 
   if (shouldUseGateway) {
-    const apiGatewayService = application.get('ApiGatewayService')
-    const config = apiGatewayService.getCurrentConfig()
-    const host = config.host || '127.0.0.1'
-    const port = config.port || 23333
-    // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
-    // persist one). Before the gateway's first activation the preference is empty — the signature
-    // changes once when the key is generated, costing a single extra rebuild. Accepted.
-    const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
     return {
       branch: 'gateway',
-      baseUrl: `http://${host}:${port}`,
-      credentialsFingerprint: fingerprintCredentials([
-        typeof gatewayKey === 'string' ? gatewayKey : '',
-        gatewayStateTag(config.enabled, apiGatewayService.isRunning())
-      ]),
+      baseUrl: application.get('ApiGatewayService').getInternalGatewayOrigin(),
+      credentialsFingerprint: gatewayCredentialsFingerprint(),
       toolSearchCompatible,
       modelIds: {
         primary: toGatewayModelId(primaryRef),
@@ -717,7 +737,10 @@ function deriveRouteFacts(
   // that rotate onto different keys still sign identically. Include request headers because they
   // are also fixed at subprocess spawn; editing either input invalidates warm reuse.
   const enabledKeys = providerService.getApiKeys(primaryProvider.id, { enabled: true }).map((entry) => entry.key)
-  const customHeaders = mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider))
+  const customHeaders = mergeAnthropicCustomHeaders(
+    getProviderAppHeaders(primaryProvider),
+    getExtraHeaders(primaryProvider)
+  )
   // Every slot resolves to the same `anthropicBaseUrl`, so one host check gates them all. Decide
   // first-party by resolved host, NOT preset origin: a provider copied from the Anthropic preset but
   // repointed at a custom 1M proxy is not first-party and must still get the `[1m]` suffix.
@@ -780,18 +803,28 @@ async function resolveClaudeCodeRuntimeRoute(
         apiKey: gateway.apiKey,
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
-        internalRequestToken: gateway.internalRequestToken,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
+        credentialsFingerprint: gatewayCredentialsFingerprint()
       }
     }
     case 'direct': {
       const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
+      // Keyless local servers (registry authOptional) carry no credential; the
+      // SDK still needs a non-empty token. Ollama-endpoint custom providers
+      // keep their established stand-in.
       const runtimeApiKey =
-        resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+        resolvedApiKey.value ||
+        (primaryProvider.authOptional === true
+          ? (primaryProvider.presetProviderId ?? primaryProvider.id)
+          : isOllamaProvider(primaryProvider)
+            ? OLLAMA_PLACEHOLDER_AUTH_TOKEN
+            : '')
       return {
         ...facts,
         apiKey: runtimeApiKey,
-        customHeaders: mergeAnthropicCustomHeaders(defaultAppHeaders(), getExtraHeaders(primaryProvider)),
+        customHeaders: mergeAnthropicCustomHeaders(
+          getProviderAppHeaders(primaryProvider),
+          getExtraHeaders(primaryProvider)
+        ),
         usageCapture: {
           owner: 'agent-sdk',
           credentialReceipt: resolvedApiKey.apiKeySelection,
@@ -884,8 +917,8 @@ function mergeRuntimeSettings(
   fastModeTransport?: NonNullable<Provider['fastMode']>['transport']
 ): ClaudeCodeSettings {
   const fastModeHeaders =
-    route.branch === 'gateway' && fastModeTransport === 'openai-priority' && route.internalRequestToken
-      ? `${CHERRY_FAST_MODE_HEADER}: true\n${CHERRY_INTERNAL_REQUEST_TOKEN_HEADER}: ${route.internalRequestToken}`
+    route.branch === 'gateway' && fastModeTransport === 'openai-priority'
+      ? `${CHERRY_FAST_MODE_HEADER}: true`
       : undefined
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,
@@ -895,6 +928,13 @@ function mergeRuntimeSettings(
   const env = mergeAgentLoopbackProxyBypass(
     {
       ...settings.env,
+      ...(route.branch === 'gateway'
+        ? {
+            API_TIMEOUT_MS: settings.env?.API_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT),
+            API_FORCE_IDLE_TIMEOUT: settings.env?.API_FORCE_IDLE_TIMEOUT ?? '0',
+            CLAUDE_STREAM_IDLE_TIMEOUT_MS: settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
+          }
+        : {}),
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
@@ -928,8 +968,10 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
+    connectionRebuildSignature: request.connectionConfig.rebuildSignature,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,
-    knowledgeBaseIds: request.knowledgeBaseIds
+    knowledgeBaseIds: request.knowledgeBaseIds,
+    notificationContext: request.notificationContext
   }
 }

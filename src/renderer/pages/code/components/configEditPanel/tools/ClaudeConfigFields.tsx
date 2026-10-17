@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
@@ -7,12 +11,10 @@ import {
   gatewayExpectedModel,
   gatewayModelIdFromAddress,
   safeCreateUniqueModelId,
+  setClaudeOneMMarker,
   stripClaudeOneMMarker
 } from '@renderer/pages/code/cliConfig'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ModelSelectorTrigger } from '../ModelSelectorTrigger'
 import { TogglePill } from '../TogglePill'
@@ -121,11 +123,6 @@ function isAttributionHidden(config: Record<string, unknown>): boolean {
 
 function hasOneMMarker(value: string): boolean {
   return value.trimEnd().toLowerCase().endsWith(ONE_M_MARKER.toLowerCase())
-}
-
-function setOneMMarker(value: string, enabled: boolean): string {
-  const base = stripClaudeOneMMarker(value).trim()
-  return enabled ? `${base} ${ONE_M_MARKER}` : base
 }
 
 function getRawModelId(
@@ -296,7 +293,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
             const uses1M = hasOneMMarker(rawValue)
             return (
               <div key={field.roleKey} className="flex items-center gap-2">
-                <span className="w-14 shrink-0 text-foreground text-sm">{t(field.labelKey)}</span>
+                <span className="w-14 shrink-0 text-sm text-foreground">{t(field.labelKey)}</span>
                 <ClaudeRoleModelSelector
                   value={toProviderModelId(providerId, roleModelId, gatewayModels)}
                   placeholder={t('settings.models.empty')}
@@ -304,7 +301,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                   onSettingsNavigate={onSettingsNavigate}
                   onSelect={(nextModelId) => {
                     const nextRawModelId = getRawModelId(nextModelId, gatewayModels)
-                    updateModelRole(field, nextRawModelId ? setOneMMarker(nextRawModelId, uses1M) : '')
+                    updateModelRole(field, nextRawModelId ? setClaudeOneMMarker(nextRawModelId, uses1M) : '')
                   }}
                 />
                 <div className="flex w-16 shrink-0 justify-end">
@@ -316,7 +313,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                         aria-label="1M"
                         checked={uses1M}
                         onCheckedChange={(checked) =>
-                          updateModelRole(field, roleModelId ? setOneMMarker(roleModelId, checked === true) : '')
+                          updateModelRole(field, roleModelId ? setClaudeOneMMarker(roleModelId, checked === true) : '')
                         }
                       />
                     </div>

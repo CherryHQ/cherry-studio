@@ -1,8 +1,9 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { makeModel } from '@main/ai/__tests__/fixtures/model'
 import { makeProvider } from '@main/ai/__tests__/fixtures/provider'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ resolveGatewayModelAddress: vi.fn(), tryRemoteAnthropicCount: vi.fn() }))
 
@@ -52,6 +53,14 @@ beforeEach(() => {
 })
 
 describe('estimateAnthropicRequestTokens', () => {
+  it('resolves an internal Work token-count request through the agent route', async () => {
+    resolveTo(textModel)
+
+    await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hello' }]), undefined, true)
+
+    expect(mocks.resolveGatewayModelAddress).toHaveBeenCalledWith('p:m', true)
+  })
+
   it('#17079: a base64 image nested in tool_result costs its image constant, not its base64 length', async () => {
     resolveTo(textModel)
     const messages = [

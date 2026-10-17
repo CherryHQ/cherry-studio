@@ -1,11 +1,3 @@
-import { Button, Slider, Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
-import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import { ipcApi } from '@renderer/ipc'
-import { isMac } from '@renderer/utils/platform'
-import { cn } from '@renderer/utils/style'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import Droplet from 'lucide-react/dist/esm/icons/droplet'
 import Minus from 'lucide-react/dist/esm/icons/minus'
 import Pin from 'lucide-react/dist/esm/icons/pin'
@@ -13,6 +5,15 @@ import X from 'lucide-react/dist/esm/icons/x'
 import type { ComponentProps, FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Slider, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { ipcApi } from '@renderer/ipc'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
+import type { SelectionActionSession } from '@shared/types/selection'
 
 import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
@@ -26,7 +27,7 @@ import ActionTranslate from './components/ActionTranslate'
  * `useEffect([action])` inside the content component.
  */
 const ActionWindow: FC = () => {
-  const action = useWindowInitData<SelectionActionItem>()
+  const action = useWindowInitData<SelectionActionSession>()
   if (!action) return null
   return <SelectionActionContent action={action} />
 }
@@ -39,7 +40,7 @@ const ActionWindow: FC = () => {
  * slider, scroll) so old state doesn't bleed into the new session, even when
  * the next action happens to be the same type as the previous one.
  */
-const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action }) => {
+const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action }) => {
   const { t } = useTranslation()
 
   const [isAutoClose] = usePreference('feature.selection.auto_close')
@@ -56,6 +57,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   // (not in an effect) so the remount lands before ActionGeneral sends.
   const [prevAction, setPrevAction] = useState(action)
   const [sessionId, setSessionId] = useState(0)
+  const sourceEntityId = action.sessionId
   if (action !== prevAction) {
     setPrevAction(action)
     setSessionId((n) => n + 1)
@@ -223,7 +225,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             <SelectionActionIcon name={action.icon} size={14} className="text-foreground" fallback={() => null} />
           </div>
         )}
-        <div className="ml-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-foreground text-sm">
+        <div className="ml-2 flex-1 overflow-hidden text-sm font-normal text-ellipsis whitespace-nowrap text-foreground">
           {action.isBuiltIn ? t(action.name) : action.name}
         </div>
         <div className="relative flex gap-2 [-webkit-app-region:no-drag]">
@@ -273,13 +275,26 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           )}
         </div>
       </div>
-      <div className="flex h-full w-full justify-center overflow-auto">
+      <div className="flex h-full w-full min-w-0 justify-center overflow-auto">
+        {/* Keep app-region unset: inherited no-drag regions can scroll over the title bar in Electron. */}
         <div
           ref={contentElementRef}
-          className="flex max-w-[1280px] flex-1 select-text flex-col overflow-auto p-4 text-sm [-webkit-app-region:no-drag]">
-          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
+          className="flex min-w-0 max-w-[1280px] flex-1 flex-col overflow-auto p-4 text-sm select-text">
+          {action.id == 'translate' && (
+            <ActionTranslate
+              key={sessionId}
+              action={action}
+              sourceEntityId={sourceEntityId}
+              scrollToBottom={handleScrollToBottom}
+            />
+          )}
           {action.id != 'translate' && (
-            <ActionGeneral key={sessionId} action={action} scrollToBottom={handleScrollToBottom} />
+            <ActionGeneral
+              key={sessionId}
+              action={action}
+              sourceEntityId={sourceEntityId}
+              scrollToBottom={handleScrollToBottom}
+            />
           )}
         </div>
       </div>

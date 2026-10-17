@@ -1,8 +1,9 @@
-import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import { ClaudeConfigFields } from '../ClaudeConfigFields'
 
@@ -109,7 +110,7 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }) => (
     <div data-testid="role-model-selector" data-value={value ?? ''}>
       {trigger}
-      <button type="button" onClick={() => onSelect('anthropic::claude-opus-4-1' as UniqueModelId)}>
+      <button type="button" onClick={() => onSelect('anthropic::claude-opus-4-1')}>
         select role model
       </button>
       <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
@@ -297,7 +298,7 @@ describe('ClaudeConfigFields', () => {
 
     expect(onChange).toHaveBeenCalledWith({
       env: {
-        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5 [1M]',
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5[1M]',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-sonnet-4-5'
       }
     })

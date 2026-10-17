@@ -10,41 +10,28 @@
  * those make sense as chat targets).
  */
 
+import { useMemo } from 'react'
+
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
-import { useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 
-/**
- * Marks a model filter as an *agent* picker, which is allowed to surface
- * agent-only providers (e.g. `claude-code`). General/chat selectors leave their
- * filter unmarked, so `useModelSelectorData` hides those providers from them.
- */
-const AGENT_ONLY_FILTER = Symbol('agentModelFilter')
-
-type AgentModelFilter = ((model: Model, provider?: Provider) => boolean) & { [AGENT_ONLY_FILTER]?: true }
-
-/** True when `filter` came from {@link useAgentModelFilter} (may include agent-only providers). */
-export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) => boolean): boolean {
-  return Boolean((filter as AgentModelFilter | undefined)?.[AGENT_ONLY_FILTER])
-}
+type ModelPredicate = (model: Model, provider?: Provider) => boolean
 
 /**
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
-export function useAgentModelFilter(agentType: AgentType | undefined): AgentModelFilter {
-  return useMemo<AgentModelFilter>(() => {
+export function useAgentModelFilter(agentType: AgentType | undefined): ModelPredicate {
+  return useMemo<ModelPredicate>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
-    const predicate: AgentModelFilter = (model, provider) => {
+    return (model, provider) => {
       if (!baseAgentFilter(model)) return false
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
-    predicate[AGENT_ONLY_FILTER] = true
-    return predicate
   }, [agentType])
 }

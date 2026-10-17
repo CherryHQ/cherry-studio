@@ -1,8 +1,9 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { Plus } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 
 interface HeaderSectionProps {
   customItemsCount: number

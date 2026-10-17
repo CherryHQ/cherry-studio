@@ -1,3 +1,7 @@
+import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ButtonGroup,
@@ -19,9 +23,6 @@ import type {
   AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
-import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type BoundedTimeRange,
@@ -381,7 +382,9 @@ function UsageSettings() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <UsageResponsiveShell>
-        <div className="flex min-w-0 @[640px]/usage:flex-row flex-col @[640px]/usage:items-start @[640px]/usage:justify-between gap-3">
+        <div
+          id="setting-usage-overview"
+          className="flex min-w-0 @[640px]/usage:flex-row flex-col @[640px]/usage:items-start @[640px]/usage:justify-between gap-3">
           <div className="min-w-0">
             <UsageSectionTitle>{t('settings.usage.overview.title')}</UsageSectionTitle>
             <p className="mt-1 text-muted-foreground text-sm">

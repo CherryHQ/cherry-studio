@@ -1,16 +1,21 @@
-import { Button, PageSidePanel } from '@cherrystudio/ui'
-import { FilePreview } from '@renderer/components/FilePreview'
-import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
-import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { ArrowLeft } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button, PageSidePanel } from '@cherrystudio/ui'
+import { FilePreview } from '@renderer/components/FilePreview'
+import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
+import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
+
 import DetailHeader from '../components/DetailHeader'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
-import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
-import KnowledgeItemNoteContentPanel from '../panels/dataSource/KnowledgeItemNoteContentPanel'
+import { nextKnowledgeItemSort } from '../utils/itemSort'
+
+// Item detail views are loaded when an item is opened, not with the page.
+const KnowledgeItemChunkDetailPanel = lazy(() => import('../panels/dataSource/KnowledgeItemChunkDetailPanel'))
+const KnowledgeItemNoteContentPanel = lazy(() => import('../panels/dataSource/KnowledgeItemNoteContentPanel'))
 
 const RagConfigPanel = lazy(() => import('../panels/ragConfig/RagConfigPanel'))
 const RecallTestPanel = lazy(() => import('../panels/recallTest/RecallTestPanel'))
@@ -39,6 +44,24 @@ const KnowledgePageDetailSection = () => {
     openRestoreBaseDialog
   } = useKnowledgePage()
 
+  const [sortState, setSortState] = useState<{ baseId: string; sort: KnowledgeItemSort | null }>(() => ({
+    baseId: selectedBaseId,
+    sort: null
+  }))
+  const itemSort = sortState.baseId === selectedBaseId ? sortState.sort : null
+  useEffect(() => {
+    setSortState((previous) => (previous.baseId === selectedBaseId ? previous : { baseId: selectedBaseId, sort: null }))
+  }, [selectedBaseId])
+  const changeItemSort = useCallback(
+    (sortBy: KnowledgeItemSortBy) => {
+      setSortState((previous) => ({
+        baseId: selectedBaseId,
+        sort: nextKnowledgeItemSort(previous.baseId === selectedBaseId ? previous.sort : null, sortBy)
+      }))
+    },
+    [selectedBaseId]
+  )
+
   // Directory drill-down: the stack holds the directory items descended into (empty = base root).
   // The current directory's id becomes the item-list's `groupId`, listing that folder's children.
   const [directoryStack, setDirectoryStack] = useState<KnowledgeItemOf<'directory'>[]>([])
@@ -63,7 +86,7 @@ const KnowledgePageDetailSection = () => {
     hasMore: hasMoreItems,
     isLoadingMore: isLoadingMoreItems,
     loadMore: loadMoreItems
-  } = useKnowledgeItems(selectedBaseId, currentDirectory?.id ?? null)
+  } = useKnowledgeItems(selectedBaseId, currentDirectory?.id ?? null, itemSort)
   const { deleteItem, deleteItems } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem, reindexItems } = useReindexKnowledgeItem(selectedBaseId)
 
@@ -84,11 +107,13 @@ const KnowledgePageDetailSection = () => {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {selectedItemId ? (
-          selectedItemView === 'content' ? (
-            <KnowledgeItemNoteContentPanel itemId={selectedItemId} onBack={closeItemChunks} />
-          ) : (
-            <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
-          )
+          <Suspense fallback={null}>
+            {selectedItemView === 'content' ? (
+              <KnowledgeItemNoteContentPanel itemId={selectedItemId} onBack={closeItemChunks} />
+            ) : (
+              <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
+            )}
+          </Suspense>
         ) : filePreview ? (
           <section
             aria-label={filePreview.fileName}
@@ -113,6 +138,8 @@ const KnowledgePageDetailSection = () => {
           </section>
         ) : (
           <DataSourcePanel
+            sort={itemSort}
+            onSortChange={changeItemSort}
             embeddingModelId={selectedBase.embeddingModelId}
             items={selectedBaseItems}
             total={selectedBaseItemsTotal}

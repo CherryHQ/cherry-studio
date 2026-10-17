@@ -1,35 +1,34 @@
 import './Sidebar.css'
-
-import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { isMac } from '@renderer/utils/platform'
-import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
+
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
-import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
   width: number
   setWidth: (width: number) => void
   entries: ResolvedSidebarEntry[]
-  active: SidebarActiveState
-  title?: string
-  logo?: React.ReactNode
   user?: SidebarUser
   isFloating?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
+  userAction?: SidebarFooterActions
   onHoverChange?: (visible: boolean) => void
   onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
+  renderUserTrigger?: (trigger: React.ReactElement) => React.ReactElement
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
@@ -38,22 +37,22 @@ export function Sidebar({
   width,
   setWidth,
   entries,
-  active,
-  title = '',
-  logo,
   user,
   isFloating = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
+  userAction,
   onHoverChange,
   onResizePreview,
   onSearchClick,
   onExtensionsClick,
+  renderUserTrigger,
   onEntriesReorder,
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
+  const hasLeadingWindowControls = useLeadingWindowControlsOverlay()
   const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
@@ -61,19 +60,8 @@ export function Sidebar({
   const footerOverlayOpenRef = useRef(false)
   const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
-  const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
+  const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions || userAction)
   const showSearch = Boolean(onSearchClick)
-  const logoNode = logo ?? <DefaultLogo title={title} />
-
-  const renderLogo = (size: 'sm' | 'default' = 'default') => (
-    <div
-      className={cn(
-        'flex shrink-0 items-center justify-center overflow-hidden *:h-full *:w-full',
-        size === 'sm' ? 'size-8 rounded-lg' : 'size-9 rounded-lg'
-      )}>
-      {logoNode}
-    </div>
-  )
 
   const handleDismiss = useCallback(() => {
     onDismiss?.()
@@ -128,16 +116,17 @@ export function Sidebar({
 
   const listProps = {
     entries,
-    active,
     onReorder: onEntriesReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }
   const footerProps = {
     user,
+    userAction,
     actions,
     extensionsLabel,
     onExtensionsClick,
-    onOverlayOpenChange: handleFooterOverlayOpenChange
+    onOverlayOpenChange: handleFooterOverlayOpenChange,
+    renderUserTrigger
   }
   const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
 
@@ -149,7 +138,7 @@ export function Sidebar({
           className={cn(
             'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
             windowDragClassName,
-            isMac && 'pt-[env(titlebar-area-height)]'
+            (isMac || hasLeadingWindowControls) && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
@@ -162,11 +151,6 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          <div className={cn('flex h-14 shrink-0 items-center gap-2.5 px-4', windowDragClassName)}>
-            {renderLogo()}
-            <span className="truncate text-sidebar-foreground text-sm">{title}</span>
-          </div>
-
           {showSearch && (
             <div className="px-3 py-2">
               <div
@@ -233,17 +217,6 @@ export function Sidebar({
         windowDragClassName,
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      {/* Header */}
-      <div
-        className={cn(
-          'flex shrink-0 items-center',
-          windowDragClassName,
-          layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'
-        )}>
-        {renderLogo(layout === 'icon' ? 'sm' : 'default')}
-        {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
-      </div>
-
       {/* Search */}
       {showSearch &&
         (layout === 'full' ? (

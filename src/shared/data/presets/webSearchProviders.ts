@@ -1,10 +1,13 @@
 import * as z from 'zod'
 
+import { REMOTE_PROVIDER_IDS, type RemoteProviderId } from '@cherrystudio/web-search'
+import { WEB_SEARCH_PROVIDER_CATALOG } from '@cherrystudio/web-search/catalog'
+
 import {
   WEB_SEARCH_CAPABILITIES,
   WEB_SEARCH_PROVIDER_IDS,
   WEB_SEARCH_PROVIDER_TYPES,
-  type WebSearchProvider,
+  type WebSearchCapability,
   type WebSearchProviderCapabilityOverride,
   type WebSearchProviderCapabilityOverrides,
   type WebSearchProviderId,
@@ -103,126 +106,62 @@ export interface WebSearchProviderPreset extends WebSearchProviderPresetConfig {
   id: WebSearchProviderId
 }
 
-export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
-  zhipu: {
-    name: 'Zhipu',
-    type: 'api',
-    capabilities: [
+const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCapability[]> = {
+  zhipu: ['searchKeywords'],
+  tavily: ['searchKeywords'],
+  searxng: ['searchKeywords'],
+  exa: ['searchKeywords'],
+  'exa-mcp': ['searchKeywords'],
+  bocha: ['searchKeywords'],
+  querit: ['searchKeywords', 'fetchUrls'],
+  jina: ['searchKeywords', 'fetchUrls'],
+  firecrawl: ['searchKeywords', 'fetchUrls'],
+  crawl4ai: ['fetchUrls'],
+  parallel: ['searchKeywords'],
+  serply: ['searchKeywords']
+}
+
+const remotePresets = Object.fromEntries(
+  REMOTE_PROVIDER_IDS.map((id): [RemoteProviderId, WebSearchProviderPresetConfig] => {
+    const metadata = WEB_SEARCH_PROVIDER_CATALOG[id]
+    return [
+      id,
       {
-        feature: 'searchKeywords',
-        requiresApiHost: true,
-        requiresApiKey: true,
-        apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search'
+        name: metadata.name,
+        type: metadata.type,
+        capabilities: metadata.capabilities
+          .filter((item) => DESKTOP_REMOTE_CAPABILITIES[id].includes(item.capability))
+          .map<WebSearchProviderFeatureCapability>((item) => ({
+            feature: item.capability,
+            requiresApiHost: item.requiresApiHost,
+            requiresApiKey: item.apiKey === 'required',
+            apiHost: id === 'searxng' ? 'http://localhost:8080' : (item.defaultApiHost ?? '')
+          }))
       }
     ]
-  },
-  tavily: {
-    name: 'Tavily',
-    type: 'api',
-    capabilities: [
-      { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.tavily.com' }
-    ]
-  },
-  searxng: {
-    name: 'Searxng',
-    type: 'api',
-    capabilities: [
-      { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: false, apiHost: 'http://localhost:8080' }
-    ]
-  },
-  exa: {
-    name: 'Exa',
-    type: 'api',
-    capabilities: [
-      { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.exa.ai' }
-    ]
-  },
-  'exa-mcp': {
-    name: 'ExaMCP',
-    type: 'mcp',
-    capabilities: [
-      {
-        feature: 'searchKeywords',
-        requiresApiHost: true,
-        requiresApiKey: false,
-        apiHost: 'https://mcp.exa.ai/mcp'
-      }
-    ]
-  },
-  bocha: {
-    name: 'Bocha',
-    type: 'api',
-    capabilities: [
-      { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.bochaai.com' }
-    ]
-  },
-  querit: {
-    name: 'Querit',
-    type: 'api',
-    capabilities: [
-      { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.querit.ai' },
-      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://api.querit.ai' }
-    ]
-  },
+  })
+) as Record<RemoteProviderId, WebSearchProviderPresetConfig>
+
+export const WEB_SEARCH_PROVIDER_PRESET_MAP: Record<WebSearchProviderId, WebSearchProviderPresetConfig> = {
+  ...remotePresets,
   fetch: {
     name: 'fetch',
     type: 'api',
     capabilities: [{ feature: 'fetchUrls', requiresApiHost: false, requiresApiKey: false }]
   },
-  jina: {
-    name: 'Jina',
+  duckduckgo: {
+    name: 'DuckDuckGo',
     type: 'api',
-    capabilities: [
-      { feature: 'searchKeywords', requiresApiHost: true, requiresApiKey: true, apiHost: 'https://s.jina.ai' },
-      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: 'https://r.jina.ai' }
-    ]
-  },
-  firecrawl: {
-    name: 'Firecrawl',
-    type: 'api',
-    capabilities: [
-      {
-        feature: 'searchKeywords',
-        requiresApiHost: true,
-        requiresApiKey: false,
-        apiHost: 'https://api.firecrawl.dev'
-      },
-      {
-        feature: 'fetchUrls',
-        requiresApiHost: true,
-        requiresApiKey: false,
-        apiHost: 'https://api.firecrawl.dev'
-      }
-    ]
+    capabilities: [{ feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }]
   }
-} as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
+}
 
 export const PRESETS_WEB_SEARCH_PROVIDERS: readonly WebSearchProviderPreset[] = WEB_SEARCH_PROVIDER_IDS.map((id) => ({
   id,
   ...WEB_SEARCH_PROVIDER_PRESET_MAP[id]
 }))
 
-/** Whether the selected client provider has enough local configuration to execute a capability. */
-export function isWebSearchProviderReady(
-  provider: WebSearchProvider | undefined,
-  feature: WebSearchProviderFeatureCapability['feature']
-): boolean {
-  if (!provider) return false
-
-  const capability = provider.capabilities.find((candidate) => candidate.feature === feature)
-  if (!capability) return false
-
-  if (capability.requiresApiHost) {
-    const apiHost = capability.apiHost?.trim()
-    if (!apiHost) return false
-
-    try {
-      const protocol = new URL(apiHost).protocol
-      if (protocol !== 'http:' && protocol !== 'https:') return false
-    } catch {
-      return false
-    }
-  }
-
-  return !capability.requiresApiKey || provider.apiKeys.some((apiKey) => apiKey.trim().length > 0)
-}
+export const WEB_SEARCH_FALLBACK_PROVIDER_IDS_BY_CAPABILITY = {
+  searchKeywords: ['exa-mcp'],
+  fetchUrls: ['fetch', 'jina']
+} as const satisfies Record<WebSearchCapability, readonly WebSearchProviderId[]>

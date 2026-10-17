@@ -1,10 +1,15 @@
 import { bearer } from '@elysia/bearer'
-import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
 
-import type { InputParamsMap } from '../adapters'
+import { application } from '@application'
+import {
+  ANTIGRAVITY_MODEL_PATH_SEPARATOR,
+  isReservedGeminiGatewayModelId,
+  stripGeminiGatewayModelSuffix
+} from '@shared/utils/apiGateway'
+
 import { googleEnvelope } from '../errors'
-import { authorizeApiRequest } from '../middleware/auth'
+import { authorizeApiRequest, authorizeCredentialScope, type GatewaySurface } from '../middleware/auth'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
 import { estimateGeminiRequestTokens } from '../tokens/estimateGeminiRequestTokens'
@@ -25,6 +30,18 @@ function parseModelMethod(raw: string): { model: string; method: string } | null
   const lastColon = raw.lastIndexOf(':')
   if (lastColon <= 0 || lastColon >= raw.length - 1) return null
   return { model: stripGeminiGatewayModelSuffix(raw.slice(0, lastColon)), method: raw.slice(lastColon + 1) }
+}
+
+/** Convert Antigravity's custom-model path back to the gateway's `providerId:apiModelId` address. */
+function normalizeAntigravityModelPath(model: string): string {
+  const separator = ANTIGRAVITY_MODEL_PATH_SEPARATOR
+  const separatorIndex = model.indexOf(separator)
+  if (separatorIndex <= 0) return model
+
+  const providerId = model.slice(0, separatorIndex)
+  const apiModelId = model.slice(separatorIndex + separator.length)
+  if (!apiModelId || providerId.includes(':')) return model
+  return `${providerId}:${apiModelId}`
 }
 
 /** Google `invalid_argument` (400) envelope for in-handler request errors. */
@@ -49,64 +66,69 @@ const invalidArgument = (message: string) => ({
  * the app proxy/auth. Errors are shaped into the Google envelope by the app's root `onError`
  * (path-based → `googleErrorHandler`).
  */
-export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
-  .use(bearer())
-  .guard({
-    as: 'local',
-    beforeHandle: ({ bearer, headers, query, set }) => {
-      const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
-      const failure = authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey)
-      if (!failure) return undefined
-      // Short-circuit responses bypass the root `onError`, so shape the Google
-      // envelope here directly (401 → UNAUTHENTICATED, 403 → PERMISSION_DENIED)
-      // to honour the `/v1beta` dialect's error contract.
-      set.status = failure.status
-      return googleEnvelope(failure.status, failure.error)
-    }
-  })
-  .post(
-    '/models/*',
-    async ({ params, body, request, status }) => {
-      const parsed = parseModelMethod(params['*'])
-      if (!parsed) {
-        return status(400, invalidArgument('Invalid model path. Expected "models/{model}:{method}".'))
+export const createGeminiRoutes = (surface: GatewaySurface) =>
+  new Elysia({ prefix: '/v1beta' })
+    .use(bearer())
+    .guard({
+      as: 'local',
+      beforeHandle: ({ bearer, headers, query, set, request, body }) => {
+        const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
+        const failure =
+          authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey, request.headers, surface) ??
+          authorizeCredentialScope(request, body, surface)
+        if (!failure) return undefined
+        // Short-circuit responses bypass the root `onError`, so shape the Google
+        // envelope here directly (401 → UNAUTHENTICATED, 403 → PERMISSION_DENIED)
+        // to honour the `/v1beta` dialect's error contract.
+        set.status = failure.status
+        return googleEnvelope(failure.status, failure.error)
       }
-      const { model, method } = parsed
+    })
+    .post(
+      '/models/*',
+      async ({ params, body, request, status }) => {
+        const parsed = parseModelMethod(params['*'])
+        if (!parsed) {
+          return status(400, invalidArgument('Invalid model path. Expected "models/{model}:{method}".'))
+        }
+        const { method } = parsed
+        const model = normalizeAntigravityModelPath(parsed.model)
 
-      // The sentinel suffix is reserved: `parseModelMethod` strips one trailing `@cherry`, so a
-      // model that STILL ends in it addresses a real id ending in the reserved suffix — which is
-      // ambiguous with the sentinel and never advertised by `GET /models`. Reject rather than route.
-      if (isReservedGeminiGatewayModelId(model)) {
-        return status(400, invalidArgument(`Model id "${model}" is reserved and not routable through the gateway.`))
-      }
+        // The sentinel suffix is reserved: `parseModelMethod` strips one trailing `@cherry`, so a
+        // model that STILL ends in it addresses a real id ending in the reserved suffix — which is
+        // ambiguous with the sentinel and never advertised by `GET /models`. Reject rather than route.
+        if (isReservedGeminiGatewayModelId(model)) {
+          return status(400, invalidArgument(`Model id "${model}" is reserved and not routable through the gateway.`))
+        }
 
-      if (method === 'countTokens') {
-        return {
-          totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], model, request.signal)
+        if (method === 'countTokens') {
+          const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
+          return {
+            totalTokens: await estimateGeminiRequestTokens(body, model, request.signal, isInternalRequest)
+          }
+        }
+        if (!GENERATE_METHODS.has(method)) {
+          return status(400, invalidArgument(`Unsupported method: "${method}".`))
+        }
+
+        return processMessage({
+          params: body,
+          modelString: model,
+          streaming: method === 'streamGenerateContent',
+          inputFormat: 'gemini',
+          outputFormat: 'gemini',
+          signal: request.signal,
+          requestHeaders: request.headers
+        })
+      },
+      {
+        body: GeminiGenerateContentBodySchema,
+        // `summary` is Gemini's own canonical method name; only `description` is
+        // localized, per request (see chat.ts).
+        detail: {
+          tags: [DOC_TAGS.gemini],
+          summary: 'generateContent',
+          description: DOC_DESCRIPTIONS.generate_content
         }
       }
-      if (!GENERATE_METHODS.has(method)) {
-        return status(400, invalidArgument(`Unsupported method: "${method}".`))
-      }
-
-      return processMessage({
-        params: body,
-        modelString: model,
-        streaming: method === 'streamGenerateContent',
-        inputFormat: 'gemini',
-        outputFormat: 'gemini',
-        signal: request.signal,
-        requestHeaders: request.headers
-      })
-    },
-    {
-      body: GeminiGenerateContentBodySchema,
-      // `summary` is Gemini's own canonical method name; only `description` is
-      // localized, per request (see chat.ts).
-      detail: {
-        tags: [DOC_TAGS.gemini],
-        summary: 'generateContent',
-        description: DOC_DESCRIPTIONS.generate_content
-      }
-    }
-  )
+    )

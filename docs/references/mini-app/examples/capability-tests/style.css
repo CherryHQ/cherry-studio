@@ -1,0 +1,140 @@
+/* Every colour comes from /__cherry/theme.css, so light and dark mode need no code here. */
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--cs-font-family-body, system-ui, sans-serif);
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+
+h3 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--muted-foreground);
+}
+
+.hint {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.panel {
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+button {
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+button.secondary {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+button.small {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+button:disabled {
+  cursor: default;
+  color: var(--foreground-disabled);
+  background: var(--muted);
+}
+
+.permissions {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+
+.permissions .granted {
+  color: var(--success);
+}
+
+.permissions .denied {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.group h3 {
+  width: 100%;
+}
+
+.log {
+  margin: 0;
+  padding: 10px 12px 10px 32px;
+  min-height: 120px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.log .pass {
+  color: var(--success);
+}
+
+.log .fail {
+  color: var(--error);
+}

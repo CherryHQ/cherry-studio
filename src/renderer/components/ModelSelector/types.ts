@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
+
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CommandId } from '@shared/utils/command'
-import type { ReactNode } from 'react'
 
 import type { ModelSelectorTag } from './filters'
 
@@ -19,6 +20,8 @@ interface ModelSelectorCommonProps {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
+  isModelDisabled?: ModelSelectorFilter
+  includeAgentOnlyModels?: boolean
   prioritizedProviderIds?: readonly string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign
@@ -84,6 +87,7 @@ export interface ModelSelectorGroupItem {
 export interface ModelSelectorModelItem {
   key: string
   type: 'model'
+  groupKind: 'pinned' | 'provider'
   model: Model
   provider: Provider
   modelId: UniqueModelId
@@ -96,10 +100,13 @@ export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
 
 export interface UseModelSelectorDataOptions {
   enabled?: boolean
+  includeAgentOnlyModels?: boolean
   selectedModelIds?: readonly UniqueModelId[]
   maxSelectedCount?: number
   searchText: string
   filter?: ModelSelectorFilter
+  /** Limits visible rows and tags without changing selectable models. */
+  visibilityFilter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
   prioritizedProviderIds?: readonly string[]
@@ -107,6 +114,8 @@ export interface UseModelSelectorDataOptions {
 
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
+  getModelDescription: (model: Model) => string | undefined
+  isModelUnavailable: (model: Model) => boolean
   isLoading: boolean
   isPinActionDisabled: boolean
   listItems: FlatListItem[]

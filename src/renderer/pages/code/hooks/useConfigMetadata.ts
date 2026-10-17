@@ -1,3 +1,5 @@
+import { useCallback, useMemo } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
@@ -6,9 +8,8 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
-import { isCherryAIProvider, isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
-import { useCallback, useMemo } from 'react'
+import { isEmbeddingModel, isPublicGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import { isAgentOnlyProvider, isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
 
 import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
 import { modelSupportsCliTool } from '../utils/modelSupport'
@@ -28,14 +29,18 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
   const gatewayProviderIds = useMemo(
     () =>
-      new Set(providers.filter((provider) => provider.isEnabled && !isExternalCliProvider(provider)).map((p) => p.id)),
+      new Set(
+        providers
+          .filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider))
+          .map((provider) => provider.id)
+      ),
     [providers]
   )
   const gatewayModelsById = useMemo(
     () =>
       new Map(
         allModels
-          .filter((model) => gatewayProviderIds.has(model.providerId) && isGatewayRoutableModel(model))
+          .filter((model) => gatewayProviderIds.has(model.providerId) && isPublicGatewayRoutableModel(model))
           .map((model) => [model.id, model])
       ),
     [allModels, gatewayProviderIds]
@@ -64,14 +69,15 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
         if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) return false
         // The gateway does dialect conversion, so any chat model of any enabled provider is usable
         // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
-        // keeping only what the gateway can route (same predicate as its /v1/models listing).
+        // keeping only what Code Mate may route through the gateway. Cherry Cloud does not expose
+        // a Code Mate feature entitlement, so its managed models are never offered here.
         if (isApiGatewayProviderId(providerId)) {
-          return isGatewayRoutableModel(model)
+          return gatewayProviderIds.has(model.providerId) && isPublicGatewayRoutableModel(model)
         }
         if (!modelSupportsCliTool(selectedCliTool, model)) return false
         return model.providerId === providerId
       },
-    [selectedCliTool]
+    [gatewayProviderIds, selectedCliTool]
   )
 
   const resolveProviderMetaForTool = useCallback(
@@ -114,6 +120,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     resolveProviderMeta,
     resolveProviderMetaForTool,
     gatewayModelsById,
+    modelById,
     defaultGatewayModelId,
     isGatewayModelsLoading
   }

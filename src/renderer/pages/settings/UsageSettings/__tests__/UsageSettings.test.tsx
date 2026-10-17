@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import UsageSettings from '../UsageSettings'
 
@@ -113,6 +114,17 @@ describe('UsageSettings', () => {
     expect(screen.getByRole('combobox', { name: 'Top' })).toHaveTextContent('20')
   })
 
+  it('caps the dashboard column so ultrawide windows do not stretch charts', () => {
+    render(<UsageSettings />)
+
+    const overview = screen.getByRole('heading', { name: '概览' })
+    const column = overview.closest('.mx-auto')
+
+    // Layout contract: the usage dashboard is bounded (`max-w-6xl`), not full-bleed (`max-w-none`).
+    expect(column).toHaveClass('max-w-6xl')
+    expect(column).not.toHaveClass('max-w-none')
+  })
+
   it('keeps the overview insight row when usage data exists', () => {
     usageDataOverride.current = {
       overviewTotals: {
@@ -131,5 +143,11 @@ describe('UsageSettings', () => {
     expect(screen.getByText('高峰日')).toBeInTheDocument()
     expect(screen.getByText('用量最高模型')).toBeInTheDocument()
     expect(screen.getByText('日均')).toBeInTheDocument()
+  })
+
+  it('shows usage analytics without the personal profile editor', () => {
+    render(<UsageSettings />)
+    expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '头像' })).not.toBeInTheDocument()
   })
 })

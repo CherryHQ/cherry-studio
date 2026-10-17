@@ -54,6 +54,10 @@ export function validateBinaryToolDefinition(tool: BinaryToolGrammar): void {
 export interface BinaryToolPreset {
   name: string
   tool: string
+  /** Exact npm packages whose lifecycle scripts mise may run during installation. */
+  npmAllowBuilds?: readonly string[]
+  /** mise leaves transitive pipx requirements unbounded; Cherry enforces these in the installed environment. */
+  pipDependencies?: readonly string[]
   displayName: string
   icon?: string
   repoUrl: string
@@ -63,6 +67,7 @@ export interface BinaryToolPreset {
 /** The BinaryManager tool name for the BabelDOC PDF layout-preserving engine. */
 export const BABELDOC_TOOL_NAME = 'babeldoc-stream'
 export const BABELDOC_MINIMUM_VERSION = '0.6.4.post4'
+export const BABELDOC_PIP_DEPENDENCIES = ['bitstring<5'] as const
 
 export type BabelDocInstallationStatus = 'missing' | 'outdated' | 'available'
 
@@ -153,6 +158,8 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     name: BABELDOC_TOOL_NAME,
     displayName: 'BabelDOC Stream',
     tool: 'pipx:babeldoc-stream',
+    // bitstring 5.0.0 removed BitStream, which babeldoc-stream 0.6.4.post4 imports at load.
+    pipDependencies: BABELDOC_PIP_DEPENDENCIES,
     repoUrl: 'https://github.com/eeee0717/BabelDOC',
     homepage: 'https://pypi.org/project/babeldoc-stream/'
   }

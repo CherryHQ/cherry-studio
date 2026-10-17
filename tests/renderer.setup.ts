@@ -1,10 +1,13 @@
 import '@testing-library/jest-dom/vitest'
-
 import { createRequire } from 'node:module'
+
 import { beforeAll, beforeEach, expect, vi } from 'vitest'
 
+import { MockCherrystudioUI } from './__mocks__/renderer/CherrystudioUI'
 import { resetPopupMocks } from './__mocks__/renderer/popup'
 import { resetToastMocks } from './__mocks__/renderer/toast'
+
+vi.stubGlobal('__APP_EDITION__', 'global')
 
 const require = createRequire(import.meta.url)
 const bufferModule = require('buffer')
@@ -162,8 +165,13 @@ vi.stubGlobal('api', {
 vi.mock('@cherrystudio/ui/components/composites/markdown/styles', () => ({}))
 
 // Mock @cherrystudio/ui globally for renderer tests
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
+  // Real implementation: its filtering/normalization contract is what callers
+  // are tested against, and a stub would drift from it.
+  const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
+  const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
+  const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -177,6 +185,7 @@ vi.mock('@cherrystudio/ui', () => {
   const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   const FormFieldNameContext = React.createContext(undefined)
   return {
+    BarVisualizer,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
     Markdown: ({ children }) => React.createElement('div', null, children),
@@ -252,6 +261,8 @@ vi.mock('@cherrystudio/ui', () => {
             )
           )
         : null,
+    InputNumber,
+    InputGroupInputNumber,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -659,7 +670,7 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('div', triggerProps, children)
     },
-    PopoverContent: ({ children, align, side, sideOffset, ...props }) => {
+    PopoverContent: ({ children, align, onEscapeKeyDown: _onEscapeKeyDown, side, sideOffset, ...props }) => {
       const context = React.useContext(PopoverContext)
       return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
     },
@@ -695,10 +706,20 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
-    Scrollbar: ({ children, ...props }) =>
+    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
-    Dropzone: ({ children, getFilesFromEvent: _getFilesFromEvent, onDrop: _onDrop, maxFiles: _maxFiles, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
+    Dropzone: ({
+      children,
+      getFilesFromEvent: _getFilesFromEvent,
+      maxFiles: _maxFiles,
+      multiple: _multiple,
+      noClick: _noClick,
+      noKeyboard: _noKeyboard,
+      onDrop: _onDrop,
+      onError: _onError,
+      validator: _validator,
+      ...props
+    }) => React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
     DropzoneEmptyState: ({ children }) => React.createElement(React.Fragment, null, children),
     Kbd: ({ children, ...props }) => React.createElement('kbd', { ...props }, children),
     Checkbox: ({ checked, onCheckedChange, ...props }) =>
@@ -925,6 +946,7 @@ vi.mock('@cherrystudio/ui', () => {
       secondaryLabel,
       onSecondary,
       preset,
+      compact: _compact,
       ...props
     }) =>
       React.createElement(
@@ -965,28 +987,29 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
-    Scrollbar: ({ children, ...props }) =>
+    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
-    AvatarImage: ({ src, ...props }) =>
-      React.createElement('img', { ...props, src, alt: '', 'data-testid': 'avatar-image' }),
+    AvatarImage: ({ src, ...props }) => React.createElement('img', { ...props, src, 'data-testid': 'avatar-image' }),
     AvatarFallback: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
-    EmojiIcon: ({ emoji, className, fluid, fontSize }) =>
+    EmojiIcon: ({ emoji, className, fluid, fontSize, size }) =>
       React.createElement(
         'div',
         {
           className,
           'data-testid': 'emoji-icon',
           ...(fluid !== undefined ? { 'data-fluid': String(fluid) } : {}),
-          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {})
+          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {}),
+          ...(size !== undefined ? { 'data-size': String(size) } : {})
         },
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
+    DescriptionSwitch: MockCherrystudioUI.DescriptionSwitch,
     Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -1004,12 +1027,30 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('button', { ...props, role: 'tab', type: 'button', 'data-value': value }, children),
     TabsContent: ({ children, value, ...props }) =>
       React.createElement('div', { ...props, role: 'tabpanel', 'data-value': value }, children),
+    // InputGroup primitives — flattened: the input and its addons render side by side
+    InputGroup: ({ children, ...props }) => React.createElement('div', { ...props, role: 'group' }, children),
+    InputGroupInput: (props) => React.createElement('input', props),
+    InputGroupAddon: ({ children, align, ...props }) =>
+      React.createElement('div', { ...props, 'data-align': align }, children),
+    InputGroupButton: ({ children, variant, size, ...props }) =>
+      React.createElement('button', { ...props, type: 'button' }, children),
+    InputGroupText: ({ children, ...props }) => React.createElement('span', props, children),
     // Popover primitives — Radix-style trigger / content split
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
-    PopoverContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    PopoverContent: ({ align, children, onEscapeKeyDown: _onEscapeKeyDown, side, sideOffset, ...props }) =>
+      React.createElement(
+        'div',
+        {
+          ...props,
+          'data-align': align,
+          'data-side': side,
+          'data-side-offset': sideOffset,
+          'data-testid': 'popover-content'
+        },
+        children
+      ),
     HoverCard: ({ children, openDelay: _openDelay, closeDelay: _closeDelay, ...props }) =>
       React.createElement('div', props, children),
     HoverCardTrigger: ({ children, asChild, ...props }) => {
@@ -1025,7 +1066,7 @@ vi.mock('@cherrystudio/ui', () => {
       sideOffset: _sideOffset,
       collisionPadding: _collisionPadding,
       ...props
-    }) => React.createElement('div', props, children),
+    }) => React.createElement('div', { ...props, 'data-slot': 'hover-card-content' }, children),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     // Icon registry stubs
     PROVIDER_ICON_CATALOG: {},

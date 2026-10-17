@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq, isNull } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -10,9 +14,6 @@ import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
   () => ({
@@ -99,6 +100,7 @@ describe('KnowledgeService integration', () => {
       orderKey: 'a0'
     })
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id: SOURCE_BASE_ID,
       name: 'Legacy KB',
       groupId: SOURCE_GROUP_ID,
@@ -230,6 +232,7 @@ describe('KnowledgeService integration', () => {
 
     const seedCompletedBaseWithNote = async () => {
       await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a0',
         id: COMPLETED_BASE_ID,
         name: 'Active KB',
         groupId: null,

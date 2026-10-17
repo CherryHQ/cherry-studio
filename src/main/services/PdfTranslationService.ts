@@ -3,6 +3,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 
+import { stringify as stringifyToml } from 'smol-toml'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
@@ -34,8 +37,6 @@ import {
 } from '@shared/ipc/schemas/translate'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { stringify as stringifyToml } from 'smol-toml'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('PdfTranslationService')
 const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v2'
@@ -75,6 +76,7 @@ const babeldocStreamEventSchema = z.discriminatedUnion('type', [
 const SIDECAR_ENV_KEYS = new Set([
   'ALL_PROXY',
   'COMSPEC',
+  'CURL_CA_BUNDLE',
   'HTTPS_PROXY',
   'HTTP_PROXY',
   'LANG',
@@ -82,6 +84,7 @@ const SIDECAR_ENV_KEYS = new Set([
   'NO_PROXY',
   'PATH',
   'PATHEXT',
+  'REQUESTS_CA_BUNDLE',
   'SSL_CERT_DIR',
   'SSL_CERT_FILE',
   'SYSTEMROOT',
@@ -128,12 +131,6 @@ const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
   return region ? `${language}-${region.toUpperCase()}` : language
 }
 
-const gatewayHostForClient = (host: string): string => {
-  if (host === '0.0.0.0') return '127.0.0.1'
-  if (host === '::') return '[::1]'
-  return host
-}
-
 /**
  * Proxy env for the sidecar, which reaches the gateway over loopback.
  *
@@ -162,6 +159,22 @@ const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost:
   if (!hosts.includes(host)) hosts.push(host)
   const noProxy = hosts.join(',')
   return { ...proxyEnv, NO_PROXY: noProxy, no_proxy: noProxy }
+}
+
+/**
+ * Requests ignores SSL_CERT_FILE, so derive its bundle variables only when neither is set.
+ * Requests prefers REQUESTS_CA_BUNDLE over CURL_CA_BUNDLE, so a derived value could override an explicit one.
+ */
+const buildSidecarCaBundleEnv = (allowedEnv: Record<string, string>): Record<string, string> => {
+  const getNonEmptyEnv = (name: string): string | undefined =>
+    Object.entries(allowedEnv).find(([key, value]) => key.toUpperCase() === name && value.trim())?.[1]
+  const sslCertFile = getNonEmptyEnv('SSL_CERT_FILE')
+  if (!sslCertFile || getNonEmptyEnv('REQUESTS_CA_BUNDLE') || getNonEmptyEnv('CURL_CA_BUNDLE')) return {}
+
+  return {
+    REQUESTS_CA_BUNDLE: sslCertFile,
+    CURL_CA_BUNDLE: sslCertFile
+  }
 }
 
 @Injectable('PdfTranslationService')
@@ -224,12 +237,11 @@ export class PdfTranslationService extends BaseService {
       stageProgress: null
     }
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
-    const gateway = application.get('ApiGatewayService')
-    let gatewayLeaseAcquired = false
+    let gateway: { baseUrl: string; apiKey: string; dispose: () => void } | undefined
 
     try {
       // Register the job as the first in-try statement so the `finally` cleanup (delete + temp
-      // removal + lease release) always pairs with it — a throw from the resolves above can't leave
+      // removal) always pairs with it — a throw from the resolves above can't leave
       // the id wedged in `activeJobs`.
       this.activeJobs.set(request.jobId, job)
       await fs.promises.access(request.sourcePath, fs.constants.R_OK)
@@ -245,21 +257,26 @@ export class PdfTranslationService extends BaseService {
       const model = modelService.getByKey(providerId, modelId)
       const gatewayModelId = formatGatewayModelId(providerId, model.apiModelId ?? modelId)
 
-      // Hold a temporary run lease instead of toggling the gateway's persistent enabled state, so a
-      // user enabling/disabling the gateway mid-translation is neither overridden nor able to cut us off.
-      await gateway.acquireLease()
-      gatewayLeaseAcquired = true
+      // The internal listener is independent of the user-facing gateway toggle and port.
+      gateway = await application
+        .get('ApiGatewayService')
+        .createScopedCredential({ path: '/v1/chat/completions', model: gatewayModelId })
       this.throwIfCancelled(job)
-
-      const apiKey = await gateway.ensureValidApiKey()
-      const config = gateway.getCurrentConfig()
-      const baseUrl = `http://${gatewayHostForClient(config.host)}:${config.port}/v1`
 
       await fs.promises.rm(outputDir, { force: true, recursive: true })
       await fs.promises.mkdir(outputDir, { recursive: true })
       onStage?.('translating')
 
-      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onProgress)
+      await this.runSidecar(
+        job,
+        executable,
+        request,
+        outputDir,
+        gatewayModelId,
+        `${gateway.baseUrl}/v1`,
+        gateway.apiKey,
+        onProgress
+      )
       this.throwIfCancelled(job)
 
       // BabelDOC Stream 0.6.4.post1 inserts a `.no_watermark` segment into the mono filename whenever the
@@ -283,13 +300,13 @@ export class PdfTranslationService extends BaseService {
       }
       throw error
     } finally {
+      gateway?.dispose()
       this.activeJobs.delete(request.jobId)
       // Unconditional: on success the artifact already lives in FileManager, on failure
       // there is nothing worth keeping. Nobody outside this method reads the temp dir.
       await fs.promises.rm(outputDir, { force: true, recursive: true }).catch((error) => {
         logger.warn('Failed to clean PDF translation output', { jobId: request.jobId, error: String(error) })
       })
-      if (gatewayLeaseAcquired) gateway.releaseLease()
     }
   }
 
@@ -595,6 +612,7 @@ export class PdfTranslationService extends BaseService {
     const runtimeHome = application.getPath('feature.pdf_translation.babeldoc')
     return mergeBinaryExecutionEnv({
       ...allowedEnv,
+      ...buildSidecarCaBundleEnv(allowedEnv),
       ...buildSidecarProxyEnv(allowedEnv.NO_PROXY ?? allowedEnv.no_proxy, new URL(gatewayBaseUrl).hostname),
       HOME: runtimeHome,
       USERPROFILE: runtimeHome,

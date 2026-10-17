@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { act, renderHook } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))

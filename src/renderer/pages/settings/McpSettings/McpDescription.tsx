@@ -1,11 +1,12 @@
-import { Spinner } from '@cherrystudio/ui'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { useTheme } from '@renderer/hooks/useTheme'
 import DOMPurify from 'dompurify'
 import { npxFinder } from 'npx-scope-finder'
 import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Spinner } from '@cherrystudio/ui'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 interface McpDescriptionProps {
   searchKey: string

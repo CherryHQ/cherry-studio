@@ -1,15 +1,18 @@
+import type { TFunction } from 'i18next'
+import { ChevronLeft, Settings2 } from 'lucide-react'
+import { type DragEvent, useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, CircularProgress, ConfirmDialog } from '@cherrystudio/ui'
+import { useDrag } from '@renderer/hooks/useDrag'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { KnowledgeItemSort, KnowledgeItemSortBy } from '@shared/data/api/schemas/knowledges'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import type { LocalModelStatus } from '@shared/data/presets/localModel'
+import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared/data/presets/localModel'
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
-import type { TFunction } from 'i18next'
-import { ChevronLeft, Settings2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
@@ -21,6 +24,8 @@ import { dataSourceTypeDisplayConfig } from './utils/models'
 import { canReindexKnowledgeItem, getItemTitle } from './utils/selectors'
 
 export interface DataSourcePanelProps {
+  sort?: KnowledgeItemSort | null
+  onSortChange?: (sortBy: KnowledgeItemSortBy) => void
   embeddingModelId?: string | null
   items: KnowledgeItem[]
   /** Server-side total across all pages. Defaults to the loaded count when omitted. */
@@ -147,6 +152,8 @@ interface DataSourcePanelContentProps extends DataSourcePanelProps {
 }
 
 const DataSourcePanelContent = ({
+  sort = null,
+  onSortChange,
   items,
   total = items.length,
   isLoading,
@@ -184,6 +191,14 @@ const DataSourcePanelContent = ({
       return next.size === prev.size ? prev : next
     })
   }, [items])
+
+  const handleSortChange = useCallback(
+    (sortBy: KnowledgeItemSortBy) => {
+      setSelectedIds(new Set())
+      onSortChange?.(sortBy)
+    },
+    [onSortChange]
+  )
 
   const handleItemClick = (itemId: string) => onItemClick?.(itemId)
 
@@ -283,6 +298,18 @@ const DataSourcePanelContent = ({
   }
 
   const handleAddSource = useCallback((source: KnowledgeItemType) => onAdd(source), [onAdd])
+  const handleFileDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      const files = Array.from(event.dataTransfer.files)
+      if (files.length > 0) {
+        onAdd('file', files)
+      }
+    },
+    [onAdd]
+  )
+  const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } =
+    useDrag<HTMLDivElement>(handleFileDrop)
+  const canAddSource = !currentDirectory && !localEmbeddingState
   const localModelStatus =
     localEmbeddingState && (items.length > 0 || Boolean(currentDirectory))
       ? {
@@ -307,12 +334,24 @@ const DataSourcePanelContent = ({
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
             onAdd={handleAddSource}
-            canAddSource={!currentDirectory && !localEmbeddingState}
+            canAddSource={canAddSource}
             localModelStatus={localModelStatus}
           />
         </div>
       }>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className="relative flex min-h-0 flex-1 flex-col"
+        onDragEnter={canAddSource ? handleDragEnter : undefined}
+        onDragLeave={canAddSource ? handleDragLeave : undefined}
+        onDragOver={canAddSource ? handleDragOver : undefined}
+        onDrop={canAddSource ? handleDrop : undefined}>
+        {isDragging && canAddSource ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-3 z-10 flex items-center justify-center rounded-lg border border-primary border-dashed bg-background/90 text-foreground shadow-sm">
+            <span className="font-medium text-sm">{t('files.drag_upload')}</span>
+          </div>
+        ) : null}
         {currentDirectory && onNavigateUp && (
           <div className="flex shrink-0 items-center gap-2 px-3 py-2">
             {/* Flat text button (no chrome): the `px-2.5` matches the row's own inset so the chevron
@@ -343,6 +382,9 @@ const DataSourcePanelContent = ({
           )
         ) : (
           <KnowledgeItemList
+            key={currentDirectory?.id ?? 'root'}
+            sort={sort}
+            onSortChange={handleSortChange}
             items={items}
             isLoading={isLoading}
             hasMore={hasMore}
@@ -388,7 +430,7 @@ const DataSourcePanelContent = ({
 }
 
 const LocalEmbeddingDataSourcePanel = (props: DataSourcePanelProps) => {
-  const { status, percent } = useLocalModel('embedding')
+  const { status, percent } = useLocalModel(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
 
   return (
     <DataSourcePanelContent {...props} localEmbeddingState={status === 'ready' ? undefined : { status, percent }} />

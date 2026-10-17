@@ -6,7 +6,7 @@
  * underneath does not simultaneously start a new selection.
  */
 
-import type { CSSProperties, Dispatch, PointerEvent as ReactPointerEvent } from 'react'
+import type { CSSProperties, Dispatch, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { memo, useCallback, useRef } from 'react'
 
 import { ACCENT_COLOR, Z_INDEX } from '../constants'
@@ -144,6 +144,14 @@ export const SelectionHandles = memo(function SelectionHandles({
     finishResize()
   }, [finishResize])
 
+  /**
+   * Half of every strip and dot lies inside the selection, so a double-click aimed at a
+   * resize would otherwise reach the overlay's confirm handler and capture instead.
+   */
+  const handleDoubleClick = useCallback((e: ReactMouseEvent) => {
+    e.stopPropagation()
+  }, [])
+
   return (
     <>
       {EDGE_CONFIGS.map((config) => (
@@ -160,6 +168,7 @@ export const SelectionHandles = memo(function SelectionHandles({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
           onLostPointerCapture={handleLostPointerCapture}
+          onDoubleClick={handleDoubleClick}
         />
       ))}
       {HANDLE_CONFIGS.map((config) => {
@@ -184,6 +193,7 @@ export const SelectionHandles = memo(function SelectionHandles({
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
             onLostPointerCapture={handleLostPointerCapture}
+            onDoubleClick={handleDoubleClick}
           />
         )
       })}

@@ -1,8 +1,9 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { StreamListener } from '@main/ai/streamManager/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Exercises the streaming path of `processMessage`: the `ReadableStream` wiring,
@@ -49,13 +50,15 @@ vi.mock('@application', () => ({
         : name === 'ApiGatewayService'
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
-              isInternalAgentRequest: mockIsInternalAgentRequest,
-              getAgentSessionId: vi.fn(() => undefined)
+              isInternalRequest: (headers: Headers) => mockIsInternalAgentRequest(headers),
+              getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id') ?? undefined
             }
           : undefined
     )
   }
 }))
+
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProvider }
@@ -169,7 +172,7 @@ async function readAll(stream: ReadableStream<Uint8Array> | null): Promise<strin
 
 async function startStreaming(signal?: AbortSignal) {
   const response = processMessage({
-    params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
+    params: { model: 'openai:gpt-4', stream: true, messages: [] },
     inputFormat: 'openai',
     outputFormat: 'openai',
     signal
@@ -210,7 +213,7 @@ function createAnthropicParams(
     max_tokens: 1024,
     messages,
     stream: streaming
-  } as MessageCreateParams
+  }
 }
 
 async function processAndCaptureStreamMessages(
@@ -221,7 +224,7 @@ async function processAndCaptureStreamMessages(
     params,
     inputFormat,
     outputFormat: 'anthropic',
-    requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
   })
   await vi.waitFor(() => expect(mockToUIMessages).toHaveBeenCalled())
   await vi.waitFor(() => expect(captured.listener).toBeDefined())
@@ -336,7 +339,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
         signal: controller.signal,
-        requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+        requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
       })
     ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/tool_use ids must be unique/i) })
     expect(mockToUIMessages).not.toHaveBeenCalled()
@@ -570,10 +573,11 @@ describe('processMessage (streaming)', () => {
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     }
+    mockIsInternalAgentRequest.mockReturnValue(true)
     mockResolveAgentSessionUsage.mockReturnValue(usageContext)
-    const requestHeaders = new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    const requestHeaders = new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     const response = processMessage({
-      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
       requestHeaders
@@ -581,7 +585,44 @@ describe('processMessage (streaming)', () => {
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
     expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ usageContext }))
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
+
+    commit(captured.listener!)
+    await captured.listener!.onDone({} as any)
+    await response
+  })
+
+  it.each([true, false])(
+    'serves only the admitted model, without Cherry retries or fallbacks (stream=%s)',
+    async (stream) => {
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+      expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0 }))
+
+      if (stream) commit(captured.listener!)
+      await captured.listener!.onDone({} as any)
+      await response
+    }
+  )
+
+  it('marks internal Agent usage when no active turn correlation is available', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const response = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    const streamPromptInput = mockStreamPrompt.mock.calls[0][0]
+    expect(streamPromptInput).toEqual(expect.objectContaining({ tokenUsageSource: 'agent' }))
+    expect(streamPromptInput).not.toHaveProperty('usageContext')
 
     commit(captured.listener!)
     await captured.listener!.onDone({} as any)
@@ -640,7 +681,7 @@ describe('processMessage (streaming)', () => {
     controller.abort()
 
     const res = await processMessage({
-      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
       signal: controller.signal
@@ -679,7 +720,7 @@ describe('processMessage (streaming)', () => {
 
   it('returns JSON (not a stream) for non-streaming requests', async () => {
     const resPromise = processMessage({
-      params: { model: 'openai:gpt-4', messages: [] } as any,
+      params: { model: 'openai:gpt-4', messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai'
     })
@@ -690,6 +731,21 @@ describe('processMessage (streaming)', () => {
     const res = await resPromise
     expect(res.headers.get('Content-Type')).toBe('application/json')
     await expect(res.json()).resolves.toEqual({ done: true })
+  })
+
+  it('marks non-streaming internal Agent usage as agent usage', async () => {
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const resPromise = processMessage({
+      params: { model: 'openai:gpt-4', messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
+    })
+
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent' }))
+    await captured.listener!.onDone({} as any)
+    await resPromise
   })
 })
 
@@ -753,7 +809,7 @@ describe('processMessage (error & pause)', () => {
 
   it('non-streaming: a terminal error rejects (propagates to the route → onError envelope)', async () => {
     const resPromise = processMessage({
-      params: { model: 'openai:gpt-4', messages: [] } as any,
+      params: { model: 'openai:gpt-4', messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai'
     })
@@ -769,7 +825,7 @@ describe('processMessage (error & pause)', () => {
 
   it('non-streaming: an idle-timeout pause rejects with a 504 (truncation is not a 200)', async () => {
     const resPromise = processMessage({
-      params: { model: 'openai:gpt-4', messages: [] } as any,
+      params: { model: 'openai:gpt-4', messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai'
     })
@@ -783,7 +839,7 @@ describe('processMessage (error & pause)', () => {
   it('non-streaming: client disconnect resolves without a 504 (response is moot)', async () => {
     const controller = new AbortController()
     const resPromise = processMessage({
-      params: { model: 'openai:gpt-4', messages: [] } as any,
+      params: { model: 'openai:gpt-4', messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
       signal: controller.signal

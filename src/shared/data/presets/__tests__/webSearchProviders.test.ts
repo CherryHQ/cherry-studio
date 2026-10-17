@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { WEB_SEARCH_PROVIDER_IDS, type WebSearchProvider } from '../../preference/preferenceTypes'
+import { WEB_SEARCH_PROVIDER_CATALOG } from '@cherrystudio/web-search/catalog'
+
+import { WEB_SEARCH_PROVIDER_IDS } from '../../preference/preferenceTypes'
 import {
-  isWebSearchProviderReady,
   PRESETS_WEB_SEARCH_PROVIDERS,
   WebSearchProviderIdSchema,
   WebSearchProviderOverrideSchema,
@@ -34,6 +35,14 @@ describe('web search provider schemas', () => {
     expect(result.success).toBe(false)
   })
 
+  it('keeps Exa MCP fetching disabled on Desktop even though the shared protocol supports it', () => {
+    expect(WEB_SEARCH_PROVIDER_CATALOG['exa-mcp'].capabilities.some((item) => item.capability === 'fetchUrls')).toBe(
+      true
+    )
+    const exaMcp = PRESETS_WEB_SEARCH_PROVIDERS.find((provider) => provider.id === 'exa-mcp')
+    expect(exaMcp?.capabilities.map((item) => item.feature)).toEqual(['searchKeywords'])
+  })
+
   it('models Jina as one provider with keyword search and URL fetch capabilities', () => {
     expect(WEB_SEARCH_PROVIDER_IDS).toContain('jina')
     expect(WEB_SEARCH_PROVIDER_IDS).not.toContain('jina-reader')
@@ -62,6 +71,47 @@ describe('web search provider schemas', () => {
     })
   })
 
+  it('requires a user-provided host but permits anonymous Crawl4AI fetching', () => {
+    const crawl4ai = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'crawl4ai')
+
+    expect(crawl4ai?.capabilities).toEqual([
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }
+    ])
+    expect(
+      WebSearchProviderOverridesSchema.safeParse({
+        crawl4ai: { capabilities: { fetchUrls: { apiHost: 'http://localhost:11235' } }, apiKeys: [] }
+      }).success
+    ).toBe(true)
+  })
+
+  it('models Parallel as an API-key-authenticated keyword search provider', () => {
+    const parallel = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'parallel')
+
+    expect(parallel).toBeDefined()
+    expect(parallel!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.parallel.ai'
+      }
+    ])
+  })
+
+  it('models Serply as an API-key-authenticated keyword search provider', () => {
+    const serply = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'serply')
+
+    expect(serply).toBeDefined()
+    expect(serply!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serply.io'
+      }
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 
@@ -80,6 +130,15 @@ describe('web search provider schemas', () => {
     expect(searxng!.capabilities.find((capability) => capability.feature === 'searchKeywords')?.apiHost).toBe(
       'http://localhost:8080'
     )
+  })
+
+  it('models Duckduckgo as a hostless keyless keyword search provider', () => {
+    const duckduckgo = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'duckduckgo')
+
+    expect(duckduckgo).toBeDefined()
+    expect(duckduckgo!.capabilities).toEqual([
+      { feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }
+    ])
   })
 
   it('accepts valid provider overrides', () => {
@@ -126,50 +185,5 @@ describe('web search provider schemas', () => {
 
     expect(idResult.success).toBe(false)
     expect(overridesResult.success).toBe(false)
-  })
-})
-
-describe('client web provider readiness', () => {
-  const provider = (id: WebSearchProvider['id'], apiKeys: string[] = []): WebSearchProvider => {
-    const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((candidate) => candidate.id === id)!
-    return {
-      ...preset,
-      apiKeys,
-      capabilities: [...preset.capabilities],
-      engines: [],
-      basicAuthUsername: '',
-      basicAuthPassword: ''
-    }
-  }
-
-  it('accepts keyless and optional-key search providers with a valid host', () => {
-    expect(isWebSearchProviderReady(provider('exa-mcp'), 'searchKeywords')).toBe(true)
-    expect(isWebSearchProviderReady(provider('searxng'), 'searchKeywords')).toBe(true)
-    expect(isWebSearchProviderReady(provider('firecrawl'), 'searchKeywords')).toBe(true)
-  })
-
-  it('requires an API key for providers that authenticate every search request', () => {
-    expect(isWebSearchProviderReady(provider('tavily'), 'searchKeywords')).toBe(false)
-    expect(isWebSearchProviderReady(provider('tavily', [' key ']), 'searchKeywords')).toBe(true)
-  })
-
-  it('supports both hostless and hosted URL-fetch capabilities without provider-id rules', () => {
-    expect(isWebSearchProviderReady(provider('fetch'), 'fetchUrls')).toBe(true)
-    expect(isWebSearchProviderReady(provider('jina'), 'fetchUrls')).toBe(true)
-    expect(isWebSearchProviderReady(provider('firecrawl'), 'fetchUrls')).toBe(true)
-    expect(isWebSearchProviderReady(provider('fetch'), 'searchKeywords')).toBe(false)
-  })
-
-  it('rejects invalid hosts when the capability metadata requires one', () => {
-    const exaMcp = provider('exa-mcp')
-    expect(
-      isWebSearchProviderReady(
-        {
-          ...exaMcp,
-          capabilities: [{ ...exaMcp.capabilities[0], apiHost: 'not-a-url' }]
-        },
-        'searchKeywords'
-      )
-    ).toBe(false)
   })
 })

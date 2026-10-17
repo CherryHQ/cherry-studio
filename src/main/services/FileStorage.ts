@@ -1,3 +1,13 @@
+import * as crypto from 'crypto'
+import * as fs from 'fs'
+import { writeFileSync } from 'fs'
+import { readFile } from 'fs/promises'
+import * as path from 'path'
+
+import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
+import { dialog, net, shell } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 /**
  * @deprecated LEGACY v1 CODE — being migrated to `FileManager`
  * (`src/main/services/file/FileManager.ts`). This file will be DELETED once
@@ -20,25 +30,19 @@ import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 import { assertOutsideManagedStorageMutation, safeOpen } from '@main/services/file'
 import { getFileType } from '@main/utils/file'
+import { extractLegacyDocText } from '@main/utils/legacyDoc'
 import {
   checkName,
   getFileType as getFileTypeByExt,
   getName,
-  readTextFileWithAutoEncoding
+  readTextFileWithAutoEncoding,
+  sanitizeFilename
 } from '@main/utils/legacyFile'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
-import * as crypto from 'crypto'
-import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { dialog, net, shell } from 'electron'
-import * as fs from 'fs'
-import { writeFileSync } from 'fs'
-import { readFile } from 'fs/promises'
-import * as path from 'path'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('FileStorage')
 
@@ -414,15 +418,14 @@ class FileStorage {
    * @throws Error if file reading fails
    */
   private async readFileCore(filePath: string, detectEncoding: boolean = false): Promise<string> {
-    const fileExtension = path.extname(filePath)
+    const fileExtension = path.extname(filePath).toLowerCase()
 
     if (documentExts.includes(fileExtension)) {
       try {
         if (fileExtension === '.doc') {
-          const { default: WordExtractor } = await import('word-extractor')
-          const extractor = new WordExtractor()
-          const extracted = await extractor.extract(filePath)
-          return extracted.getBody()
+          // Awaited, so a failure reaches the catch below like every other
+          // document read here; returning the promise would settle it outside.
+          return await extractLegacyDocText(filePath)
         }
 
         // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
@@ -544,8 +547,11 @@ class FileStorage {
   ): Promise<{ safeName: string; exists: boolean }> => {
     const safeName = checkName(fileName)
     const finalName = getName(dirPath, safeName, isFile)
-    const fullPath = path.join(dirPath, finalName + (isFile ? '.md' : ''))
-    const exists = fs.existsSync(fullPath)
+    // `finalName` is deduplicated by `getName`, so it never exists on disk.
+    // `exists` must report whether the *requested* name is already taken,
+    // which is what the notes rename flow relies on.
+    const requestedPath = path.join(dirPath, sanitizeFilename(safeName) + (isFile ? '.md' : ''))
+    const exists = fs.existsSync(requestedPath)
 
     logger.debug(`File name guard: ${fileName} -> ${finalName}, exists: ${exists}`)
     return { safeName: finalName, exists }

@@ -63,8 +63,10 @@ async function resolveEntries(ids: string[]): Promise<FileEntry[]> {
  * a different tab.
  */
 export async function recordToPaintingData(record: PaintingRecord): Promise<PaintingData> {
-  const outputEntries = await resolveEntries(record.files.output)
-  const inputFiles = await resolveEntries(record.files.input)
+  const [outputEntries, inputFiles] = await Promise.all([
+    resolveEntries(record.files.output),
+    resolveEntries(record.files.input)
+  ])
   const files = await Promise.all(outputEntries.map(fileEntryToMetadata))
 
   const model = normalizeStoredPaintingModel(record.modelId)

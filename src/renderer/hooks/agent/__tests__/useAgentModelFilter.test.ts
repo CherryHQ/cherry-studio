@@ -1,9 +1,10 @@
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { modelFilterIncludesAgentOnlyProviders, useAgentModelFilter } from '../useAgentModelFilter'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+
+import { useAgentModelFilter } from '../useAgentModelFilter'
 
 function model(capabilities: Model['capabilities'] = []): Model {
   return {
@@ -15,7 +16,7 @@ function model(capabilities: Model['capabilities'] = []): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 const providers = {
@@ -36,14 +37,6 @@ describe('useAgentModelFilter', () => {
 
     expect(result.current({ ...model(), providerId: 'gemini', id: 'gemini::gemini-2.5-pro' })).toBe(true)
     expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(true)
-  })
-
-  it('marks its predicate so selectors surface agent-only providers', () => {
-    const { result } = renderHook(() => useAgentModelFilter('claude-code'))
-
-    expect(modelFilterIncludesAgentOnlyProviders(result.current)).toBe(true)
-    expect(modelFilterIncludesAgentOnlyProviders(() => true)).toBe(false)
-    expect(modelFilterIncludesAgentOnlyProviders(undefined)).toBe(false)
   })
 
   it('continues to reject non-chat model classes for regular agents', () => {
@@ -71,13 +64,13 @@ describe('useAgentModelFilter', () => {
       ).toBe(true)
     })
 
-    it('filters models whose provider has no pi API mapping', () => {
+    it('keeps gateway-routable models available while filtering missing providers', () => {
       const { result } = renderHook(() => useAgentModelFilter('pi'))
 
-      // Vertex is unsupported for pi (D2).
+      // Vertex retains its model through the local gateway.
       expect(
         result.current({ ...model(), providerId: 'vertex', id: 'vertex::gemini-2.5-pro' }, providers.vertex as Provider)
-      ).toBe(false)
+      ).toBe(true)
       // Unknown provider (no entry) cannot be resolved → filtered.
       expect(result.current({ ...model(), providerId: 'ghost', id: 'ghost::model' })).toBe(false)
     })

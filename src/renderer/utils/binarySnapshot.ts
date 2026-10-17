@@ -1,5 +1,6 @@
-import type { BinaryApplication, BinaryToolSnapshot } from '@shared/types/binary'
 import { gt as semverGt, valid as semverValid } from 'semver'
+
+import type { BinaryApplication, BinaryToolSnapshot } from '@shared/types/binary'
 
 /**
  * Normalized, display-ready reading of a raw {@link BinaryToolSnapshot}.

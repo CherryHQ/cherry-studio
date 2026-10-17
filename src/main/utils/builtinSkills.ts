@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
-import { app } from 'electron'
 
 import { toAsarUnpackedPath } from './asar'
 
@@ -21,10 +22,9 @@ const logger = loggerService.withContext('builtinSkills')
  * disables it, so a synced `agent_global_skill` row is enabled everywhere
  * without any `agent_skill` rows.
  *
- * Each installed skill gets a `.version` file recording the app version that
- * installed it. On subsequent launches the bundled version is compared with
- * the installed version — the skill files are overwritten only when the app
- * ships a newer version.
+ * Each installed skill gets a `.version` file recording the app version.
+ * Startup sync compares both that version and the full bundled content hash,
+ * so changed builtins refresh even within the same development app version.
  */
 // TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {

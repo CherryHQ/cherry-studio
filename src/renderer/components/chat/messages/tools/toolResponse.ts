@@ -1,3 +1,6 @@
+import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
+import { getToolName, isToolUIPart } from 'ai'
+
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
 import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
@@ -5,8 +8,6 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
-import { getToolName, isToolUIPart } from 'ai'
 
 import { isMetaToolName } from './meta/metaToolNames'
 import { AgentToolsType } from './shared/agentToolTypes'
@@ -16,7 +17,10 @@ export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
 export const CLAUDE_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
 export const PI_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
-const CHERRY_AGENT_TRANSPORTS = new Set<string>(Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport))
+const CHERRY_AGENT_TRANSPORTS = new Set<string>([
+  ...Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport),
+  'dsh-agent'
+])
 const PI_RUNTIME_BUILTIN_TOOL_NAMES = new Set<string>(
   AGENT_RUNTIME_CAPABILITIES.pi.builtinTools().map((tool) => tool.id)
 )
@@ -64,10 +68,10 @@ export function getCanonicalToolName(part: CherryMessagePart): string | undefine
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
-  return getCanonicalToolName(part as unknown as CherryMessagePart) ?? 'unknown'
+  return getCanonicalToolName(part) ?? 'unknown'
 }
 
-function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus {
+function mapPartStateToStatus(state: string | undefined, approved?: boolean): McpToolResponseStatus {
   switch (state) {
     case 'output-available':
       return 'done'
@@ -80,8 +84,9 @@ function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus 
       return 'streaming'
     case 'input-available':
       return 'invoking'
-    case 'approval-requested':
     case 'approval-responded':
+      return approved === false ? 'cancelled' : 'pending'
+    case 'approval-requested':
       return 'pending'
     default:
       return 'pending'
@@ -206,7 +211,14 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
-  const status = mapPartStateToStatus(toolPart.state)
+  const approval =
+    typeof toolPart.approval?.approved === 'boolean'
+      ? {
+          approved: toolPart.approval.approved,
+          ...(typeof toolPart.approval.reason === 'string' ? { reason: toolPart.approval.reason } : {})
+        }
+      : undefined
+  const status = mapPartStateToStatus(toolPart.state, approval?.approved)
 
   const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart.output)
   const cherryMetadata = extractCherryToolMetadata(toolPart)
@@ -226,6 +238,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
       arguments: toolPart.input as McpToolResponse['arguments'],
       status,
       response,
+      ...(approval ? { approval } : {}),
       toolCallId,
       ...(parentToolUseId ? { parentToolUseId } : {}),
       ...(partialArguments ? { partialArguments } : {})
@@ -240,6 +253,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     arguments: toolPart.input as NormalToolResponse['arguments'],
     status,
     response,
+    ...(approval ? { approval } : {}),
     toolCallId,
     ...(parentToolUseId ? { parentToolUseId } : {}),
     ...(partialArguments ? { partialArguments } : {})

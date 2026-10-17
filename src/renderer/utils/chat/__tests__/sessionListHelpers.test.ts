@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { describe, expect, it } from 'vitest'
 
 import { withSoleGroupLabelHidden } from '../resourceListBase'
 import {
@@ -194,6 +195,19 @@ describe('SessionList helpers', () => {
       ignoreGroupIds: [SESSION_PINNED_GROUP_ID]
     })
     expect(allPinned(pinned)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
+  })
+
+  it('keeps pinned sessions in their dedicated section in agent mode', () => {
+    const groupSession = createSessionDisplayGroupResolver({
+      agentById: new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]]),
+      labels: SESSION_GROUP_LABELS,
+      mode: 'agent'
+    })
+
+    expect(groupSession(createSession({ agentId: 'agent-1', pinned: true }))).toEqual({
+      id: SESSION_PINNED_GROUP_ID,
+      label: 'Pinned'
+    })
   })
 
   it('groups sessions by agent and workdir', () => {
@@ -409,6 +423,25 @@ describe('SessionList helpers', () => {
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
+  })
+
+  it('sorts the pinned section before every agent group', () => {
+    const sessions = [
+      createSession({ id: 'regular-b', agentId: 'agent-b', orderKey: 'b' }),
+      createSession({ id: 'regular-a', agentId: 'agent-a', orderKey: 'a' }),
+      createSession({ id: 'pinned-b', agentId: 'agent-b', orderKey: 'd', pinned: true }),
+      createSession({ id: 'pinned-a', agentId: 'agent-a', orderKey: 'c', pinned: true })
+    ]
+
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        agentRankById: new Map([
+          ['agent-a', 0],
+          ['agent-b', 1]
+        ]),
+        mode: 'agent'
+      }).map((session) => session.id)
+    ).toEqual(['pinned-b', 'pinned-a', 'regular-a', 'regular-b'])
   })
 
   it('keeps system workspace sessions at the bottom only in workdir mode', () => {

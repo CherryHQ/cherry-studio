@@ -7,6 +7,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'xfyun',
   name: 'iFlytek Astron MaaS',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://maas-api.cn-huabei-1.xf-yun.com/v2',
   website: {
     apiKey: 'https://training.xfyun.cn/modelService',

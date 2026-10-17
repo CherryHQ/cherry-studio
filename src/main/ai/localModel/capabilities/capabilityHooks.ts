@@ -1,0 +1,49 @@
+import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { loggerService } from '@logger'
+import type { UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import type { LocalModelBundleId, LocalModelCapability } from '@shared/data/presets/localModel'
+
+import type { CapabilityHooks } from '../installation/BundleInstaller'
+
+const logger = loggerService.withContext('localModelCapabilityHooks')
+
+const CAPABILITY_HOOKS: Record<LocalModelCapability, (modelId: LocalModelBundleId) => CapabilityHooks> = {
+  embedding: (modelId) => ({
+    acquireRemovalGuard: () => knowledgeBaseService.acquireEmbeddingModelRemovalGuard(LOCAL_EMBEDDING_UNIQUE_MODEL_ID),
+    terminateRuntimeThen: (after) => application.get('EmbeddingInferenceService').removeModelThen(modelId, after)
+  }),
+  ocr: (modelId) => ({
+    terminateRuntimeThen: (after) => application.get('OcrInferenceService').removeModelThen(modelId, after),
+    afterRemove: demoteOcrDefaults
+  }),
+  tts: (modelId) => ({
+    terminateRuntimeThen: (after) => application.get('TtsInferenceService').removeModelThen(modelId, after)
+  }),
+  asr: (modelId) => ({
+    terminateRuntimeThen: (after) => application.get('AsrInferenceService').removeModelThen(modelId, after)
+  })
+}
+
+export function capabilityHooksFor(capability: LocalModelCapability, modelId: LocalModelBundleId): CapabilityHooks {
+  return CAPABILITY_HOOKS[capability](modelId)
+}
+
+async function demoteOcrDefaults(): Promise<void> {
+  try {
+    const preference = application.get('PreferenceService')
+    const updates: Partial<UnifiedPreferenceType> = {}
+    if (preference.get('feature.file_processing.default_image_to_text') === 'local-paddleocr') {
+      updates['feature.file_processing.default_image_to_text'] = null
+    }
+    if (preference.get('feature.file_processing.default_document_to_markdown') === 'local-document') {
+      updates['feature.file_processing.default_document_to_markdown'] = null
+    }
+    if (Object.keys(updates).length > 0) {
+      await preference.setMultiple(updates)
+    }
+  } catch (error) {
+    logger.warn('failed to reset default processors on OCR model removal', { error: String(error) })
+  }
+}

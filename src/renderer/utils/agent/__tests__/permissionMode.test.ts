@@ -1,5 +1,6 @@
-import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
 import { describe, expect, it } from 'vitest'
+
+import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
 
 import { normalizePermissionMode } from '../permissionMode'
 

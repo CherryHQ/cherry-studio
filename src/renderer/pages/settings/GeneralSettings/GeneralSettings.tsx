@@ -1,8 +1,16 @@
-import { Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
+import { ChevronDown } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import CopyButton from '@renderer/components/CopyButton'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs/components/AgentLanguageField'
 import Selector from '@renderer/components/Selector'
 import {
+  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -16,9 +24,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
 
@@ -44,14 +50,29 @@ const GeneralSettings: FC = () => {
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
   const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
   const [allowPrivateNetworkFetch, setAllowPrivateNetworkFetch] = usePreference('app.fetch.allow_private_network')
+  const [commitAttribution, setCommitAttribution] = usePreference('agent.commit_attribution.enabled')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [remoteDebuggingEnabled, setRemoteDebuggingEnabled] = usePreference('BootConfig.app.remote_debugging.enabled', {
+    optimistic: false
+  })
+  const [remoteDebuggingPort, setRemoteDebuggingPort] = usePreference('BootConfig.app.remote_debugging.port', {
+    optimistic: false
+  })
   const [clientId] = usePreference('app.user.id')
+  const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
+  const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
+  const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
+  const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
+  const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
+  const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
+  const developerSettingsSaving = useRef(false)
+  const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -116,41 +137,71 @@ const GeneralSettings: FC = () => {
     )
   }
 
+  const saveDeveloperSettings = async (save: () => Promise<void>) => {
+    if (developerSettingsSaving.current) return
+    developerSettingsSaving.current = true
+    setIsSavingDeveloperSettings(true)
+    try {
+      await save()
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      developerSettingsSaving.current = false
+      setIsSavingDeveloperSettings(false)
+    }
+  }
+
+  const handleRemoteDebuggingChange = (checked: boolean) =>
+    saveDeveloperSettings(() => setRemoteDebuggingEnabled(checked))
+
+  const handleDeveloperModeChange = (checked: boolean) =>
+    saveDeveloperSettings(async () => {
+      if (!checked) await setRemoteDebuggingEnabled(false)
+      await setEnableDeveloperMode(checked)
+    })
+
+  const handleRemoteDebuggingPortChange = async (port: number | null) => {
+    if (port === null || !Number.isInteger(port) || port < 1 || port > 65534) {
+      toast.error(t('settings.developer.cdp.invalid_port'))
+      return
+    }
+    try {
+      await setRemoteDebuggingPort(port)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    }
+  }
+
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.launch.title')}</SettingTitle>
+        <SettingTitle>{t('settings.general.sections.startup')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-launch-onboot" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
           <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-tray-show" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
           <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
+        <SettingRow id="setting-general-launch-totray" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
+          <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
-          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
+        <SettingRow id="setting-general-tray-onclose" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
+          <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.proxy.mode.title')}</SettingTitle>
+        <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
           <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
         </SettingRow>
@@ -191,7 +242,7 @@ const GeneralSettings: FC = () => {
           </>
         )}
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-allow-private-network" className="scroll-mt-6">
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.fetch.allow_private_network')}</span>
             <InfoTooltip
@@ -205,25 +256,182 @@ const GeneralSettings: FC = () => {
             onCheckedChange={(checked) => void setAllowPrivateNetworkFetch(checked)}
           />
         </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.general.sections.runtime')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-hardware-acceleration" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-prevent-sleep-when-busy" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
+          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
       </SettingGroup>
 
       <ContextManagementSettings />
 
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.developer.title')}</SettingTitle>
+        <SettingTitle>{t('settings.general.sections.retry')}</SettingTitle>
+        <SettingDescription>{t('settings.models.retry.description')}</SettingDescription>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6">
+          <SettingRowTitle className="gap-1">
+            {t('settings.general.retry.enabled')}
+            <InfoTooltip content={t('settings.models.retry.tooltip')} />
+          </SettingRowTitle>
+          <Switch
+            checked={retryEnabled}
+            onCheckedChange={(checked) => void setRetryEnabled(checked)}
+            aria-label={t('settings.general.retry.enabled')}
+          />
+        </SettingRow>
+        {retryEnabled && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.models.retry.max_attempts')}</SettingRowTitle>
+              <div className="w-[220px] shrink-0">
+                <InputNumber
+                  min={1}
+                  max={10}
+                  step={1}
+                  className="h-8 rounded-lg px-2.5"
+                  aria-label={t('settings.models.retry.max_attempts')}
+                  value={retryMaxAttempts}
+                  onBlur={(value) => void setRetryMaxAttempts(value ?? 1)}
+                />
+              </div>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.models.retry.backoff')}</SettingRowTitle>
+              <Switch
+                checked={retryBackoffEnabled}
+                onCheckedChange={(checked) => void setRetryBackoffEnabled(checked)}
+                aria-label={t('settings.models.retry.backoff')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.models.retry.fallback_models')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.models.retry.fallback_models_description')}
+                </SettingDescription>
+              </div>
+              <div className="flex w-[220px] min-w-0 shrink-0 items-center">
+                <ModelSelector
+                  multiple={true}
+                  selectionType="id"
+                  value={retryFallbackModelIds}
+                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
+                  filter={chatModelFilter}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal">
+                      <span className="min-w-0 flex-1 truncate">
+                        {retryFallbackModelIds.length > 0
+                          ? t('settings.models.retry.fallback_models_count', { count: retryFallbackModelIds.length })
+                          : t('settings.models.empty')}
+                      </span>
+                      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+                    </Button>
+                  }
+                />
+              </div>
+            </SettingRow>
+          </>
+        )}
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.general.sections.agent')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-general-agent-language" className="scroll-mt-6 gap-x-6">
+          <SettingRowTitle className="gap-1">
+            {t('settings.agent.language.label')}
+            <InfoTooltip content={t('settings.agent.language.description')} />
+          </SettingRowTitle>
+          <div className="w-[448px] max-w-full min-w-0">
+            <AgentLanguageField
+              className="grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))]"
+              value={agentLanguage}
+              onChange={(next) => void setAgentLanguage(next)}
+              nullOptionLabel={t('settings.agent.language.follow_conversation')}
+              customPlaceholder={t('settings.agent.language.custom_placeholder')}
+              comboLabel={t('settings.agent.language.combo_label')}
+              inputLabel={t('settings.agent.language.custom_label')}
+            />
+          </div>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle id="commit-attribution-title">
+              {t('settings.general.commit_attribution.title')}
+            </SettingRowTitle>
+            <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
+          </div>
+          <Switch
+            checked={commitAttribution}
+            onCheckedChange={(checked) => void setCommitAttribution(checked)}
+            aria-labelledby="commit-attribution-title"
+          />
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.general.sections.developer')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-general-enable-developer-mode" className="scroll-mt-6">
           <Flex className="items-center gap-1">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
-          <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
+          <Switch
+            checked={enableDeveloperMode}
+            disabled={isSavingDeveloperSettings}
+            onCheckedChange={(checked) => void handleDeveloperModeChange(checked)}
+            aria-label={t('settings.developer.enable_developer_mode')}
+          />
         </SettingRow>
+        {enableDeveloperMode && (
+          <>
+            <SettingDivider />
+            <SettingRow id="setting-general-remote-debugging" className="scroll-mt-6 items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.developer.cdp.title')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.developer.cdp.description', { address: `127.0.0.1:${remoteDebuggingPort}` })}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={remoteDebuggingEnabled}
+                disabled={isSavingDeveloperSettings}
+                onCheckedChange={(checked) => void handleRemoteDebuggingChange(checked)}
+                aria-label={t('settings.developer.cdp.title')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow id="setting-general-remote-debugging-port" className="scroll-mt-6">
+              <SettingRowTitle>{t('settings.developer.cdp.port')}</SettingRowTitle>
+              <div className="w-28 shrink-0">
+                <InputNumber
+                  value={remoteDebuggingPort}
+                  disabled={!remoteDebuggingEnabled || isSavingDeveloperSettings}
+                  aria-label={t('settings.developer.cdp.port')}
+                  onBlur={handleRemoteDebuggingPortChange}
+                />
+              </div>
+            </SettingRow>
+          </>
+        )}
         {enableDeveloperMode && clientId ? (
           <>
             <SettingDivider />

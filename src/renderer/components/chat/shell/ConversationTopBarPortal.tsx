@@ -1,8 +1,9 @@
+import { createContext, type ReactNode, use, useCallback, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+
 import { useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
 import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
 import { cn } from '@renderer/utils/style'
-import { createContext, type ReactNode, use, useCallback, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 
 type ConversationTopBarPortalContextValue = {
   iconOnly: boolean

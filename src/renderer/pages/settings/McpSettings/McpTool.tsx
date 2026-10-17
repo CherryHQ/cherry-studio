@@ -1,4 +1,8 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
+import { Zap } from 'lucide-react'
+import type { Key } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Markdown, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
@@ -6,10 +10,6 @@ import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { McpTool } from '@renderer/types/tool'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { Zap } from 'lucide-react'
-import type { Key } from 'react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface McpToolsSectionProps {
   tools: McpTool[]

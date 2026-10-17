@@ -1,7 +1,8 @@
+import { useCallback } from 'react'
+
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
-import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useClearTopicMessages')
 

@@ -4,20 +4,25 @@
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
+import type { UIMessage } from 'ai'
+import { v7 as uuidv7 } from 'uuid'
+
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { UIMessage } from 'ai'
-import { v7 as uuidv7 } from 'uuid'
 
+import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
@@ -39,7 +44,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
-  } as CherryUIMessage
+  }
 }
 
 export type ValidatedAgentDispatch = {
@@ -54,6 +59,8 @@ export type ValidatedAgentDispatch = {
   serviceTier: ServiceTierSelection
   fastMode?: boolean
   headless: boolean
+  /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
   messageSnapshot: MessageSnapshot
   userMessageId: string
   userMessageParts: CherryMessagePart[]
@@ -69,6 +76,11 @@ export type PersistedAgentDispatch = {
   savedMessages: AgentSessionMessageEntity[]
 }
 
+export interface AgentSessionTurnAuthority {
+  /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
+}
+
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
   readonly isPersistentConversation = true
@@ -77,8 +89,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
     return isAgentSessionTopic(topicId)
   }
 
-  async validateDispatch(req: MainDispatchRequest): Promise<ValidatedAgentDispatch> {
-    if (req.trigger !== 'submit-message') {
+  async validateDispatch(
+    req: MainDispatchRequest,
+    authority: AgentSessionTurnAuthority = {}
+  ): Promise<ValidatedAgentDispatch> {
+    if (req.trigger !== 'submit-message' && req.trigger !== 'edit-agent-message') {
       throw new Error(`Agent sessions only support 'submit-message' (got '${req.trigger}')`)
     }
 
@@ -139,6 +154,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: req.headless === true,
+      ...(authority.trustedNotifyChannels !== undefined
+        ? { trustedNotifyChannels: authority.trustedNotifyChannels }
+        : {}),
       messageSnapshot: {
         id: agent.id,
         name: agent.name,
@@ -235,6 +253,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         assistantMessageId,
         userMessage,
         headless: validated.headless,
+        trustedNotifyChannels: validated.trustedNotifyChannels,
         traceId,
         messageSnapshot: validated.messageSnapshot,
         shouldAutoName: validated.shouldAutoNameInitialTurn
@@ -250,7 +269,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         {
           modelId: validated.uniqueModelId,
           request: {
-            chatId: validated.topicId,
+            conversation: { id: validated.topicId, topicId: validated.topicId },
             trigger: 'submit-message',
             assistantId: validated.agentId,
             uniqueModelId: validated.uniqueModelId,
@@ -278,7 +297,43 @@ export class AgentChatContextProvider implements ChatContextProvider {
     req: MainDispatchRequest,
     ctx?: DispatchContext
   ): Promise<PreparedDispatch> {
-    const validated = await this.validateDispatch(req)
+    return this.prepareAgentSessionDispatch(subscriber, req, {}, ctx)
+  }
+
+  async prepareAgentSessionDispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    authority: AgentSessionTurnAuthority,
+    ctx?: DispatchContext,
+    onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
+  ): Promise<PreparedDispatch> {
+    const validated = await this.validateDispatch(req, authority)
+    const runtime = application.get('AgentSessionRuntimeService')
+    runtime.assertSessionWritable(validated.sessionId)
+    if (req.trigger === 'edit-agent-message') {
+      if (ctx?.hasLiveStream) throw new AgentSessionEditError('busy')
+      runtime.assertSessionEditable(validated.sessionId)
+      await validateEditedInput(validated.userMessageParts)
+      validated.shouldAutoNameInitialTurn = false
+      const persisted = await runtime.editSession(validated.sessionId, req.editTarget, (tx, nativeSessionId) => {
+        const result = this.persistDispatchTx(tx, validated, {
+          id: validated.agentId,
+          updatedAt: validated.agentUpdatedAt,
+          model: validated.uniqueModelId,
+          type: validated.agentType
+        })
+        agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+        return result
+      })
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: validated.sessionId }
+        }
+      ])
+      return this.activateDispatch(persisted, subscriber)
+    }
 
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
     // are gated by AgentSessionDeliveryService and never enter this branch.
@@ -298,6 +353,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
+        trustedNotifyChannels: validated.trustedNotifyChannels,
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
@@ -312,9 +368,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
-    const persisted = application
-      .get('DbService')
-      .withWriteTx((tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId))
+    const persisted = application.get('DbService').withWriteTx((tx) => {
+      ctx?.beforePersist?.()
+      const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
+      onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
+      return reserved
+    })
     return this.activateDispatch(persisted, subscriber)
   }
 }

@@ -1,3 +1,7 @@
+import { Globe2, GripVertical, Plus, Unlink, Zap } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button, EmptyState, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
@@ -5,9 +9,6 @@ import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/r
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
-import { GripVertical, Plus, Unlink, Zap } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { PromptEditDialog } from '../edit'
 import { AddCatalogPopover, CatalogEmptyPlaceholder } from './CatalogPicker'
@@ -17,9 +18,10 @@ export type PromptBindingTabProps = {
   enabled: boolean
   target: PromptBindingTarget
   portalContainer?: HTMLElement | null
+  onManageGlobal: () => void
 }
 
-export function PromptBindingTab({ enabled, target, portalContainer }: PromptBindingTabProps) {
+export function PromptBindingTab({ enabled, target, portalContainer, onManageGlobal }: PromptBindingTabProps) {
   const { t } = useTranslation()
   const [isCreatePromptOpen, setIsCreatePromptOpen] = useState(false)
   const [isBinding, setIsBinding] = useState(false)
@@ -139,7 +141,16 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
     <>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
-          <FieldLabelWithHelp label={t('settings.prompts.binding.tabTitle')} formLabel={false} />
+          <div className="flex flex-wrap items-center gap-2">
+            <FieldLabelWithHelp label={t('settings.prompts.binding.tabTitle')} formLabel={false} />
+            <span className="text-muted-foreground text-xs">
+              {t(
+                target.type === 'agent'
+                  ? 'settings.quickPanel.scope.currentAgent'
+                  : 'settings.quickPanel.scope.currentAssistant'
+              )}
+            </span>
+          </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button
               type="button"
@@ -165,6 +176,14 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
               portalContainer={portalContainer}
             />
           </div>
+        </div>
+
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-muted-foreground text-sm">{t('settings.prompts.binding.globalDescription')}</p>
+          <Button type="button" variant="outline" size="sm" disabled={!enabled} onClick={onManageGlobal}>
+            <Globe2 size={12} className="shrink-0" />
+            {t('settings.prompts.manageGlobal')}
+          </Button>
         </div>
 
         {error ? (

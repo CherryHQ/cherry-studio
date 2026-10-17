@@ -1,3 +1,20 @@
+import { first } from 'es-toolkit/compat'
+import { CircleSlash, Pin, Settings2 } from 'lucide-react'
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
@@ -9,21 +26,8 @@ import { toast } from '@renderer/services/toast'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
-import { first } from 'es-toolkit/compat'
-import { CircleSlash, Pin, Settings2 } from 'lucide-react'
-import {
-  type KeyboardEvent,
-  startTransition,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
@@ -31,7 +35,13 @@ import type { ModelSelectorTag } from './filters'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
-import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
+import type {
+  FlatListItem,
+  ModelSelectorFilter,
+  ModelSelectorModelItem,
+  ModelSelectorProps,
+  ModelSelectorSelectionType
+} from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
@@ -51,6 +61,10 @@ const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_S
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
 type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']
+
+function getModelSelectorOptionDomId(listboxId: string, itemKey: string) {
+  return `${listboxId}-option-${encodeURIComponent(itemKey)}`
+}
 
 type ModelSelectorValue = Model | UniqueModelId | Model[] | UniqueModelId[] | undefined
 type ModelSelectorSelectionSnapshot = {
@@ -154,6 +168,9 @@ function modelsFromSelectedIds(
 
 function ModelRow({
   item,
+  disabled,
+  description,
+  optionId,
   isFocused,
   onPin,
   onSelect,
@@ -165,6 +182,9 @@ function ModelRow({
   t
 }: {
   item: ModelSelectorModelItem
+  disabled: boolean
+  description?: ReactNode
+  optionId: string
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
   onSelect: (item: ModelSelectorModelItem) => void
@@ -179,10 +199,14 @@ function ModelRow({
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
   const disambiguationLabel = item.showIdentifier
-    ? `${providerName} · ${item.modelIdentifier}`
-    : item.isPinned
+    ? item.groupKind === 'pinned'
+      ? `${providerName} · ${item.modelIdentifier}`
+      : item.modelIdentifier
+    : item.groupKind === 'pinned'
       ? providerName
       : undefined
+  const hasDescription = description != null && description !== '' && typeof description !== 'boolean'
+  const descriptionId = hasDescription ? `${optionId}-description` : undefined
 
   const leading = icon ? (
     <icon.Avatar size={24} className="border border-border" />
@@ -230,20 +254,40 @@ function ModelRow({
       <Pin className="size-3" />
     </ModelSelectorRowActionButton>
   ) : null
+  const actions =
+    pinAction || hasDescription ? (
+      <>
+        {pinAction}
+        {hasDescription ? (
+          <span id={descriptionId} className="sr-only">
+            {description}
+          </span>
+        ) : null}
+      </>
+    ) : null
 
   return (
-    <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
+    <ModelSelectorDetailCard
+      item={item}
+      provider={item.provider}
+      portalContainer={detailPortalContainer}
+      description={description}>
       <ModelSelectorRow
+        disabled={disabled}
         selected={isSelected}
         focused={isFocused}
         showSelectedIndicator={!showCheckbox && isSelected}
         checkbox={checkbox}
         leading={leading}
         trailing={trailing}
-        actions={pinAction}
+        actions={actions}
         onSelect={() => onSelect(item)}
         rootProps={{ className: 'pr-0.5' }}
-        optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
+        optionProps={{
+          id: optionId,
+          'aria-describedby': descriptionId,
+          'data-testid': `model-selector-item-${item.modelId}`
+        }}>
         <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
           {item.model.name}
         </span>
@@ -308,7 +352,7 @@ function ModelSelectorFilterTags({
       ref={scrollRef}
       onScroll={updateFadeState}
       style={maskImage ? { maskImage } : undefined}
-      className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       data-testid="model-selector-filter-tags">
       {tags.map((tag) => (
         <ModelTag
@@ -334,6 +378,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     showTagFilter = true,
     showPinnedModels = true,
     showPinActions = true,
+    isModelDisabled,
+    includeAgentOnlyModels = false,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
     align = 'start',
@@ -348,6 +394,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     shortcut
   } = props
   const { t } = useTranslation()
+  const listboxId = useId()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
@@ -437,7 +484,25 @@ export function ModelSelector(props: ModelSelectorProps) {
     [onOpenChange, openProp]
   )
 
-  const handleShortcut = useCallback(() => setOpen(true), [setOpen])
+  const [recoveryProviderId, setRecoveryProviderId] = useState<string>()
+  const handleShortcut = useCallback(
+    (args?: unknown) => {
+      setRecoveryProviderId(
+        typeof args === 'object' && args !== null && 'providerId' in args && typeof args.providerId === 'string'
+          ? args.providerId
+          : undefined
+      )
+      setOpen(true)
+    },
+    [setOpen]
+  )
+  useEffect(() => {
+    if (!open) setRecoveryProviderId(undefined)
+  }, [open])
+  const recoveryFilter = useCallback<ModelSelectorFilter>(
+    (model) => !recoveryProviderId || model.providerId === recoveryProviderId,
+    [recoveryProviderId]
+  )
 
   const setMultiSelectMode = useCallback(
     (nextEnabled: boolean) => {
@@ -461,6 +526,8 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const {
     availableTags,
+    getModelDescription,
+    isModelUnavailable,
     isLoading,
     isPinActionDisabled,
     listItems,
@@ -478,14 +545,20 @@ export function ModelSelector(props: ModelSelectorProps) {
     visibleSelectedModelIdSet
   } = useModelSelectorData({
     enabled: dataEnabled,
+    includeAgentOnlyModels,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
     filter,
+    visibilityFilter: recoveryFilter,
     prioritizedProviderIds,
     showPinnedModels,
     showTagFilter
   })
+  const isSelectionDisabled = useCallback(
+    (model: Model, provider?: Provider) => isModelUnavailable(model) || Boolean(isModelDisabled?.(model, provider)),
+    [isModelDisabled, isModelUnavailable]
+  )
   const listItemsRef = useRef(listItems)
   const modelItemsRef = useRef(modelItems)
   const visibleSelectedModelIdSetRef = useRef(visibleSelectedModelIdSet)
@@ -502,6 +575,14 @@ export function ModelSelector(props: ModelSelectorProps) {
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
   const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
   const isStickyListItem = useCallback((index: number) => listItems[index].type === 'group', [listItems])
+  const focusedListItemIndex = useMemo(
+    () => listItems.findIndex((item) => item.key === focusedItemKey),
+    [focusedItemKey, listItems]
+  )
+  const keepMountedIndexes = useMemo(
+    () => (focusedListItemIndex >= 0 ? [focusedListItemIndex] : []),
+    [focusedListItemIndex]
+  )
 
   const emitSelection = useCallback(
     (nextSelectedIds: UniqueModelId[]) => {
@@ -565,6 +646,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
+      if (isSelectionDisabled(item.model, item.provider)) return
       skipNextFocusScroll.current = true
 
       if (multiple && multiSelectModeRef.current) {
@@ -583,7 +665,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       emitSelection([item.modelId])
       setOpen(false)
     },
-    [emitSelection, multiple, rawSelectedModelIds, setOpen]
+    [emitSelection, isSelectionDisabled, multiple, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {
@@ -827,6 +909,9 @@ export function ModelSelector(props: ModelSelectorProps) {
           }}>
           <ModelRow
             item={item}
+            disabled={isSelectionDisabled(item.model, item.provider)}
+            description={getModelDescription(item.model)}
+            optionId={getModelSelectorOptionDomId(listboxId, item.key)}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
             isSelected={visibleSelectedModelIdSet.has(item.modelId)}
@@ -845,7 +930,10 @@ export function ModelSelector(props: ModelSelectorProps) {
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
+      getModelDescription,
       isPinActionDisabled,
+      isSelectionDisabled,
+      listboxId,
       multiple,
       multiSelectMode,
       setFocusedItemKey,
@@ -867,10 +955,15 @@ export function ModelSelector(props: ModelSelectorProps) {
       value: searchText,
       onChange: setSearchText,
       placeholder: t('models.search.placeholder'),
+      ariaControls: modelItems.length > 0 ? listboxId : undefined,
+      activeDescendant:
+        open && modelItems.some((item) => item.key === focusedItemKey)
+          ? getModelSelectorOptionDomId(listboxId, focusedItemKey)
+          : undefined,
       dataTestId: 'model-selector-search',
       onKeyDown: handleSearchKeyDown
     }),
-    [handleSearchKeyDown, searchText, t]
+    [focusedItemKey, handleSearchKeyDown, listboxId, modelItems, open, searchText, t]
   )
 
   const filterContent = useMemo(() => {
@@ -949,6 +1042,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
           return listItems.length > 0 ? (
             <div
+              id={listboxId}
               className="py-1"
               role="listbox"
               aria-multiselectable={multiple && multiSelectMode}
@@ -960,6 +1054,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                 estimateSize={estimateModelSelectorItemSize}
                 getItemKey={getListItemKey}
                 isSticky={isStickyListItem}
+                keepMountedIndexes={keepMountedIndexes}
                 scrollPaddingStart={ITEM_HEIGHT}
                 onScroll={handleListScroll}
                 overscan={6}>
@@ -991,7 +1086,7 @@ function ShortcutBinding({
   onTrigger
 }: {
   shortcut: NonNullable<ModelSelectorProps['shortcut']>
-  onTrigger: () => void
+  onTrigger: (args?: unknown) => void
 }) {
   useCommandHandler(shortcut, onTrigger)
   return null

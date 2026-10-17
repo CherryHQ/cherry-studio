@@ -1,16 +1,18 @@
-import type { AgentType } from '@shared/data/types/agent'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactHookForm from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { AgentType } from '@shared/data/types/agent'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
   defaultProvider: { id: 'provider', name: 'Provider', isEnabled: true } as Provider | undefined,
   useDefaultModel: vi.fn(),
-  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true)
+  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true),
+  unavailableModelIds: new Set<string>()
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -34,7 +36,16 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: (options?: { enabled?: boolean }) => {
     modelHook.useDefaultModel(options)
     return { defaultModel: modelHook.defaultModel }
-  }
+  },
+  useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] })
+}))
+
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({
+    isModelHidden: () => false,
+    isModelUnavailable: (model: Model) => modelHook.unavailableModelIds.has(model.id),
+    getModelDescription: () => undefined
+  })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -88,6 +99,7 @@ vi.mock('../steps/BasicInfoStep', async () => {
             }}>
             fill pi basic
           </button>
+
           <button
             type="button"
             onClick={() => {
@@ -95,14 +107,6 @@ vi.mock('../steps/BasicInfoStep', async () => {
               form.setValue('modelId', null)
             }}>
             switch to pi
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              form.setValue('agentType', 'dsh')
-              form.setValue('modelId', null)
-            }}>
-            switch to dsh
           </button>
         </>
       )
@@ -136,6 +140,7 @@ afterEach(() => {
   modelHook.useDefaultModel.mockReset()
   modelHook.agentModelFilter.mockReset()
   modelHook.agentModelFilter.mockReturnValue(true)
+  modelHook.unavailableModelIds.clear()
 })
 
 describe('ResourceCreateWizard', () => {
@@ -186,7 +191,7 @@ describe('ResourceCreateWizard', () => {
       avatar: '💬',
       name: 'My Resource',
       agentType: 'claude-code',
-      permissionMode: 'default',
+      permissionMode: 'auto',
       modelId: 'provider::default',
       description: '',
       prompt: '',
@@ -249,6 +254,23 @@ describe('ResourceCreateWizard', () => {
     expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
   })
 
+  it('does not prefill, and retracts, a default model the selector would not offer', async () => {
+    modelHook.defaultModel = makeModel()
+    modelHook.unavailableModelIds.add(modelHook.defaultModel.id)
+    const props = { kind: 'agent' as const, open: true, onOpenChange: vi.fn(), onSubmit: vi.fn() }
+    const { rerender } = render(<ResourceCreateWizard {...props} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+
+    modelHook.unavailableModelIds.clear()
+    rerender(<ResourceCreateWizard {...props} />)
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+
+    modelHook.unavailableModelIds.add(modelHook.defaultModel.id)
+    rerender(<ResourceCreateWizard {...props} />)
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
+  })
+
   it('gates Next on a valid name + model, then walks assistant steps to a mapped submit', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
@@ -273,7 +295,7 @@ describe('ResourceCreateWizard', () => {
       avatar: '💬',
       name: 'My Resource',
       agentType: 'claude-code',
-      permissionMode: 'default',
+      permissionMode: 'auto',
       modelId: 'provider::model',
       description: '',
       prompt: 'be helpful',
@@ -376,7 +398,7 @@ describe('ResourceCreateWizard', () => {
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
 
-  it.each(['pi', 'dsh'] as const)(
+  it.each(['pi'] as const)(
     'reselects a compatible default model after switching an agent to the %s runtime',
     async (agentType) => {
       const user = userEvent.setup()

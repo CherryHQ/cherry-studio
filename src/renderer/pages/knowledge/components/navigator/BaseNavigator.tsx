@@ -1,20 +1,26 @@
-import { ResourceList } from '@renderer/components/chat/resourceList/base'
-import {
-  buildKnowledgeBaseGroupSections,
-  DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
-} from '@renderer/pages/knowledge/utils/group'
-import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
-import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { Plus } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ResourceList } from '@renderer/components/chat/resourceList/base'
+import {
+  buildKnowledgeBaseGroupSections,
+  DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
+} from '@renderer/pages/knowledge/utils/group'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { ReorderKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import type { Group } from '@shared/data/types/group'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
+
 import BaseNavigatorContent from './BaseNavigatorContent'
 import BaseNavigatorResizeHandle from './BaseNavigatorResizeHandle'
 
 interface BaseNavigatorProps {
+  onReorderBase?: (id: string, request: ReorderKnowledgeBaseDto) => Promise<void>
+  onReorderGroup?: (id: string, anchor: OrderRequest) => Promise<void>
+  isReordering?: boolean
   bases: KnowledgeBaseListItem[]
   groups: Group[]
   isLoading: boolean
@@ -32,6 +38,9 @@ interface BaseNavigatorProps {
 }
 
 const BaseNavigator = ({
+  onReorderBase,
+  onReorderGroup,
+  isReordering,
   bases,
   groups,
   isLoading,
@@ -70,7 +79,7 @@ const BaseNavigator = ({
     <div data-ui="knowledge.navigation" style={{ width }} className="relative h-full min-h-0 shrink-0">
       {/* `p-1.5` and the padding-free rows below match the assistant and agent rails'
           `ResourceList.Frame`, so the three sidebars indent identically. */}
-      <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px] p-1.5">
+      <aside className="flex size-full min-h-0 flex-col border-r-[0.5px] border-border p-1.5">
         <div className="flex shrink-0 flex-col gap-2">
           {/* Same borderless header item the assistant and agent rails use, so the three
               sidebars read as one family. */}
@@ -84,6 +93,9 @@ const BaseNavigator = ({
         </div>
 
         <BaseNavigatorContent
+          onReorderBase={onReorderBase}
+          onReorderGroup={onReorderGroup}
+          isReordering={isReordering}
           isLoading={isLoading}
           sections={knowledgeBaseGroupSections}
           groups={groups}

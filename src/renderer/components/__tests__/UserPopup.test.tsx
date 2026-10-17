@@ -1,10 +1,11 @@
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import type * as ImageUtils from '@renderer/utils/image'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import type * as ImageUtils from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(async () => undefined)
@@ -196,21 +197,28 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
-  it('only customizes avatar picker popover width and padding', async () => {
+  it('opens the legacy avatar and name dialog and preserves spaces in the edited name', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
     showUserPopup()
 
+    expect(await screen.findByTestId('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.avatar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.settings' })).not.toBeInTheDocument()
+
+    const name = screen.getByPlaceholderText('settings.general.user_name.placeholder')
+    expect(name).toHaveValue('Yinsen')
+    fireEvent.change(name, { target: { value: 'Sora Tan' } })
+
+    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('Sora Tan'))
+  })
+
+  it('resets the avatar from the dialog picker', async () => {
+    showUserPopup()
     fireEvent.click(await screen.findByTestId('popover-trigger'))
 
-    const popoverContent = screen.getByTestId('popover-content')
+    fireEvent.click(screen.getByRole('button', { name: 'settings.general.avatar.reset' }))
 
-    expect(popoverContent).toHaveClass('w-auto', 'p-2')
-    expect(popoverContent).not.toHaveClass(
-      'border',
-      'border-border',
-      'bg-popover',
-      'text-popover-foreground',
-      'shadow-lg'
-    )
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('profile.set_avatar', { kind: 'default' }))
   })
 
   it('accepts and uploads a WebP avatar as raw bytes via profile.set_avatar', async () => {

@@ -1,6 +1,9 @@
+import { nativeTheme, shell, systemPreferences } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
+import { openRequestPath } from '@main/services/file'
 import { regionService } from '@main/services/RegionService'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import {
@@ -12,7 +15,6 @@ import { getDeviceType } from '@main/utils/system'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { systemRequestSchemas } from '@shared/ipc/schemas/system'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { nativeTheme, shell, systemPreferences } from 'electron'
 
 const logger = loggerService.withContext('systemHandlers')
 
@@ -31,9 +33,10 @@ const logger = loggerService.withContext('systemHandlers')
  * `request_screen_capture` returns the status re-read after prompting, which is the only
  * way the caller can tell granted from denied from "the prompt never appeared".
  *
- * The `system.shell.*` routes delegate straight to Electron's `shell` and ignore
- * `IpcContext` (they act on app-level OS resources, not the caller's window). `open_website`
- * drops a URL that fails the scheme guard with a warning instead of opening it externally.
+ * The `system.shell.*` routes act on app-level OS resources and ignore `IpcContext` (they are not
+ * scoped to the caller's window). `open_path` goes through the file module's `openRequestPath` so an
+ * unusable path can never reach Electron's Linux `shell.openPath`; `open_website` drops a URL that
+ * fails the scheme guard with a warning instead of opening it externally.
  */
 export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.get_device_type': async () => getDeviceType(),
@@ -62,13 +65,16 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
     openScreenCaptureSettings()
   },
   'system.shell.open_path': async (path) => {
-    await shell.openPath(path)
+    await openRequestPath(path)
+  },
+  'system.shell.open_external_website': async (url) => {
+    if (isSafeExternalUrl(url)) await shell.openExternal(url)
   },
   'system.shell.open_website': async (url) => {
     if (!isSafeExternalUrl(url)) {
       logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
       return
     }
-    await shell.openExternal(url)
+    await application.get('MainWindowService').openWebsite(url)
   }
 }
