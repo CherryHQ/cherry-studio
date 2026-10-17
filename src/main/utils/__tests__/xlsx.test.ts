@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs'
+import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 
 import { extractXlsxText } from '../xlsx'
@@ -7,6 +8,15 @@ async function xlsxBytes(build: (workbook: ExcelJS.Workbook) => void): Promise<U
   const workbook = new ExcelJS.Workbook()
   build(workbook)
   return new Uint8Array(await workbook.xlsx.writeBuffer())
+}
+
+/** Rewrite one worksheet's XML, for cell encodings ExcelJS does not write. */
+async function editSheetXml(data: Uint8Array, path: string, edit: (xml: string) => string): Promise<Uint8Array> {
+  const zip = await JSZip.loadAsync(data)
+  const xml = await zip.file(path)?.async('string')
+  if (xml === undefined) throw new Error(`no ${path}`)
+  zip.file(path, edit(xml))
+  return zip.generateAsync({ type: 'uint8array' })
 }
 
 describe('extractXlsxText', () => {
@@ -72,6 +82,8 @@ describe('extractXlsxText', () => {
       ['1899-12-30T06:00:00.000Z', 'h:mm', '06:00:00'],
       ['1899-12-30T12:00:00.000Z', '[$-x-systime]h:mm:ss AM/PM', '12:00:00'],
       ['1899-12-30T18:00:00.000Z', 'h:mm" daily"', '18:00:00'],
+      // ExcelJS drops these backslashes on load, which left d and y to read as date tokens
+      ['1899-12-30T18:00:00.000Z', 'h:mm\\ \\d\\a\\i\\l\\y', '18:00:00'],
       ['1899-12-31T12:00:00.000Z', '[h]:mm:ss', '36:00:00'],
       ['1899-12-31T01:00:30.000Z', '[mm]:ss', '1500:30'],
       ['2024-09-30T00:00:00.000Z', 'mmmm', '2024-09-30'],
@@ -91,6 +103,52 @@ describe('extractXlsxText', () => {
     })
 
     expect(await extractXlsxText(data)).toBe(`Sheet: Dates\n${cells.map(([, , text]) => text).join('\t')}`)
+  })
+
+  it('reads the ISO 8601 date or time of a t="d" cell by its number format', async () => {
+    // As openpyxl writes them with iso_dates=True. ExcelJS read 2024-09-30 as the serial number
+    // 2024 and 09:30:00 as 9. The second sheet also checks which sheet the stored cells belong to.
+    const cells: [string, string, string][] = [
+      ['2024-09-30', 'yyyy-mm-dd', '2024-09-30'],
+      ['2024-09-30T14:05:00', 'yyyy-mm-dd h:mm', '2024-09-30 14:05:00'],
+      ['09:30:00', 'h:mm:ss', '09:30:00'],
+      ['2024-09-30T00:00:00', 'General', '2024-09-30T00:00:00']
+    ]
+    const workbook = await xlsxBytes((workbook) => {
+      workbook.addWorksheet('Plain').getCell('A1').value = 1
+      const row = workbook.addWorksheet('Dates').getRow(1)
+      cells.forEach(([, numFmt], index) => {
+        const cell = row.getCell(index + 1)
+        cell.value = 1
+        cell.numFmt = numFmt
+      })
+    })
+    const data = await editSheetXml(workbook, 'xl/worksheets/sheet2.xml', (xml) =>
+      cells.reduce(
+        (edited, [iso], index) =>
+          edited.replace(new RegExp(`(<c r="${'ABCD'[index]}1"[^>]*)><v>1</v>`), `$1 t="d"><v>${iso}</v>`),
+        xml
+      )
+    )
+
+    expect(await extractXlsxText(data)).toBe(
+      `Sheet: Plain\n1\n\nSheet: Dates\n${cells.map(([, , text]) => text).join('\t')}`
+    )
+  })
+
+  it('reads a text, error or boolean formula result in a date-formatted cell as itself', async () => {
+    // ExcelJS converted these results as if they were serial numbers, and the invalid date a text
+    // result became made the whole workbook fail to extract
+    const data = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Due').getRow(1)
+      row.getCell(1).value = { formula: 'IF(B2="","pending",B2)', result: 'pending' }
+      row.getCell(2).value = { formula: 'NA()', result: { error: '#N/A' } }
+      row.getCell(3).value = { formula: 'B2>0', result: true }
+      row.getCell(4).value = { formula: 'DATE(2024,9,30)', result: new Date('2024-09-30T00:00:00.000Z') }
+      for (const column of [1, 2, 3, 4]) row.getCell(column).numFmt = 'yyyy-mm-dd'
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Due\npending\t#N/A\tTRUE\t2024-09-30')
   })
 
   it('counts a duration from 1904-01-01 in a workbook on the 1904 date system', async () => {
