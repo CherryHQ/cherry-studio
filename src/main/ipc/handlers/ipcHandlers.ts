@@ -36,6 +36,7 @@ import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
 import { quickAssistantHandlers } from './quickAssistant'
+import { sandboxHandlers } from './sandbox'
 import { screenshotHandlers } from './screenshot'
 import { screenshotChatHandlers } from './screenshotChat'
 import { selectionHandlers } from './selection'
@@ -96,6 +97,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...profileHandlers,
   ...providerHandlers,
   ...quickAssistantHandlers,
+  ...sandboxHandlers,
   ...screenshotHandlers,
   ...screenshotChatHandlers,
   ...selectionHandlers,

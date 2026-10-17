@@ -70,7 +70,7 @@ const tasks = plan.tasks.filter(
 )
 const projects =
   values.group === 'platform' && plan.projects.includes('main')
-    ? ['main', 'shared', 'system-speech']
+    ? ['main', 'shared', 'system-speech', 'sandbox']
     : plan.projects.filter((project) => {
         if (!values.group || values.group === 'tests') return true
         if (values.group === 'main') return ['main', 'preload'].includes(project)
@@ -99,14 +99,20 @@ if (projects.length) {
   if (projects.includes('main')) run(['rebuild:node'])
   const files =
     values.group === 'platform'
-      ? execFileSync('git', ['ls-files', '-z', '--', 'src/main', 'src/shared', 'packages/system-speech'], {
-          cwd: root,
-          encoding: 'utf8'
-        })
+      ? execFileSync(
+          'git',
+          ['ls-files', '-z', '--', 'src/main', 'src/shared', 'packages/system-speech', 'packages/sandbox/tests'],
+          {
+            cwd: root,
+            encoding: 'utf8'
+          }
+        )
           .split('\0')
           .filter(
             (file) =>
-              /\.(test|spec)\.tsx?$/.test(file) && readFileSync(join(root, file), 'utf8').includes('process.platform')
+              !file.startsWith('packages/sandbox/tests/acceptance/') &&
+              /\.(test|spec)\.tsx?$/.test(file) &&
+              readFileSync(join(root, file), 'utf8').includes('process.platform')
           )
       : []
   if (values.group === 'platform' && !files.length) throw new Error('No platform-gated tests found')

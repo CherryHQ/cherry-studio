@@ -22,6 +22,7 @@ import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
+import SandboxDialog from '@renderer/components/sandbox/SandboxDialog'
 import {
   SettingGroup,
   SettingRow,
@@ -49,6 +50,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [sandboxOpen, setSandboxOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const showReleases = useOpenReleaseNotes()
@@ -394,7 +396,16 @@ const AboutSettings: FC = () => {
           actionLabel={t('settings.about.debug.open')}
           onAction={debug}
         />
+        <Divider className="my-3" />
+        <AboutActionRow
+          id="setting-about-sandbox"
+          icon={<Bug className="size-4.5" />}
+          title={t('settings.about.sandbox.title')}
+          actionLabel={t('common.open')}
+          onAction={() => setSandboxOpen(true)}
+        />
       </SettingGroup>
+      <SandboxDialog open={sandboxOpen} onOpenChange={setSandboxOpen} />
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </SettingsContentColumn>
   )

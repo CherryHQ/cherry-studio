@@ -70,6 +70,7 @@ import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { AttachmentPresenceService, RemoteAccessService } from '@main/services/remoteAccess'
+import { SandboxService } from '@main/services/SandboxService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionService } from '@main/services/selection/SelectionService'
@@ -155,6 +156,7 @@ export const services = {
   DoctorAgentService,
   LogRetentionService,
   PythonService,
+  SandboxService,
   TrayService,
   WebSearchService,
   WebviewService,

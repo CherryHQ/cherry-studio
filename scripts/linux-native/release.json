@@ -1,31 +1,31 @@
 {
   "schemaVersion": 1,
   "repository": "CherryHQ/cherry-studio-better-sqlite3",
-  "tag": "better-sqlite3-v12.11.1-electron-v44.4.4-r1",
+  "tag": "better-sqlite3-v12.11.1-electron-v44.7.0-r1",
   "metadata": {
-    "electronVersion": "44.4.4",
+    "electronVersion": "44.7.0",
     "electronAbi": "149",
     "betterSqlite3Version": "12.11.1"
   },
   "artifacts": {
     "x64": {
       "addon": {
-        "name": "better_sqlite3-v12.11.1-electron-v44.4.4-linux-x64.node",
+        "name": "better_sqlite3-v12.11.1-electron-v44.7.0-linux-x64.node",
         "sha256": "212755c8eec009850b1a50803937864d464ed669c0c1e2506cb354cc06ab1487"
       },
       "manifest": {
-        "name": "better_sqlite3-v12.11.1-electron-v44.4.4-linux-x64.manifest.json",
-        "sha256": "201d78fd9ffe86a5e55cfe4a15dd8473b04f58b6316f339f2b50a4d35758bb00"
+        "name": "better_sqlite3-v12.11.1-electron-v44.7.0-linux-x64.manifest.json",
+        "sha256": "c0afa61d27e597d200fc248a13ddb8dac976c0b0aa5079c226d2032551db625d"
       }
     },
     "arm64": {
       "addon": {
-        "name": "better_sqlite3-v12.11.1-electron-v44.4.4-linux-arm64.node",
+        "name": "better_sqlite3-v12.11.1-electron-v44.7.0-linux-arm64.node",
         "sha256": "fbfb798d4495be07e6003caaff9a98e6de510a31b8edcc297c189791ff000f14"
       },
       "manifest": {
-        "name": "better_sqlite3-v12.11.1-electron-v44.4.4-linux-arm64.manifest.json",
-        "sha256": "fd09b3cdc4c52506939ee1e96e3d88617ceb6b9084cacd8c233a47b8aee67f5a"
+        "name": "better_sqlite3-v12.11.1-electron-v44.7.0-linux-arm64.manifest.json",
+        "sha256": "f3316c4f516b6464a79ef8336bf2f653f0deb0cb234a73b49d5d9030c6cd4af6"
       }
     }
   }

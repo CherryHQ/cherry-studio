@@ -42,6 +42,7 @@ describe('validation selection', () => {
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
     ['packages/remote-transport/src/socket.ts', ['remote-transport', 'main', 'renderer']],
     ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
+    ['packages/sandbox/src/host/SandboxManager.ts', ['sandbox', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
     ['packages/web-search/src/providers/tavily.ts', ['web-search', 'shared', 'main', 'preload', 'renderer']],
@@ -55,6 +56,15 @@ describe('validation selection', () => {
     const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
     expect(plan.tasks).toEqual(expect.arrayContaining(['types-web-search', 'types-node', 'types-web']))
     expect(selectedGroups(plan).packages).toBe(true)
+  })
+  it('keeps sandbox typechecks and platform tests in the merged validation pipeline', () => {
+    for (const file of ['packages/sandbox/src/host/SandboxManager.ts', 'pnpm-lock.yaml']) {
+      const plan = createPlan([file])
+      expect(plan.tasks).toContain('types-sandbox')
+      expect(plan.projects).toContain('sandbox')
+      expect(selectedGroups(plan).packages).toBe(true)
+      expect(selectedGroups(plan).platform).toBe(true)
+    }
   })
   it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
     const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])

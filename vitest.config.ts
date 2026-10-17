@@ -193,6 +193,16 @@ export default defineConfig({
           include: ['packages/system-speech/tests/**/*.test.ts']
         }
       },
+      {
+        extends: true,
+        test: {
+          name: 'sandbox',
+          environment: 'node',
+          include: ['packages/sandbox/tests/**/*.test.ts'],
+          exclude: ['packages/sandbox/tests/acceptance/**'],
+          testTimeout: 15000
+        }
+      },
       // packages/ui 单元测试配置
       {
         extends: true,
