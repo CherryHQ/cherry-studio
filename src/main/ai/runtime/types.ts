@@ -80,6 +80,12 @@ export interface AgentRuntimeConnectInput {
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
   onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
+  /**
+   * Synchronous host lookup for a background task's launch tool-call id. A restarted adapter has no
+   * in-memory task binding, and a resume edge carries the resuming call's id rather than the launch
+   * root every flow entry resolves to. Must not throw: a database error may not end the connection.
+   */
+  resolveLaunchToolCallId?: (taskId: string) => string | undefined
 }
 
 export interface AgentRuntimeUserInput {
