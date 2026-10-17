@@ -1,4 +1,5 @@
 import {
+  APICallError,
   type LanguageModelV3,
   type LanguageModelV3CallOptions,
   type LanguageModelV3Content,
@@ -6,15 +7,24 @@ import {
   type LanguageModelV3GenerateResult,
   type LanguageModelV3StreamPart,
   type LanguageModelV3StreamResult,
+  type LanguageModelV3ToolResultOutput,
   type LanguageModelV3Usage,
   type ProviderV3,
   type SharedV3Warning,
   UnsupportedFunctionalityError
 } from '@ai-sdk/provider'
-import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { type FetchFunction, generateId } from '@ai-sdk/provider-utils'
 
 import { application } from '@application'
-import type { LlmChatMessage, LlmGenerateEvent, LlmGenerateInput, LlmGenerateResult } from '@main/ai/localModel'
+import {
+  LLM_CONTEXT_OVERFLOW,
+  type LlmChatMessage,
+  type LlmGenerateEvent,
+  type LlmGenerateInput,
+  type LlmGenerateResult,
+  type LlmTool,
+  type LlmToolCall
+} from '@main/ai/localModel'
 import { LOCAL_LLM_PROVIDER_ID } from '@shared/data/presets/localLlm'
 import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 
@@ -39,6 +49,7 @@ class LocalLlmLanguageModel implements LanguageModelV3 {
     const content: LanguageModelV3Content[] = []
     if (reasoning) content.push({ type: 'reasoning', text: reasoning })
     if (text) content.push({ type: 'text', text })
+    content.push(...toToolCallParts(result.toolCalls))
     return { content, finishReason: toFinishReason(result), usage: toUsage(result), warnings }
   }
 
@@ -69,6 +80,7 @@ class LocalLlmLanguageModel implements LanguageModelV3 {
             (warnings) => controller.enqueue({ type: 'stream-start', warnings })
           )
           closeOpenPart()
+          for (const part of toToolCallParts(result.toolCalls)) controller.enqueue(part)
           controller.enqueue({ type: 'finish', finishReason: toFinishReason(result), usage: toUsage(result) })
         } catch (error) {
           controller.enqueue({ type: 'error', error })
@@ -87,6 +99,7 @@ class LocalLlmLanguageModel implements LanguageModelV3 {
     const warnings = unsupportedOptionWarnings(options)
     const input: LlmGenerateInput = {
       messages: toLlmMessages(options.prompt),
+      tools: options.toolChoice?.type === 'none' ? undefined : toLlmTools(options.tools, warnings),
       // Qwen3.5 reasons for thousands of tokens on simple prompts; the reasoning toggle is not wired yet.
       thinking: false,
       maxOutputTokens: options.maxOutputTokens,
@@ -98,32 +111,102 @@ class LocalLlmLanguageModel implements LanguageModelV3 {
       })
     }
     onStart?.(warnings)
-    const result = await application
-      .get('LlmInferenceService')
-      .generate(this.modelId as LocalModelBundleId, input, { signal: options.abortSignal, onEvent })
-    return { result, warnings }
+    try {
+      const result = await application
+        .get('LlmInferenceService')
+        .generate(this.modelId as LocalModelBundleId, input, { signal: options.abortSignal, onEvent })
+      return { result, warnings }
+    } catch (error) {
+      if ((error as { code?: unknown }).code !== LLM_CONTEXT_OVERFLOW) throw error
+      // A 400 the same prompt can never pass, so retry layers and the agent gateway give up at once.
+      throw new APICallError({
+        message: (error as Error).message,
+        url: LOCAL_LLM_PROVIDER_ID,
+        requestBodyValues: {},
+        statusCode: 400,
+        isRetryable: false,
+        cause: error
+      })
+    }
   }
 }
 
 function toLlmMessages(prompt: LanguageModelV3CallOptions['prompt']): LlmChatMessage[] {
-  return prompt.map((message): LlmChatMessage => {
-    if (message.role === 'system') return { role: 'system', text: message.content }
-    if (message.role === 'tool') throw new UnsupportedFunctionalityError({ functionality: 'tool results' })
-    const texts: string[] = []
-    for (const part of message.content) {
-      if (part.type === 'text') texts.push(part.text)
-      // Earlier reasoning is not replayed; the chat template drops it from history too.
-      else if (part.type !== 'reasoning')
-        throw new UnsupportedFunctionalityError({ functionality: `${part.type} parts` })
+  const messages: LlmChatMessage[] = []
+  // Tool results arrive in a later message; they attach to the call that requested them.
+  const calls = new Map<string, LlmToolCall & { result: unknown }>()
+  for (const message of prompt) {
+    if (message.role === 'system') {
+      messages.push({ role: 'system', text: message.content })
+    } else if (message.role === 'tool') {
+      for (const part of message.content) {
+        if (part.type !== 'tool-result') continue
+        const call = calls.get(part.toolCallId)
+        if (!call) throw new UnsupportedFunctionalityError({ functionality: 'tool results without their call' })
+        call.result = toToolResult(part.output)
+      }
+    } else {
+      const texts: string[] = []
+      const toolCalls: Array<LlmToolCall & { result: unknown }> = []
+      for (const part of message.content) {
+        if (part.type === 'text') texts.push(part.text)
+        else if (part.type === 'tool-call' && message.role === 'assistant') {
+          const call = { name: part.toolName, params: part.input, result: null }
+          calls.set(part.toolCallId, call)
+          toolCalls.push(call)
+        }
+        // Earlier reasoning is not replayed; the chat template drops it from history too.
+        else if (part.type !== 'reasoning')
+          throw new UnsupportedFunctionalityError({ functionality: `${part.type} parts` })
+      }
+      messages.push(
+        message.role === 'assistant'
+          ? { role: 'assistant', text: texts.join('\n'), ...(toolCalls.length > 0 && { toolCalls }) }
+          : { role: 'user', text: texts.join('\n') }
+      )
     }
-    return { role: message.role, text: texts.join('\n') }
-  })
+  }
+  return messages
+}
+
+function toToolResult(output: LanguageModelV3ToolResultOutput): unknown {
+  switch (output.type) {
+    case 'text':
+    case 'json':
+      return output.value
+    case 'error-text':
+    case 'error-json':
+      return { error: output.value }
+    case 'execution-denied':
+      return { error: `The user denied this tool call${output.reason ? `: ${output.reason}` : ''}` }
+    case 'content':
+      return output.value.flatMap((item) => (item.type === 'text' ? [item.text] : [])).join('\n')
+  }
+}
+
+function toLlmTools(tools: LanguageModelV3CallOptions['tools'], warnings: SharedV3Warning[]): LlmTool[] | undefined {
+  const functionTools: LlmTool[] = []
+  for (const tool of tools ?? []) {
+    if (tool.type === 'function') {
+      functionTools.push({ name: tool.name, description: tool.description, parameters: tool.inputSchema })
+    } else warnings.push({ type: 'unsupported', feature: `provider tool ${tool.name}` })
+  }
+  return functionTools.length > 0 ? functionTools : undefined
+}
+
+function toToolCallParts(toolCalls: LlmToolCall[] | undefined) {
+  return (toolCalls ?? []).map((call) => ({
+    type: 'tool-call' as const,
+    toolCallId: generateId(),
+    toolName: call.name,
+    input: JSON.stringify(call.params ?? {})
+  }))
 }
 
 /** Options the local runtime does not implement; the request runs without them. */
 function unsupportedOptionWarnings(options: LanguageModelV3CallOptions): SharedV3Warning[] {
   const used = {
-    tools: Boolean(options.tools?.length),
+    toolChoice: options.toolChoice?.type === 'required' || options.toolChoice?.type === 'tool',
     stopSequences: Boolean(options.stopSequences?.length),
     frequencyPenalty: options.frequencyPenalty !== undefined,
     seed: options.seed !== undefined,

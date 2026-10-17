@@ -86,7 +86,7 @@ function createLocalLlmModelRow(model: LocalLlmModel): LocalModelRow {
     modelId: model.bundleId,
     name: model.name,
     group: model.group,
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
     contextWindow: model.contextWindow,
     supportsStreaming: true,
     isEnabled: false
@@ -112,7 +112,7 @@ export class LocalModelSeeder implements ISeeder {
       for (const { provider, models } of LOCAL_PROVIDERS()) {
         providerService.batchUpsertTx(tx, [provider])
 
-        // Existing rows keep their user-owned state (enabled, order); only the built-in name is refreshed.
+        // Existing rows keep their user-owned state (enabled, order); built-in descriptions are refreshed.
         const existing = new Set(
           tx
             .select({ id: userModelTable.id })
@@ -127,7 +127,10 @@ export class LocalModelSeeder implements ISeeder {
             .map((row) => row.id)
         )
         for (const model of models.filter((row) => existing.has(row.id))) {
-          tx.update(userModelTable).set({ name: model.name }).where(eq(userModelTable.id, model.id)).run()
+          tx.update(userModelTable)
+            .set({ name: model.name, capabilities: model.capabilities, contextWindow: model.contextWindow })
+            .where(eq(userModelTable.id, model.id))
+            .run()
         }
 
         const missing = models.filter((row) => !existing.has(row.id))

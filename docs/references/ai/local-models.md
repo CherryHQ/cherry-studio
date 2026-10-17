@@ -367,7 +367,16 @@ are long:
   call does not reload the weights.
 - Each request carries its full history and reuses the shared context sequence; there is no
   per-conversation state in the process, so independent conversations can alternate.
+- Qwen3.5 is a hybrid model whose state cannot be rewound token by token, so reuse depends on the
+  checkpoint LlamaChat takes just before each reply's thought segment. Thinking is therefore turned
+  off with a zero thought budget, not with a template that drops the thought block: the next turn
+  then resumes from that checkpoint instead of re-reading the whole prompt.
 - Text and reasoning deltas stream back as events. Thinking is currently always off.
+- Tools reach node-llama-cpp as grammar-constrained functions. `toolSchema.ts` rewrites each JSON
+  Schema into the subset its grammar compiles (`anyOf` → `oneOf`, untyped → any value, …), since
+  unknown shapes otherwise compile to `null`. Tool results attach to their call in the model turn.
+- The context grows to 64k tokens. A prompt that still does not fit fails as a non-retryable
+  `400`, so retry layers and agents stop instead of resending it.
 
 The AI SDK side is the `local-llm` provider (`provider/custom/localLlm`), separate from
 `local-embedding`. The seeder creates its provider row and one model row per chat bundle, with
@@ -382,7 +391,10 @@ the row only decides whether the model selector lists the model.
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.
 - No streaming inference outside chat. Other requests are one round trip with a complete result.
-- Local chat is text-only and has no tool calls yet.
+- Local chat is text-only.
+- Switching to another conversation re-reads its whole prompt. An agent's prompt is about 35k
+  tokens, roughly a minute or two on Apple Silicon; later turns in the same conversation resume
+  in seconds.
 
 
 ## Downloadable Qwen3-TTS

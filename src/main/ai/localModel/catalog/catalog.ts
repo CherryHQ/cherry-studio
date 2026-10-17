@@ -626,7 +626,7 @@ export const LOCAL_MODEL_BUNDLES = {
     requires: ['node-llama-cpp'],
     runtime: {
       // Thinking-mode general settings from the Qwen3.5 model card.
-      chat: { maxContextSize: 32_768, sampling: { temperature: 1, topP: 0.95, topK: 20, presencePenalty: 1.5 } }
+      chat: { maxContextSize: 65_536, sampling: { temperature: 1, topP: 0.95, topK: 20, presencePenalty: 1.5 } }
     },
     provenance: {
       license: {

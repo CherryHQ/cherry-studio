@@ -2,14 +2,17 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
 import type * as NodeLlamaCpp from 'node-llama-cpp'
-import type { ChatHistoryItem, ChatWrapper, Llama, LlamaContextSequence, LlamaModel } from 'node-llama-cpp'
+import type { ChatHistoryItem, ChatModelFunctions, Llama, LlamaContextSequence, LlamaModel } from 'node-llama-cpp'
 
-import type {
-  LlmChatMessage,
-  LlmGenerateResult,
-  LlmInferenceContract,
-  LlmInitData
+import {
+  LLM_CONTEXT_OVERFLOW,
+  type LlmChatMessage,
+  type LlmGenerateInput,
+  type LlmGenerateResult,
+  type LlmInferenceContract,
+  type LlmInitData
 } from '@main/ai/localModel/capabilities/llm/protocol'
+import { toGbnfJsonSchema } from '@main/ai/localModel/capabilities/llm/toolSchema'
 import type {
   UtilityProcessHandlers,
   UtilityProcessLogger
@@ -19,8 +22,6 @@ interface LoadedModel {
   modelPath: string
   model: LlamaModel
   sequence: LlamaContextSequence
-  /** Keyed by whether thinking is enabled. */
-  chatWrappers: Map<boolean, ChatWrapper>
 }
 
 let appPath: string
@@ -36,7 +37,7 @@ const FINISH_REASONS = {
   stopGenerationTrigger: 'stop',
   customStopTrigger: 'stop',
   maxTokens: 'length',
-  functionCalls: 'other',
+  functionCalls: 'tool-calls',
   abort: 'other'
 } as const satisfies Record<string, LlmGenerateResult['finishReason']>
 
@@ -72,30 +73,38 @@ async function loadModel(modelPath: string, maxContextSize: number): Promise<Loa
   // eslint-disable-next-line @eslint-react/naming-convention/context-name -- a llama.cpp context, not React
   const llamaContext = await model.createContext({ contextSize: { max: maxContextSize } })
   logger.info('local chat model loaded', { gpu: llama.gpu, contextSize: llamaContext.contextSize })
-  loaded = { modelPath, model, sequence: llamaContext.getSequence(), chatWrappers: new Map() }
+  loaded = { modelPath, model, sequence: llamaContext.getSequence() }
   return loaded
-}
-
-function chatWrapperFor(state: LoadedModel, thinking: boolean): ChatWrapper {
-  let wrapper = state.chatWrappers.get(thinking)
-  if (!wrapper) {
-    // Keeps the wrapper settings matched from the model's Jinja template; only thinking is overridden.
-    wrapper = runtime!.resolveChatWrapper(state.model, {
-      customWrapperSettings: { qwen: { thoughts: thinking ? 'auto' : 'discourage' } }
-    })
-    state.chatWrappers.set(thinking, wrapper)
-  }
-  return wrapper
 }
 
 function toChatHistory(messages: LlmChatMessage[]): ChatHistoryItem[] {
   const history = messages.map((message): ChatHistoryItem => {
-    if (message.role === 'assistant') return { type: 'model', response: [message.text] }
-    return { type: message.role, text: message.text }
+    if (message.role !== 'assistant') return { type: message.role, text: message.text }
+    const calls = (message.toolCalls ?? []).map((call) => ({ type: 'functionCall' as const, ...call }))
+    return { type: 'model', response: [...(message.text ? [message.text] : []), ...calls] }
   })
-  // LlamaChat completes the trailing model item, so a new reply starts from an empty one.
-  history.push({ type: 'model', response: [] })
+  // LlamaChat completes the trailing model item: after tool results it continues that turn,
+  // otherwise a new reply starts from an empty one.
+  if (messages.at(-1)?.role !== 'assistant') history.push({ type: 'model', response: [] })
   return history
+}
+
+function toFunctions(tools: LlmGenerateInput['tools']): ChatModelFunctions | undefined {
+  if (!tools?.length) return undefined
+  return Object.fromEntries(
+    tools.map((tool) => [tool.name, { description: tool.description, params: toGbnfJsonSchema(tool.parameters) }])
+  )
+}
+
+// node-llama-cpp throws a plain Error when even the system prompt and latest turn exceed the context.
+function isContextOverflow(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('did not return a history that fits the context size')
+}
+
+function contextOverflowError(contextSize: number): Error {
+  return Object.assign(new Error(`Prompt is too long for this local model's ${contextSize}-token context window`), {
+    code: LLM_CONTEXT_OVERFLOW
+  })
 }
 
 export const llmHandlers: UtilityProcessHandlers<LlmInferenceContract> = {
@@ -105,15 +114,17 @@ export const llmHandlers: UtilityProcessHandlers<LlmInferenceContract> = {
       const state = await loadModel(input.modelPath, input.runtime.maxContextSize)
       signal.throwIfAborted()
       const sampling = { ...input.runtime.sampling, ...input.sampling }
-      const chat = new runtime!.LlamaChat({
-        contextSequence: state.sequence,
-        chatWrapper: chatWrapperFor(state, input.thinking)
-      })
+      // The model's own chat wrapper opens a thought segment on every reply, and LlamaChat checkpoints
+      // the hybrid model's state just before it, so the next turn resumes there instead of re-reading the prompt.
+      const chat = new runtime!.LlamaChat({ contextSequence: state.sequence })
       let outputTokens = 0
+      let textStarted = false
       try {
         const result = await chat.generateResponse(toChatHistory(input.messages), {
           signal,
           stopOnAbortSignal: true,
+          functions: toFunctions(input.tools),
+          budgets: input.thinking ? undefined : { thoughtTokens: 0 },
           maxTokens: input.maxOutputTokens,
           temperature: sampling.temperature,
           topP: sampling.topP,
@@ -121,13 +132,24 @@ export const llmHandlers: UtilityProcessHandlers<LlmInferenceContract> = {
           repeatPenalty: { presencePenalty: sampling.presencePenalty },
           onResponseChunk: (chunk) => {
             outputTokens += chunk.tokens.length
-            if (chunk.text) emit({ type: chunk.type === 'segment' ? 'reasoning' : 'text', delta: chunk.text })
+            if (chunk.type === 'segment') {
+              // A zero thought budget still lets the first thought token through.
+              if (input.thinking && chunk.text) emit({ type: 'reasoning', delta: chunk.text })
+              return
+            }
+            const delta = textStarted ? chunk.text : chunk.text.trimStart()
+            if (!delta) return
+            textStarted = true
+            emit({ type: 'text', delta })
           }
         })
         return {
           finishReason: FINISH_REASONS[result.metadata.stopReason],
+          toolCalls: result.functionCalls?.map((call) => ({ name: call.functionName, params: call.params })),
           usage: { inputTokens: state.sequence.contextTokens.length - outputTokens, outputTokens }
         }
+      } catch (error) {
+        throw isContextOverflow(error) ? contextOverflowError(state.sequence.contextSize) : error
       } finally {
         chat.dispose({ disposeSequence: false })
       }
