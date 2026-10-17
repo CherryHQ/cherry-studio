@@ -613,6 +613,39 @@ describe('useDefaultModel', () => {
     }))
   })
 
+  it('reports an in-flight default model separately from a settled miss', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::translate')
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_model_id', 'openai::dall-e-3')
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: undefined,
+      isLoading: path === '/models/openai::gpt-4o',
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+
+    const { result, rerender } = renderHook(() => useDefaultModel())
+
+    expect(result.current.defaultModel).toBeUndefined()
+    expect(result.current.isDefaultModelLoading).toBe(true)
+
+    mockUseQuery.mockImplementation(() => ({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+    rerender()
+
+    expect(result.current.defaultModel).toBeUndefined()
+    expect(result.current.isDefaultModelLoading).toBe(false)
+  })
+
   it('keeps every model entity query inactive when its owner is closed', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::quick')
