@@ -4,7 +4,7 @@ import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 
-import type { AgentRuntimeEvent, Subagent, SubagentPort, SubagentSessionOptions } from '../src'
+import type { AgentRuntimeEvent, Subagent, SubagentPort, SubagentSessionOptions } from '@cherrystudio/agent-runtime-pi'
 
 export interface RoutedCall {
   /** Role of the last prompt message: `user` on a new request, `tool` after tool results. */

@@ -120,7 +120,17 @@ export async function createTestSession<TRequestOptions = undefined>(options: Te
     agentDir: options.agentDir ?? tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
-    ...binding
+    ...binding,
+    subagents: options.subagents && {
+      ...options.subagents,
+      async configure(child) {
+        const configured = await options.subagents!.configure(child)
+        return {
+          ...configured,
+          extensionFactories: [...binding.extensionFactories, ...(configured.extensionFactories ?? [])]
+        }
+      }
+    }
   })
   onTestFinished(() => runtime.dispose())
   return runtime
