@@ -33,7 +33,7 @@ export const deepseek: WebSearchProviderModule = {
           method: 'POST',
           headers: { Accept: 'application/json', ...bearer(context) },
           body: {
-            query: call.input.trim().slice(0, MAX_SEARCH_QUERY_LENGTH),
+            query: Array.from(call.input.trim()).slice(0, MAX_SEARCH_QUERY_LENGTH).join(''),
             count: Math.min(Math.max(call.config.maxResults, 1), MAX_SEARCH_COUNT)
           }
         },
@@ -59,8 +59,6 @@ export const deepseek: WebSearchProviderModule = {
     )
     const content = payload.content.trim()
     if (!content) throw invalidResponse(context, 'empty_content', 'DeepSeek Fetch returned empty content')
-    return [
-      { title: payload.title?.trim() || call.input, content, url: call.input, sourceInput: call.input }
-    ]
+    return [{ title: payload.title?.trim() || call.input, content, url: call.input, sourceInput: call.input }]
   }
 }

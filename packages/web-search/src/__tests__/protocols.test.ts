@@ -113,8 +113,18 @@ describe('portable provider contracts', () => {
     expect(JSON.parse(requests[0].body!)).toEqual({ query: 'hello', count: 4 })
     expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
     expect(result.results).toEqual([
-      { title: 'DeepSeek Result Title', url: 'https://example.com/deepseek-result', content: 'DeepSeek Summary', sourceInput: 'hello' },
-      { title: 'DeepSeek Snippet Only', url: 'https://snippet.example/page', content: 'DeepSeek Snippet', sourceInput: 'hello' }
+      {
+        title: 'DeepSeek Result Title',
+        url: 'https://example.com/deepseek-result',
+        content: 'DeepSeek Summary',
+        sourceInput: 'hello'
+      },
+      {
+        title: 'DeepSeek Snippet Only',
+        url: 'https://snippet.example/page',
+        content: 'DeepSeek Snippet',
+        sourceInput: 'hello'
+      }
     ])
   })
 
@@ -128,6 +138,16 @@ describe('portable provider contracts', () => {
       credentials: { apiKey: 'test-key' }
     })
     expect(JSON.parse(requests[0].body!)).toEqual({ query: `x${'y'.repeat(127)}`, count: 50 })
+  })
+
+  it.each([
+    ['preserves a supplementary character at the limit', `${'a'.repeat(127)}🚀`, `${'a'.repeat(127)}🚀`],
+    ['truncates after a supplementary character', `${'a'.repeat(127)}𠮷extra`, `${'a'.repeat(127)}𠮷`],
+    ['counts supplementary characters as single code points', '🚀'.repeat(129), '🚀'.repeat(128)]
+  ])('DeepSeek %s', async (_name, input, expectedQuery) => {
+    const { client, requests } = setup(deepseek, fixture('deepseek-search-response.json'))
+    await client.execute({ ...search('deepseek'), input })
+    expect(JSON.parse(requests[0].body!).query).toBe(expectedQuery)
   })
 
   it('fetches pages through the DeepSeek Fetch API and tolerates a missing title', async () => {
