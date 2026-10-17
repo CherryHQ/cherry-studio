@@ -234,6 +234,7 @@ releaseInfo:
     - [Agents] Allow users to turn off onboarding by declining setup.
     - [Translation] Keep idle dictation and copy buttons beside the input text without adding an extra toolbar row.
     - [Computer Use] Fixed missing automation tool output for Claude agents and added structured accessibility-tree pagination to prevent oversized observations from being omitted.
+    - [Settings] Restore settings scrollbars and consistent layouts, clarify Computer Use permission actions, and fix clipped content, MCP tab order and unnecessary Usage heatmap overflow.
 
     <!--LANG:zh-CN-->
     Cherry Studio 2.1.7 - 语音、云服务与模型更新
@@ -271,4 +272,5 @@ releaseInfo:
     - [智能体] 支持回复“不需要”或“跳过”关闭初始化引导。
     - [翻译] 修复听写和复制按钮额外占据一行的问题，空闲时保持在输入文字右侧。
     - [电脑操作] 修复 Claude 智能体自动化工具输出丢失的问题，并通过结构化辅助功能树分页避免大型观察结果被整份省略。
+    - [设置] 修复设置页滚动条和布局，优化电脑操作权限说明，并修复内容截断、MCP 标签顺序及用量热力图的多余横向溢出。
     <!--LANG:END-->

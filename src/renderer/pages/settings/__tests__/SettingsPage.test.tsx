@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { ipcApi } from '@renderer/ipc'
 
@@ -15,7 +16,8 @@ const { isMacTransparentWindowMock, navigateMock } = vi.hoisted(() => ({
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) } }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryUiModule>()),
   MenuDivider: () => <hr data-testid="menu-divider" />,
   MenuItem: ({ icon, label, onClick }: { icon?: ReactNode; label: string; onClick?: () => void }) => (
     <button type="button" data-testid="menu-item" onClick={onClick}>
@@ -44,10 +46,6 @@ vi.mock('@cherrystudio/ui', () => ({
       onKeyDown={props.onKeyDown}
     />
   )
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
