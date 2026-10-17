@@ -61,6 +61,7 @@ describe('stat', () => {
     const s = await stat(f as AbsoluteFilePath)
     expect(s.size).toBe('hello world'.length)
     expect(s.isDirectory).toBe(false)
+    expect(s.isFile).toBe(true)
     expect(s.modifiedAt).toBeGreaterThan(0)
     expect(s.createdAt).toBeGreaterThan(0)
   })

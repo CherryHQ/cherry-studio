@@ -1,10 +1,13 @@
-import fs from 'fs/promises'
 import path from 'path'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
+import { ensureDir, read, stat, writeInPlace } from '@main/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { filesystemMutationService } from '../FilesystemMutationService'
+import { logger, replaceWithFuzzyMatch } from '../types'
 
 // Schema definition
 export const EditToolSchema = z.object({
@@ -30,97 +33,102 @@ export const editToolDefinition = {
   inputSchema: EditToolSchema
 }
 
-// Handler implementation
-export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = args
-
-  // Validate path
-  const validPath = await validatePath(filePath, baseDir)
-
-  // Check if file exists
+async function writeEdit(validPath: AbsoluteFilePath, content: string, filePath: string): Promise<void> {
   try {
-    const stats = await fs.stat(validPath)
-    if (!stats.isFile()) {
-      throw new Error(`Path is not a file: ${filePath}`)
-    }
+    await writeInPlace(validPath, content)
   } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      // If old_string is empty, this is a create new file operation
-      if (oldString === '') {
-        // Create parent directory if needed
-        const parentDir = path.dirname(validPath)
-        await fs.mkdir(parentDir, { recursive: true })
-
-        // Write the new content
-        await fs.writeFile(validPath, newString, 'utf-8')
-
-        logger.info('File created', { path: validPath })
-
-        const relativePath = path.relative(baseDir, validPath)
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Created new file: ${relativePath}\nLines: ${newString.split('\n').length}`
-            }
-          ]
-        }
-      }
-      throw new Error(`File not found: ${filePath}`)
-    }
-    throw error
+    throw new Error(`Failed to edit file ${filePath}: ${error.message}`)
   }
+}
 
-  // Read current content
-  const content = await fs.readFile(validPath, 'utf-8')
+// Handler implementation
+export async function handleEditTool(args: z.input<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
+  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll = false } = args
 
-  // Handle special case: old_string is empty (create file with content)
-  if (oldString === '') {
-    await fs.writeFile(validPath, newString, 'utf-8')
+  return filesystemMutationService.runExclusive(filePath, baseDir, async (validPath) => {
+    // Check if file exists
+    try {
+      const stats = await stat(validPath)
+      if (!stats.isFile) {
+        throw new Error(`Path is not a file: ${filePath}`)
+      }
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        // If old_string is empty, this is a create new file operation
+        if (oldString === '') {
+          // Create parent directory if needed
+          const parentDir = path.dirname(validPath)
+          await ensureDir(AbsoluteFilePathSchema.parse(parentDir))
 
-    logger.info('File overwritten', { path: validPath })
+          await writeEdit(validPath, newString, filePath)
+
+          logger.info('File created', { path: validPath })
+
+          const relativePath = path.relative(baseDir, validPath)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Created new file: ${relativePath}\nLines: ${newString.split('\n').length}`
+              }
+            ]
+          }
+        }
+        throw new Error(`File not found: ${filePath}`)
+      }
+      throw error
+    }
+
+    // Read current content
+    const content = await read(validPath)
+
+    // Handle special case: old_string is empty (create file with content)
+    if (oldString === '') {
+      await writeEdit(validPath, newString, filePath)
+
+      logger.info('File overwritten', { path: validPath })
+
+      const relativePath = path.relative(baseDir, validPath)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Overwrote file: ${relativePath}\nLines: ${newString.split('\n').length}`
+          }
+        ]
+      }
+    }
+
+    // Perform the replacement with fuzzy matching
+    const newContent = replaceWithFuzzyMatch(content, oldString, newString, replaceAll)
+
+    await writeEdit(validPath, newContent, filePath)
+
+    logger.info('File edited', {
+      path: validPath,
+      replaceAll
+    })
+
+    // Generate a simple diff summary
+    const oldLines = content.split('\n').length
+    const newLines = newContent.split('\n').length
+    const lineDiff = newLines - oldLines
 
     const relativePath = path.relative(baseDir, validPath)
+    let diffSummary = `Edited: ${relativePath}`
+    if (lineDiff > 0) {
+      diffSummary += `\n+${lineDiff} lines`
+    } else if (lineDiff < 0) {
+      diffSummary += `\n${lineDiff} lines`
+    }
+
     return {
       content: [
         {
           type: 'text',
-          text: `Overwrote file: ${relativePath}\nLines: ${newString.split('\n').length}`
+          text: diffSummary
         }
       ]
     }
-  }
-
-  // Perform the replacement with fuzzy matching
-  const newContent = replaceWithFuzzyMatch(content, oldString, newString, replaceAll)
-
-  // Write the modified content
-  await fs.writeFile(validPath, newContent, 'utf-8')
-
-  logger.info('File edited', {
-    path: validPath,
-    replaceAll
   })
-
-  // Generate a simple diff summary
-  const oldLines = content.split('\n').length
-  const newLines = newContent.split('\n').length
-  const lineDiff = newLines - oldLines
-
-  const relativePath = path.relative(baseDir, validPath)
-  let diffSummary = `Edited: ${relativePath}`
-  if (lineDiff > 0) {
-    diffSummary += `\n+${lineDiff} lines`
-  } else if (lineDiff < 0) {
-    diffSummary += `\n${lineDiff} lines`
-  }
-
-  return {
-    content: [
-      {
-        type: 'text',
-        text: diffSummary
-      }
-    ]
-  }
 }
