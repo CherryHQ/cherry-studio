@@ -179,11 +179,11 @@ request returns an `isError` result with the reason and its last partial output 
 `failed`, `truncated`, `aborted`, `limit_reached`). That `usage` is for budgets: the host's AI SDK
 calls already account it, so it must not be billed again.
 
-A subagent makes at most 200 model requests (`MAX_SUBAGENT_REQUESTS`), counted where its session
-makes them: its turns and the compaction summaries made for it (Pi's own summarizer through the
-model runtime, or the host's `compaction.summarize`) alike; the 201st is refused before it goes
-out. Counting wraps the child's native `agent.streamFunction` and the host summarizer, so it is
-independent of the provider and does not modify the borrowed model runtime. Pi's cache warmer
+A subagent makes at most 200 model requests, counted where its session makes them: its turns and
+the compaction summaries made for it (Pi's own summarizer through the model runtime, or the host's
+`compaction.summarize`) alike; the 201st is refused before it goes out. Counting wraps the child's
+native `agent.streamFunction` and the host summarizer, so it is independent of the provider and
+does not modify the borrowed model runtime. Pi's cache warmer
 would re-send requests past that count, so subagent sessions run with cache warming off. The
 compaction summarizer gets the compacting session's id, so a host can tell a subagent's compaction
 from its parent's.
