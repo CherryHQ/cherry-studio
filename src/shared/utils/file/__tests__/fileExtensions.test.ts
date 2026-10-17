@@ -102,7 +102,7 @@ describe('media catalogs are grounded in mime-db', () => {
   })
 
   it('covers the common formats users actually produce', () => {
-    expect(audioExts).toEqual(expect.arrayContaining(['.m4a', '.opus', '.wma', '.aiff', '.caf', '.mid']))
+    expect(audioExts).toEqual(expect.arrayContaining(['.m4a', '.opus', '.wma', '.aiff', '.caf', '.midi']))
     expect(imageExts).toEqual(expect.arrayContaining(['.heic', '.heif', '.avif', '.ico', '.tiff', '.psd', '.dng']))
     expect(videoExts).toEqual(expect.arrayContaining(['.webm', '.m4v', '.mov', '.3gp']))
   })
@@ -112,5 +112,13 @@ describe('media catalogs are grounded in mime-db', () => {
     // (`unsupportedImageRead`) blocks Read calls for every imageExts entry.
     expect(imageExts).not.toContain('.svg')
     expect(imageExts).not.toContain('.svgz')
+  })
+
+  it('keeps the MapInfo .mid alias out of the audio catalog so attribute text files stay text', () => {
+    // MapInfo MIF/MID pairs store the CSV-like attribute table in `.mid` as
+    // plain text (same content-fallback contract as `.dts`); real MIDI keeps
+    // audio classification through the unambiguous `.midi`.
+    expect(audioExts).not.toContain('.mid')
+    expect(audioExts).toContain('.midi')
   })
 })
