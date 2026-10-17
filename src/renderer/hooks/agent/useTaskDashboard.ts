@@ -1,42 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { loggerService } from '@logger'
-import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
-import { debounce } from '@shared/utils/async'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { AGENT_TASK_DASHBOARD_CACHE_KEY, DASHBOARD_PAGE_SIZE } from '@shared/ai/agentTaskDashboard'
 
-const logger = loggerService.withContext('useTaskDashboard')
+export function useTaskDashboard() {
+  const entries = useSharedCacheValue(AGENT_TASK_DASHBOARD_CACHE_KEY)
+  const [requestedPage, setPage] = useState(1)
+  const total = entries?.length ?? 0
+  const lastPage = Math.max(1, Math.ceil(total / DASHBOARD_PAGE_SIZE))
+  const page = Math.min(requestedPage, lastPage)
 
-export function useTaskDashboard(enabled: boolean) {
-  const [cursors, setCursors] = useState<Array<string | undefined>>([undefined])
-  const query = useQuery('/agent-task-dashboard', {
-    query: { group: 'running', cursor: cursors.at(-1) },
-    enabled,
-    swrOptions: { keepPreviousData: false }
-  })
-  const { refetch } = query
-  const refresh = useMemo(
-    () =>
-      debounce(
-        () => {
-          if (enabled) void refetch().catch((error) => logger.warn('Failed to refresh dashboard', error))
-        },
-        250,
-        { maxWait: 1000 }
-      ),
-    [enabled, refetch]
-  )
-  useDataChange('/agent-task-dashboard', () => refresh())
-  useEffect(() => () => refresh.cancel(), [refresh])
+  useEffect(() => setPage((current) => Math.min(current, lastPage)), [lastPage])
+
   return {
-    ...query,
-    items: query.data?.items ?? [],
-    total: query.data?.totals.running ?? 0,
-    page: cursors.length,
-    hasPrev: cursors.length > 1,
-    hasNext: !!query.data?.nextCursor,
-    prev: () => setCursors((current) => (current.length > 1 ? current.slice(0, -1) : current)),
-    next: () => {
-      if (query.data?.nextCursor) setCursors((current) => [...current, query.data!.nextCursor])
-    }
+    items: entries?.slice((page - 1) * DASHBOARD_PAGE_SIZE, page * DASHBOARD_PAGE_SIZE) ?? [],
+    total,
+    isLoading: entries == null,
+    page,
+    hasPrev: page > 1,
+    hasNext: page < lastPage,
+    prev: () => setPage(Math.max(1, page - 1)),
+    next: () => setPage(Math.min(lastPage, page + 1))
   }
 }

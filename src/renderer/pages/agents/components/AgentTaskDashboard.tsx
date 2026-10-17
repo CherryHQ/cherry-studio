@@ -34,8 +34,8 @@ import { openRoute, openSettingsTab } from '@renderer/services/mainWindowNavigat
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import type { DashboardEntry } from '@shared/ai/agentTaskDashboard'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import type { DashboardEntry } from '@shared/data/api/schemas/agentTaskDashboard'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 function useVisibleTime(enabled: boolean): number {
@@ -59,8 +59,7 @@ function useVisibleTime(enabled: boolean): number {
 }
 
 function formatDuration(row: DashboardEntry, now: number, locale: string): string {
-  if (row.startedAt === null || (row.reasonCode === 'interrupted' && row.lastActivityAt === null)) return '—'
-  const seconds = Math.max(0, Math.floor(((row.endedAt ?? now) - row.startedAt) / 1000))
+  const seconds = Math.max(0, Math.floor((now - row.startedAt) / 1000))
   const units: Array<[string, number]> = [
     ['hour', Math.floor(seconds / 3600)],
     ['minute', Math.floor(seconds / 60) % 60],
@@ -100,7 +99,7 @@ function PageButtons({
 /** Shared by every Agent sidebar layout; the surrounding sidebar owns the height limit. */
 export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
   const { t, i18n } = useTranslation()
-  const running = useTaskDashboard(enabled)
+  const running = useTaskDashboard()
   const tasks = useAllTasks(enabled)
   const [, setShowTaskDashboard] = usePreference('agent.task_dashboard.visible')
   const [showRunningCount, setShowRunningCount] = usePreference('agent.task_dashboard.show_running_count')
@@ -134,7 +133,6 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
       } else if (row.taskId) {
         await dataApiService.get(`/agent-tasks/${row.taskId}`)
         openSettingsTab(`/settings/scheduled-tasks/${encodeURIComponent(row.taskId)}`)
-        if (row.errorSummary) toast.error({ title: t('agent.task_dashboard.failed'), description: row.errorSummary })
       } else markUnavailable(row.id)
     } catch (error) {
       if (isDataApiNotFoundError(error) || isAgentSessionNotFoundError(error)) markUnavailable(row.id)
@@ -176,9 +174,7 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
         : t('agent.task_dashboard.running')
     return (
       <li key={row.id} className="group flex min-w-0 items-center gap-1 px-1">
-        <Tooltip
-          content={missing ? t('agent.task_dashboard.unavailable') : row.errorSummary || row.nameSnapshot}
-          asChild>
+        <Tooltip content={missing ? t('agent.task_dashboard.unavailable') : row.nameSnapshot} asChild>
           <Button
             variant="ghost"
             disabled={missing}
@@ -281,19 +277,7 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
       </div>
       {header('running', t('agent.task_dashboard.running'), running.total)}
       {!collapsed.includes('running') &&
-        (running.error ? (
-          <div className="px-3 py-2 text-xs">
-            <p>{t('agent.task_dashboard.load_failed')}</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                void running.refetch().catch(errorToast)
-              }}>
-              {t('common.retry')}
-            </Button>
-          </div>
-        ) : running.isLoading ? (
+        (running.isLoading ? (
           <p className="px-3 py-2 text-xs text-muted-foreground">{t('common.loading')}</p>
         ) : running.total === 0 ? (
           <p className="px-3 py-1 text-xs text-muted-foreground">{t('agent.task_dashboard.empty')}</p>

@@ -191,6 +191,10 @@ export interface OpenAgentSessionTurnStreamInput {
 
 export interface AgentSessionRuntimeSnapshot {
   sessionId: string
+  agentId: string
+  sourceJobId?: string
+  busy: boolean
+  turnId?: string
   topicId?: string
   assistantMessageId?: string
   status: AgentSessionRuntimeStatus
@@ -288,7 +292,6 @@ type AgentSessionRuntimeEntry = {
   /** Author snapshot (agent + nested model) for assistant rows the runtime opens this session. */
   messageSnapshot?: MessageSnapshot
   runtimeState: RuntimeState
-  closingTerminalStatus?: AgentSessionRuntimeTerminalStatus
   /** Capture owner/receipt of the installed connection; retained through terminal persistence. */
   usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
@@ -917,7 +920,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
           // A user Stop is the only abort source now (steer no longer interrupts) — tear the
           // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => void this.closeSession(entry.sessionId, 'paused')
+          const onAbort = () => void this.closeSession(entry.sessionId)
           if (input.signal.aborted) {
             onAbort()
             return
@@ -1076,12 +1079,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  closeSession(sessionId: string, terminalStatus?: AgentSessionRuntimeTerminalStatus): Promise<void> {
+  closeSession(sessionId: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
-    entry.closingTerminalStatus ??= terminalStatus ?? (this.getWorkSnapshot(sessionId)?.busy ? 'error' : undefined)
-    if (entry.closingTerminalStatus) this.workChanged.fire(sessionId)
     const fallbackConnection = this.currentConnection(entry)
     const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
     let closing: Promise<void>
@@ -1336,6 +1337,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
     return {
       sessionId: entry.sessionId,
+      agentId: entry.agentId,
+      sourceJobId: entry.sourceJobId,
+      busy: isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState),
+      turnId: turn?.turnId,
       topicId: entry.topicId,
       assistantMessageId: turn?.assistantMessageId,
       status: this.runtimeStatus(entry),
@@ -1346,20 +1351,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  getWorkSnapshot(sessionId: string) {
-    const entry = this.entries.get(sessionId)
-    if (!entry) return undefined
-    const turn = this.currentTurn(entry)
-    const { execution, lastTerminal } = entry.runtimeState
-    return {
-      agentId: entry.agentId,
-      ...(entry.sourceJobId !== undefined ? { sourceJobId: entry.sourceJobId } : {}),
-      busy: isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState),
-      turnId: turn?.turnId,
-      messageAnchor: turn?.assistantMessageId,
-      terminalStatus:
-        entry.closingTerminalStatus ?? (execution.kind === 'idle' ? lastTerminal : execution.terminal?.status)
-    }
+  listSnapshots(): AgentSessionRuntimeSnapshot[] {
+    return [...this.entries.keys()].map((sessionId) => this.inspect(sessionId)!)
   }
 
   // ── Write quiesce (backup restore) ───────────────────────────────
@@ -2933,6 +2926,7 @@ export class AgentSessionRuntimeService extends BaseService {
       headless,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
+    entry.sourceJobId = undefined
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).

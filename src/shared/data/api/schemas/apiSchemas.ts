@@ -23,7 +23,6 @@ import type { AgentChannelSchemas } from './agentChannels'
 import type { AgentSchemas } from './agents'
 import type { AgentSessionMessageSchemas } from './agentSessionMessages'
 import type { AgentSessionSchemas } from './agentSessions'
-import type { AgentTaskDashboardSchemas } from './agentTaskDashboard'
 import type { AgentWorkspaceSchemas } from './agentWorkspaces'
 import type { AiUsageRecordSchemas } from './aiUsageRecords'
 import type { ApiGatewayPairedDeviceSchemas } from './apiGatewayPairedDevices'
@@ -85,7 +84,6 @@ export type ApiSchemas = AssertValidSchemas<
     GroupSchemas &
     PinSchemas &
     AgentSchemas &
-    AgentTaskDashboardSchemas &
     SkillSchemas &
     AgentSessionMessageSchemas &
     AgentSessionSchemas &

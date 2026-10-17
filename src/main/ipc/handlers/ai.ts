@@ -285,8 +285,6 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),
   'ai.agent.task_dashboard.stop': ({ runIds }) => application.get('AgentTaskDashboardService').stop(runIds),
-  'ai.agent.task_dashboard.view_session': async ({ sessionId, automatic }, { senderId }) =>
-    application.get('AgentTaskDashboardService').viewSession(sessionId, senderId, automatic),
   'ai.agent.heartbeat.write': async ({ agentId, ...document }) => {
     try {
       return await application.get('AgentJobsService').writeHeartbeatDocument(agentId, document)

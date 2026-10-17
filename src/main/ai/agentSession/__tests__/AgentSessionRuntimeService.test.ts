@@ -642,19 +642,27 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-2')
   })
 
-  it('keeps scheduled provenance through queued work and clears it for a fresh interactive turn', async () => {
+  it('clears scheduled provenance when a queued user successor starts', async () => {
     const service = new AgentSessionRuntimeService()
-    service.beginTurn({ ...baseTurnInput, sourceJobId: 'scheduled-job' })
+    const scheduled = service.beginTurn({ ...baseTurnInput, sourceJobId: 'scheduled-job', headless: true })
+    const successorSources: Array<string | undefined> = []
+    service.onWorkChanged((sessionId) => {
+      const snapshot = service.inspect(sessionId)
+      if (snapshot?.busy && snapshot.turnId !== scheduled.turnId) successorSources.push(snapshot.sourceJobId)
+    })
     service.enqueueUserMessage('session-1', userMessage('user-2'))
     service.markTurnTerminal('session-1', 'success')
-    expect(service.getWorkSnapshot('session-1')).toMatchObject({ busy: true, sourceJobId: 'scheduled-job' })
+    expect(service.inspect('session-1')).toMatchObject({ busy: true, sourceJobId: 'scheduled-job' })
 
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(service.getWorkSnapshot('session-1')).toMatchObject({ busy: true, sourceJobId: 'scheduled-job' })
+    expect(service.inspect('session-1')).toMatchObject({ busy: true, sourceJobId: undefined })
+    expect(service.inspect('session-1')?.turnId).not.toBe(scheduled.turnId)
+    expect(successorSources).toContain(undefined)
+    expect(successorSources).not.toContain('scheduled-job')
     service.markTurnTerminal('session-1', 'success')
     service.beginTurn({ ...baseTurnInput, assistantMessageId: 'interactive-message' })
-    expect(service.getWorkSnapshot('session-1')?.sourceJobId).toBeUndefined()
+    expect(service.inspect('session-1')?.sourceJobId).toBeUndefined()
   })
 
   it('aborts live streams before shutdown clears their pending approvals', async () => {
@@ -1487,6 +1495,9 @@ describe('AgentSessionRuntimeService', () => {
     expect(persistenceListener(handle).id).toContain('persistence:agents-db:agent-session:session-1')
     expect(service.inspect('session-1')).toMatchObject({
       sessionId: 'session-1',
+      agentId: 'agent-1',
+      busy: true,
+      turnId: handle.turnId,
       topicId: 'agent-session:session-1',
       assistantMessageId: 'assistant-1',
       status: 'active',
@@ -1523,7 +1534,7 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it.each([false, true])(
-    'reports Stop before teardown without inheriting a previous success (%s)',
+    'removes stopped work from observer snapshots after a warm turn (%s)',
     async (previousSuccess) => {
       const service = new AgentSessionRuntimeService()
       if (previousSuccess) {
@@ -1531,12 +1542,11 @@ describe('AgentSessionRuntimeService', () => {
         service.markTurnTerminal('session-1', 'success')
       }
       const handle = service.beginTurn({ ...baseTurnInput, assistantMessageId: 'current-assistant' })
-      expect(service.getWorkSnapshot('session-1')?.terminalStatus).toBeUndefined()
       getEntry(service).connection = { close: vi.fn(), reconcile: vi.fn().mockResolvedValue('current') }
-      const outcomes: Array<string | undefined> = []
-      service.onWorkChanged((sessionId) => {
-        const snapshot = service.getWorkSnapshot(sessionId)
-        if (snapshot && !snapshot.busy) outcomes.push(snapshot.terminalStatus)
+      let observed = service.listSnapshots()
+      expect(observed).toMatchObject([{ busy: true, turnId: handle.turnId }])
+      service.onWorkChanged(() => {
+        observed = service.listSnapshots()
       })
       const reader = service
         .openTurnStream({
@@ -1548,29 +1558,41 @@ describe('AgentSessionRuntimeService', () => {
 
       handle.abortController.abort('user-requested')
 
-      expect(outcomes).toEqual(['paused'])
-      expect(service.getWorkSnapshot('session-1')).toBeUndefined()
+      expect(observed).toEqual([])
+      expect(service.inspect('session-1')).toBeUndefined()
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       terminalListener(handle).onPaused({ status: 'paused', isTopicDone: true })
-      expect(outcomes).toEqual(['paused'])
+      expect(observed).toEqual([])
     }
   )
 
-  it('reports an interrupted fresh turn as an error after a successful warm turn', async () => {
+  it('initializes a late observer from current snapshots and drops closed sessions', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     service.markTurnTerminal('session-1', 'success')
-    service.beginTurn({ ...baseTurnInput, assistantMessageId: 'current-assistant' })
-    const outcomes: Array<string | undefined> = []
-    service.onWorkChanged((sessionId) => {
-      const snapshot = service.getWorkSnapshot(sessionId)
-      if (snapshot && !snapshot.busy) outcomes.push(snapshot.terminalStatus)
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      sessionId: 'session-2',
+      topicId: 'agent-session:session-2',
+      sourceJobId: 'scheduled-job'
+    })
+    const snapshots = service.listSnapshots()
+    expect(snapshots).toMatchObject([
+      { sessionId: 'session-1', busy: false },
+      { sessionId: 'session-2', busy: true, turnId: handle.turnId, sourceJobId: 'scheduled-job' }
+    ])
+    let observed = snapshots
+    service.onWorkChanged(() => {
+      observed = service.listSnapshots()
     })
 
     await service.closeSession('session-1')
 
-    expect(outcomes).toEqual(['error'])
+    expect(observed).toMatchObject([{ sessionId: 'session-2', busy: true }])
+    expect(observed).toHaveLength(1)
+    expect(snapshots).toHaveLength(2)
+    await service.closeSession('session-2')
   })
 
   it('marks the runtime idle when the terminal listener observes done', () => {
@@ -1581,10 +1603,10 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(service.inspect('session-1')).toMatchObject({
       status: 'idle',
+      busy: false,
       pendingMessageCount: 0,
       lastTerminalStatus: 'success'
     })
-    expect(service.getWorkSnapshot('session-1')).toMatchObject({ busy: false, terminalStatus: 'success' })
   })
 
   it('hands an idle session with a resume token to the driver onSessionIdle hook', () => {
@@ -2901,6 +2923,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       expect(service.isSessionBusy('session-1')).toBe(false)
       expect(service.isSessionBusyForArchive('session-1')).toBe(true)
+      expect(service.inspect('session-1')).toMatchObject({ status: 'idle', busy: true })
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeDefined()
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
@@ -2908,11 +2931,12 @@ describe('AgentSessionRuntimeService', () => {
       // Presentation remains independent; the explicit keepalive level owns connection lifetime.
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
       service.releaseIdleConnection('session-1')
-      expect(service.inspect('session-1')).toBeDefined()
+      expect(service.inspect('session-1')).toMatchObject({ busy: true })
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       expect(service.isSessionBusy('session-1')).toBe(false)
       expect(service.isSessionBusyForArchive('session-1')).toBe(false)
+      expect(service.inspect('session-1')).toMatchObject({ busy: false })
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeUndefined()
@@ -3361,7 +3385,7 @@ describe('AgentSessionRuntimeService', () => {
 
     it('keeps a receive-only wake headless when the background work started without a responder', async () => {
       const service = new AgentSessionRuntimeService()
-      service.beginTurn({ ...baseTurnInput, headless: true })
+      service.beginTurn({ ...baseTurnInput, headless: true, sourceJobId: 'scheduled-job' })
       const entry = getEntry(service)
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       service.markTurnTerminal('session-1', 'success')
@@ -3375,6 +3399,7 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(entry.currentTurn).toMatchObject({ headless: true })
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', turn: entry.currentTurn })
+      expect(service.inspect('session-1')).toMatchObject({ busy: true, sourceJobId: 'scheduled-job' })
       void service.closeSession('session-1')
     })
 

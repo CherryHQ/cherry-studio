@@ -1,17 +1,18 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUsePaginatedQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
+import type * as CacheHooks from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import enUS from '@renderer/i18n/locales/en-us.json'
+import { AGENT_TASK_DASHBOARD_CACHE_KEY, type DashboardEntry } from '@shared/ai/agentTaskDashboard'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { DashboardEntry, DashboardPage } from '@shared/data/api/schemas/agentTaskDashboard'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -196,10 +197,12 @@ vi.mock('@data/hooks/usePreference', async () => {
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
   const React = await import('react')
+  const { useSharedCacheValue } = await vi.importActual<typeof CacheHooks>('@renderer/data/hooks/useCache')
 
   return {
     useCache: () => [undefined, vi.fn()],
     useSharedCache: () => [null, vi.fn()],
+    useSharedCacheValue,
     usePersistCache: (key: string) => {
       const initialValue = (() => {
         switch (key) {
@@ -371,7 +374,10 @@ vi.mock('react-i18next', () => ({
         'settings.skills.launchDraft': `Use ${options?.name ?? ''} Skill to help me.`
       })[key] ??
       (
-        (key.startsWith('agent.task_dashboard.') || key.startsWith('agent.tasks.') || key.startsWith('common.')
+        (key.startsWith('agent.task_dashboard.') ||
+        key.startsWith('agent.tasks.') ||
+        key.startsWith('settings.scheduledTasks.') ||
+        key.startsWith('common.')
           ? enUS[key as keyof typeof enUS]
           : undefined) ?? key
       ).replace(/{{(name|count)}}/g, (_, variable: 'name' | 'count') => String(options?.[variable] ?? ''))
@@ -729,23 +735,15 @@ import AgentPage from '../AgentPage'
 import type { AgentTaskDashboard as DashboardComponent } from '../components/AgentTaskDashboard'
 
 describe('Agent task dashboard interactions', () => {
-  const defaultQuery = mockUseQuery.getMockImplementation()!
-  afterEach(() => {
-    mockUseQuery.mockImplementation(defaultQuery)
-  })
   let Dashboard: typeof DashboardComponent
   beforeAll(async () => {
     Dashboard = (
       await vi.importActual<{ AgentTaskDashboard: typeof DashboardComponent }>('../components/AgentTaskDashboard')
     ).AgentTaskDashboard
   })
-  let pages: Record<'running' | 'awaiting', DashboardPage>
-  let loadError: Error | undefined
-  const refresh = vi.fn(async () => {})
-  const run = (id: string, status: DashboardEntry['status']): DashboardEntry => ({
+  const run = (id: string): DashboardEntry => ({
     id,
     source: 'agent',
-    runId: id,
     taskId: null,
     sessionId: 'session',
     agentId: 'agent',
@@ -753,13 +751,7 @@ describe('Agent task dashboard interactions', () => {
     agentNameSnapshot: 'Agent A',
     messageAnchor: 'anchor',
     startedAt: 1000,
-    endedAt: status === 'running' ? null : 2000,
-    lastActivityAt: 2000,
-    status,
     blockedOn: null,
-    reasonCode: null,
-    errorSummary: null,
-    viewedAt: null,
     runIds: [id],
     runCount: 1
   })
@@ -767,57 +759,70 @@ describe('Agent task dashboard interactions', () => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
     MockCacheUtils.resetMocks()
-    loadError = undefined
-    pages = {
-      running: { items: [], totals: { running: 0, awaiting: 0 } },
-      awaiting: { items: [], totals: { running: 0, awaiting: 0 } }
-    }
-    mockUseQuery.mockImplementation((_path, options) => {
-      const query = options?.query as { group: 'running' | 'awaiting'; cursor?: string }
-      return {
-        data: (query.cursor
-          ? { ...pages[query.group], items: [run('Older run', 'running')], nextCursor: undefined }
-          : pages[query.group]) as any,
-        error: loadError,
-        isLoading: false,
-        isRefreshing: false,
-        refetch: refresh,
-        mutate: vi.fn()
-      }
-    })
+    MockCacheUtils.setInitialState({ shared: [[AGENT_TASK_DASHBOARD_CACHE_KEY, []]] })
     MockUseDataApiUtils.mockPaginatedData('/agent-tasks', [
       { id: 'scheduled', name: 'Daily summary', status: 'active', runSummary: { status: 'queued' } } as any
     ])
     ipcMocks.request.mockReset().mockResolvedValue(undefined)
   })
 
-  it('distinguishes empty results from loading failure and retries', async () => {
-    const user = userEvent.setup()
-    const { rerender } = render(<Dashboard enabled />)
-    expect(screen.getByText('No active tasks')).toBeInTheDocument()
-    expect(screen.queryByRole('list', { name: 'Running' })).not.toBeInTheDocument()
-    loadError = new Error('Offline')
-    rerender(<Dashboard enabled />)
+  it('waits for the main projection without writing a default, then shows a loaded empty result', () => {
+    MockCacheUtils.setInitialState({})
+    render(<Dashboard enabled />)
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
     expect(screen.queryByText('No active tasks')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(refresh).toHaveBeenCalled()
+    expect(cacheService.setShared).not.toHaveBeenCalled()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, null))
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, []))
+    expect(screen.getByText('No active tasks')).toBeInTheDocument()
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Running' })).not.toBeInTheDocument()
   })
 
-  it('keeps accurate running totals across pages and no longer exposes awaiting results', async () => {
+  it('keeps scheduled-task retry available independently of the running projection', async () => {
     const user = userEvent.setup()
-    pages.running = {
-      items: [run('Latest run', 'running')],
-      totals: { running: 2001, awaiting: 9 },
-      nextCursor: 'older'
-    }
+    const refresh = vi.fn(async () => {})
+    const query = mockUsePaginatedQuery.getMockImplementation()!
+    mockUsePaginatedQuery.mockImplementation((...args) => ({
+      ...query(...args),
+      error: new Error('Offline'),
+      refresh
+    }))
+    render(<Dashboard enabled />)
+    expect(screen.getByText('No active tasks')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('pages 50 runs with exact totals, clamps a shrinking list and stays on that page when it grows', async () => {
+    const user = userEvent.setup()
+    const entries = Array.from({ length: 2001 }, (_, index) => run(`Run ${index + 1}`))
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, entries)
     render(<Dashboard enabled />)
     expect(screen.getByRole('button', { name: 'Running 2001' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.queryByRole('button', { name: /Awaiting review/ })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Running' })).getAllByRole('listitem')).toHaveLength(50)
+    expect(screen.getByText('Run 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(screen.getByText('Older run')).toBeInTheDocument()
-    expect(screen.queryByText('Latest run')).not.toBeInTheDocument()
+    expect(screen.getByText('Run 51')).toBeInTheDocument()
+    expect(screen.queryByText('Run 1')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Running 2001' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Previous' }))
-    expect(screen.getByText('Latest run')).toBeInTheDocument()
+    expect(screen.getByText('Run 1')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, entries.slice(0, 51)))
+    expect(within(screen.getByRole('list', { name: 'Running' })).getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('Run 51')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [run('Surviving run')]))
+    expect(screen.getByText('Surviving run')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Running 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, entries))
+    expect(screen.getByText('Run 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Running 2001' }))
     expect(screen.queryByRole('list', { name: 'Running' })).not.toBeInTheDocument()
   })
@@ -825,12 +830,12 @@ describe('Agent task dashboard interactions', () => {
   it('captures the clicked runs, exposes Stopping, and reports one partial-failure toast', async () => {
     const user = userEvent.setup()
     const active = {
-      ...run('Research', 'running'),
+      ...run('Research'),
       runIds: ['old-1', 'old-2'],
       runCount: 2,
       blockedOn: 'approval' as const
     }
-    pages.running = { items: [active], totals: { running: 1, awaiting: 0 } }
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [active])
     let settle!: (results: unknown) => void
     ipcMocks.request.mockImplementation(
       () =>
@@ -838,15 +843,14 @@ describe('Agent task dashboard interactions', () => {
           settle = resolve
         })
     )
-    const { rerender } = render(<Dashboard enabled />)
+    render(<Dashboard enabled />)
     expect(screen.getByText('Needs approval')).toBeInTheDocument()
     const stop = screen.getByRole('button', { name: 'Stop Research' })
     stop.focus()
     await user.keyboard('{Enter}')
     expect(stop).toBeDisabled()
     expect(screen.getByText('Stopping…')).toBeInTheDocument()
-    pages.running.items = [{ ...active, runIds: ['newer-run'] }]
-    rerender(<Dashboard enabled />)
+    act(() => cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [{ ...active, runIds: ['newer-run'] }]))
     expect(ipcMocks.request).toHaveBeenCalledWith('ai.agent.task_dashboard.stop', { runIds: ['old-1', 'old-2'] })
     await act(async () =>
       settle([
@@ -860,7 +864,7 @@ describe('Agent task dashboard interactions', () => {
 
   it('opens running tasks at their anchor and disables navigation when the session was deleted', async () => {
     const user = userEvent.setup()
-    pages.running = { items: [run('Research', 'running')], totals: { running: 1, awaiting: 0 } }
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [run('Research')])
     render(<Dashboard enabled />)
     await user.click(screen.getByRole('button', { name: /Research Agent A Running/ }))
     expect(ipcMocks.request).toHaveBeenCalledWith('navigation.focus_or_open_conversation', {
@@ -872,6 +876,32 @@ describe('Agent task dashboard interactions', () => {
     await user.click(screen.getByRole('button', { name: /Research Agent A Running/ }))
     expect(screen.getByRole('button', { name: /Research Agent A No longer available/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
+  })
+
+  it('opens a scheduled run without a session through its task and disables a targetless run', async () => {
+    const user = userEvent.setup()
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [
+      { ...run('Scheduled run'), source: 'scheduled', sessionId: null, taskId: 'scheduled' },
+      { ...run('Removed task'), source: 'scheduled', sessionId: null }
+    ])
+    agentPageMocks.dataApiGet.mockResolvedValueOnce({ id: 'scheduled' })
+    render(<Dashboard enabled />)
+    expect(screen.getByRole('button', { name: /Removed task Agent A No longer available/ })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: /Scheduled run Agent A Running/ }))
+    expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/agent-tasks/scheduled')
+    expect(ipcMocks.request).toHaveBeenCalledWith('navigation.open_route_in_main', {
+      path: '/settings/scheduled-tasks/scheduled'
+    })
+  })
+
+  it('opens the existing scheduled-task creation flow from the header context menu', async () => {
+    const user = userEvent.setup()
+    render(<Dashboard enabled />)
+    await user.pointer({ target: screen.getByRole('button', { name: /^Scheduled tasks/ }), keys: '[MouseRight]' })
+    await user.click(screen.getByRole('menuitem', { name: 'New scheduled task' }))
+    expect(ipcMocks.request).toHaveBeenCalledWith('navigation.open_route_in_main', {
+      path: '/settings/scheduled-tasks?create=true'
+    })
   })
 
   it('toggles each count independently from its header context menu without collapsing the group', async () => {

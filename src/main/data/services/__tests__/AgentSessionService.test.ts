@@ -663,8 +663,7 @@ describe('AgentSessionService', () => {
         { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [duplicate.id] },
         { endpoint: '/agent-sessions/:sessionId', entityIds: [duplicate.id] },
         { endpoint: '/agent-sessions/latest' },
-        { endpoint: '/agent-workspaces', kind: 'membership' },
-        { endpoint: '/agent-task-dashboard', kind: 'membership' }
+        { endpoint: '/agent-workspaces', kind: 'membership' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
@@ -739,8 +738,7 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' },
-      { endpoint: '/agent-workspaces', kind: 'membership' },
-      { endpoint: '/agent-task-dashboard', kind: 'membership' }
+      { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
@@ -1151,8 +1149,7 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' },
-      { endpoint: '/agent-workspaces', kind: 'membership' },
-      { endpoint: '/agent-task-dashboard', kind: 'membership' }
+      { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
