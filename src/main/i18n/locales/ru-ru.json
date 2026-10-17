@@ -145,6 +145,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU не завершил обработку документа (статус: {{status}}). Проверьте сервер и повторите попытку.",
   "file_processing.errors.open_mineru_unreachable": "Не удалось подключиться к Open MinerU. Убедитесь, что сервер работает и адрес указан верно.",
   "file_processing.errors.pdf_page_limit_exceeded": "Этот PDF превышает ограничение в {{maxPages}} страниц для текущей службы разбора документов. Разделите PDF вручную, затем добавьте его снова.",
+  "local_model.errors.chat_not_downloaded": "Эта локальная модель загружена не полностью. Загрузите её снова в разделе Настройки > Зависимости окружения > Локальные модели.",
   "notification.action_required.agent": "Агент ожидает вашего ответа",
   "notification.action_required.assistant": "Ассистент ожидает вашего ответа",
   "notification.completion.agent": "Задача агента выполнена",

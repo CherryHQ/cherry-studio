@@ -334,6 +334,25 @@ describe('cross-dialect descriptor translation', () => {
     })
   })
 
+  it('turns thinking on for a toggle-only target whichever dialect asks for it', () => {
+    const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const toggleModel = model('local', 'qwen-toggle', endpoint, {
+      selectableEfforts: ['none', 'auto'],
+      controls: [{ kind: 'toggle', default: false }]
+    })
+    const target = provider('openai-compatible', endpoint)
+    const on = { 'target-openai-compatible': { reasoningEffort: 'medium' } }
+
+    expect(mapReasoningEffortToProviderOptions(target, toggleModel, 'high')).toEqual(on)
+    expect(
+      mapAnthropicThinkingToProviderOptions(target, toggleModel, { type: 'enabled', budget_tokens: 4096 })
+    ).toEqual(on)
+    expect(mapGeminiThinkingToProviderOptions(target, toggleModel, { thinkingBudget: 4096 })).toEqual(on)
+    expect(mapAnthropicThinkingToProviderOptions(target, toggleModel, { type: 'disabled' })).toEqual({
+      'target-openai-compatible': { reasoningEffort: 'none' }
+    })
+  })
+
   it('uses the descriptor serializer for an OpenAI-compatible target', () => {
     const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     const genericModel = model('relay', 'reasoner-v1', endpoint, {

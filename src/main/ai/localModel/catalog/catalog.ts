@@ -627,8 +627,12 @@ export const LOCAL_MODEL_BUNDLES = {
     installDirKey: 'feature.llm.qwen3_5_4b',
     requires: ['node-llama-cpp'],
     runtime: {
-      // Thinking-mode general settings from the Qwen3.5 model card.
-      chat: { maxContextSize: 65_536, sampling: { temperature: 1, topP: 0.95, topK: 20, presencePenalty: 1.5 } }
+      chat: {
+        maxContextSize: 65_536,
+        // Thinking-mode general settings from the Qwen3.5 model card.
+        sampling: { temperature: 1, topP: 0.95, topK: 20, presencePenalty: 1.5 },
+        memoryBytes: { maxContext: 6_187_757_632, minContext: 4_129_402_944 }
+      }
     },
     provenance: {
       license: {
@@ -674,6 +678,67 @@ export const LOCAL_MODEL_BUNDLES = {
             repo: 'unsloth/Qwen3.5-4B-GGUF',
             revision: 'e87f176479d0855a907a41277aca2f8ee7a09523',
             remoteFile: 'Qwen3.5-4B-Q4_K_M.gguf'
+          }
+        ]
+      }
+    ]
+  },
+  'qwen3.5-9b-q4_k_m': {
+    id: 'qwen3.5-9b-q4_k_m',
+    capability: 'llm',
+    installDirKey: 'feature.llm.qwen3_5_9b',
+    requires: ['node-llama-cpp'],
+    runtime: {
+      chat: {
+        maxContextSize: 65_536,
+        sampling: { temperature: 1, topP: 0.95, topK: 20, presencePenalty: 1.5 },
+        memoryBytes: { maxContext: 9_135_007_808, minContext: 7_138_519_104 }
+      }
+    },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: 'https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE'
+      },
+      upstream: {
+        url: 'https://huggingface.co/Qwen/Qwen3.5-9B',
+        revision: 'c202236235762e1c871ad0ccb60c8ee5ba337b9a'
+      },
+      conversion: {
+        url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF',
+        revision: '3885219b6810b007914f3a7950a8d1b469d598a5',
+        license: {
+          spdx: 'Apache-2.0',
+          url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/tree/3885219b6810b007914f3a7950a8d1b469d598a5'
+        }
+      }
+    },
+    files: [
+      {
+        key: 'weights',
+        relPath: 'Qwen3.5-9B-Q4_K_M.gguf',
+        sha256: '03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8',
+        sizeBytes: 5_680_522_464,
+        minBytes: 5_680_522_464,
+        weight: 5681,
+        sources: [
+          {
+            source: 'modelscope',
+            repo: 'unsloth/Qwen3.5-9B-GGUF',
+            revision: 'ae90f0d1c1be2b9250b0ef68265615f6fe3c777b',
+            remoteFile: 'Qwen3.5-9B-Q4_K_M.gguf'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'unsloth/Qwen3.5-9B-GGUF',
+            revision: '3885219b6810b007914f3a7950a8d1b469d598a5',
+            remoteFile: 'Qwen3.5-9B-Q4_K_M.gguf'
+          },
+          {
+            source: 'huggingface',
+            repo: 'unsloth/Qwen3.5-9B-GGUF',
+            revision: '3885219b6810b007914f3a7950a8d1b469d598a5',
+            remoteFile: 'Qwen3.5-9B-Q4_K_M.gguf'
           }
         ]
       }

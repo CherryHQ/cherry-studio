@@ -314,7 +314,7 @@ Commands use one generic IPC surface (`local_model.*`), addressed by bundle id:
 
 | Route | Purpose |
 |---|---|
-| `list` | Everything installable, with each bundle's capability |
+| `list` | Everything installable, with each bundle's capability (and a chat model's memory fit) |
 | `get_status` / `download` / `cancel` / `remove` | That bundle's lifecycle |
 | `get_acceleration_capability` | Whether this platform has a hardware provider |
 
@@ -328,8 +328,8 @@ The renderer observes the map with the read-only `useSharedCacheValue` hook. On 
 snapshot; it ignores the response body. Disk remains the durable fact, Shared Cache is the
 cross-window projection, and an old RPC completion has no renderer state to overwrite.
 
-The settings cards render from `list`, one card per capability bundle, with name and subtitle
-read from the capability's i18n keys. Shipping a new capability therefore needs no new route
+The settings cards render from `list`, one card per bundle grouped under its capability, with
+name and subtitle read from the capability's i18n keys. Shipping a new capability therefore needs no new route
 or handler, but does require the catalog, shared vocabulary and presentation described below.
 
 ## Adding a model
@@ -372,7 +372,8 @@ are long:
   checkpoint LlamaChat takes just before each reply's thought segment. Thinking is therefore turned
   off with a zero thought budget, not with a template that drops the thought block: the next turn
   then resumes from that checkpoint instead of re-reading the whole prompt.
-- Text and reasoning deltas stream back as events. Thinking is currently always off.
+- Text and reasoning deltas stream back as events. Thinking follows the model's reasoning toggle
+  (`reasoningEffort` in the provider options) and stays off when nothing is selected.
 - Tools reach node-llama-cpp as grammar-constrained functions. `toolSchema.ts` rewrites each JSON
   Schema into the subset its grammar compiles (`anyOf` → `oneOf`, untyped → any value, referenced
   `allOf` parts merged, …), since unknown shapes otherwise compile to `null`. The grammar requires
@@ -380,6 +381,21 @@ are long:
   before the call reaches the tool. Tool results attach to their call in the model turn.
 - The context grows to 64k tokens. A prompt that still does not fit fails as a non-retryable
   `400`, so retry layers and agents stop instead of resending it.
+
+The catalog ships Qwen3.5 4B and 9B (Q4_K_M). Each chat bundle records `memoryBytes`: what the
+weights plus context need at its full context and at 8k, estimated once with node-llama-cpp's
+`GgufInsights` (`configurationResolver.resolveAndScoreConfig({ targetContextSize })`) for the
+pinned file on Metal, so it must be re-measured when the weights change. `list` compares it with
+`os.totalmem()` (`capabilities/llm/memoryFit.ts`). Memory is shared with the GPU and the rest of
+the system, so a model is **recommended** when its full context fits in half of memory, and
+**runnable** when an 8k context fits in about two thirds (llama.cpp then shrinks the context to
+what fits); otherwise it is **not recommended**. The fit says nothing about speed or answer
+quality.
+
+| Model | Full 64k context | 8k context | 8 GB | 16 GB | 24 GB+ |
+|---|---|---|---|---|---|
+| 4B | 5.8 GB | 3.8 GB | runnable | recommended | recommended |
+| 9B | 8.5 GB | 6.6 GB | not recommended | runnable | recommended |
 
 The AI SDK side is the `local-llm` provider (`provider/custom/localLlm`), separate from
 `local-embedding`. The seeder creates its provider row and one model row per chat bundle, with
