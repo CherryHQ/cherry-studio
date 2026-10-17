@@ -39,11 +39,17 @@ describe('validation selection', () => {
     ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
+    ['packages/web-search/src/providers/tavily.ts', ['web-search', 'shared', 'main', 'preload', 'renderer']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
     ['src/preload/types.d.ts', ['preload', 'main', 'renderer']],
     ['src/shared/types/agent.ts', ['main', 'renderer', 'scripts']]
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
+  })
+  it('selects the portable web search typecheck alongside its Desktop consumers', () => {
+    const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
+    expect(plan.tasks).toEqual(expect.arrayContaining(['types-web-search', 'types-node', 'types-web']))
+    expect(selectedGroups(plan).packages).toBe(true)
   })
   it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
     const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])

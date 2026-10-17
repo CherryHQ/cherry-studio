@@ -5033,6 +5033,7 @@
   "settings.profile.title": "Informations personnelles",
   "settings.prompts.add": "Ajouter un prompt",
   "settings.prompts.binding.bind": "Associer le prompt",
+  "settings.prompts.binding.globalDescription": "Les prompts globaux sont disponibles dans toutes les conversations et se gèrent dans les paramètres.",
   "settings.prompts.binding.manageTargets": "Gérer les cibles de {{title}}",
   "settings.prompts.binding.noLinked": "Aucun prompt associé",
   "settings.prompts.binding.noMore": "Aucun autre prompt disponible",
