@@ -4653,6 +4653,7 @@
   "settings.mcp.builtinServersDescriptions.browser": "透過頁面快照瀏覽網頁，點擊和輸入、切換分頁及處理對話框。預設在背景執行。",
   "settings.mcp.builtinServersDescriptions.didi_mcp": "滴滴 MCP 伺服器，提供叫車服務，包括地圖搜尋、車資預估、訂單管理與駕駛追蹤。僅適用於中國大陸；需要設定 DIDI_API_KEY 環境變數。",
   "settings.mcp.builtinServersDescriptions.dify_knowledge": "Dify 的 MCP 伺服器實作，提供了一個簡單的 API 來與 Dify 進行互動。需要設定 Dify Key",
+  "settings.mcp.builtinServersDescriptions.empiriolabs": "連接 EmpirioLabs AI，使用 200 多個 AI 模型進行對話以及圖片、影片、語音、音樂和 3D 生成，並提供附引用來源的網路搜尋、批次與非同步任務、GPU Cloud 和託管智能體。需要 EmpirioLabs AI 帳號授權。",
   "settings.mcp.builtinServersDescriptions.fetch": "用於取得 URL 網頁內容的 MCP 伺服器",
   "settings.mcp.builtinServersDescriptions.filesystem": "實作檔案系統操作的 MCP（Model Context Protocol）Node.js 伺服器。需要設定允許存取的目錄。",
   "settings.mcp.builtinServersDescriptions.flomo": "連接 flomo 透過 AI 快速記錄筆記和想法。需要 flomo 帳號授權。",
