@@ -579,6 +579,16 @@ export class AgentSessionRuntimeService extends BaseService {
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
+    // A capture held past its background release (a receive-only launch still pending its turn)
+    // expires with that execution: once it is gone — settled, abandoned, or torn down — a later
+    // wake belongs to whoever the entry points at now.
+    if (
+      entry.backgroundAuthor &&
+      !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) &&
+      entry.runtimeState.execution.kind !== 'autonomous-turn'
+    ) {
+      entry.backgroundAuthor = undefined
+    }
   }
 
   private applyRuntimeStateEffect(
@@ -2547,9 +2557,13 @@ export class AgentSessionRuntimeService extends BaseService {
     if (active) {
       this.clearIdleTimer(entry)
     } else {
-      // The work this author attribution covered has drained; a later wake belongs to whoever
-      // the entry points at now.
-      entry.backgroundAuthor = undefined
+      // The work this author attribution covered has drained; a later wake belongs to whoever the
+      // entry points at now. A receive-only launch still pending its turn for this very work is
+      // the exception: its reply streams on this connection, so the capture must survive until
+      // that execution is gone (see `applyRuntimeStateEvent`).
+      const launchPending =
+        entry.runtimeState.execution.kind === 'autonomous-turn' && !entry.runtimeState.execution.turn
+      if (!launchPending) entry.backgroundAuthor = undefined
       void this.finishBackgroundFlows(entry)
       if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
     }
