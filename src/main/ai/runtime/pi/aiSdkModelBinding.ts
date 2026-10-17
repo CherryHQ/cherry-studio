@@ -2,10 +2,17 @@ import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { type ExtensionFactory, ModelRuntime } from '@earendil-works/pi-coding-agent'
 
 import { setSessionRequirements } from '@cherrystudio/agent-runtime-pi'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { type AiSdkModelSpec, type AiSdkProviderOptions, createAiSdkProvider } from './aiSdkProvider'
 
-export type AiSdkModel = AiSdkModelSpec & { provider: string }
+/**
+ * A Cherry model for the binding. Its native identity comes from Cherry's unique id alone: the Pi
+ * provider is the Cherry provider id and the Pi model id the Cherry model id. Pi replays reasoning
+ * and signatures only to the same provider/api/model, so a session reopened with a new binding for
+ * the same Cherry model keeps them, and subagent model keys (`provider/id`) stay valid.
+ */
+export type AiSdkModel = Omit<AiSdkModelSpec, 'id'> & { id: UniqueModelId }
 
 /**
  * Cherry supplies one AI SDK request per Pi step, including native compaction requests. Every
@@ -33,7 +40,8 @@ export async function createAiSdkModelBinding<TRequestOptions>(
     modelsPath: null,
     refreshOnCreate: false
   })
-  const { provider, ...modelSpec } = options.model
+  const { providerId: provider, modelId } = parseUniqueModelId(options.model.id)
+  const modelSpec: AiSdkModelSpec = { ...options.model, id: modelId }
   modelRuntime.registerProvider(
     provider,
     createAiSdkProvider({
