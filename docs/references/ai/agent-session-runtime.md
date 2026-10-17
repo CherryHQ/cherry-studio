@@ -573,6 +573,23 @@ The driver converts Claude SDK messages into runtime events:
   ([claude-agent-sdk#383](https://github.com/anthropics/claude-agent-sdk-typescript/issues/383)),
   so that result belongs to the task, not to the open turn, which keeps waiting for the
   user query's own result (a CLI death in between surfaces through the normal error path);
+- a host `send()` stamps `SDKUserMessage.uuid` and opens the turn with that id before
+  attachment materialization. The driver applies that correlation before invocation accounting
+  and the fork checkpoint. A frame whose `user_message_uuid` or `user_message_uuids` names
+  another send is omitted, including the untagged frames that follow its first `message_start`
+  until this send's id appears. Foreign `thinking_tokens` progress is omitted without taking
+  that reply-stream ownership, so a later untagged host answer can still enter. A folded batch
+  still settles when the stamped id is anywhere in `user_message_uuids`. Once the user message
+  is queued, a result that omits both fields still settles: a fatal session error, a
+  `hook_stopped` success, a `local_command` success when this send is a slash command (an
+  alias such as `/cost` may be reported as `/usage`, and a namespaced name is kept; ordinary
+  text does not accept `local_command`), a zero-turn boundary, and output from a producer
+  that does not echo the id. Before the message is queued, an unlinked success does not
+  settle, including `hook_stopped` and
+  `local_command`; a fatal error result still surfaces. An unlinked empty success after the
+  message is queued can still be stored. Cumulative `total_cost_usd` is not used. The
+  historical report did not retain the result frame. Task notifications, autonomous wakes,
+  steering, and turns opened without an id are unchanged;
 - a failed `result` -> preserve its final usage and resume token, then emit `error` and
   tear down the connection. This includes SDK envelopes whose subtype is `success` but
   whose `is_error`, `terminal_reason: 'api_error'`, or `api_error_status` fields report

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -89,14 +90,24 @@ function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
   return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
 }
 
-function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
-  const text = (input.message.data.parts ?? [])
+function hostTurnText(input: AgentRuntimeUserInput): string {
+  return (input.message.data.parts ?? [])
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
     .join('\n')
     .trimStart()
+}
 
-  return /^\/fast(?:\s|$)/i.test(text)
+function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
+  return /^\/fast(?:\s|$)/i.test(hostTurnText(input))
+}
+
+/** Slash token of this send. Aliases and `:` names are presence only, not an exact match. */
+function readHostLocalCommand(input: AgentRuntimeUserInput): string | undefined {
+  const text = hostTurnText(input)
+  if (isFastSlashCommand(input) || !text.startsWith('/')) return undefined
+  const token = text.slice(1).split(/\s/, 1)[0]
+  return token.length > 0 ? token.toLowerCase() : undefined
 }
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
@@ -466,13 +477,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    this.adapter?.beginTurn()
+    // Open the turn before attachment IO so parentless SDK output cannot start an autonomous turn.
+    const userMessageUuid = randomUUID()
+    this.adapter?.beginTurn({ userMessageUuid, localCommand: readHostLocalCommand(input) })
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
-    this.sdkInputQueue.push(sdkMessage)
+    this.adapter?.markHostInputQueued()
+    this.sdkInputQueue.push({ ...sdkMessage, uuid: userMessageUuid })
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -679,11 +693,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
+        // Invocation stats and the fork checkpoint are recorded before the adapter. A frame that
+        // names another send must not enter either, including the untagged frames that follow its stamp.
+        const omitFromHostTurn = this.adapter?.shouldOmitFromHostTurn(message) ?? false
+
         // A steer was injected this turn → the first TOP-LEVEL assistant message after it (the model's
         // post-steer response; subagent/nested messages carry a parent_tool_use_id and are skipped) is
         // where the host rolls A1a + A2. Emit the boundary BEFORE the adapter handles this message so it
         // lands ahead of A2's content chunks in the event stream. (message_start is a no-op in the adapter.)
         if (
+          !omitFromHostTurn &&
           this.steerBoundaryPending &&
           message.type === 'stream_event' &&
           message.event.type === 'message_start' &&
@@ -697,6 +716,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         // A top-level message_start's input usage IS the current context occupancy — forward it so
         // the ring advances per provider call, not only on the host's post-turn pull.
         if (
+          !omitFromHostTurn &&
           message.type === 'stream_event' &&
           message.event.type === 'message_start' &&
           message.parent_tool_use_id == null
@@ -707,6 +727,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         // Bridge gateways report full input usage on trailing deltas; zero uncached tokens is valid.
         // Skip sparse direct-Anthropic deltas whose input_tokens is absent or null.
         if (
+          !omitFromHostTurn &&
           message.type === 'stream_event' &&
           message.event.type === 'message_delta' &&
           message.parent_tool_use_id == null &&
@@ -716,8 +737,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
-        if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
-        if (message.type === 'assistant') {
+        if (!omitFromHostTurn && message.type === 'stream_event') {
+          this.captureStreamInvocation(message, messageAssociation)
+        }
+        if (!omitFromHostTurn && message.type === 'assistant') {
           this.captureAssistantInvocation(message, messageAssociation)
           if (message.parent_tool_use_id == null) this.lastMainAssistantUuid = message.uuid
         }

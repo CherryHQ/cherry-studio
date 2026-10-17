@@ -50,12 +50,13 @@ function createAdapter(
   return { adapter, parts, sessionIds, statusEvents }
 }
 
-function streamEvent(event: Record<string, unknown>) {
+function streamEvent(event: Record<string, unknown>, extra: Record<string, unknown> = {}) {
   return {
     type: 'stream_event',
     event,
     session_id: 'sdk-1',
-    uuid: crypto.randomUUID()
+    uuid: crypto.randomUUID(),
+    ...extra
   } as any
 }
 
@@ -1203,6 +1204,17 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(parts.some((part) => part.type === 'finish')).toBe(true)
     })
 
+    it('does not let a task notification settle a turn bound to a host user message', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: '11111111-1111-4111-8111-111111111111' })
+
+      const result = adapter.handleMessage(notificationResult())
+
+      expect(result).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+      expect(parts.some((part) => part.type === 'finish')).toBe(false)
+    })
+
     it('drops a task-notification result without a turn, without throwing on its errors', () => {
       const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
 
@@ -1213,6 +1225,489 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(result).toEqual({ type: 'continue' })
       expect(sessionIds).toEqual(['sdk-result'])
       expect(parts).toEqual([])
+    })
+  })
+
+  describe('host user-message correlation', () => {
+    const hostUserMessageUuid = '11111111-1111-4111-8111-111111111111'
+    const otherUserMessageUuid = '22222222-2222-4222-8222-222222222222'
+    const zeroUsage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+
+    function textEvents(text: string, userMessageUuid?: string, index = 0) {
+      const stamp = userMessageUuid ? { user_message_uuid: userMessageUuid } : {}
+      return [
+        streamEvent({ type: 'content_block_start', index, content_block: { type: 'text', text: '' } }, stamp),
+        streamEvent({ type: 'content_block_delta', index, delta: { type: 'text_delta', text } }, stamp),
+        streamEvent({ type: 'content_block_stop', index }, stamp)
+      ]
+    }
+
+    function messageStart(userMessageUuid: string | undefined, id: string) {
+      return streamEvent(
+        {
+          type: 'message_start',
+          message: {
+            id,
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: 'sonnet',
+            stop_reason: null,
+            stop_sequence: null,
+            usage: zeroUsage
+          }
+        },
+        userMessageUuid
+          ? { user_message_uuid: userMessageUuid, parent_tool_use_id: null }
+          : { parent_tool_use_id: null }
+      )
+    }
+
+    it('does not finish on a success that names another send, then finishes the folded answer', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+      adapter.markHostInputQueued()
+
+      // Same cumulative cost as the previous turn. Cost is not a correlation signal.
+      const ignored = adapter.handleMessage(
+        successResult({
+          num_turns: 0,
+          result: '',
+          usage: zeroUsage,
+          total_cost_usd: 3.1183,
+          duration_ms: 510,
+          duration_api_ms: 0,
+          user_message_uuid: otherUserMessageUuid
+        })
+      )
+
+      expect(ignored).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+      expect(parts.some((part) => part.type === 'finish')).toBe(false)
+
+      adapter.handleMessage(messageStart(hostUserMessageUuid, 'req-answer'))
+      for (const event of textEvents('answer')) adapter.handleMessage(event)
+      const settled = adapter.handleMessage(
+        successResult({
+          num_turns: 1,
+          result: 'answer',
+          usage: zeroUsage,
+          total_cost_usd: 3.1183,
+          user_message_uuid: otherUserMessageUuid,
+          user_message_uuids: [otherUserMessageUuid, hostUserMessageUuid]
+        })
+      )
+
+      expect(settled).toMatchObject({ type: 'result' })
+      expect(adapter.isTurnActive).toBe(false)
+      expect(parts.some((part) => part.type === 'text-delta' && part.delta === 'answer')).toBe(true)
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+    })
+
+    it('drops a success that arrives before the stamped send is queued, then keeps an unlinked answer', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+      for (const event of textEvents('early')) adapter.handleMessage(event)
+      const premature = adapter.handleMessage(
+        successResult({
+          num_turns: 0,
+          result: '',
+          usage: zeroUsage,
+          total_cost_usd: 3.1183,
+          duration_ms: 510,
+          duration_api_ms: 0
+        })
+      )
+
+      expect(premature).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+      expect(parts).toEqual([])
+
+      adapter.markHostInputQueued()
+      for (const event of textEvents('answer')) adapter.handleMessage(event)
+      const settled = adapter.handleMessage(
+        successResult({ num_turns: 1, result: 'answer', usage: zeroUsage, total_cost_usd: 3.1183 })
+      )
+
+      expect(settled).toMatchObject({ type: 'result' })
+      expect(parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)).toEqual(['answer'])
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+    })
+
+    it('follows a stamped message_start and keeps only the untagged frames after it', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+      adapter.markHostInputQueued()
+
+      adapter.handleMessage(messageStart(otherUserMessageUuid, 'req-foreign'))
+      for (const event of textEvents('foreign')) adapter.handleMessage(event)
+      adapter.handleMessage(streamEvent({ type: 'message_stop' }))
+      expect(parts).toEqual([])
+
+      adapter.handleMessage(messageStart(hostUserMessageUuid, 'req-ours'))
+      for (const event of textEvents('ours')) adapter.handleMessage(event)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: ' more' } })
+      )
+
+      const deltas = parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)
+      expect(deltas).toEqual(['ours', ' more'])
+    })
+
+    it('drops a local command before the send is queued, then accepts that command', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid, localCommand: 'status' })
+
+      const premature = adapter.handleMessage(
+        successResult({ num_turns: 0, result: '', usage: zeroUsage, local_command: '/status' })
+      )
+
+      expect(premature).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+      expect(parts.some((part) => part.type === 'finish')).toBe(false)
+
+      adapter.markHostInputQueued()
+      const settled = adapter.handleMessage(
+        successResult({ num_turns: 0, result: '', usage: zeroUsage, local_command: '/status' })
+      )
+
+      expect(settled).toMatchObject({ type: 'result' })
+      expect(adapter.isTurnActive).toBe(false)
+      expect(parts.some((part) => part.type === 'finish')).toBe(true)
+    })
+
+    it('accepts the canonical command after an alias slash send is queued', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid, localCommand: 'cost' })
+
+      const premature = adapter.handleMessage(
+        successResult({ num_turns: 0, result: '', usage: zeroUsage, local_command: '/usage' })
+      )
+
+      expect(premature).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+
+      adapter.markHostInputQueued()
+      const settled = adapter.handleMessage(
+        successResult({ num_turns: 0, result: '', usage: zeroUsage, local_command: '/usage' })
+      )
+
+      expect(settled).toMatchObject({ type: 'result' })
+      expect(adapter.isTurnActive).toBe(false)
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+    })
+
+    it('accepts a namespaced slash result after that send is queued', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid, localCommand: 'my-plugin:my-skill' })
+      adapter.markHostInputQueued()
+
+      const settled = adapter.handleMessage(
+        successResult({ num_turns: 0, result: '', usage: zeroUsage, local_command: '/my-plugin:my-skill' })
+      )
+
+      expect(settled).toMatchObject({ type: 'result' })
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+    })
+
+    it('does not let another command finish an ordinary send, then accepts a zero-turn result', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+      adapter.markHostInputQueued()
+
+      const foreignCommand = adapter.handleMessage(
+        successResult({ num_turns: 0, result: '', usage: zeroUsage, local_command: '/status' })
+      )
+
+      expect(foreignCommand).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+
+      // An unlinked empty success is still a supported terminal. It is not proof of the historical report.
+      const settled = adapter.handleMessage(
+        successResult({ num_turns: 0, result: '', usage: zeroUsage, total_cost_usd: 3.1183 })
+      )
+
+      expect(settled).toMatchObject({ type: 'result' })
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+    })
+
+    it('still throws a startup failure that omits user-message linkage before the send is queued', () => {
+      const { adapter } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+      expect(() =>
+        adapter.handleMessage(
+          successResult({
+            subtype: 'error_during_execution',
+            is_error: true,
+            errors: ['worker crashed'],
+            terminal_reason: 'turn_setup_failed',
+            num_turns: 0,
+            usage: zeroUsage
+          })
+        )
+      ).toThrow(ClaudeCodeResultError)
+    })
+
+    it('drops a successful hook stop before the send is queued, then accepts one after', () => {
+      const { adapter, parts } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+      const premature = adapter.handleMessage(
+        successResult({
+          num_turns: 0,
+          result: '',
+          usage: zeroUsage,
+          terminal_reason: 'hook_stopped'
+        })
+      )
+
+      expect(premature).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+      expect(parts.some((part) => part.type === 'finish')).toBe(false)
+
+      adapter.markHostInputQueued()
+      const settled = adapter.handleMessage(
+        successResult({
+          num_turns: 0,
+          result: '',
+          usage: zeroUsage,
+          terminal_reason: 'hook_stopped'
+        })
+      )
+
+      expect(settled).toMatchObject({ type: 'result' })
+      expect(adapter.isTurnActive).toBe(false)
+      expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+    })
+
+    it('does not throw when an error result names a different user message', () => {
+      const { adapter } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+      const result = adapter.handleMessage(
+        successResult({
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: ['boom'],
+          user_message_uuid: otherUserMessageUuid
+        })
+      )
+
+      expect(result).toEqual({ type: 'continue' })
+      expect(adapter.isTurnActive).toBe(true)
+    })
+
+    it('still throws an API error that echoes the stamped user message', () => {
+      const { adapter } = createAdapter()
+      adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+      expect(() =>
+        adapter.handleMessage(
+          successResult({ is_error: true, result: 'API Error: 400', user_message_uuid: hostUserMessageUuid })
+        )
+      ).toThrow(ClaudeCodeResultError)
+    })
+
+    describe('thinking_tokens host correlation', () => {
+      function thinkingTokens(estimatedTokens: number, userMessageUuid?: string) {
+        return {
+          type: 'system',
+          subtype: 'thinking_tokens',
+          session_id: 'sdk-thinking',
+          uuid: crypto.randomUUID(),
+          estimated_tokens: estimatedTokens,
+          estimated_tokens_delta: 1,
+          ...(userMessageUuid ? { user_message_uuid: userMessageUuid } : {})
+        } as any
+      }
+
+      function reasoningTokens(part: CherryUIMessageChunk): number | undefined {
+        if (part.type !== 'message-metadata' && part.type !== 'finish') return undefined
+        return part.messageMetadata?.stats?.outputTokenDetails?.reasoningTokens
+      }
+
+      type Adapter = InstanceType<typeof ClaudeCodeStreamAdapter>
+
+      function deliver(adapter: Adapter, message: Parameters<Adapter['handleMessage']>[0]) {
+        // Driver order: the omission predicate is recorded, then the frame is still dispatched.
+        const omitFromHostTurn = adapter.shouldOmitFromHostTurn(message)
+        const result = adapter.handleMessage(message)
+        return { omitFromHostTurn, result }
+      }
+
+      it('does not apply a foreign thinking_tokens estimate to live or finish reasoning metadata', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        const foreign = thinkingTokens(77, otherUserMessageUuid)
+        const delivered = deliver(adapter, foreign)
+        const liveReasoning = parts.map(reasoningTokens).filter((value) => value != null)
+
+        adapter.handleMessage(successResult())
+        const finish = parts.find((part) => part.type === 'finish')
+
+        expect({
+          omitFromHostTurn: delivered.omitFromHostTurn,
+          handled: delivered.result,
+          liveReasoning,
+          finishReasoning: finish ? reasoningTokens(finish) : 'missing-finish'
+        }).toEqual({
+          omitFromHostTurn: true,
+          handled: { type: 'continue' },
+          liveReasoning: [],
+          finishReasoning: undefined
+        })
+      })
+
+      it('does not let foreign thinking progress drop a later untagged host answer', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        const foreign = thinkingTokens(77, otherUserMessageUuid)
+        expect(deliver(adapter, foreign)).toEqual({ omitFromHostTurn: true, result: { type: 'continue' } })
+
+        adapter.handleMessage(messageStart(undefined, 'req-untagged'))
+        for (const event of textEvents('answer')) adapter.handleMessage(event)
+        const settled = adapter.handleMessage(successResult({ num_turns: 1, result: 'answer', usage: zeroUsage }))
+
+        expect(settled).toMatchObject({ type: 'result' })
+        expect(parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)).toEqual(['answer'])
+        expect(parts.map(reasoningTokens).filter((value) => value != null)).toEqual([])
+        expect(parts.filter((part) => part.type === 'finish')).toHaveLength(1)
+      })
+
+      it('does not let foreign thinking progress take ownership of an untagged host stream', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        adapter.handleMessage(messageStart(hostUserMessageUuid, 'req-ours'))
+        for (const event of textEvents('ours')) adapter.handleMessage(event)
+        expect(deliver(adapter, thinkingTokens(77, otherUserMessageUuid))).toEqual({
+          omitFromHostTurn: true,
+          result: { type: 'continue' }
+        })
+        adapter.handleMessage(
+          streamEvent({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: ' more' } })
+        )
+        adapter.handleMessage(successResult({ num_turns: 1, result: 'ours more', usage: zeroUsage }))
+
+        expect(parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)).toEqual(['ours', ' more'])
+        expect(parts.map(reasoningTokens).filter((value) => value != null)).toEqual([])
+      })
+
+      it('does not let matching thinking progress end a foreign reply-stream ignore', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        adapter.handleMessage(messageStart(otherUserMessageUuid, 'req-foreign'))
+        expect(deliver(adapter, thinkingTokens(40, hostUserMessageUuid))).toEqual({
+          omitFromHostTurn: false,
+          result: { type: 'continue' }
+        })
+        for (const event of textEvents('foreign')) adapter.handleMessage(event)
+        expect(parts.filter((part) => part.type === 'text-delta')).toEqual([])
+        expect(parts.map(reasoningTokens).filter((value) => value != null)).toEqual([40])
+
+        adapter.handleMessage(messageStart(hostUserMessageUuid, 'req-ours'))
+        for (const event of textEvents('ours')) adapter.handleMessage(event)
+        adapter.handleMessage(successResult({ num_turns: 1, result: 'ours', usage: zeroUsage }))
+
+        expect(parts.filter((part) => part.type === 'text-delta').map((part) => part.delta)).toEqual(['ours'])
+      })
+
+      it('keeps a thinking_tokens estimate that names the host send', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+        adapter.markHostInputQueued()
+
+        const own = thinkingTokens(40, hostUserMessageUuid)
+        const delivered = deliver(adapter, own)
+
+        expect(delivered).toEqual({ omitFromHostTurn: false, result: { type: 'continue' } })
+        expect(parts.map(reasoningTokens).filter((value) => value != null)).toEqual([40])
+
+        adapter.handleMessage(successResult({ user_message_uuid: hostUserMessageUuid }))
+        const finish = parts.find((part) => part.type === 'finish')
+        expect(finish && reasoningTokens(finish)).toBe(40)
+      })
+
+      it('ignores an unlinked thinking_tokens estimate before the host send is queued', () => {
+        const { adapter, parts } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+        const unlinked = thinkingTokens(55)
+        const delivered = deliver(adapter, unlinked)
+        const liveReasoning = parts.map(reasoningTokens).filter((value) => value != null)
+
+        adapter.markHostInputQueued()
+        adapter.handleMessage(successResult())
+        const finish = parts.find((part) => part.type === 'finish')
+
+        expect({
+          omitFromHostTurn: delivered.omitFromHostTurn,
+          handled: delivered.result,
+          liveReasoning,
+          finishReasoning: finish ? reasoningTokens(finish) : 'missing-finish'
+        }).toEqual({
+          omitFromHostTurn: true,
+          handled: { type: 'continue' },
+          liveReasoning: [],
+          finishReasoning: undefined
+        })
+      })
+
+      it('still delivers session status, compaction, and task messages before the host send is queued', () => {
+        const { adapter, parts, statusEvents } = createAdapter()
+        adapter.beginTurn({ userMessageUuid: hostUserMessageUuid })
+
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'status',
+          session_id: 'sdk-control',
+          uuid: crypto.randomUUID(),
+          status: 'compacting'
+        } as any)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'compact_boundary',
+          session_id: 'sdk-compact',
+          uuid: crypto.randomUUID(),
+          compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+        } as any)
+        adapter.handleMessage({
+          type: 'system',
+          subtype: 'task_started',
+          session_id: 'sdk-task',
+          uuid: 'task-started-uuid',
+          task_id: 'task-1',
+          description: 'Build launch deck',
+          task_type: 'local_agent'
+        } as any)
+
+        expect(statusEvents).toEqual([
+          { type: 'compaction-start' },
+          {
+            type: 'compaction-complete',
+            anchor: expect.objectContaining({ trigger: 'auto', preTokens: 50_000, postTokens: 12_000 })
+          },
+          {
+            type: 'background-task-event',
+            data: expect.objectContaining({ taskId: 'task-1', event: 'started', description: 'Build launch deck' })
+          }
+        ])
+        expect(parts).toEqual([
+          expect.objectContaining({
+            type: 'data-agent-task-event',
+            data: expect.objectContaining({ taskId: 'task-1', event: 'started' })
+          })
+        ])
+      })
     })
   })
 
