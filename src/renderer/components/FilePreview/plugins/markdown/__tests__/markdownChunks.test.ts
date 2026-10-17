@@ -222,6 +222,44 @@ describe('splitMarkdownChunks', () => {
     expect(windowed[1].text).toContain('<details>\n<summary>Summary</summary>\n\nHidden content\n\n</details>')
   })
 
+  it('keeps the construct a self-closing non-void tag opens in one chunk', () => {
+    // The renderer ignores a self-closing slash on an HTML element, so `<details/>` opens the
+    // disclosure the same `<details>` does — the content below the summary renders inside it, and
+    // a boundary at the summary's blank would close the chunk with the body outside.
+    const content = 'filler\n\n'.repeat(3071) + '<details/>\n<summary>Summary</summary>\n\nHidden content\n\n</details>'
+
+    expect(chunksOf(content).find((chunk) => chunk.text.includes('<details/>'))?.text).toContain(
+      '<details/>\n<summary>Summary</summary>\n\nHidden content\n\n</details>'
+    )
+
+    const windowed = chunksOf(
+      'para one\n\n' + '<details/>\n<summary>Summary</summary>\n\nHidden content\n\n</details>',
+      10
+    )
+    expect(windowed).toHaveLength(2)
+    expect(windowed[1].text).toContain('<details/>\n<summary>Summary</summary>\n\nHidden content\n\n</details>')
+  })
+
+  it('still windows behind a self-closing foreign element', () => {
+    // Foreign content honors the slash — `<svg/>` is complete where it stands, so the blank below
+    // it stays a boundary and the window keeps turning.
+    const windowed = chunksOf('para one\n\n<svg width="1"/>\n\npara two', 10)
+
+    expect(windowed).toHaveLength(3)
+  })
+
+  it('keeps windowing when a comment inside an HTML block holds a tag', () => {
+    // The tags a comment carries are its own — a `<span>` mentioned inside one must not hold an
+    // element open, or every later boundary stays off and the document falls to the plain-text
+    // fallback as one indivisible block.
+    const content = '<div>\n</div>\n<!-- <span> -->\n\n' + 'para\n\n'.repeat(6000) + 'tail'
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(hasOversizedMarkdownChunk(chunks)).toBe(false)
+  })
+
   it('does not end a chunk on a blank line that an indented continuation follows', () => {
     // That blank line is part of the block above it — a footnote definition or indented code block.
     const content = ['opening paragraph', '', '    indented body', '', 'after'].join('\n')
@@ -266,6 +304,34 @@ describe('splitMarkdownChunks', () => {
     // A one-item chunk parses as a tight list, so the split pieces render without the paragraph
     // that a loose list wraps every item in.
     const content = ['- first', '', '- second', '', '- third'].join('\n')
+
+    expect(chunksOf(content, 1)).toHaveLength(1)
+  })
+
+  it('keeps a list whose items change their legal indentation in one chunk', () => {
+    // An item written at any column up to three stays a sibling of the list its marker names, so
+    // `  1. first` and a column-zero `1. second` render 1, 2 as one list — a boundary there
+    // renumbers the second into its own list starting at 1.
+    const content = ['  1. first', '', '1. second'].join('\n')
+
+    expect(renderedListNumbers(content)).toEqual([1, 2])
+    expect(chunksOf(content, 1)).toHaveLength(1)
+  })
+
+  it('keeps a list whose later item is indented deeper but not into the item in one chunk', () => {
+    // The first item's content starts at column three, so a marker at column two is still a
+    // sibling — the numbering the document gives spans the blank the boundary would sit on.
+    const content = ['1. first', '', '  1. second'].join('\n')
+
+    expect(renderedListNumbers(content)).toEqual([1, 2])
+    expect(chunksOf(content, 1)).toHaveLength(1)
+  })
+
+  it('keeps a nested list inside the item that holds it in one chunk', () => {
+    // A marker indented to the item's content column opens a list of its own inside the item, so
+    // the blank before it sits inside a construct: cutting there would strand the nested list at
+    // the top level of the chunk that follows.
+    const content = ['- first', '', '  - nested'].join('\n')
 
     expect(chunksOf(content, 1)).toHaveLength(1)
   })
@@ -528,6 +594,18 @@ describe('splitMarkdownChunks', () => {
     for (const chunk of chunks) {
       expect(chunk.text).toContain('[^1]: the note')
     }
+  })
+
+  it('leaves a footnote-shaped line whose label holds whitespace the paragraph it is', () => {
+    // GFM reads no whitespace inside a footnote label, so `[^see below]:` is ordinary text the
+    // document renders once — carrying it as a definition would print the paragraph twice.
+    const content = ['[^see below]: ordinary text', '', 'body'].join('\n')
+
+    const tree = parsed(content) as { children: Array<{ type: string }> }
+    expect(tree.children.some((node) => node.type === 'footnoteDefinition')).toBe(false)
+
+    expect(chunksOf(content, 1).length).toBeGreaterThan(1)
+    expect(joined(chunksOf(content, 1))).toBe(content)
   })
 
   it('carries a footnote definition out of the block quote that holds it, without the quote', () => {

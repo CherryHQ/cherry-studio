@@ -142,10 +142,12 @@ function htmlBlockTerminator(line: string): RegExp | null {
 }
 
 /**
- * A footnote definition, which owns its indented lines. Indent is counted in columns: a tab spans
- * four of them, so a tab-indented label sits in indented code where no definition opens.
+ * A footnote definition, which owns its indented lines. The label takes no whitespace — GFM reads
+ * `[^see below]:` as the paragraph it looks like — and no bracket, escaped or not. Indent is
+ * counted in columns: a tab spans four of them, so a tab-indented label sits in indented code
+ * where no definition opens.
  */
-const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^[^\]]+\]:(.*)$/
+const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^[^\][\s]+]:(.*)$/
 
 /**
  * An ATX heading: up to three columns of indent, one to six `#`, then the heading's text — which
@@ -504,8 +506,10 @@ const VOID_HTML_ELEMENTS = new Set([
  * Fold one line's tags into the stack of elements the renderer reads as open after it. A closing
  * tag ends the nearest element of its own name — with the ones opened inside it, the way a
  * renderer recovers from the nesting it was written with — and an opening one holds an element
- * open unless it is void or closed itself where it stands. Only the tags an HTML block exposes
- * are read here, which is where the renderer's elements are written whole.
+ * open unless it is void, or the self-closing slash closes it: the parser drops that slash on an
+ * HTML element (`<details/>` opens the disclosure) and honors it only in foreign content. Only
+ * the tags an HTML block exposes are read here, which is where the renderer's elements are
+ * written whole.
  */
 function trackHtmlElements(line: string, open: string[]): void {
   for (const tag of line.matchAll(/<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:"[^"]*"|'[^']*'|[^>])*)>/g)) {
@@ -513,10 +517,41 @@ function trackHtmlElements(line: string, open: string[]): void {
     if (tag[1]) {
       const at = open.lastIndexOf(name)
       if (at >= 0) open.length = at
-    } else if (!/\/\s*$/.test(tag[3]) && !VOID_HTML_ELEMENTS.has(name)) {
-      open.push(name)
+      continue
     }
+    const selfClosing = /\/\s*$/.test(tag[3])
+    const foreign = name === 'svg' || name === 'math' || open.includes('svg') || open.includes('math')
+    // A raw name keeps the region contract its own tag shape sets: `<pre/>` is the type-7 tag the
+    // parser reads plain, and holding an element open there would swallow the lines below it.
+    const opens = selfClosing ? !foreign && !HTML_RAW_TAGS.has(name) : !VOID_HTML_ELEMENTS.has(name)
+    if (opens) open.push(name)
   }
+}
+
+/**
+ * The line with its HTML comments taken out, across lines: the tags a comment carries are its own,
+ * and one read as an element would hold the stack open for the rest of the block. `inComment.open`
+ * carries the state across the lines of one block, from the `<!--` that opens a comment to the
+ * `-->` that closes it.
+ */
+function withoutHtmlComments(line: string, inComment: { open: boolean }): string {
+  let kept = ''
+  let index = 0
+  while (index < line.length) {
+    if (inComment.open) {
+      const end = line.indexOf('-->', index)
+      if (end < 0) return kept
+      inComment.open = false
+      index = end + 3
+      continue
+    }
+    const start = line.indexOf('<!--', index)
+    if (start < 0) return kept + line.slice(index)
+    kept += line.slice(index, start)
+    inComment.open = true
+    index = start + 4
+  }
+  return kept
 }
 
 /**
@@ -1609,9 +1644,12 @@ export function splitMarkdownChunks(
   // its tag opens keeps it in the chunk that renders the element.
   let htmlBlockStart = 0
   let htmlBlockContent: string[] = []
+  /** The comment an HTML block's lines may have left open, whose contents are no one's tags. */
+  const htmlComment = { open: false }
   const closeHtmlBlock = (): void => {
     recordHtmlHeadings(htmlBlockStart, htmlBlockContent.join('\n'))
     htmlBlockContent = []
+    htmlComment.open = false
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -1651,8 +1689,9 @@ export function splitMarkdownChunks(
       const stripped =
         htmlBlockContainer === null ? line : stripDefinitionContainer(line, containerParams(htmlBlockContainer))
       if (stripped !== null && !blank) {
-        htmlBlockContent.push(stripped)
-        trackHtmlElements(stripped, htmlOpenElements)
+        const uncommented = withoutHtmlComments(stripped, htmlComment)
+        htmlBlockContent.push(uncommented)
+        trackHtmlElements(uncommented, htmlOpenElements)
         continue
       }
       closeHtmlBlock()
@@ -1759,9 +1798,11 @@ export function splitMarkdownChunks(
       // container: the marker chain the opening line carried, and an item's content column.
       htmlBlockContainer = container?.[0] ?? null
       htmlBlockStart = i
-      htmlBlockContent = [uncontained]
+      htmlComment.open = false
+      const opening = withoutHtmlComments(uncontained, htmlComment)
+      htmlBlockContent = [opening]
       htmlBlockElementBase = htmlOpenElements.length
-      trackHtmlElements(uncontained, htmlOpenElements)
+      trackHtmlElements(opening, htmlOpenElements)
       inDefinition = false
       previousStatus = 'block'
       paragraphContainer = null
@@ -1956,9 +1997,11 @@ export function splitMarkdownChunks(
     }
     const nextItem = followedBy >= 0 ? LIST_ITEM.exec(lines[followedBy]) : null
     // A list is one block: its items number themselves from its first marker and its blank lines
-    // are what make it loose, so only a blank line the list does not span is free.
-    const listContinues =
-      run !== null && nextItem !== null && nextItem[1] === run.indent && (nextItem[2] ?? nextItem[4]) === run.marker
+    // are what make it loose, so only a blank line the list does not span is free. The marker
+    // alone names the list — an item written at any column up to three is its sibling, so the
+    // indentation an item happens to carry does not end one. (A deeper marker never reaches this
+    // check: the indented-continuation guard above has already held that blank.)
+    const listContinues = run !== null && nextItem !== null && (nextItem[2] ?? nextItem[4]) === run.marker
     if (listContinues) continue
     run = null
     // An element a blank line only spans holds the blocks below it: one that never closes keeps
