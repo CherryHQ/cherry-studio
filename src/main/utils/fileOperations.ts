@@ -1,4 +1,5 @@
 import * as fs from 'node:fs'
+import { constants as fsConstants } from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -20,7 +21,12 @@ const MAX_RECURSION_DEPTH = 1000
 export async function copyDirectoryRecursive(
   source: string,
   destination: string,
-  options?: { allowedBasePath?: string },
+  options?: {
+    allowedBasePath?: string
+    skipExistingFiles?: boolean
+    failOnExistingDestination?: boolean
+    exclusiveCreate?: boolean
+  },
   depth = 0
 ): Promise<void> {
   // Input validation
@@ -54,6 +60,16 @@ export async function copyDirectoryRecursive(
       throw new Error(`Source is not a directory: ${source}`)
     }
 
+    // A pre-existing symlinked destination would silently redirect every write
+    // below outside the validated tree — reject it instead of following it.
+    const destStats = await fs.promises.lstat(destination).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return undefined
+      throw error
+    })
+    if (destStats?.isSymbolicLink()) {
+      throw new Error(`Destination is a symlink: ${destination}`)
+    }
+
     // Create destination directory
     await fs.promises.mkdir(destination, { recursive: true })
     logger.debug('Created destination directory', { destination })
@@ -78,15 +94,38 @@ export async function copyDirectoryRecursive(
         // Recursively copy subdirectory
         await copyDirectoryRecursive(sourcePath, destPath, options, depth + 1)
       } else if (entryStats.isFile()) {
-        // Copy file with error handling for race conditions
         try {
-          await fs.promises.copyFile(sourcePath, destPath)
-          // Preserve file permissions
+          const destStats = await fs.promises.lstat(destPath)
+          if (destStats.isSymbolicLink()) {
+            throw new Error(`Destination is a symlink: ${destPath}`)
+          }
+          if (options?.skipExistingFiles && destStats.isFile()) {
+            logger.debug('Skipping existing file during merge', { path: destPath })
+            continue
+          }
+          if (options?.failOnExistingDestination) {
+            throw new Error(`Destination file already exists: ${destPath}`)
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error
+          }
+        }
+        const copyFlags = options?.failOnExistingDestination || options?.exclusiveCreate ? fsConstants.COPYFILE_EXCL : 0
+        try {
+          await fs.promises.copyFile(sourcePath, destPath, copyFlags)
           await fs.promises.chmod(destPath, entryStats.mode)
           logger.debug('Copied file', { from: sourcePath, to: destPath })
         } catch (error) {
-          // Handle race condition where file was deleted during copy
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          const errno = (error as NodeJS.ErrnoException).code
+          if (errno === 'EEXIST' && options?.exclusiveCreate) {
+            logger.debug('Skipping existing destination file during merge', { path: destPath })
+            continue
+          }
+          if (options?.failOnExistingDestination && errno === 'EEXIST') {
+            throw new Error(`Destination file already exists: ${destPath}`)
+          }
+          if (errno === 'ENOENT') {
             logger.warn('File disappeared during copy', { sourcePath })
             continue
           }

@@ -7,10 +7,11 @@ import { toast } from '@renderer/services/toast'
 
 import type * as ClearCachePopupModule from '../ClearCachePopup'
 
-const { clearCacheShowMock, indexedDbDatabasesMock, requestMock } = vi.hoisted(() => ({
+const { clearCacheShowMock, indexedDbDatabasesMock, requestMock, resolveNotesPathMock } = vi.hoisted(() => ({
   clearCacheShowMock: vi.fn(),
   indexedDbDatabasesMock: vi.fn(),
-  requestMock: vi.fn()
+  requestMock: vi.fn(),
+  resolveNotesPathMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -23,6 +24,25 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@renderer/hooks/useNotesSettings', () => ({
+  useNotesSettings: () => ({
+    notesPath: '/mock/notes',
+    updateNotesPath: vi.fn(),
+    settings: {},
+    updateSettings: vi.fn(),
+    sortType: 'nameAsc',
+    updateSortType: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/components/notes/notesDirectoryMigration', () => ({
+  startNotesDirectoryMigration: vi.fn()
+}))
+
+vi.mock('@renderer/services/NotesService', () => ({
+  resolveNotesPath: resolveNotesPathMock
 }))
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
@@ -42,6 +62,8 @@ vi.mock('../ClearCachePopup', async (importOriginal) => {
   return { ...actual, default: { show: clearCacheShowMock } }
 })
 
+import { startNotesDirectoryMigration } from '@renderer/components/notes/notesDirectoryMigration'
+
 import BasicDataSettings from '../BasicDataSettings'
 import V1RemigrationPopup from '../V1RemigrationPopup'
 
@@ -55,6 +77,7 @@ describe('BasicDataSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     indexedDbDatabasesMock.mockResolvedValue([])
+    resolveNotesPathMock.mockResolvedValue({ path: '/mock/notes', isFallback: false })
     vi.stubGlobal('indexedDB', { databases: indexedDbDatabasesMock })
     localStorage.clear()
     requestMock.mockImplementation((route: string) =>
@@ -68,7 +91,13 @@ describe('BasicDataSettings', () => {
                 }
               ]
             }
-          : undefined
+          : route === 'app.get_info'
+            ? {
+                notesPath: '/mock/notes',
+                appDataPath: '/mock/app-data',
+                logsPath: '/mock/logs'
+              }
+            : undefined
       )
     )
   })
@@ -169,5 +198,33 @@ describe('BasicDataSettings', () => {
       expect(toast.error).toHaveBeenCalledExactlyOnceWith('settings.data.data_reset.error')
     })
     expect(requestMock).toHaveBeenCalledExactlyOnceWith('app.data_reset.request')
+  })
+
+  it('explains the fallback when the configured notes directory is unavailable', async () => {
+    resolveNotesPathMock.mockResolvedValue({ path: '/mock/default-notes', isFallback: true })
+
+    await renderSettings()
+
+    expect(await screen.findByText('notes.directory_unavailable_fallback')).toBeInTheDocument()
+  })
+
+  it('does not show the fallback explanation while the configured notes directory is valid', async () => {
+    resolveNotesPathMock.mockResolvedValue({ path: '/mock/notes', isFallback: false })
+
+    await renderSettings()
+    await waitFor(() => expect(resolveNotesPathMock).toHaveBeenCalled())
+
+    expect(screen.queryByText('notes.directory_unavailable_fallback')).not.toBeInTheDocument()
+  })
+
+  it('re-resolves the notes source path when migration starts', async () => {
+    await renderSettings()
+    await waitFor(() => expect(resolveNotesPathMock).toHaveBeenCalled())
+    resolveNotesPathMock.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.data.notes_relocation.migrate' }))
+
+    await waitFor(() => expect(resolveNotesPathMock).toHaveBeenCalledWith('/mock/notes'))
+    expect(startNotesDirectoryMigration).toHaveBeenCalledWith(expect.objectContaining({ sourcePath: '/mock/notes' }))
   })
 })

@@ -1,6 +1,17 @@
 import { SpellCheck, Volume2 } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useLayoutEffect, useRef, useState } from 'react'
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
@@ -13,6 +24,7 @@ import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { notesEditFlushService } from '@renderer/services/NotesEditFlushService'
 import { toast } from '@renderer/services/toast'
 import { readTextAloud, voiceTargetManager } from '@renderer/services/voice'
 import type { EditorView } from '@renderer/types/app'
@@ -77,6 +89,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     const activeViewModeRef = useRef(tmpViewMode)
     activeViewModeRef.current = tmpViewMode
     const userViewModeOverrideRef = useRef(false)
+    const migrationLocked = useSyncExternalStore(
+      (listener) => notesEditFlushService.subscribeMigrationLock(listener),
+      () => notesEditFlushService.getMigrationLocked(),
+      () => false
+    )
+    const editorEditable = !migrationLocked && tmpViewMode === 'preview'
     const readButtonRef = useRef<HTMLButtonElement>(null)
     const voiceIdentityRef = useRef(voiceNoteId)
     voiceIdentityRef.current = voiceNoteId
@@ -226,6 +244,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     value={currentContent}
                     language="markdown"
                     onChange={onMarkdownChange}
+                    readOnly={migrationLocked}
                     className="h-full"
                     expanded={false}
                     height="100%"
@@ -238,9 +257,9 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
                   ref={setRichEditorRef}
                   initialContent={currentContent}
-                  onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
-                  showToolbar={tmpViewMode === 'preview'}
-                  editable={tmpViewMode === 'preview'}
+                  onMarkdownChange={editorEditable ? onMarkdownChange : undefined}
+                  showToolbar={editorEditable}
+                  editable={editorEditable}
                   autoFocus={currentContent.trim().length === 0}
                   showTableOfContents={settings.showTableOfContents}
                   lineBreaks={settings.lineBreaks}

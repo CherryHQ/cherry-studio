@@ -137,6 +137,31 @@ describe('useRichEditor autoFocus', () => {
     expect(isSelectionAtEnd(result.current.editor)).toBe(true)
   })
 
+  it('ignores link save and remove while the editor is not editable', async () => {
+    const { result, rerender } = renderHook(
+      ({ editable }) => useRichEditor({ initialContent: '[hello](https://old.example)', editable }),
+      { initialProps: { editable: true } }
+    )
+
+    await waitFor(() => expect(result.current.editor).toBeTruthy())
+    const editor = result.current.editor
+    if (!editor) {
+      throw new Error('expected editor')
+    }
+    const before = editor.getHTML()
+
+    rerender({ editable: false })
+    await waitFor(() => expect(editor.isEditable).toBe(false))
+
+    act(() => {
+      result.current.linkEditor.onSave('https://new.example', 'hello')
+      result.current.linkEditor.onRemove()
+    })
+
+    expect(editor.getHTML()).toBe(before)
+    expect(result.current.linkEditor.show).toBe(false)
+  })
+
   it('keeps the selection when the editor becomes editable and autoFocus is false', async () => {
     const { result, rerender } = renderHook(
       ({ editable }) => useRichEditor({ initialContent: CONTENT, editable, autoFocus: false }),
@@ -187,6 +212,38 @@ describe('useRichEditor markdown paste', () => {
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'bytes', cleanupPolicy: 'manual' })
     )
+  })
+
+  it('finishes an in-flight image paste after the editor becomes read-only', async () => {
+    let resolveEntry!: (value: { id: string; name: string; ext: string }) => void
+    const entryPromise = new Promise<{ id: string; name: string; ext: string }>((resolve) => {
+      resolveEntry = resolve
+    })
+    vi.mocked(window.api.file.createInternalEntry).mockReturnValue(entryPromise as never)
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue('/tmp/pasted.png' as never)
+
+    const onChange = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ editable }) => useRichEditor({ initialContent: '', autoFocus: false, editable, onChange }),
+      { initialProps: { editable: true } }
+    )
+
+    await act(async () => {
+      pasteImage(result.current.editor)
+    })
+
+    rerender({ editable: false })
+    await waitFor(() => expect(result.current.editor.isEditable).toBe(false))
+
+    await act(async () => {
+      resolveEntry({ id: 'entry-1', name: 'Pasted Image', ext: 'png' })
+      await entryPromise
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await waitFor(() => expect(countImageNodes(result.current.editor)).toBe(1))
+    expect(onChange).toHaveBeenCalled()
+    expect(onChange.mock.calls.at(-1)?.[0]).toContain('file:///tmp/pasted.png')
   })
 
   it('keeps clipboard images out without losing accompanying text when images are disabled', async () => {
