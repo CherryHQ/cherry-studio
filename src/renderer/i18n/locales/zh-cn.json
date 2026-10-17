@@ -4919,7 +4919,6 @@
   "settings.models.add.context_window.placeholder": "例如 128000",
   "settings.models.add.endpoint_type.label": "端点类型",
   "settings.models.add.endpoint_type.placeholder": "选择端点类型",
-  "settings.models.add.endpoint_type.required": "请选择端点类型",
   "settings.models.add.endpoint_type.tooltip": "选择 API 的端点类型格式",
   "settings.models.add.group_name.label": "分组名称",
   "settings.models.add.group_name.placeholder": "例如 ChatGPT",

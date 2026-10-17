@@ -422,7 +422,11 @@ describe('AiService', () => {
         if (name === 'FileManager') return {}
         throw new Error(`Unexpected service: ${name}`)
       })
-      mockProviderGetByProviderId.mockReturnValue(makeProvider())
+      mockProviderGetByProviderId.mockReturnValue(
+        makeProvider({
+          endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://provider.test/v1' } }
+        })
+      )
       const { customFetch } = await import('../utils/customFetch')
       vi.mocked(customFetch).mockResolvedValue(new Response(null, { status: 204 }))
       const sdkRequest = async (_providerId: string, settings: { fetch: FetchFunction }) => {
@@ -2247,7 +2251,13 @@ describe('AiService tool approval', () => {
   // inline instead, resolving the config WITH the caller's key.
   it('probes transport image models inline with the caller API-key override', async () => {
     const service = createService()
-    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
+    mockProviderGetByProviderId.mockReturnValueOnce(
+      makeProvider({
+        id: 'ppio',
+        name: 'PPIO',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://provider.test/v1' } }
+      })
+    )
     mockModelGetByKey.mockReturnValue({
       id: 'ppio::qwen-image-edit',
       providerId: 'ppio',
@@ -2294,7 +2304,13 @@ describe('AiService tool approval', () => {
 
   it('cancels the job an image probe queued', async () => {
     const service = createService()
-    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
+    mockProviderGetByProviderId.mockReturnValueOnce(
+      makeProvider({
+        id: 'ppio',
+        name: 'PPIO',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://provider.test/v1' } }
+      })
+    )
     mockModelGetByKey.mockReturnValue({
       id: 'ppio::qwen-image-edit',
       providerId: 'ppio',

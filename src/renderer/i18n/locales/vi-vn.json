@@ -4919,7 +4919,6 @@
   "settings.models.add.context_window.placeholder": "ví dụ: 128000",
   "settings.models.add.endpoint_type.label": "Loại Điểm Cuối",
   "settings.models.add.endpoint_type.placeholder": "Chọn loại điểm cuối",
-  "settings.models.add.endpoint_type.required": "Vui lòng chọn một loại điểm cuối",
   "settings.models.add.endpoint_type.tooltip": "Chọn định dạng loại điểm cuối API",
   "settings.models.add.group_name.label": "Tên Nhóm",
   "settings.models.add.group_name.placeholder": "Ví dụ: ChatGPT",

@@ -4919,7 +4919,6 @@
   "settings.models.add.context_window.placeholder": "например, 128000",
   "settings.models.add.endpoint_type.label": "Тип конечной точки",
   "settings.models.add.endpoint_type.placeholder": "Выберите тип конечной точки",
-  "settings.models.add.endpoint_type.required": "Пожалуйста, выберите тип конечной точки",
   "settings.models.add.endpoint_type.tooltip": "Выберите формат типа конечной точки API",
   "settings.models.add.group_name.label": "Имя группы",
   "settings.models.add.group_name.placeholder": "Например, ChatGPT",

@@ -4919,7 +4919,6 @@
   "settings.models.add.context_window.placeholder": "por exemplo, 128000",
   "settings.models.add.endpoint_type.label": "Tipo de Endpoint",
   "settings.models.add.endpoint_type.placeholder": "Selecione o tipo de endpoint",
-  "settings.models.add.endpoint_type.required": "Por favor, selecione o tipo de endpoint",
   "settings.models.add.endpoint_type.tooltip": "Selecione o formato do tipo de endpoint da API",
   "settings.models.add.group_name.label": "Nome do grupo",
   "settings.models.add.group_name.placeholder": "Exemplo: ChatGPT",

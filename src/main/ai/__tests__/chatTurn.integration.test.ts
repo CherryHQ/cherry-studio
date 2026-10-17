@@ -20,7 +20,11 @@ const fakeCacheService = {
 }
 
 const fakeApplicationGet = vi.fn()
-const fakeProvider = makeProvider({ id: 'test-provider', name: 'Test provider' })
+const fakeProvider = makeProvider({
+  id: 'test-provider',
+  name: 'Test provider',
+  endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://provider.test/v1' } }
+})
 const fakeModel = makeModel({
   id: 'test-provider::test-model',
   providerId: 'test-provider',

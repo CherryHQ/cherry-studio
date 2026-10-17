@@ -4919,7 +4919,6 @@
   "settings.models.add.context_window.placeholder": "p.ej. 128000",
   "settings.models.add.endpoint_type.label": "Tipo de punto final",
   "settings.models.add.endpoint_type.placeholder": "Seleccionar tipo de punto final",
-  "settings.models.add.endpoint_type.required": "Seleccione el tipo de punto final",
   "settings.models.add.endpoint_type.tooltip": "Seleccione el formato del tipo de punto final de la API",
   "settings.models.add.group_name.label": "Nombre del grupo",
   "settings.models.add.group_name.placeholder": "Por ejemplo, ChatGPT",

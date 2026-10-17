@@ -16,6 +16,7 @@ import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelServic
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { resolveNativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
 import { ErrorCode } from '@shared/data/api/errors'
 import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
@@ -24,6 +25,8 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ProviderSchema } from '@shared/data/types/provider'
+import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -249,6 +252,57 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.parameters).toEqual(params)
+  })
+
+  it('keeps disabled input support disabled after persisting a catalog model edit', async () => {
+    await seedExistingModel()
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: ['function-call', 'image-recognition', 'audio-recognition', 'video-recognition'],
+        inputModalities: ['text', 'image', 'audio', 'video']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    await dbh.db
+      .update(userModelTable)
+      .set({
+        capabilities: ['function-call', 'image-recognition', 'audio-recognition', 'video-recognition'],
+        inputModalities: ['text', 'image', 'audio', 'video']
+      })
+      .where(eq(userModelTable.id, 'openai::gpt-4o'))
+
+    const [original] = modelService.list({ providerId: 'openai' })
+    expect([isVisionModel(original), isAudioModel(original), isVideoModel(original)]).toEqual([true, true, true])
+
+    modelService.update('openai', 'gpt-4o', {
+      inputModalities: ['text'],
+      capabilities: ['function-call']
+    })
+    const [persisted] = modelService.list({ providerId: 'openai' })
+    expect(persisted.capabilities).toEqual(['function-call'])
+    expect([isVisionModel(persisted), isAudioModel(persisted), isVideoModel(persisted)]).toEqual([false, false, false])
+    expect(
+      resolveNativeFileSupport(
+        ProviderSchema.parse({
+          id: 'gemini',
+          name: 'Gemini',
+          apiKeys: [],
+          authType: 'api-key',
+          reportsActualCost: false,
+          settings: {},
+          isEnabled: true
+        }),
+        persisted,
+        {
+          endpointType: 'google-generate-content',
+          aiSdkProviderId: 'google',
+          runtimeProviderId: 'google'
+        }
+      )
+    ).toMatchObject({ image: false, audio: false, video: false })
   })
 
   it('records an explicitly empty input-modality update as user-owned', async () => {

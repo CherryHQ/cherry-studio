@@ -4919,7 +4919,6 @@
   "settings.models.add.context_window.placeholder": "z. B. 128000",
   "settings.models.add.endpoint_type.label": "Endpunkttyp",
   "settings.models.add.endpoint_type.placeholder": "Endpunkttyp auswählen",
-  "settings.models.add.endpoint_type.required": "Endpunkttyp auswählen",
   "settings.models.add.endpoint_type.tooltip": "API-Endpunkttyp-Format auswählen",
   "settings.models.add.group_name.label": "Gruppenname",
   "settings.models.add.group_name.placeholder": "Beispiel: ChatGPT",

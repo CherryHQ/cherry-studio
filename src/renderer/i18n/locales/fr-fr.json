@@ -4919,7 +4919,6 @@
   "settings.models.add.context_window.placeholder": "p. ex. 128 000",
   "settings.models.add.endpoint_type.label": "Type de point d'extrémité",
   "settings.models.add.endpoint_type.placeholder": "Sélectionner un type de point d'extrémité",
-  "settings.models.add.endpoint_type.required": "Veuillez sélectionner un type de point d'extrémité",
   "settings.models.add.endpoint_type.tooltip": "Sélectionner le format du type de point d'extrémité de l'API",
   "settings.models.add.group_name.label": "Nom du groupe",
   "settings.models.add.group_name.placeholder": "Par exemple, ChatGPT",

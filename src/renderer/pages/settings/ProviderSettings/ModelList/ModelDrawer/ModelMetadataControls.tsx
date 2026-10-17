@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODALITY, MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
 
 import { toggleModelValue } from './helpers'
 import type { ModelMetadata } from './types'
@@ -26,6 +26,12 @@ const MODALITY_OPTIONS = [
   { value: MODALITY.AUDIO, label: 'models.type.audio' },
   { value: MODALITY.VIDEO, label: 'models.type.video' }
 ] as const
+
+const INPUT_RECOGNITION_CAPABILITIES: readonly ModelCapability[] = [
+  MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  MODEL_CAPABILITY.AUDIO_RECOGNITION,
+  MODEL_CAPABILITY.VIDEO_RECOGNITION
+]
 
 export function ModelMetadataControls({ value, onChange }: ModelMetadataControlsProps) {
   const { t } = useTranslation()
@@ -65,7 +71,18 @@ export function ModelMetadataControls({ value, onChange }: ModelMetadataControls
                   size="sm"
                   variant={value[field]?.includes(option.value) ? 'secondary' : 'outline'}
                   aria-pressed={value[field]?.includes(option.value) ?? false}
-                  onClick={() => onChange({ [field]: toggleModelValue(value[field], option.value) })}>
+                  onClick={() =>
+                    onChange({
+                      [field]: toggleModelValue(value[field], option.value),
+                      ...(field === 'inputModalities'
+                        ? {
+                            capabilities: value.capabilities.filter(
+                              (capability) => !INPUT_RECOGNITION_CAPABILITIES.includes(capability)
+                            )
+                          }
+                        : {})
+                    })
+                  }>
                   {t(option.label)}
                 </Button>
               ))}
