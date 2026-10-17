@@ -197,6 +197,10 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
+    // The suppression decision is taken once, synchronously at entry: a retained run arms error
+    // delivery for FUTURE terminals (after the dispatch settles), and an arm landing mid-await must
+    // not flip the terminal that is already being dispatched.
+    const suppress = this.suppressErrorMessage
     // Same rule as `finish`: drop this execution's text before yielding, so a wake emitting through
     // this carried listener during the await does not inherit or re-ship it.
     this.takeOwnText(result.attemptId)
@@ -214,13 +218,13 @@ export class ChannelAdapterListener implements StreamListener {
     // while the error card is still being written must queue behind it, not overwrite it.
     const terminal = this.updateChain.then(() =>
       this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
-        suppressDelivery: this.suppressErrorMessage
+        suppressDelivery: suppress
       })
     )
     this.updateChain = terminal.catch(() => undefined)
     try {
       const handled = await terminal
-      if (!handled && !this.suppressErrorMessage) {
+      if (!handled && !suppress) {
         await this.deliver(t('common.channel_error', { error }))
       }
     } catch (err) {

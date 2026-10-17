@@ -796,6 +796,65 @@ describe('AiStreamManager', () => {
     expect(sent).toEqual(['A result'])
   })
 
+  // One fire can spawn a long-lived server and a finite subagent together, so both ids enter the
+  // stash's debt. Each completion is its own delivery opportunity: the subagent's settlement wake
+  // must claim the recipients while the server is still listed. Requiring the whole snapshot to
+  // drain loses that summary — the server's own later wake has nothing of it to replay.
+  it('claims the stash at the first owed completion while a co-spawned server remains listed', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // The fire settles owing both its background tasks a delivery: the finite subagent task-a and
+    // the server task-b.
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a', 'task-b']))
+
+    // Desktop follow-up replaces the held stream and drops the fire's recipients.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // The subagent settled; only the server is still listed. The all-or-nothing rule refused this
+    // claim and stranded the summary behind the server.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-b']))).toBe(true)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Subagent summary: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Subagent summary: 42'])
+  })
+
   // The stash is the wake's ONLY route to channel recipients. A listener still attached to the held
   // stream was either already served or never recorded as owed — carrying a copy of it into the
   // wake would hand the wake's output (possibly another fire's) to that chat.

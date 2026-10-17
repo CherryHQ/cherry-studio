@@ -285,8 +285,17 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
     } else {
       // The retained listeners outlive this handler, which owned failure notices; hand error
-      // reporting to the wake so a failed wake still reaches the subscribed chats.
-      for (const listener of channelListeners) listener.enableErrorDelivery()
+      // reporting to the wake so a failed wake still reaches the subscribed chats. The arm waits
+      // out the terminal dispatch this settle runs inside: the sentinel is invoked ahead of the
+      // channel listeners there, and enabling synchronously would let this same event — this
+      // run's own failure — double-notify behind the `[Task failed]` summary the rejection sends.
+      void application
+        .get('AiStreamManager')
+        .whenTerminalDispatchSettled(topicId)
+        .catch(() => undefined)
+        .then(() => {
+          for (const listener of channelListeners) listener.enableErrorDelivery()
+        })
       // Bind the recipients to this fire's outstanding obligation explicitly: only the fire knows
       // its background work still owes the chats a delivery. The live task set rides along as the
       // stash's claim debt, so a concurrent fire's task can neither delay nor steal the claim.
