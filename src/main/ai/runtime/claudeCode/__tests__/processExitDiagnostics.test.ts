@@ -4,6 +4,7 @@ import { serializeError } from '../../../utils/serializeError'
 import {
   createClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
+  recordClaudeCodeSpawnError,
   recordClaudeCodeProcessExit,
   resetClaudeCodeProcessDiagnostics
 } from '../processExitDiagnostics'
@@ -61,6 +62,67 @@ describe('Claude Code process exit diagnostics', () => {
 
     expect(diagnostics.category).toBe('unknown')
     expect(diagnostics.terminalReason).toContain('exited with code 429')
+  })
+
+  it('keeps a local Claude Code spawn failure with an unavailable message out of server', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('spawn-unavailable-ref')
+
+    recordClaudeCodeSpawnError(diagnostics, new Error('Service unavailable'))
+
+    expect(diagnostics.category).not.toBe('server')
+  })
+
+  it('keeps a local Claude Code CLI unavailable stderr out of server', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('cli-unavailable-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'Service unavailable')
+
+    expect(diagnostics.category).not.toBe('server')
+  })
+
+  it('keeps an upstream-context CLI unavailable message as a server failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('upstream-unavailable-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'API Error: Service temporarily unavailable')
+
+    expect(diagnostics.category).toBe('server')
+  })
+
+  it('keeps parse when local stderr mixes server wording with a parse failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('mixed-parse-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'Service unavailable: invalid json')
+
+    expect(diagnostics.category).toBe('parse')
+    const serialized = serializeError(createClaudeCodeProcessExitError(new Error('process exited'), diagnostics))
+    expect(serialized.claudeCodeExitCategory).toBe('parse')
+    expect(serialized.message).toBe('Claude Code process exited with code 1')
+    expect(JSON.stringify(serialized)).not.toContain('Service unavailable')
+    expect(JSON.stringify(serialized)).not.toContain('invalid json')
+  })
+
+  it('keeps knowledge when local stderr mixes server wording with a knowledge failure', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('mixed-knowledge-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'Service unavailable: knowledge base')
+
+    expect(diagnostics.category).toBe('knowledge')
+  })
+
+  it('keeps a structured 503 ahead of an auth-looking CLI message', () => {
+    const diagnostics = createClaudeCodeProcessDiagnostics('structured-503-ref')
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, 'HTTP 503 unauthorized')
+
+    expect(diagnostics.category).toBe('server')
+  })
+
+  it.each(['Overloaded', 'Internal server error'])('keeps local Claude Code %s stderr out of server', (stderr) => {
+    const diagnostics = createClaudeCodeProcessDiagnostics(`cli-${stderr.toLowerCase().replaceAll(' ', '-')}-ref`)
+
+    recordClaudeCodeProcessExit(diagnostics, 1, null, stderr)
+
+    expect(diagnostics.category).not.toBe('server')
   })
 
   it('clears a prior process result before a resume recovery spawns again', () => {
