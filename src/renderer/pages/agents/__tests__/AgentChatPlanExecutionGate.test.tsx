@@ -138,12 +138,15 @@ const modelFixtures = vi.hoisted(() => ({
 const cloudAvailability = vi.hoisted(() => ({
   // Module-level vi.fn: a fresh predicate per render would rebuild the composer's handoff model and
   // mask the wiring this file exists to pin.
+  isModelHidden: vi.fn<(model: { id: string; providerId: string }, includeAgentOnlyModels: boolean) => boolean>(
+    () => false
+  ),
   isModelUnavailable: vi.fn<(model: { id: string }) => boolean>(() => false)
 }))
 
 vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   useCherryCloudModelAvailability: () => ({
-    isModelHidden: () => false,
+    isModelHidden: cloudAvailability.isModelHidden,
     isModelUnavailable: cloudAvailability.isModelUnavailable,
     getModelDescription: () => undefined
   })
@@ -289,6 +292,7 @@ function respondApprovalPayload(): Record<string, unknown> | undefined {
 
 describe('AgentChat plan-execution handoff gates', () => {
   beforeEach(() => {
+    cloudAvailability.isModelHidden.mockReset().mockReturnValue(false)
     cloudAvailability.isModelUnavailable.mockReset().mockReturnValue(false)
     modelFixtures.configuredPlanExecutionModel = {
       id: PLAN_EXECUTION_MODEL_ID,
@@ -349,6 +353,48 @@ describe('AgentChat plan-execution handoff gates', () => {
     // The card could not promise the switch, so the approval must not carry a handoff: the plan
     // keeps executing on the agent's current model.
     expect(respondApprovalPayload()?.executionModelId).toBeUndefined()
+  })
+
+  it('does not promise a Cloud model that lost entitlement and keeps the current-model fallback', async () => {
+    // Entitlement loss alone: the agent picker hides the model while its quota is untouched, so a
+    // quota-only gate would still promise this switch — and Cloud would refuse it after the
+    // renderer had switched the agent and stopped the working turn.
+    cloudAvailability.isModelHidden.mockImplementation((model) => model.id === PLAN_EXECUTION_MODEL_ID)
+
+    renderAgentChat()
+
+    const notice = await screen.findByTestId('plan-execution-model')
+    expect(notice).toHaveTextContent('agent.toolPermission.executionModel.unavailable')
+    expect(notice).not.toHaveTextContent('agent.toolPermission.executionModel.notice')
+
+    fireEvent.click(screen.getByRole('button', { name: /agent\.toolPermission\.button\.allow/ }))
+    await waitFor(() =>
+      expect(ipcMocks.request).toHaveBeenCalledWith(
+        'ai.tool.respond_approval',
+        expect.objectContaining({ approvalId: 'approval-plan-1', approved: true })
+      )
+    )
+    expect(respondApprovalPayload()?.executionModelId).toBeUndefined()
+  })
+
+  it('still promises an agent-only Cloud model that non-agent pickers hide', async () => {
+    // Agent-scope visibility decides: an agent-only model sits in the server's `agent` list but
+    // not `general`, so gating on the general list would block a handoff the agent may run.
+    cloudAvailability.isModelHidden.mockImplementation((_model, includeAgentOnlyModels) => !includeAgentOnlyModels)
+
+    renderAgentChat()
+
+    const notice = await screen.findByTestId('plan-execution-model')
+    expect(notice).toHaveTextContent('agent.toolPermission.executionModel.notice')
+
+    fireEvent.click(screen.getByRole('button', { name: /agent\.toolPermission\.button\.allow/ }))
+    await waitFor(() =>
+      expect(ipcMocks.request).toHaveBeenCalledWith(
+        'ai.tool.respond_approval',
+        expect.objectContaining({ approvalId: 'approval-plan-1', approved: true })
+      )
+    )
+    expect(respondApprovalPayload()?.executionModelId).toBe(PLAN_EXECUTION_MODEL_ID)
   })
 
   it('still promises an available execution model and hands it off on approval', async () => {
