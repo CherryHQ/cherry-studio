@@ -3752,6 +3752,7 @@
   "settings.computerUse.description": "อนุญาตให้ helper ของ Open Computer Use ควบคุมแอปและจับภาพหน้าต่างของมัน ทำตามคู่มือเพื่อให้สิทธิ์ในการตั้งค่าระบบ แล้วปิดคู่มือเพื่อรีเฟรชสถานะ",
   "settings.computerUse.error": "ตรวจสอบหรือขอสิทธิ์ helper ไม่สำเร็จ รีเฟรชเพื่อลองอีกครั้ง",
   "settings.computerUse.noPermissions": "runtime นี้ไม่มีขั้นตอนขอสิทธิ์ระบบ ความพร้อมใช้บนเดสก์ท็อปยังขึ้นกับสภาพแวดล้อมของคุณ",
+  "settings.computerUse.recheck": "ตรวจสอบสิทธิ์อีกครั้ง",
   "settings.computerUse.request": "เปิดคู่มือการให้สิทธิ์",
   "settings.computerUse.requestLabel": "จัดการสิทธิ์ {{permission}}",
   "settings.computerUse.screenRecording": "การบันทึกหน้าจอ",
