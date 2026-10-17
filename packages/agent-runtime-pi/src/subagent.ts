@@ -1,12 +1,17 @@
 import { randomUUID } from 'node:crypto'
 
 import { type AssistantMessage, Type, type Usage } from '@earendil-works/pi-ai'
-import type { AgentSession, AgentToolResult, ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
-import type { ToolCallPart } from 'ai'
+import type {
+  AgentSession,
+  AgentToolResult,
+  ExtensionFactory,
+  SessionEntry,
+  SessionManager
+} from '@earendil-works/pi-coding-agent'
 
 import type { AgentRuntimeSession } from './session'
-import type { TranscriptEntry, TranscriptMessageEntry, TranscriptStateEntry } from './transcript'
-import type { AgentRuntimeEvent } from './transcriptTap'
+import type { AgentRuntimeEvent } from './sessionEvents'
+import { createSubagentSessionManager, subagentForkPoint } from './subagentSession'
 
 /** DSH's name: Cherry's renderer shows a cherry-runtime `subagent` call as a Task card. */
 export const SUBAGENT_TOOL_NAME = 'subagent'
@@ -17,52 +22,6 @@ export const SUBAGENT_ORIGIN_STATE = 'cherry.subagent-origin'
 /** True inside a subagent's session. */
 export function isSubagentSession(entries: readonly SessionEntry[]): boolean {
   return entries.some((entry) => entry.type === 'custom' && entry.customType === SUBAGENT_ORIGIN_STATE)
-}
-
-const originEntry = (subagent: Subagent): TranscriptStateEntry => ({
-  id: `subagent-origin-${subagent.parentToolCallId}`,
-  timestamp: Date.now(),
-  kind: 'state',
-  type: SUBAGENT_ORIGIN_STATE,
-  data: { parentToolCallId: subagent.parentToolCallId, fork: subagent.fork }
-})
-
-const PLACEHOLDER = 'This tool call was still running when the subagent started; its result is not available here.'
-
-function toolCallsOf(entry: TranscriptEntry): ToolCallPart[] {
-  if (entry.kind !== 'message' || entry.message.role !== 'assistant' || typeof entry.message.content === 'string')
-    return []
-  return entry.message.content.filter((part): part is ToolCallPart => part.type === 'tool-call')
-}
-
-/**
- * The parent's transcript up to the assistant message holding `toolCallId`, every call of that
- * message answered by the same placeholder, so sibling forks send the same prefix.
- */
-function forkTranscript(entries: readonly TranscriptEntry[], toolCallId: string): TranscriptEntry[] {
-  // Last: some providers reuse call ids across turns, and the running call is in the latest message.
-  const index = entries.findLastIndex((entry) => toolCallsOf(entry).some((call) => call.toolCallId === toolCallId))
-  if (index < 0) throw new Error(`No assistant message holds the call ${toolCallId}.`)
-  const assistant = entries[index]
-  const placeholders = toolCallsOf(assistant).map(
-    (call, i): TranscriptMessageEntry => ({
-      id: `${assistant.id}-fork-${i}`,
-      timestamp: assistant.timestamp,
-      kind: 'message',
-      message: {
-        role: 'tool',
-        content: [
-          {
-            type: 'tool-result',
-            toolCallId: call.toolCallId,
-            toolName: call.toolName,
-            output: { type: 'text', value: PLACEHOLDER }
-          }
-        ]
-      }
-    })
-  )
-  return [...entries.slice(0, index + 1), ...placeholders]
 }
 
 /** Host side of `subagent`: gives each subagent its extensions and listeners. */
@@ -107,8 +66,7 @@ export interface SubagentDetails {
 
 /** What a subagent's session overrides in the parent's options. */
 export interface SubagentSessionOverrides {
-  sessionId: string
-  transcript: TranscriptEntry[]
+  sessionManager: SessionManager
   extensionFactories: ExtensionFactory[]
   onEvent: ((event: AgentRuntimeEvent) => void) | undefined
   /** A fork keeps `subagent` registered so its tools match the parent's. */
@@ -125,8 +83,8 @@ export interface SubagentToolOptions {
   port: SubagentPort
   /** Builds a session from the parent's options with these overrides. */
   createSession: (overrides: SubagentSessionOverrides) => Promise<AgentRuntimeSession>
-  /** The parent's transcript so far, including the running turn. */
-  parentTranscript: () => readonly TranscriptEntry[]
+  /** Native parent storage, including the running turn. */
+  parentSession: SessionManager
 }
 
 const DESCRIPTION = [
@@ -293,7 +251,7 @@ async function run(
 }
 
 /** The `subagent` tool: each call runs a subagent session in-process and returns its final report. */
-export function subagentExtension({ port, createSession, parentTranscript }: SubagentToolOptions): ExtensionFactory {
+export function subagentExtension({ port, createSession, parentSession }: SubagentToolOptions): ExtensionFactory {
   return (pi) => {
     pi.registerTool({
       name: SUBAGENT_TOOL_NAME,
@@ -307,21 +265,18 @@ export function subagentExtension({ port, createSession, parentTranscript }: Sub
         const prompt = params.prompt.trim()
         if (!description || !prompt) throw new Error('A subagent needs a non-empty description and prompt.')
         const fork = params.fork ?? false
-        const parent = parentTranscript()
+        const forkPoint = fork ? subagentForkPoint(parentSession, toolCallId) : undefined
         const subagent: Subagent = {
           parentToolCallId: toolCallId,
           sessionId: `${ctx.sessionManager.getSessionId()}.${randomUUID()}`,
           fork
         }
-        // Built before `configure`, so a failure building the fork transcript never reaches the host.
-        const transcript = [...(fork ? forkTranscript(parent, toolCallId) : []), originEntry(subagent)]
         const options = await port.configure(subagent)
         const base = { sessionId: subagent.sessionId, fork }
         if (signal?.aborted) return notStarted(base)
         const limit = new RequestLimit()
         const child = await createSession({
-          sessionId: subagent.sessionId,
-          transcript,
+          sessionManager: createSubagentSessionManager(parentSession, subagent, forkPoint),
           fork,
           extensionFactories: options.extensionFactories ?? [],
           onEvent: options.onEvent,
