@@ -65,7 +65,10 @@ export async function createAgent(
 }
 
 export async function selectAgentWorkspace(app: RegressionApp, page: Page): Promise<void> {
-  const current = page.getByRole('button', { name: new RegExp(`No work directory|${app.workspaceName}`), exact: true })
+  const agentView = page.locator('[data-ui~="agent.view"]:visible')
+  const current = agentView.getByRole('button', {
+    name: new RegExp(`^(?:Select work directory|No work directory|${app.workspaceName})$`)
+  })
   if ((await current.textContent())?.includes(app.workspaceName)) return
   await current.click()
   const existing = page.getByText(app.workspaceName, { exact: true })
@@ -75,7 +78,7 @@ export async function selectAgentWorkspace(app: RegressionApp, page: Page): Prom
     await page.getByText('Add new work directory', { exact: true }).click()
     chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
   }
-  await expect(page.getByRole('button', { name: app.workspaceName, exact: true })).toBeVisible({ timeout: 30_000 })
+  await expect(agentView.getByRole('button', { name: app.workspaceName, exact: true })).toBeVisible({ timeout: 30_000 })
 }
 
 export async function runAgentFileTask(
