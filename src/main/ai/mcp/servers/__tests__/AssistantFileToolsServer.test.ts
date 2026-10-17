@@ -13,6 +13,23 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
   saveAttachmentToWorkspace: vi.fn()
 }))
+const mediaRuntime = vi.hoisted(() => ({
+  getById: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
+  analyzeToFullText: vi.fn<(file: { kind: 'entry'; entryId: string }, signal?: AbortSignal) => Promise<string>>()
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory({
+    FileManager: { getById: mediaRuntime.getById }
+  })
+  const delegated = mocked.application.get.getMockImplementation()
+  mocked.application.get.mockImplementation((name: string) => {
+    if (name === 'MediaAnalysisService') return { analyzeToFullText: mediaRuntime.analyzeToFullText }
+    return delegated?.call(mocked.application, name)
+  })
+  return mocked
+})
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { listSessionMessages: mocks.listSessionMessages }
@@ -20,8 +37,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
 
 vi.mock('@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool', async (importOriginal) => ({
   ...(await importOriginal<typeof ReadFileToolModule>()),
-  readFile: mocks.readFile,
-  readFileModelOutput: (result: { text: string }) => ({ type: 'text', value: result.text })
+  readFile: mocks.readFile
 }))
 
 vi.mock('@main/ai/tools/saveAttachment', async (importOriginal) => ({
@@ -116,6 +132,9 @@ async function callTool(client: Client, name: string, args: Record<string, unkno
 describe('assistant-files MCP server', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.readFile.mockReset()
+    mediaRuntime.getById.mockReset()
+    mediaRuntime.analyzeToFullText.mockReset()
     mocks.listSessionMessages.mockReturnValue({ items: [], nextCursor: undefined })
   })
 
@@ -150,6 +169,84 @@ describe('assistant-files MCP server', () => {
     expect(first.content[0].text).toBe(handle)
     expect(second.content[0].text).toBe('(none)')
     expect(JSON.stringify(first)).not.toContain(entryId)
+  })
+
+  it('projects shared timestamped paging results through the Claude Code MCP tool', async () => {
+    const entryId = 'entry-video'
+    const handle = createAssistantFileAttachmentHandle(entryId)
+    mocks.listSessionMessages.mockReturnValue({ items: [message(entryId, 'clip.mp4')], nextCursor: undefined })
+    mocks.readFile.mockResolvedValue({ text: '[00:10] beta', totalChars: 40, nextOffset: 26 })
+    const server = await createServer()
+
+    const result = await callTool(server, 'read_file', { filename: handle, offset: 14, limit: 12 })
+
+    expect(result.content[0].text).toBe(
+      '[00:10] beta\n\n[Showing 12 of 40 chars. Call read_file again with offset=26 for more.]'
+    )
+    expect(mocks.readFile).toHaveBeenCalledWith(
+      { filename: handle, offset: 14, limit: 12 },
+      { attachments: [{ fileEntryId: entryId, handle, displayName: 'clip.mp4' }] },
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('returns paged timestamped analysis for an attached .webm through the registered read_file tool', async () => {
+    const actual = await vi.importActual<typeof ReadFileToolModule>(
+      '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
+    )
+    mocks.readFile.mockImplementation((input, context, signal) => actual.readFile(input, context, signal))
+    const entryId = 'entry-webm'
+    const handle = createAssistantFileAttachmentHandle(entryId)
+    mocks.listSessionMessages.mockReturnValue({ items: [message(entryId, 'clip.webm')], nextCursor: undefined })
+    mediaRuntime.getById.mockResolvedValue({ ext: 'webm' })
+    mediaRuntime.analyzeToFullText.mockResolvedValue('[00:00] alpha\n[00:10] beta\n[00:20] gamma')
+    const server = await createServer()
+
+    const result = await callTool(server, 'read_file', { filename: handle, offset: 14, limit: 12 })
+
+    expect(result.isError).not.toBe(true)
+    expect(result.content[0].text).toBe(
+      '[00:10] beta\n\n[Showing 12 of 40 chars. Call read_file again with offset=26 for more.]'
+    )
+    expect(JSON.stringify(result)).not.toContain(entryId)
+    expect(JSON.stringify(result)).not.toContain('/tmp/')
+  })
+
+  it('projects a sanitized .webm analysis failure without the probe path', async () => {
+    const actual = await vi.importActual<typeof ReadFileToolModule>(
+      '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
+    )
+    mocks.readFile.mockImplementation((input, context, signal) => actual.readFile(input, context, signal))
+    const entryId = 'entry-webm'
+    const handle = createAssistantFileAttachmentHandle(entryId)
+    mocks.listSessionMessages.mockReturnValue({ items: [message(entryId, 'clip.webm')], nextCursor: undefined })
+    mediaRuntime.getById.mockResolvedValue({ ext: 'webm' })
+    mediaRuntime.analyzeToFullText.mockRejectedValue(new Error('probe failed: /Users/secret/clip.webm'))
+    const server = await createServer()
+
+    const result = await callTool(server, 'read_file', { filename: handle })
+
+    expect(result.content[0].text).toBe(`Failed to read attached file "${handle}".`)
+    expect(JSON.stringify(result)).not.toContain('/Users/secret')
+    expect(JSON.stringify(result)).not.toContain(entryId)
+  })
+
+  it('refuses a .webm filename that is not the session allow-list handle', async () => {
+    const actual = await vi.importActual<typeof ReadFileToolModule>(
+      '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
+    )
+    mocks.readFile.mockImplementation((input, context, signal) => actual.readFile(input, context, signal))
+    const entryId = 'entry-webm'
+    const handle = createAssistantFileAttachmentHandle(entryId)
+    mocks.listSessionMessages.mockReturnValue({ items: [message(entryId, 'clip.webm')], nextCursor: undefined })
+    const server = await createServer()
+
+    const result = await callTool(server, 'read_file', { filename: 'clip.webm' })
+
+    expect(result.content[0].text).toBe(`No attached file named "clip.webm". Available: ${handle}`)
+    expect(JSON.stringify(result)).not.toContain(entryId)
+    expect(mediaRuntime.getById).not.toHaveBeenCalled()
+    expect(mediaRuntime.analyzeToFullText).not.toHaveBeenCalled()
   })
 
   it('does not expose orphaned managed attachments to read_file', async () => {
