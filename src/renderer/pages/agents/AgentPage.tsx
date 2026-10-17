@@ -49,7 +49,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { conversationRouteUrl } from '@shared/utils/conversationRoute'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
@@ -104,6 +103,7 @@ const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [panePosition, setPanePosition] = usePreference('agent.session.position')
+  const [showTaskDashboard] = usePreference('agent.task_dashboard.visible')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const routeSearch = agentsRouteApi.useSearch<AppRouter>()
   const navigate = useNavigate()
@@ -384,15 +384,6 @@ const AgentPage = () => {
     visibleConversationId: visibleSession?.id
   })
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
-  const announceSessionSelection = useCallback(
-    (sessionId: string) => {
-      void EventEmitter.emit(EVENT_NAMES.ACTIVE_TAB_SELECTED, {
-        tabId: currentTabId,
-        url: conversationRouteUrl({ conversationType: 'agent', conversationId: sessionId })
-      })
-    },
-    [currentTabId]
-  )
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -456,18 +447,10 @@ const AgentPage = () => {
         rememberLastUsedSession(agentId, isUserWorkspaceSession(session) ? session.workspaceId : undefined)
       }
       setActiveSession(session)
-      announceSessionSelection(session.id)
       closeSurface()
       requestComposerFocus(buildAgentSessionTopicId(session.id))
     },
-    [
-      announceSessionSelection,
-      clearLocate,
-      closeSurface,
-      rememberLastUsedSession,
-      requestComposerFocus,
-      setActiveSession
-    ]
+    [clearLocate, closeSurface, rememberLastUsedSession, requestComposerFocus, setActiveSession]
   )
 
   const resolveEmptySession = useCallback(
@@ -668,7 +651,6 @@ const AgentPage = () => {
         }
 
         selectSession(sessionId)
-        announceSessionSelection(sessionId)
         sessionRevealRequestIdRef.current += 1
         setSessionRevealRequest({
           clearFilters: true,
@@ -682,7 +664,6 @@ const AgentPage = () => {
     [
       clearLocate,
       closeSurface,
-      announceSessionSelection,
       requestSessionNavigation,
       requestLocate,
       selectSession,
@@ -861,9 +842,8 @@ const AgentPage = () => {
       setMissingAgentSelection(false)
       setPendingSessionDefaults(null)
       selectSession(sessionId, session)
-      announceSessionSelection(sessionId)
     },
-    [announceSessionSelection, clearLocate, closeSurface, reenterAgentRoute, selectSession]
+    [clearLocate, closeSurface, reenterAgentRoute, selectSession]
   )
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
@@ -923,10 +903,6 @@ const AgentPage = () => {
     },
     [replacingSessionWorkspace, setActiveSession, setLastUsedWorkspaceId, setSessionWorkspace, visibleSession]
   )
-  const handleLocateMessageHandled = useCallback(() => {
-    clearLocate()
-    if (visibleSession) announceSessionSelection(visibleSession.id)
-  }, [announceSessionSelection, clearLocate, visibleSession])
 
   // Classic layout = entity rail + right session panel; modern layout = one left navigation panel (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? null
@@ -1100,7 +1076,7 @@ const AgentPage = () => {
             conversationBootstrap={conversationBootstrap}
             pane={
               <div className="flex h-full min-h-0 flex-col overflow-hidden">
-                <AgentTaskDashboard enabled={shellPaneOpen && isActiveTab} />
+                {showTaskDashboard && <AgentTaskDashboard enabled={shellPaneOpen && isActiveTab} />}
                 <div className="min-h-0 flex-1 overflow-hidden">{pane}</div>
               </div>
             }
@@ -1122,7 +1098,7 @@ const AgentPage = () => {
             onVisibleWorkspaceChange={setLastUsedWorkspaceId}
             locateMessageId={locateMessageId}
             locateToEnd={locateToEnd}
-            onLocateMessageHandled={handleLocateMessageHandled}
+            onLocateMessageHandled={clearLocate}
             selectingMissingAgent={selectingMissingAgent}
             replacingSessionWorkspace={replacingSessionWorkspace}
             resourcePane={resourcePane}

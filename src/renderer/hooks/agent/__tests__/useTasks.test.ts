@@ -1,14 +1,12 @@
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, fireEvent, renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
-import { useTaskDashboardViewing } from '../useTaskDashboardViewing'
 import {
   TASKS_PAGE_LIMIT,
   useAllTasks,
@@ -28,103 +26,9 @@ vi.mock('react-i18next', () => ({
 
 // Task commands ride IpcApi (`ai.agent.task.*`); only reads stay on DataApi.
 const { requestMock } = vi.hoisted(() => ({ requestMock: vi.fn() }))
-const viewing = vi.hoisted(() => ({
-  tab: { id: 'tab', type: 'route' as const, url: '/app/agents?sessionId=one', title: 'One' },
-  events: new Map<string, () => void>()
-}))
-vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ activeTab: viewing.tab }) }))
 vi.mock('@renderer/ipc', () => ({
-  useIpcOn: (event: string, listener: () => void) => viewing.events.set(event, listener),
-  ipcApi: {
-    request: requestMock,
-    on: () => () => {}
-  }
+  ipcApi: { request: requestMock }
 }))
-
-describe('task dashboard viewing', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    viewing.tab = { id: 'tab', type: 'route', url: '/app/agents?sessionId=one', title: 'One' }
-    viewing.events.clear()
-    requestMock.mockResolvedValue(undefined)
-    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
-    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-  const change = async () => {
-    act(() => MockUseDataApiUtils.emitDataChange([{ endpoint: '/agent-task-dashboard', kind: 'membership' }]))
-    await act(() => vi.advanceTimersByTimeAsync(250))
-  }
-  const select = (url = viewing.tab.url) =>
-    act(() => EventEmitter.emit(EVENT_NAMES.ACTIVE_TAB_SELECTED, { tabId: 'tab', url }))
-
-  it('does not review restored tabs, then automatically reviews completions only after an explicit selection', async () => {
-    renderHook(() => useTaskDashboardViewing())
-    await change()
-    expect(requestMock).not.toHaveBeenCalled()
-    await select()
-    expect(requestMock).toHaveBeenLastCalledWith('ai.agent.task_dashboard.view_session', {
-      sessionId: 'one',
-      automatic: false
-    })
-    await change()
-    expect(requestMock).toHaveBeenLastCalledWith('ai.agent.task_dashboard.view_session', {
-      sessionId: 'one',
-      automatic: true
-    })
-    requestMock.mockClear()
-    fireEvent.click(document.body)
-    await act(() => vi.advanceTimersByTimeAsync(1000))
-    expect(requestMock).not.toHaveBeenCalled()
-  })
-
-  it('waits for the selected session rather than reviewing the previous visible tab', async () => {
-    const { rerender } = renderHook(() => useTaskDashboardViewing())
-    await select('/app/agents?sessionId=two')
-    expect(requestMock).not.toHaveBeenCalled()
-    viewing.tab = { ...viewing.tab, url: '/app/agents?sessionId=two&forkReturnSessionId=one' }
-    rerender()
-    expect(requestMock).toHaveBeenLastCalledWith('ai.agent.task_dashboard.view_session', {
-      sessionId: 'two',
-      automatic: false
-    })
-    requestMock.mockClear()
-    viewing.tab = { ...viewing.tab, url: '/app/agents?sessionId=one' }
-    rerender()
-    await change()
-    expect(requestMock).not.toHaveBeenCalled()
-  })
-
-  it('drops viewing on blur, hidden windows and power reset, and requires focus regain after reset', async () => {
-    renderHook(() => useTaskDashboardViewing())
-    await select()
-    requestMock.mockClear()
-    fireEvent(window, new Event('blur'))
-    await change()
-    expect(requestMock).not.toHaveBeenCalled()
-    fireEvent(window, new Event('focus'))
-    expect(requestMock).toHaveBeenLastCalledWith('ai.agent.task_dashboard.view_session', {
-      sessionId: 'one',
-      automatic: false
-    })
-    requestMock.mockClear()
-    act(() => viewing.events.get('ai.agent.task_dashboard.attention_reset')?.())
-    fireEvent(window, new Event('focus'))
-    await change()
-    expect(requestMock).not.toHaveBeenCalled()
-    vi.mocked(document.hasFocus).mockReturnValue(false)
-    await select()
-    await change()
-    expect(requestMock).not.toHaveBeenCalled()
-    vi.mocked(document.hasFocus).mockReturnValue(true)
-    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
-    await select()
-    await change()
-    expect(requestMock).not.toHaveBeenCalled()
-  })
-})
 
 const taskEntity = { id: 't-1', agentId: 'agent-1', name: 'Task 1', enabled: true }
 const TASK_LIST_READ_KEYS = ['/agent-tasks', '/agents/agent-1/tasks']

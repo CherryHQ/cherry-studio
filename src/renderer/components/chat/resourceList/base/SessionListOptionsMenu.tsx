@@ -1,7 +1,9 @@
-import { Bot, Clock, Folder, History } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Bot, Clock, Folder, History, ListTodo } from 'lucide-react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
@@ -38,10 +40,27 @@ export function SessionListOptionsMenu({
   sectionIds
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
+  const [showTaskDashboard, setShowTaskDashboard] = usePreference('agent.task_dashboard.visible')
+  const [showRestoreHint, setShowRestoreHint] = useState(false)
+
+  useEffect(() => EventEmitter.on(EVENT_NAMES.TASK_DASHBOARD_HIDDEN, () => setShowRestoreHint(true)), [])
+  useEffect(() => {
+    if (!showRestoreHint) return
+    const timer = window.setTimeout(() => setShowRestoreHint(false), 8000)
+    return () => window.clearTimeout(timer)
+  }, [showRestoreHint])
 
   return (
     <ConversationListOptionsMenu
       title={t('agent.session.display.title')}
+      triggerHint={{
+        content: t('agent.task_dashboard.restore_hint', {
+          menu: t('agent.session.display.title'),
+          panel: t('agent.task_dashboard.title')
+        }),
+        open: showRestoreHint,
+        onDismiss: () => setShowRestoreHint(false)
+      }}
       mode={mode}
       onChange={onChange}
       options={SESSION_DISPLAY_OPTIONS.map((option) => ({
@@ -49,6 +68,15 @@ export function SessionListOptionsMenu({
         label: t(SESSION_DISPLAY_LABEL_KEYS[option]),
         value: option
       }))}
+      visibilityAction={{
+        active: showTaskDashboard,
+        icon: <ListTodo size={16} />,
+        label: t('agent.task_dashboard.title'),
+        onSelect: async () => {
+          await setShowTaskDashboard(!showTaskDashboard)
+          setShowRestoreHint(showTaskDashboard)
+        }
+      }}
       sectionToggle={
         sectionIds
           ? {

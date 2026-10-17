@@ -6,10 +6,10 @@ import { debounce } from '@shared/utils/async'
 
 const logger = loggerService.withContext('useTaskDashboard')
 
-export function useTaskDashboard(group: 'running' | 'awaiting', enabled: boolean) {
+export function useTaskDashboard(enabled: boolean) {
   const [cursors, setCursors] = useState<Array<string | undefined>>([undefined])
   const query = useQuery('/agent-task-dashboard', {
-    query: { group, cursor: cursors.at(-1) },
+    query: { group: 'running', cursor: cursors.at(-1) },
     enabled,
     swrOptions: { keepPreviousData: false }
   })
@@ -30,7 +30,7 @@ export function useTaskDashboard(group: 'running' | 'awaiting', enabled: boolean
   return {
     ...query,
     items: query.data?.items ?? [],
-    total: query.data?.totals[group] ?? 0,
+    total: query.data?.totals.running ?? 0,
     page: cursors.length,
     hasPrev: cursors.length > 1,
     hasNext: !!query.data?.nextCursor,

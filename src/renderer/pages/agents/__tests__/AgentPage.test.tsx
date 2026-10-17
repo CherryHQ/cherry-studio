@@ -1,5 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -175,7 +175,7 @@ vi.mock('@data/hooks/usePreference', async () => {
             ? agentPageMocks.sessionDisplayMode
             : key === 'agent.session.position'
               ? agentPageMocks.sessionPanePosition
-              : undefined
+              : DefaultPreferences.default[key as keyof typeof DefaultPreferences.default]
       )
       const setPreference = vi.fn(async (nextValue: unknown) => {
         if (key === 'topic.tab.show') {
@@ -730,10 +730,8 @@ import type { AgentTaskDashboard as DashboardComponent } from '../components/Age
 
 describe('Agent task dashboard interactions', () => {
   const defaultQuery = mockUseQuery.getMockImplementation()!
-  const defaultMutation = mockUseMutation.getMockImplementation()!
   afterEach(() => {
     mockUseQuery.mockImplementation(defaultQuery)
-    mockUseMutation.mockImplementation(defaultMutation)
   })
   let Dashboard: typeof DashboardComponent
   beforeAll(async () => {
@@ -744,7 +742,6 @@ describe('Agent task dashboard interactions', () => {
   let pages: Record<'running' | 'awaiting', DashboardPage>
   let loadError: Error | undefined
   const refresh = vi.fn(async () => {})
-  const review = vi.fn(async () => {})
   const run = (id: string, status: DashboardEntry['status']): DashboardEntry => ({
     id,
     source: 'agent',
@@ -779,7 +776,7 @@ describe('Agent task dashboard interactions', () => {
       const query = options?.query as { group: 'running' | 'awaiting'; cursor?: string }
       return {
         data: (query.cursor
-          ? { ...pages[query.group], items: [run('Older result', 'succeeded')], nextCursor: undefined }
+          ? { ...pages[query.group], items: [run('Older run', 'running')], nextCursor: undefined }
           : pages[query.group]) as any,
         error: loadError,
         isLoading: false,
@@ -788,7 +785,6 @@ describe('Agent task dashboard interactions', () => {
         mutate: vi.fn()
       }
     })
-    mockUseMutation.mockImplementation(() => ({ trigger: review, isLoading: false, error: undefined }))
     MockUseDataApiUtils.mockPaginatedData('/agent-tasks', [
       { id: 'scheduled', name: 'Daily summary', status: 'active', runSummary: { status: 'queued' } } as any
     ])
@@ -807,22 +803,22 @@ describe('Agent task dashboard interactions', () => {
     expect(refresh).toHaveBeenCalled()
   })
 
-  it('keeps accurate totals across cursor pages and supports collapsing an empty group', async () => {
+  it('keeps accurate running totals across pages and no longer exposes awaiting results', async () => {
     const user = userEvent.setup()
-    pages.awaiting = {
-      items: [run('Latest result', 'succeeded')],
-      totals: { running: 0, awaiting: 2001 },
+    pages.running = {
+      items: [run('Latest run', 'running')],
+      totals: { running: 2001, awaiting: 9 },
       nextCursor: 'older'
     }
     render(<Dashboard enabled />)
-    expect(screen.getByRole('button', { name: 'Running 0' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Awaiting review 2001' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Running 2001' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('button', { name: /Awaiting review/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(screen.getByText('Older result')).toBeInTheDocument()
-    expect(screen.queryByText('Latest result')).not.toBeInTheDocument()
+    expect(screen.getByText('Older run')).toBeInTheDocument()
+    expect(screen.queryByText('Latest run')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Previous' }))
-    expect(screen.getByText('Latest result')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Running 0' }))
+    expect(screen.getByText('Latest run')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Running 2001' }))
     expect(screen.queryByRole('list', { name: 'Running' })).not.toBeInTheDocument()
   })
 
@@ -862,25 +858,39 @@ describe('Agent task dashboard interactions', () => {
     expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
   })
 
-  it('opens anchored results and keeps unavailable rows dismissible from the keyboard', async () => {
+  it('opens running tasks at their anchor and disables navigation when the session was deleted', async () => {
     const user = userEvent.setup()
-    pages.awaiting = { items: [run('Result', 'failed')], totals: { running: 0, awaiting: 1 } }
+    pages.running = { items: [run('Research', 'running')], totals: { running: 1, awaiting: 0 } }
     render(<Dashboard enabled />)
-    await user.click(screen.getByRole('button', { name: /Result Agent A Failed/ }))
+    await user.click(screen.getByRole('button', { name: /Research Agent A Running/ }))
     expect(ipcMocks.request).toHaveBeenCalledWith('navigation.focus_or_open_conversation', {
       target: { conversationType: 'agent', conversationId: 'session' },
-      title: 'Result',
+      title: 'Research',
       messageId: 'anchor'
     })
     ipcMocks.request.mockRejectedValueOnce(new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Deleted'))
-    await user.click(screen.getByRole('button', { name: /Result Agent A Failed/ }))
-    expect(screen.getByRole('button', { name: /Result Agent A No longer available/ })).toBeDisabled()
-    screen.getByRole('button', { name: 'Dismiss Result' }).focus()
-    await user.keyboard('{Enter}')
-    expect(review).toHaveBeenCalledWith({ params: { id: 'Result' }, body: { viewed: true } })
-    screen.getByRole('button', { name: 'Mark all reviewed' }).focus()
-    await user.keyboard('{Enter}')
-    expect(review).toHaveBeenCalledWith({ body: { viewed: true } })
+    await user.click(screen.getByRole('button', { name: /Research Agent A Running/ }))
+    expect(screen.getByRole('button', { name: /Research Agent A No longer available/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
+  })
+
+  it('toggles each count independently from its header context menu without collapsing the group', async () => {
+    const user = userEvent.setup()
+    render(<Dashboard enabled />)
+    const scheduled = screen.getByRole('button', { name: /^Scheduled tasks/ })
+    const scheduledName = scheduled.textContent
+    await user.pointer({ target: screen.getByRole('button', { name: 'Running 0' }), keys: '[MouseRight]' })
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Show count badge' }))
+    expect(screen.getByRole('button', { name: 'Running' })).toHaveAttribute('aria-expanded', 'true')
+    expect(scheduled).toHaveTextContent(scheduledName)
+    await user.pointer({ target: scheduled, keys: '[MouseRight]' })
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Show count badge' })).toBeChecked()
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Show count badge' }))
+    expect(screen.getByRole('button', { name: 'Scheduled tasks' })).toHaveAttribute('aria-expanded', 'true')
+    await user.pointer({ target: screen.getByRole('button', { name: 'Running' }), keys: '[MouseRight]' })
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Show count badge' }))
+    expect(screen.getByRole('button', { name: 'Running 0' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Scheduled tasks' })).toBeInTheDocument()
   })
 })
 

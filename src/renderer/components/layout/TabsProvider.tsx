@@ -17,7 +17,6 @@ import {
   useConversationNavigationOwner
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
@@ -329,7 +328,6 @@ export function TabsProvider({
 
   const commitTabs = useCallback(
     (nextTabs: Tab[], primaryId: string) => {
-      const selectionChanged = activeTabIdRef.current !== primaryId
       const prepared = applyTabLimit(nextTabs, primaryId)
       const normal = prepared.filter((tab) => !storesPinned(tab))
       setNormalTabs((prev) => (isEqual(prev, normal) ? prev : normal))
@@ -338,9 +336,6 @@ export function TabsProvider({
         setPinnedTabs((prev) => (isEqual(prev, pinned) ? [...prev] : pinned))
       }
       setActiveTabId(primaryId)
-      const selected = prepared.find((tab) => tab.id === primaryId)
-      if (selectionChanged && selected)
-        void EventEmitter.emit(EVENT_NAMES.ACTIVE_TAB_SELECTED, { tabId: selected.id, url: selected.url })
     },
     [applyTabLimit, storesPinned, includePinnedTabs, setPinnedTabs, setActiveTabId]
   )
@@ -373,10 +368,7 @@ export function TabsProvider({
     (id: string) => {
       const targetTab = projectedTabsRef.current.find((t) => t.id === id)
       if (!targetTab) return
-      if (id === activeTabId && !targetTab.isDormant) {
-        void EventEmitter.emit(EVENT_NAMES.ACTIVE_TAB_SELECTED, { tabId: id, url: targetTab.url })
-        return
-      }
+      if (id === activeTabId && !targetTab.isDormant) return
 
       // If a dormant tab was awakened, log it
       if (targetTab.isDormant) {

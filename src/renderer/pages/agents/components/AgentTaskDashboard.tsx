@@ -1,28 +1,36 @@
 import {
-  Check,
-  CheckCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CircleCheck,
   CircleStop,
-  CircleX,
   Clock3,
+  EyeOff,
   Loader2,
   OctagonAlert,
-  Square
+  Plus
 } from 'lucide-react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, Tooltip } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useTaskDashboard } from '@renderer/hooks/agent/useTaskDashboard'
 import { useAllTasks } from '@renderer/hooks/agent/useTasks'
 import { ipcApi } from '@renderer/ipc'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { openRoute, openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -92,29 +100,21 @@ function PageButtons({
 /** Shared by every Agent sidebar layout; the surrounding sidebar owns the height limit. */
 export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
   const { t, i18n } = useTranslation()
-  const running = useTaskDashboard('running', enabled)
-  const awaiting = useTaskDashboard('awaiting', enabled)
+  const running = useTaskDashboard(enabled)
   const tasks = useAllTasks(enabled)
+  const [, setShowTaskDashboard] = usePreference('agent.task_dashboard.visible')
+  const [showRunningCount, setShowRunningCount] = usePreference('agent.task_dashboard.show_running_count')
+  const [showScheduledCount, setShowScheduledCount] = usePreference('agent.task_dashboard.show_scheduled_count')
   const [collapsed, setCollapsed] = usePersistCache('ui.agent.task_dashboard.collapsed_groups')
   const [stopping, setStopping] = useState<Set<string>>(() => new Set())
   const [unavailable, setUnavailable] = useState<Set<string>>(() => new Set())
-  const [reviewing, setReviewing] = useState(false)
   const now = useVisibleTime(enabled && !collapsed.includes('running') && running.items.length > 0)
-  const statusLabels = {
-    queued: t('agent.task_dashboard.queued'),
-    running: t('agent.task_dashboard.running'),
-    succeeded: t('agent.task_dashboard.succeeded'),
-    failed: t('agent.task_dashboard.failed'),
-    cancelled: t('agent.task_dashboard.cancelled')
-  }
   const taskStatusLabels = {
     active: t('agent.tasks.status.active'),
     paused: t('agent.tasks.status.paused'),
     completed: t('agent.tasks.status.completed'),
     missed: t('agent.tasks.status.missed')
   }
-  const { trigger: dismiss } = useMutation('PATCH', '/agent-task-dashboard/:id', { refresh: ['/agent-task-dashboard'] })
-  const { trigger: reviewAll } = useMutation('PATCH', '/agent-task-dashboard', { refresh: ['/agent-task-dashboard'] })
   const toggle = (group: string) =>
     setCollapsed((current) =>
       current.includes(group) ? current.filter((item) => item !== group) : [...current, group]
@@ -166,25 +166,14 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
   }
 
   const renderRow = (row: DashboardEntry) => {
-    const active = row.status === 'running'
     const missing = unavailable.has(row.id) || (!row.sessionId && !row.taskId)
     const isStopping = stopping.has(row.id)
-    const Icon = row.blockedOn
-      ? OctagonAlert
-      : active
-        ? Loader2
-        : row.status === 'succeeded'
-          ? CircleCheck
-          : row.status === 'cancelled'
-            ? CircleStop
-            : CircleX
+    const Icon = row.blockedOn ? OctagonAlert : Loader2
     const status = isStopping
       ? t('agent.task_dashboard.stopping')
       : row.blockedOn
         ? t('agent.task_dashboard.approval')
-        : row.reasonCode === 'interrupted'
-          ? t('agent.task_dashboard.interrupted')
-          : statusLabels[row.status]
+        : t('agent.task_dashboard.running')
     return (
       <li key={row.id} className="group flex min-w-0 items-center gap-1 px-1">
         <Tooltip
@@ -195,10 +184,7 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
             disabled={missing}
             className="h-auto min-w-0 flex-1 justify-start gap-2 whitespace-normal px-2 py-1.5 text-left"
             onClick={() => void open(row)}>
-            <Icon
-              aria-hidden
-              className={cn('size-3.5 shrink-0', active && !row.blockedOn && 'motion-safe:animate-spin')}
-            />
+            <Icon aria-hidden className={cn('size-3.5 shrink-0', !row.blockedOn && 'motion-safe:animate-spin')} />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="truncate text-xs">{row.nameSnapshot || t('agent.task_dashboard.untitled')}</span>
               <span className="truncate text-xs text-muted-foreground">{row.agentNameSnapshot}</span>
@@ -210,107 +196,113 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
             </span>
           </Button>
         </Tooltip>
-        <Tooltip content={active ? t('agent.task_dashboard.stop') : t('agent.task_dashboard.dismiss')} asChild>
+        <Tooltip content={t('agent.task_dashboard.stop')} asChild>
           <Button
             variant="ghost"
             size="icon-sm"
             disabled={isStopping}
             className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-            aria-label={t(active ? 'agent.task_dashboard.stop_named' : 'agent.task_dashboard.dismiss_named', {
+            aria-label={t('agent.task_dashboard.stop_named', {
               name: row.nameSnapshot || t('agent.task_dashboard.untitled')
             })}
-            onClick={() =>
-              active
-                ? void stop(row)
-                : void dismiss({ params: { id: row.id }, body: { viewed: true } }).catch(errorToast)
-            }>
-            {active ? <Square aria-hidden /> : <Check aria-hidden />}
+            onClick={() => void stop(row)}>
+            <CircleStop aria-hidden />
           </Button>
         </Tooltip>
       </li>
     )
   }
-  const header = (group: string, title: string, total: number, extra?: ReactNode) => (
-    <div className="group flex items-center gap-1 px-2 py-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="min-w-0 flex-1 justify-start px-1 font-medium"
-        aria-expanded={!collapsed.includes(group)}
-        onClick={() => toggle(group)}>
-        <ChevronDown
-          aria-hidden
-          className={cn('size-3 transition-transform', collapsed.includes(group) && '-rotate-90')}
-        />
-        <span className="truncate">{title}</span>
-        <Badge variant="secondary" className="ml-auto">
-          {total}
-        </Badge>
-      </Button>
-      {extra}
-    </div>
-  )
-  const failed = running.error || awaiting.error
-  const loading = running.isLoading || awaiting.isLoading
+  const header = (group: 'running' | 'scheduled', title: string, total: number) => {
+    const showCount = group === 'running' ? showRunningCount : showScheduledCount
+    const setShowCount = group === 'running' ? setShowRunningCount : setShowScheduledCount
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div className="flex items-center px-2 py-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-w-0 flex-1 justify-start px-1 font-medium"
+              aria-expanded={!collapsed.includes(group)}
+              onClick={() => toggle(group)}>
+              <ChevronDown
+                aria-hidden
+                className={cn('size-3 transition-transform', collapsed.includes(group) && '-rotate-90')}
+              />
+              <span className="truncate">{title}</span>
+              {showCount && (
+                <Badge variant="secondary" className="ml-auto">
+                  {total}
+                </Badge>
+              )}
+            </Button>
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {group === 'scheduled' && (
+            <>
+              <ContextMenuItem onSelect={() => openRoute('/settings/scheduled-tasks', { create: 'true' })}>
+                <Plus aria-hidden />
+                {t('settings.scheduledTasks.createTitle')}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          )}
+          <ContextMenuCheckboxItem
+            checked={showCount}
+            onCheckedChange={(checked) => void setShowCount(checked).catch(errorToast)}>
+            {t('agent.task_dashboard.show_count')}
+          </ContextMenuCheckboxItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    )
+  }
   return (
     <section
       aria-label={t('agent.task_dashboard.title')}
       className="max-h-[40%] min-h-0 shrink-0 overflow-y-auto border-b border-border-subtle py-1"
       data-ui="agent-task-dashboard">
-      {failed ? (
-        <div className="px-3 py-2 text-xs">
-          <p>{t('agent.task_dashboard.load_failed')}</p>
+      <div className="flex items-center justify-between px-3">
+        <span className="text-xs text-muted-foreground">{t('agent.task_dashboard.title')}</span>
+        <Tooltip content={t('agent.task_dashboard.hide')} asChild>
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => {
-              void Promise.all([running.refetch(), awaiting.refetch()]).catch(errorToast)
-            }}>
-            {t('common.retry')}
+            size="icon-sm"
+            className="size-6 text-muted-foreground"
+            aria-label={t('agent.task_dashboard.hide')}
+            onClick={() =>
+              void setShowTaskDashboard(false)
+                .then(() => EventEmitter.emit(EVENT_NAMES.TASK_DASHBOARD_HIDDEN))
+                .catch(errorToast)
+            }>
+            <EyeOff aria-hidden className="size-3" />
           </Button>
-        </div>
-      ) : loading ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">{t('common.loading')}</p>
-      ) : running.total === 0 && awaiting.total === 0 ? (
-        <p className="px-3 py-1 text-xs text-muted-foreground">{t('agent.task_dashboard.empty')}</p>
-      ) : (
-        <>
-          {header('running', t('agent.task_dashboard.running'), running.total)}
-          {!collapsed.includes('running') && (
-            <>
-              <ul aria-label={t('agent.task_dashboard.running')}>{running.items.map(renderRow)}</ul>
-              <PageButtons {...running} />
-            </>
-          )}
-          {header(
-            'awaiting',
-            t('agent.task_dashboard.awaiting'),
-            awaiting.total,
-            <Tooltip content={t('agent.task_dashboard.review_all')} asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!awaiting.total || reviewing}
-                aria-label={t('agent.task_dashboard.review_all')}
-                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-                onClick={() => {
-                  setReviewing(true)
-                  void reviewAll({ body: { viewed: true } })
-                    .catch(errorToast)
-                    .finally(() => setReviewing(false))
-                }}>
-                <CheckCheck aria-hidden />
-              </Button>
-            </Tooltip>
-          )}
-          {!collapsed.includes('awaiting') && (
-            <>
-              <ul aria-label={t('agent.task_dashboard.awaiting')}>{awaiting.items.map(renderRow)}</ul>
-              <PageButtons {...awaiting} />
-            </>
-          )}
-        </>
-      )}
+        </Tooltip>
+      </div>
+      {header('running', t('agent.task_dashboard.running'), running.total)}
+      {!collapsed.includes('running') &&
+        (running.error ? (
+          <div className="px-3 py-2 text-xs">
+            <p>{t('agent.task_dashboard.load_failed')}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                void running.refetch().catch(errorToast)
+              }}>
+              {t('common.retry')}
+            </Button>
+          </div>
+        ) : running.isLoading ? (
+          <p className="px-3 py-2 text-xs text-muted-foreground">{t('common.loading')}</p>
+        ) : running.total === 0 ? (
+          <p className="px-3 py-1 text-xs text-muted-foreground">{t('agent.task_dashboard.empty')}</p>
+        ) : (
+          <>
+            <ul aria-label={t('agent.task_dashboard.running')}>{running.items.map(renderRow)}</ul>
+            <PageButtons {...running} />
+          </>
+        ))}
       {header('scheduled', t('agent.task_dashboard.scheduled'), tasks.total)}
       {!collapsed.includes('scheduled') && (
         <>
@@ -324,9 +316,9 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
                 <li key={task.id}>
                   <Button
                     variant="ghost"
-                    className="h-auto w-full min-w-0 justify-start gap-2 px-3 py-1 text-left"
+                    className="h-auto w-full min-w-0 justify-start gap-1.5 px-3 py-1 text-left"
                     onClick={() => openSettingsTab(`/settings/scheduled-tasks/${encodeURIComponent(task.id)}`)}>
-                    <Clock3 aria-hidden className="size-3" />
+                    <Clock3 aria-hidden className="size-3 translate-x-0.5" />
                     <span className="min-w-0 flex-1 truncate text-xs" title={task.name}>
                       {task.name}
                     </span>
