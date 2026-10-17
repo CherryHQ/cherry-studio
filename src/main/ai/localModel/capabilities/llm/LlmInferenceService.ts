@@ -3,6 +3,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
+import { t } from '@main/i18n'
 import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 
 import { bundleFile, getModelBundle } from '../../catalog/catalog'
@@ -51,7 +52,7 @@ export class LlmInferenceService extends InferenceServiceBase<LlmInferenceContra
         if (bundle.capability !== 'llm' || !runtime) throw new Error(`${modelId} is not a local chat model`)
         const modelDir = localModelStorageService.resolveInstalledDir(bundle)
         if (!modelDir || !bundle.requires.every((id) => localModelStorageService.isArtifactReady(id)))
-          throw new Error('The selected local chat model is not fully downloaded')
+          throw new Error(t('local_model.errors.chat_not_downloaded'))
         return { ...input, modelPath: path.join(modelDir, bundleFile(bundle, 'weights').relPath), runtime }
       },
       options

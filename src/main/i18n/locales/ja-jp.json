@@ -145,6 +145,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU は文書の処理を完了できませんでした（状態: {{status}}）。サーバーを確認して再試行してください。",
   "file_processing.errors.open_mineru_unreachable": "Open MinerU に接続できません。サーバーが起動しており、アドレスが正しいことを確認してください。",
   "file_processing.errors.pdf_page_limit_exceeded": "この PDF は、現在のドキュメント解析サービスの {{maxPages}} ページ制限を超えています。PDF を手動で分割してから、もう一度追加してください。",
+  "local_model.errors.chat_not_downloaded": "このローカルモデルはダウンロードが完了していません。設定 > 環境依存 > ローカルモデル から再度ダウンロードしてください。",
   "notification.action_required.agent": "Agent があなたの入力を待っています",
   "notification.action_required.assistant": "アシスタントがあなたの入力を待っています",
   "notification.completion.agent": "Agent タスクが完了しました",

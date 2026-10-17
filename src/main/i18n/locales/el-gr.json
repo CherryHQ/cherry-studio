@@ -145,6 +145,7 @@
   "file_processing.errors.open_mineru_task_failed": "Το Open MinerU δεν ολοκλήρωσε την επεξεργασία του εγγράφου (κατάσταση: {{status}}). Ελέγξτε τον διακομιστή και δοκιμάστε ξανά.",
   "file_processing.errors.open_mineru_unreachable": "Δεν ήταν δυνατή η σύνδεση στο Open MinerU. Ελέγξτε ότι ο διακομιστής λειτουργεί και η διεύθυνση είναι σωστή.",
   "file_processing.errors.pdf_page_limit_exceeded": "Αυτό το PDF υπερβαίνει το όριο των {{maxPages}} σελίδων για την τρέχουσα υπηρεσία ανάλυσης εγγράφων. Χωρίστε το PDF χειροκίνητα και έπειτα προσθέστε το ξανά.",
+  "local_model.errors.chat_not_downloaded": "Αυτό το τοπικό μοντέλο δεν έχει ληφθεί πλήρως. Κατεβάστε το ξανά από Ρυθμίσεις > Εξαρτήσεις Περιβάλλοντος > Τοπικά Μοντέλα.",
   "notification.action_required.agent": "Ο Agent χρειάζεται τη συμβολή σας",
   "notification.action_required.assistant": "Ο βοηθός χρειάζεται τη συμβολή σας",
   "notification.completion.agent": "Η εργασία του Agent ολοκληρώθηκε",

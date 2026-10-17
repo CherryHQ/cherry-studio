@@ -145,6 +145,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU hat die Dokumentverarbeitung nicht abgeschlossen (Status: {{status}}). Prüfen Sie den Server und versuchen Sie es erneut.",
   "file_processing.errors.open_mineru_unreachable": "Keine Verbindung zu Open MinerU möglich. Prüfen Sie, ob der Server läuft und die Adresse korrekt ist.",
   "file_processing.errors.pdf_page_limit_exceeded": "Diese PDF überschreitet die Begrenzung von {{maxPages}} Seiten für den aktuellen Dienst zur Dokumentverarbeitung. Teilen Sie die PDF manuell und fügen Sie sie dann erneut hinzu.",
+  "local_model.errors.chat_not_downloaded": "Dieses lokale Modell ist nicht vollständig heruntergeladen. Lade es unter Einstellungen > Umgebungsabhängigkeiten > Lokale Modelle erneut herunter.",
   "notification.action_required.agent": "Agent benötigt Ihre Eingabe",
   "notification.action_required.assistant": "Assistent benötigt Ihre Eingabe",
   "notification.completion.agent": "Agent-Aufgabe abgeschlossen",

@@ -145,6 +145,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU ประมวลผลเอกสารไม่เสร็จ (สถานะ: {{status}}) ตรวจเซิร์ฟเวอร์แล้วลองใหม่",
   "file_processing.errors.open_mineru_unreachable": "เชื่อมต่อ Open MinerU ไม่ได้ ตรวจว่าเซิร์ฟเวอร์ทำงานอยู่และที่อยู่ถูกต้อง",
   "file_processing.errors.pdf_page_limit_exceeded": "PDF นี้เกินขีดจำกัด {{maxPages}} หน้าสำหรับบริการประมวลผลเอกสารปัจจุบัน โปรดแบ่ง PDF ด้วยตนเองแล้วเพิ่มใหม่อีกครั้ง",
+  "local_model.errors.chat_not_downloaded": "โมเดลในเครื่องนี้ยังดาวน์โหลดไม่ครบ โปรดดาวน์โหลดอีกครั้งที่ การตั้งค่า > ส่วนประกอบที่ต้องติดตั้ง > โมเดลในเครื่อง",
   "notification.action_required.agent": "เอเจนต์ต้องการข้อมูลจากคุณ",
   "notification.action_required.assistant": "ผู้ช่วยต้องการข้อมูลจากคุณ",
   "notification.completion.agent": "งานของเอเจนต์เสร็จสมบูรณ์",

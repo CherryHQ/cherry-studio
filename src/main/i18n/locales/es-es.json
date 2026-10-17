@@ -145,6 +145,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU no completó el procesamiento del documento (estado: {{status}}). Compruebe el servidor e inténtelo de nuevo.",
   "file_processing.errors.open_mineru_unreachable": "No se pudo conectar con Open MinerU. Compruebe que el servidor esté en ejecución y que la dirección sea correcta.",
   "file_processing.errors.pdf_page_limit_exceeded": "Este PDF supera el límite de {{maxPages}} páginas del servicio actual de análisis de documentos. Divide el PDF manualmente y vuelve a añadirlo.",
+  "local_model.errors.chat_not_downloaded": "Este modelo local no se ha descargado por completo. Vuelve a descargarlo en Configuración > Dependencias del entorno > Modelos Locales.",
   "notification.action_required.agent": "El agente necesita tu intervención",
   "notification.action_required.assistant": "El asistente necesita tu intervención",
   "notification.completion.agent": "Tarea del agente completada",
