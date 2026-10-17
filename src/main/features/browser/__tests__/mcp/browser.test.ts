@@ -1,10 +1,10 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { Client, InMemoryTransport, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import { createMcpHandler } from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { app, BrowserWindow, nativeTheme } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, Signal } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../../BrowserSessionService'
@@ -125,6 +125,7 @@ vi.mock('electron', async () => {
     addBrowserView = vi.fn()
     setTopBrowserView = vi.fn()
     removeBrowserView = vi.fn()
+    setTitleBarOverlay = vi.fn()
     getContentSize = () => [1200, 800]
     isDestroyed = () => this.destroyed
     close() {
@@ -135,6 +136,7 @@ vi.mock('electron', async () => {
     }
   }
   class View {
+    constructor(public options: Electron.BrowserViewConstructorOptions) {}
     webContents = contents()
     setBounds = vi.fn()
     setAutoResize = vi.fn()
@@ -188,6 +190,15 @@ afterEach(async () => {
   for (const controller of controllers) await controller.dispose()
   await service._doStop()
 })
+async function connectBrowserEndpoint(name: string): Promise<Client> {
+  const endpoint = await service.createMcpEndpoint()
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  serveStdio(() => endpoint.createServer(), { transport: serverTransport })
+  const client = new Client({ name, version: '1' })
+  await client.connect(clientTransport)
+  return client
+}
+
 const controller = () => {
   const c = new CdpBrowserController(service)
   controllers.push(c)
@@ -316,6 +327,63 @@ describe('MCP browser on shared sessions', () => {
     expect(data, JSON.stringify(data)).toMatchObject({ ok: true })
     if (kind === 'console') expect(data.messages).toContainEqual(expect.objectContaining({ text: 'Fresh page output' }))
     else expect(data.requests).toContainEqual(expect.objectContaining({ url: 'https://example.com/data' }))
+  })
+
+  it.each([false, true])(
+    'requires a user gesture before content tabs can autoplay media (private: %s)',
+    async (privateMode) => {
+      const c = controller()
+      const { view } = await c.createTab(privateMode)
+      const { options } = view as unknown as { options: Electron.BrowserViewConstructorOptions }
+
+      expect(options.webPreferences?.autoplayPolicy).toBe('user-gesture-required')
+    }
+  )
+
+  it('mutes hidden opens before navigation and restores audio for explicitly visible opens', async () => {
+    const c = controller()
+    const { view } = await c.createTab()
+    const audioStates: boolean[] = []
+    const command = vi.mocked(view.webContents.debugger.sendCommand)
+    const fallback = command.getMockImplementation()!
+    command.mockImplementation(async (method, params) => {
+      if (method === 'Page.navigate') audioStates.push(view.webContents.isAudioMuted())
+      return fallback(method, params)
+    })
+
+    await c.open('https://example.com/', 5000, false, false, false)
+    expect(audioStates).toEqual([true])
+    expect(view.webContents.isAudioMuted()).toBe(true)
+
+    await c.open('https://example.com/', 5000, false, false, true)
+    expect(audioStates).toEqual([true, false])
+    expect(view.webContents.isAudioMuted()).toBe(false)
+
+    await c.open('https://example.com/', 5000, false, false, false)
+    expect(audioStates).toEqual([true, false, false])
+    expect(view.webContents.isAudioMuted()).toBe(false)
+  })
+
+  it('keeps a new inactive tab muted when opening in a visible window', async () => {
+    const c = controller()
+    const first = await c.createTab(false, true)
+
+    const result = await c.open('https://example.com/', 5000, false, true, true)
+    const { session } = await c.getSession(false, result.tabId)
+
+    expect(first.view.webContents.isAudioMuted()).toBe(false)
+    expect(session.guest.isAudioMuted()).toBe(true)
+  })
+
+  it('keeps the active tab muted when navigating a minimized window', async () => {
+    const c = controller()
+    const { view } = await c.createTab(false, true)
+    const window = [...windows.values()][0]
+
+    window.minimize()
+    await c.open('https://example.com/', 5000, false, false, false)
+
+    expect(view.webContents.isAudioMuted()).toBe(true)
   })
 
   it('mutes browser audio while the window is hidden or minimized', async () => {
@@ -524,11 +592,7 @@ describe('MCP browser on shared sessions', () => {
       await resume
       return 'finished'
     })
-    const server = await service.createMcpServer()
-    const [ct, st] = InMemoryTransport.createLinkedPair()
-    await server.connect(st)
-    const client = new Client({ name: 'request-shutdown-test', version: '1' })
-    await client.connect(ct)
+    const client = await connectBrowserEndpoint('request-shutdown-test')
     const request = expect(client.callTool({ name: 'execute', arguments: { code: '1' } })).rejects.toThrow()
     await started
     let stopped = false
@@ -550,8 +614,8 @@ describe('MCP browser on shared sessions', () => {
     const { guest, mock } = createGuest(1)
     const borrowed = await service.acquire(guest, 'annotation', { ownership: 'borrowed' })
     await borrowed.send('Runtime.enable')
-    const server = await service.createMcpServer()
-    vi.spyOn(server, 'close').mockRejectedValueOnce(new Error('Transport close failed'))
+    const protocol = (await service.createMcpEndpoint()).createServer()
+    vi.spyOn(protocol, 'close').mockRejectedValueOnce(new Error('Transport close failed'))
     await expect(service._doStop()).rejects.toThrow('Failed to stop browser sessions')
     expect(mock.debugger.isAttached()).toBe(false)
     expect(mock.isDestroyed()).toBe(false)
@@ -599,11 +663,7 @@ describe('MCP browser on shared sessions', () => {
       await resume
       vi.mocked(app.isReady).mockReturnValue(true)
     })
-    const server = await service.createMcpServer()
-    const [ct, st] = InMemoryTransport.createLinkedPair()
-    await server.connect(st)
-    const client = new Client({ name: 'shutdown-test', version: '1' })
-    await client.connect(ct)
+    const client = await connectBrowserEndpoint('shutdown-test')
     const opening = expect(
       client.callTool({ name: 'open', arguments: { url: 'https://example.com' } })
     ).rejects.toThrow()
@@ -652,12 +712,23 @@ describe('MCP browser on shared sessions', () => {
     expect(windows.size).toBe(0)
   })
 
-  it('keeps legacy open/execute outputs and exposes new tool schemas through the real MCP transport', async () => {
-    const server = await createInMemoryMcpServer('@cherry/browser')
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-    await server.connect(serverTransport)
-    const client = new Client({ name: 'browser-test', version: '1' })
-    await client.connect(clientTransport)
+  it.each(['legacy', 'modern'])('keeps browser outputs and tool schemas through the %s MCP transport', async (era) => {
+    const endpoint = era === 'modern' ? await service.createMcpEndpoint() : undefined
+    const handler = endpoint ? createMcpHandler(() => endpoint.createServer(), { legacy: 'reject' }) : undefined
+    let client: Client
+    if (handler) {
+      client = new Client(
+        { name: 'browser-test', version: '1' },
+        { versionNegotiation: { mode: { pin: '2026-07-28' } } }
+      )
+      await client.connect(
+        new StreamableHTTPClientTransport(new URL('http://browser.test/mcp'), {
+          fetch: async (input, init) => handler.fetch(input instanceof Request ? input : new Request(input, init))
+        })
+      )
+    } else {
+      client = await connectBrowserEndpoint('browser-test')
+    }
     try {
       const { tools } = await client.listTools()
       const names = tools.map((tool) => tool.name)
@@ -736,14 +807,15 @@ describe('MCP browser on shared sessions', () => {
       })
       const obsolete = await client.callTool({ name: 'snapshot', arguments: { tabId: data.tabId, selector: '#old' } })
       expect(obsolete.isError).toBe(true)
-      const unknown = await client.callTool({ name: 'constructor', arguments: {} })
-      expect(unknown.isError).toBe(true)
+      await expect(client.callTool({ name: 'constructor', arguments: {} })).rejects.toThrow(/disabled|not found/i)
       const missingWaitTarget = await client.callTool({ name: 'wait_for', arguments: {} })
       expect(missingWaitTarget.isError).toBe(true)
       const invalid = await client.callTool({ name: 'click', arguments: { ref: 'e0' } })
       expect(invalid.isError).toBe(true)
     } finally {
       await client.close()
+      await handler?.close()
+      await endpoint?.close()
       await service._doStop()
     }
     expect(windows.size).toBe(0)

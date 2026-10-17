@@ -8,6 +8,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { GeminiModelsResponseSchema } from '../listModelsSchemas'
 
 const { getRotatedApiKeyMock } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<() => string>()
@@ -77,6 +78,61 @@ afterEach(async () => {
         })
     )
   )
+})
+
+describe('listModels - Gemini pagination token compatibility', () => {
+  const models = [
+    { name: 'models/gemini-test', displayName: 'Gemini Test', supportedGenerationMethods: ['generateContent'] }
+  ]
+
+  it.each([
+    { token: null, expected: undefined },
+    { token: undefined, expected: undefined },
+    { token: '', expected: '' },
+    { token: 'next-page', expected: 'next-page' }
+  ])('lists models with nextPageToken=$token', async ({ token, expected }) => {
+    const body = { models, nextPageToken: token }
+    const port = await listen(
+      createServer((_request, response) => {
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify(body))
+      })
+    )
+    const provider = makeProvider({
+      id: 'custom-gemini',
+      presetProviderId: SystemProviderIds.gemini,
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: `http://127.0.0.1:${port}` }
+      }
+    })
+
+    const result = await listModels(provider, undefined, { throwOnError: true })
+
+    expect(result.models).toEqual([
+      expect.objectContaining({
+        id: 'custom-gemini::gemini-test',
+        apiModelId: 'gemini-test',
+        name: 'Gemini Test'
+      })
+    ])
+    expect(GeminiModelsResponseSchema.parse(body).nextPageToken).toBe(expected)
+  })
+
+  it.each([123, {}, [], false])('rejects an invalid pagination token: %j', (nextPageToken) => {
+    const result = GeminiModelsResponseSchema.safeParse({ models, nextPageToken })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error.issues.map((issue) => issue.path)).toContainEqual(['nextPageToken'])
+  })
+
+  it('still rejects model entries without a name when the pagination token is null', () => {
+    const result = GeminiModelsResponseSchema.safeParse({
+      models: [{ displayName: 'Missing ID' }],
+      nextPageToken: null
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error.issues.map((issue) => issue.path)).toContainEqual(['models', 0, 'name'])
+  })
 })
 
 describe('listModels - LM Studio response isolation', () => {
