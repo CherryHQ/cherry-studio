@@ -1630,6 +1630,49 @@ describe('main web search API providers', () => {
     })
   })
 
+  it.each(['https://api.querit.ai/v1', 'https://api.querit.ai/v1/'])(
+    'does not duplicate the /v1 segment when the Querit API host %s already includes it',
+    async (apiHost) => {
+      fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-contents-response.json')))
+      const provider = createProviderDriver(
+        QueritProvider,
+        createProvider({
+          id: 'querit',
+          name: 'Querit',
+          apiKeys: ['querit-key'],
+          capabilities: [{ feature: 'fetchUrls', apiHost }]
+        })
+      )
+
+      await provider.fetchUrls('https://querit.example/article', runtimeConfig)
+
+      expect(fetchMock.mock.lastCall?.[0]).toBe('https://api.querit.ai/v1/contents')
+    }
+  )
+
+  it('accepts Querit responses whose error_code is a numeric string', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        error_code: '200',
+        error_msg: '',
+        results: [{ url: 'https://querit.example/article', content: 'Body' }]
+      })
+    )
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.querit.ai' }]
+      })
+    )
+
+    await expect(provider.fetchUrls('https://querit.example/article', runtimeConfig)).resolves.toMatchObject({
+      results: [{ content: 'Body' }]
+    })
+  })
+
   it('rejects Querit contents responses that report an error or return no content', async () => {
     fetchMock
       .mockResolvedValueOnce(createJsonResponse({ error_code: 429, error_msg: 'Rate limit exceeded', results: [] }))
@@ -2112,6 +2155,38 @@ describe('main web search API providers', () => {
       fetchMock.mockResolvedValueOnce(createJsonResponse(payload))
       await expect(crawl4ai().fetchUrls('https://example.org', runtimeConfig)).rejects.toThrow()
     })
+
+    function crawl4aiCloud(apiKeys: string[] = ['sk_live_test']) {
+      return createProviderDriver(
+        Crawl4AIProvider,
+        createProvider({
+          id: 'crawl4ai',
+          apiKeys,
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.crawl4ai.com' }]
+        })
+      )
+    }
+
+    it('fetches Markdown through the hosted Crawl4AI Cloud /scrape endpoint', async () => {
+      const url = 'https://example.com'
+      fetchMock.mockResolvedValueOnce(createJsonResponse({ ok: true, markdown: '  # Example Domain  ', ms: 312 }))
+
+      const result = await crawl4aiCloud().fetchUrls(url, runtimeConfig)
+
+      expect(result.results).toEqual([{ title: url, content: '# Example Domain', url, sourceInput: url }])
+      const [requestUrl, request] = fetchMock.mock.calls[0]
+      expect(requestUrl).toBe('https://api.crawl4ai.com/scrape')
+      expect(JSON.parse(request.body)).toEqual({ url, format: 'md' })
+      expect(new Headers(request.headers).get('Authorization')).toBe('Bearer sk_live_test')
+    })
+
+    it.each([{ ok: false }, { ok: true, markdown: '   ' }])(
+      'rejects unsuccessful or empty Crawl4AI Cloud responses: %j',
+      async (payload) => {
+        fetchMock.mockResolvedValueOnce(createJsonResponse(payload))
+        await expect(crawl4aiCloud().fetchUrls('https://example.com', runtimeConfig)).rejects.toThrow()
+      }
+    )
 
     it('reports server HTTP failures rather than producing a page result', async () => {
       fetchMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))

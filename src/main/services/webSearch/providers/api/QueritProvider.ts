@@ -22,7 +22,7 @@ const QueritSearchParamsSchema = z.object({
 })
 
 const QueritSearchResponseSchema = z.object({
-  error_code: z.number(),
+  error_code: z.coerce.number(),
   error_msg: z.string(),
   query_context: z.object({
     query: z.string()
@@ -48,7 +48,7 @@ const QueritContentsParamsSchema = z.object({
 })
 
 const QueritContentsResponseSchema = z.object({
-  error_code: z.number(),
+  error_code: z.coerce.number(),
   error_msg: z.string(),
   results: z
     .array(
@@ -91,6 +91,22 @@ export class QueritProvider extends BaseWebSearchProvider {
     return this.buildContentsResponse(context, contentsPayload)
   }
 
+  /**
+   * Querit endpoints live under `/v1`. Accept an API host configured with or without that
+   * version segment (`https://api.querit.ai` or `https://api.querit.ai/v1`) instead of
+   * requesting `/v1/v1/...`, which the gateway rejects with 404.
+   */
+  private resolveQueritUrl(capability: 'searchKeywords' | 'fetchUrls', endpoint: 'search' | 'contents'): string {
+    const url = new URL(this.resolveApiUrl(capability, endpoint))
+    const segments = url.pathname.split('/').filter(Boolean)
+    const hasVersion = segments.length >= 2 && segments[segments.length - 2] === 'v1'
+    if (!hasVersion) {
+      segments.splice(segments.length - 1, 0, 'v1')
+    }
+    url.pathname = `/${segments.join('/')}`
+    return url.toString()
+  }
+
   private buildHeaders(apiKey: string): Record<string, string> {
     return {
       ...defaultAppHeaders(),
@@ -121,7 +137,7 @@ export class QueritProvider extends BaseWebSearchProvider {
       apiKey: this.resolveApiKey(),
       query,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('searchKeywords', '/v1/search'),
+      requestUrl: this.resolveQueritUrl('searchKeywords', 'search'),
       requestBody,
       signal: httpOptions?.signal ?? undefined
     }
@@ -185,7 +201,7 @@ export class QueritProvider extends BaseWebSearchProvider {
       apiKey: this.resolveApiKey(),
       query: url,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('fetchUrls', '/v1/contents'),
+      requestUrl: this.resolveQueritUrl('fetchUrls', 'contents'),
       requestBody: QueritContentsParamsSchema.parse({
         urls: [url],
         format: 'markdown',
