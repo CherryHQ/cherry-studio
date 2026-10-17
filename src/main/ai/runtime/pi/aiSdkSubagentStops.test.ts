@@ -3,7 +3,8 @@ import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { SubagentPort } from '../src'
+import type { SubagentPort } from '@cherrystudio/agent-runtime-pi'
+
 import {
   noteTool,
   outputText,
@@ -13,8 +14,8 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults
-} from './subagentSupport'
-import { createTestSession, finish, lastAssistant, MODEL, streamTextPort, textParts } from './support'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, lastAssistant, MODEL, streamTextPort, textParts } from './aiSdkSupport'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const upstreamError = { type: 'error' as const, error: new Error('upstream exploded') }

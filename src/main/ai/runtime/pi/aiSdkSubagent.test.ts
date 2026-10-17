@@ -2,7 +2,8 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { type AskUserPort, createAskUserExtension, type ToolOutputStore } from '../src'
+import { type AskUserPort, createAskUserExtension, type ToolOutputStore } from '@cherrystudio/agent-runtime-pi'
+
 import {
   noteTool,
   outputText,
@@ -12,8 +13,8 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults
-} from './subagentSupport'
-import { createTestSession, finish, hostStore, scriptedModel, streamTextPort, textParts } from './support'
+} from './aiSdkSubagentSupport'
+import { createTestSession, finish, hostStore, scriptedModel, streamTextPort, textParts } from './aiSdkSupport'
 
 const DELEGATE_A = 'Delegate the check of module A'
 const TASK_A = { description: 'Check module A', prompt: 'TASK-A: inspect module A' }
@@ -81,12 +82,14 @@ describe('subagent', () => {
     await session.prompt(DELEGATE_A)
 
     const roles = (entries: typeof parent.entries) =>
-      entries.map((entry) => (entry.kind === 'message' ? entry.message.role : entry.kind))
-    expect(roles(parent.entries)).toEqual(['user', 'assistant', 'tool', 'assistant'])
+      entries.flatMap((entry) =>
+        entry.type === 'message' && entry.message.role !== 'system' ? [entry.message.role] : []
+      )
+    expect(roles(parent.entries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
     expect(JSON.stringify(parent.entries)).not.toContain('noted')
     const childEvents = host.events.get(host.subagents[0].sessionId)!
-    const childEntries = childEvents.flatMap((event) => (event.type === 'transcript-append' ? event.entries : []))
-    expect(roles(childEntries)).toEqual(['user', 'assistant', 'tool', 'assistant'])
+    const childEntries = childEvents.flatMap((event) => (event.type === 'session-append' ? event.entries : []))
+    expect(roles(childEntries)).toEqual(['user', 'assistant', 'toolResult', 'assistant'])
     expect(childEvents.at(-1)).toMatchObject({ type: 'turn-complete', aborted: false })
   })
 
