@@ -271,6 +271,49 @@ describe('MediaFfmpegService dispatch', () => {
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
     }
   })
+
+  it('rejects a queued caller when it aborts without starting that request', async () => {
+    const active = Promise.withResolvers<unknown>()
+    const failure = new Error('queued abort')
+    runtime.request.mockImplementation(() => active.promise)
+    const running = service!.probe({ filePath: '/active.wav' })
+    await vi.waitFor(() => expect(runtime.request).toHaveBeenCalledOnce())
+
+    const controller = new AbortController()
+    const queued = service!.probe({ filePath: '/queued.wav' }, controller.signal)
+    controller.abort(failure)
+
+    await expect(queued).rejects.toBe(failure)
+    expect(runtime.request).toHaveBeenCalledOnce()
+
+    active.resolve({ hasAudio: true, hasVideo: false, durationMs: 1, mime: 'audio/wav', kind: 'audio' })
+    await expect(running).resolves.toMatchObject({ kind: 'audio' })
+    expect(runtime.request).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an already-aborted caller without blocking the next serialized request', async () => {
+    const active = Promise.withResolvers<unknown>()
+    const failure = new Error('already aborted')
+    runtime.request.mockImplementation(() => active.promise)
+    const running = service!.probe({ filePath: '/active.wav' })
+    await vi.waitFor(() => expect(runtime.request).toHaveBeenCalledOnce())
+
+    const controller = new AbortController()
+    controller.abort(failure)
+    const skipped = service!.probe({ filePath: '/skipped.wav' }, controller.signal)
+    const next = service!.probe({ filePath: '/next.wav' })
+
+    await expect(skipped).rejects.toBe(failure)
+    expect(runtime.request).toHaveBeenCalledOnce()
+
+    active.resolve({ hasAudio: true, hasVideo: false, durationMs: 1, mime: 'audio/wav', kind: 'audio' })
+    await expect(running).resolves.toMatchObject({ kind: 'audio' })
+    await expect(next).resolves.toMatchObject({ kind: 'audio' })
+    expect(runtime.request).toHaveBeenCalledTimes(2)
+    expect(runtime.request).toHaveBeenLastCalledWith('probe', expect.objectContaining({ filePath: '/next.wav' }), {
+      signal: undefined
+    })
+  })
 })
 
 function waitForExit(child: ChildProcess): Promise<void> {
