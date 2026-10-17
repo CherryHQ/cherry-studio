@@ -134,8 +134,9 @@ already handles.
   a channel or scheduled run); inside a subagent's session it ends as `unavailable` without asking
   the port. The result text tells the model what happened; only `answered` is a
   success. Every result the tool returns, aborted included, has `details`
-  `{ questions, answers, annotations? }`; invalid input and a rejecting port fail the call with
-  empty `details`. Calls in one model step run one at a time. When the turn aborts, the tool stops
+  `{ questions, answers, annotations?, outcome }`, `outcome` being
+  `'answered' | 'declined' | 'unavailable' | 'aborted'`; invalid input and a rejecting port fail the
+  call with empty `details`. Calls in one model step run one at a time. When the turn aborts, the tool stops
   waiting at once and the request's `signal` aborts so the host can withdraw the question; a late
   answer is ignored. A question pending at a crash is not resumed after a restart.
 
@@ -188,6 +189,82 @@ from its parent's.
 Host obligation: the approval layer may auto-allow `subagent` as long as `configure` returns the
 approval extension, so each call a subagent makes is approved on its own.
 
+## Goals
+
+`createGoalExtension(port)` adds a persisted objective the runtime keeps pushing while the model is
+idle. Design: `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`.
+
+- **State** – native `cherry.goal` entries hold one snapshot per change and a tombstone on clear;
+  each round is a `cherry.goal-round` custom message the host maps to the "round N" header. A
+  round has run once a snapshot names its id (`admittedRound`, the round message's `details.id`).
+  A round prompt no snapshot names (another extension vetoed the continuation, the run was aborted
+  at the settle, or the round was withdrawn) stays on the branch and is left out of later model
+  requests and of the verifier's conversation; the compaction summarizer still reads it.
+- **Rounds** – rounds continue only at `agent_before_settle` and count once Pi sends them on; a
+  queued user message always goes first, and its turn does not count for the goal. When
+  `port.defaults.autonomy()` returns `confirm-each-round`, every round ends paused. Creating or
+  resuming a goal on an idle session starts its first round; during a run it only arms the goal
+  for that run's settle. A reopened session restores the goal disarmed and writes that down
+  (`armed: false` in a snapshot of the same revision); `/goal resume` continues it.
+- **Stops** – every stop sets `phase` and `lastStop.code`. The runtime stops the goal for the
+  round cap (`round_limit`; the last allowed round is a wrap-up, and a cap lowered to the running
+  round ends the goal with it), the token or USD budget (`budget_exhausted`, after a wrap-up round), no
+  progress (`no_progress`: two rounds without progress get a hint, three stop; the same tool call
+  three times in a row within a round is blocked, five times ends the goal), a denied approval
+  (`approval_denied`), an approval nobody can give (`awaiting_approval`) or a dismissed question
+  (`needs_user_input`) in a goal round, a round another extension's settle handler overrides
+  (`continuation_rejected`), and, while the goal is armed, a failed request (`provider_error`) or
+  an abort (`aborted`: `session.abort()` or the host's own request signal, but see the known
+  gaps). While the host's `port.hasRunningSubagents()` reports background subagents running, an
+  armed goal blocks with `waiting_subagents` at its settle; no host reports them before background
+  subagents arrive (#21693). `/goal pause` stops with `paused_by_user`, `confirm-each-round` with
+  `paused_each_round`, `update_goal(blocked)` with `model_blocked` and an accepted completion with
+  `complete`.
+- **Usage** – never kept: every check (the budget, `resume`, `/goal`, `get_goal`) reads it from the
+  branch, so a reopened session sees what the live one saw. It is every request made in one of the
+  goal's admitted rounds while the goal was active, judged where the request's input ends (a
+  `/goal pause` written while its reply was being handled does not drop it), the request whose tool
+  call stopped it included and requests after a stop (the summary after `complete`) never, priced
+  at each entry's stored `cost`, plus the `usage` a tool result reports when the request that made
+  its call counted (a foreground subagent still running under `/goal pause` counts when it
+  returns). Snapshots record that usage when written (`tokensUsed`, `costUsed`) for display only.
+- **Progress** – read from the branch too (`goalProgress`): a round moved the objective when one of
+  its tool results so far succeeded and does more than read or bookkeep (`read`, `grep`, `find`,
+  `ls`, `tool_search`, `vcc_recall`, `get_goal`, `todo_write`, `AskUserQuestion`), or its last
+  text-bearing reply (not one cut off by the output limit) differs from the previous round's. An
+  aborted round counts for nothing; a person's message, and arming the goal, start the no-progress
+  streak over. The completion check, the no-progress stop and hint, the goal view and every
+  snapshot read it; a snapshot's `progressRounds` is for display only.
+- **Withdrawal** – a round reserved at a settle is checked again when it starts: if a command
+  changed the goal meanwhile (a later extension's settle handler was still running), the round is
+  withdrawn before its request, and the goal goes on as it now is (a new round, or the stop its new
+  limits call for). The host sees a withdrawal as a run that ends aborted (`turn-complete` with
+  `aborted: true`) right after that round's prompt, its reply `stopReason: 'error'` with the
+  message `This operation was aborted`; it should show it as a withdrawn round, not as a failure or
+  a stop the user made.
+- **Completion** – `update_goal(complete)` passes the host's `GoalVerifier` (it gets the objective,
+  the claim, the session's whole context after compaction as native messages after the session
+  model's replay rules, the model, and the call's `signal`; the package sets no timeout) or,
+  without one, needs evidence and a round that made progress. An accepted completion also tells
+  the model to end its turn with a summary, and a complete goal is final: pause, resume and further
+  reports are refused, and new work needs a new goal. `update_goal(blocked)` is accepted at once in
+  a human turn and in goal rounds only after `port.defaults.blockedAfter` consecutive rounds report
+  it; several reports in one round count once, a human turn, `resume` or a user edit starts the
+  count over, and the reasons are not compared.
+- **Tools and command** – `get_goal`, `create_goal` and `update_goal` (`GOAL_TOOL_NAMES`) with
+  DSH's output shape; the model can create, edit, pause or resume a goal only in a human turn. The
+  command `/goal [<objective> | edit <objective> | pause | resume | clear | rounds <n> |
+  budget <tokens|$usd>]` makes no model request itself and reports through `cherry.goal-notice`
+  entries. `/goal pause` and `/goal clear` abort the running turn only when the goal drives it
+  (active and armed). `port.onApproval` events stop the goal only during a goal round.
+- **Models and subagents** – when `port.modelSupportsTools()` is false, no tools or command are
+  registered and an active goal is blocked with `unsupported_model`. In a subagent's session the
+  goal tools fail with `in_subagent`, nothing continues and `port.onApproval` is not subscribed, so
+  a fork ignores the goal entries it inherits.
+
+Host obligations: set `create_goal` to ask for approval, so a goal the model proposes is confirmed
+by the user through the existing approval card. Show a withdrawn round as described above.
+
 ## Known gaps
 
 - `vcc_recall` has no regex search, `mode: 'touched'` (files worked on) or `#N:path` file
@@ -202,3 +279,9 @@ approval extension, so each call a subagent makes is approved on its own.
   id (OpenAI's `prompt_cache_key`) does not reach the parent's cache partition.
 - Every fork's native session holds its own copy of the parent's history (a file-backed fork copies
   the parent's file); a host may deduplicate it.
+- Goals have no `waiting` state for background work (the goal blocks with `waiting_subagents` when
+  the host reports running background subagents, which only #21693 adds) and no fresh-context
+  (Ralph) mode. The package does not know the permission mode; keeping goals from running rounds in
+  plan mode is up to the host.
+- A `session.abort()` that lands in the run withdrawing a stale goal round (it ends before any
+  request) is taken for that withdrawal: the goal goes on instead of pausing.
