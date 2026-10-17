@@ -4,8 +4,6 @@
  *
  * Each layout below is taken from the runtime that owns it, not guessed:
  *  - pi    — `resolveResumeTokenSessionFile` resolves `{ts}_{token}.jsonl`
- *  - dsh   — `@deepseek-ai/dsh-session-persistence-jsonl` writes
- *            `{projectKey(cwd)}/{sessionId}/session.jsonl`
  *  - claude — the Agent SDK's `deleteSession` removes `{id}.jsonl` plus the
  *            `{id}/` subagent-transcript directory from the projects dir
  */
@@ -18,7 +16,6 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 
 import { application } from '@application'
 
-import { DshRuntimeDriver } from '../dsh/DshRuntimeDriver'
 import { PiRuntimeDriver } from '../pi/PiRuntimeDriver'
 import { registerRuntimeDrivers } from '../registerDrivers'
 import { runtimeDriverRegistry } from '../registry'
@@ -94,47 +91,6 @@ describe('PiRuntimeDriver.reclaimOrphanSessions', () => {
 
     expect(removed).toEqual([])
     expect(existsSync(warm)).toBe(true)
-  })
-
-  it('no-ops when the runtime was never used', async () => {
-    await expect(driver.reclaimOrphanSessions(new Set(), OPTIONS)).resolves.toEqual({ removed: [] })
-  })
-})
-
-describe('DshRuntimeDriver.reclaimOrphanSessions', () => {
-  const driver = new DshRuntimeDriver()
-  const sessions = 'feature.agents.dsh.sessions'
-
-  it('keeps a project whose parent session is claimed, including its subagent dirs', async () => {
-    // A subagent runs under an id Cherry never records but shares the parent's cwd.
-    seedFile(`${sessions}/--tmp-live--/parent-token/session.jsonl`)
-    seedFile(`${sessions}/--tmp-live--/subagent-9f2/session.jsonl`)
-
-    const { removed } = await driver.reclaimOrphanSessions(new Set(['parent-token']), OPTIONS)
-
-    expect(removed).toEqual([])
-    expect(existsSync(path.join(root, sessions, '--tmp-live--', 'subagent-9f2'))).toBe(true)
-  })
-
-  it('removes a whole project directory once none of its sessions are claimed', async () => {
-    seedFile(`${sessions}/--tmp-dead--/gone-token/session.jsonl`)
-    seedFile(`${sessions}/--tmp-dead--/subagent-1a3/session.jsonl`)
-    const live = seedFile(`${sessions}/--tmp-live--/live-token/session.jsonl`)
-
-    const { removed } = await driver.reclaimOrphanSessions(new Set(['live-token']), OPTIONS)
-
-    expect(removed).toEqual([path.join(root, sessions, '--tmp-dead--')])
-    expect(existsSync(path.join(root, sessions, '--tmp-dead--'))).toBe(false)
-    expect(existsSync(live)).toBe(true)
-  })
-
-  it('defers a project whose session log is still being written', async () => {
-    seedFile(`${sessions}/--tmp-warm--/warm-token/session.jsonl`, (NOW - 60_000) / 1000)
-
-    const { removed } = await driver.reclaimOrphanSessions(new Set(), OPTIONS)
-
-    expect(removed).toEqual([])
-    expect(existsSync(path.join(root, sessions, '--tmp-warm--'))).toBe(true)
   })
 
   it('no-ops when the runtime was never used', async () => {

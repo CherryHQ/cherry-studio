@@ -298,33 +298,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('skill-install', () => {
-    const install = 'mcp__skills__install_skill'
-
-    it('denies headless installation outside bypass', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: install, interaction: { currentTurn: 'headless', userResponse: 'stream' } })
-      )
-      expect(decision?.ruleId).toBe('skill-install')
-    })
-
-    it('lifts the headless deny under bypassPermissions (explicit unattended opt-in)', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: install,
-            permissionMode: 'bypassPermissions',
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-    })
-
-    it('does not gate interactive installation (canUseTool handles it)', async () => {
-      await expect(evaluate(makeCtx({ toolName: install }))).resolves.toBeUndefined()
-    })
-  })
-
   describe('interactive-headless + ask-user-question', () => {
     it('denies interactive tools with no responder in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {

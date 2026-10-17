@@ -1,15 +1,18 @@
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const packagedState = vi.hoisted(() => ({ value: false }))
 const getPathMock = vi.hoisted(() => vi.fn((key: string) => `/mock/${key}`))
 
 vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: getPathMock,
-    isPackaged: false,
+    get isPackaged() {
+      return packagedState.value
+    },
     setAppLogsPath: vi.fn()
   }
 }))
@@ -29,7 +32,45 @@ beforeEach(() => {
   getPathMock.mockReset().mockImplementation((key: string) => `/mock/${key}`)
 })
 
+afterEach(() => {
+  packagedState.value = false
+  vi.unstubAllGlobals()
+})
+
 describe('buildPathRegistry', () => {
+  it('isolates voice scratch directories for profiles sharing the same basename', () => {
+    const voiceTemp = (profile: string) => {
+      getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
+      return buildPathRegistry()['feature.voice.temp']
+    }
+
+    const first = voiceTemp('/profiles/first/CherryStudio')
+    expect(voiceTemp('/profiles/second/CherryStudio')).not.toBe(first)
+    expect(voiceTemp('/profiles/first/./CherryStudio')).toBe(first)
+  })
+
+  it.each([
+    ['win32', 'x64', false, '/mock/app/packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe'],
+    ['win32', 'x64', true, '/mock/resources/system-speech/cherry-system-speech.exe'],
+    ['darwin', 'arm64', false, '/mock/app/packages/system-speech/dist/native/darwin-arm64/cherry-system-speech'],
+    ['darwin', 'x64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech'],
+    ['darwin', 'arm64', true, '/mock/Cherry Studio.app/Contents/Helpers/cherry-system-speech']
+  ] as const)('resolves the %s/%s packaged=%s system speech helper', (platform, arch, packaged, expected) => {
+    vi.stubGlobal(
+      'process',
+      Object.defineProperties(Object.create(process), {
+        platform: { value: platform },
+        arch: { value: arch },
+        resourcesPath: {
+          value: platform === 'darwin' ? '/mock/Cherry Studio.app/Contents/Resources' : '/mock/resources'
+        }
+      })
+    )
+    packagedState.value = packaged
+    expect(buildPathRegistry()['feature.voice.helper_file']).toBe(path.normalize(expected))
+    expect(shouldAutoEnsure('feature.voice.helper_file')).toBe(false)
+  })
+
   it('keeps the database and restore journal together under userData Data', () => {
     const registry = buildPathRegistry()
     const dataRoot = path.join('/mock/userData', 'Data')
@@ -71,6 +112,8 @@ describe('buildPathRegistry', () => {
 
     expect(registry['feature.agents.pi.root']).toBe(piRoot)
     expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+    expect(registry['feature.agents.pi.vcc_file']).toBe(path.join('/mock/app', 'out', 'main', 'pi-vcc.mjs'))
+    expect(shouldAutoEnsure('feature.agents.pi.vcc_file')).toBe(false)
   })
 
   it('keeps the provider registry override under userData Runtime', () => {

@@ -188,7 +188,7 @@ describe('AppUpdaterService', () => {
       })
       expect(autoUpdater.requestHeaders).not.toHaveProperty('X-Release-Channel')
       expect(autoUpdater.allowDowngrade).toBe(false)
-      expect(autoUpdater.disableDifferentialDownload).toBe(true)
+      expect(autoUpdater.disableDifferentialDownload).toBe(false)
     })
 
     it('uses the China region for users in China', async () => {

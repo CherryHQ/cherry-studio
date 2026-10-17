@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { logger, MAX_FILES_LIMIT, validatePath } from '../types'
@@ -13,7 +14,6 @@ export const LsToolSchema = z.object({
 
 // Tool definition with detailed description
 export const lsToolDefinition = {
-  name: 'ls',
   description: `Lists files and directories in a specified path.
 
 - Returns a tree-like structure with icons (📁 directories, 📄 files)
@@ -25,17 +25,12 @@ export const lsToolDefinition = {
 - Results are limited to 100 entries
 - The path parameter must resolve within the configured workspace root if specified
 - If path is not specified, defaults to the base directory`,
-  inputSchema: z.toJSONSchema(LsToolSchema)
+  inputSchema: LsToolSchema
 }
 
 // Handler implementation
-export async function handleLsTool(args: unknown, baseDir: string) {
-  const parsed = LsToolSchema.safeParse(args)
-  if (!parsed.success) {
-    throw new Error(`Invalid arguments for ls: ${parsed.error}`)
-  }
-
-  const targetPath = parsed.data.path || baseDir
+export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: string): Promise<CallToolResult> {
+  const targetPath = args.path || baseDir
   const validPath = await validatePath(targetPath, baseDir)
 
   // Verify the target exists and is a directory before walking it: the recursive
@@ -54,7 +49,7 @@ export async function handleLsTool(args: unknown, baseDir: string) {
     throw error
   }
 
-  const recursive = parsed.data.recursive || false
+  const recursive = args.recursive || false
 
   interface TreeNode {
     name: string

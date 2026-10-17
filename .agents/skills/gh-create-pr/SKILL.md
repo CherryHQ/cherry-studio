@@ -23,7 +23,7 @@ fi
 gh stack --help >/dev/null
 ```
 
-Stop if authentication, installation, or the final verification fails. Do not infer a stack with ad hoc Git commands. For human-authored Cherry PRs, use `gh stack push`, create each compliant PR through this skill from bottom to top, then link the existing PRs with `gh stack link`; `gh stack submit --auto` creates PRs before the required body preview and must not bypass this workflow.
+Stop if authentication, installation, or the final verification fails. Do not infer a stack with ad hoc Git commands. For human-authored Cherry PRs, use `gh stack push`, create each compliant PR through this skill from bottom to top, then link the existing PRs with `gh stack link`; `gh stack submit --auto` creates PRs outside the template-compliant body flow and must not bypass this workflow.
 
 ## Workflow
 
@@ -70,11 +70,11 @@ Stop if authentication, installation, or the final verification fails. Do not in
    ```
    Fill content using the template structure exactly (keep section order,
    headings, checkbox formatting). If not applicable, write `N/A` or `None`.
-9. Preview the temp file content via Bash `cat "$pr_body_file"` (the `Read`
-   tool can fail on `/tmp/...` paths on Windows). Show the file path and ask
-   for explicit confirmation before creating. Skip if the user explicitly
-   waives preview (automation workflows).
-10. After confirmation, create the PR:
+9. Inspect the temp file content via Bash `cat "$pr_body_file"` (the `Read`
+   tool can fail on `/tmp/...` paths on Windows). If the user requests a preview
+   or confirmation, show the full body and follow that request; otherwise,
+   proceed with the authorized PR creation.
+10. Create the PR, adding `--draft` when the user requests a draft:
    ```bash
    gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
    ```
@@ -95,8 +95,6 @@ Stop if authentication, installation, or the final verification fails. Do not in
 - Never use a `hotfix` title or label for an ordinary bug fix. It opts the PR into an automatic backport PR after merge when one matching draft release is active.
 - A release hotfix may use `NONE` when it has no user-facing release note. Never provide a partial, single-language, or otherwise malformed bilingual note; the backport workflow fails closed on malformed content.
 - Never default a `release/v<version>` head to `main`; a release branch is not a pull request source branch.
-- Never create the PR before showing the full final body to the user, unless they explicitly waive the preview or confirmation.
-- Never rely on command permission prompts as PR body preview.
 - Never publish an implementation PR as ready when its current Spec head lacks an exact-head Approval. A Spec may remain unmerged and serve as the stack base.
 - Every human-authored PR fills `Agent Note`, `Spec PR`, and `Acceptance criteria`; `N/A` requires a concise reason. Automation-authored PRs (repository workflows and Dependabot) are exempt from this metadata requirement.
 - **Release note & Documentation checkbox** — both are driven by whether the change is **user-facing**. Use the table below:
@@ -119,14 +117,14 @@ Stop if authentication, installation, or the final verification fails. Do not in
 # read template
 cat .github/pull_request_template.md
 
-# show this full Markdown body in chat first
+# prepare and inspect the PR body
 pr_body_file="/tmp/gh-pr-body-$(date +%s).md"
 cat > "$pr_body_file" <<'EOF'
 ...filled template body...
 EOF
 cat "$pr_body_file"
 
-# run only after explicit user confirmation
+# create the authorized PR; add --draft when requested
 gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
 rm -f "$pr_body_file"
 ```

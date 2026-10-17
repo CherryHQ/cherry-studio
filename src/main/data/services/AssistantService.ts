@@ -419,8 +419,8 @@ export class AssistantDataService {
     return rowToAssistant(
       row,
       {
-        mcpServerIds: dto.mcpServerIds ?? [],
-        knowledgeBaseIds: dto.knowledgeBaseIds ?? []
+        mcpServerIds: [...new Set(dto.mcpServerIds ?? [])],
+        knowledgeBaseIds: [...new Set(dto.knowledgeBaseIds ?? [])]
       },
       modelName
     )
@@ -529,8 +529,8 @@ export class AssistantDataService {
     }
 
     const nextRelations: AssistantRelationIds = {
-      mcpServerIds: mcpServerIds ?? current.mcpServerIds,
-      knowledgeBaseIds: knowledgeBaseIds ?? current.knowledgeBaseIds
+      mcpServerIds: [...new Set(mcpServerIds ?? current.mcpServerIds)],
+      knowledgeBaseIds: [...new Set(knowledgeBaseIds ?? current.knowledgeBaseIds)]
     }
 
     const aliveFilter = and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
@@ -754,7 +754,7 @@ export class AssistantDataService {
       const desiredIds = new Set(dto.mcpServerIds)
 
       const removeIds = existing.filter((r) => !desiredIds.has(r.mcpServerId)).map((r) => r.mcpServerId)
-      const toAdd = dto.mcpServerIds.filter((id) => !existingIds.has(id))
+      const toAdd = [...desiredIds].filter((id) => !existingIds.has(id))
 
       if (removeIds.length > 0) {
         tx.delete(assistantMcpServerTable)
@@ -783,7 +783,7 @@ export class AssistantDataService {
       const desiredIds = new Set(dto.knowledgeBaseIds)
 
       const removeIds = existing.filter((r) => !desiredIds.has(r.knowledgeBaseId)).map((r) => r.knowledgeBaseId)
-      const toAdd = dto.knowledgeBaseIds.filter((id) => !existingIds.has(id))
+      const toAdd = [...desiredIds].filter((id) => !existingIds.has(id))
 
       if (removeIds.length > 0) {
         tx.delete(assistantKnowledgeBaseTable)
