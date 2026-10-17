@@ -221,7 +221,7 @@ Summarize what is done, what is verified, and what remains, then stop.
 
 用量不在内存里累计，也不以快照为准：每次需要（settle 的预算判断、`resume` 的余量、`/goal` 状态、`get_goal` 输出、写快照）都由同一个函数 `goalUsage(branch, goalId)` 从 branch 算出。branch 上的每条条目自带用量（assistant 条目的 `usage` 和 L2 存下的 `cost`，工具结果的 `usage`），live 和重建后的 session 读同一份 branch，结果一致。计入规则只看 branch：
 
-- 一条 assistant 条目计入 goal G，当且仅当它位于 G 被接纳的某一轮里（从这一轮的 round 消息起，到下一条用户消息、下一条 round 消息或另一个目标的快照为止；没被接纳的 round 消息不开轮，见 6.3），且它之前最近的一条快照是 G、`phase` 为 `active`。所以工具调用让 goal 停下时，发出这次调用的请求在停止之前，计入；停下之后的请求（`complete` 之后的总结）一律不计。
+- 一条 assistant 条目按它的请求输入结束处判断：取它之前最近的一条 message 条目（用户消息、工具结果、round 消息等）所在的位置，那里位于 G 被接纳的某一轮里（从这一轮的 round 消息起，到下一条用户消息、下一条 round 消息或另一个目标的快照为止；没被接纳的 round 消息不开轮，见 6.3），且那里之前最近的一条快照是 G、`phase` 为 `active`，就计入 G。请求在途时写下的状态条目（Pi 先等扩展的 `message_end` 处理器跑完才写入回复，命令在流式期间也立即执行，于是 `/goal pause` 的快照可能落在回复之前）不改变判断。所以工具调用让 goal 停下时，发出这次调用的请求在停止之前，计入；停下之后的请求（`complete` 之后的总结，它的输入结束在停止快照之后的工具结果上）一律不计。
 - 一条工具结果自带的 usage 跟着发出这次调用的请求走：那条 assistant 条目计入 G，它就计入 G。前台子代理运行中执行了 `/goal pause`，它返回后照样计入，`/goal resume` 的余量判断能看到。
 - 快照里的 `tokensUsed` / `costUsed` 是写入那一刻算出的值，供宿主展示和遥测（3.1 第 12 条），运行时不读回。
 
@@ -543,3 +543,7 @@ L4（前台子代理，PR #21578）已完成，L5 基于它实现：包内任务
 2026-10-16，按第四轮修复的复审修订：
 
 9. 接纳快照记下所接纳轮的 id（`admittedRound`），"跑没跑过"只看 branch 上有没有快照记下这个 id，不再按 `roundsStarted` 推断（5.1、6.3）。原来撤回一轮之后，新开的同号轮的接纳快照让被撤回的那条轮消息也算作跑过，它带着旧目标的提示从下一次请求起一直留在上下文里（`/goal budget` 之后，模型同时收到旧的 work 提示和 wrap-up 提示）。
+
+2026-10-18，按 PR #21607 的 cherry-pr-review 评审修订：
+
+10. 一次请求按它开始时的状态判断（6.1）：assistant 条目看它之前最近的一条 message 条目处的 goal 状态。原来按回复自己的位置判断，`/goal pause` 在回复的 `message_end` 处理器还没跑完时写下的快照排在回复之前，这次请求的用量被丢掉，`resume` 能越过已经用完的预算。Pi 1.3.0 仍先等全部 `message_end` 处理器跑完再写入消息。
