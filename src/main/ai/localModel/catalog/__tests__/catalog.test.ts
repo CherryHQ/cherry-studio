@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { FUNASR_SUPPORTED_PLATFORM_KEYS } from '@shared/ai/localVoice'
 import {
@@ -9,6 +9,7 @@ import {
   LOCAL_MODEL_CAPABILITIES
 } from '@shared/data/presets/localModel'
 
+import { isArtifactSupported } from '../../acquisition/tarballArtifact'
 import {
   ALL_MODEL_BUNDLE_IDS,
   bundleDtype,
@@ -168,6 +169,17 @@ describe('local model catalog', () => {
       expect(files.entryFile).toBe('llama-addon.node')
       expect(files.supportFiles).toContain('_nlcBuildMetadata.json')
     }
+  })
+
+  it('does not offer the node-llama-cpp runtime on a macOS release its binaries cannot load', () => {
+    const onMac = (version: string) =>
+      vi.stubGlobal('process', { ...process, platform: 'darwin', arch: 'arm64', getSystemVersion: () => version })
+
+    onMac('13.6.1')
+    expect(isArtifactSupported(SHARED_ARTIFACTS['node-llama-cpp'])).toBe(false)
+    onMac('14.0')
+    expect(isArtifactSupported(SHARED_ARTIFACTS['node-llama-cpp'])).toBe(true)
+    vi.unstubAllGlobals()
   })
 
   it('gives every chat model the runtime and weights the llm process loads', () => {

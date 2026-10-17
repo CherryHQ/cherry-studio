@@ -357,7 +357,8 @@ rather than on a user's machine.
 Chat models run in their own `inference.llm` utility process through node-llama-cpp. Its native
 binaries are the `node-llama-cpp` shared artifact (the npm `@node-llama-cpp/<platform>` package);
 the JS package is an app dependency patched to load them from the artifact directory. Only
-`darwin-arm64` (Metal) ships today; other platforms need their CUDA/Vulkan/CPU variant rules first.
+`darwin-arm64` (Metal) ships today, on macOS 14 or later (the minimum its binaries are linked
+for); other platforms need their CUDA/Vulkan/CPU variant rules first.
 
 The process differs from the other capabilities because a chat model is large and conversations
 are long:

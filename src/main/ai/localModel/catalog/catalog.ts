@@ -200,6 +200,8 @@ export const SHARED_ARTIFACTS = {
   'node-llama-cpp': {
     id: 'node-llama-cpp',
     version: '3.22.1',
+    // Every prebuilt binary is linked with LC_BUILD_VERSION minos 14.0.
+    minimumMacOS: '14.0',
     installDirKey: 'feature.llama_cpp.binary',
     provenance: {
       license: {
