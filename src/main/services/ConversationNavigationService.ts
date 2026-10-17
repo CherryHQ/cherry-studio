@@ -156,21 +156,14 @@ export class ConversationNavigationService extends BaseService {
       // `openRouteInMainWindow` used durable init data because no Main window existed. Wait until
       // that new Main renderer reports the target as committed; sending another force-open command
       // while its init-data route is still mounting could create a duplicate.
-      if (coldRouteOpened) {
-        const mainOwner = owners.find((window) => window.type === WindowType.Main)
-        if (mainOwner) {
-          if (messageId !== undefined) {
-            const completed = await this.sendFocusOrOpenCommand(mainOwner, query.requestId, target, title, messageId)
-            if (!completed && !this.isStopping) {
-              throw new Error(`Conversation navigation was not completed: ${conversationTargetKey(target)}`)
-            }
-            return
-          }
-          this.focusWindow(mainOwner)
-          return
-        }
+      const coldMainOwner = coldRouteOpened ? owners.find((window) => window.type === WindowType.Main) : undefined
+      if (coldRouteOpened && !coldMainOwner) {
         await this.waitBeforeOwnershipRetry(discoveryDeadline, target)
         continue
+      }
+      if (coldMainOwner && messageId === undefined) {
+        this.focusWindow(coldMainOwner)
+        return
       }
 
       const owner = owners[0]
@@ -181,7 +174,7 @@ export class ConversationNavigationService extends BaseService {
       const respondingMainWindow = liveWindows
         .filter((window) => window.type === WindowType.Main && respondingWindowIds.has(window.id))
         .sort(compareWindowPriority)[0]
-      const destination = owner ?? requester ?? respondingMainWindow
+      const destination = coldMainOwner ?? owner ?? requester ?? respondingMainWindow
 
       if (!destination) {
         openRouteInMainWindow(conversationRouteUrl(target))

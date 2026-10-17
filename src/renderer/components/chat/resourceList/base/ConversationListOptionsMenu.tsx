@@ -1,6 +1,5 @@
 import { ChevronsDownUp, ChevronsUpDown, ListFilter } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 
@@ -113,23 +112,14 @@ export function ConversationListOptionsMenu<TMode extends string>({
               />
             </>
           )}
-          {visibilityAction && (
-            <>
-              <MenuDivider />
-              {renderAction(visibilityAction)}
-            </>
-          )}
-          {historyAction && (
-            <>
-              <MenuDivider />
-              {renderAction(historyAction)}
-            </>
-          )}
-          {manageAction && (
-            <>
-              <MenuDivider />
-              {renderAction(manageAction)}
-            </>
+          {Object.entries({ visibility: visibilityAction, history: historyAction, manage: manageAction }).map(
+            ([key, action]) =>
+              action && (
+                <Fragment key={key}>
+                  <MenuDivider />
+                  {renderAction(action)}
+                </Fragment>
+              )
           )}
         </MenuList>
       </PopoverContent>

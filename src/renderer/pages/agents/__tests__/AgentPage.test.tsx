@@ -862,6 +862,23 @@ describe('Agent task dashboard interactions', () => {
     expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
   })
 
+  it('stops every captured run without exceeding the IPC limit of 500 IDs per request', async () => {
+    const user = userEvent.setup()
+    const runIds = Array.from({ length: 501 }, (_, index) => `run-${index}`)
+    cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [{ ...run('Research'), runIds, runCount: runIds.length }])
+    ipcMocks.request.mockResolvedValue([])
+    render(<Dashboard enabled />)
+
+    await user.click(screen.getByRole('button', { name: 'Stop Research' }))
+
+    const batches = ipcMocks.request.mock.calls
+      .filter(([method]) => method === 'ai.agent.task_dashboard.stop')
+      .map(([, input]) => input.runIds)
+    expect(batches.map((ids) => ids.length)).toEqual([500, 1])
+    expect(batches.flat()).toEqual(runIds)
+    expect(screen.getByRole('button', { name: 'Stop Research' })).toBeEnabled()
+  })
+
   it('opens running tasks at their anchor and disables navigation when the session was deleted', async () => {
     const user = userEvent.setup()
     cacheService.setShared(AGENT_TASK_DASHBOARD_CACHE_KEY, [run('Research')])

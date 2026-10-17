@@ -1,3 +1,4 @@
+import { chunk } from 'es-toolkit'
 import {
   ChevronDown,
   ChevronLeft,
@@ -9,7 +10,7 @@ import {
   OctagonAlert,
   Plus
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -34,6 +35,7 @@ import { openRoute, openSettingsTab } from '@renderer/services/mainWindowNavigat
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import { createDurationFormatter } from '@renderer/utils/time'
 import type { DashboardEntry } from '@shared/ai/agentTaskDashboard'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
@@ -56,19 +58,6 @@ function useVisibleTime(enabled: boolean): number {
     }
   }, [enabled])
   return now
-}
-
-function formatDuration(row: DashboardEntry, now: number, locale: string): string {
-  const seconds = Math.max(0, Math.floor((now - row.startedAt) / 1000))
-  const units: Array<[string, number]> = [
-    ['hour', Math.floor(seconds / 3600)],
-    ['minute', Math.floor(seconds / 60) % 60],
-    ['second', seconds % 60]
-  ]
-  return units
-    .filter(([, value], index) => value > 0 || index === 2)
-    .map(([unit, value]) => new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow' }).format(value))
-    .join(' ')
 }
 
 function PageButtons({
@@ -99,6 +88,7 @@ function PageButtons({
 /** Shared by every Agent sidebar layout; the surrounding sidebar owns the height limit. */
 export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
   const { t, i18n } = useTranslation()
+  const formatDuration = useMemo(() => createDurationFormatter(i18n.language), [i18n.language])
   const running = useTaskDashboard()
   const tasks = useAllTasks(enabled)
   const [, setShowTaskDashboard] = usePreference('agent.task_dashboard.visible')
@@ -145,11 +135,7 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
     setStopping((current) => new Set([...current, row.id]))
     try {
       const results = (
-        await Promise.all(
-          Array.from({ length: Math.ceil(ids.length / 500) }, (_, index) =>
-            ipcApi.request('ai.agent.task_dashboard.stop', { runIds: ids.slice(index * 500, (index + 1) * 500) })
-          )
-        )
+        await Promise.all(chunk(ids, 500).map((runIds) => ipcApi.request('ai.agent.task_dashboard.stop', { runIds })))
       ).flat()
       if (results.some((result) => result.result === 'failed')) toast.error(t('agent.task_dashboard.stop_failed'))
     } catch (error) {
@@ -186,7 +172,7 @@ export function AgentTaskDashboard({ enabled }: { enabled: boolean }) {
               <span className="truncate text-xs text-muted-foreground">{row.agentNameSnapshot}</span>
               <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                 <span>{missing ? t('agent.task_dashboard.unavailable') : status}</span>
-                <span aria-live="off">{formatDuration(row, now, i18n.language)}</span>
+                <span aria-live="off">{formatDuration(Math.max(0, now - row.startedAt))}</span>
                 {row.runCount > 1 && <span>{t('agent.task_dashboard.run_count', { count: row.runCount })}</span>}
               </span>
             </span>

@@ -353,17 +353,10 @@ const AgentChat = ({
       return
     }
 
-    if ((locateToEnd && !runtimeIsLoading) || runtimeUiMessages.some((message) => message.id === locateMessageId)) {
-      locateLoadRequestRef.current = undefined
-      const frame = window.requestAnimationFrame(() => {
-        if (locateToEnd) scrollAgentMessageListToEnd(sessionTopicId)
-        else if (locateMessageId) locateAgentMessageInList(sessionTopicId, locateMessageId, true)
-        onLocateMessageHandled?.()
-      })
-      return () => window.cancelAnimationFrame(frame)
-    }
+    const targetLoaded = runtimeUiMessages.some((message) => message.id === locateMessageId)
+    if (!targetLoaded && runtimeIsLoading) return
 
-    if (runtimeHasOlder && !runtimeIsLoading) {
+    if (!targetLoaded && !locateToEnd && runtimeHasOlder) {
       const requestKey = `${runtimeSessionId}:${locateMessageId}:${runtimeUiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
@@ -372,15 +365,13 @@ const AgentChat = ({
       return
     }
 
-    if (!runtimeHasOlder && !runtimeIsLoading) {
-      locateLoadRequestRef.current = undefined
-      const frame = window.requestAnimationFrame(() => {
-        scrollAgentMessageListToEnd(sessionTopicId)
-        onLocateMessageHandled?.()
-      })
-      return () => window.cancelAnimationFrame(frame)
-    }
-    return undefined
+    locateLoadRequestRef.current = undefined
+    const frame = window.requestAnimationFrame(() => {
+      if (locateToEnd || !targetLoaded) scrollAgentMessageListToEnd(sessionTopicId)
+      else if (locateMessageId) locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+      onLocateMessageHandled?.()
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [
     locateMessageId,
     locateToEnd,
