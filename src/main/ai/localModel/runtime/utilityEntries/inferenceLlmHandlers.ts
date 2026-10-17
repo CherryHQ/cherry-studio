@@ -12,7 +12,7 @@ import {
   type LlmInferenceContract,
   type LlmInitData
 } from '@main/ai/localModel/capabilities/llm/protocol'
-import { toGbnfJsonSchema } from '@main/ai/localModel/capabilities/llm/toolSchema'
+import { toGbnfJsonSchema, toToolArguments } from '@main/ai/localModel/capabilities/llm/toolSchema'
 import type {
   UtilityProcessHandlers,
   UtilityProcessLogger
@@ -145,7 +145,13 @@ export const llmHandlers: UtilityProcessHandlers<LlmInferenceContract> = {
         })
         return {
           finishReason: FINISH_REASONS[result.metadata.stopReason],
-          toolCalls: result.functionCalls?.map((call) => ({ name: call.functionName, params: call.params })),
+          toolCalls: result.functionCalls?.map((call) => ({
+            name: call.functionName,
+            params: toToolArguments(
+              input.tools?.find((tool) => tool.name === call.functionName)?.parameters,
+              call.params
+            )
+          })),
           usage: { inputTokens: state.sequence.contextTokens.length - outputTokens, outputTokens }
         }
       } catch (error) {

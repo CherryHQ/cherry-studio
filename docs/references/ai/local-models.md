@@ -373,8 +373,10 @@ are long:
   then resumes from that checkpoint instead of re-reading the whole prompt.
 - Text and reasoning deltas stream back as events. Thinking is currently always off.
 - Tools reach node-llama-cpp as grammar-constrained functions. `toolSchema.ts` rewrites each JSON
-  Schema into the subset its grammar compiles (`anyOf` → `oneOf`, untyped → any value, …), since
-  unknown shapes otherwise compile to `null`. Tool results attach to their call in the model turn.
+  Schema into the subset its grammar compiles (`anyOf` → `oneOf`, untyped → any value, referenced
+  `allOf` parts merged, …), since unknown shapes otherwise compile to `null`. The grammar requires
+  every declared property, so an optional one also accepts `null`, and those nulls are removed
+  before the call reaches the tool. Tool results attach to their call in the model turn.
 - The context grows to 64k tokens. A prompt that still does not fit fails as a non-retryable
   `400`, so retry layers and agents stop instead of resending it.
 
