@@ -430,7 +430,7 @@ describe('AgentSessionDeliveryService', () => {
     await service.drainInFlight({ timeoutMs: 100 })
 
     expect(mocks.markTerminalError).toHaveBeenCalledTimes(2)
-    expect(mocks.markTerminalError).toHaveBeenLastCalledWith('target', 'assistant-1')
+    expect(mocks.markTerminalError).toHaveBeenLastCalledWith('target', 'assistant-1', 'turn.interrupted')
     expect(mocks.finalize).toHaveBeenCalledWith({
       requestSessionId: 'target',
       requestMessageId: 'delivery-1',
@@ -467,6 +467,25 @@ describe('AgentSessionDeliveryService', () => {
       assistantMessageId: 'assistant-1',
       outcome: 'success'
     })
+  })
+
+  it('names the interrupted cause when terminalizing an abandoned pending placeholder', async () => {
+    const delivering = { ...accepted, delivery: { ...accepted.delivery, status: 'delivering', turnRef: assistant.id } }
+    mocks.listRecoverable.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [delivering] : []))
+    mocks.getMessage.mockReturnValue(assistant)
+    mocks.runtimeBusy.mockReturnValue(false)
+    mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    // Only "no writer remains" is established here: the abandoned turn is an
+    // interruption, not the persistence failure the evidence does not show.
+    expect(mocks.markTerminalError).toHaveBeenCalledWith('target', 'assistant-1', 'turn.interrupted')
+    expect(mocks.markTerminalError).not.toHaveBeenCalledWith('target', 'assistant-1', 'turn.persist_failed')
   })
 
   it('ignores row-roll terminal events', async () => {

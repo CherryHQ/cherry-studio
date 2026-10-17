@@ -13,6 +13,7 @@ import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRunt
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentUserContent, isManualCompactCommand } from '@main/ai/runtime/agentUserContent'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -635,7 +636,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
       return {
         listeners: [
-          this.createPersistenceListener(existing, userMessage),
+          this.createPersistenceListener(existing, userMessage, turn.systemReminder !== true),
           new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
           new TraceFlushListener(input.topicId)
         ],
@@ -660,7 +661,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     return {
       listeners: [
-        this.createPersistenceListener(entry, userMessage),
+        this.createPersistenceListener(entry, userMessage, turn.systemReminder !== true),
         new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
         new TraceFlushListener(input.topicId)
       ],
@@ -2932,7 +2933,7 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       abortController: nextTurn.abortController,
       listeners: [
-        this.createPersistenceListener(entry, nextMessage),
+        this.createPersistenceListener(entry, nextMessage, nextTurn.systemReminder !== true),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
         new TraceFlushListener(entry.topicId)
       ]
@@ -3003,7 +3004,7 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       abortController: turn.abortController,
       listeners: [
-        this.createPersistenceListener(entry, turn.userMessage),
+        this.createPersistenceListener(entry, turn.userMessage, turn.systemReminder !== true),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId),
         new TraceFlushListener(entry.topicId)
       ]
@@ -3112,7 +3113,8 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       abortController: receiveOnlyTurn.abortController,
       listeners: [
-        this.createPersistenceListener(entry, syntheticMessage),
+        // A receive-only turn dispatches no user input at all — never a command line.
+        this.createPersistenceListener(entry, syntheticMessage, false),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
         new TraceFlushListener(entry.topicId)
       ]
@@ -3229,7 +3231,8 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       abortController: continuationTurn.abortController,
       listeners: [
-        this.createPersistenceListener(entry, steerMessage),
+        // The steer reached the runtime wrapped via redirect — never a command line.
+        this.createPersistenceListener(entry, steerMessage, false),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
         new TraceFlushListener(entry.topicId)
       ]
@@ -3330,7 +3333,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private createPersistenceListener(
     entry: AgentSessionRuntimeEntry,
-    userMessage: AgentSessionMessageEntity
+    userMessage: AgentSessionMessageEntity,
+    dispatchedAsCommand: boolean
   ): StreamListener {
     const currentTurn = this.currentTurn(entry)
     if (!currentTurn) {
@@ -3355,7 +3359,10 @@ export class AgentSessionRuntimeService extends BaseService {
         afterPersist
       }),
       onPersistFailed: (error) =>
-        application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
+        application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error),
+      // `/compact` is answered by the fold without an anchor, so the intent is declared here —
+      // but only for a dispatched command line: wrapped/reminder prompts run as ordinary turns.
+      explicitCompaction: dispatchedAsCommand && isManualCompactCommand(buildAgentUserContent(userMessage))
     })
   }
 

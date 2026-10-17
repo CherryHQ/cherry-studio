@@ -246,6 +246,33 @@ import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
 const loader = new RegistryLoader(resolveRegistryPaths())
 ```
 
+### `terminalSentinel.ts` — terminal-error sentinels for persisted assistant turns
+
+Backs every write that flips a persisted assistant row to `status='error'`. Without it a terminalized row lands with zero parts, so history shows a failed bubble with nothing explaining the failure and support logs have nothing to diagnose. See [the module header](./terminalSentinel.ts) for the three paths it covers.
+
+**Exports:**
+
+- `terminalSentinel(key, options?)` — build a `SerializedError` whose `message` is never blank; `options.detail` replaces the English fallback when the caller knows something more specific (it must already be user-presentable).
+- `withTerminalErrorPart(data, key, options?)` — append the sentinel as a `data-error` part to a persisted message's `data`, preserving sibling fields and refusing to stack a second error part over an existing one. Returns the whole `data` object so callers write it back as-is.
+- `TerminalSentinelKey` — `'turn.persist_failed' | 'turn.orphaned_by_restart' | 'turn.interrupted' | 'turn.no_content'`; each maps to an `error.*` i18n key rendered by the renderer's `ErrorBlock`.
+- `terminalSentinelI18nKey(key)` — the i18n suffix, for tests and the i18n key-existence check.
+
+**Why it lives in `data/`, not `ai/`**: every producer of a terminalized row writes through this layer (`MessageService`, `AgentSessionMessageService`), so owning the helper here keeps Main Process Architecture §3 dependency direction intact — `ai/` callers depend downward on `data/`, never the reverse.
+
+**Design boundaries:**
+
+- **Every `status='error'` write goes through it** — that is the invariant, not a convenience.
+- **A pre-existing error part wins**: a more specific truth already in the row is never overwritten.
+- **Cross-process expectation**: `main` writes the part, the renderer's `ErrorBlock` renders `error.${i18nKey}`; only the `SerializedError` contract crosses the boundary.
+
+**Example:**
+
+```ts
+import { withTerminalErrorPart } from '@data/services/utils/terminalSentinel'
+
+await db.update(table).set({ status: 'error', data: withTerminalErrorPart(row.data, 'turn.persist_failed') })
+```
+
 ## Criteria for Adding a New Utility
 
 Before adding a new utility to this directory, confirm:

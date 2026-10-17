@@ -4112,6 +4112,148 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  /**
+   * The `/compact` turn pi can settle without emitting any compaction event: it reaches
+   * the listener with no finalMessage at all, so no anchor can carry the intent. Without
+   * the declaration the listener persists a `turn.no_content` error for a command that
+   * succeeded — and an ordinary request must still be classified when it loses its reply.
+   */
+  it('tells the persistence listener that a /compact turn is not a lost reply', async () => {
+    const service = new AgentSessionRuntimeService()
+    const compactTurn = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: { ...userMessage('user-1'), data: { parts: [{ type: 'text', text: '/compact' }] } }
+    })
+    const ordinaryTurn = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    const compactResult: StreamDoneResult = { status: 'success', isTopicDone: true }
+    await persistenceListener(compactTurn).onDone(compactResult)
+    expect(compactResult.emptyTurn).toBeUndefined()
+    expect(mocks.saveMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ message: expect.objectContaining({ status: 'success' }) }),
+      expect.anything()
+    )
+
+    const ordinaryResult: StreamDoneResult = { status: 'success', isTopicDone: true }
+    await persistenceListener(ordinaryTurn).onDone(ordinaryResult)
+    expect(ordinaryResult.emptyTurn?.name).toBe('no-parts')
+  })
+
+  /**
+   * The declaration must mirror runtime command dispatch, not raw message text: a queued
+   * `/compact` steer and a delivery-wrapped `/compact` reach the runtime as ordinary wrapped
+   * prompts (no compaction runs), so their empty successes are lost replies — while a bare
+   * dispatched `/compact` keeps its anchorless-compaction exemption (the test above).
+   */
+  it('classifies an empty success on a queued /compact steer as a lost reply', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    service.enqueueUserMessage('session-1', {
+      ...userMessage('user-2'),
+      data: { parts: [{ type: 'text', text: '/compact' }] }
+    })
+    mocks.startRuntimeTurn.mockClear()
+    service.markTurnTerminal('session-1', 'success')
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalled())
+
+    const queuedResult: StreamDoneResult = { status: 'success', isTopicDone: true }
+    await persistenceListener(mocks.startRuntimeTurn.mock.calls.at(-1)?.[0]).onDone(queuedResult)
+    expect(queuedResult.emptyTurn?.name).toBe('no-parts')
+    void service.closeSession('session-1')
+  })
+
+  it('classifies a blank success on a delivery-wrapped /compact as a lost reply', async () => {
+    const service = new AgentSessionRuntimeService()
+    const deliveredCompact = {
+      ...userMessage('user-1'),
+      data: { parts: [{ type: 'text', text: '/compact' }] },
+      delivery: {
+        sender: { sessionId: 'session-2', topicId: 'agent-session:session-2' },
+        receiver: { sessionId: 'session-1', topicId: 'agent-session:session-1' },
+        inReplyTo: null,
+        outcome: null
+      }
+    }
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: deliveredCompact })
+
+    const blankResult: StreamDoneResult = {
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: '   ' }] }
+    }
+    await persistenceListener(handle).onDone(blankResult)
+    expect(blankResult.emptyTurn?.name).toBe('blank-content')
+    void service.closeSession('session-1')
+  })
+
+  /**
+   * The declaration must mirror the runtime's command admission, not the raw `/compact`
+   * prefix: dsh's `parseCommand` shape ends the name at end-of-string or ASCII
+   * whitespace, so `/compact` followed by a nonbreaking space dispatches as an ordinary
+   * prompt (no compaction runs) and its blank success is a lost reply.
+   */
+  it('classifies a blank success on a non-ASCII-delimited /compact prompt as a lost reply', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: {
+        ...userMessage('user-1'),
+        data: { parts: [{ type: 'text', text: '/compact\u00a0focus on changes' }] }
+      }
+    })
+
+    const blankResult: StreamDoneResult = {
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: '   ' }] }
+    }
+    await persistenceListener(handle).onDone(blankResult)
+    expect(blankResult.emptyTurn?.name).toBe('blank-content')
+    void service.closeSession('session-1')
+  })
+
+  /** The delimiter tightening must not cost a genuine `/compact …` command its exemption. */
+  it('keeps the anchorless-compaction exemption for ASCII-delimited /compact instructions', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: {
+        ...userMessage('user-1'),
+        data: { parts: [{ type: 'text', text: '/compact focus on changes' }] }
+      }
+    })
+
+    const compactResult: StreamDoneResult = { status: 'success', isTopicDone: true }
+    await persistenceListener(handle).onDone(compactResult)
+    expect(compactResult.emptyTurn).toBeUndefined()
+    void service.closeSession('session-1')
+  })
+
+  it('classifies an empty success on a redirected /compact steer continuation as a lost reply', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+    entry.connectionModelId = baseTurnInput.modelId
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+    const compactSteer = { ...userMessage('user-2'), data: { parts: [{ type: 'text', text: '/compact' }] } }
+    service.enqueueUserMessage('session-1', compactSteer)
+    const sourceTurnId = entry.currentTurn.turnId
+    mocks.startRuntimeTurn.mockClear()
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'steer-boundary',
+      inputs: [{ message: compactSteer, systemReminder: true }]
+    })
+    service.markTurnTerminal('session-1', 'success', sourceTurnId)
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalled())
+
+    const continuationResult: StreamDoneResult = { status: 'success', isTopicDone: true }
+    await persistenceListener(mocks.startRuntimeTurn.mock.calls.at(-1)?.[0]).onDone(continuationResult)
+    expect(continuationResult.emptyTurn?.name).toBe('no-parts')
+    void service.closeSession('session-1')
+  })
+
   it('does not auto-name non-initial assistant turns', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -6013,7 +6155,7 @@ describe('AgentSessionRuntimeService', () => {
     const result: StreamDoneResult = {
       status: 'success',
       isTopicDone: true,
-      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'done' }] }
     }
     await persistenceListener(handle).onDone(result)
 
@@ -6034,7 +6176,7 @@ describe('AgentSessionRuntimeService', () => {
           id: 'assistant-1',
           role: 'assistant',
           status: 'success',
-          data: { parts: [] },
+          data: { parts: [{ type: 'text', text: 'done' }] },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },
