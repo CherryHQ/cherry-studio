@@ -45,8 +45,15 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
   let realPlatform: NodeJS.Platform
   let realPath: string | undefined
 
-  /** Puts a stand-in `powershell.exe` on PATH that prints a fake process table. */
-  const useFakeProbe = async (rows: string): Promise<void> => {
+  /**
+   * Puts a stand-in `powershell.exe` on PATH that prints a fake process table. `withStamps: false`
+   * answers the spawn-time identity query with a header only, the way a failed query reads, and
+   * `fingerprintDelayMs` holds the answer back the way a loaded runner's five-second query is.
+   */
+  const useFakeProbe = async (
+    rows: string,
+    opts: { fingerprintDelayMs?: number; withStamps?: boolean } = {}
+  ): Promise<void> => {
     shimDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-probe-'))
     fakeTable = path.join(shimDir, 'table.csv')
     await writeFile(fakeTable, rows)
@@ -56,10 +63,15 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     const fingerprintQuery = [
       'case "$*" in',
       '*-Filter*)',
-      '  shell_pid=$(printf \'%s\' "$*" | sed -n "s/.*ProcessId=[0-9][0-9]* or ProcessId=\\([0-9][0-9]*\\).*/\\1/p")',
-      '  printf \'"ProcessId","CreationDate"\\n\'',
-      '  printf \'"%s","20261017000000.000000+480"\\n\' "$PPID"',
-      '  if [ -n "$shell_pid" ]; then printf \'"%s","20261017000000.000000+480"\\n\' "$shell_pid"; fi',
+      ...(opts.fingerprintDelayMs ? [`  sleep ${Math.max(1, Math.round(opts.fingerprintDelayMs / 1000))}`] : []),
+      ...(opts.withStamps === false
+        ? ['  printf \'"ProcessId","CreationDate"\\n\'']
+        : [
+            '  shell_pid=$(printf \'%s\' "$*" | sed -n "s/.*ProcessId=[0-9][0-9]* or ProcessId=\\([0-9][0-9]*\\).*/\\1/p")',
+            '  printf \'"ProcessId","CreationDate"\\n\'',
+            '  printf \'"%s","20261017000000.000000+480"\\n\' "$PPID"',
+            '  if [ -n "$shell_pid" ]; then printf \'"%s","20261017000000.000000+480"\\n\' "$shell_pid"; fi'
+          ]),
       '  ;;',
       '*)',
       '  sed "s/@PPID@/$PPID/g" "$BG_FAKE_TABLE" 2>/dev/null',
@@ -273,6 +285,129 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     expect(requested.flat()).not.toContain('8888')
     expect(onExit).toHaveBeenCalledTimes(1)
   }, 20_000)
+
+  it('spares a replacement whose recorded root carries no identity stamp', async () => {
+    // The startup identity query failed, so the evidence holds the shell pid and no stamps. A
+    // replacement then takes that pid, forks a child of its own, and the task's orphan — created
+    // before the takeover — still runs beside them. A sweep that trusts the bare pid force-kills
+    // the stranger's tree; without a stamp a live root authorizes no termination at all, and a
+    // live root this app cannot account for keeps the task unresolved instead of reading stopped.
+    const onExit = vi.fn()
+    await useFakeProbe(TABLE_HEADER, { withStamps: false })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    // pid `shellPid` now names the replacement, `8888` is the replacement's own child, and
+    // `999999` is the task's orphan worker, created before the replacement took the pid.
+    const replacementRows = [
+      TABLE_HEADER,
+      `"${shellPid}","4","20261017000010.000000+480"`,
+      `"8888","${shellPid}","20261017000011.000000+480"`
+    ]
+    await writeFakeRows(`${[...replacementRows, `"999999","${shellPid}","20261017000005.000000+480"`].join('\n')}\n`)
+
+    const requested: string[][] = []
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      const called = args[1] as string[]
+      requested.push(called)
+      // Only the orphan's kill lands: the stranger and its child keep their rows.
+      if (called.includes('999999')) writeFileSync(fakeTable, `${replacementRows.join('\n')}\n`)
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const withheld = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    // The orphan was the task's to kill; the stranger and its child were not.
+    expect(requested.some((args) => args.includes('999999'))).toBe(true)
+    expect(requested.flat()).not.toContain(String(shellPid))
+    expect(requested.flat()).not.toContain('8888')
+    // No stamp ties the live replacement to the task, so nothing may call the task stopped.
+    expect(withheld?.status).toBe('running')
+    expect(onExit).not.toHaveBeenCalled()
+  }, 30_000)
+
+  it('waits out the evidence write a kill arriving too early would destroy', async () => {
+    // Start returns while the runner is still inside its identity query — the query whose write
+    // every later walk seeds from. A kill landing first destroys `.pids`' only writer, and the
+    // record then hangs unresolved forever: no verification, no completion, no purge. The stop
+    // must wait out the write, and the kill that follows must publish through it.
+    const onExit = vi.fn()
+    await useFakeProbe(TABLE_HEADER, { fingerprintDelayMs: 1_000 })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 3_000)"`,
+      cwd: storageDir
+    })
+
+    letTaskkillThrough()
+    const stopped = stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+    // The delayed write lands inside the stop's wait, so the kill proceeds on recorded evidence.
+    await expect(stopped).resolves.toMatchObject({ status: 'stopped' })
+    expect(onExit).toHaveBeenCalledTimes(1)
+  }, 20_000)
+
+  it('recovers a task whose runner died before any evidence existed', async () => {
+    // A runner killed inside its identity query never writes `.pids` at all. With the writer gone
+    // there is no root left to walk and no read that can ever differ, so the record must settle
+    // as stopped instead of hanging past every control path.
+    const onExit = vi.fn()
+    await useFakeProbe(TABLE_HEADER, { fingerprintDelayMs: 3_000 })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 5_000)"`,
+      cwd: storageDir
+    })
+
+    letTaskkillThrough()
+    const stopped = stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+    // The kill takes the runner down while the stop holds its request on the record.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    process.kill(record.pid, 'SIGKILL')
+    await expect(stopped).resolves.toMatchObject({ status: 'stopped' })
+    expect(onExit).toHaveBeenCalledTimes(1)
+  }, 20_000)
+
+  it('reaches a remembered grandchild when the kill destroys the runner that saw it', async () => {
+    // shell → worker → grandchild: the runner observes both across its polls, then the worker
+    // exits and only the grandchild is left. A kill takes the runner — and its ancestry memory —
+    // down with it, so the app's own walk must re-seed from the evidence the runner wrote, or it
+    // reports the tree empty while the grandchild survives past both dead links.
+    const onExit = vi.fn()
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(
+      `${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n"888888","999999","${SPAWN_STAMP}"\n`
+    )
+    // Both members are observed and remembered; then the worker exits and its row goes with it.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    await writeFakeRows(`${TABLE_HEADER}\n"888888","999999","${SPAWN_STAMP}"\n`)
+
+    const requested: string[][] = []
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      const called = args[1] as string[]
+      requested.push(called)
+      // The grandchild's kill lands: the table no longer reports it, so verification can pass.
+      if (called.includes('888888')) writeFileSync(fakeTable, `${TABLE_HEADER}\n`)
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const stopped = stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+    // The kill takes the runner itself while the grandchild survives past both dead links.
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    process.kill(record.pid, 'SIGKILL')
+    await expect(stopped).resolves.toMatchObject({ status: 'stopped' })
+    // The publish is honest only if the sweep itself reached the grandchild.
+    expect(requested.some((args) => args.includes('888888'))).toBe(true)
+    expect(onExit).toHaveBeenCalledTimes(1)
+  }, 30_000)
 
   it('keeps a kill survivor unresolved when the killed runner reports its own exit', async () => {
     // Kill takes the runner down while a worker behind the dead shell survives: the runner's
