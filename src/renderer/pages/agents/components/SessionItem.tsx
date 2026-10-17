@@ -32,6 +32,9 @@ interface SessionItemProps {
   active?: boolean
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
+  onDeletePermanently?: () => void | Promise<void>
+  permanentDeleteShortcut?: string
+  isDeleting?: boolean
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
@@ -70,6 +73,9 @@ const SessionItem = ({
   active = false,
   channelType,
   onDelete,
+  onDeletePermanently,
+  permanentDeleteShortcut,
+  isDeleting = false,
   onOpenInNewTab,
   onOpenInNewWindow,
   onOpenRenameDialog,
@@ -173,6 +179,9 @@ const SessionItem = ({
       onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
       onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
       onDelete: handleDelete,
+      onDeletePermanently,
+      permanentDeleteShortcut,
+      isDeleting,
       isBusy: isStreamPending || showAwaitingApprovalBadge,
       onExportImage: () => sessionMenuActions.onExportImage(session),
       onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
@@ -199,6 +208,9 @@ const SessionItem = ({
     }),
     [
       handleDelete,
+      onDeletePermanently,
+      permanentDeleteShortcut,
+      isDeleting,
       isStreamPending,
       showAwaitingApprovalBadge,
       handleOpenInNewTab,

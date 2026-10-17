@@ -43,6 +43,8 @@ type HistoryRecordsViewProps =
       mode: 'agent'
       onRecordSelect?: (sessionId: string) => void
       onActiveRecordChange?: (sessionId: string | null) => void
+      /** Leave the active session before its permanent-delete confirmation opens. */
+      requestRecordRemoval?: (nextSessionId: string | null, transition: () => void) => void
     })
 
 const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
@@ -65,6 +67,7 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
             onClose={props.onClose}
             onRecordSelect={props.onRecordSelect}
             onActiveRecordChange={props.onActiveRecordChange}
+            requestRecordRemoval={props.requestRecordRemoval}
             toolbarLeading={props.toolbarLeading}
           />
         )}

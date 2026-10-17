@@ -353,6 +353,11 @@ export const useSessions = (
         }
         return { status: 'succeeded' }
       } catch (error) {
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (refreshError) {
+          logger.warn('Failed to refresh after Agent Session deletion failed', refreshError as Error, { sessionId: id })
+        }
         if (showFeedback) toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return { status: 'failed', error: getErrorMessage(error) }
       }

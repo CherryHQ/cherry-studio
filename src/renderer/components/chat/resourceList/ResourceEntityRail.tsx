@@ -101,6 +101,11 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   collapsedState?: readonly string[]
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
+  /** Keyboard permanent delete for a focused real entity row. Omitted leaves the shortcut unbound. */
+  permanentDelete?: {
+    isItemEligible?: (item: T) => boolean
+    onDelete: (item: T) => void | Promise<void>
+  }
   headerActions?: ReactNode
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
@@ -137,6 +142,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   collapsedState,
   emptyFallback,
   getContextMenuActions,
+  permanentDelete,
   headerActions,
   listRef,
   onAdd,
@@ -357,6 +363,12 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       }
       onReorder={hasReorderHandler ? handleReorder : undefined}>
       <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`} presentation="left-panel">
+        {permanentDelete ? (
+          <ResourceList.PermanentDelete
+            isItemEligible={permanentDelete.isItemEligible}
+            onDelete={permanentDelete.onDelete}
+          />
+        ) : null}
         <ResourceList.Header>
           <ResourceList.HeaderItem
             type="button"

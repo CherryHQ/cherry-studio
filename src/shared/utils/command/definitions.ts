@@ -262,6 +262,15 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'resource.delete_permanently',
+    titleKey: 'settings.shortcuts.delete_current_list_item',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Backspace']
+    }
+  }),
+  defineCommand({
     id: 'tab.close',
     titleKey: 'settings.shortcuts.close_tab',
     categoryKey: 'settings.shortcuts.general',

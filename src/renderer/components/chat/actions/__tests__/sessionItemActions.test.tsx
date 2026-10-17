@@ -210,6 +210,59 @@ describe('session item actions', () => {
     expect(actions.map((action) => action.id)).not.toContain('session.delete-permanently')
   })
 
+  it('shows permanent delete with the supplied shortcut and deletes only that session', async () => {
+    const onDelete = vi.fn()
+    const onDeletePermanently = vi.fn()
+    const context = createSessionActionFixture({
+      onDelete,
+      onDeletePermanently,
+      permanentDeleteShortcut: 'Ctrl+Backspace'
+    })
+    const actions = resolveSessionMenuActions(context)
+    const permanentDelete = actions.find((action) => action.id === 'session.delete-permanently')
+
+    expect(actions.map((action) => action.id)).toContain('session.delete-permanently')
+    expect(permanentDelete?.label).toBe('common.delete_permanently')
+    expect(permanentDelete?.danger).toBe(true)
+    expect(permanentDelete?.shortcut).toBe('Ctrl+Backspace')
+    expect(permanentDelete?.confirm).toBeUndefined()
+
+    await executeSessionMenuAction(permanentDelete!, context)
+
+    expect(onDeletePermanently).toHaveBeenCalledOnce()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('refuses permanent delete while the session is pinned, busy, or already deleting', async () => {
+    const onDelete = vi.fn()
+    const onDeletePermanently = vi.fn()
+    const ready = createSessionActionFixture({
+      onDelete,
+      onDeletePermanently,
+      permanentDeleteShortcut: 'Ctrl+Backspace'
+    })
+    const action = resolveSessionMenuActions(ready).find((candidate) => candidate.id === 'session.delete-permanently')
+
+    for (const blocked of [
+      createSessionActionFixture({ ...ready, pinned: true }),
+      createSessionActionFixture({ ...ready, isBusy: true }),
+      createSessionActionFixture({ ...ready, isDeleting: true })
+    ]) {
+      const visible = resolveSessionMenuActions(blocked).find(
+        (candidate) => candidate.id === 'session.delete-permanently'
+      )
+      if (blocked.pinned) {
+        expect(visible).toBeUndefined()
+      } else {
+        expect(visible?.availability.enabled).toBe(false)
+      }
+      expect(await executeSessionMenuAction(action!, blocked)).toBe(false)
+    }
+
+    expect(onDeletePermanently).not.toHaveBeenCalled()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it('rejects archiving while generation is unsettled', async () => {
     const context = createSessionActionFixture({ isBusy: true })
     for (const action of resolveSessionMenuActions(context).filter((action) => action.group === 'danger')) {

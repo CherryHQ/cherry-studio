@@ -734,5 +734,27 @@ describe('ResourceEntityRail', () => {
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
     expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
     expect(screen.getByTestId('assistant-b-icon')).toBeInTheDocument()
+    expect(document.querySelector('[data-resource-list-permanent-delete]')).not.toBeInTheDocument()
+  })
+
+  it('mounts permanent delete for the focused entity row when the caller provides it', () => {
+    const onDelete = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        items={ITEMS}
+        permanentDelete={{
+          isItemEligible: (item) => item.id === 'assistant-a',
+          onDelete
+        }}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(document.querySelector('[data-resource-list-permanent-delete]')).toBeInTheDocument()
   })
 })
