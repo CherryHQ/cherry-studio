@@ -4,24 +4,104 @@ import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { OffsetPaginationResponse } from '@shared/data/api/types'
+
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
 import type { RegressionApp } from './RegressionApp'
 
-export async function selectAgent(page: Page, name: string): Promise<void> {
-  await selectSidebarApp(page, 'Work')
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
-  await expect(agentView).toBeVisible({ timeout: 30_000 })
-  const agent = agentView.getByText(name, { exact: true }).first()
-  await expect(agent).toBeVisible()
-  await agent.click({ noWaitAfter: true })
+export async function getBuiltinAssistantAgent(page: Page): Promise<{ id: string; name: string }> {
+  const deadline = Date.now() + 30_000
+  const matches: { id: string; name: string }[] = []
+  const seen = new Set<string>()
+  let observed = 'no response'
+  const fail = (reason: string): never => {
+    throw new Error(
+      `Builtin assistant resolution failed: ${reason}; matches=${matches.length}, entities=${seen.size}; ${observed}`
+    )
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      (async () => {
+        let expectedTotal: number | undefined
+        for (let pageNumber = 1; ; pageNumber += 1) {
+          if (Date.now() >= deadline) fail('30s deadline exceeded')
+          const response = await page
+            .evaluate(
+              (pageNumber) =>
+                window.api.dataApi.request({
+                  id: `builtin-assistant-page-${pageNumber}`,
+                  method: 'GET',
+                  path: '/agents',
+                  params: { page: pageNumber, limit: 100 }
+                }),
+              pageNumber
+            )
+            .catch((error) => fail(`request rejected on page ${pageNumber}: ${String(error)}`))
+          observed = `status=${response.status}, requestedPage=${pageNumber}`
+          if (response.status !== 200 || !response.data) return fail('unsuccessful response')
+          const data = response.data as OffsetPaginationResponse<AgentEntity>
+          observed += `, page=${data.page}, total=${data.total}, items=${Array.isArray(data.items) ? data.items.length : 'invalid'}`
+          expectedTotal ??= data.total
+          if (
+            !Array.isArray(data.items) ||
+            data.page !== pageNumber ||
+            data.total !== expectedTotal ||
+            !Number.isInteger(data.total) ||
+            data.total < 0
+          ) {
+            fail('inconsistent pagination')
+          }
+          for (const agent of data.items) {
+            if (seen.has(agent.id)) fail('duplicate entity across pages')
+            seen.add(agent.id)
+            if (agent.configuration?.builtin_role === 'assistant') matches.push({ id: agent.id, name: agent.name })
+          }
+          if (seen.size > data.total) fail('entity count exceeds total')
+          if (seen.size === data.total) break
+          if (data.items.length === 0) fail('pagination made no progress')
+        }
+        if (matches.length !== 1) return fail('expected exactly one builtin assistant')
+        return matches[0]
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Builtin assistant resolution exceeded 30s; matches=${matches.length}, entities=${seen.size}; ${observed}`
+              )
+            ),
+          30_000
+        )
+      })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
-export async function startNewAgentTask(page: Page, name: string): Promise<void> {
+export async function selectAgent(page: Page, name: string): Promise<void> {
+  await selectSidebarApp(page, 'Work')
+  const agentView = page.locator('[data-ui~="agent.view"]:visible')
+  await expect(agentView).toHaveCount(1, { timeout: 30_000 })
+  await expect(agentView).toBeVisible({ timeout: 30_000 })
+  const agent = agentView.getByText(name, { exact: true }).filter({ visible: true })
+  await expect(agent).toHaveCount(1)
+  await expect(agent).toBeVisible()
+  await agent.click({ noWaitAfter: true })
+  await expect(agentView.getByRole('button', { name, exact: true })).toHaveCount(1)
+}
+
+export async function startNewAgentTask(page: Page): Promise<void> {
+  const { name } = await getBuiltinAssistantAgent(page)
   await selectAgent(page, name)
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
-  const agentHeader = agentView.getByRole('button', { name, exact: true }).first()
+  const agentView = page.locator('[data-ui~="agent.view"]:visible')
+  const agentHeader = agentView.getByRole('button', { name, exact: true })
+  await expect(agentHeader).toHaveCount(1)
   await agentHeader.hover()
   const newTask = agentHeader.locator('..').getByRole('button', { name: 'New task', exact: true })
   await expect(newTask).toBeVisible()
