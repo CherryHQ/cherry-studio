@@ -118,11 +118,15 @@ sequenceDiagram
 
 当前 peer 限制 32 个待返回请求、32 个活动 handler，默认请求期限 5 秒，出站参数上限 32 KiB；断线会拒绝待完成请求。入站 handler 的 5 秒期限和取消信号是协作式的，不能强制中断忽略信号的业务代码。后端还有累计输出及队列预算，但这些不等同于完整的逐帧大小校验。通知、版本握手、schema 绑定方法和完整协议配额仍未实现。
 
+出站请求超时或取消后，底层尚未收到响应的请求继续占用配额，直到响应到达或连接释放；达到上限后拒绝新请求。`timeoutMs` 只接受 `1..2147483647` 的整数，避免 Node 将过大的延迟转换为约 1ms。
+
 ## 5. 生命周期与完成语义
 
 `start()` 返回实例句柄；调用方等待 `ready` 后发起 RPC。当前 ready 表示 MXC 已返回目标进程且标准流可用，不包含 guest 协议握手或业务初始化完成的保证。
 
 实例由 `starting` 进入 `running`；目标退出、取消、超时或显式 `stop()` 汇入 `stopping`，依次执行后端 terminate 与 cleanup。清理成功进入 `stopped`；停止结果未知或清理未完成进入 `failed`，manager 保留所有权以便重试。`completion` 保留首次完成报告，重试后的结果通过 `stop()` 返回值和 `snapshot().lastCompletion` 获取。
+
+准备或启动失败时，`target: not-started` 不触发正常退出处理，`ready` 保留启动错误，完成原因是 `startup-error`。清理未完成时，后端仍关闭输出队列并报告 `OUTPUT_TRUNCATED`：已缓冲的输出可继续读取，后续输出不再收集，避免调用方一直等待流结束。此时进程和清理责任仍由 manager 持有。处理依据见[失败后的资源归属决策](../../.agents/notes/implemented/bug-fix/2026-10-18-sandbox-pending-resources.md)。
 
 | 完成字段 | 含义 |
 | --- | --- |

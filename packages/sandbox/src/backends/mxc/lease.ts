@@ -121,7 +121,15 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
       return exit.status === 'exited' ? 'unverified' : 'unknown'
     },
     async cleanup() {
-      if (!exited && !spawnFailed) return { status: 'incomplete', issues: [] }
+      if (!exited && !spawnFailed) {
+        // Output consumers must finish even while we retain the process for cleanup retries.
+        stdout.close()
+        stderr.close()
+        return {
+          status: 'incomplete',
+          issues: [{ code: 'OUTPUT_TRUNCATED', message: 'Output collection ended before target exit was confirmed' }]
+        }
+      }
       child?.dispose()
       await within(Promise.all([stdout.drained, stderr.drained]), spec.limits.ioDrainTimeoutMs, undefined)
       const truncated = [stdout.discard(), stderr.discard()].some(Boolean)

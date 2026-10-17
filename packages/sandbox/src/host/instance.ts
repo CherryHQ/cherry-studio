@@ -56,7 +56,7 @@ export function createInstance(
   }
   void lease.targetExit.then((value) => {
     target = value
-    void stop('exited')
+    if (value.status === 'exited') void stop('exited')
   })
   void lease.failure.then((error) => {
     ready.reject(error)

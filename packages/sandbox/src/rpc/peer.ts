@@ -70,10 +70,9 @@ export function createRpcPeer(
       if (!object(params)) throw new Error('Expected object params')
       if (pending >= 32) throw new Error('Too many pending RPC requests')
       const timeout = requestOptions.timeoutMs ?? 5000
-      if (!Number.isSafeInteger(timeout) || timeout <= 0) throw new Error('Invalid RPC timeout')
+      if (!Number.isSafeInteger(timeout) || timeout <= 0 || timeout > 2147483647) throw new Error('Invalid RPC timeout')
       if (Buffer.byteLength(JSON.stringify(params)) > 32768) throw new Error('RPC params exceed demo limit')
       const cancellation = new CancellationTokenSource()
-      pending++
       let timer: ReturnType<typeof setTimeout> | undefined
       let cancel = () => {}
       const interrupted = new Promise<never>((_, reject) => {
@@ -93,9 +92,11 @@ export function createRpcPeer(
           cancel()
           return await interrupted
         }
-        return await Promise.race([connection.sendRequest<JsonValue>(method, params, cancellation.token), interrupted])
+        const response = connection.sendRequest<JsonValue>(method, params, cancellation.token)
+        pending++
+        // Cancellation does not remove vscode-jsonrpc's pending response promise.
+        return await Promise.race([response.finally(() => pending--), interrupted])
       } finally {
-        pending--
         clearTimeout(timer)
         disposals.delete(cancel)
         requestOptions.signal?.removeEventListener('abort', cancel)
