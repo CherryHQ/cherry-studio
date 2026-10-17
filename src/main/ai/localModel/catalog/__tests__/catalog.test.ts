@@ -170,6 +170,17 @@ describe('local model catalog', () => {
     }
   })
 
+  it('gives every chat model the runtime and weights the llm process loads', () => {
+    const chatBundles = bundles.filter((bundle) => bundle.capability === 'llm')
+
+    expect(chatBundles.length).toBeGreaterThan(0)
+    for (const bundle of chatBundles) {
+      expect(bundle.requires).toContain('node-llama-cpp')
+      expect(bundle.runtime?.chat?.maxContextSize).toBeGreaterThan(0)
+      expect(bundleFile(bundle, 'weights').relPath).toMatch(/\.gguf$/)
+    }
+  })
+
   it('throws on an unknown file key rather than yielding an undefined path', () => {
     expect(() => bundleFile(defaultBundleForCapability('ocr'), 'nope')).toThrow(/no file with key/)
   })

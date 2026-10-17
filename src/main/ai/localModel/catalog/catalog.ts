@@ -618,6 +618,64 @@ export const LOCAL_MODEL_BUNDLES = {
         ]
       }
     ]
+  },
+  'qwen3.5-4b-q4_k_m': {
+    id: 'qwen3.5-4b-q4_k_m',
+    capability: 'llm',
+    installDirKey: 'feature.llm.qwen3_5_4b',
+    requires: ['node-llama-cpp'],
+    runtime: {
+      // Thinking-mode general settings from the Qwen3.5 model card.
+      chat: { maxContextSize: 32_768, sampling: { temperature: 1, topP: 0.95, topK: 20, presencePenalty: 1.5 } }
+    },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: 'https://huggingface.co/Qwen/Qwen3.5-4B/blob/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a/LICENSE'
+      },
+      upstream: {
+        url: 'https://huggingface.co/Qwen/Qwen3.5-4B',
+        revision: '851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a'
+      },
+      conversion: {
+        url: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF',
+        revision: 'e87f176479d0855a907a41277aca2f8ee7a09523',
+        license: {
+          spdx: 'Apache-2.0',
+          url: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/tree/e87f176479d0855a907a41277aca2f8ee7a09523'
+        }
+      }
+    },
+    files: [
+      {
+        key: 'weights',
+        relPath: 'Qwen3.5-4B-Q4_K_M.gguf',
+        sha256: '00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4',
+        sizeBytes: 2_740_937_888,
+        minBytes: 2_740_937_888,
+        weight: 2741,
+        sources: [
+          {
+            source: 'modelscope',
+            repo: 'unsloth/Qwen3.5-4B-GGUF',
+            revision: '167b4afc359863325cb4164418c715421b4e9118',
+            remoteFile: 'Qwen3.5-4B-Q4_K_M.gguf'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'unsloth/Qwen3.5-4B-GGUF',
+            revision: 'e87f176479d0855a907a41277aca2f8ee7a09523',
+            remoteFile: 'Qwen3.5-4B-Q4_K_M.gguf'
+          },
+          {
+            source: 'huggingface',
+            repo: 'unsloth/Qwen3.5-4B-GGUF',
+            revision: 'e87f176479d0855a907a41277aca2f8ee7a09523',
+            remoteFile: 'Qwen3.5-4B-Q4_K_M.gguf'
+          }
+        ]
+      }
+    ]
   }
 } as const satisfies Record<LocalModelBundleId, ModelBundle>
 

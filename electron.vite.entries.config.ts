@@ -33,6 +33,7 @@ export default {
             'src/main/ai/localModel/runtime/utilityEntries/inferenceEmbedding.ts'
           ),
           'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts'),
+          'inference-llm': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceLlm.ts'),
           'voice-audio': resolve(__dirname, 'src/main/ai/voice/localAdapters/utilityEntries/voiceAudio.ts')
         }
       },

@@ -150,6 +150,8 @@ export function buildPathRegistry() {
 
     // llama.cpp prebuilt binaries for node-llama-cpp, downloaded on demand.
     'feature.llama_cpp.binary': path.join(appUserDataToolchain, 'node-llama-cpp'),
+    // Local chat model weights (GGUF), downloaded on demand.
+    'feature.llm.qwen3_5_4b': path.join(appUserDataRuntime, 'models', 'qwen3.5-4b-q4_k_m'),
     'feature.tts.qwen3': path.join(appUserDataRuntime, 'models', 'qwen3-tts-0.6b-customvoice-8bit'),
     'feature.tts.kokoro': path.join(appUserDataRuntime, 'models', 'kokoro-multi-lang-v1.1'),
 

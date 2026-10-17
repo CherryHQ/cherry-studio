@@ -23,6 +23,9 @@ const CAPABILITY_HOOKS: Record<LocalModelCapability, (modelId: LocalModelBundleI
   }),
   asr: (modelId) => ({
     terminateRuntimeThen: (after) => application.get('AsrInferenceService').removeModelThen(modelId, after)
+  }),
+  llm: (modelId) => ({
+    terminateRuntimeThen: (after) => application.get('LlmInferenceService').removeModelThen(modelId, after)
   })
 }
 
