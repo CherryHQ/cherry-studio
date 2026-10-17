@@ -538,6 +538,46 @@ describe('ChannelAdapterListener', () => {
     expect(events.indexOf('error:end')).toBeLessThan(events.indexOf('update:wake report'))
   })
 
+  // The terminal owes the chat's single controller a chain position taken at initiation: while the
+  // error terminal waits for the foreground draft, a wake chunk must queue BEHIND it — otherwise the
+  // wake's draft rewrites the card and the error finalizes on top of the wrong text.
+  it('reserves the error terminal ahead of a wake draft queued while the terminal waits', async () => {
+    const order: string[] = []
+    let releaseDraft!: () => void
+    const draftGate = new Promise<void>((resolve) => {
+      releaseDraft = resolve
+    })
+    const adapter = makeAdapter({
+      onTextUpdate: vi.fn(async (_chatId: string, text: string) => {
+        if (text === 'partial answer') await draftGate
+        order.push(`update:${text}`)
+      }),
+      onStreamError: vi.fn(async (_chatId: string, message: string) => {
+        order.push(`error:${message}`)
+        return true
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('partial answer'), undefined, undefined, 1)
+    await flushLiveUpdate()
+    const errored = listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'foreground boom' },
+      isTopicDone: true,
+      attemptId: 1
+    })
+
+    // The wake streams through the carried listener while the error terminal is still waiting for
+    // the foreground draft update to settle.
+    listener.onChunk(delta('wake result'), undefined, undefined, 2)
+    releaseDraft()
+    await errored
+    await flushLiveUpdate()
+
+    expect(order.indexOf('error:foreground boom')).toBeLessThan(order.indexOf('update:wake result'))
+  })
+
   it('keeps two channel listeners’ terminal text separate when the first finalizes slowly', async () => {
     const firstText: string[] = []
     const secondText: string[] = []

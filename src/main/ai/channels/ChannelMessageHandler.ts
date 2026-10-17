@@ -17,6 +17,7 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { Disposable } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
+import { AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY } from '@shared/ai/agentSessionBackgroundTasks'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -875,6 +876,20 @@ export class ChannelMessageHandler {
       rejectExecution = reject
     })
     let accumulatedText = ''
+    const channelListener = new ChannelAdapterListener(adapter, chatId, false, responseOptions)
+    // Same retention rule as the scheduled fire: a settle with this request's background work still
+    // pending owes this chat the work's result, stashed with the live task ids as its claim debt.
+    const retainForWake = () => {
+      if (!application.get('AgentSessionRuntimeService').hasPendingBackgroundWork(session.id)) return
+      const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(session.id))
+      application
+        .get('AiStreamManager')
+        .stashWakeChannelListeners(
+          buildAgentSessionTopicId(session.id),
+          [channelListener],
+          new Set((tasks ?? []).map((task) => task.id))
+        )
+    }
     const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,
       onChunk(chunk) {
@@ -882,12 +897,15 @@ export class ChannelMessageHandler {
         if (chunk.type === 'text-delta') accumulatedText += chunk.delta
       },
       onDone() {
+        retainForWake()
         resolveExecution(accumulatedText.trim())
       },
       onPaused() {
+        retainForWake()
         resolveExecution(accumulatedText.trim())
       },
       onError(result) {
+        retainForWake()
         rejectExecution(new Error(result.error.message ?? 'Execution failed'))
       },
       isAlive: () => !abortController.signal.aborted
@@ -897,7 +915,7 @@ export class ChannelMessageHandler {
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts,
-        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
+        listeners: [sentinel, channelListener],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
       })

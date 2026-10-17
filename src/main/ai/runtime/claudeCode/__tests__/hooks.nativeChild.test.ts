@@ -19,7 +19,12 @@ import type { UniqueModelId } from '@shared/data/types/model'
  * guard lookup are all the production ones — a stubbed resolver would pass whatever it was told.
  */
 const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, analyticsService } = vi.hoisted(() => ({
-  state: { getToolPolicySnapshot: vi.fn(), getBashNoProgressRun: vi.fn(), getSteerHolder: vi.fn() },
+  state: {
+    getToolPolicySnapshot: vi.fn(),
+    getBashNoProgressRun: vi.fn(),
+    getSteerHolder: vi.fn(),
+    disposeBashScope: vi.fn()
+  },
   aiStreamManager: {
     startRuntimeTurn: vi.fn(),
     getInteractionWindow: vi.fn(),
@@ -141,7 +146,7 @@ function settleTurn(): void {
   runtime().markTurnTerminal(SESSION_ID, 'success')
 }
 
-function hook(kind: 'PreToolUse' | 'SubagentStart'): HookCallback {
+function hook(kind: 'PreToolUse' | 'SubagentStart' | 'SubagentStop'): HookCallback {
   const table = buildClaudeCodeHooks({
     sessionId: SESSION_ID,
     cwd: '/tmp',
@@ -254,5 +259,37 @@ describe('native Claude child authority across a desktop follow-up', () => {
 
     // The desktop turn only has to ask — its own interactive turn is untouched by the fix.
     expect(decisionOf(await fireGuard({ tool_name: SESSION_SEND_TOOL })).permissionDecision).toBe('ask')
+  })
+
+  // SubagentStop is not an authoritative termination: the consumed SDK (0.3.284) explicitly lets a
+  // SubagentStop hook continue the same child via additionalContext, so a "stopped" child can still
+  // issue MCP calls. Releasing its binding there would flip those unattributed calls from the
+  // headless denial to the desktop follow-up's interactive stream — auto-approved cross-Session
+  // discovery. The binding survives until the connection resets (children are connection-owned).
+  it('keeps a stopped child’s binding until the connection resets', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    await hook('SubagentStop')(
+      { hook_event_name: 'SubagentStop', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    // Desktop follow-up takes the entry and a continue-via-additionalContext call from the
+    // "stopped" child arrives with no per-call provenance.
+    beginTurn(false)
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID)).toMatchObject({
+      currentTurn: 'headless',
+      userResponse: 'unavailable'
+    })
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID, NATIVE_CHILD)).toMatchObject({
+      currentTurn: 'headless',
+      userResponse: 'unavailable'
+    })
   })
 })

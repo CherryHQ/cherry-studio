@@ -378,9 +378,14 @@ export class AiStreamManager extends BaseService {
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
   /**
    * IM-channel recipients still owed a background result, by topic. Detached work outlives the
-   * turn that spawned it, and an intervening turn legitimately drops these listeners.
+   * turn that spawned it, and an intervening turn legitimately drops these listeners. The stash
+   * records the driver task ids its fire saw pending: the wake claims only once those very ids
+   * have left the live set — another fire's overlapping task must not delay or steal the claim.
    */
-  private readonly pendingChannelListeners = new Map<string, StreamListener[]>()
+  private readonly pendingChannelListeners = new Map<
+    string,
+    { listeners: StreamListener[]; owesTaskIds: ReadonlySet<string> }
+  >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -960,14 +965,33 @@ export class AiStreamManager extends BaseService {
   /**
    * Bind channel recipients to the background work that still owes their chat a delivery, so a
    * stream replacement can drop them without stranding that obligation. Only the component that
-   * knows the obligation — the task fire retaining its recipients — may stash: a replacement that
-   * stashed whatever it found would hand a served chat to an unrelated wake.
+   * knows the obligation — the fire (or inbound request) retaining its recipients — may stash: a
+   * replacement that stashed whatever it found would hand a served chat to an unrelated wake.
+   * `owesTaskIds` is the driver's live background set at stash time; the claim is discharged only
+   * once those ids leave it, so another fire's still-running task can neither delay nor steal it.
    */
-  stashWakeChannelListeners(topicId: string, listeners: StreamListener[]): void {
+  stashWakeChannelListeners(topicId: string, listeners: StreamListener[], owesTaskIds?: ReadonlySet<string>): void {
     if (listeners.length === 0) return
-    const pending = new Map(this.pendingChannelListeners.get(topicId)?.map((l) => [l.id, l]))
-    for (const listener of listeners) pending.set(listener.id, listener)
-    this.pendingChannelListeners.set(topicId, [...pending.values()])
+    const pending = this.pendingChannelListeners.get(topicId)
+    const merged = new Map(pending?.listeners.map((l) => [l.id, l]))
+    for (const listener of listeners) merged.set(listener.id, listener)
+    const debts = new Set(pending?.owesTaskIds)
+    for (const id of owesTaskIds ?? []) debts.add(id)
+    this.pendingChannelListeners.set(topicId, { listeners: [...merged.values()], owesTaskIds: debts })
+  }
+
+  /**
+   * Whether the topic's stashed recipients are ready to be claimed: every task they owe has left
+   * the driver's live background set. Bound to the stash's own recorded debt, not to the live set
+   * being empty — an unrelated fire's still-running task must not delay this claim.
+   */
+  stashedWakeRecipientsDischarged(topicId: string, listedTaskIds: ReadonlySet<string>): boolean {
+    const pending = this.pendingChannelListeners.get(topicId)
+    if (!pending) return true
+    for (const id of pending.owesTaskIds) {
+      if (listedTaskIds.has(id)) return false
+    }
+    return true
   }
 
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
@@ -975,10 +999,10 @@ export class AiStreamManager extends BaseService {
     const carriedListeners = existing
       ? [...existing.listeners.values()].filter((listener) => {
           if (listener.id.startsWith('persistence:') || listener.id.startsWith('agent-runtime:')) return false
-          // Channel recipients ride only into the wake that owes their chat a delivery — a user
-          // follow-up or the next scheduled fire starting its own turn must not inherit them.
-          if (listener.id.startsWith('channel:') && !input.carryChannelListeners) return false
-          return true
+          // Channel recipients ride ONLY via the stash: the fire recorded the obligation there, and
+          // a carried copy of a served (or never-recorded) listener would hand later wakes to chats
+          // that were already answered — a user follow-up or the next fire must not inherit them.
+          return !listener.id.startsWith('channel:')
         })
       : []
 
@@ -987,7 +1011,7 @@ export class AiStreamManager extends BaseService {
     // Retained recipients were stashed by the fire that owes their delivery; a successor turn that
     // drops them must not re-stash whatever it found, or a served chat rides into an unrelated wake.
     const owedChannelListeners = input.carryChannelListeners
-      ? (this.pendingChannelListeners.get(input.topicId) ?? [])
+      ? (this.pendingChannelListeners.get(input.topicId)?.listeners ?? [])
       : []
     if (input.carryChannelListeners) this.pendingChannelListeners.delete(input.topicId)
 
@@ -1212,9 +1236,9 @@ export class AiStreamManager extends BaseService {
     // Unsubscribing also releases the wake binding, so a given-up recipient is never restored.
     const pending = this.pendingChannelListeners.get(topicId)
     if (pending) {
-      const remaining = pending.filter((listener) => listener.id !== listenerId)
+      const remaining = pending.listeners.filter((listener) => listener.id !== listenerId)
       if (remaining.length === 0) this.pendingChannelListeners.delete(topicId)
-      else this.pendingChannelListeners.set(topicId, remaining)
+      else this.pendingChannelListeners.set(topicId, { ...pending, listeners: remaining })
     }
     const stream = this.activeStreams.get(topicId)
     stream?.listeners.delete(listenerId)

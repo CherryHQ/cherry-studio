@@ -112,6 +112,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY } from '@shared/ai/agentSessionBackgroundTasks'
 
 import type * as AgentDataDirectoryModule from '../agentDataDirectory'
 import { runAgentTask } from '../runAgentTask'
@@ -843,6 +844,13 @@ describe('runAgentTask', () => {
           }
         : undefined) as never)
     mockHasPendingBackgroundWork.mockReturnValue(true)
+    // The driver's live background set at settle time: the fire records these ids as the stash's
+    // debt, so the wake claims by ITS OWN tasks draining — not by the session-wide list emptying.
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY('sess-new'), [
+        { id: 'task-a', type: 'task', description: 'review' }
+      ])
 
     const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
@@ -851,9 +859,10 @@ describe('runAgentTask', () => {
 
     const stashedTopicIds = mockStashWakeChannelListeners.mock.calls.map(([topicId]) => topicId)
     expect(stashedTopicIds).toHaveLength(1)
-    const [topicId, stashed] = mockStashWakeChannelListeners.mock.calls[0]
+    const [topicId, stashed, owesTaskIds] = mockStashWakeChannelListeners.mock.calls[0]
     expect(String(topicId)).toContain('session')
     expect(stashed.map((listener: { id: string }) => listener.id)).toEqual(['channel:ch1:chat-1:unthreaded'])
+    expect(owesTaskIds).toEqual(new Set(['task-a']))
   })
 
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly

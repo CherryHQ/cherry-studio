@@ -47,6 +47,8 @@ const mocks = vi.hoisted(() => ({
   terminateHeldTopicStream: vi.fn(),
   finalizeHeldTopicStream: vi.fn(async () => undefined),
   clearPendingChannelListeners: vi.fn(),
+  // Real-method default: no stash on the topic → the wake may carry (nothing owed anywhere).
+  stashedWakeRecipientsDischarged: vi.fn(() => true),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -570,7 +572,8 @@ describe('AgentSessionRuntimeService', () => {
           resolveToolApproval: mocks.resolveToolApproval,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream,
           finalizeHeldTopicStream: mocks.finalizeHeldTopicStream,
-          clearPendingChannelListeners: mocks.clearPendingChannelListeners
+          clearPendingChannelListeners: mocks.clearPendingChannelListeners,
+          stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged
         }
       }
       if (name === 'CacheService')

@@ -725,7 +725,81 @@ describe('AiStreamManager', () => {
     expect(sent).toEqual(['Found it: 42'])
   })
 
-  it('carries channel listeners into a receive-only wake turn', async () => {
+  // The stash is bound to the tasks its fire saw pending, not to session-wide emptiness: A's wake
+  // must claim A's recipients while B's unrelated task is still listed, and B's later wake must
+  // find nothing left to post B's output to A's external chats.
+  it('claims a stash whose own owed tasks drained even while another fire’s task is still listed', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // Fire A settles with task-a still pending (B has not started yet, so the listed set is A's own).
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a']))
+
+    // Desktop follow-up B replaces the held stream and drops A's recipients.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // task-a drained; only B's task-b is still listed. The old session-wide emptiness rule refused
+    // this claim here and let B's wake inherit the recipients instead.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-b']))).toBe(true)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('A result'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['A result'])
+
+    // B's later wake finds no stash — B's output must not reach A's chat.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(4))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('B result'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['A result'])
+  })
+
+  // The stash is the wake's ONLY route to channel recipients. A listener still attached to the held
+  // stream was either already served or never recorded as owed — carrying a copy of it into the
+  // wake would hand the wake's output (possibly another fire's) to that chat.
+  it('does not carry a held stream’s channel listeners into a wake — only stashed ones ride', async () => {
     const topicId = 'agent-session:s1'
     mgr.startRuntimeTurn({
       topicId,
@@ -744,7 +818,7 @@ describe('AiStreamManager', () => {
     })
     await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
 
-    expect(mgr.inspect(topicId)?.listenerIds).toContain('channel:ch1:chat-1:unthreaded')
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain('channel:ch1:chat-1:unthreaded')
   })
 
   // Canceling the runtime kills its detached work, so the recipients its fire stashed can never
