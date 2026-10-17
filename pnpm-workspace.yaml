@@ -121,6 +121,7 @@ patchedDependencies:
 allowBuilds:
   "@google/genai": false
   "@j178/prek": true
+  "@openuidev/lang-core": false
   "@paymoapp/electron-shutdown-handler": true
   "@scarf/scarf": true
   "@sentry/cli": true
@@ -185,3 +186,5 @@ minimumReleaseAgeExclude:
   - "@cherrystudio/computer-use-linux-x64@0.1.7"
   - "@cherrystudio/computer-use-win32-x64@0.1.7"
   - "mediabunny@1.58.0"
+  - "@openuidev/lang-core@1.0.1"
+  - "@openuidev/react-lang@1.0.1"
