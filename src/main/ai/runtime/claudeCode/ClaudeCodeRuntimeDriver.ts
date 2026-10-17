@@ -6,7 +6,9 @@ import type {
   SDKAssistantMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
-  SDKUserMessage
+  SDKUserMessage,
+  SpawnedProcess,
+  SpawnOptions
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -64,6 +66,8 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { ensureClaudeCodeSpawnCapacity } from './claudeCodeSpawnCapacity'
+import { isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
@@ -348,6 +352,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
    *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
+  /** Set when ensureClaudeCodeSpawnCapacity reserved a slot before the SDK cold-starts. */
+  private liveSpawnPreflightReserved = false
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -377,6 +383,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
+    const wrapColdSpawn = (spawn: (options: SpawnOptions) => SpawnedProcess) => {
+      return (spawnOptions: SpawnOptions) => {
+        this.liveSpawnPreflightReserved = false
+        return spawn(spawnOptions)
+      }
+    }
     const options: Options = {
       ...request.options,
       ...(!this.resumeToken && this.input.nativeSessionId ? { sessionId: this.input.nativeSessionId } : {}),
@@ -389,7 +401,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
+      spawnClaudeCodeProcess: wrapColdSpawn(createSpawnClaudeCodeProcess(coldProcessDiagnostics))
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -413,11 +425,21 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.spawnOptions = consumedWarmQuery
       ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
       : options
+    if (!consumedWarmQuery && !(await ensureClaudeCodeSpawnCapacity('live', this.input.signal))) {
+      if (this.input.signal?.aborted) throw new Error('Claude Code connection cancelled before spawn')
+      throw new Error('Claude Code CLI process cap reached')
+    }
+    if (!consumedWarmQuery) this.liveSpawnPreflightReserved = true
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
-    const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
-    this.query = consumedWarmQuery
-      ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
-      : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+    try {
+      const { query: createClaudeQuery } = await import('@anthropic-ai/claude-agent-sdk')
+      this.query = consumedWarmQuery
+        ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
+        : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+    } catch (error) {
+      this.releaseLiveSpawnPreflightIfHeld()
+      throw error
+    }
     this.adapterModelId = request.sdkModelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
@@ -655,8 +677,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     await Promise.all([closing, exited])
   }
 
+  private releaseLiveSpawnPreflightIfHeld(): void {
+    if (!this.liveSpawnPreflightReserved) return
+    this.liveSpawnPreflightReserved = false
+    application.get('ClaudeCodeProcessManager').releaseLiveSpawnPreflight()
+  }
+
   private async closeQuery(): Promise<void> {
     const query = this.query
+    this.releaseLiveSpawnPreflightIfHeld()
     this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
@@ -1393,8 +1422,13 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   onSessionIdle(sessionId: string): void {
+    if (isClaudeCodeSpawnMemoryPressured()) return
     // `prewarmAgentSession` bakes the session's trace env when trace mode is on, so the park it
     // leaves behind matches what the next turn asks for either way — no driver-side guard needed.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
+  }
+
+  onSessionIdleWithoutWarmLease(sessionId: string): void {
+    application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
   }
 }
