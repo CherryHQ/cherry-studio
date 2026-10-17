@@ -316,7 +316,7 @@ function assertSessionToolsAuthorized(ctx: AutonomyToolsContext): void {
   if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') {
     throw new AgentSessionDeliveryRoutingError(
       'SESSION_TOOL_FORBIDDEN',
-      'Cross-Session discovery and delegation require an interactive user turn'
+      'Cross-Session discovery and delegation require an interactive user turn, and this delivery-, channel-, or scheduled-triggered turn has none: the call was denied and did not run, and retrying it inside this turn cannot succeed. If this turn was started by a delivery with reply "completion", its final assistant output is returned to the sender automatically — finish the turn with your answer as normal output instead of calling session tools.'
     )
   }
 }
