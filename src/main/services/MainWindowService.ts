@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
+import { getUserDataMappingFallback } from '@main/core/preboot/userDataLocation'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
@@ -67,6 +68,7 @@ export class MainWindowService extends BaseService {
    */
   private suppressInitialLaunchShow = false
   private architectureWarningShown = false
+  private userDataMappingWarningShown = false
 
   constructor() {
     super()
@@ -522,10 +524,30 @@ export class MainWindowService extends BaseService {
     }
   }
 
+  private async showUserDataMappingWarning(mainWindow: BrowserWindow) {
+    const fallback = getUserDataMappingFallback()
+    if (!fallback || this.userDataMappingWarningShown) return
+    this.userDataMappingWarningShown = true
+
+    await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      message: t('dialog.user_data_mapping_fallback.message', { path: fallback.effectivePath }),
+      detail:
+        fallback.reason === 'mapped-directory-unusable'
+          ? t('dialog.user_data_mapping_fallback.detail_unusable_mapping', { mappedPath: fallback.mappedPath ?? '' })
+          : t('dialog.user_data_mapping_fallback.detail_not_configured', { exe: fallback.exe }),
+      buttons: [t('dialog.user_data_mapping_fallback.ok')],
+      noLink: true
+    })
+  }
+
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('show', () => {
       void this.showArchitectureWarning(mainWindow).catch((error) => {
         logger.error('Failed to show architecture warning or open download page', error)
+      })
+      void this.showUserDataMappingWarning(mainWindow).catch((error) => {
+        logger.error('Failed to show user data directory warning', error)
       })
     })
 
