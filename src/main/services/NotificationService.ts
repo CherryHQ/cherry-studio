@@ -154,20 +154,21 @@ export class NotificationService extends BaseService {
     try {
       const preferences = application.get('PreferenceService')
       const enabled = preferences.get(`app.notification.center.${input.category}.enabled`)
+      const result = input.target?.result
       const completion = input.kind === 'task-completion' || input.kind === 'queue-completion'
       const active =
         enabled &&
-        (completion || !!input.result) &&
+        (completion || !!result) &&
         input.target?.kind === 'conversation' &&
         getFullChromeWindowInfos().some((window) => window.isFocused) &&
         (await application.get('ConversationNavigationService').isActiveInFocusedWindow(input.target))
-      const suppressed = !enabled || (active && (completion || input.result?.status === 'succeeded'))
-      const recordOnly = options.recordOnly || input.result?.status === 'cancelled' || (!!input.result && active)
+      const suppressed = !enabled || (active && (completion || result?.status === 'succeeded'))
+      const recordOnly = options.recordOnly || result?.status === 'cancelled' || (!!result && active)
       const initial = {
         ...input,
-        readAt: input.result && recordOnly ? Date.now() : input.readAt
+        readAt: result && recordOnly ? Date.now() : input.readAt
       }
-      const record = input.result
+      const record = result
         ? notificationRecordService.consumeTaskResult(input.eventKey, suppressed ? null : initial)
         : suppressed
           ? null
@@ -187,7 +188,7 @@ export class NotificationService extends BaseService {
         }
       }
       if (focused) {
-        if (options.completion || input.result || input.category === 'usage') {
+        if (options.completion || result || input.category === 'usage') {
           application.get('IpcApiService').send(focused.id, 'notification.present', record)
         }
         return true
@@ -240,8 +241,7 @@ export class NotificationService extends BaseService {
           }[result.status],
           message: result.errorSummary ? `${result.name}: ${result.errorSummary}` : result.name,
           createdAt: input.finishedAt,
-          target: input.target,
-          result
+          target: { ...input.target, result }
         },
         { source: 'assistant', completion: result.status === 'succeeded' }
       )

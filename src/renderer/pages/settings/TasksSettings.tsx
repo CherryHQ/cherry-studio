@@ -995,7 +995,7 @@ const TaskDetail: FC<{
     !notificationError &&
     notification.target?.kind === 'scheduled-task' &&
     notification.target.taskId === task.id
-      ? notification.result?.errorSummary
+      ? notification.target.result?.errorSummary
       : undefined
   const { theme } = useTheme()
   const { channels: rawChannels } = useChannels()

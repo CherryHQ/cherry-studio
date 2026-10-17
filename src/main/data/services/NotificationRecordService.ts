@@ -54,7 +54,7 @@ class NotificationRecordService {
     if (input.createdAt <= Date.now() - RETENTION_MS) return null
     const record = db
       .insert(table)
-      .values({ ...input, target: input.target ?? null, result: input.result ?? null })
+      .values({ ...input, target: input.target ?? null })
       .onConflictDoNothing({ target: table.eventKey })
       .returning()
       .get()

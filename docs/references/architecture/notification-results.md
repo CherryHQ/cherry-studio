@@ -44,7 +44,9 @@ state is part of the insert, so it cannot briefly increment unread counts. A fai
 `false` from publication and may be retried. Delivery failure after commit is best effort and does not
 replay the result. Concurrent duplicates cannot both commit a record.
 
-Records expire after 30 days; nullable JSON result metadata preserves old notification rows. Consumption
+Records expire after 30 days. Optional `target.result` metadata reuses the existing notification target
+JSON, alongside its navigation fields; old targets need no conversion. List/detail queries and presentation
+events carry the same record, with no extra endpoint, storage adapter, table, column or migration. Consumption
 markers remain after read, dismissal, expiry and preference changes. Expired late outcomes also consume
 the identity. Markers contain no task content and currently have no pruning policy: retention is required
 until a future producer can guarantee a replay horizon. There is no separate task-result history table or
@@ -72,13 +74,15 @@ Those facts and end-to-end coverage belong to the future runtime integration.
 
 ## Release and recovery
 
-Merge the notification-center prerequisite first. This layer adds one nullable column; existing rows,
-indexes and keys are unchanged and remain readable after upgrade. Keep consumption markers intact during
-repair, otherwise upstream replays could alert again. No published-result data is rewritten by migration.
+Merge the notification-center prerequisite first. This layer uses its existing schema; rows, indexes and
+keys remain readable without a database upgrade. Keep consumption markers intact during repair, otherwise
+upstream replays could alert again. The unmerged draft's result-column migration was removed before release.
 
 If release validation fails before publishing results, revert the application code to the prerequisite
-commit (for example `git revert <notification-result-commit>` in a reviewed rollback branch), leaving the
-additive column and migration journal intact. After publication, older target schemas cannot understand
+commit (for example `git revert <notification-result-commit>` in a reviewed rollback branch). A development
+profile that ran the earlier draft migration may retain its unused nullable column; do not drop it or
+rewrite its migration journal. That draft's column-only snapshots are not converted; their original
+notification titles, messages and targets remain. After publication, older target schemas cannot understand
 the new scheduled-task target. Do not downgrade that database in place; use a verified pre-upgrade backup
 through the existing backup/restore flow, with explicit acceptance of losing changes since that backup.
 Do not drop or rewrite user tables. Native application downgrade and recovery after an interrupted write

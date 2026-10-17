@@ -57,7 +57,7 @@ export function ConversationNotificationRuntime(): null {
       return
 
     const showToast =
-      notification.result?.status === 'failed' || notification.result?.status === 'interrupted'
+      notification.target?.result?.status === 'failed' || notification.target?.result?.status === 'interrupted'
         ? toast.error
         : notification.category === 'usage' ||
             notification.kind === 'backup-failed' ||

@@ -137,7 +137,12 @@ describe('ConversationNotificationRuntime', () => {
         category: 'system',
         title: 'Task failed',
         message: 'Safe error',
-        result: { status, source: 'agent', name: 'Saved task', actor: { name: 'Saved agent', emoji: '🤖' } }
+        target: {
+          kind: 'conversation',
+          conversationType: 'agent',
+          conversationId: 'session-1',
+          result: { status, source: 'agent', name: 'Saved task', actor: { name: 'Saved agent', emoji: '🤖' } }
+        }
       })
     )
     const options = mocks.toastError.mock.calls[0][0]

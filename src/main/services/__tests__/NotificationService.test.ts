@@ -2,6 +2,7 @@ import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { notificationHandlers } from '@data/api/handlers/notifications'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -18,7 +19,7 @@ import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import type { TaskResultNotificationInput } from '@shared/data/types/notification'
+import { NotificationRecordSchema, type TaskResultNotificationInput } from '@shared/data/types/notification'
 
 const NOTIFICATION_PREF_KEYS = [
   'app.notification.assistant.enabled',
@@ -302,10 +303,23 @@ describe('NotificationService', () => {
     )
     mocks.preferenceValues['app.notification.completion_sound.enabled'] = true
     await service.publishTaskResult(
-      taskResult({ status: 'failed', durationMs: 500, errorSummary: 'Authorization: Bearer secret-value' })
+      taskResult({
+        status: 'failed',
+        actor: { name: 'Saved agent', emoji: '🤖' },
+        durationMs: 500,
+        errorSummary: 'Authorization: Bearer secret-value'
+      })
     )
     const record = notificationRecordService.list().items[0]
-    expect(record.result).toMatchObject({ status: 'failed', durationMs: 500 })
+    const saved = NotificationRecordSchema.parse(
+      await notificationHandlers['/notifications/:id'].GET({ params: { id: record.id } })
+    )
+    expect(saved.target).toMatchObject({
+      messageId: 'message-1',
+      result: { status: 'failed', durationMs: 500, actor: { name: 'Saved agent', emoji: '🤖' } }
+    })
+    expect(saved.target?.result?.errorSummary).not.toContain('secret-value')
+    expect(await notificationHandlers['/notifications'].GET({ query: {} })).toMatchObject({ items: [saved] })
     expect(record.message).not.toContain('secret-value')
     expect(mocks.send.mock.calls.filter(([, event]) => event === 'notification.present')).toEqual([
       ['main-1', 'notification.present', record]
@@ -400,7 +414,7 @@ describe('NotificationService', () => {
       })
     )
     const record = notificationRecordService.list().items[0]
-    expect(record.result?.errorSummary).toBe('Failed before creating a session')
+    expect(record.target?.result?.errorSummary).toBe('Failed before creating a session')
     const lookup = vi.spyOn(agentTaskService, 'getTaskById').mockReturnValue(null)
     await expect(service.activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
     expect(lookup).toHaveBeenCalledWith('deleted')
@@ -420,7 +434,12 @@ describe('NotificationService', () => {
           createdAt: Date.now(),
           target
         })!
-      const target = { kind: 'conversation' as const, conversationType, conversationId: 'shared-id' }
+      const target = {
+        kind: 'conversation' as const,
+        conversationType,
+        conversationId: 'shared-id',
+        result: { source: conversationType, status: 'succeeded' as const, name: 'Saved task' }
+      }
       const matching = Array.from({ length: 55 }, (_, index) => create(`matching:${index}`, target))
       const otherType = create('other-type', {
         ...target,
@@ -1066,21 +1085,45 @@ describe('NotificationService', () => {
   })
 })
 
-// Upgrade a populated pre-result inbox through the production migration chain.
-describe('notification result migration', () => {
+// Results must coexist with old history using only the prerequisite's production schema.
+describe('notification result storage compatibility', () => {
   const dbh = setupTestDatabase({ migrationsThrough: '0028_wet_lila_cheney' })
-  it('preserves old records, targets and unread state with nullable result metadata', async () => {
-    const { applyMigrations } = await import('@data/db/applyMigrations')
-    const { resolveMigrationsPath } = await import('@test-helpers/db/internal/migrationsPath')
+  it.each([
+    null,
+    { kind: 'conversation' as const, conversationType: 'assistant' as const, conversationId: 'old-topic' }
+  ])('preserves old history and adds results without upgrading the database (%j)', (target) => {
     const id = crypto.randomUUID()
     dbh.sqlite
       .prepare(
-        'INSERT INTO notification_record (id, event_key, category, kind, title, message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO notification_record (id, event_key, category, kind, title, message, created_at, target) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(id, 'legacy', 'system', 'task-completion', 'Existing', 'History', Date.now())
-    applyMigrations(dbh.db, resolveMigrationsPath())
-    expect(notificationRecordService.getById(id)).toMatchObject({ title: 'Existing', readAt: null, result: null })
-    expect(notificationRecordService.unreadCount()).toBe(1)
+      .run(
+        id,
+        'legacy',
+        'system',
+        'task-completion',
+        'Existing',
+        'History',
+        Date.now(),
+        target && JSON.stringify(target)
+      )
+    const result = { source: 'agent' as const, status: 'failed' as const, name: 'New task' }
+    const created = notificationRecordService.consumeTaskResult('new-result', {
+      eventKey: 'new-result',
+      category: 'system',
+      kind: 'task-result',
+      title: 'Failed',
+      message: 'New task',
+      createdAt: Date.now(),
+      target: { kind: 'conversation', conversationType: 'agent', conversationId: 'new-session', result }
+    })!
+    expect(NotificationRecordSchema.parse(notificationRecordService.getById(id))).toMatchObject({
+      title: 'Existing',
+      readAt: null,
+      target
+    })
+    expect(NotificationRecordSchema.parse(notificationRecordService.getById(created.id)).target?.result).toEqual(result)
+    expect(notificationRecordService.unreadCount()).toBe(2)
     expect(dbh.sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
 })

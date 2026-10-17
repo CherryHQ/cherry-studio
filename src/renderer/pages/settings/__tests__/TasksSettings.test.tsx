@@ -132,8 +132,11 @@ vi.mock('@renderer/data/hooks/useDataApi', async () => ({
       ? {
           data: {
             id: 'result-1',
-            target: { kind: 'scheduled-task', taskId: savedNotificationMock.taskId },
-            result: { errorSummary: 'Saved safe failure' }
+            target: {
+              kind: 'scheduled-task',
+              taskId: savedNotificationMock.taskId,
+              result: { errorSummary: 'Saved safe failure' }
+            }
           }
         }
       : path === '/agents'

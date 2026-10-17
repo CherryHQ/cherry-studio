@@ -55,7 +55,7 @@ function NotificationItem({
   const announcement = record.target?.kind === 'announcement' ? record.target : null
   const expandable = !!(release || announcement)
   const Icon = notificationCategoryIcons[record.category]
-  const isError = record.result?.status === 'failed' || record.result?.status === 'interrupted'
+  const isError = record.target?.result?.status === 'failed' || record.target?.result?.status === 'interrupted'
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
 
   const activate = async () => {
@@ -128,7 +128,7 @@ function NotificationItem({
               dateTime={new Date(record.createdAt).toISOString()}
               className="mt-1 block text-xs text-muted-foreground">
               {new Date(record.createdAt).toLocaleString(i18n.language, { dateStyle: 'medium', timeStyle: 'short' })}
-              {record.result?.durationMs !== undefined && (
+              {record.target?.result?.durationMs !== undefined && (
                 <>
                   {' '}
                   ·{' '}
@@ -136,7 +136,7 @@ function NotificationItem({
                     style: 'unit',
                     unit: 'second',
                     maximumFractionDigits: 1
-                  }).format(record.result.durationMs / 1000)}
+                  }).format(record.target?.result.durationMs / 1000)}
                 </>
               )}
             </time>
