@@ -114,6 +114,18 @@ describe('Agent Note lifecycle transitions', () => {
     )
   })
 
+  it('rejects malformed source criteria instead of omitting them from the transition', () => {
+    const malformed = proposed.replace(
+      '- AC2 — Second outcome. (verification: docs gate)',
+      '- AC2: Second outcome. (verification: docs gate)'
+    )
+    const incomplete = implemented.replace('- AC2 — `pnpm docs:check`: catches documentation drift.\n', '')
+
+    expect(checkAgentNoteTransition(proposedPath, malformed, implementedPath, incomplete).errors).toContain(
+      'the proposed note has malformed acceptance criteria: AC2'
+    )
+  })
+
   it('rejects lifecycle rewrites after a decision has shipped', () => {
     const rejectedPath = '.agents/notes/rejected/process/2026-10-01-decision.md'
     const rejected = proposed.replace('Status: proposed', 'Status: rejected — superseded')

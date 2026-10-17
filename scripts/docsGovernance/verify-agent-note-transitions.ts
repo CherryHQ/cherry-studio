@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { parseArgs } from 'node:util'
 
 import { collectChangeScope } from './change-scope.mjs'
-import { linesOutsideCode } from './verify-agent-note-format'
+import { linesOutsideCode, parseAcceptanceCriteria } from './verify-agent-note-format'
 
 const NOTE_PATH =
   /^\.agents\/notes\/(proposed|implemented|rejected)\/(feature|bug-fix|simplification|architecture|process|testing)\/(\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md)$/u
@@ -68,7 +68,8 @@ export const checkAgentNoteTransition = (
   if (noteIdentity(from) !== noteIdentity(to))
     return { errors: ['a lifecycle transition must preserve class and filename'] }
 
-  const acceptanceCriteria = criterionIds(before, '## Acceptance criteria')
+  const parsedAcceptanceCriteria = parseAcceptanceCriteria(sectionLines(before, '## Acceptance criteria'))
+  const acceptanceCriteria = parsedAcceptanceCriteria.ids
   const verification = criterionIds(after, '## Verification')
   const transition = { identity: noteIdentity(from), from, to, acceptanceCriteria, verification }
   const errors: string[] = []
@@ -77,6 +78,10 @@ export const checkAgentNoteTransition = (
     errors.push(`unsupported lifecycle transition: ${from.lifecycle} → ${to.lifecycle}`)
   }
   if (to.lifecycle === 'implemented') {
+    if (parsedAcceptanceCriteria.malformed.length)
+      errors.push(
+        `the proposed note has malformed acceptance criteria: ${parsedAcceptanceCriteria.malformed.join(', ')}`
+      )
     if (acceptanceCriteria.length === 0) errors.push('the proposed note has no acceptance-criteria IDs')
     const repeatedCriteria = repeatedIds(acceptanceCriteria)
     if (repeatedCriteria.length) errors.push(`the proposed note repeats criteria: ${repeatedCriteria.join(', ')}`)

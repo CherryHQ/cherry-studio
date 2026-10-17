@@ -10,18 +10,35 @@ const ROOT = path.resolve(__dirname, '../..')
 const CLASSES = new Set(['feature', 'bug-fix', 'simplification', 'architecture', 'process', 'testing'])
 const LIFECYCLES = new Set(['proposed', 'implemented', 'rejected'])
 const NOTE_NAME = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/
+const ACCEPTANCE_CRITERION = /^- (AC\d+) — \S.*\(verification: [^)]+\)$/u
+const CRITERION_ENTRY = /^- (AC\d+)\b/u
+
+export const parseAcceptanceCriteria = (lines: string[]): { ids: string[]; malformed: string[] } => {
+  const ids: string[] = []
+  const malformed: string[] = []
+  for (const line of lines) {
+    const entry = CRITERION_ENTRY.exec(line)?.[1]
+    if (!entry) continue
+    const criterion = ACCEPTANCE_CRITERION.exec(line)?.[1]
+    if (criterion) ids.push(criterion)
+    else malformed.push(entry)
+  }
+  return { ids, malformed }
+}
 
 export const linesOutsideCode = (content: string): string[] => {
-  const visibleContent = content.replace(/<!--[\s\S]*?(?:-->|$)/gu, (comment) => comment.replace(/[^\r\n]/gu, ' '))
-  const lines = visibleContent.split('\n')
-  const tree = unified().use(remarkParse).parse(visibleContent)
-  visit(tree, 'code', (node) => {
-    const start = node.position?.start.line
-    const end = node.position?.end.line
+  const visibleContent = content.split('')
+  const tree = unified().use(remarkParse).parse(content)
+  visit(tree, (node) => {
+    if (node.type !== 'code' && (node.type !== 'html' || !node.value.trimStart().startsWith('<!--'))) return
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
     if (start === undefined || end === undefined) return
-    for (let line = start - 1; line < end; line += 1) lines[line] = ''
+    for (let index = start; index < end; index += 1) {
+      if (visibleContent[index] !== '\n' && visibleContent[index] !== '\r') visibleContent[index] = ' '
+    }
   })
-  return lines
+  return visibleContent.join('').split('\n')
 }
 
 export const checkAgentNote = (relative: string, content: string): string[] => {
@@ -61,9 +78,12 @@ export const checkAgentNote = (relative: string, content: string): string[] => {
     const acceptanceStart = structuralLines.indexOf('## Acceptance criteria')
     const nextHeading = structuralLines.findIndex((line, index) => index > acceptanceStart && line.startsWith('## '))
     const acceptanceLines = structuralLines.slice(acceptanceStart + 1, nextHeading === -1 ? undefined : nextHeading)
-    const criteria = acceptanceLines.filter((line) => /^- AC\d+ — \S.*\(verification: [^)]+\)$/u.test(line))
-    if (criteria.length === 0) errors.push('Acceptance criteria must contain `- AC1 — <observable outcome>` entries')
-    const numbers = criteria.map((line) => Number(/^- AC(\d+)/u.exec(line)?.[1]))
+    const criteria = parseAcceptanceCriteria(acceptanceLines)
+    if (criteria.ids.length === 0)
+      errors.push('Acceptance criteria must contain `- AC1 — <observable outcome>` entries')
+    if (criteria.malformed.length)
+      errors.push('Acceptance criteria entries must match `- AC1 — <observable outcome> (verification: <owner>)`')
+    const numbers = criteria.ids.map((id) => Number(/^AC(\d+)$/u.exec(id)?.[1]))
     if (numbers.some((number, index) => number !== index + 1))
       errors.push('Acceptance criteria IDs must be contiguous from AC1')
   }

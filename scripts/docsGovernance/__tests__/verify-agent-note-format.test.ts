@@ -180,4 +180,41 @@ Risk.
       ])
     )
   })
+
+  it('does not treat an HTML comment marker inside a fence as a real comment', () => {
+    const fencedCommentMarker = proposed
+      .replace(
+        'Problem.',
+        `Problem.
+
+\`\`\`html
+<!-- literal example
+\`\`\``
+      )
+      .replace('A user observes the promised result.', 'A user observes the promised result. (verification: renderer)')
+      .replace('The failure case is rejected.', 'The failure case is rejected. (verification: unit)')
+
+    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', fencedCommentMarker)).toEqual([])
+  })
+
+  it('rejects malformed acceptance-criterion entries instead of dropping them', () => {
+    const malformedCriterion = proposed
+      .replace('A user observes the promised result.', 'A user observes the promised result. (verification: renderer)')
+      .replace('- AC2 — The failure case is rejected.', '- AC2: The failure case is rejected. (verification: unit)')
+
+    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', malformedCriterion)).toContain(
+      'Acceptance criteria entries must match `- AC1 — <observable outcome> (verification: <owner>)`'
+    )
+  })
+
+  it('allows supporting bullets that do not claim an acceptance-criterion ID', () => {
+    const supportingBullet = proposed
+      .replace('A user observes the promised result.', 'A user observes the promised result. (verification: renderer)')
+      .replace(
+        'The failure case is rejected.',
+        'The failure case is rejected. (verification: unit)\n- Supporting context for the criteria.'
+      )
+
+    expect(checkAgentNote('.agents/notes/proposed/feature/2026-08-20-decision.md', supportingBullet)).toEqual([])
+  })
 })
