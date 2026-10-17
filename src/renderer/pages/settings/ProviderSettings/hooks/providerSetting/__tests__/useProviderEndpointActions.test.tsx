@@ -213,6 +213,49 @@ describe('useProviderEndpointActions', () => {
     expect(setAnthropicApiHostMock).not.toHaveBeenCalled()
   })
 
+  // Regression for #20159: MiMo ships the same host on chat + responses. Committing the
+  // visible API host must move responses too, or Codex checks keep reporting Xiaomi MiMo.
+  it('also updates openai-responses when it still shares the previous primary host', async () => {
+    const mimoShapedProvider = {
+      ...provider,
+      id: 'mimo',
+      name: 'Xiaomi MiMo',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.xiaomimimo.com' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.xiaomimimo.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.xiaomimimo.com/anthropic' }
+      }
+    }
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider: mimoShapedProvider,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://token-plan-cn.xiaomimimo.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.xiaomimimo.com',
+        anthropicApiHost: 'https://api.xiaomimimo.com/anthropic',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.xiaomimimo.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.commitApiHost()
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://token-plan-cn.xiaomimimo.com' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://token-plan-cn.xiaomimimo.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.xiaomimimo.com/anthropic' }
+      }
+    })
+  })
+
   it('resets the primary host to the registry default and persists it', async () => {
     const editedProvider = {
       ...provider,
