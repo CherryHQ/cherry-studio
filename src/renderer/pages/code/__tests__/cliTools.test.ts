@@ -29,7 +29,8 @@ describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
         CodeCli.QWEN_CODE,
         CodeCli.KIMI_CODE,
         CodeCli.PI,
-        CodeCli.MINIMAX_CODE
+        CodeCli.MINIMAX_CODE,
+        CodeCli.COMMAND_CODE
       ].sort()
     )
   })
@@ -88,7 +89,8 @@ describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
         CodeCli.PI,
         CodeCli.HERMES,
         CodeCli.DEEPSEEK_HARNESS,
-        CodeCli.MINIMAX_CODE
+        CodeCli.MINIMAX_CODE,
+        CodeCli.COMMAND_CODE
       ].sort()
     )
   })
@@ -200,5 +202,22 @@ describe('DeepSeek Harness provider support', () => {
       'openai-only-with-developer-role',
       'no-developer-role-but-has-anthropic-fallback'
     ])
+  })
+})
+
+describe('Command Code provider support', () => {
+  const provider = (partial: Record<string, unknown>): Provider =>
+    ({ id: 'provider', name: 'Provider', endpointConfigs: {}, ...partial }) as unknown as Provider
+
+  it('offers the Unified Gateway plus Anthropic and OpenAI-compatible providers', () => {
+    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.COMMAND_CODE)).toBe(true)
+    expect(LOGIN_CAPABLE_CLI_TOOLS.has(CodeCli.COMMAND_CODE)).toBe(true)
+    const supported = CLI_TOOL_PROVIDER_MAP[CodeCli.COMMAND_CODE]([
+      provider({ id: 'anthropic', endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.example' } } }),
+      provider({ id: 'chat', endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.example/v1' } } }),
+      provider({ id: 'gemini', endpointConfigs: { 'google-generate-content': { baseUrl: 'https://api.example' } } })
+    ])
+
+    expect(supported.map((item) => item.id)).toEqual(['anthropic', 'chat'])
   })
 })

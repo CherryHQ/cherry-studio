@@ -6,6 +6,7 @@ import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 import {
   CODEX_CHAT_ENDPOINT,
   CODEX_RESPONSES_ENDPOINT,
+  COMMANDCODE_ENDPOINTS,
   HERMES_ENDPOINTS,
   MINIMAX_ENDPOINTS,
   OPEN_CODE_ENDPOINTS,
@@ -175,6 +176,44 @@ export function resolveMinimaxProviderInfo(
   )
   const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
   const api: MinimaxApi =
+    endpointType === 'anthropic-messages'
+      ? 'anthropic-messages'
+      : endpointType === 'openai-responses'
+        ? 'openai-responses'
+        : 'openai-completions'
+  const baseUrl =
+    endpointType === 'anthropic-messages'
+      ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false))
+      : formatApiHost(rawBaseUrl)
+
+  return { api, baseUrl, endpointType }
+}
+
+/**
+ * Command Code wires (`provider.<key>.api` / per-model overrides); the default
+ * is `openai-completions`. Anthropic roots get `/v1` appended by the CLI on the
+ * wire, so the configured root must not carry one.
+ */
+export type CommandCodeApi = 'anthropic-messages' | 'openai-completions' | 'openai-responses'
+
+export interface CommandCodeProviderInfo {
+  api: CommandCodeApi
+  baseUrl: string
+  endpointType: EndpointType
+}
+
+export function resolveCommandCodeProviderInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[]
+): CommandCodeProviderInfo {
+  const endpointType = resolveSupportedEndpointType(
+    provider,
+    modelEndpointTypes,
+    COMMANDCODE_ENDPOINTS,
+    'openai-chat-completions'
+  )
+  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const api: CommandCodeApi =
     endpointType === 'anthropic-messages'
       ? 'anthropic-messages'
       : endpointType === 'openai-responses'
