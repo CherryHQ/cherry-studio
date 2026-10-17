@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SubagentPort } from '@cherrystudio/agent-runtime-pi'
 
+import type { AiSdkModel } from './aiSdkModelBinding'
 import {
   noteTool,
   outputText,
@@ -284,6 +285,44 @@ describe('subagent stops', () => {
     await session.prompt('Delegate the check')
 
     expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(200)
+    expect(toolResultOf(session, 'call_a').details).toMatchObject({ outcome: 'limit_reached' })
+  })
+
+  // Breaks when the cap counts only the requests that pass `agent.streamFunction`: Pi's cache warmer
+  // re-sends the latest request through the model runtime while a long tool runs.
+  it('stops a subagent after 200 model requests, Pi cache-warming requests included', { timeout: 60_000 }, async () => {
+    const buildTool = defineTool({
+      name: 'build',
+      label: 'Build',
+      description: 'Run the build',
+      parameters: Type.Object({}),
+      async execute() {
+        await new Promise((resolve) => setTimeout(resolve, 1_500))
+        return { content: [{ type: 'text', text: 'built' }], details: undefined }
+      }
+    })
+    let next = 0
+    const { model } = delegate(() => {
+      next++
+      return [toolCallPart(`step_${next}`, next === 1 ? 'build' : 'note'), finish('tool-calls')]
+    })
+    const { port, requests } = streamTextPort(model)
+    const { session } = await createTestSession({
+      port,
+      // A cache lifetime Pi keeps warm (11 s, refreshed after 1 s) and a price that makes warming pay.
+      model: {
+        ...MODEL,
+        promptCache: { short: 11 },
+        cost: { input: 10_000, output: 0, cacheRead: 0, cacheWrite: 0 }
+      } as AiSdkModel,
+      tools: [buildTool, noteTool],
+      subagents: recordingSubagentPort().port
+    })
+
+    await session.prompt('Delegate the check')
+
+    const parentId = session.sessionManager.getSessionId()
+    expect(requests.filter((request) => request.sessionId !== parentId)).toHaveLength(200)
     expect(toolResultOf(session, 'call_a').details).toMatchObject({ outcome: 'limit_reached' })
   })
 })
