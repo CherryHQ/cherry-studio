@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { DEFAULT_SETTINGS_PATH, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
+import type { DoctorNavigateTarget } from '@shared/types/doctor'
 
 const logger = loggerService.withContext('mainWindowNavigation')
 
@@ -33,4 +34,9 @@ export function openRoute(path: string, query?: Record<string, string>): void {
 
 export function openSettingsTab(path: SettingsPath = DEFAULT_SETTINGS_PATH): void {
   openRoute(normalizeSettingsPath(path))
+}
+
+export function openDoctorTarget(target: DoctorNavigateTarget): void {
+  if (target === '/app/code') openRoute(target)
+  else openSettingsTab(target)
 }
