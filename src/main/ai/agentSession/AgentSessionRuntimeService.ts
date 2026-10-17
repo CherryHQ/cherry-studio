@@ -121,7 +121,9 @@ import {
   agentPermissionEditEpoch,
   clearSessionEffectivePermissionMode,
   getSessionEffectivePermissionMode,
+  hasSessionEffectivePermissionMode,
   retireAgentSessionPermissionModes,
+  retireReassignedSessionPermissionMode,
   setSessionEffectivePermissionMode
 } from './sessionPermissionOverrides'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
@@ -508,6 +510,26 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+    this.registerDisposable(
+      agentSessionService.onSessionUpdated(({ sessionId }) => {
+        this.handleSessionUpdated(sessionId)
+      })
+    )
+  }
+
+  /**
+   * A session reassigned to another agent must not carry the previous agent's approved-plan
+   * override: the read paths refuse a foreign owner anyway, and retiring it outright also moves
+   * the previous agent's epoch so a pending handoff restore cannot resurrect it. Most updates
+   * touch sessions without an override, so the row is only read when one exists.
+   */
+  private handleSessionUpdated(sessionId: string): void {
+    if (!hasSessionEffectivePermissionMode(sessionId)) return
+    try {
+      retireReassignedSessionPermissionMode(sessionId, agentSessionService.getById(sessionId).agentId)
+    } catch (error) {
+      logger.warn('Failed to retire a reassigned session permission override', { sessionId, error })
+    }
   }
 
   private reconcileStalePendingMessages(): void {
@@ -1632,7 +1654,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // retires the override synchronously — reading afterwards would hand the restart `plan` again.
     // The edit epoch rides along: an explicit permission edit landing while the teardown awaits is
     // newer than this handoff and must not be resurrected past it.
-    const approvedPermission = getSessionEffectivePermissionMode(entry.sessionId)
+    const approvedPermission = getSessionEffectivePermissionMode(entry.sessionId, entry.agentId)
     const permissionEditEpoch = agentPermissionEditEpoch(entry.agentId)
     streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
     await this.closeSession(entry.sessionId)

@@ -433,7 +433,8 @@ async function deriveConnectionConfigFromSnapshot(
     rebuildFactFingerprints,
     live: {
       toolPolicy: {
-        permissionMode: getSessionEffectivePermissionMode(session.id) ?? agent.configuration?.permission_mode ?? null,
+        permissionMode:
+          getSessionEffectivePermissionMode(session.id, agent.id) ?? agent.configuration?.permission_mode ?? null,
         disabledTools: [...(agent.disabledTools ?? [])].sort(),
         mcps: [...(agent.mcps ?? [])].sort()
       }

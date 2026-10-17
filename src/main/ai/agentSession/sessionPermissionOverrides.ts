@@ -11,12 +11,12 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
  * agent out of its Plan Only restriction, so the approved execution stays a property of the
  * approving session alone and the shared setting is left untouched.
  *
- * Overrides are retired when the session's runtime entry is removed, or when an explicit agent
- * update carries a new `permission_mode` — the row is then the user's own choice again. That edit
- * retires by agent ownership, not by live entries: a handoff restores its override after
- * `closeSession` removed the entry, so the entry-less override must still die with the edit, and
- * the per-agent epoch lets a pending handoff restore recognize the edit instead of resurrecting
- * what it invalidated.
+ * Overrides are retired when the session's runtime entry is removed, when an explicit agent
+ * update carries a new `permission_mode` — the row is then the user's own choice again — and
+ * when the session is reassigned to another agent. Those retires work by agent ownership, not by
+ * live entries: a handoff restores its override after `closeSession` removed the entry, so the
+ * entry-less override must still die with the edit or the reassignment, and the per-agent epoch
+ * lets a pending handoff restore recognize either instead of resurrecting what they invalidated.
  */
 interface SessionPermissionOverride {
   agentId: string
@@ -30,12 +30,31 @@ export function setSessionEffectivePermissionMode(sessionId: string, agentId: st
   sessionPermissionModes.set(sessionId, { agentId, mode })
 }
 
-export function getSessionEffectivePermissionMode(sessionId: string): AgentPermissionMode | undefined {
-  return sessionPermissionModes.get(sessionId)?.mode
+/** The read names the agent the session currently belongs to: a foreign owner's override is dead. */
+export function getSessionEffectivePermissionMode(sessionId: string, agentId: string): AgentPermissionMode | undefined {
+  const override = sessionPermissionModes.get(sessionId)
+  return override?.agentId === agentId ? override.mode : undefined
 }
 
 export function clearSessionEffectivePermissionMode(sessionId: string): void {
   sessionPermissionModes.delete(sessionId)
+}
+
+/** Whether the session carries an override at all — the cheap gate for the reassignment check. */
+export function hasSessionEffectivePermissionMode(sessionId: string): boolean {
+  return sessionPermissionModes.has(sessionId)
+}
+
+/**
+ * A session reassigned to another agent leaves its previous agent's scope: the approved execution
+ * must not follow it, and the previous agent's epoch moves so a pending handoff restore recognizes
+ * the reassignment instead of resurrecting what it invalidated.
+ */
+export function retireReassignedSessionPermissionMode(sessionId: string, currentAgentId: string | null): void {
+  const override = sessionPermissionModes.get(sessionId)
+  if (!override || override.agentId === currentAgentId) return
+  sessionPermissionModes.delete(sessionId)
+  agentPermissionEditEpochs.set(override.agentId, (agentPermissionEditEpochs.get(override.agentId) ?? 0) + 1)
 }
 
 /**
