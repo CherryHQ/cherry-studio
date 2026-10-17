@@ -3,33 +3,41 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import type { Api, AssistantMessage, Model } from '@earendil-works/pi-ai'
+import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { type AgentSession, type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 import { type LanguageModel, simulateReadableStream, streamText } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { onTestFinished } from 'vitest'
 
 import {
+  type AgentRuntimeModel,
   type AgentRuntimeSessionOptions,
   type AgentRuntimeEvent,
   createAgentRuntimeSession
 } from '@cherrystudio/agent-runtime-pi'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 import { type AiSdkModel, createAiSdkModelBinding } from './aiSdkModelBinding'
 import { AI_SDK_API } from './aiSdkProvider'
 import { type ModelCallPort, type ModelCallRequest, type ModelCallSideChannel } from './aiSdkTypes'
 
-export const MODEL: Model<Api> = {
-  api: AI_SDK_API,
-  baseUrl: 'https://unused.test',
-  provider: 'cherry',
-  id: 'bridged-model',
+export const MODEL: AiSdkModel = {
+  id: 'cherry::bridged-model',
   name: 'Bridged model',
   reasoning: true,
   input: ['text', 'image'],
   cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
   contextWindow: 32_000,
   maxTokens: 4_096
+}
+
+/** The Pi model a binding makes of {@link MODEL}, for hosts that hand a subagent a Pi model. */
+export const NATIVE_MODEL: AgentRuntimeModel = {
+  ...MODEL,
+  api: AI_SDK_API,
+  baseUrl: 'https://ai-sdk-port.invalid',
+  provider: 'cherry',
+  id: 'bridged-model'
 }
 
 export const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value))
@@ -129,26 +137,18 @@ export async function createTestSession<TRequestOptions = undefined>(options: Te
       ...options.subagents,
       async configure(child) {
         const configured = await options.subagents!.configure(child)
-        const childBinding =
-          configured.model && !child.fork && !configured.modelRuntime
-            ? await createAiSdkModelBinding({
-                port,
-                requestOptions: requestOptions as TRequestOptions,
-                sideChannel,
-                model: configured.model
-              })
-            : binding
-        return {
-          ...configured,
-          ...(!child.fork && configured.model && !configured.modelRuntime
-            ? { model: childBinding.model, modelRuntime: childBinding.modelRuntime }
-            : {}),
-          extensionFactories: [...childBinding.extensionFactories, ...(configured.extensionFactories ?? [])]
-        }
+        if (!configured.model || child.fork || configured.modelRuntime) return configured
+        // As a host would: a binding for the Cherry model whose native identity the given model has.
+        const { provider, id, ...spec } = configured.model
+        const childBinding = await createAiSdkModelBinding({
+          port,
+          requestOptions: requestOptions as TRequestOptions,
+          sideChannel,
+          model: { ...spec, id: createUniqueModelId(provider, id) }
+        })
+        return { ...configured, model: childBinding.model, modelRuntime: childBinding.modelRuntime }
       }
-    },
-    settings: { ...options.settings, ...binding.settings },
-    extensionFactories: [...binding.extensionFactories, ...(options.extensionFactories ?? [])]
+    }
   })
   onTestFinished(() => runtime.dispose())
   return runtime

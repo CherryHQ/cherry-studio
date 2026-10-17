@@ -14,7 +14,15 @@ import {
   toolResultOf,
   toolResults
 } from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, MODEL, scriptedModel, streamTextPort, textParts } from './aiSdkSupport'
+import {
+  createTestSession,
+  finish,
+  hostStore,
+  NATIVE_MODEL,
+  scriptedModel,
+  streamTextPort,
+  textParts
+} from './aiSdkSupport'
 
 const DELEGATE_A = 'Delegate the check of module A'
 const TASK_A = { description: 'Check module A', prompt: 'TASK-A: inspect module A' }
@@ -106,7 +114,7 @@ describe('subagent', () => {
         parentToolCallId: 'call_a',
         fork: false,
         description: 'Check module A',
-        modelKey: `${MODEL.provider}/${MODEL.id}`
+        modelKey: `${NATIVE_MODEL.provider}/${NATIVE_MODEL.id}`
       }
     })
     expect(new Set(childEntries.map((entry) => entry.id)).size).toBe(childEntries.length)

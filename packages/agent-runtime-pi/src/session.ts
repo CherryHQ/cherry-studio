@@ -55,6 +55,24 @@ export interface AgentRuntimeSessionOptions {
   thinkingLevel?: CreateAgentSessionOptions['thinkingLevel']
 }
 
+/** What every session built on one model runtime must have, whoever builds it. */
+export interface SessionRequirements {
+  /** Installed ahead of the session's own extensions. */
+  extensionFactories?: ExtensionFactory[]
+  /** Applied over the session's own settings. */
+  settings?: AgentRuntimeSettings
+}
+
+const sessionRequirements = new WeakMap<ModelRuntime, SessionRequirements>()
+
+/**
+ * For the owner of `modelRuntime` (e.g. a model binding): every session built on it gets
+ * `requirements`, so a host cannot leave them out.
+ */
+export function setSessionRequirements(modelRuntime: ModelRuntime, requirements: SessionRequirements): void {
+  sessionRequirements.set(modelRuntime, requirements)
+}
+
 /** Pi event-bus channel: the host's `abort()` is stopping the running run for the user. */
 export const USER_ABORT = 'cherry.user-abort'
 
@@ -138,9 +156,12 @@ async function buildSession(
       emit: (event) => options.onEvent?.(event),
       offload: options.offload
     })
+  // A subagent's session is built here too, so it gets them whatever its host's `configure` returns.
+  const required = sessionRequirements.get(modelRuntime)
   const extensionFactories = [
     // First, so the watch covers every other extension's agent_settled handler.
     settleWatch,
+    ...(required?.extensionFactories ?? []),
     ...(summarize ? [compactionSummaryExtension(summarize, (message) => (events.summaryFailure = message))] : []),
     ...(options.recall ? [recallExtension(() => sessionManager.getBranch())] : []),
     ...(subagents ? [subagents.extension] : []),
@@ -150,6 +171,9 @@ async function buildSession(
   ]
   const settingsManager = SettingsManager.inMemory({
     ...options.settings,
+    ...required?.settings,
+    // Pi's cache warmer requests bypass `agent.streamFunction`, where a subagent's requests are counted.
+    ...(beforeModelRequest && { cacheWarming: 'off' as const }),
     ...(compaction && {
       compaction: {
         enabled: compaction.enabled ?? true,
