@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next'
 import { Plus, Trash2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -19,9 +19,11 @@ import ProviderField from '../../primitives/ProviderField'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
   appendModelPricingTier,
+  buildModelImagePricing,
   buildModelPricingFromDraft,
   clearModelPricingDraftError,
   createModelPricingDraft,
+  getModelImagePriceDraft,
   getModelPricingCurrencySymbol,
   isModelPricingCurrencySymbol,
   MODEL_PRICING_CURRENCY_SYMBOLS,
@@ -265,21 +267,41 @@ function translateErrors(errors: ModelPricingDraftErrors, t: TFunction) {
 
 export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProps) {
   const { t } = useTranslation()
+  const committedPricingRef = useRef(pricing)
+  const [unit, setUnit] = useState<'token' | 'image'>(() =>
+    getModelImagePriceDraft(pricing) === '' ? 'token' : 'image'
+  )
+  const [imagePrice, setImagePrice] = useState(() => getModelImagePriceDraft(pricing))
+  const [imageError, setImageError] = useState<ModelPricingDraftError>()
   const [currencySymbol, setCurrencySymbol] = useState<ModelPricingCurrencySymbol>(() =>
     getModelPricingCurrencySymbol(pricing)
   )
   const [draft, setDraft] = useState<ModelPricingDraft>(() => createModelPricingDraft(pricing))
   const [errors, setErrors] = useState<ModelPricingDraftErrors>([])
 
+  const commitPricing = useCallback(
+    (nextPricing: NonNullable<Model['pricing']>) => {
+      committedPricingRef.current = nextPricing
+      onCommit(nextPricing)
+    },
+    [onCommit]
+  )
+
+  const commitImagePrice = (nextPrice?: string, nextCurrencySymbol = currencySymbol) => {
+    const result = buildModelImagePricing(committedPricingRef.current, nextCurrencySymbol, nextPrice)
+    if (nextPrice !== undefined) setImageError(result.error)
+    if (result.pricing) commitPricing(result.pricing)
+  }
+
   const commitDraft = useCallback(
     (nextDraft: ModelPricingDraft, nextCurrencySymbol: ModelPricingCurrencySymbol = currencySymbol) => {
-      const result = buildModelPricingFromDraft(pricing, nextDraft, nextCurrencySymbol)
+      const result = buildModelPricingFromDraft(committedPricingRef.current, nextDraft, nextCurrencySymbol)
       setErrors(result.errors)
       if (result.pricing) {
-        onCommit(result.pricing)
+        commitPricing(result.pricing)
       }
     },
-    [currencySymbol, onCommit, pricing]
+    [commitPricing, currencySymbol]
   )
 
   const handleTierChange = useCallback((tierIndex: number, field: ModelPricingDraftField, value: string) => {
@@ -328,7 +350,8 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
               }
 
               setCurrencySymbol(nextValue)
-              commitDraft(draft, nextValue)
+              if (unit === 'image') commitImagePrice(undefined, nextValue)
+              else commitDraft(draft, nextValue)
             }}>
             <SelectTrigger aria-label={t('models.price.currency')} className={drawerClasses.selectTrigger}>
               <SelectValue />
@@ -344,31 +367,84 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
         </div>
       </ProviderField>
 
-      <div className={drawerClasses.helpText}>{t('models.price.cache_fallback_help')}</div>
+      <ProviderField
+        title={t('models.price.unit')}
+        titleClassName={drawerClasses.fieldTitle}
+        help={<div className={drawerClasses.helpText}>{t('models.price.unit_help')}</div>}>
+        <Select value={unit} onValueChange={(value) => (value === 'token' || value === 'image') && setUnit(value)}>
+          <SelectTrigger aria-label={t('models.price.unit')} className={drawerClasses.selectTrigger}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className={drawerClasses.selectContent}>
+            <SelectItem value="token">{t('models.price.million_tokens')}</SelectItem>
+            <SelectItem value="image">{t('models.price.image')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </ProviderField>
 
-      <div className="space-y-3.5">
-        {draft.tiers.map((tier, tierIndex) => (
-          <ModelPricingTierFields
-            key={tierIndex}
-            tier={tier}
-            tierIndex={tierIndex}
-            currencySymbol={currencySymbol}
-            errors={translatedErrors[tierIndex] ?? {}}
-            onChange={handleTierChange}
-            onCommit={handleTierCommit}
-            onRemove={handleRemoveTier}
-          />
-        ))}
-      </div>
+      {unit === 'image' ? (
+        <ProviderField
+          title={t('models.price.per_image')}
+          titleClassName={drawerClasses.fieldTitle}
+          help={
+            <div
+              id="model-image-price-help"
+              role={imageError ? 'alert' : undefined}
+              className={imageError ? drawerClasses.errorText : drawerClasses.helpText}>
+              {getPricingErrorMessage(imageError, t) ?? t('models.price.image_help')}
+            </div>
+          }>
+          <div className={drawerClasses.responsiveValueRow}>
+            <InputNumber
+              aria-label={t('models.price.per_image')}
+              aria-invalid={Boolean(imageError)}
+              aria-describedby="model-image-price-help"
+              value={imagePrice === '' ? null : Number(imagePrice)}
+              className={drawerClasses.input}
+              onValueChange={(value) => {
+                setImagePrice(value === null ? '' : String(value))
+                setImageError(undefined)
+              }}
+              onBlur={(value) => {
+                const nextPrice = value === null ? '' : String(value)
+                setImagePrice(nextPrice)
+                if (nextPrice !== getModelImagePriceDraft(committedPricingRef.current)) commitImagePrice(nextPrice)
+              }}
+            />
+            <span className={drawerClasses.valueSuffix}>
+              {currencySymbol} / {t('models.price.image')}
+            </span>
+          </div>
+        </ProviderField>
+      ) : (
+        <>
+          <div className={drawerClasses.helpText}>{t('models.price.cache_fallback_help')}</div>
 
-      <Button
-        type="button"
-        variant="outline"
-        className="h-auto w-full gap-1.5 rounded-md border-border-subtle border-dashed py-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent/40 hover:text-foreground"
-        onClick={handleAddTier}>
-        <Plus aria-hidden className="size-3.5" />
-        {t('models.price.add_tier')}
-      </Button>
+          <div className="space-y-3.5">
+            {draft.tiers.map((tier, tierIndex) => (
+              <ModelPricingTierFields
+                key={tierIndex}
+                tier={tier}
+                tierIndex={tierIndex}
+                currencySymbol={currencySymbol}
+                errors={translatedErrors[tierIndex] ?? {}}
+                onChange={handleTierChange}
+                onCommit={handleTierCommit}
+                onRemove={handleRemoveTier}
+              />
+            ))}
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-auto w-full gap-1.5 rounded-md border-border-subtle border-dashed py-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent/40 hover:text-foreground"
+            onClick={handleAddTier}>
+            <Plus aria-hidden className="size-3.5" />
+            {t('models.price.add_tier')}
+          </Button>
+        </>
+      )}
     </>
   )
 }

@@ -5,6 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CURRENCY, type Model } from '@shared/data/types/model'
 
 import EditModelDrawer from '../EditModelDrawer'
+import { buildModelImagePricing } from '../modelPricing'
 
 const useProviderMock = vi.fn()
 const updateModelMock = vi.fn()
@@ -179,6 +180,115 @@ describe('EditModelDrawer', () => {
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
   })
 
+  it('saves an image rate without inventing token prices and retains it when editing tokens', async () => {
+    const user = userEvent.setup()
+    const model = { ...modelWithFullPricing, pricing: undefined }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    await user.click(screen.getByRole('button', { name: 'currency-image' }))
+    await user.type(screen.getByLabelText('models.price.per_image'), '0.04')
+    await user.tab()
+
+    await waitFor(() => {
+      expect(updateModelMock.mock.lastCall?.[2].pricing).toEqual({
+        input: { perMillionTokens: null, currency: CURRENCY.USD },
+        output: { perMillionTokens: null, currency: CURRENCY.USD },
+        perImage: { price: 0.04, unit: 'image' }
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
+    await user.clear(screen.getByLabelText('models.price.input'))
+    await user.type(screen.getByLabelText('models.price.input'), '2')
+    await user.tab()
+    await waitFor(() => {
+      expect(updateModelMock.mock.lastCall?.[2].pricing).toMatchObject({
+        input: { perMillionTokens: 2, currency: CURRENCY.USD },
+        perImage: { price: 0.04, unit: 'image' }
+      })
+    })
+  })
+
+  it('preserves token drafts and stored rates while saving and reopening an image price', async () => {
+    const user = userEvent.setup()
+    const model = makeTieredPricingModel()
+    const { unmount } = render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+    expect(screen.getByLabelText('models.price.per_image')).toHaveValue('0.04')
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
+    await user.clear(screen.getByLabelText(/models\.price\.min_input_tokens/))
+    await user.type(screen.getByLabelText(/models\.price\.min_input_tokens/), '0')
+    await user.click(screen.getByRole('button', { name: 'currency-image' }))
+    await user.clear(screen.getByLabelText('models.price.per_image'))
+    await user.type(screen.getByLabelText('models.price.per_image'), '0.08')
+    await user.tab()
+    await waitFor(() => {
+      expect(updateModelMock.mock.lastCall?.[2].pricing).toEqual({
+        ...model.pricing,
+        perImage: { price: 0.08, unit: 'image' }
+      })
+    })
+    const savedPricing = updateModelMock.mock.lastCall?.[2].pricing
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
+    expect(screen.getByLabelText(/models\.price\.min_input_tokens/)).toHaveValue('0')
+    unmount()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={{ ...model, pricing: savedPricing }} />)
+    expect(screen.getByLabelText('models.price.per_image')).toHaveValue('0.08')
+  })
+
+  it('rejects negative image prices and distinguishes free images from an unset rate', async () => {
+    const user = userEvent.setup()
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    const field = screen.getByLabelText('models.price.per_image')
+    await user.clear(field)
+    await user.type(field, '-1')
+    await user.tab()
+    expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('models.price.validation_price')
+    expect(updateModelMock).not.toHaveBeenCalled()
+    await user.clear(field)
+    await user.type(field, '0')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateModelMock.mock.lastCall?.[2].pricing.perImage).toEqual({ price: 0, unit: 'image' })
+    )
+    await user.clear(field)
+    await user.tab()
+    await waitFor(() => expect(updateModelMock.mock.lastCall?.[2].pricing).not.toHaveProperty('perImage'))
+    expect(field).toHaveValue('')
+  })
+
+  it('keeps pixel prices when changing currency until an image rate is explicitly entered', async () => {
+    const user = userEvent.setup()
+    const model = makeTieredPricingModel()
+    model.pricing!.perImage = { price: 0.000001, unit: 'pixel' }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+    await user.click(screen.getByRole('button', { name: 'currency-image' }))
+    const field = screen.getByLabelText('models.price.per_image')
+    expect(field).toHaveValue('')
+    await user.click(field)
+    await user.tab()
+    expect(updateModelMock).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'currency-¥' }))
+    await waitFor(() =>
+      expect(updateModelMock.mock.lastCall?.[2].pricing).toMatchObject({
+        perImage: { price: 0.000001, unit: 'pixel' },
+        input: { perMillionTokens: 3, currency: CURRENCY.CNY },
+        inputTokenTiers: [{ minInputTokens: 100_000, output: { perMillionTokens: 12, currency: CURRENCY.CNY } }]
+      })
+    )
+    await user.type(field, '0.05')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateModelMock.mock.lastCall?.[2].pricing.perImage).toEqual({ price: 0.05, unit: 'image' })
+    )
+  })
+
+  it.each(['NaN', 'Infinity', '-0.01'])('rejects invalid image rate %s without changing stored prices', (value) => {
+    const pricing = makeTieredPricingModel().pricing
+    expect(buildModelImagePricing(pricing, '$', value)).toEqual({ error: 'invalidPrice' })
+    expect(pricing?.perImage).toEqual({ price: 0.04, unit: 'image' })
+  })
+
   it('autosaves the settled positive minimum instead of an invalid zero', async () => {
     const user = userEvent.setup()
     const model = {
@@ -252,6 +362,7 @@ describe('EditModelDrawer', () => {
       )
       .mockResolvedValue(undefined)
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
 
     const modelName = screen.getByLabelText('settings.models.add.model_name.label')
     await user.clear(modelName)
@@ -280,6 +391,7 @@ describe('EditModelDrawer', () => {
   it('rejects non-numeric characters and a second decimal point in price inputs', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
 
     const cacheReadPrice = screen.getByLabelText('models.price.cache_read')
     await user.clear(cacheReadPrice)
@@ -291,6 +403,7 @@ describe('EditModelDrawer', () => {
   it('keeps a tier boundary an integer', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
 
     const minInputTokens = screen.getByLabelText(/models\.price\.min_input_tokens/)
     await user.clear(minInputTokens)
@@ -323,6 +436,7 @@ describe('EditModelDrawer', () => {
   it('reports a zero tier boundary instead of raising it to the nearest legal value', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
 
     const minInputTokens = screen.getByLabelText(/models\.price\.min_input_tokens/)
     await user.clear(minInputTokens)
@@ -339,6 +453,7 @@ describe('EditModelDrawer', () => {
     const user = userEvent.setup()
     const model = makeTieredPricingModel()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
 
     const cacheReadPrice = screen.getByLabelText('models.price.cache_read')
     await user.clear(cacheReadPrice)
@@ -367,6 +482,7 @@ describe('EditModelDrawer', () => {
         model={makePricingModel({ cacheWritePrice: null, includeHiddenRates: true })}
       />
     )
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
 
     const inputPrice = screen.getByLabelText('models.price.input')
     await user.clear(inputPrice)
@@ -458,6 +574,7 @@ describe('EditModelDrawer', () => {
   it('does not save an additional tier with a duplicate boundary', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
 
     await user.click(screen.getByRole('button', { name: 'models.price.add_tier' }))
     await user.type(screen.getByLabelText('models.price.min_input_tokens, tier 3'), '100000')
@@ -470,6 +587,7 @@ describe('EditModelDrawer', () => {
   it('saves a valid tier removal while preserving unedited pricing fields', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    await user.click(screen.getByRole('button', { name: 'currency-token' }))
 
     await user.click(screen.getByRole('button', { name: 'Remove pricing tier 2' }))
 
