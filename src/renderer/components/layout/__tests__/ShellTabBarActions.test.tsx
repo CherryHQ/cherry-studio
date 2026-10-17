@@ -78,6 +78,10 @@ vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children: React.ReactNode }) => children
 }))
 
+vi.mock('@renderer/components/NotificationCenter', () => ({
+  NotificationCenterButton: () => <button type="button" aria-label="Notification center" />
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -105,6 +109,10 @@ afterEach(() => {
 })
 
 describe('ShellTabBarActions', () => {
+  it('leaves the notification bell to the persistent tab bar action area', () => {
+    render(<ShellTabBarActions />)
+    expect(screen.queryByRole('button', { name: 'Notification center' })).not.toBeInTheDocument()
+  })
   beforeEach(() => {
     Object.defineProperty(window, 'toast', {
       configurable: true,

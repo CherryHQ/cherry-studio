@@ -6,6 +6,55 @@
   },
   "definitions": [
     {
+      "targetKey": "app.notification.center.system.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new system notifications in the notification center"
+    },
+    {
+      "targetKey": "app.notification.center.usage.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new usage alerts in the notification center"
+    },
+    {
+      "targetKey": "app.notification.center.official.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Save new release announcements in the notification center"
+    },
+    {
+      "targetKey": "app.notification.usage.os.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Show system notifications for usage alerts while the app is in the background"
+    },
+    {
+      "targetKey": "app.notification.completion_sound.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Play a sound when a task completes"
+    },
+    {
+      "targetKey": "app.notification.daily_budget.tokens",
+      "type": "number",
+      "defaultValue": 0,
+      "status": "classified",
+      "description": "Daily token budget as a nonnegative integer; zero disables the budget alert"
+    },
+    {
+      "targetKey": "app.notification.daily_budget.threshold",
+      "type": "number",
+      "defaultValue": 80,
+      "status": "classified",
+      "description": "Daily budget warning percentage as an integer from 1 to 100"
+    },
+    {
       "targetKey": "app.computer_use.agent_control.enabled",
       "type": "boolean",
       "defaultValue": false,

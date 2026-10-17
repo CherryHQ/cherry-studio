@@ -84,6 +84,7 @@ export type NavigationEventSchemas = {
   'navigation.conversation_ownership_requested': {
     requestId: string
     target: ConversationNavigationTarget
+    activeOnly?: boolean
   }
   // Directed to exactly one selected owner/destination. The renderer confirms the
   // committed result through `navigation.report_conversation_ownership` above.

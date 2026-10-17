@@ -76,6 +76,7 @@ import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
 type ManagedAiStreamRequest = AiStreamRequest & {
+  taskIds?: readonly string[]
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
 }
@@ -147,6 +148,7 @@ export interface SendResult {
 }
 
 export interface StartRuntimeTurnInput {
+  taskIds?: readonly string[]
   topicId: string
   modelId: UniqueModelId
   request: ManagedAiStreamRequest
@@ -327,6 +329,8 @@ export class AiStreamManager extends BaseService {
   private readonly _onConversationCompleted = new Emitter<ConversationCompletedEvent>()
   public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly activeStreams = new Map<string, ActiveStream>()
+  private readonly completedBatchTasks = new Map<string, Set<string>>()
+  private readonly failedCompletionTopics = new Set<string>()
   /** Serialises `prepareDispatch → send` per topic so concurrent `ai.stream.open` requests can't race
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
@@ -642,6 +646,8 @@ export class AiStreamManager extends BaseService {
   }
 
   protected onDestroy(): void {
+    this.completedBatchTasks.clear()
+    this.failedCompletionTopics.clear()
     this._onApprovalRequested.dispose()
     this._onConversationCompleted.dispose()
   }
@@ -957,7 +963,7 @@ export class AiStreamManager extends BaseService {
       models: [
         {
           modelId: input.modelId,
-          request: input.request,
+          request: input.taskIds ? { ...input.request, taskIds: input.taskIds } : input.request,
           runtimeTimingSeed: input.runtimeTimingSeed,
           rootSpan: input.rootSpan,
           abortController: input.abortController
@@ -1434,6 +1440,15 @@ export class AiStreamManager extends BaseService {
       application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
     const chaining = chatChaining || agentChaining
 
+    if (topicDone && stream.status === 'done' && stream.isPersistentConversation) {
+      const tasks = this.completedBatchTasks.get(topicId) ?? new Set<string>()
+      for (const execution of stream.executions.values()) {
+        for (const taskId of execution.taskIds ?? [stream.turnId]) tasks.add(taskId)
+      }
+      this.completedBatchTasks.set(topicId, tasks)
+      stream.completedTaskCount = this.failedCompletionTopics.has(topicId) ? 0 : tasks.size
+    }
+
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
       await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
@@ -1461,6 +1476,10 @@ export class AiStreamManager extends BaseService {
 
     const exec = stream.executions.get(modelId)
     if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted') return
+
+    // Mixed done/aborted topics resolve to done, but cancelled work cannot complete a notification batch.
+    this.failedCompletionTopics.add(topicId)
+    stream.completedTaskCount = 0
 
     // A turn torn down while a tool is still `approval-requested` (or any
     // in-flight tool) gets no `tool-output-*` to clear it. Clear the set so the
@@ -1567,6 +1586,8 @@ export class AiStreamManager extends BaseService {
    *  user rows stay in history as dangling messages the user can resend; surfacing those orphaned
    *  rows in the renderer is the renderer slice's responsibility, not handled here. */
   private dropPendingSteers(topicId: string, reason: 'aborted' | 'error'): void {
+    this.completedBatchTasks.delete(topicId)
+    this.failedCompletionTopics.delete(topicId)
     const dropped = this.pendingSteers.get(topicId)
     if (dropped?.length) {
       logger.warn('Dropping queued steers without answering', {
@@ -1671,7 +1692,16 @@ export class AiStreamManager extends BaseService {
 
   /** Chat defers 30 s, prompt evicts immediately. */
   private runTerminalLifecycle(stream: ActiveStream): void {
+    if (this.hasTerminalPersistenceInFlight(stream.topicId)) {
+      stream.terminalLifecyclePending = true
+      return
+    }
+    stream.terminalLifecyclePending = false
     stream.lifecycle.onTerminal(stream)
+    if (stream.status !== 'awaiting-approval') {
+      this.completedBatchTasks.delete(stream.topicId)
+      this.failedCompletionTopics.delete(stream.topicId)
+    }
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
         this.activeStreams.delete(stream.topicId)
@@ -1923,8 +1953,10 @@ export class AiStreamManager extends BaseService {
   ): StreamExecution {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
+    const userTaskId = request.messages?.findLast((message) => message.role === 'user')?.id
     const exec: StreamExecution = {
       modelId,
+      taskIds: request.taskIds ?? (userTaskId ? [userTaskId] : undefined),
       userMessageId:
         request.runtime?.kind === 'agent-session'
           ? request.messages?.findLast((message) => message.role === 'user')?.id
@@ -2090,7 +2122,26 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
+    const persisted = await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
+    const tokens = exec.finalMessage?.metadata?.stats?.contextTokens
+    if (
+      persisted &&
+      stream.isPersistentConversation &&
+      !isAgentSessionTopic(stream.topicId) &&
+      typeof tokens === 'number' &&
+      Number.isFinite(tokens)
+    ) {
+      try {
+        void application.getExisting('NotificationService')?.observeChatContextUsage({
+          topicId: stream.topicId,
+          modelId: exec.modelId,
+          tokens,
+          anchorMessageId: exec.anchorMessageId
+        })
+      } catch (error) {
+        logger.warn('Failed to observe persisted chat context', { topicId: stream.topicId, error })
+      }
+    }
   }
 
   private async broadcastExecutionPaused(
@@ -2129,7 +2180,7 @@ export class AiStreamManager extends BaseService {
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
     invoke: (listener: StreamListener) => void | Promise<void>
-  ): Promise<void> {
+  ): Promise<boolean> {
     const dead: string[] = []
     const listeners = [...stream.listeners]
     const orderedListeners = [
@@ -2156,6 +2207,8 @@ export class AiStreamManager extends BaseService {
         await invoke(listener)
       } catch (err) {
         if (listener.terminalPhase === 'persistence' && err instanceof TerminalPersistenceError) {
+          this.failedCompletionTopics.add(stream.topicId)
+          stream.completedTaskCount = 0
           suppressNotification = true
           continue
         }
@@ -2165,10 +2218,14 @@ export class AiStreamManager extends BaseService {
           const remaining = (this.terminalPersistenceCounts.get(stream.topicId) ?? 1) - 1
           if (remaining === 0) this.terminalPersistenceCounts.delete(stream.topicId)
           else this.terminalPersistenceCounts.set(stream.topicId, remaining)
+          if (remaining === 0 && stream.terminalLifecyclePending && this.activeStreams.get(stream.topicId) === stream) {
+            this.runTerminalLifecycle(stream)
+          }
         }
       }
     }
     for (const id of dead) stream.listeners.delete(id)
+    return !suppressNotification
   }
 
   /**

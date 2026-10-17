@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
+import { NotificationCenterButton } from '@renderer/components/NotificationCenter'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -1179,6 +1180,9 @@ export const AppShellTabBar = ({
           )}
         </div>
 
+        <div key="notification-center" className="flex h-full shrink-0 items-center pr-1 [-webkit-app-region:no-drag]">
+          <NotificationCenterButton />
+        </div>
         {isFocusedTab ? (
           <div className="flex h-full shrink-0 items-stretch">
             {detachTab && (

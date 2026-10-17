@@ -70,7 +70,12 @@ export function createChatStreamLifecycle(
     },
     onTerminal(stream) {
       const completedAt = broadcast(stream, stream.status)
-      if (stream.status === 'done' && completedAt !== undefined && stream.isPersistentConversation) {
+      if (
+        stream.status === 'done' &&
+        completedAt !== undefined &&
+        stream.isPersistentConversation &&
+        stream.completedTaskCount !== 0
+      ) {
         const responseText = [...stream.executions.values()]
           .sort((a, b) => (b.timings.completedAt ?? 0) - (a.timings.completedAt ?? 0))
           .map((execution) =>
@@ -84,6 +89,9 @@ export function createChatStreamLifecycle(
         onConversationCompleted({
           topicId: stream.topicId,
           turnId: stream.turnId,
+          ...(stream.completedTaskCount && stream.completedTaskCount > 1
+            ? { completedTaskCount: stream.completedTaskCount }
+            : {}),
           completedAt,
           responseText
         })
