@@ -65,6 +65,7 @@ Project-specific tools, paths, and conventions.
 
 Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` — let it enforce them). For every other script, read `package.json` — the ones you must know:
 
+- `pnpm dev` — run the app in development mode (`pnpm debug` adds the inspector and remote debugging on port 9222); setup details in [docs/contrib/development.md](docs/contrib/development.md)
 - `pnpm check` — affected checks and whole-project tests, with full-gate fallback; use `--plan` to inspect selection, not as the default local PR validation command
 - `pnpm lint` — read-only Oxlint + ESLint; `pnpm lint:fix` explicitly applies lint fixes
 - `pnpm typecheck` — all typecheck projects, run serially to limit local memory usage
@@ -114,12 +115,12 @@ Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/
 ### Logging
 
 ```typescript
-import { loggerService } from "@logger";
-const logger = loggerService.withContext("moduleName");
+import { loggerService } from '@logger'
+const logger = loggerService.withContext('moduleName')
 // Renderer only: loggerService.initWindowSource('windowName') first
-logger.info("message", CONTEXT);
-logger.warn("message");
-logger.error("message", error);
+logger.info('message', CONTEXT)
+logger.warn('message')
+logger.error('message', error)
 ```
 
 ### Paths
@@ -137,6 +138,10 @@ logger.error("message", error);
 For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and follow its colors, fonts, spacing, and component specs strictly.
 
 ## Architecture
+
+### Domain References
+
+Every subsystem (`ai`, `chat`, `knowledge`, `provider-model`, `utility-process`, `security`, …) has an entry point at `docs/references/<domain>/README.md`; [docs/README.md](docs/README.md) indexes them all. Read the relevant one before changing that domain.
 
 ### Code Organization
 
