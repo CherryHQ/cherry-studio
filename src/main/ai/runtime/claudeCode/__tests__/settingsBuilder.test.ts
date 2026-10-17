@@ -72,11 +72,17 @@ const mocks = vi.hoisted(() => ({
   getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
   platform: { isLinux: false, isMac: false },
+  isPackaged: false,
   isWin: false
 }))
 
 vi.mock('electron', () => ({
-  app: { getVersion: vi.fn(() => '1.0.0-test') }
+  app: {
+    getVersion: vi.fn(() => '1.0.0-test'),
+    get isPackaged() {
+      return mocks.isPackaged
+    }
+  }
 }))
 
 vi.mock('@logger', () => ({
@@ -353,6 +359,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
+    mocks.isPackaged = false
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
@@ -422,6 +429,37 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
+  })
+
+  it('does not block a Flatpak-packaged native CLI launch when an agent override clears the session bus', async () => {
+    mocks.platform.isLinux = true
+    mocks.isPackaged = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('FLATPAK_ID', 'com.kangfenmao.CherryStudio')
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { DBUS_SESSION_BUS_ADDRESS: '' } }
+    })
+
+    // The native executable is spawned directly (no zypak re-exec), so no session bus is required.
+    await expect(
+      buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+    ).resolves.toBeDefined()
   })
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
