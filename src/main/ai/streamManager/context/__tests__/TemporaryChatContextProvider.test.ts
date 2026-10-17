@@ -161,6 +161,30 @@ describe('TemporaryChatContextProvider', () => {
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet-4-5')
   })
 
+  it('runs an assistant whose model was deleted with the model the user selected', async () => {
+    getAssistantByIdMock.mockReturnValue({ id: 'asst_1', name: 'Writer', emoji: 'W', modelId: null })
+    getByKeyMock.mockReset()
+    getByKeyMock.mockImplementation((providerId: string, modelId: string) => ({
+      id: `${providerId}::${modelId}`,
+      providerId,
+      apiModelId: modelId,
+      name: `${providerId}/${modelId}`
+    }))
+
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })).rejects.toThrow(
+      /has no model configured/
+    )
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5'] }),
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet-4-5')
+    expect(prepared.models[0].request.assistantId).toBe('asst_1')
+  })
+
   it('warns and uses only the first when multiple mentionedModelIds are supplied (single-execution constraint)', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
     getByKeyMock.mockReset()

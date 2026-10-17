@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { app, BrowserWindow, screen } from 'electron'
 
 /**
@@ -28,9 +30,10 @@ import { app, BrowserWindow, screen } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isMac, isWin } from '@main/core/platform'
+import { isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
+import type { QuickChatInput, QuickChatRequest } from '@shared/ipc/schemas/quickAssistant'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
@@ -105,7 +108,9 @@ const logger = loggerService.withContext('QuickAssistantService')
 @DependsOn(['MainWindowService', 'WindowManager'])
 export class QuickAssistantService extends BaseService implements Activatable {
   private windowId: string | null = null
+  private cancelPendingShow: (() => void) | null = null
   private isPinnedQuickAssistant = false
+  private isFloatingChat = false
   // Fallback poll for the macOS NSPanel blur-event bug — see the
   // "Post-unpin focus poll" block above the file's constants for the full
   // rationale, trade-offs, and degradation modes.
@@ -133,6 +138,17 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.QuickAssistant, ({ window }) => {
         this.setupQuickAssistant(window)
+      })
+    )
+
+    this.registerDisposable(
+      wm.onWindowDestroyedByType(WindowType.QuickAssistant, ({ id }) => {
+        if (id !== this.windowId) return
+        this.cancelPendingShow?.()
+        this.windowId = null
+        this.isFloatingChat = false
+        this.isPinnedQuickAssistant = false
+        this.stopPostUnpinFocusPoll()
       })
     )
 
@@ -188,6 +204,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   private releaseActivationResources(): void {
+    this.cancelPendingShow?.()
     if (this.windowId) {
       // QuickAssistant is a singleton — wm.close() falls through to destroyWindow()
       // just like wm.destroy() would, but stays in the Consumer API layer. The
@@ -197,6 +214,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       this.windowId = null
     }
     this.isPinnedQuickAssistant = false
+    this.isFloatingChat = false
     this.hasBlurredSinceShow = false
     this.stopPostUnpinFocusPoll()
   }
@@ -216,8 +234,14 @@ export class QuickAssistantService extends BaseService implements Activatable {
       this.mainWindowRef = mainWindow
 
       const onMainVisible = () => {
+        // Main is in front now, so dismissing the quick window must not hide the whole app
+        // (macOS < 26 app.hide() fallback) after a handoff such as "Open in Cherry Studio".
+        this.wasMainWindowFocused = true
         const window = this.getQuickAssistant()
-        if (window) window.hide()
+        if (window && !this.isFloatingChat) this.dismissWindow(window)
+      }
+      const onMainFocused = () => {
+        this.wasMainWindowFocused = true
       }
       const onMainClosed = () => {
         if (this.mainWindowRef === mainWindow) {
@@ -227,8 +251,10 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
       mainWindow.on('show', onMainVisible)
       mainWindow.on('restore', onMainVisible)
+      mainWindow.on('focus', onMainFocused)
       mainWindow.on('closed', onMainClosed)
       this.registerDisposable(() => {
+        mainWindow.removeListener('focus', onMainFocused)
         mainWindow.removeListener('show', onMainVisible)
         mainWindow.removeListener('restore', onMainVisible)
         mainWindow.removeListener('closed', onMainClosed)
@@ -292,7 +318,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * closed, show) are attached. We then assign this.windowId and proceed.
    */
   private createQuickAssistant() {
-    if (this.windowId) return
+    if (this.getQuickAssistant()) return
 
     const wm = application.get('WindowManager')
     this.windowId = wm.open(WindowType.QuickAssistant)
@@ -321,7 +347,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
       // setPinQuickAssistant to decide whether the post-unpin focus poll
       // workaround is needed (see that method for the full rationale).
       this.hasBlurredSinceShow = true
-      if (!this.isPinnedQuickAssistant) {
+      if (!this.isPinnedQuickAssistant && !this.isFloatingChat) {
         this.hideQuickAssistant()
       }
     }
@@ -366,16 +392,57 @@ export class QuickAssistantService extends BaseService implements Activatable {
     // bail. The preference subscription in onInit keeps these in lockstep.
     if (!this.isActivated) return
 
+    // Wayland dismisses by destroying the window (see dismissWindow), so recreate it on demand.
+    this.createQuickAssistant()
     const window = this.getQuickAssistant()
     if (!window) return
 
-    this.proceedShow()
+    this.proceedShow(true)
+  }
+
+  public async openChat(input: QuickChatInput): Promise<void> {
+    await this.activate()
+    const wm = application.get('WindowManager')
+    const request: QuickChatRequest = {
+      ...input,
+      temporary:
+        input.temporary ?? application.get('PreferenceService').get('feature.quick_assistant.default_temporary'),
+      kind: 'chat',
+      requestId: randomUUID()
+    }
+    this.windowId = wm.open(WindowType.QuickAssistant, { initData: request })
+    this.isFloatingChat = true
+    this.proceedShow(true)
+  }
+
+  public acknowledgeChatRequest(windowId: string | null, requestId: string): void {
+    if (!windowId || windowId !== this.windowId) return
+    const wm = application.get('WindowManager')
+    const data = wm.getInitData(windowId) as QuickChatRequest | null
+    if (data?.kind === 'chat' && data.requestId === requestId) wm.clearInitData(windowId)
   }
 
   /** Inner show pipeline. Assumes the quick window exists and its content is ready. */
-  private proceedShow() {
+  private proceedShow(centerOnDisplay = false, loaded = false) {
     const window = this.getQuickAssistant()
     if (!window) return
+
+    // [Linux Wayland] A fresh window is mapped once its first page load finishes so the
+    // compositor places it at its real size instead of an empty surface (no blank flash).
+    // isLoading() can still report true inside did-finish-load, hence the `loaded` flag.
+    this.cancelPendingShow?.()
+    if (isLinuxWayland && !loaded && window.webContents.isLoading()) {
+      const onLoaded = () => {
+        this.cancelPendingShow = null
+        if (this.getQuickAssistant() === window) this.proceedShow(centerOnDisplay, true)
+      }
+      this.cancelPendingShow = () => {
+        window.webContents.removeListener('did-finish-load', onLoaded)
+        this.cancelPendingShow = null
+      }
+      window.webContents.once('did-finish-load', onLoaded)
+      return
+    }
 
     this.wasMainWindowFocused = this.mainWindowRef?.isFocused() ?? false
 
@@ -388,10 +455,24 @@ export class QuickAssistantService extends BaseService implements Activatable {
       window.show()
     }
 
-    this.repositionToCursorDisplay(window)
+    if (centerOnDisplay && !isLinuxWayland) {
+      const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+      const bounds = window.getBounds()
+      const width = Math.min(bounds.width, workArea.width)
+      const height = Math.min(bounds.height, workArea.height)
+      window.setBounds({
+        x: workArea.x + Math.round((workArea.width - width) / 2),
+        y: workArea.y + Math.round((workArea.height - height) / 2),
+        width,
+        height
+      })
+    } else if (!isLinuxWayland) {
+      this.repositionToCursorDisplay(window)
+    }
 
     window.setOpacity(1)
     window.show()
+    window.focus()
   }
 
   /**
@@ -416,6 +497,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   public hideQuickAssistant() {
+    this.cancelPendingShow?.()
     const window = this.getQuickAssistant()
     if (!window) return
 
@@ -444,25 +526,34 @@ export class QuickAssistantService extends BaseService implements Activatable {
       return
     }
 
-    window.hide()
+    this.dismissWindow(window)
   }
 
   /**
-   * Hides the quick window rather than destroying it. The quick window is a
-   * high-frequency toggle surface; destroy + recreate would cause a blank-flash
-   * on next show (loadURL is async and ready-to-show races the show() call) and
-   * waste the preload work. The renderer call sites (settings panel toggles)
-   * only need the window to disappear — hide() satisfies that. True teardown
-   * happens in onDeactivate() when the feature preference is turned off, and
-   * as a final fallback in WindowManager.onDestroy() at app quit.
+   * Hide the quick window. On Linux Wayland the window is destroyed instead: apps cannot
+   * position windows there, and a re-mapped hidden window is placed by the compositor as
+   * if it had no size (it lands with its corner at the screen center or the top-left).
+   * A fresh window gets the compositor's normal placement every time it opens.
    */
+  private dismissWindow(window: BrowserWindow) {
+    this.cancelPendingShow?.()
+    if (!isLinuxWayland || !this.windowId) {
+      window.hide()
+      return
+    }
+    application.get('WindowManager').close(this.windowId)
+    this.windowId = null
+  }
+
+  /** Dismiss the window using the platform's hide or destroy policy. */
   public closeQuickAssistant() {
-    this.getQuickAssistant()?.hide()
+    const window = this.getQuickAssistant()
+    if (window) this.dismissWindow(window)
   }
 
   public toggleQuickAssistant() {
     const window = this.getQuickAssistant()
-    if (window?.isVisible()) {
+    if (window?.isVisible() || this.cancelPendingShow) {
       this.hideQuickAssistant()
       return
     }

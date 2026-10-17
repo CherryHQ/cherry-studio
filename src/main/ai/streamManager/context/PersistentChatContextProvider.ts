@@ -261,7 +261,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const { assistantId, defaultModelId } =
       !topic?.assistantId && selectedModelId
         ? { assistantId: undefined, defaultModelId: selectedModelId }
-        : resolveAssistantModelId(topic?.assistantId)
+        : resolveAssistantModelId(topic?.assistantId, selectedModelId)
     const hasExplicitReservedTarget = req.trigger === 'submit-message' && req.targetMode === 'reserved-branch'
     const reservedBranchId =
       req.trigger === 'submit-message' &&

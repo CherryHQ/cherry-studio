@@ -33,7 +33,7 @@ const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByM
         id="messages"
         key={assistant?.id ?? 'runtime-default'}
         className="flex min-w-full flex-col-reverse items-center overflow-x-hidden bg-transparent! pb-5">
-        {!isOutputted && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+        {!isOutputted && messages.length > 0 && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
         {[...messages].reverse().map((message, index) => (
           <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
         ))}

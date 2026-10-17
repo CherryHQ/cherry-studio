@@ -52,6 +52,8 @@ describe('knowledge ordering migrate-forward', () => {
     dbh.sqlite.exec(
       'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
     )
+    // Later migrations are replayed too, so undo their schema changes to get the pre-0027 schema.
+    dbh.sqlite.exec('DROP INDEX topic_expires_at_idx; ALTER TABLE topic DROP COLUMN expires_at')
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
     applyMigrations(dbh.db, migrationsFolder)
     new SeedRunner(dbh.db).runAll([new KnowledgeBaseOrderSeeder()])

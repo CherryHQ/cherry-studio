@@ -16,6 +16,7 @@ import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
+import { parseChatProtocolUrl } from './handlers/chat'
 import { parseMcpInstallProtocolUrl } from './handlers/mcpInstall'
 import { handleNavigateProtocolUrl } from './handlers/navigate'
 import { handleProvidersProtocolUrl } from './handlers/providersImport'
@@ -37,6 +38,8 @@ export class ProtocolService extends BaseService {
   private pendingMcpInstallRequests: ProtocolMcpInstallRequest[] = []
   private areServicesReady = false
   private isMainRendererReady = false
+  /** A `cherrystudio://chat/...` URL arrived before bootstrap finished (launcher cold start). */
+  private hasColdStartChatLaunch = false
 
   protected async onInit() {
     // NOTE: Background phase's onInit runs on the first microtask after startPhase(),
@@ -96,6 +99,14 @@ export class ProtocolService extends BaseService {
 
     // Runs after all bootstrap phases — application.getPath() is safe
     await this.setupAppImageDeepLink()
+  }
+
+  /**
+   * True when the process was started to open the floating chat. On macOS the URL arrives via
+   * `open-url` instead of argv, so MainWindowService asks here before its first show.
+   */
+  public isFloatingChatColdStart(): boolean {
+    return this.hasColdStartChatLaunch
   }
 
   public onMainRendererReady(windowId: string) {
@@ -160,9 +171,11 @@ export class ProtocolService extends BaseService {
 
   private handleProtocolUrl(url: string) {
     if (!url) return
+    if (!this.areServicesReady && isChatProtocolUrl(url)) this.hasColdStartChatLaunch = true
 
-    if (!this.areServicesReady || !this.isMainRendererReady) {
+    if (!this.canDispatchProtocolUrl(url)) {
       this.pendingProtocolUrls.push(url)
+      this.ensureMainWindowForPendingUrls()
       return
     }
 
@@ -170,14 +183,31 @@ export class ProtocolService extends BaseService {
   }
 
   private flushPendingProtocolUrls() {
-    if (!this.areServicesReady || !this.isMainRendererReady) {
+    if (!this.areServicesReady) {
       return
     }
 
     const pendingUrls = this.pendingProtocolUrls.splice(0)
     for (const url of pendingUrls) {
-      this.dispatchProtocolUrl(url)
+      this.handleProtocolUrl(url)
     }
+  }
+
+  /**
+   * Routes other than `chat` wait for Main's renderer. If Main was destroyed (close-to-tray
+   * with Quick Assistant keeping the app alive), nothing would recreate it, so reopen it here;
+   * the queue flushes from onMainRendererReady.
+   */
+  private ensureMainWindowForPendingUrls() {
+    if (!this.areServicesReady || this.isMainRendererReady) return
+    if (application.get('WindowManager').getWindowsByType(WindowType.Main).length > 0) return
+    application.get('MainWindowService').showMainWindow()
+  }
+
+  private canDispatchProtocolUrl(url: string): boolean {
+    if (!this.areServicesReady) return false
+    if (this.isMainRendererReady) return true
+    return isChatProtocolUrl(url)
   }
 
   private dispatchProtocolUrl(url: string) {
@@ -186,6 +216,16 @@ export class ProtocolService extends BaseService {
       const params = new URLSearchParams(urlObj.search)
 
       switch (urlObj.hostname.toLowerCase()) {
+        case 'chat': {
+          const request = parseChatProtocolUrl(urlObj)
+          if (request) {
+            void application
+              .get('QuickAssistantService')
+              .openChat(request)
+              .catch((error) => logger.error('Failed to open launcher chat', error as Error))
+          }
+          return
+        }
         case 'mcp':
           this.handleMcpInstallProtocolUrl(urlObj)
           return
@@ -301,4 +341,12 @@ NoDisplay=true
  */
 function escapePathForExec(filePath: string): string {
   return `'${filePath.replace(/'/g, "'\\''")}'`
+}
+
+function isChatProtocolUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase() === 'chat'
+  } catch {
+    return false
+  }
 }

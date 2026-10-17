@@ -13,7 +13,7 @@
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
-import type { TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
+import { PersistTemporaryChatSchema, type TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
@@ -43,8 +43,9 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   },
 
   '/temporary/topics/:id/persist': {
-    POST: async ({ params }) => {
-      return temporaryChatService.persist(params.id)
+    POST: async ({ params, body }) => {
+      const parsed = PersistTemporaryChatSchema.parse(body ?? {})
+      return temporaryChatService.persist(params.id, parsed.temporary === true)
     }
   }
 }

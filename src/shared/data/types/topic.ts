@@ -31,6 +31,8 @@ export const TopicSchema = z.strictObject({
   assistantId: z.string().optional(),
   /** Active node ID in the message tree */
   activeNodeId: z.string().optional(),
+  /** Fixed expiry of a retained temporary chat; absent for permanent history. */
+  expiresAt: z.iso.datetime().optional(),
   /** Container-level OTel trace id */
   traceId: TraceIdSchema.optional(),
   /** Global fractional-indexing order key. */

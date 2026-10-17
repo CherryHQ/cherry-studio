@@ -68,7 +68,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const { assistantId, defaultModelId } =
       !topic.assistantId && selectedModelId
         ? { assistantId: undefined, defaultModelId: selectedModelId }
-        : resolveAssistantModelId(topic.assistantId)
+        : resolveAssistantModelId(topic.assistantId, selectedModelId)
 
     let resolveWith: UniqueModelId[] | undefined
     if (req.mentionedModelIds?.length) {

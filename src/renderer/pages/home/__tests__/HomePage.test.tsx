@@ -181,6 +181,7 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => vi.fn(),
   useCurrentTabId: () => 'chat-tab',
   useIsActiveTab: () => homeMocks.isActiveTab,
   useTabSelfVisuals: vi.fn()

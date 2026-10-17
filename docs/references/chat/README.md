@@ -36,3 +36,4 @@ reference set documents implemented behavior only.
 |---|---|
 | [Composer Rich Clipboard](./composer-rich-clipboard.md) | Private clipboard format that preserves composer tokens across copy/paste, its restore rules, and ownership boundaries |
 | [Message Tree](./message-tree.md) | The topic message-tree model: adjacency list, virtual root, sibling groups, invariants, delete semantics, consumer contract |
+| [Launcher and Temporary Chats](./launcher-chat.md) | URL protocol, shortcuts, and floating saved/temporary conversation lifecycle |

@@ -175,6 +175,31 @@ describe('ShortcutService', () => {
     service = new ShortcutService()
   })
 
+  it.each([false, true])(
+    'uses a focused-window fallback only when global registration fails (%s)',
+    async (registered) => {
+      globalShortcutMock.register.mockReturnValue(registered)
+      await (service as any).onInit()
+      commandServiceMock.execute.mockClear()
+      const event = { preventDefault: vi.fn() }
+      mainWindow.emitWebContents('before-input-event', event, {
+        type: 'keyDown',
+        key: 'N',
+        code: 'KeyN',
+        control: process.platform !== 'darwin',
+        meta: process.platform === 'darwin',
+        alt: false,
+        shift: true
+      })
+      if (registered) {
+        expect(commandServiceMock.execute).not.toHaveBeenCalled()
+      } else {
+        expect(commandServiceMock.execute).toHaveBeenCalledExactlyOnceWith('chat.temporary.open', mainWindow)
+        expect(event.preventDefault).toHaveBeenCalledOnce()
+      }
+    }
+  )
+
   it('registers only explicitly global shortcuts with Electron globalShortcut', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
       binding: ['CommandOrControl', 'M'],

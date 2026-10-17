@@ -21,6 +21,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import { TEMPORARY_CHAT_LIFETIME_MS } from '@shared/data/api/schemas/temporaryChats'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
@@ -72,6 +73,17 @@ function rowToMessage(row: TemporaryMessageRow): Message {
 export class TemporaryChatService {
   private topics = new Map<string, TemporaryTopicRow>()
   private messages = new Map<string, TemporaryMessageRow[]>()
+
+  listExpiredTopicIds(now = Date.now()): string[] {
+    return [...this.topics.values()]
+      .filter((topic) => topic.createdAt + TEMPORARY_CHAT_LIFETIME_MS <= now)
+      .map((topic) => topic.id)
+  }
+
+  isExpired(topicId: string, now = Date.now()): boolean {
+    const topic = this.topics.get(topicId)
+    return topic !== undefined && topic.createdAt + TEMPORARY_CHAT_LIFETIME_MS <= now
+  }
 
   createTopic(dto: CreateTopicDto): Topic {
     const now = Date.now()
@@ -191,7 +203,7 @@ export class TemporaryChatService {
     return structuredClone(rows).map(rowToMessage)
   }
 
-  persist(topicId: string): { topicId: string; messageCount: number } {
+  persist(topicId: string, temporary = false): { topicId: string; messageCount: number } {
     // 1. snapshot-and-clear: take the data out of the Maps immediately so that
     // concurrent handlers can't mutate it while the DB transaction is awaiting.
     const topic = this.topics.get(topicId)
@@ -219,6 +231,7 @@ export class TemporaryChatService {
           {
             id: topic.id,
             name: topic.name ?? undefined,
+            expiresAt: temporary ? topic.createdAt + TEMPORARY_CHAT_LIFETIME_MS : undefined,
             assistantId,
             lastActivityAt: topic.lastActivityAt,
             createdAt: topic.createdAt,

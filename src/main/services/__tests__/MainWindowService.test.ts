@@ -36,7 +36,7 @@ const {
       onBeforeRequest: vi.fn()
     }
   })
-  const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
+  const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false, floatingChatColdStart: false }
   const prefValues: Record<string, unknown> = {
     'app.tray.enabled': false,
     'app.tray.on_close': false,
@@ -108,6 +108,9 @@ const {
       }
       if (name === 'WindowManager') {
         return windowManagerMock
+      }
+      if (name === 'ProtocolService') {
+        return { isFloatingChatColdStart: () => platformState.floatingChatColdStart }
       }
       return createMockApplication().get(name)
     }),
@@ -306,6 +309,7 @@ describe('MainWindowService', () => {
     platformState.isWin = false
     platformState.isLinux = false
     platformState.isDev = false
+    platformState.floatingChatColdStart = false
     prefValues['app.tray.enabled'] = false
     prefValues['app.tray.on_close'] = false
     prefValues['app.spell_check.enabled'] = false
@@ -351,6 +355,45 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  it('leaves launcher URL focus to ProtocolService instead of raising the main window', async () => {
+    await (svc as any).onInit()
+    const showMainWindow = vi.spyOn(svc, 'showMainWindow')
+
+    for (const [event, listener] of (app.on as unknown as ReturnType<typeof vi.fn>).mock.calls) {
+      if (event === 'second-instance') {
+        listener({}, ['/path/to/cherry', 'cherrystudio://chat/new?prompt=Paris&submit=true'])
+      }
+    }
+
+    expect(showMainWindow).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a launcher chat URL', ['cherrystudio://chat/new?prompt=Paris&submit=true'], true],
+    ['a plain launch', [], false]
+  ])('keeps Main hidden on a Windows/Linux cold start only for %s', async (_label, extraArgs, hidden) => {
+    vi.spyOn(svc as any, 'openMainWindow').mockImplementation(() => undefined)
+    const argv = process.argv
+    process.argv = ['/path/to/cherry', ...extraArgs]
+    try {
+      await (svc as any).onReady()
+    } finally {
+      process.argv = argv
+    }
+
+    expect((svc as any).suppressInitialLaunchShow).toBe(hidden)
+  })
+
+  it('keeps Main hidden on a macOS cold start whose chat URL arrived through open-url', async () => {
+    platformState.isMac = true
+    platformState.floatingChatColdStart = true
+    vi.spyOn(svc as any, 'openMainWindow').mockImplementation(() => undefined)
+
+    await (svc as any).onReady()
+
+    expect((svc as any).suppressInitialLaunchShow).toBe(true)
   })
 
   describe('Apple Silicon architecture warning', () => {
