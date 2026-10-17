@@ -96,7 +96,6 @@ describe('sanitizeEndpointDraftsForSave', () => {
 
   it('keeps a touched self-hosted draft when save uses snapshots taken before refs are cleared', () => {
     const liveTouched = new Set<typeof PRIMARY>()
-    const liveOpenSnapshot: Partial<Record<typeof PRIMARY, { type: string }>> = {}
     const touchedSnapshot = new Set<typeof PRIMARY>([PRIMARY])
     const openSnapshot = { [PRIMARY]: undefined as { type: string } | undefined }
 
