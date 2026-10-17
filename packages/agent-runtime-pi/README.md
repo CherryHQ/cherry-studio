@@ -177,11 +177,11 @@ request returns an `isError` result with the reason and its last partial output 
 `failed`, `truncated`, `aborted`, `limit_reached`). That `usage` is for budgets: the host's AI SDK
 calls already account it, so it must not be billed again.
 
-A subagent makes at most 200 model requests (`MAX_SUBAGENT_REQUESTS`), counted where its session
-makes them: its turns and the compaction summaries made for it (Pi's own summarizer through the
-model runtime, or the host's `compaction.summarize`) alike; the 201st is refused before it goes
-out. Counting wraps the child's native `agent.streamFunction` and the host summarizer, so it is
-independent of the provider and does not modify the borrowed model runtime. Pi's cache warmer
+A subagent makes at most 200 model requests, counted where its session makes them: its turns and
+the compaction summaries made for it (Pi's own summarizer through the model runtime, or the host's
+`compaction.summarize`) alike; the 201st is refused before it goes out. Counting wraps the child's
+native `agent.streamFunction` and the host summarizer, so it is independent of the provider and
+does not modify the borrowed model runtime. Pi's cache warmer
 would re-send requests past that count, so subagent sessions run with cache warming off. The
 compaction summarizer gets the compacting session's id, so a host can tell a subagent's compaction
 from its parent's.
@@ -214,9 +214,12 @@ idle. Design: `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`.
   (`approval_denied`), an approval nobody can give (`awaiting_approval`) or a dismissed question
   (`needs_user_input`) in a goal round, a round another extension's settle handler overrides
   (`continuation_rejected`), and, while the goal is armed, a failed request (`provider_error`) or
-  an abort (`aborted`: `session.abort()` or the host's own request signal). `/goal pause` stops
-  with `paused_by_user`, `confirm-each-round` with `paused_each_round`, `update_goal(blocked)` with
-  `model_blocked` and an accepted completion with `complete`.
+  an abort (`aborted`: `session.abort()` or the host's own request signal, but see the known
+  gaps). While the host's `port.hasRunningSubagents()` reports background subagents running, an
+  armed goal blocks with `waiting_subagents` at its settle; no host reports them before background
+  subagents arrive (#21693). `/goal pause` stops with `paused_by_user`, `confirm-each-round` with
+  `paused_each_round`, `update_goal(blocked)` with `model_blocked` and an accepted completion with
+  `complete`.
 - **Usage** – never kept: every check (the budget, `resume`, `/goal`, `get_goal`) reads it from the
   branch, so a reopened session sees what the live one saw. It is every request made in one of the
   goal's admitted rounds while the goal was active, judged where the request's input ends (a
@@ -276,5 +279,9 @@ by the user through the existing approval card. Show a withdrawn round as descri
   id (OpenAI's `prompt_cache_key`) does not reach the parent's cache partition.
 - Every fork's native session holds its own copy of the parent's history (a file-backed fork copies
   the parent's file); a host may deduplicate it.
-- Goals have no fresh-context (Ralph) mode. The package does not know the permission mode; keeping
-  goals from running rounds in plan mode is up to the host.
+- Goals have no `waiting` state for background work (the goal blocks with `waiting_subagents` when
+  the host reports running background subagents, which only #21693 adds) and no fresh-context
+  (Ralph) mode. The package does not know the permission mode; keeping goals from running rounds in
+  plan mode is up to the host.
+- A `session.abort()` that lands in the run withdrawing a stale goal round (it ends before any
+  request) is taken for that withdrawal: the goal goes on instead of pausing.
