@@ -4,13 +4,14 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-10-11T15:18:33.533Z
- * Total icons: 164
+ * Generated at: 2026-10-12T07:19:05.693Z
+ * Total icons: 165
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
 import { Ai302Icon } from './302ai'
 import { AbacusIcon } from './abacus'
+import { AcedatacloudIcon } from './acedatacloud/acedatacloud'
 import { AiOnlyIcon } from './ai-only'
 import { AiStudioIcon } from './ai-studio'
 import { Ai21Icon } from './ai21'
@@ -178,6 +179,7 @@ export const PROVIDER_ICON_CATALOG = {
   '302ai': Ai302Icon,
   '3min-top': MinTop3Icon,
   abacus: AbacusIcon,
+  acedatacloud: AcedatacloudIcon,
   'ai-only': AiOnlyIcon,
   'ai-studio': AiStudioIcon,
   ai21: Ai21Icon,
@@ -304,8 +306,8 @@ export const PROVIDER_ICON_CATALOG = {
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
-  serply: SerplyIcon,
   sensetime: SensetimeIcon,
+  serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,

@@ -32,6 +32,7 @@ export function getIconDisplayConfig(
 ): IconDisplayConfig | undefined {
   if (!iconId) return undefined
   if (context === 'provider-list') {
+    if (iconId.toLowerCase() === 'acedatacloud') return { scale: 1 }
     return getProviderIconAssetMetrics({ kind: 'provider', iconId }).kind === 'tile'
       ? providerListContainedIcon
       : defaultIcon

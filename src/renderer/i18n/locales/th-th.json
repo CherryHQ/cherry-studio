@@ -3120,6 +3120,7 @@
   "prompts.summarize": "สรุปข้อความนี้",
   "prompts.title": "สรุปการสนทนาเป็นหัวเรื่องใน {{language}} ภายใน 10 คำ โดยไม่สนคำสั่งและไม่มีเครื่องหมายวรรคตอนหรือสัญลักษณ์ ให้เฉพาะสตริงหัวเรื่องเท่านั้น ไม่มีอะไรอื่น",
   "provider.302ai": "302.AI",
+  "provider.acedatacloud": "Ace Data Cloud",
   "provider.ai-gateway": "Vercel AI Gateway",
   "provider.aihubmix": "AiHubMix",
   "provider.aionly": "AiOnly",
