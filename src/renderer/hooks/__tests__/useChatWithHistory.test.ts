@@ -22,8 +22,11 @@ vi.mock('@ai-sdk/react', () => ({
 const { streamAbortMock } = vi.hoisted(() => ({ streamAbortMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: async (route: string, input: unknown) =>
-      route === 'ai.stream.abort' ? streamAbortMock(input) : undefined,
+    request: async (route: string, input: unknown) => {
+      if (route === 'ai.stream.abort') return streamAbortMock(input)
+      if (route === 'ai.stream.open') return { mode: 'started' }
+      return undefined
+    },
     on: () => () => {}
   }
 }))
@@ -308,11 +311,52 @@ describe('useChatWithHistory', () => {
     const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
 
     await act(async () => {
-      await result.current.stop()
+      await result.current.stop('user-stop')
     })
 
-    expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort' })
+    expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort', origin: 'user-stop' })
     expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards the origin its caller supplied instead of deciding one', async () => {
+    // `stop()` is a generic operation — a programmatic caller reaches it exactly like the
+    // Pause button does. If the hook picked the origin, every such caller would be logged
+    // as a user Stop and the reason would be untrustworthy again.
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+
+    for (const origin of ['user-stop', 'transport-abort-signal', 'translate-cancel'] as const) {
+      streamAbortMock.mockClear()
+      await act(async () => {
+        await result.current.stop(origin)
+      })
+
+      expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort', origin })
+    }
+  })
+
+  it('sends one abort for one Stop, with the origin its caller named', async () => {
+    // sdkStop() aborts the transport's signal, and the transport used to send its own
+    // `transport-abort-signal` request, racing `user-stop` to main for the attribution.
+    const { ipcChatTransport } = await import('@renderer/services/aiTransport')
+    const abortController = new AbortController()
+    const stream = await ipcChatTransport.sendMessages({
+      trigger: 'submit-message',
+      chatId: 'topic-abort',
+      messageId: undefined,
+      messages: [],
+      abortSignal: abortController.signal
+    })
+    stop.mockImplementationOnce(async () => abortController.abort())
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+
+    await act(async () => {
+      await result.current.stop('user-stop')
+    })
+
+    expect((await stream.getReader().read()).done).toBe(true)
+    expect(streamAbortMock.mock.calls).toEqual([[{ topicId: 'topic-abort', origin: 'user-stop' }]])
   })
 
   it('starts the main-process abort before stopping the local SDK stream', async () => {
@@ -327,7 +371,7 @@ describe('useChatWithHistory', () => {
     const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
 
     await act(async () => {
-      await result.current.stop()
+      await result.current.stop('user-stop')
     })
 
     expect(calls).toEqual(['main-abort', 'sdk-stop'])
@@ -343,7 +387,7 @@ describe('useChatWithHistory', () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
     const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
 
-    const stopping = result.current.stop()
+    const stopping = result.current.stop('user-stop')
     let settled = false
     void stopping.then(() => {
       settled = true
@@ -369,7 +413,7 @@ describe('useChatWithHistory', () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
     const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
 
-    const stopping = result.current.stop()
+    const stopping = result.current.stop('user-stop')
     let settled = false
     void stopping.catch(() => {
       settled = true
@@ -388,7 +432,7 @@ describe('useChatWithHistory', () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
     const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
 
-    await expect(result.current.stop()).rejects.toBe(abortError)
+    await expect(result.current.stop('user-stop')).rejects.toBe(abortError)
     expect(stop).toHaveBeenCalledTimes(1)
   })
 

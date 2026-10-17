@@ -67,7 +67,8 @@ ipcApi.request('translate.open', {
 
 - `streamId` is renderer-generated and must start with `translate:`. The
   namespace prevents collisions with real chat topic IDs when abort uses
-  `ai.stream.abort({ topicId: streamId })`.
+  `ai.stream.abort({ topicId: streamId, origin: 'translate-cancel' })`. The
+  `origin` names the caller in Main's `Aborting stream` log line.
 - `targetLangCode` must be a concrete configured language, not `unknown`.
 - The renderer subscribes to `ai.stream.chunk`, `ai.stream.done`, and
   `ai.stream.error` before it calls `translate.open`, because Main starts the

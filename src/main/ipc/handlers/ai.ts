@@ -30,6 +30,9 @@ import { exposeAiError } from './exposeAiError'
 
 const logger = loggerService.withContext('ipc/ai')
 
+/** Abort reason for a caller that named no origin. Deliberately not `user-stop`. */
+const ABORT_ORIGIN_UNSPECIFIED = 'origin-unspecified'
+
 async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
@@ -151,8 +154,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
-  'ai.stream.abort': async ({ topicId }) => {
-    await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
+  'ai.stream.abort': async ({ topicId, origin }) => {
+    // A caller that names no origin is an un-updated caller, not a Stop the user pressed.
+    await application.get('AiStreamManager').abortAndDrain(topicId, origin ?? ABORT_ORIGIN_UNSPECIFIED)
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
