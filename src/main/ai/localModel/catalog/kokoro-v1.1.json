@@ -1,0 +1,91 @@
+{
+  "repo": "csukuangfj/kokoro-multi-lang-v1_1",
+  "revision": "914313412b607d95400bcd12446233fbd1248801",
+  "files": [
+    {
+      "relPath": "date-zh.fst",
+      "sha256": "eb8aa079ae3cb81d8f4404992f39d61a0cb990947512b5b8d1e54d1f6980e718",
+      "sizeBytes": 59154
+    },
+    {
+      "relPath": "espeak-ng-data/en_dict",
+      "sha256": "71bd330ba8a2e3e8076e631508208ef49449d6147c17b7bd2b4b1e1468292e35",
+      "sizeBytes": 166944
+    },
+    {
+      "relPath": "espeak-ng-data/intonations",
+      "sha256": "3f8af65fd3eda9759a10f021d61361c120871f463515229c925995c7f90918cc",
+      "sizeBytes": 2040
+    },
+    {
+      "relPath": "espeak-ng-data/lang/gmw/en",
+      "sha256": "4605d5330801de3641c6e366d15f129ea1f5ffbce8722642aba01ace07ab9c83",
+      "sizeBytes": 140
+    },
+    {
+      "relPath": "espeak-ng-data/lang/gmw/en-US",
+      "sha256": "41534c2a22df5dd4f1052ff9e1a33a3ea7bff5a26b5c02bdad5ba8ddb7524704",
+      "sizeBytes": 257
+    },
+    {
+      "relPath": "espeak-ng-data/phondata",
+      "sha256": "4e0288957874029a8c3c9f41a8f517ad4bf18127046decbdd4b9d1d6807ce3a3",
+      "sizeBytes": 550424
+    },
+    {
+      "relPath": "espeak-ng-data/phondata-manifest",
+      "sha256": "7b387af0702c7cf0b61f0bead68feded0bd8e1620729b0b252e76acbc30d3813",
+      "sizeBytes": 21821
+    },
+    {
+      "relPath": "espeak-ng-data/phonindex",
+      "sha256": "3ca7b8fa3b42624e4b0f152707e7a39245fce569aa99ea47c055d9e622fcf0c4",
+      "sizeBytes": 39074
+    },
+    {
+      "relPath": "espeak-ng-data/phontab",
+      "sha256": "886f3fa402cb0ba73d483aa8ad000af47a6b7cc06293c75a97913fba68a530f6",
+      "sizeBytes": 55796
+    },
+    {
+      "relPath": "lexicon-us-en.txt",
+      "sha256": "7daaab53a181be9885b853a8582bf1838186317e5dadacbcef9c426d6fa0da14",
+      "sizeBytes": 5956885
+    },
+    {
+      "relPath": "lexicon-zh.txt",
+      "sha256": "11111d8cd695fba2ace1367a1d0a708b586e6ef5c1f9be91da5d7eef129b651c",
+      "sizeBytes": 2119465
+    },
+    {
+      "relPath": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "sizeBytes": 11358
+    },
+    {
+      "relPath": "model.onnx",
+      "sha256": "acc4adc175b9d9986106cd20060329673ad5a2e12ef3c557d2d3745b694f8b38",
+      "sizeBytes": 325631784
+    },
+    {
+      "relPath": "number-zh.fst",
+      "sha256": "743f402181fcfebf76cc2f0546b71fa26476e626fbe4e460fb7b4c3a7a8bd5bd",
+      "sizeBytes": 64482
+    },
+    {
+      "relPath": "phone-zh.fst",
+      "sha256": "1ac2b6fa56b1442320c4de7db08353bab8963a2b57f365eebcdd3a2d3562f8d7",
+      "sizeBytes": 88630
+    },
+    {
+      "relPath": "tokens.txt",
+      "sha256": "931ab2df2400cd65d580a22402024c2347ced8ae9ea300e545144b1aacc48e14",
+      "sizeBytes": 1111
+    },
+    {
+      "relPath": "voices.bin",
+      "sha256": "e64a5a581d8c2a350d848f51c3121657cd83aa07ed6109172177345874a7244c",
+      "sizeBytes": 53790720
+    }
+  ]
+}

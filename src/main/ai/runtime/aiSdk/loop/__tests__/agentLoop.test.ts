@@ -3,6 +3,8 @@ import { APICallError, type ModelMessage, tool, type UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import type * as AiCore from '@cherrystudio/ai-core'
+
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import { createToolCallLimitStopCondition } from '../toolLoopTermination'
 import type { AgentLoopParams } from '../types'
@@ -16,7 +18,8 @@ const TEST_USAGE = {
   outputTokenDetails: {}
 }
 
-vi.mock('@cherrystudio/ai-core', () => ({
+vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof AiCore>()),
   createAgent: (...args: unknown[]) => mockCreateAgent(...args)
 }))
 
@@ -153,7 +156,13 @@ describe('Agent', () => {
       const steps = [{ toolResults: [] }]
       await expect(stopWhen({ steps: steps as never })).resolves.toBe(false)
       mockCreateAgent.mockResolvedValue({
-        generate: vi.fn().mockResolvedValue({ text: 'done', usage: TEST_USAGE, steps })
+        generate: vi.fn().mockResolvedValue({
+          text: 'done',
+          usage: TEST_USAGE,
+          steps,
+          finishReason: 'stop',
+          rawFinishReason: 'end_turn'
+        })
       })
 
       const calls: string[] = []
@@ -164,7 +173,12 @@ describe('Agent', () => {
       })
       const agent = await makeAgent({ options: { stopWhen }, hookParts: [{ onFinish, onError }] })
 
-      await expect(agent.generate({ prompt: 'hello' })).resolves.toEqual({ text: 'done', usage: TEST_USAGE })
+      await expect(agent.generate({ prompt: 'hello' })).resolves.toEqual({
+        text: 'done',
+        usage: TEST_USAGE,
+        finishReason: 'stop',
+        rawFinishReason: 'end_turn'
+      })
       expect(onFinish).toHaveBeenCalledOnce()
       expect(onError).not.toHaveBeenCalled()
       expect(calls).toEqual(['finish'])

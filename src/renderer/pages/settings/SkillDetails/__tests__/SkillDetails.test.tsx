@@ -20,11 +20,15 @@ const mocks = vi.hoisted(() => ({
     isLoading: boolean
   },
   refetch: vi.fn(),
+  search: {} as Record<string, unknown>,
   uninstallSkill: vi.fn(),
   updateGlobalEnabled: vi.fn()
 }))
 
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mocks.navigate,
+  useSearch: () => mocks.search
+}))
 vi.mock('swr', () => ({ default: () => mocks.folder }))
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useDataChange: vi.fn(),
@@ -181,6 +185,7 @@ describe('SkillDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.query = { data: createSkill(), error: undefined, isLoading: false }
+    mocks.search = {}
     mocks.folder = {
       data: { rootPath: '/managed/skills/writer', access: 'read_only', readOnlyReason: 'builtin' },
       error: undefined,
@@ -238,14 +243,22 @@ describe('SkillDetails', () => {
     expect(dialog).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'library.action.uninstall' }))
     await waitFor(() => expect(mocks.uninstallSkill).toHaveBeenCalledOnce())
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/skills' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/skills', search: { scope: undefined } })
   })
 
   it('returns to the list from the header', () => {
     render(<SkillDetails skillId="skill-1" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/skills' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/skills', search: { scope: undefined } })
+  })
+
+  it('passes the originating tab scope back to the list when leaving the detail', () => {
+    mocks.search = { scope: 'builtin' }
+    render(<SkillDetails skillId="skill-1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/skills', search: { scope: 'builtin' } })
   })
 
   it('checks and applies a remote update only after flushing the editor', async () => {

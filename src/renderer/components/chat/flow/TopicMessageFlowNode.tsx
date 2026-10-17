@@ -69,7 +69,7 @@ function useStatusLabel(status: MessageStatus, isAwaitingInput?: boolean) {
   if (status === 'pending') return t('common.loading')
   if (status === 'success') return t('common.completed')
   if (status === 'error') return t('common.error')
-  return t('agent.task.status.paused')
+  return t('agent.tasks.status.paused')
 }
 
 interface TopicMessageFlowNodePreviewCardProps {

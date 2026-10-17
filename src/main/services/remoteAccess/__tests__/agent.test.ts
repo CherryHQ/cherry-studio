@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +13,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import type * as RemoteProtocol from '@cherrystudio/remote-protocol'
 import { remoteLimits } from '@cherrystudio/remote-protocol'
+import {
+  agentEventBatchSchema as legacyBatchSchema,
+  applyAgentEvents as applyLegacyEvents,
+  installAgentCheckpoint as installLegacyCheckpoint
+} from '@cherrystudio/remote-protocol-v0/agent'
 import {
   type AgentCheckpointPage,
   type AgentEventBatch,
@@ -27,7 +36,10 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
+import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
@@ -37,10 +49,18 @@ import {
 } from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { BaseService } from '@main/core/lifecycle'
+import { FileManager, FileIntakeService } from '@main/services/file'
+import type { FileManagerDeps } from '@main/services/file/internal/deps'
+import { createInternal } from '@main/services/file/internal/entry/create'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { RemoteAgentHub } from '../agentJournal'
+import { COALESCE_WINDOW_MS, RemoteAgentHub } from '../agentJournal'
 import { sha256, sliceContent, toMessageModel } from '../agentQueries'
+import { AttachmentPresenceService } from '../AttachmentPresenceService'
+import { RemoteAccessService } from '../RemoteAccessService'
 import { RemoteConnection } from '../RemoteConnection'
 import { RemotePairing } from '../RemotePairing'
 import { RemoteTokens } from '../RemoteTokens'
@@ -49,6 +69,13 @@ const fake = vi.hoisted(() => {
   const streams = new Map<string, StreamListener[]>()
   return {
     streams,
+    files: {
+      publishIntake: vi.fn(),
+      getById: vi.fn(),
+      createInternalEntry: vi.fn(),
+      getUrl: vi.fn(),
+      getPhysicalPath: vi.fn()
+    },
     replayBudget: undefined as number | undefined,
     onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
     manager: {
@@ -57,6 +84,7 @@ const fake = vi.hoisted(() => {
       isWriteQuiesced: false,
       send: vi.fn(),
       hasLiveStream: (topicId: string) => streams.has(topicId),
+      hasUnsettledTopicWork: (topicId: string) => streams.has(topicId),
       addListener: (topicId: string, listener: StreamListener) => {
         const listeners = streams.get(topicId)
         if (!listeners) return false
@@ -67,7 +95,16 @@ const fake = vi.hoisted(() => {
         beforeAbort?.()
       })
     },
-    runtime: { assertSessionWritable() {}, isSessionBusy: () => false, respondToolApproval: vi.fn(() => true) }
+    runtime: {
+      assertSessionWritable() {},
+      isSessionBusy: () => false,
+      isSessionBusyForArchive: () => false,
+      respondToolApproval: vi.fn(() => true),
+      cancelSessionForks: async () => {},
+      closeSession: async () => {},
+      recoverSessionForks: async () => {}
+    },
+    delivery: { drainSessionQueues: async () => {}, kick() {} }
   }
 })
 
@@ -86,7 +123,12 @@ vi.mock('@cherrystudio/remote-protocol', async (importOriginal) => {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: fake.manager, AgentSessionRuntimeService: fake.runtime } as never)
+  return mockApplicationFactory({
+    FileManager: fake.files,
+    AiStreamManager: fake.manager,
+    AgentSessionRuntimeService: fake.runtime,
+    AgentSessionDeliveryService: fake.delivery
+  } as never)
 })
 
 vi.mock('@main/ai/streamManager', () => ({
@@ -119,6 +161,10 @@ vi.mock('@main/ai/streamManager', () => ({
 
 const integrity = { sha256 }
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 3))
+const settleDeltas = async () => {
+  await new Promise<void>((resolve) => setTimeout(resolve, COALESCE_WINDOW_MS))
+  for (let i = 0; i < 5; i++) await tick()
+}
 
 function makeChannel(remoteIdentity: string, notifications: unknown[]): SecureChannel {
   return {
@@ -138,7 +184,8 @@ function makeChannel(remoteIdentity: string, notifications: unknown[]): SecureCh
 
 describe('remote agent access', () => {
   const dbh = setupTestDatabase()
-  const hub = new RemoteAgentHub()
+  let hub: RemoteAgentHub
+  let service: RemoteAccessService
   function seedModel(providerId: string, modelId: string, name: string) {
     dbh.db.insert(userProviderTable).values({ providerId, name: 'Desktop provider', orderKey: 'a0' }).run()
     dbh.db
@@ -163,7 +210,8 @@ describe('remote agent access', () => {
       { jsonrpc: '2.0', id: randomUUID(), method, params },
       undefined
     )) as { result?: unknown; error?: unknown }
-    if (response.error) throw response.error
+    if (response.error)
+      throw Object.assign(new Error(), response.error, { message: `${method}: ${JSON.stringify(response.error)}` })
     return response.result
   }
   it('returns a durable target rejection with the admission reason and never resends it', async () => {
@@ -213,7 +261,7 @@ describe('remote agent access', () => {
     }
   }
   const drain = async (projection: AgentProjection): Promise<AgentProjection> => {
-    for (let i = 0; i < 5; i++) await tick()
+    await settleDeltas()
     for (const notification of notifications.splice(0) as Array<{ method: string; params: AgentEventBatch }>) {
       expect(notification.method).toBe('agent.events')
       const applied = applyAgentEvents(projection, notification.params, {}, integrity)
@@ -242,9 +290,10 @@ describe('remote agent access', () => {
     return installed
   }
 
-  afterEach(() => {
+  afterEach(async () => {
     connection.dispose()
-    hub.dispose()
+    await service._doStop()
+    BaseService.resetInstances()
     vi.useRealTimers()
   })
 
@@ -254,6 +303,9 @@ describe('remote agent access', () => {
     fake.onStarted = undefined
     notifications.length = 0
     fake.runtime.respondToolApproval.mockClear()
+    service = new RemoteAccessService()
+    hub = service['hub']
+    await service._doInit()
     await dbh.db.insert(agentTable).values({
       id: 'agent-1',
       type: 'claude-code',
@@ -282,10 +334,252 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await call('connection.hello', { protocolVersions: [1] })
     await call('connection.authenticate', { deviceId: device.id })
+  })
+
+  it('sends the managed file directly without a second entry and deduplicates after staging is removed', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-'))
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) => path.join(root, key, filename ?? ''))
+    const intake = new FileIntakeService()
+    MockFileIntakeUtils.setImplementation(intake)
+    const files = new FileManager()
+    Object.assign(application.get('FileManager'), { intakes: files.intakes })
+    fake.files.publishIntake.mockImplementation((input) => files.publishIntake(input))
+    fake.files.getById.mockImplementation((id) => files.getById(id))
+    try {
+      await mkdir(application.getPath('feature.files.data'), { recursive: true })
+      const workspacePath = path.join(root, 'workspace')
+      await mkdir(workspacePath)
+      const workspace = dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath))
+      sessionId = agentSessionService.create({
+        agentId: 'agent-1',
+        name: 'Files',
+        workspace: { type: 'user', workspaceId: workspace.id }
+      }).id
+      fake.files.createInternalEntry.mockImplementation((params) =>
+        createInternal({ fileEntryService } as FileManagerDeps, params)
+      )
+      fake.files.getPhysicalPath.mockImplementation((id) => {
+        const entry = fileEntryService.getById(FileEntryIdSchema.parse(id))
+        return application.getPath('feature.files.data', `${entry.id}${entry.ext ? '.' + entry.ext : ''}`)
+      })
+      fake.files.getUrl.mockImplementation((id) => pathToFileURL(fake.files.getPhysicalPath(id)).href)
+      const bytes = Buffer.from('managed attachment')
+      const uploadId = randomUUID()
+      const presence = new AttachmentPresenceService()
+      for (const name of ['present', 'submitting', 'list'] as const)
+        Object.assign(application.get('AttachmentPresenceService'), { [name]: presence[name].bind(presence) })
+      const selectionId = randomUUID()
+      await call('agent.attachments.present', {
+        selectionId,
+        sessionId,
+        sequence: '1',
+        items: [
+          {
+            attachmentId: uploadId,
+            uploadId,
+            filename: 'report.txt',
+            mediaType: 'text/plain',
+            byteLength: bytes.length
+          }
+        ]
+      })
+      await call('agent.uploads.prepare', {
+        uploadId,
+        filename: 'report.txt',
+        mediaType: 'text/plain',
+        byteLength: bytes.length
+      })
+      await connection.receiveUpload({
+        kind: 'upload',
+        requestId: randomUUID(),
+        uploadId,
+        writerEpoch: '0',
+        offset: '0',
+        bytes
+      })
+      await call('agent.uploads.complete', { uploadId, writerEpoch: '0' })
+      await expect.poll(async () => (await call('agent.uploads.get', { uploadId })).state).toBe('ready')
+      const { session } = await call('agent.sessions.get', { sessionId })
+      const params = {
+        commandId: randomUUID(),
+        sessionId,
+        text: '',
+        expectedIdleRevision: session.idleRevision,
+        attachments: [{ uploadId }],
+        selectionId
+      }
+      const receipt = await call('agent.messages.send', params)
+      expect(receipt.status).toBe('applied')
+      const { session: current } = await call('agent.sessions.get', { sessionId })
+      const history = await call('agent.messages.list', { sessionId, historyRevision: current.historyRevision })
+      const message = history.items.find((item: { role: string }) => item.role === 'user')
+      expect((await presence.list(sessionId))[0].messageId).toBe(message.messageId)
+      const file = (
+        await call('agent.parts.list', { sessionId, messageId: message.messageId, messageRevision: message.revision })
+      ).items[0]
+      expect(file).toMatchObject({ kind: 'file', name: 'report.txt', ref: { sha256: sha256(bytes) } })
+      const submitted = vi.mocked(startAgentSessionRun).mock.calls.at(-1)![0].userParts[0]
+      expect(submitted.type).toBe('file')
+      if (submitted.type !== 'file') throw new Error('Expected file')
+      const working = fileURLToPath(submitted.url)
+      expect(working).toBe(files.getPhysicalPath(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)))
+      expect(readCherryMeta(submitted)?.workingFileEntryId).toBeUndefined()
+      expect(fileEntryService.findMany().map((entry) => entry.id)).toEqual([readCherryMeta(submitted)?.fileEntryId])
+      expect(await readFile(working)).toEqual(bytes)
+      expect(
+        fileEntryService.getById(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)).cleanupPolicy
+      ).toBe('delete_when_unreferenced')
+      const entryId = FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)
+      expect(
+        fileRefService
+          .findByEntryId(entryId)
+          .map((ref) => ref.sourceType)
+          .sort()
+      ).toEqual(['agent_session_message'])
+      const read = await call('agent.content.read', {
+        sessionId,
+        contentId: file.ref.contentId,
+        revision: file.ref.revision,
+        offset: '0',
+        maxBytes: 24576
+      })
+      expect(Buffer.from(read.dataBase64, 'base64')).toEqual(bytes)
+      await writeFile(working, 'agent edited the managed file')
+      expect(await readFile(files.getPhysicalPath(entryId), 'utf8')).toBe('agent edited the managed file')
+      await call('agent.uploads.cancel', { uploadId })
+      expect(fileRefService.countByEntryIds([entryId]).get(entryId)).toBe(1)
+      const before = vi.mocked(startAgentSessionRun).mock.calls.length
+      expect(await call('agent.messages.send', params)).toEqual(receipt)
+      expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
+    } finally {
+      await intake.drain()
+      paths.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it.each([false, true])('sends again after a post-turn rename (manual=%s)', async (manual) => {
+    const prepared = await call('agent.sessions.subscribe', { sessionId })
+    let projection = (await installCheckpoint(prepared.subscriptionId, prepared.checkpoint)).projection
+    await call('agent.subscriptions.activate', {
+      subscriptionId: prepared.subscriptionId,
+      appliedCursor: projection.cursor
+    })
+    expect(
+      await call('agent.messages.send', {
+        commandId: randomUUID(),
+        sessionId,
+        text: 'hello',
+        expectedIdleRevision: projection.session.idleRevision
+      })
+    ).toMatchObject({ status: 'applied' })
+    const anchor = randomUUID()
+    emit({ type: 'text-start', id: 'text' }, anchor)
+    emit({ type: 'text-delta', id: 'text', delta: 'Hello!' }, anchor)
+    await finish(anchor, [{ type: 'text', text: 'Hello!' }])
+    projection = await drain(projection)
+    const previous = projection.session
+    expect(previous.activeExecutionId).toBeUndefined()
+
+    await tick()
+    const renamed = agentSessionService.update(sessionId, {
+      name: 'Friendly greetings',
+      ...(manual ? {} : { isNameManuallyEdited: false })
+    })
+    expect(renamed.isNameManuallyEdited).toBe(manual)
+    expect(hub.journal(sessionId).eventsAfter(Number(projection.cursor.seq), Infinity)).toContainEqual({
+      kind: 'session.updated',
+      seq: expect.any(String),
+      payload: expect.objectContaining({
+        title: 'Friendly greetings',
+        idleRevision: String(Date.parse(renamed.updatedAt))
+      })
+    })
+    projection = await drain(projection)
+    expect(projection.session.title).toBe('Friendly greetings')
+    expect(projection.session.idleRevision).not.toBe(previous.idleRevision)
+    expect(projection.session.historyRevision).toBe(previous.historyRevision)
+    expect(
+      await call('agent.messages.send', {
+        commandId: randomUUID(),
+        sessionId,
+        text: 'stale request',
+        expectedIdleRevision: previous.idleRevision
+      })
+    ).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+    expect(
+      await call('agent.messages.send', {
+        commandId: randomUUID(),
+        sessionId,
+        text: 'second message',
+        expectedIdleRevision: projection.session.idleRevision
+      })
+    ).toMatchObject({ status: 'applied' })
+  })
+
+  it('does not allocate journals for metadata changes to unwatched sessions', () => {
+    agentSessionService.update(sessionId, { name: 'Renamed before subscribing' })
+    expect(hub.journal(sessionId).cursor.seq).toBe('0')
+  })
+
+  it.each(['description', 'workspace', 'order', 'batch order'])(
+    'publishes the current idle revision after a %s update',
+    async (change) => {
+      if (change.includes('order')) {
+        agentSessionService.create({
+          agentId: 'agent-1',
+          name: 'Other session',
+          workspace: { type: 'user', workspaceId: agentSessionService.getById(sessionId).workspaceId }
+        })
+      }
+      const journal = hub.journal(sessionId)
+      const previous = journal.projection.session.idleRevision
+      await tick()
+      if (change === 'description') agentSessionService.update(sessionId, { description: 'New description' })
+      else if (change === 'workspace') agentSessionService.setWorkspace(sessionId, { type: 'system' })
+      else if (change === 'order') agentSessionService.reorder(sessionId, { position: 'first' })
+      else agentSessionService.reorderBatch([{ id: sessionId, anchor: { position: 'first' } }])
+      const { session } = await call('agent.sessions.get', { sessionId })
+      expect(session.idleRevision).not.toBe(previous)
+      expect(journal.projection.session).toMatchObject({
+        idleRevision: session.idleRevision,
+        workspaceId: session.workspaceId,
+        workspaceKind: session.workspaceKind
+      })
+    }
+  )
+
+  it('does not publish a metadata update when its transaction rolls back', () => {
+    const journal = hub.journal(sessionId)
+    expect(() => agentSessionService.update(sessionId, { agentId: 'missing-agent' })).toThrow()
+    expect(journal.cursor.seq).toBe('0')
+  })
+
+  it('removes the session update listener when remote access stops', async () => {
+    await service._doStop()
+    const journal = hub.journal(sessionId)
+    agentSessionService.update(sessionId, { name: 'Renamed after shutdown' })
+    expect(journal.cursor.seq).toBe('0')
+  })
+
+  it('keeps metadata updates replayable while a client is disconnected', async () => {
+    const journal = hub.journal(sessionId)
+    const cursor = journal.cursor
+    agentSessionService.update(sessionId, { name: 'Renamed while disconnected' })
+    const prepared = await call('agent.sessions.subscribe', { sessionId, cursor })
+    expect(prepared.mode).toBe('replay')
+    expect(journal.eventsAfter(Number(cursor.seq), Infinity)).toContainEqual({
+      kind: 'session.updated',
+      seq: expect.any(String),
+      payload: expect.objectContaining({ title: 'Renamed while disconnected' })
+    })
   })
 
   it.each([false, true])(
@@ -1012,7 +1306,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await other.rpc.receive(
       { jsonrpc: '2.0', id: 1, method: 'connection.hello', params: { protocolVersions: [1] } },
@@ -1025,6 +1320,218 @@ describe('remote agent access', () => {
     expect(
       await other.rpc.receive({ jsonrpc: '2.0', id: 3, method: 'agent.sessions.list', params: {} }, undefined)
     ).toMatchObject({ error: { data: { reason: 'FORBIDDEN' } } })
+  })
+
+  it('coalesces Unicode deltas within a bounded window and replays them from a checkpoint', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    emit({ type: 'text-delta', id: 'text', delta: '你' }, 'answer')
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS / 2)
+    emit({ type: 'text-delta', id: 'text', delta: '好🌍' }, 'answer')
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS / 2 - 1)
+    expect(journal.cursor).toEqual(checkpoint.descriptor.cursor)
+    await vi.advanceTimersByTimeAsync(1)
+    emit({ type: 'text-delta', id: 'text', delta: '！' }, 'answer')
+    emit({ type: 'text-end', id: 'text' }, 'answer')
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    expect(events.filter((event) => event.kind === 'part.append').map((event) => event.payload)).toMatchObject([
+      { offsetUtf8: '0', text: '你好🌍' },
+      { offsetUtf8: '10', text: '！' }
+    ])
+    const batch: AgentEventBatch = { subscriptionId: 'test', sessionId, streamEpoch: journal.epoch, events }
+    const applied = applyAgentEvents(baseline.projection, batch, {}, integrity)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.parts['answer:text:text']).toMatchObject({
+      content: { text: '你好🌍！' },
+      state: 'completed'
+    })
+    const replayed = applyAgentEvents(applied.projection, batch, {}, integrity)
+    expect(replayed).toEqual(applied)
+  })
+
+  it.each(['你', '你'.repeat(6000)])(
+    'keeps journal checkpoints and merged events compatible with published 0.1.0 (%#)',
+    async (prefix) => {
+      const answerId = randomUUID()
+      const journal = hub.journal(sessionId)
+      await journal.startRun('hi', 'agent-1', () => {})
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+      emit({ type: 'text-start', id: 'text' }, answerId)
+      emit({ type: 'text-delta', id: 'text', delta: prefix }, answerId)
+      await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+      const checkpoint = journal.capture()
+      const baseline = installLegacyCheckpoint(
+        JSON.parse(JSON.stringify(checkpoint.descriptor)),
+        JSON.parse(JSON.stringify(checkpoint.pages)),
+        Object.fromEntries(checkpoint.content),
+        integrity
+      )
+      if (!baseline.ok) throw new Error(baseline.reason)
+      const before = baseline.projection.parts[`${answerId}:text:text`]
+      expect(Object.keys(before).sort()).toEqual(['content', 'executionId', 'kind', 'partId', 'revision', 'state'])
+      expect(before.content).toEqual({ text: prefix })
+      emit({ type: 'text-delta', id: 'text', delta: '好' }, answerId)
+      emit({ type: 'text-delta', id: 'text', delta: '🌍' }, answerId)
+      emit({ type: 'text-end', id: 'text' }, answerId)
+      let projection = baseline.projection
+      const applySuffix = () => {
+        while (Number(projection.cursor.seq) < Number(journal.cursor.seq)) {
+          const events = journal.eventsAfter(Number(projection.cursor.seq), 12_000)
+          const batch = legacyBatchSchema.parse(
+            JSON.parse(
+              JSON.stringify({
+                subscriptionId: 'legacy-phone',
+                sessionId,
+                streamEpoch: journal.epoch,
+                events
+              })
+            )
+          )
+          const applied = applyLegacyEvents(projection, batch, {}, integrity)
+          if (!applied.ok) throw new Error(applied.reason)
+          projection = applied.projection
+        }
+      }
+      const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+      const append = events.find((event) => event.kind === 'part.append')!
+      expect(append.payload).toMatchObject({
+        baseRevision: before.revision,
+        offsetUtf8: String(prefix.length * 3),
+        text: '好🌍'
+      })
+      expect(BigInt(append.payload.revision)).toBeGreaterThan(BigInt(before.revision))
+      applySuffix()
+      expect(projection.parts[`${answerId}:text:text`]).toMatchObject({
+        content: { text: prefix + '好🌍' },
+        state: 'completed'
+      })
+      const finalCheckpoint = journal.capture()
+      expect(
+        installLegacyCheckpoint(
+          JSON.parse(JSON.stringify(finalCheckpoint.descriptor)),
+          JSON.parse(JSON.stringify(finalCheckpoint.pages)),
+          Object.fromEntries(finalCheckpoint.content),
+          integrity
+        ).ok
+      ).toBe(true)
+      vi.useRealTimers()
+      await finish(answerId, [{ type: 'text', text: prefix + '好🌍' }])
+      applySuffix()
+      expect(projection.messages[answerId]).toBeUndefined()
+      expect(Object.values(projection.executions)).toEqual([
+        expect.objectContaining({ status: 'completed', durable: true })
+      ])
+    }
+  )
+
+  it('rejects deleting an active session without dropping its buffered text', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    emit({ type: 'text-delta', id: 'text', delta: 'Tail' }, 'answer')
+    BaseService.resetInstances()
+    const lifecycle = new AgentLifecycleService()
+    await expect(lifecycle.archiveSessions([sessionId])).rejects.toMatchObject({ name: 'AgentSessionArchiveBusyError' })
+    expect(agentSessionService.getConversationById(sessionId).id).toBe(sessionId)
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text: 'Tail' } })
+  })
+
+  it('flushes the terminal tail before deleting the containing workspace', async () => {
+    const answerId = randomUUID()
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const workspaceId = agentSessionService.getConversationById(sessionId).workspaceId
+    emit({ type: 'text-start', id: 'text' }, answerId)
+    emit({ type: 'text-delta', id: 'text', delta: 'Tail' }, answerId)
+    fake.manager.abortAndDrain.mockImplementationOnce(async () => {
+      expect(journal.projection.parts[`${answerId}:text:text`]).toMatchObject({ content: { text: '' } })
+      await finish(answerId, [{ type: 'text', text: 'Tail' }], 'paused')
+      expect(agentSessionMessageService.getSessionMessage(sessionId, answerId).data.parts).toEqual([
+        { type: 'text', text: 'Tail' }
+      ])
+    })
+    BaseService.resetInstances()
+    const lifecycle = new AgentLifecycleService()
+    await expect(lifecycle.deleteWorkspace(workspaceId)).resolves.toEqual({ deletedIds: [sessionId] })
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.find((event) => event.kind === 'part.append')?.payload).toMatchObject({ text: 'Tail' })
+    expect(events.findIndex((event) => event.kind === 'part.append')).toBeLessThan(
+      events.findIndex((event) => event.kind === 'message.removed')
+    )
+    expect(() => agentSessionService.getConversationById(sessionId)).toThrow()
+  })
+
+  it('flushes reasoning and tool input before changing parts or replacing input', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    emit({ type: 'reasoning-start', id: 'reason' }, 'answer')
+    emit({ type: 'reasoning-delta', id: 'reason', delta: 'Think' }, 'answer')
+    emit({ type: 'reasoning-delta', id: 'reason', delta: ' first' }, 'answer')
+    emit({ type: 'tool-input-start', toolCallId: 'call', toolName: 'read' }, 'answer')
+    emit({ type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '{"path":' }, 'answer')
+    emit({ type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '"a"}' }, 'answer')
+    emit({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: { path: 'a' } }, 'answer')
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.filter((event) => event.kind === 'part.append').map((event) => event.payload)).toMatchObject([
+      { partId: 'answer:reasoning:reason', text: 'Think first' },
+      { partId: 'answer:tool:call:in', text: '{"path":"a"}' }
+    ])
+    expect(events.at(-1)?.kind).toBe('part.replaced')
+    expect(journal.projection.parts['answer:tool:call:in']).toMatchObject({
+      content: { text: '{"path":"a"}' },
+      state: 'completed'
+    })
+  })
+
+  it.each(['success', 'paused', 'error'] as const)('flushes pending text before terminal %s events', async (status) => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    emit({ type: 'text-delta', id: 'text', delta: 'Last words' }, 'answer')
+    const listener = fake.streams.get(`agent-session:${sessionId}`)![0]
+    if (status === 'success') await listener.onDone({ status, anchorMessageId: 'answer' })
+    else if (status === 'paused') await listener.onPaused({ status, anchorMessageId: 'answer' })
+    else
+      await listener.onError({
+        status,
+        anchorMessageId: 'answer',
+        error: { name: 'Error', message: 'Failed', stack: null }
+      })
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text: 'Last words' } })
+    expect(journal.projection.messages.answer.status).toBe(status)
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.findIndex((event) => event.kind === 'part.append')).toBeLessThan(
+      events.findIndex((event) => event.kind === 'message.updated')
+    )
+    const cursor = journal.cursor
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.cursor).toEqual(cursor)
+  })
+
+  it('splits escaped text below the wire limit and cancels pending flushes on disposal', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    const epoch = journal.epoch
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    const text = '\u0000'.repeat(8192) + '🌍'
+    emit({ type: 'text-delta', id: 'text', delta: text }, 'answer')
+    expect(journal.epoch).toBe(epoch)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text } })
+    emit({ type: 'text-delta', id: 'text', delta: 'pending' }, 'answer')
+    const cursor = journal.cursor
+    journal.dispose()
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.cursor).toEqual(cursor)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text } })
   })
 
   it('streams a remote send through checkpoint, live events, approval and durable history without gaps', async () => {
@@ -1206,7 +1713,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     const { device } = { device: apiGatewayPairedDeviceService.list()[0] }
     await reconnect.rpc.receive(
@@ -1231,7 +1739,7 @@ describe('remote agent access', () => {
       },
       undefined
     )
-    for (let i = 0; i < 5; i++) await tick()
+    await settleDeltas()
     const batch = (other[0] as { params: AgentEventBatch }).params
     expect(Number(batch.events[0].seq)).toBe(Number(projection.cursor.seq) + 1)
     const applied = applyAgentEvents(projection, batch, {}, integrity)

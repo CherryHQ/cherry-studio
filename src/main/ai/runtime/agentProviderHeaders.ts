@@ -1,7 +1,7 @@
 /**
  * Cherry's `extraHeaders` are user-editable and can still hold non-string values (v1 settings
  * passthrough, API writes): coerce them to the `Record<string, string>` every agent runtime
- * requires — pi throws inside its config resolver, dsh fails its route schema.
+ * requires — Pi throws inside its config resolver.
  */
 export function toAgentProviderHeaders(
   headers: Record<string, string> | undefined

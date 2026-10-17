@@ -374,7 +374,7 @@ export class ExportService {
     return elements
   }
 
-  public exportToWord = async (markdown: string, fileName: string): Promise<void> => {
+  public exportToWord = async (markdown: string, fileName: string): Promise<boolean> => {
     try {
       // Dialog-first is perf-driven: canceling costs zero conversion, and the dialog
       // opens without waiting on the markdown→docx conversion.
@@ -384,7 +384,7 @@ export class ExportService {
         defaultPath: fileName
       })
       if (canceled || !filePath) {
-        return
+        return false
       }
 
       const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
@@ -415,6 +415,7 @@ export class ExportService {
 
       await fs.promises.writeFile(filePath, buffer)
       logger.debug('Document exported successfully')
+      return true
     } catch (error) {
       logger.error('Export to Word failed:', error as Error)
       throw error

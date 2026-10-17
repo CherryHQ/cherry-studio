@@ -8,10 +8,10 @@ import type { TopicActionContext } from '@renderer/components/chat/actions/topic
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
+import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -37,6 +37,7 @@ import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
 import { getErrorMessage } from '@renderer/utils/error'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
@@ -44,7 +45,12 @@ import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/e
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
-import type { HistoryBulkDeleteResult, HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
+import type {
+  HistoryBulkDeleteResult,
+  HistoryRecordDescriptor,
+  HistoryRowActions,
+  HistoryRowState
+} from './historyRecordsDescriptor'
 import {
   ALL_SOURCE_ID,
   buildAssistantSources,
@@ -57,6 +63,17 @@ import { useHistoryRecordsController } from './useHistoryRecordsController'
 const logger = loggerService.withContext('AssistantHistoryRecords')
 
 type HistoryTopicItem = ApiTopic & { assistantId: string | undefined; pinned: boolean }
+
+function AssistantHistoryRowState({
+  topicId,
+  children
+}: {
+  topicId: string
+  children: (state: HistoryRowState) => ReactElement
+}) {
+  const { isRenaming } = useTopicRenameState(topicId)
+  return children({ isRenaming })
+}
 
 interface AssistantHistoryRecordsProps {
   activeRecordId?: string | null
@@ -82,7 +99,6 @@ const AssistantHistoryRecords = ({
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
-  const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
   const {
     updateTopic: patchTopic,
@@ -108,12 +124,6 @@ const AssistantHistoryRecords = ({
 
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const isTopicPinned = useCallback((topicId: string) => topicPinnedIdSet.has(topicId), [topicPinnedIdSet])
-  const renamingTopicIdSet = useMemo(
-    () => new Set(Array.isArray(renamingTopics) ? renamingTopics : []),
-    [renamingTopics]
-  )
-  const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
-
   const topics = useMemo<HistoryTopicItem[]>(
     () =>
       optimisticTopics.map((topic) => ({ ...topic, assistantId: topic.assistantId, pinned: isTopicPinned(topic.id) })),
@@ -385,7 +395,7 @@ const AssistantHistoryRecords = ({
         exportMenuOptions,
         isArchiveBlocked: false,
         isActiveInCurrentTab: false,
-        isRenaming: isTopicRenaming(topic.id),
+        isRenaming: false,
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
@@ -406,7 +416,6 @@ const AssistantHistoryRecords = ({
       handleClearMessages,
       handleDeleteTopicFromMenu,
       handlePinTopic,
-      isTopicRenaming,
       notesPath,
       t,
       topics.length
@@ -418,7 +427,7 @@ const AssistantHistoryRecords = ({
   const getSourceId = useCallback((topic: HistoryTopicItem) => getTopicSourceId(topic, assistantById), [assistantById])
   const matchesSearch = useCallback(
     (topic: HistoryTopicItem, keywords: string) =>
-      (topic.name || t('chat.default.topic.name')).toLowerCase().includes(keywords),
+      matchesSearchText(topic.name || t('chat.default.topic.name'), keywords),
     [t]
   )
   const onActiveRecordChange = useCallback(
@@ -448,8 +457,15 @@ const AssistantHistoryRecords = ({
       rowHeight: 32,
       getSelectLabel: (topic: HistoryTopicItem) =>
         `${t('common.select')} ${topic.name || t('chat.default.topic.name')}`,
-      getRowActions: (topic: HistoryTopicItem, openRename: (id: string, name: string) => void) => {
-        const contextOverride = { onStartRename: () => openRename(topic.id, topic.name ?? '') }
+      renderRowState: (topic: HistoryTopicItem, render: (state: HistoryRowState) => ReactElement) => (
+        <AssistantHistoryRowState topicId={topic.id}>{render}</AssistantHistoryRowState>
+      ),
+      getRowActions: (
+        topic: HistoryTopicItem,
+        openRename: (id: string, name: string) => void,
+        { isRenaming }: { isRenaming: boolean }
+      ) => {
+        const contextOverride = { isRenaming, onStartRename: () => openRename(topic.id, topic.name ?? '') }
         const actions = topicMenuPreset.getActions(topic, contextOverride)
         return {
           actions,

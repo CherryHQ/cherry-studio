@@ -8,6 +8,7 @@ import { Elysia } from 'elysia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WebSocket } from 'ws'
 
+import { jsonRpcResponseSchema } from '@cherrystudio/remote-protocol'
 import {
   type ChannelOptions,
   connectSecureChannel,
@@ -104,6 +105,50 @@ describe('remote ws route', () => {
       socket.close()
     })
   })
+
+  it('allows 256 requests per second and refuses excess requests without ending the session', async () => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/v1/remote/connect`)
+    await new Promise<void>((resolve, reject) => {
+      socket.once('open', () => resolve())
+      socket.once('error', reject)
+    })
+    const channel = await connectSecureChannel(new RemoteSocketStream(socket, silent(), 'outbound'), {
+      identity: await createDeviceIdentity(),
+      logger,
+      protocolVersions: [1],
+      remoteIdentity: deviceIdentityId(desktopIdentity.bytes!),
+      signal: AbortSignal.timeout(5000)
+    })
+    await channel.write({ jsonrpc: '2.0', id: 0, method: 'connection.hello', params: { protocolVersions: [1] } })
+    expect(await channel.read(AbortSignal.timeout(5000))).toMatchObject({ id: 0, result: { protocolVersion: 1 } })
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+
+    const writes = Array.from({ length: 262 }, (_, id) =>
+      channel.write({ jsonrpc: '2.0', id: id + 1, method: 'connection.ping', params: { nonce: String(id) } })
+    )
+    await Promise.all(writes)
+    const responses: ReturnType<typeof jsonRpcResponseSchema.parse>[] = []
+    for (let id = 0; id < 262; id++)
+      responses.push(jsonRpcResponseSchema.parse(await channel.read(AbortSignal.timeout(5000))))
+    expect(new Set(responses.map((response) => response.id)).size).toBe(262)
+    expect(responses.filter((response) => 'result' in response)).toHaveLength(256)
+    const refusals = responses.filter((response) => 'error' in response)
+    expect(refusals).toHaveLength(6)
+    for (const response of refusals) {
+      if (!('error' in response)) throw new Error('Expected a refusal')
+      expect(response.error).toMatchObject({ code: 1000, data: { reason: 'RATE_LIMITED' } })
+      const retryAfterMs = (response.error.data as { retryAfterMs: number }).retryAfterMs
+      expect(Number.isInteger(retryAfterMs)).toBe(true)
+      expect(retryAfterMs).toBeGreaterThanOrEqual(1)
+    }
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith('Remote session ended with an error', expect.anything())
+    expect(socket.readyState).toBe(WebSocket.OPEN)
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    await channel.write({ jsonrpc: '2.0', id: 263, method: 'connection.ping', params: { nonce: 'after' } })
+    expect(await channel.read(AbortSignal.timeout(5000))).toMatchObject({ id: 263, result: { nonce: 'after' } })
+    await channel.close()
+  }, 15_000)
 
   it.each(['invalid-frame', 'handshake-timeout'])(
     'still reports %s as a failure',

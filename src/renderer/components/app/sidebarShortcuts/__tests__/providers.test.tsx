@@ -66,7 +66,7 @@ describe('core sidebar shortcut providers', () => {
 
   it.each([
     ['core.assistant', '/topics/latest', 'topic', 'assistant', '/app/chat?topicId=conversation-1'],
-    ['core.agent', '/agent-sessions/latest', 'session', 'agent', '/app/agents?sessionId=conversation-1']
+    ['core.agent', '/agent-sessions/latest', 'session', 'agent', '/app/agents?agentId=owner-1']
   ])(
     'resolves %s to a stable conversation before opening',
     async (providerId, endpoint, field, conversationType, url) => {

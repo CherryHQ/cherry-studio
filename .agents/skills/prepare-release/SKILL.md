@@ -60,7 +60,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    ```
 4. Extract the content inside `` ```release-note `` code blocks from each commit body.
 5. Extract the conventional commit type from the title (`feat`, `fix`, `refactor`, `perf`, `docs`, etc.).
-6. **Skip** these commits:
+6. **Skip** these commits as standalone release-note candidates, but still inspect their effects when reconciling candidates with the final code in Step 3:
    - Titles starting with `🤖 Daily Auto I18N`
    - Titles starting with `Merge`
    - Titles starting with `chore(deps)`
@@ -70,7 +70,15 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 
 ### Step 3: Generate Bilingual Release Notes
 
-Using the collected commit information, generate release notes in **both English and Chinese**.
+Generate release notes in **both English and Chinese** from the final user-visible changes relative to the published baseline. Commit titles and `release-note` blocks are candidate descriptions, not proof that a change will ship.
+
+**Reconcile net changes before drafting:**
+
+1. Inspect `git diff --name-status <baseline-tag> <release-head>`, then read the relevant patches and code at both endpoints. `<release-head>` is the source `HEAD` before release preparation (the frozen dispatch SHA in CI). Compare the two endpoint trees, not a three-dot merge-base diff. The collection base is only for discovering commits; when it differs from the published tag, also inspect user-visible differences missing from that commit range.
+2. Group candidates by user-visible behavior and trace related patches in chronological order, including commits excluded in Step 2. Detect explicit reverts, manual undoing, replacements, partial reversals, and reintroductions from the code; do not rely on commit wording or matching hashes alone.
+3. Omit a change introduced and fully undone during this cycle, including fixes that only addressed that temporary change. For partial reversals, replacements, or reintroductions, describe only the final outcome that differs from the published baseline, once per distinct user-visible change.
+4. If a reversal removes or changes behavior that already existed in the published baseline, describe the resulting user-visible removal or restoration. Do not discard all revert commits indiscriminately. An implementation rewrite that preserves the same user-visible behavior does not by itself justify a release-note entry.
+5. Verify each proposed item against the endpoint diff and final code, and ensure the English and Chinese versions describe the same outcome. If the claimed effect cannot be substantiated, omit it and report the uncertainty in the preparation summary rather than inventing a release-note claim.
 
 **Recommended format:**
 
@@ -111,8 +119,8 @@ The language markers are the machine-readable contract: include each marker once
 
 **Rules:**
 - Only include categories that have entries (omit empty categories).
-- Each commit appears as exactly ONE line item in the appropriate category.
-- Use the `release-note` field if present; otherwise summarize from the commit title.
+- Each distinct surviving user-visible change appears once in the appropriate category; combine related commits and omit canceled or superseded claims.
+- Prefer wording from the `release-note` field, or otherwise the commit title, only when it matches the verified final outcome.
 - Component tags should be short: `[Chat]`, `[Models]`, `[Agent]`, `[MCP]`, `[Settings]`, `[Data]`, `[Build]`, etc.
 - Chinese translations should be natural, not machine-literal.
 - Do NOT include commit hashes or PR numbers.

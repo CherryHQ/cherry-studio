@@ -24,7 +24,7 @@ jobs:
           ref: ${{ github.event.inputs.branch }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
           registry-url: "https://registry.npmjs.org"
@@ -51,6 +51,14 @@ jobs:
       - name: Build Packages
         run: pnpm packages:build
 
+      - name: Check Web Search Package
+        run: |
+          pnpm --filter @cherrystudio/web-search test
+          pnpm --filter @cherrystudio/web-search test:package
+
+      - name: Check Provider Registry Package
+        run: pnpm --filter @cherrystudio/provider-registry test:package
+
       - name: Check Remote Packages
         run: |
           pnpm --filter '@cherrystudio/remote-*' typecheck
@@ -73,9 +81,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Install with:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo 'pnpm add @cherrystudio/web-search@snapshot' >> $GITHUB_STEP_SUMMARY
+          echo 'pnpm add @cherrystudio/provider-registry@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/ai-core@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/ai-sdk-provider@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/extension-table-plus@snapshot' >> $GITHUB_STEP_SUMMARY
+          echo 'pnpm add @cherrystudio/file-preview@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/remote-protocol@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/remote-transport@snapshot' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

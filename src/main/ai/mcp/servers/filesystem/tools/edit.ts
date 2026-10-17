@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import { logger, replaceWithFuzzyMatch, validatePath } from '../types'
@@ -15,7 +16,6 @@ export const EditToolSchema = z.object({
 
 // Tool definition with detailed description
 export const editToolDefinition = {
-  name: 'edit',
   description: `Performs exact string replacements in files.
 
 - You must use the 'read' tool at least once before editing
@@ -27,17 +27,12 @@ export const editToolDefinition = {
 - The edit will FAIL if old_string appears multiple times (provide more context or use replace_all)
 - The edit will FAIL if old_string equals new_string
 - Use replace_all to rename variables or replace all occurrences`,
-  inputSchema: z.toJSONSchema(EditToolSchema)
+  inputSchema: EditToolSchema
 }
 
 // Handler implementation
-export async function handleEditTool(args: unknown, baseDir: string) {
-  const parsed = EditToolSchema.safeParse(args)
-  if (!parsed.success) {
-    throw new Error(`Invalid arguments for edit: ${parsed.error}`)
-  }
-
-  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = parsed.data
+export async function handleEditTool(args: z.infer<typeof EditToolSchema>, baseDir: string): Promise<CallToolResult> {
+  const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = args
 
   // Validate path
   const validPath = await validatePath(filePath, baseDir)
