@@ -1,0 +1,862 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index ed5a38e555944e749d3cdd376236dd6f722a80dc..32e89db9e86e4c7dcc7bb2f59c8f6470c88d9af4 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -309,6 +309,7 @@ declare const xSearch: (args?: Parameters<typeof xSearchToolFactory>[0]) => _ai_
+ }>;
+ 
+ declare const xaiTools: {
++    imageGeneration: (args?: { action?: "auto" | "generate" | "edit" }) => _ai_sdk_provider_utils.Tool<Record<string, never>, { result: string; prompt?: string }>;
+     codeExecution: (args?: Parameters<_ai_sdk_provider_utils.ProviderToolFactoryWithOutputSchema<Record<string, never>, {
+         output: string;
+         error?: string | undefined;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index ed5a38e555944e749d3cdd376236dd6f722a80dc..32e89db9e86e4c7dcc7bb2f59c8f6470c88d9af4 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -309,6 +309,7 @@ declare const xSearch: (args?: Parameters<typeof xSearchToolFactory>[0]) => _ai_
+ }>;
+ 
+ declare const xaiTools: {
++    imageGeneration: (args?: { action?: "auto" | "generate" | "edit" }) => _ai_sdk_provider_utils.Tool<Record<string, never>, { result: string; prompt?: string }>;
+     codeExecution: (args?: Parameters<_ai_sdk_provider_utils.ProviderToolFactoryWithOutputSchema<Record<string, never>, {
+         output: string;
+         error?: string | undefined;
+diff --git a/dist/index.js b/dist/index.js
+index bd47db8e90da2177225b8b09855778a7b7ea3a88..ea02412992fe622f6b664f21e49fc066f2bc3ed9 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1442,6 +1442,7 @@ var mcpCallSchema = import_v47.z.object({
+   status: import_v47.z.string(),
+   server_label: import_v47.z.string().optional()
+ });
++var imageGenerationArgsSchema = import_v47.z.object({ action: import_v47.z.enum(["auto", "generate", "edit"]).optional() });
+ var outputItemSchema = import_v47.z.discriminatedUnion("type", [
+   import_v47.z.object({
+     type: import_v47.z.literal("web_search_call"),
+@@ -1481,6 +1482,13 @@ var outputItemSchema = import_v47.z.discriminatedUnion("type", [
+       })
+     ).nullish()
+   }),
++  import_v47.z.object({
++    type: import_v47.z.literal("image_generation_call"),
++    id: import_v47.z.string(),
++    status: import_v47.z.string(),
++    prompt: import_v47.z.string().nullish(),
++    result: import_v47.z.string().nullish(),
++  }),
+   import_v47.z.object({
+     type: import_v47.z.literal("custom_tool_call"),
+     ...toolCallSchema.shape
+@@ -1695,6 +1703,21 @@ var xaiResponsesChunkSchema = import_v47.z.union([
+     item_id: import_v47.z.string(),
+     output_index: import_v47.z.number()
+   }),
++  import_v47.z.object({
++    type: import_v47.z.literal("response.image_generation_call.in_progress"),
++    item_id: import_v47.z.string(),
++    output_index: import_v47.z.number(),
++  }),
++  import_v47.z.object({
++    type: import_v47.z.literal("response.image_generation_call.generating"),
++    item_id: import_v47.z.string(),
++    output_index: import_v47.z.number(),
++  }),
++  import_v47.z.object({
++    type: import_v47.z.literal("response.image_generation_call.completed"),
++    item_id: import_v47.z.string(),
++    output_index: import_v47.z.number(),
++  }),
+   import_v47.z.object({
+     type: import_v47.z.literal("response.code_interpreter_call.in_progress"),
+     item_id: import_v47.z.string(),
+@@ -2049,6 +2072,19 @@ async function prepareResponsesTools({
+           });
+           break;
+         }
++        case "xai.image_generation": {
++          const args = await (0, import_provider_utils10.validateTypes)({
++            value: tool.args,
++            schema: imageGenerationArgsSchema,
++          });
++
++          xaiTools2.push({
++            type: "image_generation",
++            action: args.action,
++          });
++          break;
++        }
++
+         case "xai.code_execution": {
+           xaiTools2.push({
+             type: "code_interpreter"
+@@ -2212,6 +2248,7 @@ var XaiResponsesLanguageModel = class {
+     const xSearchToolName = (_c = tools == null ? void 0 : tools.find(
+       (tool) => tool.type === "provider" && tool.id === "xai.x_search"
+     )) == null ? void 0 : _c.name;
++    const imageGenerationToolName = tools?.find(tool => tool.type === "provider" && tool.id === "xai.image_generation")?.name;
+     const codeExecutionToolName = (_d = tools == null ? void 0 : tools.find(
+       (tool) => tool.type === "provider" && tool.id === "xai.code_execution"
+     )) == null ? void 0 : _d.name;
+@@ -2290,6 +2327,7 @@ var XaiResponsesLanguageModel = class {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName
+@@ -2302,6 +2340,7 @@ var XaiResponsesLanguageModel = class {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName
+@@ -2360,6 +2399,40 @@ var XaiResponsesLanguageModel = class {
+         });
+         continue;
+       }
++      if (part.type === "image_generation_call") {
++        const toolName = imageGenerationToolName ?? "image_generation";
++
++        content.push({
++          type: "tool-call",
++          toolCallId: part.id,
++          toolName,
++          input: "{}",
++          providerExecuted: true,
++        });
++
++        if (part.result != null) {
++          content.push({
++            type: "tool-result",
++            toolCallId: part.id,
++            toolName,
++            result: {
++              result: part.result,
++              ...(part.prompt != null && { prompt: part.prompt }),
++            },
++          });
++        } else {
++          content.push({
++            type: "tool-result",
++            toolCallId: part.id,
++            toolName,
++            isError: true,
++            result: `Image generation failed (status: ${part.status}).`,
++          });
++        }
++
++        continue;
++      }
++
+       if (part.type === "web_search_call" || part.type === "x_search_call" || part.type === "code_interpreter_call" || part.type === "code_execution_call" || part.type === "view_image_call" || part.type === "view_x_video_call" || part.type === "custom_tool_call" || part.type === "mcp_call") {
+         let toolName = (_e = part.name) != null ? _e : "";
+         if (webSearchSubTools.includes((_f = part.name) != null ? _f : "") || part.type === "web_search_call") {
+@@ -2474,6 +2547,7 @@ var XaiResponsesLanguageModel = class {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName
+@@ -2690,6 +2764,45 @@ var XaiResponsesLanguageModel = class {
+             if (event.type === "response.function_call_arguments.done") {
+               return;
+             }
++            if (
++              event.type === "response.image_generation_call.in_progress" ||
++              event.type === "response.image_generation_call.generating" ||
++              event.type === "response.image_generation_call.completed"
++            ) {
++              if (!seenToolCalls.has(event.item_id)) {
++                seenToolCalls.add(event.item_id);
++
++                const toolName = imageGenerationToolName ?? "image_generation";
++
++                controller.enqueue({
++                  type: "tool-input-start",
++                  id: event.item_id,
++                  toolName,
++                });
++
++                controller.enqueue({
++                  type: "tool-input-delta",
++                  id: event.item_id,
++                  delta: "{}",
++                });
++
++                controller.enqueue({
++                  type: "tool-input-end",
++                  id: event.item_id,
++                });
++
++                controller.enqueue({
++                  type: "tool-call",
++                  toolCallId: event.item_id,
++                  toolName,
++                  input: "{}",
++                  providerExecuted: true,
++                });
++              }
++
++              return;
++            }
++
+             if (event.type === "response.output_item.added" || event.type === "response.output_item.done") {
+               const part = event.item;
+               if (part.type === "reasoning") {
+@@ -2767,6 +2880,63 @@ var XaiResponsesLanguageModel = class {
+                 }
+                 return;
+               }
++              if (part.type === "image_generation_call") {
++                const toolName = imageGenerationToolName ?? "image_generation";
++
++                if (!seenToolCalls.has(part.id)) {
++                  seenToolCalls.add(part.id);
++
++                  controller.enqueue({
++                    type: "tool-input-start",
++                    id: part.id,
++                    toolName,
++                  });
++
++                  controller.enqueue({
++                    type: "tool-input-delta",
++                    id: part.id,
++                    delta: "{}",
++                  });
++
++                  controller.enqueue({
++                    type: "tool-input-end",
++                    id: part.id,
++                  });
++
++                  controller.enqueue({
++                    type: "tool-call",
++                    toolCallId: part.id,
++                    toolName,
++                    input: "{}",
++                    providerExecuted: true,
++                  });
++                }
++
++                if (event.type === "response.output_item.done") {
++                  if (part.result != null) {
++                    controller.enqueue({
++                      type: "tool-result",
++                      toolCallId: part.id,
++                      toolName,
++                      result: {
++                        result: part.result,
++                        ...(part.prompt != null && { prompt: part.prompt }),
++                      },
++                    });
++                  } else {
++                    controller.enqueue({
++                      type: "tool-result",
++                      toolCallId: part.id,
++                      toolName,
++                      isError: true,
++                      result: `Image generation failed (status: ${part.status}).`,
++                    });
++                  }
++                }
++
++                return;
++              }
++
+               if (part.type === "web_search_call" || part.type === "x_search_call" || part.type === "code_interpreter_call" || part.type === "code_execution_call" || part.type === "view_image_call" || part.type === "view_x_video_call" || part.type === "custom_tool_call" || part.type === "mcp_call") {
+                 const webSearchSubTools = [
+                   "web_search",
+@@ -2962,7 +3132,10 @@ var viewXVideoToolFactory = (0, import_provider_utils14.createProviderToolFactor
+ var viewXVideo = (args = {}) => viewXVideoToolFactory(args);
+ 
+ // src/tool/index.ts
++var imageGenerationToolFactory = (0, import_provider_utils12.createProviderToolFactoryWithOutputSchema)({ id: "xai.image_generation", inputSchema: import_v47.z.object({}), outputSchema: import_v47.z.object({ result: import_v47.z.string(), prompt: import_v47.z.string().optional() }) });
++var imageGeneration = (args = {}) => imageGenerationToolFactory(args);
+ var xaiTools = {
++  imageGeneration,
+   codeExecution,
+   fileSearch,
+   mcpServer,
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 0548a32eae5762a04cc2e437a068b09e7b27be4d..cb87b071f54301f9366863e3fef63776127d0d35 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1445,6 +1445,7 @@ var mcpCallSchema = z7.object({
+   status: z7.string(),
+   server_label: z7.string().optional()
+ });
++var imageGenerationArgsSchema = z7.object({ action: z7.enum(["auto", "generate", "edit"]).optional() });
+ var outputItemSchema = z7.discriminatedUnion("type", [
+   z7.object({
+     type: z7.literal("web_search_call"),
+@@ -1484,6 +1485,13 @@ var outputItemSchema = z7.discriminatedUnion("type", [
+       })
+     ).nullish()
+   }),
++  z7.object({
++    type: z7.literal("image_generation_call"),
++    id: z7.string(),
++    status: z7.string(),
++    prompt: z7.string().nullish(),
++    result: z7.string().nullish(),
++  }),
+   z7.object({
+     type: z7.literal("custom_tool_call"),
+     ...toolCallSchema.shape
+@@ -1698,6 +1706,21 @@ var xaiResponsesChunkSchema = z7.union([
+     item_id: z7.string(),
+     output_index: z7.number()
+   }),
++  z7.object({
++    type: z7.literal("response.image_generation_call.in_progress"),
++    item_id: z7.string(),
++    output_index: z7.number(),
++  }),
++  z7.object({
++    type: z7.literal("response.image_generation_call.generating"),
++    item_id: z7.string(),
++    output_index: z7.number(),
++  }),
++  z7.object({
++    type: z7.literal("response.image_generation_call.completed"),
++    item_id: z7.string(),
++    output_index: z7.number(),
++  }),
+   z7.object({
+     type: z7.literal("response.code_interpreter_call.in_progress"),
+     item_id: z7.string(),
+@@ -2070,6 +2093,19 @@ async function prepareResponsesTools({
+           });
+           break;
+         }
++        case "xai.image_generation": {
++          const args = await validateTypes({
++            value: tool.args,
++            schema: imageGenerationArgsSchema,
++          });
++
++          xaiTools2.push({
++            type: "image_generation",
++            action: args.action,
++          });
++          break;
++        }
++
+         case "xai.code_execution": {
+           xaiTools2.push({
+             type: "code_interpreter"
+@@ -2233,6 +2269,7 @@ var XaiResponsesLanguageModel = class {
+     const xSearchToolName = (_c = tools == null ? void 0 : tools.find(
+       (tool) => tool.type === "provider" && tool.id === "xai.x_search"
+     )) == null ? void 0 : _c.name;
++    const imageGenerationToolName = tools?.find(tool => tool.type === "provider" && tool.id === "xai.image_generation")?.name;
+     const codeExecutionToolName = (_d = tools == null ? void 0 : tools.find(
+       (tool) => tool.type === "provider" && tool.id === "xai.code_execution"
+     )) == null ? void 0 : _d.name;
+@@ -2311,6 +2348,7 @@ var XaiResponsesLanguageModel = class {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName
+@@ -2323,6 +2361,7 @@ var XaiResponsesLanguageModel = class {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName
+@@ -2381,6 +2420,40 @@ var XaiResponsesLanguageModel = class {
+         });
+         continue;
+       }
++      if (part.type === "image_generation_call") {
++        const toolName = imageGenerationToolName ?? "image_generation";
++
++        content.push({
++          type: "tool-call",
++          toolCallId: part.id,
++          toolName,
++          input: "{}",
++          providerExecuted: true,
++        });
++
++        if (part.result != null) {
++          content.push({
++            type: "tool-result",
++            toolCallId: part.id,
++            toolName,
++            result: {
++              result: part.result,
++              ...(part.prompt != null && { prompt: part.prompt }),
++            },
++          });
++        } else {
++          content.push({
++            type: "tool-result",
++            toolCallId: part.id,
++            toolName,
++            isError: true,
++            result: `Image generation failed (status: ${part.status}).`,
++          });
++        }
++
++        continue;
++      }
++
+       if (part.type === "web_search_call" || part.type === "x_search_call" || part.type === "code_interpreter_call" || part.type === "code_execution_call" || part.type === "view_image_call" || part.type === "view_x_video_call" || part.type === "custom_tool_call" || part.type === "mcp_call") {
+         let toolName = (_e = part.name) != null ? _e : "";
+         if (webSearchSubTools.includes((_f = part.name) != null ? _f : "") || part.type === "web_search_call") {
+@@ -2495,6 +2568,7 @@ var XaiResponsesLanguageModel = class {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName
+@@ -2711,6 +2785,45 @@ var XaiResponsesLanguageModel = class {
+             if (event.type === "response.function_call_arguments.done") {
+               return;
+             }
++            if (
++              event.type === "response.image_generation_call.in_progress" ||
++              event.type === "response.image_generation_call.generating" ||
++              event.type === "response.image_generation_call.completed"
++            ) {
++              if (!seenToolCalls.has(event.item_id)) {
++                seenToolCalls.add(event.item_id);
++
++                const toolName = imageGenerationToolName ?? "image_generation";
++
++                controller.enqueue({
++                  type: "tool-input-start",
++                  id: event.item_id,
++                  toolName,
++                });
++
++                controller.enqueue({
++                  type: "tool-input-delta",
++                  id: event.item_id,
++                  delta: "{}",
++                });
++
++                controller.enqueue({
++                  type: "tool-input-end",
++                  id: event.item_id,
++                });
++
++                controller.enqueue({
++                  type: "tool-call",
++                  toolCallId: event.item_id,
++                  toolName,
++                  input: "{}",
++                  providerExecuted: true,
++                });
++              }
++
++              return;
++            }
++
+             if (event.type === "response.output_item.added" || event.type === "response.output_item.done") {
+               const part = event.item;
+               if (part.type === "reasoning") {
+@@ -2788,6 +2901,63 @@ var XaiResponsesLanguageModel = class {
+                 }
+                 return;
+               }
++              if (part.type === "image_generation_call") {
++                const toolName = imageGenerationToolName ?? "image_generation";
++
++                if (!seenToolCalls.has(part.id)) {
++                  seenToolCalls.add(part.id);
++
++                  controller.enqueue({
++                    type: "tool-input-start",
++                    id: part.id,
++                    toolName,
++                  });
++
++                  controller.enqueue({
++                    type: "tool-input-delta",
++                    id: part.id,
++                    delta: "{}",
++                  });
++
++                  controller.enqueue({
++                    type: "tool-input-end",
++                    id: part.id,
++                  });
++
++                  controller.enqueue({
++                    type: "tool-call",
++                    toolCallId: part.id,
++                    toolName,
++                    input: "{}",
++                    providerExecuted: true,
++                  });
++                }
++
++                if (event.type === "response.output_item.done") {
++                  if (part.result != null) {
++                    controller.enqueue({
++                      type: "tool-result",
++                      toolCallId: part.id,
++                      toolName,
++                      result: {
++                        result: part.result,
++                        ...(part.prompt != null && { prompt: part.prompt }),
++                      },
++                    });
++                  } else {
++                    controller.enqueue({
++                      type: "tool-result",
++                      toolCallId: part.id,
++                      toolName,
++                      isError: true,
++                      result: `Image generation failed (status: ${part.status}).`,
++                    });
++                  }
++                }
++
++                return;
++              }
++
+               if (part.type === "web_search_call" || part.type === "x_search_call" || part.type === "code_interpreter_call" || part.type === "code_execution_call" || part.type === "view_image_call" || part.type === "view_x_video_call" || part.type === "custom_tool_call" || part.type === "mcp_call") {
+                 const webSearchSubTools = [
+                   "web_search",
+@@ -2983,7 +3153,10 @@ var viewXVideoToolFactory = createProviderToolFactoryWithOutputSchema7({
+ var viewXVideo = (args = {}) => viewXVideoToolFactory(args);
+ 
+ // src/tool/index.ts
++var imageGenerationToolFactory = createProviderToolFactoryWithOutputSchema5({ id: "xai.image_generation", inputSchema: z7.object({}), outputSchema: z7.object({ result: z7.string(), prompt: z7.string().optional() }) });
++var imageGeneration = (args = {}) => imageGenerationToolFactory(args);
+ var xaiTools = {
++  imageGeneration,
+   codeExecution,
+   fileSearch,
+   mcpServer,
+diff --git a/src/responses/xai-responses-api.ts b/src/responses/xai-responses-api.ts
+index 4c7820ca038068b272a92ac269b585bae96bf6cc..7deecea372cbe9975d0543f8cce90e33fcb8ef5c 100644
+--- a/src/responses/xai-responses-api.ts
++++ b/src/responses/xai-responses-api.ts
+@@ -105,6 +105,7 @@ export type XaiResponsesTool =
+       enable_image_understanding?: boolean;
+       enable_video_understanding?: boolean;
+     }
++  | { type: 'image_generation'; action?: 'auto' | 'generate' | 'edit' }
+   | { type: 'code_interpreter' }
+   | { type: 'view_image' }
+   | { type: 'view_x_video' }
+@@ -214,6 +215,13 @@ const outputItemSchema = z.discriminatedUnion('type', [
+       )
+       .nullish(),
+   }),
++  z.object({
++    type: z.literal('image_generation_call'),
++    id: z.string(),
++    status: z.string(),
++    prompt: z.string().nullish(),
++    result: z.string().nullish(),
++  }),
+   z.object({
+     type: z.literal('custom_tool_call'),
+     ...toolCallSchema.shape,
+@@ -437,6 +445,21 @@ export const xaiResponsesChunkSchema = z.union([
+     item_id: z.string(),
+     output_index: z.number(),
+   }),
++  z.object({
++    type: z.literal('response.image_generation_call.in_progress'),
++    item_id: z.string(),
++    output_index: z.number(),
++  }),
++  z.object({
++    type: z.literal('response.image_generation_call.generating'),
++    item_id: z.string(),
++    output_index: z.number(),
++  }),
++  z.object({
++    type: z.literal('response.image_generation_call.completed'),
++    item_id: z.string(),
++    output_index: z.number(),
++  }),
+   z.object({
+     type: z.literal('response.code_interpreter_call.in_progress'),
+     item_id: z.string(),
+diff --git a/src/responses/xai-responses-language-model.ts b/src/responses/xai-responses-language-model.ts
+index aae0d396f69d06d2b61e30ecd137d6a8a11b6c38..39b57e46f8786d0ee7f04754607bf11952d190ed 100644
+--- a/src/responses/xai-responses-language-model.ts
++++ b/src/responses/xai-responses-language-model.ts
+@@ -116,6 +116,10 @@ export class XaiResponsesLanguageModel implements LanguageModelV3 {
+       tool => tool.type === 'provider' && tool.id === 'xai.x_search',
+     )?.name;
+ 
++    const imageGenerationToolName = tools?.find(
++      tool => tool.type === 'provider' && tool.id === 'xai.image_generation',
++    )?.name;
++
+     const codeExecutionToolName = tools?.find(
+       tool => tool.type === 'provider' && tool.id === 'xai.code_execution',
+     )?.name;
+@@ -215,6 +219,7 @@ export class XaiResponsesLanguageModel implements LanguageModelV3 {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName,
+@@ -229,6 +234,7 @@ export class XaiResponsesLanguageModel implements LanguageModelV3 {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName,
+@@ -296,6 +302,40 @@ export class XaiResponsesLanguageModel implements LanguageModelV3 {
+         continue;
+       }
+ 
++      if (part.type === 'image_generation_call') {
++        const toolName = imageGenerationToolName ?? 'image_generation';
++
++        content.push({
++          type: 'tool-call',
++          toolCallId: part.id,
++          toolName,
++          input: '{}',
++          providerExecuted: true,
++        });
++
++        if (part.result != null) {
++          content.push({
++            type: 'tool-result',
++            toolCallId: part.id,
++            toolName,
++            result: {
++              result: part.result,
++              ...(part.prompt != null && { prompt: part.prompt }),
++            },
++          });
++        } else {
++          content.push({
++            type: 'tool-result',
++            toolCallId: part.id,
++            toolName,
++            isError: true,
++            result: `Image generation failed (status: ${part.status}).`,
++          });
++        }
++
++        continue;
++      }
++
+       if (
+         part.type === 'web_search_call' ||
+         part.type === 'x_search_call' ||
+@@ -458,6 +498,7 @@ export class XaiResponsesLanguageModel implements LanguageModelV3 {
+       warnings,
+       webSearchToolName,
+       xSearchToolName,
++      imageGenerationToolName,
+       codeExecutionToolName,
+       mcpToolName,
+       fileSearchToolName,
+@@ -749,6 +790,45 @@ export class XaiResponsesLanguageModel implements LanguageModelV3 {
+               return;
+             }
+ 
++            if (
++              event.type === 'response.image_generation_call.in_progress' ||
++              event.type === 'response.image_generation_call.generating' ||
++              event.type === 'response.image_generation_call.completed'
++            ) {
++              if (!seenToolCalls.has(event.item_id)) {
++                seenToolCalls.add(event.item_id);
++
++                const toolName = imageGenerationToolName ?? 'image_generation';
++
++                controller.enqueue({
++                  type: 'tool-input-start',
++                  id: event.item_id,
++                  toolName,
++                });
++
++                controller.enqueue({
++                  type: 'tool-input-delta',
++                  id: event.item_id,
++                  delta: '{}',
++                });
++
++                controller.enqueue({
++                  type: 'tool-input-end',
++                  id: event.item_id,
++                });
++
++                controller.enqueue({
++                  type: 'tool-call',
++                  toolCallId: event.item_id,
++                  toolName,
++                  input: '{}',
++                  providerExecuted: true,
++                });
++              }
++
++              return;
++            }
++
+             if (
+               event.type === 'response.output_item.added' ||
+               event.type === 'response.output_item.done'
+@@ -843,6 +923,63 @@ export class XaiResponsesLanguageModel implements LanguageModelV3 {
+                 return;
+               }
+ 
++              if (part.type === 'image_generation_call') {
++                const toolName = imageGenerationToolName ?? 'image_generation';
++
++                if (!seenToolCalls.has(part.id)) {
++                  seenToolCalls.add(part.id);
++
++                  controller.enqueue({
++                    type: 'tool-input-start',
++                    id: part.id,
++                    toolName,
++                  });
++
++                  controller.enqueue({
++                    type: 'tool-input-delta',
++                    id: part.id,
++                    delta: '{}',
++                  });
++
++                  controller.enqueue({
++                    type: 'tool-input-end',
++                    id: part.id,
++                  });
++
++                  controller.enqueue({
++                    type: 'tool-call',
++                    toolCallId: part.id,
++                    toolName,
++                    input: '{}',
++                    providerExecuted: true,
++                  });
++                }
++
++                if (event.type === 'response.output_item.done') {
++                  if (part.result != null) {
++                    controller.enqueue({
++                      type: 'tool-result',
++                      toolCallId: part.id,
++                      toolName,
++                      result: {
++                        result: part.result,
++                        ...(part.prompt != null && { prompt: part.prompt }),
++                      },
++                    });
++                  } else {
++                    controller.enqueue({
++                      type: 'tool-result',
++                      toolCallId: part.id,
++                      toolName,
++                      isError: true,
++                      result: `Image generation failed (status: ${part.status}).`,
++                    });
++                  }
++                }
++
++                return;
++              }
++
+               if (
+                 part.type === 'web_search_call' ||
+                 part.type === 'x_search_call' ||
+diff --git a/src/responses/xai-responses-prepare-tools.ts b/src/responses/xai-responses-prepare-tools.ts
+index eca3d80258dad65c0497f0969b955ad103e003f1..ba3c82c8528b2b6595e0ac0bb10cf51c8bf5f990 100644
+--- a/src/responses/xai-responses-prepare-tools.ts
++++ b/src/responses/xai-responses-prepare-tools.ts
+@@ -1,3 +1,4 @@
++import { imageGenerationArgsSchema } from '../tool/image-generation';
+ import {
+   UnsupportedFunctionalityError,
+   type LanguageModelV3CallOptions,
+@@ -78,6 +79,19 @@ export async function prepareResponsesTools({
+           break;
+         }
+ 
++        case 'xai.image_generation': {
++          const args = await validateTypes({
++            value: tool.args,
++            schema: imageGenerationArgsSchema,
++          });
++
++          xaiTools.push({
++            type: 'image_generation',
++            action: args.action,
++          });
++          break;
++        }
++
+         case 'xai.code_execution': {
+           xaiTools.push({
+             type: 'code_interpreter',
+diff --git a/src/tool/image-generation.ts b/src/tool/image-generation.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..950e091a1340f13af14891a24beb43ae81d91737
+--- /dev/null
++++ b/src/tool/image-generation.ts
+@@ -0,0 +1,16 @@
++import { createProviderToolFactoryWithOutputSchema } from '@ai-sdk/provider-utils';
++import { z } from 'zod/v4';
++
++export const imageGenerationArgsSchema = z.object({
++  action: z.enum(['auto', 'generate', 'edit']).optional(),
++});
++
++const imageGenerationToolFactory = createProviderToolFactoryWithOutputSchema<{}, { result: string; prompt?: string }, { action?: 'auto' | 'generate' | 'edit' }>({
++  id: 'xai.image_generation',
++  inputSchema: z.object({}),
++  outputSchema: z.object({ result: z.string(), prompt: z.string().optional() }),
++});
++
++export const imageGeneration = (
++  args: Parameters<typeof imageGenerationToolFactory>[0] = {},
++) => imageGenerationToolFactory(args);
+diff --git a/src/tool/index.ts b/src/tool/index.ts
+index 8d1789e4e1ff77a5d961604a6a1efd89276d989a..6e22a46432e456c9a230edb4dc5694de6ad35946 100644
+--- a/src/tool/index.ts
++++ b/src/tool/index.ts
+@@ -1,3 +1,4 @@
++import { imageGeneration } from './image-generation';
+ import { codeExecution } from './code-execution';
+ import { fileSearch } from './file-search';
+ import { mcpServer } from './mcp-server';
+@@ -7,6 +8,7 @@ import { webSearch } from './web-search';
+ import { xSearch } from './x-search';
+ 
+ export {
++  imageGeneration,
+   codeExecution,
+   fileSearch,
+   mcpServer,
+@@ -17,6 +19,7 @@ export {
+ };
+ 
+ export const xaiTools = {
++  imageGeneration,
+   codeExecution,
+   fileSearch,
+   mcpServer,

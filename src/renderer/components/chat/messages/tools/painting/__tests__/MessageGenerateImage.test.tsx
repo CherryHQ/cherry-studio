@@ -58,6 +58,25 @@ function mcpToolResponse(response: unknown): McpToolResponse {
 }
 
 describe('MessageGenerateImageToolTitle', () => {
+  // Regression: restored native-image results must resolve the same durable artifact without raw provider output.
+  it('renders a stored native image after history reload', async () => {
+    const persisted = { nativeImage: true, files: [{ id: 'f1', name: 'Grok image' }], prompt: 'A square' }
+    const view = render(
+      <MessageGenerateImageToolTitle
+        toolResponse={toolResponse({
+          tool: { name: 'imageGeneration' } as NormalToolResponse['tool'],
+          response: persisted
+        })}
+      />
+    )
+    await waitFor(() => expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png'))
+    view.unmount()
+    render(
+      <MessageGenerateImageToolTitle toolResponse={toolResponse({ response: JSON.parse(JSON.stringify(persisted)) })} />
+    )
+    await waitFor(() => expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png'))
+  })
+
   beforeEach(() => {
     getPhysicalPath.mockReset().mockResolvedValue('/data/f1.png')
     ;(window as unknown as { api: unknown }).api = { file: { getPhysicalPath } }

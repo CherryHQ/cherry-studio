@@ -62,7 +62,8 @@ describe('internal/entry/create.createInternal', () => {
         invalidate: vi.fn(),
         clear: vi.fn()
       },
-      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock'],
+      isEntryRetained: () => false
     }
   })
 

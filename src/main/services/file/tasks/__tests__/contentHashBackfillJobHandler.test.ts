@@ -63,7 +63,8 @@ describe('contentHashBackfillJobHandler', () => {
       fileRefService,
       danglingCache: {} as FileManagerDeps['danglingCache'],
       versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
-      contentWriteLock: new KeyedMutex()
+      contentWriteLock: new KeyedMutex(),
+      isEntryRetained: () => false
     }
     contentHashBackfillJobHandler = createContentHashBackfillJobHandler(deps)
   })

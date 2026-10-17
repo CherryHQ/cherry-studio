@@ -485,3 +485,31 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     })
   })
 })
+
+// Regression: image generation must never be injected for an old/off setting or an unsupported endpoint.
+describe('native image generation opt-in', () => {
+  const nativeScope = (enabled: boolean, endpoint = 'openai-responses') =>
+    makeScope({
+      assistant: { id: 'a', settings: { enableNativeImageGeneration: enabled } as Assistant['settings'] },
+      aiSdkProviderId: 'xai-responses',
+      model: { id: 'grok::grok-4.7', apiModelId: 'grok-4.7', endpointTypes: [endpoint] } as Partial<Model>,
+      provider: {
+        id: 'grok',
+        defaultChatEndpoint: 'openai-responses',
+        endpointConfigs: { 'openai-responses': { adapterFamily: 'xai-responses', baseUrl: 'https://api.x.ai/v1' } }
+      }
+    })
+
+  it('offers server image generation only when explicitly enabled on the supported Responses model', () => {
+    expect(activeNames(nativeScope(true))).toContain('provider-tool-imageGeneration')
+    expect(activeNames(nativeScope(false))).not.toContain('provider-tool-imageGeneration')
+    expect(activeNames(nativeScope(true, 'openai-chat-completions'))).not.toContain('provider-tool-imageGeneration')
+    const unsupported = nativeScope(true)
+    expect(activeNames({ ...unsupported, model: { ...unsupported.model, apiModelId: 'grok-3' } })).not.toContain(
+      'provider-tool-imageGeneration'
+    )
+    expect(activeNames({ ...unsupported, aiSdkProviderId: 'openai-responses' })).not.toContain(
+      'provider-tool-imageGeneration'
+    )
+  })
+})

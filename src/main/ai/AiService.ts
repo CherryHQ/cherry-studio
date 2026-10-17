@@ -72,6 +72,7 @@ import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
+import { withNativeImageOutput } from './messages/nativeImageOutput'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
@@ -775,7 +776,7 @@ export class AiService extends BaseService {
     })
     agentRef.current = agent
 
-    return agent.stream(preparedMessages, signal)
+    return withNativeImageOutput(agent.stream(preparedMessages, signal), request.messageId)
   }
 
   private analyticsHookPart(model: Model, source: TokenUsageSource = 'chat'): Partial<AgentLoopHooks> {

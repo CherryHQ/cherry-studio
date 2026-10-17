@@ -23,6 +23,7 @@ import { grokReasoningReplayFeature } from './grokReasoningReplay'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
+import { providerImageGenerationFeature } from './providerImageGeneration'
 import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
 import { qwenEnableThinkingFeature } from './qwenEnableThinking'
@@ -62,6 +63,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // The HuggingFace router rejects reasoning input items — strip them on replay.
   stripReasoningReplayFeature,
   providerWebSearchFeature,
+  providerImageGenerationFeature,
   providerUrlContextFeature,
   // Stop when a trusted local tool cannot succeed without an external change.
   terminalToolFailureFeature,

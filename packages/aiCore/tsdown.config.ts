@@ -9,6 +9,7 @@ export default defineConfig({
   outDir: 'dist',
   format: ['esm', 'cjs'],
   clean: true,
+  deps: { alwaysBundle: ['@ai-sdk/xai'] },
   dts: true,
   tsconfig: 'tsconfig.json'
 })

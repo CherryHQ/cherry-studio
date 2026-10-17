@@ -73,7 +73,8 @@ describe('internal/entry/lifecycle', () => {
         clear: vi.fn()
       },
       versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
-      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock'],
+      isEntryRetained: () => false
     }
   })
 

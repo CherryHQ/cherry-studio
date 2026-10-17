@@ -18,6 +18,7 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { messageArtifactRetentionService } from '@data/services/MessageArtifactRetentionService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
@@ -98,6 +99,8 @@ export class TemporaryChatService {
     if (!this.topics.has(id)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', id)
     }
+    for (const message of this.messages.get(id) ?? [])
+      messageArtifactRetentionService.releaseMessageArtifacts(message.id)
     this.topics.delete(id)
     this.messages.delete(id)
     logger.info('Deleted temporary topic', { id })
@@ -251,6 +254,7 @@ export class TemporaryChatService {
               updatedAt: m.updatedAt
             })
             .run()
+          messageService.syncFileRefsTx(tx, m.id, m.data)
           prevId = m.id
         }
 
@@ -271,6 +275,7 @@ export class TemporaryChatService {
       throw err
     }
 
+    for (const message of msgs) messageArtifactRetentionService.releaseMessageArtifacts(message.id)
     topicService.notifyReadModelChange([topicId], 'membership')
 
     // Promotion never creates or repairs facts. Rebuild the materialized
