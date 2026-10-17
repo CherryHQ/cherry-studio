@@ -375,10 +375,14 @@ const AgentPage = () => {
   // While the bound session is still loading, keep the tab's stored title/icon instead of stamping
   // a generic one.
   const targetSessionId = activeSessionId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
@@ -1089,6 +1093,7 @@ const AgentPage = () => {
             onVisibleAgentChange={setLastUsedAgentId}
             onVisibleWorkspaceChange={setLastUsedWorkspaceId}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             selectingMissingAgent={selectingMissingAgent}
             replacingSessionWorkspace={replacingSessionWorkspace}

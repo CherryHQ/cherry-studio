@@ -1,0 +1,1 @@
+ALTER TABLE `notification_record` ADD `result` text;

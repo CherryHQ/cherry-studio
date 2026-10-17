@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import type { NotificationCategory, NotificationTarget } from '@shared/data/types/notification'
+import type { NotificationCategory, NotificationTarget, NotificationTaskResult } from '@shared/data/types/notification'
 
 import { uuidPrimaryKey } from './_columnHelpers'
 
@@ -16,7 +16,8 @@ export const notificationRecordTable = sqliteTable(
     createdAt: integer().notNull(),
     readAt: integer(),
     dismissedAt: integer(),
-    target: text({ mode: 'json' }).$type<NotificationTarget>()
+    target: text({ mode: 'json' }).$type<NotificationTarget>(),
+    result: text({ mode: 'json' }).$type<NotificationTaskResult>()
   },
   (t) => [
     uniqueIndex('notification_record_event_key_idx').on(t.eventKey),

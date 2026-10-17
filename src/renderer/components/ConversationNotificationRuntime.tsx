@@ -57,13 +57,15 @@ export function ConversationNotificationRuntime(): null {
       return
 
     const showToast =
-      notification.category === 'usage' ||
-      notification.kind === 'backup-failed' ||
-      notification.kind === 'backup-warning'
-        ? toast.warning
-        : notification.category === 'official'
-          ? toast.info
-          : toast.success
+      notification.result?.status === 'failed' || notification.result?.status === 'interrupted'
+        ? toast.error
+        : notification.category === 'usage' ||
+            notification.kind === 'backup-failed' ||
+            notification.kind === 'backup-warning'
+          ? toast.warning
+          : notification.category === 'official'
+            ? toast.info
+            : toast.success
     const Icon = notificationCategoryIcons[notification.category]
     showToast({
       key: notification.id,

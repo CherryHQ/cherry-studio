@@ -138,8 +138,9 @@ export function useChatRuntimeState({
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => messageListRuntimeRef.current?.scrollToBottom())
   }, [])
-  const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
-    dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
+  const locateMessage = useCallback((messageId: string | null, highlight?: boolean) => {
+    if (messageId === null) messageListRuntimeRef.current?.scrollToBottom()
+    else dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after

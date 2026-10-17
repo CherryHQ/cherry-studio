@@ -7,8 +7,10 @@ export const NotificationTargetSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('conversation'),
     conversationType: z.enum(['assistant', 'agent']),
-    conversationId: z.string().min(1)
+    conversationId: z.string().min(1),
+    messageId: z.string().min(1).nullable().optional()
   }),
+  z.object({ kind: z.literal('scheduled-task'), taskId: z.string().min(1) }),
   z.object({ kind: z.literal('settings'), tab: z.enum(['usage', 'data']) }),
   z.object({ kind: z.literal('knowledge'), baseId: z.string().min(1) }),
   z.object({ kind: z.literal('release'), version: z.string().min(1), releaseNotes: z.string() }),
@@ -20,6 +22,23 @@ export const NotificationTargetSchema = z.discriminatedUnion('kind', [
 ])
 export type NotificationTarget = z.infer<typeof NotificationTargetSchema>
 
+export const NotificationTaskResultSchema = z.object({
+  source: z.enum(['assistant', 'agent', 'scheduled-task']),
+  status: z.enum(['succeeded', 'failed', 'interrupted', 'cancelled']),
+  name: z.string().min(1),
+  actor: z.object({ name: z.string().min(1), emoji: z.string().min(1) }).optional(),
+  durationMs: z.number().finite().nonnegative().optional(),
+  errorSummary: z.string().optional()
+})
+export type NotificationTaskResult = z.infer<typeof NotificationTaskResultSchema>
+
+/** Authoritative outcomes only; resultId must survive retries and restart, and change for each run. */
+export type TaskResultNotificationInput = NotificationTaskResult & {
+  resultId: string
+  finishedAt: number
+  target: Extract<NotificationTarget, { kind: 'conversation' | 'scheduled-task' }>
+}
+
 export const NotificationRecordSchema = z.object({
   id: z.uuid(),
   eventKey: z.string().min(1),
@@ -30,11 +49,12 @@ export const NotificationRecordSchema = z.object({
   createdAt: z.number().int().nonnegative(),
   readAt: z.number().nullable(),
   dismissedAt: z.number().nullable(),
-  target: NotificationTargetSchema.nullable()
+  target: NotificationTargetSchema.nullable(),
+  result: NotificationTaskResultSchema.nullable().optional()
 })
 export type NotificationRecord = z.infer<typeof NotificationRecordSchema>
 
 export type CreateNotificationRecordInput = Pick<
   NotificationRecord,
   'eventKey' | 'category' | 'kind' | 'title' | 'message' | 'createdAt'
-> & { target?: NotificationTarget | null }
+> & { target?: NotificationTarget | null; result?: NotificationTaskResult | null; readAt?: number | null }

@@ -94,13 +94,24 @@ describe('navigationHandlers', () => {
     expect(acknowledgeMainWindowNavigationMock).toHaveBeenCalledWith('w1', 7)
   })
 
-  it('delegates conversation focus-or-open with the trusted caller window id', async () => {
-    const target = { conversationType: 'assistant' as const, conversationId: 'topic-1' }
+  it.each([undefined, null, 'message-1'])(
+    'delegates the %s anchor with the trusted caller window id',
+    async (messageId) => {
+      const target = { conversationType: 'assistant' as const, conversationId: 'topic-1' }
 
-    await navigationHandlers['navigation.focus_or_open_conversation']({ target, title: 'Research notes' }, ctx)
+      await navigationHandlers['navigation.focus_or_open_conversation'](
+        { target, title: 'Research notes', messageId },
+        ctx
+      )
 
-    expect(conversationNavigationServiceMock.focusOrOpen).toHaveBeenCalledWith(target, 'Research notes', 'w1')
-  })
+      expect(conversationNavigationServiceMock.focusOrOpen).toHaveBeenCalledWith(
+        target,
+        'Research notes',
+        'w1',
+        messageId
+      )
+    }
+  )
 
   it('reports conversation ownership against the trusted caller window id', async () => {
     await navigationHandlers['navigation.report_conversation_ownership'](

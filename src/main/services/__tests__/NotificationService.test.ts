@@ -6,6 +6,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { notificationRecordService } from '@data/services/NotificationRecordService'
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
@@ -17,6 +18,7 @@ import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import type { TaskResultNotificationInput } from '@shared/data/types/notification'
 
 const NOTIFICATION_PREF_KEYS = [
   'app.notification.assistant.enabled',
@@ -252,6 +254,157 @@ describe('NotificationService', () => {
     emitCompletion()
     expect(notificationRecordService.list({}).items).toEqual([])
     expect(notificationRecordService.unreadCount()).toBe(0)
+  })
+
+  const taskResult = (overrides: Partial<TaskResultNotificationInput> = {}): TaskResultNotificationInput => ({
+    resultId: 'run-1',
+    source: 'agent',
+    status: 'succeeded',
+    name: 'Snapshot name',
+    finishedAt: Date.now(),
+    target: { kind: 'conversation', conversationType: 'agent', conversationId: 'session-1', messageId: 'message-1' },
+    ...overrides
+  })
+
+  // A foreground outcome must never briefly add an unread badge or emit a success sound on failure.
+  it.each(['succeeded', 'failed', 'interrupted', 'cancelled'] as const)(
+    'applies the %s policy atomically in foreground and background',
+    async (status) => {
+      let active = false
+      mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+        type === WindowType.Main ? [mainWindowInfo({ isFocused: active })] : []
+      )
+      mocks.isActiveInFocusedWindow.mockImplementation(async () => active)
+      mocks.preferenceValues['app.notification.completion_sound.enabled'] = true
+      for (active of [false, true]) {
+        const previous = notificationRecordService.unreadCount()
+        mocks.send.mockClear()
+        mocks.electronNotifications.length = 0
+        const input = taskResult({ status, resultId: `run-${active}` })
+        expect(await service.publishTaskResult(input)).toBe(true)
+        const silent = active || status === 'cancelled'
+        expect(notificationRecordService.unreadCount()).toBe(previous + (silent ? 0 : 1))
+        const record = notificationRecordService.list().items.find((item) => item.eventKey.includes(input.resultId))
+        if (active && status === 'succeeded') expect(record).toBeUndefined()
+        else expect(record?.readAt !== null).toBe(silent)
+        expect(mocks.electronNotifications).toHaveLength(silent ? 0 : 1)
+        expect(mocks.send.mock.calls.filter(([, event]) => event === 'notification.completion_sound')).toHaveLength(
+          !silent && status === 'succeeded' ? 1 : 0
+        )
+        expect(mocks.send.mock.calls.filter(([, event]) => event === 'notification.present')).toHaveLength(0)
+      }
+    }
+  )
+
+  it('presents a background task error in another focused conversation without a success sound', async () => {
+    mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+      type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
+    )
+    mocks.preferenceValues['app.notification.completion_sound.enabled'] = true
+    await service.publishTaskResult(
+      taskResult({ status: 'failed', durationMs: 500, errorSummary: 'Authorization: Bearer secret-value' })
+    )
+    const record = notificationRecordService.list().items[0]
+    expect(record.result).toMatchObject({ status: 'failed', durationMs: 500 })
+    expect(record.message).not.toContain('secret-value')
+    expect(mocks.send.mock.calls.filter(([, event]) => event === 'notification.present')).toEqual([
+      ['main-1', 'notification.present', record]
+    ])
+    expect(mocks.send.mock.calls.some(([, event]) => event === 'notification.completion_sound')).toBe(false)
+  })
+
+  it('consumes concurrent duplicates durably across restart, dismissal and history expiry', async () => {
+    const input = taskResult()
+    expect(await Promise.all(Array.from({ length: 8 }, () => service.publishTaskResult(input)))).toEqual(
+      Array(8).fill(true)
+    )
+    expect(notificationRecordService.list().items).toHaveLength(1)
+    expect(mocks.electronNotifications).toHaveLength(1)
+    const record = notificationRecordService.list().items[0]
+    notificationRecordService.markRead(record.id)
+    await initService()
+    await service.publishTaskResult(input)
+    expect(notificationRecordService.unreadCount()).toBe(0)
+    notificationRecordService.dismiss(record.id)
+    await service.publishTaskResult(input)
+    notificationRecordService.purgeExpired(Date.now() + 31 * 86400_000)
+    await initService()
+    await service.publishTaskResult(input)
+    expect(notificationRecordService.list().items).toEqual([])
+    expect(mocks.electronNotifications).toHaveLength(1)
+  })
+
+  it('consumes disabled, active-success and already-expired outcomes without replaying them later', async () => {
+    mocks.preferenceValues['app.notification.center.system.enabled'] = false
+    await service.publishTaskResult(taskResult({ resultId: 'disabled' }))
+    mocks.preferenceValues['app.notification.center.system.enabled'] = true
+    mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+      type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
+    )
+    mocks.isActiveInFocusedWindow.mockResolvedValue(true)
+    await service.publishTaskResult(taskResult({ resultId: 'active' }))
+    await service.publishTaskResult(
+      taskResult({ resultId: 'old', status: 'failed', finishedAt: Date.now() - 31 * 86400_000 })
+    )
+    mocks.getWindowInfosByType.mockReturnValue([])
+    await initService()
+    for (const resultId of ['disabled', 'active', 'old']) await service.publishTaskResult(taskResult({ resultId }))
+    expect(notificationRecordService.list().items).toEqual([])
+    expect(mocks.electronNotifications).toHaveLength(0)
+  })
+
+  it('rolls back the consumption marker on a failed insert and retries exactly once', async () => {
+    const input = taskResult()
+    dbh.sqlite.exec(
+      "CREATE TRIGGER reject_result BEFORE INSERT ON notification_record BEGIN SELECT RAISE(ABORT, 'write failure'); END"
+    )
+    try {
+      expect(await service.publishTaskResult(input)).toBe(false)
+      expect(dbh.sqlite.prepare("SELECT key FROM app_state WHERE key LIKE 'notification:consumed:%'").all()).toEqual([])
+      expect(notificationRecordService.unreadCount()).toBe(0)
+    } finally {
+      dbh.sqlite.exec('DROP TRIGGER reject_result')
+    }
+    expect(await service.publishTaskResult(input)).toBe(true)
+    expect(await service.publishTaskResult(input)).toBe(true)
+    expect(notificationRecordService.unreadCount()).toBe(1)
+    expect(mocks.electronNotifications).toHaveLength(1)
+  })
+
+  it('opens a stored message anchor, and leaves a deleted target readable and dismissible', async () => {
+    await service.publishTaskResult(taskResult())
+    const record = notificationRecordService.list().items[0]
+    await service.activateNotification(record.id)
+    expect(mocks.focusOrOpen).toHaveBeenLastCalledWith(
+      { conversationType: 'agent', conversationId: 'session-1' },
+      'Refactor project',
+      null,
+      'message-1'
+    )
+    mocks.agentSessionGetById.mockImplementation(() => {
+      throw new Error('deleted')
+    })
+    await expect(service.activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
+    expect(notificationRecordService.getById(record.id)?.readAt).not.toBeNull()
+    notificationRecordService.dismiss(record.id)
+    expect(notificationRecordService.getById(record.id)).toBeNull()
+  })
+
+  it('records a scheduled failure without a conversation and rejects a deleted schedule', async () => {
+    await service.publishTaskResult(
+      taskResult({
+        source: 'scheduled-task',
+        status: 'failed',
+        target: { kind: 'scheduled-task', taskId: 'deleted' },
+        errorSummary: 'Failed before creating a session'
+      })
+    )
+    const record = notificationRecordService.list().items[0]
+    expect(record.result?.errorSummary).toBe('Failed before creating a session')
+    const lookup = vi.spyOn(agentTaskService, 'getTaskById').mockReturnValue(null)
+    await expect(service.activateNotification(record.id)).rejects.toThrow('notification.center.target_unavailable')
+    expect(lookup).toHaveBeenCalledWith('deleted')
+    expect(mocks.focusOrOpen).not.toHaveBeenCalled()
   })
 
   it.each(['assistant', 'agent'] as const)(
@@ -777,7 +930,9 @@ describe('NotificationService', () => {
     mocks.electronNotifications[0].click?.()
     expect(mocks.focusOrOpen).toHaveBeenCalledWith(
       { conversationType: 'agent', conversationId: 'session-1' },
-      'Refactor project'
+      'Refactor project',
+      null,
+      undefined
     )
   })
 
@@ -855,7 +1010,9 @@ describe('NotificationService', () => {
     mocks.electronNotifications[0].click?.()
     expect(mocks.focusOrOpen).toHaveBeenCalledWith(
       { conversationType: 'assistant', conversationId: 'topic-1' },
-      'Research notes'
+      'Research notes',
+      null,
+      undefined
     )
   })
 
@@ -906,5 +1063,24 @@ describe('NotificationService', () => {
     mocks.preferenceValues['app.notification.assistant.enabled'] = false
     notificationPrefListener?.('app.notification.assistant.enabled', false, true)
     expect(mocks.setBadgeCount).not.toHaveBeenCalled()
+  })
+})
+
+// Upgrade a populated pre-result inbox through the production migration chain.
+describe('notification result migration', () => {
+  const dbh = setupTestDatabase({ migrationsThrough: '0028_wet_lila_cheney' })
+  it('preserves old records, targets and unread state with nullable result metadata', async () => {
+    const { applyMigrations } = await import('@data/db/applyMigrations')
+    const { resolveMigrationsPath } = await import('@test-helpers/db/internal/migrationsPath')
+    const id = crypto.randomUUID()
+    dbh.sqlite
+      .prepare(
+        'INSERT INTO notification_record (id, event_key, category, kind, title, message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      )
+      .run(id, 'legacy', 'system', 'task-completion', 'Existing', 'History', Date.now())
+    applyMigrations(dbh.db, resolveMigrationsPath())
+    expect(notificationRecordService.getById(id)).toMatchObject({ title: 'Existing', readAt: null, result: null })
+    expect(notificationRecordService.unreadCount()).toBe(1)
+    expect(dbh.sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
 })
