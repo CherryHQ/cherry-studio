@@ -90,16 +90,19 @@ describe('readFile — extracted content', () => {
     expect(r).toEqual({ text: 'ocr text', totalChars: 8 })
   })
 
-  it.each(['mp3', 'mp4', 'webm'])('returns paged full media analysis for .%s attachments', async (ext) => {
-    getByIdMock.mockResolvedValueOnce({ ext })
-    mediaAnalysisMock.mockResolvedValueOnce('[00:00] alpha\n[00:10] beta\n[00:20] gamma')
+  it.each(['mp3', 'mp4', 'webm', 'm4a', 'opus', '3gp'])(
+    'returns paged full media analysis for .%s attachments',
+    async (ext) => {
+      getByIdMock.mockResolvedValueOnce({ ext })
+      mediaAnalysisMock.mockResolvedValueOnce('[00:00] alpha\n[00:10] beta\n[00:20] gamma')
 
-    const r = await readFile(input({ filename: `media.${ext}`, offset: 14, limit: 12 }), ctx([att(`media.${ext}`)]))
+      const r = await readFile(input({ filename: `media.${ext}`, offset: 14, limit: 12 }), ctx([att(`media.${ext}`)]))
 
-    expect(r).toEqual({ text: '[00:10] beta', totalChars: 40, nextOffset: 26 })
-    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
-    expect(extractMock).not.toHaveBeenCalled()
-  })
+      expect(r).toEqual({ text: '[00:10] beta', totalChars: 40, nextOffset: 26 })
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(extractMock).not.toHaveBeenCalled()
+    }
+  )
 
   it.each(['mp4', 'webm'])('sanitizes .%s media analysis failures', async (ext) => {
     getByIdMock.mockResolvedValueOnce({ ext })
