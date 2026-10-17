@@ -14,14 +14,33 @@ import type { ToolSet, UIMessage } from 'ai'
  */
 import { ATTACHMENT_INPUT_SAFETY_RATIO } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
+import { resolveMinContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
 import { countToolTokens, estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 import { serializeToolSchema } from '@main/ai/tools/adapters/aiSdk/meta/schemaStub'
+import { isFallbackEligibleForRequestShape } from '@main/ai/utils/fallbackEligibility'
+import {
+  resolveModelRequestContextWindow,
+  resolveOllamaRequestNumCtx,
+  resolveRequestContextWindow,
+  usesOllamaWirePath
+} from '@main/ai/utils/ollamaRequestNumCtx'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
-import type { Model } from '@shared/data/types/model'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
+import {
+  isUniqueModelId,
+  type EndpointType,
+  type Model,
+  type UniqueModelId,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { MediaCapabilities } from './messageCapabilities'
@@ -33,9 +52,120 @@ export interface AttachmentBudget {
   tokenizer: TextTokenizer
 }
 
+/**
+ * Freezes Ollama `num_ctx` per configured fallback at attachment-budget time so lazy
+ * fallback activation does not re-sample host RAM and diverge from the budget.
+ */
+export function buildFallbackOllamaNumCtxSnapshots(
+  fallbackModelIds: readonly string[],
+  eligibility?: {
+    primaryHasTools: boolean
+    requiredNativeFileSupport: NativeFileSupport
+  }
+): ReadonlyMap<UniqueModelId, OllamaNumCtxRequestSnapshot> {
+  const snapshots = new Map<UniqueModelId, OllamaNumCtxRequestSnapshot>()
+  for (const configuredId of fallbackModelIds) {
+    if (!isUniqueModelId(configuredId)) continue
+    try {
+      const { providerId, modelId } = parseUniqueModelId(configuredId)
+      const fallbackProvider = providerService.getByProviderId(providerId)
+      if (!fallbackProvider.isEnabled) continue
+      const fallbackModel = modelService.getByKey(providerId, modelId)
+      if (
+        eligibility &&
+        !isFallbackEligibleForRequestShape({
+          fallbackModel,
+          primaryHasTools: eligibility.primaryHasTools,
+          requiredNativeFileSupport: eligibility.requiredNativeFileSupport
+        })
+      ) {
+        continue
+      }
+      const fallbackEndpoint = resolveEffectiveEndpoint(fallbackProvider, fallbackModel)
+      const fallbackRuntimeId = resolveAiSdkProviderId(fallbackProvider, fallbackEndpoint.endpointType)
+      if (!usesOllamaWirePath(fallbackProvider, fallbackEndpoint.endpointType, fallbackRuntimeId)) continue
+      const resolution = resolveOllamaRequestNumCtx(fallbackModel, fallbackProvider, fallbackEndpoint.endpointType)
+      if (!resolution) continue
+      snapshots.set(configuredId, {
+        uniqueModelId: configuredId,
+        trainedContextWindow: resolution.trainedContextWindow,
+        numCtx: resolution.numCtx
+      })
+    } catch {
+      // Unknown fallbacks are skipped at retry time too.
+    }
+  }
+  return snapshots
+}
+
+/** Smallest effective window across the primary and configured retry fallbacks. */
+export function resolveAttachmentBudgetContextWindow(input: {
+  provider: Provider
+  model: Model
+  endpointType?: EndpointType
+  runtimeProviderId?: string
+  ollamaNumCtx?: OllamaNumCtxRequestSnapshot | null
+  fallbackModelIds: readonly string[]
+  /** Frozen at budget time; must match {@link buildFallbackOllamaNumCtxSnapshots}. */
+  fallbackOllamaSnapshots?: ReadonlyMap<UniqueModelId, OllamaNumCtxRequestSnapshot>
+  primaryHasTools?: boolean
+  requiredNativeFileSupport?: NativeFileSupport
+}): number | undefined {
+  const endpoint = input.endpointType ?? resolveEffectiveEndpoint(input.provider, input.model).endpointType
+  const runtimeProviderId = input.runtimeProviderId ?? resolveAiSdkProviderId(input.provider, endpoint)
+  const windows: number[] = []
+  const primary = resolveRequestContextWindow(
+    input.model,
+    input.provider,
+    endpoint,
+    runtimeProviderId,
+    input.ollamaNumCtx
+  )
+  if (primary != null) windows.push(primary)
+
+  for (const configuredId of input.fallbackModelIds) {
+    if (!isUniqueModelId(configuredId)) continue
+    try {
+      const { providerId, modelId } = parseUniqueModelId(configuredId)
+      const fallbackProvider = providerService.getByProviderId(providerId)
+      if (!fallbackProvider.isEnabled) continue
+      const fallbackModel = modelService.getByKey(providerId, modelId)
+      if (
+        input.primaryHasTools !== undefined &&
+        input.requiredNativeFileSupport &&
+        !isFallbackEligibleForRequestShape({
+          fallbackModel,
+          primaryHasTools: input.primaryHasTools,
+          requiredNativeFileSupport: input.requiredNativeFileSupport
+        })
+      ) {
+        continue
+      }
+      const fallbackEndpoint = resolveEffectiveEndpoint(fallbackProvider, fallbackModel)
+      const fallbackRuntimeId = resolveAiSdkProviderId(fallbackProvider, fallbackEndpoint.endpointType)
+      const window = resolveRequestContextWindow(
+        fallbackModel,
+        fallbackProvider,
+        fallbackEndpoint.endpointType,
+        fallbackRuntimeId,
+        input.fallbackOllamaSnapshots?.get(configuredId) ?? null
+      )
+      if (window != null) windows.push(window)
+    } catch {
+      // Unknown fallbacks are skipped at retry time too.
+    }
+  }
+
+  return resolveMinContextWindow(windows) ?? undefined
+}
+
 export interface AttachmentBudgetInput {
   provider: Provider
   model: Model
+  endpointType?: EndpointType
+  runtimeProviderId?: string
+  /** Frozen request window after wire options are finalized (avoids re-sampling host RAM). */
+  requestContextWindow?: number
   system: string | undefined
   tools: ToolSet | undefined
   /** What this request declares as `max_tokens`; undefined = it declares none. */
@@ -50,7 +180,10 @@ export interface AttachmentBudgetInput {
  * or the history could not be priced. Callers fall back to their flat cap.
  */
 export async function resolveAttachmentBudget(input: AttachmentBudgetInput): Promise<AttachmentBudget | null> {
-  const window = resolveContextWindow(input.model.contextWindow)
+  const window = resolveContextWindow(
+    input.requestContextWindow ??
+      resolveModelRequestContextWindow(input.model, input.provider, input.endpointType, input.runtimeProviderId)
+  )
   if (window === null) return null
 
   const dialect = resolveModelTokenDialect(input.provider, input.model)

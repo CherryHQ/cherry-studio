@@ -362,7 +362,7 @@ describe('doctor read_file tool', () => {
   it('refuses an ancestor replaced by an outside symlink after path validation', () => {
     const directory = path.join(userData, 'logs', 'race')
     const movedDirectory = path.join(userData, 'logs', 'race-original')
-    fs.mkdirSync(directory)
+    fs.mkdirSync(directory, { recursive: true })
     fs.writeFileSync(path.join(directory, 'secret.txt'), 'inside')
     fs.writeFileSync(path.join(outside, 'secret.txt'), 'outside secret')
     const resolved = resolveDoctorReadablePath('logs/race/secret.txt')
@@ -371,7 +371,7 @@ describe('doctor read_file tool', () => {
     try {
       expect(() => openDoctorReadablePath(resolved)).toThrow('Access denied')
     } finally {
-      fs.rmSync(directory, { force: true })
+      fs.rmSync(directory, { recursive: true, force: true })
       fs.renameSync(movedDirectory, directory)
     }
   })

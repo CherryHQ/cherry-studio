@@ -37,6 +37,7 @@ import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOu
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
+import { resolveRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
@@ -152,7 +153,15 @@ export const inLoopCompactionFeature: RequestFeature = {
     // rows can omit it). Casting it made `trigger`/`keepBudget` `NaN`, and
     // `estimate <= NaN` is false, so the hook fired on EVERY step. With no
     // window, contribute no hook at all.
-    const contextWindow = resolveContextWindow(scope.model.contextWindow)
+    const contextWindow = resolveContextWindow(
+      resolveRequestContextWindow(
+        scope.model,
+        scope.provider,
+        scope.endpointType,
+        scope.sdkConfig?.providerId,
+        scope.requestContext?.ollamaNumCtx
+      )
+    )
     if (contextWindow === null) {
       logger.warn('model declares no contextWindow — in-loop compaction disabled for this request', {
         modelId: scope.model.id
