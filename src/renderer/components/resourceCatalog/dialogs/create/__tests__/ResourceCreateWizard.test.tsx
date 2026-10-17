@@ -68,17 +68,21 @@ vi.mock('../steps/BasicInfoStep', async () => {
       form
     }: {
       form: {
-        control: ReactHookForm.Control<{ modelId: string | null; name: string }>
+        control: ReactHookForm.Control<ResourceCreateWizardFormValues>
         setValue: (name: string, value: unknown) => void
       }
     }) => {
       const modelId = useWatch({ control: form.control, name: 'modelId' })
       const name = useWatch({ control: form.control, name: 'name' })
+      const agentType = useWatch({ control: form.control, name: 'agentType' })
+      const permissionMode = useWatch({ control: form.control, name: 'permissionMode' })
 
       return (
         <>
           <div data-testid="model-id">{modelId ?? 'empty'}</div>
           <div data-testid="name">{name || 'empty'}</div>
+          <div data-testid="agent-type">{agentType}</div>
+          <div data-testid="permission-mode">{permissionMode}</div>
           <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
             fill name
           </button>
@@ -103,7 +107,17 @@ vi.mock('../steps/BasicInfoStep', async () => {
           <button
             type="button"
             onClick={() => {
+              form.setValue('agentType', 'claude-code')
+              form.setValue('permissionMode', 'auto')
+              form.setValue('modelId', null)
+            }}>
+            switch to claude-code
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               form.setValue('agentType', 'pi')
+              form.setValue('permissionMode', 'auto')
               form.setValue('modelId', null)
             }}>
             switch to pi
@@ -128,6 +142,7 @@ vi.mock('../steps/CapabilityStep', () => ({
 }))
 
 import { ResourceCreateWizard } from '../ResourceCreateWizard'
+import type { ResourceCreateWizardFormValues } from '../types'
 
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
@@ -144,6 +159,31 @@ afterEach(() => {
 })
 
 describe('ResourceCreateWizard', () => {
+  it('defaults new agents to Pi, restores that default when reopened, and submits it', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    modelHook.defaultModel = makeModel()
+    const props = { kind: 'agent' as const, onOpenChange: vi.fn(), onSubmit }
+    const { rerender } = render(<ResourceCreateWizard {...props} open />)
+
+    expect(await screen.findByTestId('agent-type')).toHaveTextContent('pi')
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
+
+    rerender(<ResourceCreateWizard {...props} open={false} />)
+    rerender(<ResourceCreateWizard {...props} open />)
+
+    expect(screen.getByTestId('agent-type')).toHaveTextContent('pi')
+    expect(screen.getByTestId('permission-mode')).toHaveTextContent('auto')
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi', permissionMode: 'auto' }))
+  })
+
   it.each(['assistant', 'agent'] as const)('labels the shared authoring step as System Prompt for %s', (kind) => {
     render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
@@ -411,6 +451,7 @@ describe('ResourceCreateWizard', () => {
       render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
       expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+      await user.click(screen.getByRole('button', { name: 'switch to claude-code' }))
       await user.click(screen.getByRole('button', { name: `switch to ${agentType}` }))
 
       await waitFor(() => expect(screen.getByTestId('model-id')).toHaveTextContent('provider::default'))
