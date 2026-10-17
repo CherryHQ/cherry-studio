@@ -18,7 +18,7 @@ import type {
   CliConfigWriteArgs,
   ResolvedCliConfigContext
 } from './types'
-import { firstApiKey } from './values'
+import { modelApiKey } from './values'
 
 const logger = loggerService.withContext('writeCliConfigDraft')
 
@@ -75,18 +75,19 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   const [provider, apiKeysRes, modelRecord] = await Promise.all([
     dataApiService.get(`/providers/${providerId}`) as Promise<Provider | undefined>,
     dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
-    // Model metadata only tunes optional fields (endpoint pick, context window),
-    // so a fetch failure degrades the config quietly — leave a breadcrumb.
-    dataApiService.get(`/models/${args.modelId}`).catch((error) => {
-      logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
-      return null
+    // The model record carries its per-model key binding, so it is required for credential
+    // selection: a failed read must abort rather than look like an unset binding and silently
+    // pick the first enabled key (wrong account / quota).
+    dataApiService.get(`/models/${args.modelId}`).catch((error: unknown) => {
+      logger.error(`Failed to load model record for ${args.modelId}`, error as Error)
+      throw new Error(`Failed to load model ${args.modelId} for credential selection`, { cause: error })
     })
   ])
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
   }
 
-  const apiKey = firstApiKey(apiKeysRes?.keys)
+  const apiKey = modelApiKey(apiKeysRes?.keys, modelRecord?.apiKeyId)
   // Keyless local servers (authOptional, e.g. Ollama, oMLX) need no real credential,
   // but the CLI SDKs still require a non-empty auth token — same per-provider
   // stand-in OpenClaw injects. Ollama-endpoint custom providers keep the
