@@ -51,6 +51,11 @@ jobs:
       - name: Build Packages
         run: pnpm packages:build
 
+      - name: Check Web Search Package
+        run: |
+          pnpm --filter @cherrystudio/web-search test
+          pnpm --filter @cherrystudio/web-search test:package
+
       - name: Check Provider Registry Package
         run: pnpm --filter @cherrystudio/provider-registry test:package
 
@@ -76,6 +81,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Install with:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo 'pnpm add @cherrystudio/web-search@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/provider-registry@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/ai-core@snapshot' >> $GITHUB_STEP_SUMMARY
           echo 'pnpm add @cherrystudio/ai-sdk-provider@snapshot' >> $GITHUB_STEP_SUMMARY

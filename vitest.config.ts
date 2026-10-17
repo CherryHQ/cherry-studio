@@ -130,7 +130,9 @@ export default defineConfig({
           alias: {
             '@shared': resolve('src/shared'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -147,7 +149,9 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@shared': resolve('src/shared')
+            '@shared': resolve('src/shared'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -167,7 +171,9 @@ export default defineConfig({
           alias: {
             '@shared': resolve('src/shared'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -203,6 +209,14 @@ export default defineConfig({
             'packages/ui/src/**/*.{test,spec}.{ts,tsx}',
             'packages/ui/src/**/__tests__/**/*.{test,spec}.{ts,tsx}'
           ]
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: 'web-search',
+          environment: 'node',
+          include: ['packages/web-search/src/**/__tests__/**/*.test.ts']
         }
       },
       ...[
