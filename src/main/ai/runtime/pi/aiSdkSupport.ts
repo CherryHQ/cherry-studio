@@ -4,24 +4,22 @@ import path from 'node:path'
 
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import { type AgentSession, type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 import { type LanguageModel, simulateReadableStream, streamText } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { onTestFinished } from 'vitest'
 
 import {
-  type AgentRuntimeEvent,
-  type AgentRuntimeModel,
   type AgentRuntimeSessionOptions,
-  createAgentRuntimeSession,
-  type ModelCallPort,
-  type ModelCallRequest,
-  type TranscriptEntry
-} from '../src'
+  type AgentRuntimeEvent,
+  createAgentRuntimeSession
+} from '@cherrystudio/agent-runtime-pi'
 
-export const MODEL: AgentRuntimeModel = {
+import { type AiSdkModel, createAiSdkModelBinding } from './aiSdkModelBinding'
+import { type ModelCallPort, type ModelCallRequest, type ModelCallSideChannel } from './aiSdkTypes'
+
+export const MODEL: AiSdkModel = {
   provider: 'cherry',
-  key: 'cherry::bridged-model',
   id: 'bridged-model',
   name: 'Bridged model',
   reasoning: true,
@@ -97,36 +95,53 @@ export function tempDir(label: string): string {
   return dir
 }
 
-type Defaulted = 'cwd' | 'agentDir' | 'model' | 'systemPrompt' | 'requestOptions'
-export type TestSessionOptions<TRequestOptions> = Omit<AgentRuntimeSessionOptions<TRequestOptions>, Defaulted> &
-  Partial<Pick<AgentRuntimeSessionOptions<TRequestOptions>, Defaulted>>
+type Defaulted = 'cwd' | 'agentDir' | 'model' | 'modelRuntime' | 'systemPrompt'
+export type TestSessionOptions<TRequestOptions> = Omit<AgentRuntimeSessionOptions, Defaulted> &
+  Partial<Pick<AgentRuntimeSessionOptions, 'cwd' | 'agentDir' | 'systemPrompt'>> & {
+    entries?: SessionEntry[]
+    sessionId?: string
+    model?: AiSdkModel
+    port: ModelCallPort<TRequestOptions>
+    sideChannel?: ModelCallSideChannel
+    requestOptions?: TRequestOptions
+  }
 
 export async function createTestSession<TRequestOptions = undefined>(options: TestSessionOptions<TRequestOptions>) {
-  const runtime = await createAgentRuntimeSession<TRequestOptions>({
-    cwd: options.cwd ?? tempDir('cwd'),
+  const { port, requestOptions, sideChannel, model, entries, sessionId, ...sessionOptions } = options
+  const binding = await createAiSdkModelBinding({
+    port,
+    requestOptions: requestOptions as TRequestOptions,
+    sideChannel,
+    model: model ?? MODEL
+  })
+  const cwd = options.cwd ?? tempDir('cwd')
+  const runtime = await createAgentRuntimeSession({
+    cwd,
+    sessionManager: options.sessionManager ?? SessionManager.inMemory(cwd, { id: sessionId }, entries),
     agentDir: options.agentDir ?? tempDir('agent'),
-    model: MODEL,
     systemPrompt: 'You are Cherry.',
-    requestOptions: undefined as TRequestOptions,
-    ...options
+    ...sessionOptions,
+    ...binding,
+    settings: { ...options.settings, ...binding.settings },
+    extensionFactories: [...binding.extensionFactories, ...(options.extensionFactories ?? [])]
   })
   onTestFinished(() => runtime.dispose())
   return runtime
-}
-
-/** A host fake: keeps every emitted entry as storage would (JSON round trip) and every event. */
-export function hostStore() {
-  const entries: TranscriptEntry[] = []
-  const events: AgentRuntimeEvent[] = []
-  const onEvent = (event: AgentRuntimeEvent) => {
-    events.push(event)
-    if (event.type === 'transcript-append') entries.push(...plain(event.entries))
-  }
-  return { entries, events, onEvent }
 }
 
 export function lastAssistant(session: AgentSession): AssistantMessage {
   const message = session.messages.filter((m) => m.role === 'assistant').at(-1)
   if (!message) throw new Error('no assistant message')
   return message
+}
+
+/** Records copied observations for assertions; native SessionManager owns persistence. */
+export function hostStore() {
+  const entries: SessionEntry[] = []
+  const events: AgentRuntimeEvent[] = []
+  const onEvent = (event: AgentRuntimeEvent) => {
+    events.push(event)
+    if (event.type === 'session-append') entries.push(...plain(event.entries))
+  }
+  return { entries, events, onEvent }
 }

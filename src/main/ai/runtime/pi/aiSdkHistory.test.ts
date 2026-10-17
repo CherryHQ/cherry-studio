@@ -1,38 +1,56 @@
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
-import type { AssistantModelMessage } from 'ai'
+import type { AssistantMessage, Message } from '@earendil-works/pi-ai'
+import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { TranscriptEntry, TranscriptMessageEntry } from '../src'
-import { createTestSession, finish, hostStore, MODEL, plain, scriptedModel, streamTextPort, textParts } from './support'
+import { encodeProviderMetadata } from './aiSdkMetadata'
+import { AI_SDK_API } from './aiSdkProvider'
+import {
+  createTestSession,
+  finish,
+  MODEL,
+  plain,
+  scriptedModel,
+  streamTextPort,
+  tempDir,
+  textParts
+} from './aiSdkSupport'
 
-let lastId = 0
-const nextId = () => `e${++lastId}`
+const zeroUsage: AssistantMessage['usage'] = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+}
 
-const user = (content: string): TranscriptEntry => ({
-  kind: 'message',
-  id: nextId(),
-  timestamp: 1,
-  message: { role: 'user', content }
-})
+function assistant(content: AssistantMessage['content'], from: Partial<AssistantMessage> = {}): AssistantMessage {
+  return {
+    role: 'assistant',
+    content,
+    api: AI_SDK_API,
+    provider: MODEL.provider,
+    model: MODEL.id,
+    usage: zeroUsage,
+    stopReason: 'stop',
+    timestamp: 1,
+    ...from
+  }
+}
 
-const assistant = (
-  content: AssistantModelMessage['content'],
-  sidecar: Partial<TranscriptMessageEntry> = {}
-): TranscriptEntry => ({
-  kind: 'message',
-  id: nextId(),
-  timestamp: 1,
-  message: { role: 'assistant', content },
-  modelKey: MODEL.key,
-  stopReason: 'stop',
-  ...sidecar
-})
-
+const user = (content: string): Message => ({ role: 'user', content, timestamp: 1 })
 const assistantsOf = (prompt: LanguageModelV3Prompt) =>
   prompt.flatMap((m) => (m.role === 'assistant' ? [plain(m.content)] : []))
 
-describe('transcript replayed into a fresh session', () => {
-  it('replays signed reasoning to the same model key even when the Pi provider id changed', async () => {
+function nativeHistory(messages: Message[]) {
+  const manager = SessionManager.inMemory(tempDir('history'))
+  for (const message of messages) manager.appendMessage(message)
+  return manager
+}
+
+describe('history seeded into a fresh session', () => {
+  it('replays signed reasoning recorded by an earlier session of the same model', async () => {
     const first = scriptedModel([
       [
         { type: 'reasoning-start', id: 'r' },
@@ -42,16 +60,15 @@ describe('transcript replayed into a fresh session', () => {
         finish('stop')
       ]
     ])
-    const host = hostStore()
-    const earlier = await createTestSession({ port: streamTextPort(first.model).port, onEvent: host.onEvent })
+    const earlier = await createTestSession({ port: streamTextPort(first.model).port })
     await earlier.session.prompt('My name is Li.')
+    const history = earlier.session.messages as Message[]
     await earlier.dispose()
 
     const second = scriptedModel([[...textParts('t', 'You are Li.'), finish('stop')]])
     const { session } = await createTestSession({
       port: streamTextPort(second.model).port,
-      model: { ...MODEL, provider: 'cherry-reconnected' },
-      transcript: host.entries
+      sessionManager: nativeHistory(history)
     })
     await session.prompt("What's my name?")
 
@@ -64,23 +81,34 @@ describe('transcript replayed into a fresh session', () => {
   })
 
   it('drops another model’s reasoning and signatures from replay', async () => {
-    const transcript = [
+    const history: Message[] = [
       user('My name is Li.'),
       assistant([
-        { type: 'reasoning', text: 'remember', providerOptions: { anthropic: { signature: 'sig-old' } } },
+        {
+          type: 'thinking',
+          thinking: 'remember',
+          thinkingSignature: encodeProviderMetadata({ anthropic: { signature: 'sig-old' } })
+        },
         { type: 'text', text: 'Nice to meet you, Li.' }
       ]),
       user('I live in Paris.'),
       assistant(
         [
-          { type: 'reasoning', text: 'other model reasoning', providerOptions: { openai: { itemId: 'x' } } },
-          { type: 'text', text: 'Paris is lovely.', providerOptions: { openai: { itemId: 'y' } } }
+          {
+            type: 'thinking',
+            thinking: 'other model reasoning',
+            thinkingSignature: encodeProviderMetadata({ openai: { itemId: 'x' } })
+          },
+          { type: 'text', text: 'Paris is lovely.', textSignature: encodeProviderMetadata({ openai: { itemId: 'y' } }) }
         ],
-        { modelKey: 'openai::other-model' }
+        { provider: 'other-provider', model: 'other-model', api: 'openai-completions' }
       )
     ]
     const { model, calls } = scriptedModel([[...textParts('t', 'You are Li, in Paris.'), finish('stop')]])
-    const { session } = await createTestSession({ port: streamTextPort(model).port, transcript })
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      sessionManager: nativeHistory(history)
+    })
     await session.prompt("What's my name and city?")
 
     expect(assistantsOf(calls[0].prompt)).toEqual([
@@ -93,16 +121,19 @@ describe('transcript replayed into a fresh session', () => {
   })
 
   it('answers tool calls left without a result and skips failed turns', async () => {
-    const transcript = [
+    const history: Message[] = [
       user('Check the weather.'),
-      assistant([{ type: 'tool-call', toolCallId: 'call_lost', toolName: 'get_weather', input: { city: 'Oslo' } }], {
+      assistant([{ type: 'toolCall', id: 'call_lost', name: 'get_weather', arguments: { city: 'Oslo' } }], {
         stopReason: 'toolUse'
       }),
       user('Never mind.'),
       assistant([{ type: 'text', text: 'half an ans' }], { stopReason: 'aborted', errorMessage: 'aborted' })
     ]
     const { model, calls } = scriptedModel([[...textParts('t', 'OK.'), finish('stop')]])
-    const { session } = await createTestSession({ port: streamTextPort(model).port, transcript })
+    const { session } = await createTestSession({
+      port: streamTextPort(model).port,
+      sessionManager: nativeHistory(history)
+    })
     await session.prompt('Hello again')
 
     const prompt = calls[0].prompt
