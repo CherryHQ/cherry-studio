@@ -1,10 +1,18 @@
-import { isEqual } from 'es-toolkit'
+import { isEqual, omit } from 'es-toolkit'
 import type { GbnfJsonSchema } from 'node-llama-cpp'
 
 type Schema = Record<string, unknown>
 
 const IMMUTABLE_TYPES = new Set(['string', 'number', 'integer', 'boolean', 'null'])
-const GRAMMAR_FORMATS = new Set(['date-time', 'time', 'date'])
+// The formats the grammar enforces, with the patterns node-llama-cpp validates them by.
+const GRAMMAR_FORMATS = new Map([
+  ['date', /^\d{4}-(0[1-9]|1[012])-(0[1-9]|[12]\d|3[01])$/],
+  ['time', /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{3})?(Z|[+-]([01][0-9]|2[0-3])?:[0-5][0-9])$/],
+  [
+    'date-time',
+    /^\d{4}-(0[1-9]|1[012])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{3})?(Z|[+-]([01][0-9]|2[0-3])?:[0-5][0-9])$/
+  ]
+])
 const ANY_VALUE: Schema = {
   oneOf: [
     { type: ['string', 'number', 'boolean', 'null'] },
@@ -46,8 +54,11 @@ function convert(input: unknown, outerDefs: Schema): Schema {
   if ('const' in schema) return { ...base, const: schema.const }
   if (Array.isArray(schema.enum)) return { ...base, enum: schema.enum }
 
-  const union = schema.anyOf ?? schema.oneOf
-  if (Array.isArray(union)) return { ...base, oneOf: union.map((option) => convert(option, defs)) }
+  if (Array.isArray(schema.anyOf ?? schema.oneOf)) {
+    const distributed = distributeUnion(schema, defs)
+    const options = (distributed.anyOf ?? distributed.oneOf) as unknown[]
+    return { ...base, oneOf: options.map((option) => convert(option, defs)) }
+  }
 
   const types = Array.isArray(schema.type) ? schema.type : [schema.type ?? inferType(schema)]
   if (types.length !== 1) {
@@ -157,20 +168,37 @@ function matchesType(schema: Schema, type: unknown, value: unknown, defs: Schema
   switch (type) {
     case 'null':
       return value === null
-    case 'string':
+    case 'string': {
+      const pattern = GRAMMAR_FORMATS.get(schema.format as string)
+      return (
+        typeof value === 'string' &&
+        withinBounds(value.length, schema.minLength, schema.maxLength) &&
+        (!pattern || pattern.test(value))
+      )
+    }
     case 'boolean':
     case 'number':
       return typeof value === type
     case 'integer':
       return Number.isInteger(value)
-    case 'array':
-      return Array.isArray(value) && value.every((item, index) => matches(itemSchema(schema, index), item, defs))
+    case 'array': {
+      if (!Array.isArray(value)) return false
+      const tupleLength = Array.isArray(schema.prefixItems) ? schema.prefixItems.length : 0
+      return (
+        withinBounds(value.length, schema.minItems, schema.maxItems, tupleLength) &&
+        value.every((item, index) => matches(itemSchema(schema, index), item, defs))
+      )
+    }
     case 'object': {
       if (!isRecord(value)) return false
       const properties = isRecord(schema.properties) ? schema.properties : undefined
       const required = requiredKeys(schema)
       if ([...required].some((key) => !Object.hasOwn(value, key))) return false
       const additional = schema.additionalProperties ?? !properties
+      const declared = Object.keys(properties ?? {}).length
+      const size = Object.keys(value).length
+      if (additional !== false && !withinBounds(size, schema.minProperties, schema.maxProperties, declared))
+        return false
       return Object.entries(value).every(([key, item]) => {
         if (!properties || !Object.hasOwn(properties, key))
           return additional !== false && matches(additional, item, defs)
@@ -181,6 +209,12 @@ function matchesType(schema: Schema, type: unknown, value: unknown, defs: Schema
       // An unknown or missing type becomes "any value".
       return true
   }
+}
+
+/** A length or count check the way node-llama-cpp's validator does it: `floor` raises the minimum, and the maximum never drops below it. */
+function withinBounds(count: number, min: unknown, max: unknown, floor = 0): boolean {
+  const lower = Math.max(typeof min === 'number' ? min : 0, floor)
+  return count >= lower && (typeof max !== 'number' || count <= Math.max(max, lower))
 }
 
 function itemSchema(schema: Schema, index: number): unknown {
@@ -203,7 +237,18 @@ function mergeAllOf(schema: Schema, defs: Schema, seen = new Set<Schema>()): Sch
 
 /** The schema with its reference chain followed and `allOf` merged; `allOf` goes first since it may sit beside a `$ref`. */
 function expand(schema: Schema, defs: Schema, seen = new Set<Schema>()): Schema {
-  return mergeAllOf(Array.isArray(schema.allOf) ? schema : resolveRef(schema, defs), defs, seen)
+  return distributeUnion(mergeAllOf(Array.isArray(schema.allOf) ? schema : resolveRef(schema, defs), defs, seen), defs)
+}
+
+/** Keywords beside `anyOf`/`oneOf` constrain every alternative, so each alternative takes them in. */
+function distributeUnion(schema: Schema, defs: Schema): Schema {
+  const union = schema.anyOf ?? schema.oneOf
+  const shared = omit(schema, ['anyOf', 'oneOf', 'description', '$defs', 'definitions'])
+  if (!Array.isArray(union) || Object.keys(shared).length === 0) return schema
+  return {
+    ...pick(schema, ['description', '$defs', 'definitions']),
+    oneOf: union.filter(isRecord).map((option) => mergeObjectSchemas(shared, expand(option, defs)))
+  }
 }
 
 function resolveRef(schema: Schema, defs: Schema): Schema {
@@ -240,12 +285,16 @@ function inferType(schema: Schema): string | undefined {
 
 function mergeObjectSchemas(target: Schema, source: Schema): Schema {
   // A part whose allOf could not be expanded (a cycle) must not reintroduce allOf into the result.
-  const part: Schema = { ...source, allOf: undefined }
+  const part = omit(source, ['allOf'])
+  const hasProperties = isRecord(target.properties) || isRecord(part.properties)
+  const hasRequired = Array.isArray(target.required) || Array.isArray(part.required)
   return {
     ...target,
     ...part,
-    properties: { ...(target.properties as Schema), ...(part.properties as Schema) },
-    required: [...((target.required as string[]) ?? []), ...((part.required as string[]) ?? [])]
+    ...(hasProperties && { properties: { ...(target.properties as Schema), ...(part.properties as Schema) } }),
+    ...(hasRequired && {
+      required: [...((target.required as string[]) ?? []), ...((part.required as string[]) ?? [])]
+    })
   }
 }
 

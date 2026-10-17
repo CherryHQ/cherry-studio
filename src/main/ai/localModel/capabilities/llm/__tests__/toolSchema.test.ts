@@ -125,6 +125,52 @@ describe('toGbnfJsonSchema', () => {
     })
   })
 
+  it('picks the union branch whose constraints the arguments meet, not just their types', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        filter: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: { key: { type: 'string', maxLength: 1 }, limit: { type: 'integer' } },
+              required: ['key']
+            },
+            {
+              type: 'object',
+              properties: { key: { type: 'string', minLength: 2 }, limit: { type: ['integer', 'null'] } },
+              required: ['key', 'limit']
+            }
+          ]
+        }
+      },
+      required: ['filter']
+    }
+    const generated = { filter: { key: 'abc', limit: null } }
+
+    expect(generates(schema, generated)).toBe(true)
+    expect(toToolArguments(schema, generated)).toEqual(generated)
+  })
+
+  it('keeps the arguments a union shares with its siblings required in every alternative', () => {
+    const schema = {
+      type: 'object',
+      properties: { workspace_id: { type: 'string' } },
+      required: ['workspace_id'],
+      oneOf: [
+        { properties: { path: { type: 'string' } }, required: ['path'] },
+        { properties: { query: { type: 'string' } }, required: ['query'] }
+      ]
+    }
+
+    expect(generates(schema, { workspace_id: 'w-1', path: '/file' })).toBe(true)
+    expect(generates(schema, { path: '/file' })).toBe(false)
+    expect(toToolArguments(schema, { workspace_id: 'w-1', path: '/file' })).toEqual({
+      workspace_id: 'w-1',
+      path: '/file'
+    })
+  })
+
   it('removes unset optional arguments inside tuple elements', () => {
     const schema = {
       type: 'object',
