@@ -7,6 +7,7 @@ import { ModelSelectorRow } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '@renderer/components/SelectorShell'
 import { useListboxKeyboardNavigation } from '@renderer/hooks/useListboxKeyboardNavigation'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 const KNOWLEDGE_BASE_ROW_HEIGHT = 36
 const KNOWLEDGE_BASE_LIST_PADDING = 8
@@ -45,7 +46,7 @@ export const KnowledgeBaseSelector = ({
   const selectedOption = options.find((option) => option.value === value)
   const filteredOptions = useMemo(() => {
     const query = searchValue.trim().toLowerCase()
-    return query ? options.filter((option) => option.label.toLowerCase().includes(query)) : options
+    return query ? options.filter((option) => matchesSearchText(option.label, query)) : options
   }, [options, searchValue])
   const listHeight =
     filteredOptions.length > 0

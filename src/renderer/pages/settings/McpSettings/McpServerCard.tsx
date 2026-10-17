@@ -17,7 +17,6 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
@@ -44,11 +43,11 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
   const { t } = useTranslation()
 
-  // Fetch version for active servers
-  const fetchServerVersion = useCallback(async (s: McpServer) => {
+  // The list only reads existing connections; connecting here would start OAuth for every card.
+  const fetchServerVersion = useCallback(async (s: McpServer, connect = false) => {
     if (!s.isActive) return
     try {
-      const v = await ipcApi.request('mcp.server.get_version', { serverId: s.id })
+      const v = await ipcApi.request('mcp.server.get_version', { serverId: s.id, connect })
       setVersion(v)
     } catch {
       setVersion(null)
@@ -62,7 +61,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       setVersion(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [server.isActive, server.id, fetchServerVersion])
+  }, [server.isActive, server.id, runtimeStatus.state, fetchServerVersion])
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
@@ -88,14 +87,10 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         if (active) {
           await updateMcpServer({ body: { isActive: true } })
           try {
-            await fetchServerVersion({ ...serverForUpdate, isActive: true })
+            await fetchServerVersion({ ...serverForUpdate, isActive: true }, true)
             await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
           } catch (error: any) {
-            void popup.error({
-              title: t('settings.mcp.startError'),
-              content: formatMcpError(error),
-              centered: true
-            })
+            toast.errorFromException(error, { category: 'mcp', mcpServer: server })
           }
         } else {
           await updateMcpServer({ body: { isActive: false } })
@@ -103,11 +98,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           setVersion(null)
         }
       } catch (error: any) {
-        void popup.error({
-          title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
-          content: formatMcpError(error),
-          centered: true
-        })
+        toast.errorFromException(error, { category: 'mcp', mcpServer: server })
       } finally {
         setLoading(false)
       }

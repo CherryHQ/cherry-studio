@@ -119,6 +119,8 @@ describe('isSignificantAnnotation', () => {
 describe('Toolbar placement', () => {
   const noop = () => {}
   const actions = {
+    resultMessage: '',
+    onResultMessageChange: noop,
     activeTool: null,
     canUndo: false,
     canRedo: false,

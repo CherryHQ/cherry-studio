@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { app } from 'electron'
 
 import { application } from '@application'
@@ -7,7 +9,12 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { validateUtilityProcessDefinition } from './defineUtilityProcess'
 import { electronProcessAdapter } from './host/electronProcessAdapter'
 import { ProcessHost, type ProcessHostDeps } from './host/ProcessHost'
-import type { UtilityProcessClient, UtilityProcessContract, UtilityProcessDefinition } from './types'
+import type {
+  UtilityProcessClient,
+  UtilityProcessContract,
+  UtilityProcessDefinition,
+  UtilityProcessInstance
+} from './types'
 import { UtilityProcessError } from './UtilityProcessError'
 
 export type UtilityProcessManagerDeps = ProcessHostDeps
@@ -84,6 +91,38 @@ export class UtilityProcessManager extends BaseService {
     }
     this.clients.set(definition, client)
     return client
+  }
+
+  /** Creates an independently owned process; disposing it permanently closes this client. */
+  createInstance<Contract extends UtilityProcessContract, InitData>(
+    definition: UtilityProcessDefinition<Contract, InitData>
+  ): UtilityProcessInstance<Contract> {
+    if (this.definitions.get(definition.id) !== definition || !this.accepting) {
+      throw new Error('Utility process definition is not registered or manager is stopped')
+    }
+    const id = randomUUID()
+    const key = `${definition.id}:${id}`
+    const host = new ProcessHost(definition, this.deps, id)
+    this.hosts.set(key, host)
+    let disposed = false
+    return {
+      request: async (method, input, options) => {
+        if (disposed || !this.accepting) throw new Error('Utility process instance is closed')
+        return host.request(method, input, options)
+      },
+      stop: (options) => host.stop(options),
+      withStopped: async (operation, options) => {
+        if (disposed || !this.accepting) throw new Error('Utility process instance is closed')
+        return host.withStopped(operation, options)
+      },
+      dispose: async () => {
+        disposed = true
+        host.retireWhenQuiescent(() => {
+          if (this.hosts.get(key) === host) this.hosts.delete(key)
+        })
+        await host.dispose()
+      }
+    }
   }
 
   protected onInit(): void {

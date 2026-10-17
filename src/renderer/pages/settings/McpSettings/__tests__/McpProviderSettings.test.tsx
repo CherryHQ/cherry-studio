@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
+
 import McpProviderSettings from '../McpProviderSettings'
 import type { ProviderConfig } from '../providers/config'
 
@@ -29,7 +31,8 @@ vi.mock('@renderer/components/CollapsibleSearchBar', () => ({
   default: () => <div data-testid="search-bar" />
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryUiModule>()),
   Button: ({ children, onClick, disabled }: { children?: ReactNode; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" onClick={onClick} disabled={disabled}>
       {children}

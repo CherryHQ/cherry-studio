@@ -2,7 +2,11 @@ import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import type { ModelMessage } from 'ai'
 
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import type { AutomationRun } from '@main/services/automation'
+import type { ComputerUseTask } from '@main/services/ComputerUseService'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { WindowId } from '@shared/ipc/types'
 import type { McpResource } from '@shared/types/mcp'
 
 /**
@@ -16,11 +20,16 @@ export interface RequestContext {
 
   /** Absent for synthetic / IPC-driven invocations. */
   readonly topicId?: string
+  readonly windowId?: WindowId
+  readonly model?: UniqueModelId
+  readonly roots?: ReadonlyArray<{ uri: string; name?: string }>
 
   /** Source of static config like `assistant.knowledgeBaseIds`. */
   readonly assistant?: Assistant
 
   readonly abortSignal?: AbortSignal
+  readonly computerUseTask?: ComputerUseTask
+  readonly automationRun?: () => Promise<AutomationRun>
 
   /** Attachments the `read_file` tool may read this request (filename → entry allow-list). */
   readonly fileAttachments?: ReadonlyArray<FileAttachmentRef>
