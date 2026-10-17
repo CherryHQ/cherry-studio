@@ -287,6 +287,12 @@ export function WebviewNavigation({
                 setActiveSuggestion(-1)
                 setHistoryOpen(true)
               }}
+              onMouseDown={(event) => {
+                if (event.button !== 0 || document.activeElement === event.currentTarget) return
+                // Without this, pointer drift during the focusing click extends the select-all into a partial range.
+                event.preventDefault()
+                event.currentTarget.focus()
+              }}
               onFocus={handleAddressFocus}
               onBlur={handleAddressBlur}
               onKeyDown={handleAddressKeyDown}

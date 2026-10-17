@@ -180,6 +180,19 @@ describe('Browser address history', () => {
 })
 
 describe('Browser address display', () => {
+  it('selects the whole URL when the focusing click drifts, then allows drag selection', async () => {
+    const user = userEvent.setup()
+    const url = 'https://github.com/maizzle/framework?tab=readme#start'
+    const { address } = setup(false, url)
+    const input = address as HTMLInputElement
+    const drag = [{ keys: '[MouseLeft>]', target: input, offset: 3 }, { offset: 12 }, { keys: '[/MouseLeft]' }]
+    await user.pointer(drag)
+    expect(input).toHaveFocus()
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, url.length])
+    await user.pointer(drag)
+    expect([input.selectionStart, input.selectionEnd]).toEqual([3, 12])
+  })
+
   it.each([
     ['https://github.com/maizzle/framework?tab=readme#start', 'github.com'],
     ['http://localhost:3000/reports?lang=zh#latest', 'localhost:3000'],
