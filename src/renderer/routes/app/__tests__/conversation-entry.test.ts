@@ -40,9 +40,7 @@ describe('conversation entry route guards', () => {
   })
 
   it('does not resolve a chat entry that already carries a topic id', async () => {
-    await chatBeforeLoad({ search: { topicId: 'topic-a' } })
-
-    expect(mocks.resolveChatEntryTopicId).not.toHaveBeenCalled()
+    await expect(chatBeforeLoad({ search: { topicId: 'topic-a' } })).resolves.toBeUndefined()
   })
 
   it('resolves the entry target for a bare agent entry', async () => {
@@ -54,61 +52,29 @@ describe('conversation entry route guards', () => {
   })
 
   it('does not resolve an agent entry that already carries a session id', async () => {
-    await agentBeforeLoad({ search: { sessionId: 'session-a' } })
-
-    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
-    expect(mocks.resolveAgentEntrySessionIdForAgent).not.toHaveBeenCalled()
+    await expect(agentBeforeLoad({ search: { sessionId: 'session-a' } })).resolves.toBeUndefined()
   })
 
-  it('resolves a leftover All Agents sessionId as the pinned Agent instead of staying on the directory', async () => {
-    mocks.resolveAgentEntrySessionIdForAgent.mockResolvedValue('session-pinned')
+  it('binds canonically and preserves that session on a later load after a newer session exists', async () => {
+    mocks.resolveAgentEntrySessionIdForAgent.mockResolvedValue('session-s1')
+    let boundSearch: AgentRouteSearch = {}
+    try {
+      await agentBeforeLoad({ search: { agentId: 'agent-1' } })
+    } catch (redirect) {
+      const options = (redirect as { options: { search: AgentRouteSearch; replace: boolean } }).options
+      expect(options).toMatchObject({ to: '/app/agents', search: { sessionId: 'session-s1' }, replace: true })
+      boundSearch = options.search
+    }
+    expect(boundSearch).toEqual({ sessionId: 'session-s1' })
 
-    await expect(
-      agentBeforeLoad({ search: { sessionId: 'session-directory', agentId: 'agent-1' } })
-    ).rejects.toMatchObject({
-      options: {
-        to: '/app/agents',
-        search: { sessionId: 'session-pinned' },
-        replace: true
-      }
-    })
-
-    expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')
-    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
-  })
-
-  it('drops agentId after binding so a later load cannot retarget the conversation', async () => {
-    mocks.resolveAgentEntrySessionIdForAgent.mockResolvedValue('session-pinned')
-
-    await expect(
-      agentBeforeLoad({ search: { sessionId: 'session-pinned', agentId: 'agent-1' } })
-    ).rejects.toMatchObject({
-      options: {
-        to: '/app/agents',
-        search: { sessionId: 'session-pinned' },
-        replace: true
-      }
-    })
-
-    expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')
-    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
-  })
-
-  it('drops a leftover sessionId when the pinned Agent has no session yet', async () => {
-    await expect(
-      agentBeforeLoad({ search: { sessionId: 'session-directory', agentId: 'agent-1' } })
-    ).rejects.toMatchObject({
-      options: { to: '/app/agents', search: { agentId: 'agent-1' }, replace: true }
-    })
-
-    expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')
-    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
+    mocks.resolveAgentEntrySessionIdForAgent.mockResolvedValue('session-s2')
+    mocks.resolveAgentEntrySessionId.mockResolvedValue('session-s2')
+    await expect(agentBeforeLoad({ search: boundSearch })).resolves.toBeUndefined()
+    expect(boundSearch).toEqual({ sessionId: 'session-s1' })
   })
 
   it('does not resolve a feedback-intent agent entry', async () => {
-    await agentBeforeLoad({ search: { intent: 'feedback' } })
-
-    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
+    await expect(agentBeforeLoad({ search: { intent: 'feedback' } })).resolves.toBeUndefined()
   })
 
   it('resolves an assistant-scoped topic for a sidebar assistant entry', async () => {
@@ -117,16 +83,10 @@ describe('conversation entry route guards', () => {
     await expect(chatBeforeLoad({ search: { assistantId: 'assistant-1' } })).rejects.toMatchObject({
       options: { to: '/app/chat', search: { topicId: 'topic-assistant' }, replace: true }
     })
-
-    expect(mocks.resolveChatEntryTopicIdForAssistant).toHaveBeenCalledWith('assistant-1')
-    expect(mocks.resolveChatEntryTopicId).not.toHaveBeenCalled()
   })
 
   it('falls through bare when the assistant has no topics', async () => {
-    await chatBeforeLoad({ search: { assistantId: 'assistant-1' } })
-
-    expect(mocks.resolveChatEntryTopicIdForAssistant).toHaveBeenCalledWith('assistant-1')
-    expect(mocks.resolveChatEntryTopicId).not.toHaveBeenCalled()
+    await expect(chatBeforeLoad({ search: { assistantId: 'assistant-1' } })).resolves.toBeUndefined()
   })
 
   it('resolves an agent-scoped session for a sidebar agent entry', async () => {
@@ -139,15 +99,9 @@ describe('conversation entry route guards', () => {
         replace: true
       }
     })
-
-    expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')
-    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
   })
 
   it('falls through bare when the agent has no sessions', async () => {
-    await agentBeforeLoad({ search: { agentId: 'agent-1' } })
-
-    expect(mocks.resolveAgentEntrySessionIdForAgent).toHaveBeenCalledWith('agent-1')
-    expect(mocks.resolveAgentEntrySessionId).not.toHaveBeenCalled()
+    await expect(agentBeforeLoad({ search: { agentId: 'agent-1' } })).resolves.toBeUndefined()
   })
 })

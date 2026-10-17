@@ -29,7 +29,7 @@ import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs, useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTab, useCurrentTabId, useTabs } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -62,7 +62,6 @@ import {
   type FeedbackComposerLaunch,
   getFeedbackIntentGuardCacheKey
 } from './feedbackComposerLaunch'
-import { parseAgentRouteSearch } from './routeSearch'
 import {
   createSkillComposerLaunch,
   getSkillIntentGuardCacheKey,
@@ -112,13 +111,14 @@ const AgentPage = () => {
   const isPreparedIntent = isFeedbackIntent || isSkillIntent
   const currentTabId = useCurrentTabId()
   const currentTab = useCurrentTab()
+  const agentPinPending = currentTab?.metadata?.agentPinPending === true
+  const currentTabRef = useRef(currentTab)
+  currentTabRef.current = currentTab
+  const { updateTab } = useTabs()
   const routeSessionId = routeSearch.sessionId
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
   const routeSkillId = routeSearch.skillId
-  const tabAgentId = parseAgentRouteSearch(
-    Object.fromEntries(new URLSearchParams((currentTab?.url ?? '').split('?')[1] ?? ''))
-  ).agentId
   const routeActiveSessionId = routeSessionId ?? null
   // Shared full-list source for session UI plus exact latest/reusable lookups.
   const agentSessionsSource = useAgentSessionsSource()
@@ -520,11 +520,18 @@ const AgentPage = () => {
 
   useEffect(() => {
     const generation = ++routeAgentActivationGenerationRef.current
-    // Close even when this agent's latest session is already on screen: the tab URL
-    // still carries the pin while beforeLoad replaces it with sessionId-only search.
-    if (tabAgentId) closeSurface()
+    const enteredByPin = agentPinPending
+    const activationResolved = Boolean(routeAgentId) && !routeSessionId
+
+    if (enteredByPin || activationResolved) {
+      closeSurface()
+    }
+    if (enteredByPin && currentTabRef.current) {
+      const metadata = { ...currentTabRef.current.metadata }
+      delete metadata.agentPinPending
+      updateTab(currentTabRef.current.id, { metadata })
+    }
     if (!routeAgentId || routeSessionId) return
-    closeSurface()
     if (activeSessionId || isAgentsLoading || !routeAgentExists) return
     const pendingRequest = routeAgentSessionRequestRef.current
     const sessionPromise =
@@ -557,14 +564,16 @@ const AgentPage = () => {
   }, [
     activeSessionId,
     activateSession,
+    agentPinPending,
     closeSurface,
+    currentTabId,
     isAgentsLoading,
     resolveEmptySession,
     routeAgentExists,
     routeAgentId,
     routeSessionId,
     t,
-    tabAgentId
+    updateTab
   ])
 
   const showMissingAgentSelection = useCallback(() => {
