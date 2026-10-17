@@ -1,5 +1,16 @@
 # Private local Voice adapters
 
+Model definitions expose typed operation tables; `execution.ts` selects an operation
+and the model catalog derives `voiceCapabilities` from those same tables.
+`sdkOperations` wraps SDK models with independently observable results and cleanup.
+`VoiceCleanupError` preserves the public failure reason while keeping failed cleanup
+visible through `closed` and `cancel()`; the owning session retains that failed handle.
+
+`scratch` owns temporary directories and requires the adapter to supply error mapping.
+`systemSpeech` owns the system helper client and its error conversion;
+`recordingDecoder` owns the shared recording decode request and timeout.
+Cancellation checks use `checkAbort` from the voice error module.
+
 `voiceAudioProcess` declares the `voice.audio` utility process. VoiceSessionService
 registers it. Apple, FunASR, and Windows ASR pass canonical WAV bytes through
 `inspectCanonicalWav` and request `decode` only for WebM. Every decode uses a

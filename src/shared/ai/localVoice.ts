@@ -1,5 +1,7 @@
 import { MODALITY, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
+import type { VoiceCapabilities } from './voice'
+
 export const APPLE_ASR_MODEL_ID = 'local-voice::apple-system-asr' as const
 export const APPLE_TTS_MODEL_ID = 'local-voice::apple-system-tts' as const
 export const WINDOWS_ASR_MODEL_ID = 'local-voice::windows-system-asr' as const
@@ -162,6 +164,7 @@ export const VoiceModelSupport = {
 export type VoiceModelSupport = (typeof VoiceModelSupport)[keyof typeof VoiceModelSupport]
 
 export interface LocalVoiceModelDescriptor extends LocalVoiceModelFacts {
+  readonly voiceCapabilities: VoiceCapabilities
   readonly localeSelection: { readonly defaultLocale: string } | null
   readonly resourceOperations: readonly VoiceResourceOperation[]
 }

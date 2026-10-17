@@ -8,9 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { SystemSpeechError } from '@cherrystudio/system-speech/contracts'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
-import { APPLE_ASR_MODEL_ID, APPLE_TTS_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID } from '@shared/ai/localVoice'
 
-import { createLocalSpeechModel, createLocalTranscriptionModel, getLocalVoiceStatus } from '../../localAdapters'
+import { getLocalVoiceStatus } from '../../localAdapters'
+import { createAppleTranscriptionModel, createAppleSpeechModel } from '../apple'
 import { installAppleAsrAsset, listAppleAsrLocales } from '../apple'
 
 const mocks = vi.hoisted(() => ({ nativeRequest: vi.fn(), decode: vi.fn() }))
@@ -155,7 +156,7 @@ describe('local Apple adapters', () => {
         throw failure
       })
       await expect(
-        createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({
+        createAppleTranscriptionModel({}).doGenerate({
           audio: new Uint8Array([1]),
           mediaType: 'audio/webm'
         })
@@ -183,7 +184,7 @@ describe('local Apple adapters', () => {
     )
 
     expect(await getLocalVoiceStatus(APPLE_ASR_MODEL_ID, { language: 'en-US' })).toEqual({ status: 'ready' })
-    const result = await createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, { language: 'en-US' }).doGenerate({
+    const result = await createAppleTranscriptionModel({ language: 'en-US' }).doGenerate({
       audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
       mediaType: 'audio/webm;codecs=opus'
     })
@@ -213,7 +214,7 @@ describe('local Apple adapters', () => {
   })
 
   it('returns WAV bytes and releases synthesis scratch before completion', async () => {
-    const model = createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact' })
+    const model = createAppleSpeechModel({ voice: 'voice.exact' })
     const result = await model.doGenerate({ text: 'private TTS text', voice: 'voice.exact', outputFormat: 'wav' })
     expect(result.audio).toEqual(new Uint8Array(wav))
     expect(await readdir(directory)).toEqual([])
@@ -227,7 +228,7 @@ describe('local Apple adapters', () => {
     { requestedSpeed: 1.25, expectedSpeed: 1.25 },
     { requestedSpeed: 2, expectedSpeed: 2 }
   ])('passes $expectedSpeed× speed to the native helper', async ({ requestedSpeed, expectedSpeed }) => {
-    await createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact', speed: requestedSpeed }).doGenerate({
+    await createAppleSpeechModel({ voice: 'voice.exact', speed: requestedSpeed }).doGenerate({
       text: 'private speed canary'
     })
 
@@ -242,21 +243,21 @@ describe('local Apple adapters', () => {
     'rejects unsupported speech speed %s before native work',
     async (speed) => {
       await expect(
-        createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact', speed }).doGenerate({ text: 'private' })
+        createAppleSpeechModel({ voice: 'voice.exact', speed }).doGenerate({ text: 'private' })
       ).rejects.toMatchObject({ reason: 'invalid_request' })
       expect(mocks.nativeRequest).not.toHaveBeenCalled()
     }
   )
 
   it('rejects a missing exact voice without creating output', async () => {
-    await expect(
-      createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'missing' }).doGenerate({ text: 'private' })
-    ).rejects.toMatchObject({ reason: 'voice_unavailable' })
+    await expect(createAppleSpeechModel({ voice: 'missing' }).doGenerate({ text: 'private' })).rejects.toMatchObject({
+      reason: 'voice_unavailable'
+    })
     expect(await readdir(directory)).toEqual([])
   })
 
   it('accepts WebM through the private decoder and removes derived WAV', async () => {
-    const result = await createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, { language: 'en-US' }).doGenerate({
+    const result = await createAppleTranscriptionModel({ language: 'en-US' }).doGenerate({
       audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
       mediaType: 'audio/webm;codecs=opus'
     })
@@ -270,7 +271,7 @@ describe('local Apple adapters', () => {
     ['odd-sized metadata chunk', wavWithOddMetadataChunk()]
   ])('accepts WAV with a %s without invoking the WebM decoder', async (_description, audio) => {
     expectedTranscriptionInput = audio
-    const result = await createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, { language: 'en-US' }).doGenerate({
+    const result = await createAppleTranscriptionModel({ language: 'en-US' }).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -296,9 +297,9 @@ describe('local Apple adapters', () => {
     ['empty data chunk', wavWithEmptyData()],
     ['data not aligned to a sample', wavWithUInt32(40, 1)]
   ])('rejects canonical WAV with %s', async (_description, audio) => {
-    await expect(
-      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({ audio, mediaType: 'audio/wav' })
-    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    await expect(createAppleTranscriptionModel({}).doGenerate({ audio, mediaType: 'audio/wav' })).rejects.toMatchObject(
+      { reason: 'invalid_audio' }
+    )
     expect(mocks.decode).not.toHaveBeenCalled()
     expect(mocks.nativeRequest).not.toHaveBeenCalled()
     expect(await readdir(directory)).toEqual([])
@@ -306,9 +307,9 @@ describe('local Apple adapters', () => {
 
   it('rejects a canonical WAV above 32 MiB before scratch or native transcription', async () => {
     const audio = canonicalPcmWav(32 * 1024 * 1024 + 2 - CANONICAL_WAV_HEADER_BYTES)
-    await expect(
-      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({ audio, mediaType: 'audio/wav' })
-    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    await expect(createAppleTranscriptionModel({}).doGenerate({ audio, mediaType: 'audio/wav' })).rejects.toMatchObject(
+      { reason: 'invalid_audio' }
+    )
     expect(mocks.decode).not.toHaveBeenCalled()
     expect(mocks.nativeRequest).not.toHaveBeenCalled()
     expect(await readdir(directory)).toEqual([])
@@ -318,7 +319,7 @@ describe('local Apple adapters', () => {
     const audio = canonicalPcmWav(32 * 1024 * 1024 - CANONICAL_WAV_HEADER_BYTES)
     expect(audio.length).toBe(32 * 1024 * 1024)
     expectedTranscriptionInput = audio
-    const result = await createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, { language: 'en-US' }).doGenerate({
+    const result = await createAppleTranscriptionModel({ language: 'en-US' }).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -337,7 +338,7 @@ describe('local Apple adapters', () => {
       })
     })
     const outcome = Promise.resolve(
-      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({
+      createAppleTranscriptionModel({}).doGenerate({
         audio: wav,
         mediaType: 'audio/wav',
         abortSignal: controller.signal
@@ -360,7 +361,7 @@ describe('local Apple adapters', () => {
       throw failure
     })
     const error = await Promise.resolve(
-      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({ audio: wav, mediaType: 'audio/wav' })
+      createAppleTranscriptionModel({}).doGenerate({ audio: wav, mediaType: 'audio/wav' })
     ).catch((error: unknown) => error)
     expect(error).toMatchObject({ reason: 'operation_failed', message: 'operation_failed' })
     expect((error as Error).cause).toBeUndefined()
@@ -379,7 +380,7 @@ describe('local Apple adapters', () => {
       })
     )
     await expect(
-      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({
+      createAppleTranscriptionModel({}).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm'
       })
@@ -398,7 +399,7 @@ describe('local Apple adapters', () => {
         new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
     )
     const outcome = Promise.resolve(
-      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({
+      createAppleTranscriptionModel({}).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm'
       })
@@ -419,7 +420,7 @@ describe('local Apple adapters', () => {
       reason: 'asset_required'
     })
     await expect(
-      createLocalTranscriptionModel(APPLE_ASR_MODEL_ID, {}).doGenerate({
+      createAppleTranscriptionModel({}).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -449,7 +450,7 @@ describe('local Apple adapters', () => {
       throw new Error('/private/path private TTS text')
     })
     const error = await Promise.resolve(
-      createLocalSpeechModel(APPLE_TTS_MODEL_ID, { voice: 'voice.exact' }).doGenerate({ text: 'private TTS text' })
+      createAppleSpeechModel({ voice: 'voice.exact' }).doGenerate({ text: 'private TTS text' })
     ).catch((error: unknown) => error)
     expect(error).toMatchObject({ reason: 'operation_failed', message: 'operation_failed' })
     expect((error as Error).cause).toBeUndefined()

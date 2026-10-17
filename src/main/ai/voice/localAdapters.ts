@@ -1,10 +1,10 @@
-import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import {
   DEFAULT_SPEECH_SPEED,
   TranscriptionLanguageSource,
   VoiceModelSupport,
   VoiceResourceOperation,
   type LocalSpeechModelId,
+  type LocalVoiceModelDescriptor,
   type LocalTranscriptionModelId,
   type LocalVoiceModelId,
   type VoiceModelLookup
@@ -41,10 +41,21 @@ const speechDefinitions: readonly SpeechModelDefinition[] = [
 ]
 const definitions = [...transcriptionDefinitions, ...speechDefinitions]
 
+function describeDefinition(
+  definition: SpeechModelDefinition | TranscriptionModelDefinition,
+  environment: VoiceEnvironment
+): LocalVoiceModelDescriptor {
+  const voiceCapabilities =
+    'speechOperations' in definition
+      ? { speech: definition.speechOperations.map(({ input, output }) => ({ input, output })) }
+      : { transcription: definition.transcriptionOperations.map(({ input, output }) => ({ input, output })) }
+  return { ...definition.describe(environment), voiceCapabilities }
+}
+
 export function describeVoiceModel(modelId: string, environment = getVoiceEnvironment()): VoiceModelLookup {
   const definition = definitions.find((model) => model.id === modelId)
   return definition
-    ? { support: definition.support(environment), model: definition.describe(environment) }
+    ? { support: definition.support(environment), model: describeDefinition(definition, environment) }
     : { support: VoiceModelSupport.UnknownModel, model: null }
 }
 
@@ -52,7 +63,7 @@ export function listVoiceModels(environment = getVoiceEnvironment()) {
   return {
     models: definitions
       .filter((model) => model.support(environment) === VoiceModelSupport.Supported)
-      .map((model) => model.describe(environment)),
+      .map((model) => describeDefinition(model, environment)),
     defaultAsrModelId: resolveDefaultAsrModel(environment),
     defaultSpeechModelId: resolveDefaultSpeechModel(environment)
   }
@@ -117,14 +128,16 @@ export function resolveSpeechRequest(
   }
 }
 
-export function createLocalSpeechModel(modelId: LocalSpeechModelId, options: SpeechOptions) {
+export function getSpeechOperations(modelId: LocalSpeechModelId) {
   const definition = speechDefinition(modelId)
-  return definition.createModel(options)
+  requireSupport(definition)
+  return definition.speechOperations
 }
 
-export function createLocalTranscriptionModel(modelId: LocalTranscriptionModelId, options: TranscriptionOptions) {
+export function getTranscriptionOperations(modelId: LocalTranscriptionModelId) {
   const definition = transcriptionDefinition(modelId)
-  return definition.createModel(options)
+  requireSupport(definition)
+  return definition.transcriptionOperations
 }
 
 export async function getLocalVoiceStatus(

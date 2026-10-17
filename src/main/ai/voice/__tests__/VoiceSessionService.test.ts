@@ -29,7 +29,7 @@ import {
 } from '@shared/ai/localVoice'
 
 import type * as LocalAdapters from '../localAdapters'
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { VoiceCleanupError, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { VoiceSessionService, type VoiceOwner } from '../VoiceSessionService'
 
 const native = vi.hoisted(() => ({
@@ -39,15 +39,20 @@ const native = vi.hoisted(() => ({
   install: vi.fn(),
   resolveSpeech: vi.fn()
 }))
-vi.mock('../localAdapters', async (importOriginal) => ({
-  ...(await importOriginal<typeof LocalAdapters>()),
-  getLocalVoiceStatus: native.status,
-  listLocalVoices: vi.fn(),
-  resolveSpeechConfiguration: (...args: Parameters<typeof LocalAdapters.resolveSpeechConfiguration>) =>
-    native.resolveSpeech(...args),
-  installVoiceLocale: (_id: string, language: string, signal: AbortSignal) => native.install(language, signal),
-  voiceAudioProcess: { id: 'voice.audio' }
-}))
+vi.mock('../localAdapters', async (importOriginal) => {
+  const { speechFixture, transcriptionFixture } = await import('./voiceExecutionFixtures')
+  return {
+    ...(await importOriginal<typeof LocalAdapters>()),
+    getSpeechOperations: (id: string) => [speechFixture(id, native.speech)],
+    getTranscriptionOperations: (id: string) => [transcriptionFixture(id, native.transcribe)],
+    getLocalVoiceStatus: native.status,
+    listLocalVoices: vi.fn(),
+    resolveSpeechConfiguration: (...args: Parameters<typeof LocalAdapters.resolveSpeechConfiguration>) =>
+      native.resolveSpeech(...args),
+    installVoiceLocale: (_id: string, language: string, signal: AbortSignal) => native.install(language, signal),
+    voiceAudioProcess: { id: 'voice.audio' }
+  }
+})
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
@@ -126,7 +131,9 @@ describe('VoiceSessionService file and admission contract', () => {
   let media: MediaProtocolService
   let files: InstanceType<typeof FileManager>
   let a: VoiceOwner
+  let cleanupFailed: boolean
   beforeEach(async () => {
+    cleanupFailed = false
     vi.stubGlobal(
       'process',
       Object.defineProperties(Object.create(process), {
@@ -164,7 +171,6 @@ describe('VoiceSessionService file and admission contract', () => {
     vi.mocked(application.get).mockImplementation(((name: string) => {
       if (name === 'FileManager') return files
       if (name === 'MediaProtocolService') return media
-      if (name === 'AiService') return { transcribe: native.transcribe, generateSpeech: native.speech }
       if (name === 'UtilityProcessManager') return { register: vi.fn() }
       if (name === 'IpcApiService') return { broadcastToType: runtime.broadcastToType, send: runtime.send }
       if (name === 'WindowManager')
@@ -225,7 +231,8 @@ describe('VoiceSessionService file and admission contract', () => {
     a = owner()
   })
   afterEach(async () => {
-    await service._doStop()
+    if (cleanupFailed) await expect(service._doStop()).rejects.toThrow('Voice session cleanup failed')
+    else await service._doStop()
     await files._doStop()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
@@ -1020,6 +1027,31 @@ describe('VoiceSessionService file and admission contract', () => {
     }
   })
 
+  it('keeps failed execution cleanup observable and prevents a new operation on that session', async () => {
+    cleanupFailed = true
+    native.speech.mockRejectedValueOnce(new VoiceCleanupError())
+    const sessionId = randomUUID()
+    await expect(
+      service.speech(a, {
+        sessionId,
+        requestId: randomUUID(),
+        text: 'Hello',
+        voice: 'exact',
+        modelId: APPLE_TTS_MODEL_ID
+      })
+    ).rejects.toMatchObject({ reason: 'operation_failed' })
+    await expect(service.discard(a, sessionId)).rejects.toBeInstanceOf(VoiceCleanupError)
+    await expect(
+      service.speech(a, {
+        sessionId: randomUUID(),
+        requestId: randomUUID(),
+        text: 'Again',
+        voice: 'exact',
+        modelId: APPLE_TTS_MODEL_ID
+      })
+    ).rejects.toMatchObject({ reason: 'operation_failed' })
+  })
+
   it('cleans on crash/full navigation but ignores same-document and sub-frame navigation', async () => {
     for (const terminalEvent of ['render-process-gone', 'destroyed', 'did-start-navigation'] as const) {
       a = owner()
@@ -1769,7 +1801,7 @@ describe('VoiceSessionService file and admission contract', () => {
   it.each([
     { requestedSpeed: undefined, expectedSpeed: 1 },
     { requestedSpeed: 1.25, expectedSpeed: 1.25 }
-  ])('passes $expectedSpeed× speech speed through AiService', async ({ requestedSpeed, expectedSpeed }) => {
+  ])('passes $expectedSpeed× speech speed through unified execution', async ({ requestedSpeed, expectedSpeed }) => {
     const input = {
       sessionId: randomUUID(),
       requestId: randomUUID(),
@@ -1877,7 +1909,7 @@ describe('VoiceSessionService file and admission contract', () => {
     expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
   })
 
-  it('runs ready FunASR through AiService with the same owned FileEntry and no fallback', async () => {
+  it('runs ready FunASR through unified execution with the same owned FileEntry and no fallback', async () => {
     const input = { ...(await recording()), modelId: FUNASR_MODEL_ID, language: undefined }
 
     await expect(service.transcribe(a, input)).resolves.toMatchObject({ text: 'private-transcript' })
