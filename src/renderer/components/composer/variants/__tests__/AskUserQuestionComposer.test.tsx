@@ -1,8 +1,10 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import AskUserQuestionComposer, { type AskUserQuestionComposerRequest } from '../AskUserQuestionComposer'
@@ -70,6 +72,12 @@ function makeRequest(requestQuestions = questions): AskUserQuestionComposerReque
 }
 
 describe('AskUserQuestionComposer', () => {
+  // Unsubmitted answers are cached per approval id, so the harness must not leak
+  // one test's draft into the next one.
+  beforeEach(() => {
+    MockCacheUtils.resetMocks()
+  })
+
   it('keeps the full question visible instead of clamping it to one line', () => {
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
 
@@ -176,6 +184,70 @@ describe('AskUserQuestionComposer', () => {
         }
       }
     })
+  })
+
+  it('restores unsubmitted answers after a remount', () => {
+    const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'Use JSON logs' } })
+
+    view.unmount()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByText('Add context')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter your answer...')).toHaveValue('Use JSON logs')
+    expect(screen.getByRole('button', { name: /Bunyan/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps the cached answers after a successful approval so a remount before terminal persistence restores them', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+
+    // The dispatch ack does not mean the approval turn is durably persisted yet,
+    // so the draft must survive a fast session switch and remount.
+    view.unmount()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByText('Add context')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Bunyan/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps the draft after a dismissal ack until the persisted decision is observed', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.type(screen.getByPlaceholderText('Enter your answer...'), 'Keep my context')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    view.unmount()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByPlaceholderText('Enter your answer...')).toHaveValue('Keep my context')
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps the cached answers when the response fails and restores them on the next mount', async () => {
+    const onRespond = vi.fn().mockRejectedValue(new Error('transport down'))
+    const view = render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Winston/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('agent.toolPermission.error.sendFailed'))
+
+    view.unmount()
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn().mockResolvedValue(undefined)} />)
+
+    expect(screen.getByRole('button', { name: /Bunyan/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('uses an auto-growing textarea so a long answer wraps instead of scrolling sideways', () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
@@ -9,17 +10,19 @@ import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useMiniAppRuntime } from '@renderer/hooks/useMiniAppRuntime'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import { clearWebviewState, setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
 import type { AppEdition } from '@shared/types/appEdition'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
+import { AsyncInitializer } from '@shared/utils/async'
 
 /**
  * Data Flow Design:
@@ -73,57 +76,39 @@ const filterByEdition = (apps: MiniApp[], appEdition: AppEdition): MiniApp[] => 
   return apps.filter((app) => isVisibleForEdition(app, appEdition))
 }
 
-// Module-level promise to ensure only one IP detection request is made
-let regionDetectionPromise: Promise<MiniAppRegion> | null = null
+const loadUserRegion = async (): Promise<MiniAppRegion> => {
+  try {
+    const country = await ipcApi.request('system.get_ip_country')
+    return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
+  } catch (err) {
+    // Default to CN so mainland China users — the primary audience — never
+    // silently lose access to region-restricted apps they expect.
+    const error = err as Error
+    loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
+      error: error.message,
+      stack: error.stack,
+      fallback: 'CN'
+    })
+    return 'CN'
+  }
+}
+
+let regionDetection = new AsyncInitializer(loadUserRegion)
 
 /**
  * @only_for_testing - Reset module-level region detection state between tests
  */
 export const __resetRegionDetectionForTesting = () => {
-  regionDetectionPromise = null
+  regionDetection = new AsyncInitializer(loadUserRegion)
 }
 
-// Detect user region via IPC call to main process (cached at module level)
-const detectUserRegion = async (): Promise<MiniAppRegion> => {
-  // Return existing promise if detection is already in progress
-  if (regionDetectionPromise) {
-    return regionDetectionPromise
-  }
-
-  regionDetectionPromise = (async () => {
-    try {
-      const country = await ipcApi.request('system.get_ip_country')
-      return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
-    } catch (err) {
-      // Default to CN so mainland China users — the primary audience — never
-      // silently lose access to region-restricted apps they expect.
-      const error = err as Error
-      loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
-        error: error.message,
-        stack: error.stack,
-        fallback: 'CN'
-      })
-      return 'CN'
-    }
-  })()
-
-  return regionDetectionPromise
-}
+const detectUserRegion = async (): Promise<MiniAppRegion> => regionDetection.get()
 
 /**
  * V2 useMiniApps hook — DataApi + Preference + Cache
  */
 // Module-level logger to avoid recreating on every render (rerender-defer-reads)
 const logger = loggerService.withContext('useMiniApps')
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
-
-/** Extract the appId from a `/app/mini-app/<id>` URL, or null otherwise. */
-function miniAppIdFromTabUrl(url: string): string | null {
-  if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
-  const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
-  return id ? id : null
-}
-
 /**
  * Process Promise.allSettled results: throw on partial failures so callers
  * can distinguish "all succeeded" from "partially failed", and invalidate
@@ -238,23 +223,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   // Global keeps pinned apps across region choices; CN still enforces its edition catalog.
   const pinnedApps = useMemo(() => filterByEdition(pinned, appEdition), [appEdition, pinned])
 
-  // === UI State Cache (unchanged) ===
-  const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
-  // Mirror the latest keep-alive list into a ref so callbacks that run after an
-  // await (syncOpenedCustomMiniApp) read fresh data, not the render-time snapshot.
-  const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
-  openedKeepAliveRef.current = openedKeepAliveMiniApps
-  const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
-  const currentMiniAppIdRef = useRef(currentMiniAppId)
-  currentMiniAppIdRef.current = currentMiniAppId
-  const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
-  const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
-  const splitMiniAppIdRef = useRef(splitMiniAppId)
-  splitMiniAppIdRef.current = splitMiniAppId
-  const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
-  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
-  const openedOneOffMiniAppRef = useRef(openedOneOffMiniApp)
-  openedOneOffMiniAppRef.current = openedOneOffMiniApp
+  const { openedKeepAliveMiniApps, currentMiniAppId, miniAppShow, splitOpen, splitMiniAppId } = useMiniAppRuntime()
   const { remove: removeSidebarShortcut } = useSidebarShortcuts()
   const tabsContext = useOptionalTabsContext()
   const tabsContextRef = useRef(tabsContext)
@@ -321,17 +290,19 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     [patchAppTrigger]
   )
 
+  const closeMiniAppTabs = useCallback((appId: string) => {
+    if (cacheService.get('mini_app.split')?.appId === appId) cacheService.set('mini_app.split', null)
+    const context = tabsContextRef.current
+    context?.closeTabs(context.tabs.filter((tab) => miniAppIdFromTabUrl(tab.url) === appId).map((tab) => tab.id))
+  }, [])
+
   const hideMiniApp = useCallback(
     async (appId: string) => {
       const updated = await updateAppStatus(appId, 'disabled')
-      setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== appId))
-      if (splitMiniAppIdRef.current === appId) {
-        setSplitMiniAppId('')
-        setSplitOpen(false)
-      }
+      closeMiniAppTabs(appId)
       return updated
     },
-    [setOpenedKeepAliveMiniApps, setSplitMiniAppId, setSplitOpen, updateAppStatus]
+    [closeMiniAppTabs, updateAppStatus]
   )
 
   /**
@@ -368,84 +339,23 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     [postMiniApp]
   )
 
-  const syncOpenedCustomMiniApp = useCallback(
-    (updated: MiniApp) => {
-      // Read the latest keep-alive list at call time (not the render-time snapshot)
-      // so an app opened concurrently during the edit's await is seen here and
-      // picks up the new url instead of being missed.
-      const openedKeepAliveApp = openedKeepAliveRef.current.find((app) => app.appId === updated.appId)
-      const openedOneOffApp =
-        openedOneOffMiniAppRef.current?.appId === updated.appId ? openedOneOffMiniAppRef.current : null
-      const urlChanged =
-        (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
-        (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
-
-      if (openedKeepAliveApp) {
-        setOpenedKeepAliveMiniApps((prev) => prev.map((app) => (app.appId === updated.appId ? updated : app)))
+  const syncOpenedCustomMiniApp = useCallback((updated: MiniApp) => {
+    const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
+    // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+    const icon = updated.logoSrc ?? updated.logo
+    for (const tab of tabsContextRef.current?.tabs ?? []) {
+      if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
+        tabsContextRef.current?.updateTab(tab.id, { title, icon })
       }
-
-      if (openedOneOffApp) {
-        setOpenedOneOffMiniApp(updated)
-      }
-
-      if (urlChanged) {
-        setWebviewLoaded(updated.appId, false)
-      }
-
-      const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
-      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
-      const icon = updated.logoSrc ?? updated.logo
-      for (const tab of tabsContextRef.current?.tabs ?? []) {
-        if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
-          tabsContextRef.current?.updateTab(tab.id, { title, icon })
-        }
-      }
-    },
-    [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp]
-  )
+    }
+  }, [])
 
   const cleanupOpenedCustomMiniApp = useCallback(
     (appId: string) => {
-      // Functional update resolves against the latest list, so the prior
-      // `.some(...)` presence guard is redundant: filtering an absent id is a
-      // no-op the cache short-circuits via isEqual.
-      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
-
-      if (openedOneOffMiniAppRef.current?.appId === appId) {
-        setOpenedOneOffMiniApp(null)
-      }
-
-      if (currentMiniAppIdRef.current === appId) {
-        setCurrentMiniAppId('')
-        setMiniAppShow(false)
-      }
-
-      // The split pane's app is gone; leaving the pane open would replace it
-      // with a picker the user never asked for.
-      if (splitMiniAppIdRef.current === appId) {
-        setSplitMiniAppId('')
-        setSplitOpen(false)
-      }
-
-      clearWebviewState(appId)
-
-      for (const tab of tabsContextRef.current?.tabs ?? []) {
-        if (miniAppIdFromTabUrl(tab.url) === appId) {
-          tabsContextRef.current?.closeTab(tab.id)
-        }
-      }
-
+      closeMiniAppTabs(appId)
       removeSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId))
     },
-    [
-      setCurrentMiniAppId,
-      setSplitMiniAppId,
-      setSplitOpen,
-      setMiniAppShow,
-      setOpenedKeepAliveMiniApps,
-      setOpenedOneOffMiniApp,
-      removeSidebarShortcut
-    ]
+    [closeMiniAppTabs, removeSidebarShortcut]
   )
 
   const updateCustomMiniApp = useCallback(
@@ -559,16 +469,9 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     pinned: pinnedApps,
     openedKeepAliveMiniApps,
     currentMiniAppId,
+    miniAppShow,
     splitOpen,
     splitMiniAppId,
-    miniAppShow,
-    openedOneOffMiniApp,
-    setOpenedKeepAliveMiniApps,
-    setCurrentMiniAppId,
-    setSplitOpen,
-    setSplitMiniAppId,
-    setMiniAppShow,
-    setOpenedOneOffMiniApp,
     isLoading,
     error,
     refetch,

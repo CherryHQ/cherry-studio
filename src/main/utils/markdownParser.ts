@@ -31,6 +31,8 @@ const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 // Skill markdown filename variants (case-insensitive support)
 const SKILL_MD_VARIANTS = ['SKILL.md', 'skill.md']
 
+const ALLOWED_HIDDEN_DIRS = new Set(['.agents', '.claude', '.gemini'])
+
 /**
  * Find the skill markdown file in a directory (supports SKILL.md or skill.md)
  * @returns The full path to the skill file if found, null otherwise
@@ -273,9 +275,10 @@ export async function findAllSkillDirectories(
   try {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
 
+    const isRoot = path.relative(basePath, dirPath) === ''
     for (const entry of entries) {
-      // Skip hidden directories and node_modules
-      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      if (entry.name === 'node_modules') continue
+      if (entry.name.startsWith('.') && !(isRoot && ALLOWED_HIDDEN_DIRS.has(entry.name))) continue
       // Support both directories and symlinks pointing to directories
       if (await isDirectoryOrSymlinkToDirectory(entry, dirPath)) {
         const subDirPath = path.join(dirPath, entry.name)

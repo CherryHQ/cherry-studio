@@ -1,12 +1,27 @@
+import type { ReasoningEffort } from '../schemas/enums'
 import { defineCreator } from './types'
+
+const m31Efforts: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 export default defineCreator({
   id: 'minimax',
   name: 'MiniMax',
   modelsDevProviders: ['minimax', 'minimax-cn'],
   idPrefixes: ['minimax', 'abab'],
-  reasoningFamilies: [{ pattern: 'minimax-m\\d' }],
+  reasoningFamilies: [
+    { pattern: '^minimax-m3[.-]1-flash-preview$', effort: m31Efforts, toggle: false },
+    { pattern: 'minimax-m\\d' }
+  ],
   models: [
+    {
+      id: 'minimax-m3-1-flash-preview',
+      name: 'MiniMax-M3.1-Flash-Preview',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1_000_000,
+      reasoning: { controls: [{ kind: 'effort', values: m31Efforts, default: 'max' }] }
+    },
     { id: 'minimax-m2-1' },
     { id: 'minimax-m3', maxOutputTokens: 524288 },
     {

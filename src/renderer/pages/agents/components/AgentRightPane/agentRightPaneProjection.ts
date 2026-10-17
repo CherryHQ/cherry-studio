@@ -33,6 +33,7 @@ export interface AgentToolFlowOpenInput {
 }
 
 export interface AgentToolFlowNode {
+  title?: string
   toolCallId: string
   toolName: string
   parentToolCallId?: string
@@ -428,7 +429,14 @@ export function buildAgentToolFlowProjection(
       if (!toolCallId) return
 
       const parentToolCallId = getPartParentToolCallId(part)
+      const input = getToolPartInput(part)
+      const title = isRecord(input)
+        ? [input.description, input.subject, input.title, input.name].find(
+            (value) => typeof value === 'string' && value.trim()
+          )
+        : undefined
       const node: AgentToolFlowNode = {
+        ...(typeof title === 'string' ? { title: title.trim() } : {}),
         toolCallId,
         toolName: getToolNameFromPart(part) ?? toolCallId,
         parentToolCallId,
@@ -477,10 +485,28 @@ export function buildAgentToolFlowProjection(
       flowPartsByMessageId[promptMessage.id] = promptMessage.parts
     }
 
+    const taskIds = new Set<string>()
+    for (const { parts } of messageEntries) {
+      for (const part of parts) {
+        if (
+          part.type === 'data-agent-task-event' &&
+          part.data.toolUseId &&
+          part.data.toolUseId !== selectedToolCallId &&
+          selectedToolCallIds.has(part.data.toolUseId)
+        ) {
+          taskIds.add(part.data.taskId)
+        }
+      }
+    }
+
     const assistantParts: CherryMessagePart[] = []
     for (const { parts } of messageEntries) {
       for (let partIndex = 0; partIndex < parts.length; partIndex++) {
         const part = parts[partIndex]
+        if (part.type === 'data-agent-task-event') {
+          if (taskIds.has(part.data.taskId)) assistantParts.push(part)
+          continue
+        }
         const toolCallId = getToolCallId(part)
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue

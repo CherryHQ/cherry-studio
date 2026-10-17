@@ -6,6 +6,7 @@ import { Mutex } from 'async-mutex'
 import { dialog } from 'electron'
 
 import { application } from '@application'
+import { diagnosticReportService } from '@data/services/DiagnosticReportService'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import {
@@ -19,12 +20,13 @@ import {
   removeDir,
   stat
 } from '@main/utils/file'
+import type { DiagnosticProcessingStatus } from '@shared/data/types/diagnosticReport'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
+import { diagnosticReportUrl, normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 
 import {
   addChatRecordStats,
@@ -482,6 +484,32 @@ export class DiagnosticBundleService {
     }
   }
 
+  async refreshReport(reportId: string): Promise<OutputFor<'diagnostics.report.refresh'>> {
+    const processingStatus = await cherryDiagnosticUploadClient.fetchStatus(reportId)
+    diagnosticReportService.updateStatus(reportId, processingStatus)
+    return { processingStatus }
+  }
+
+  private recordSuccessfulUpload(
+    reportId: string,
+    processingStatus: DiagnosticProcessingStatus | null,
+    submittedAt?: number
+  ): Extract<UploadResult, { status: 'uploaded' }> {
+    let historySaved = true
+    try {
+      diagnosticReportService.record({
+        reportId,
+        submittedAt: submittedAt ?? Date.now(),
+        processingStatus,
+        lastCheckedAt: processingStatus === null ? null : Date.now()
+      })
+    } catch {
+      historySaved = false
+      logger.warn('Failed to save diagnostic report history')
+    }
+    return { reportId, reportUrl: diagnosticReportUrl(reportId), processingStatus, historySaved, status: 'uploaded' }
+  }
+
   private async performExport(input: ExportInput, senderId: WindowId | null): Promise<ExportResult> {
     if (!senderId) throw new Error('Diagnostic bundle export requires a managed window')
     const parent = application.get('WindowManager').getWindow(senderId)
@@ -593,7 +621,11 @@ export class DiagnosticBundleService {
         filePath: bundle.filePath
       })
       if (uploadResult.status === 'uploaded') {
-        return { reportId: uploadResult.reportId, status: 'uploaded' }
+        return this.recordSuccessfulUpload(
+          uploadResult.reportId,
+          uploadResult.processingStatus ?? null,
+          uploadResult.submittedAt
+        )
       }
 
       const retainedBundle: RetainedUploadBundle = {
@@ -654,7 +686,11 @@ export class DiagnosticBundleService {
     if (uploadResult.status === 'uploaded') {
       this.retainedUploads.delete(input.bundleId)
       await this.cleanupTemporaryUpload(retained.bundle)
-      return { reportId: uploadResult.reportId, status: 'uploaded' }
+      return this.recordSuccessfulUpload(
+        uploadResult.reportId,
+        uploadResult.processingStatus ?? null,
+        uploadResult.submittedAt
+      )
     }
     if (uploadResult.status === 'submission_unknown') {
       logger.warn('Diagnostic bundle retry result is unknown')

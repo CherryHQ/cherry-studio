@@ -245,7 +245,8 @@ export const ResourceGrid: FC<Props> = ({
     refreshOnDelete: ['/assistants', '/assistants/*']
   })
   const scrollRef = useRef<HTMLDivElement>(null)
-  const responsiveColumnCount = useGridColumnCount(scrollRef)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const responsiveColumnCount = useGridColumnCount(isSettings ? contentRef : scrollRef)
   const [preferredColumns, setPreferredColumns] = useState<1 | 2>(1)
   const columnCount = isSettings
     ? Math.min(allowColumnToggle ? preferredColumns : 1, responsiveColumnCount)
@@ -379,7 +380,11 @@ export const ResourceGrid: FC<Props> = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-subtle border-b')}>
+      <div
+        className={cn(
+          'flex shrink-0 flex-col',
+          isSettings ? 'mx-auto w-[calc(100%-3rem)] max-w-3xl' : 'border-b border-border-subtle'
+        )}>
         {isSettings ? (
           <div className="flex min-w-0 items-center justify-between gap-4">
             <div className="min-w-0">
@@ -415,7 +420,7 @@ export const ResourceGrid: FC<Props> = ({
         )}
 
         {toolbarFooter || (isSettings && allowColumnToggle) ? (
-          <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-border-subtle border-b">
+          <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle">
             {toolbarFooter}
             {isSettings && allowColumnToggle && (
               <Button
@@ -450,7 +455,7 @@ export const ResourceGrid: FC<Props> = ({
                       className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
                         activeGroupId === group.id
                           ? 'border-border-selected bg-secondary text-secondary-foreground hover:text-secondary-foreground'
-                          : 'border-border-subtle text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground'
+                          : 'text-muted-foreground hover:border-border-strong border-border-subtle hover:bg-accent hover:text-foreground'
                       }`}>
                       <span>{group.name}</span>
                       <span className="text-foreground-tertiary text-xs tabular-nums">{group.count}</span>
@@ -476,7 +481,7 @@ export const ResourceGrid: FC<Props> = ({
                   aria-label={t('library.toolbar.all_groups')}
                   title={t('library.toolbar.all_groups')}
                   onClick={() => setShowAllGroups((value) => !value)}
-                  className="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
+                  className="text-muted-foreground size-6 shrink-0 rounded-full hover:bg-accent hover:text-foreground">
                   {showAllGroups ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
               )}
@@ -484,7 +489,7 @@ export const ResourceGrid: FC<Props> = ({
               <Button
                 variant="ghost"
                 onClick={() => setCreateGroupDialogOpen(true)}
-                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
+                className="text-muted-foreground hover:border-border-strong flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-dashed border-border-subtle px-2 text-xs shadow-none hover:bg-accent hover:text-foreground">
                 <Plus size={11} /> {t('library.toolbar.group_button')}
               </Button>
             </div>
@@ -547,30 +552,34 @@ export const ResourceGrid: FC<Props> = ({
         />
       </div>
 
-      <Scrollbar ref={scrollRef} className={cn('min-h-0 flex-1', isSettings ? 'pt-4 pb-3' : 'px-5 py-4')}>
-        {isLoading ? (
-          <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
-        ) : resources.length === 0 ? (
-          <EmptyState
-            preset={search ? 'no-result' : 'no-resource'}
-            title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
-            description={search ? t('library.empty_state.no_match_description') : t('library.empty_state.description')}
-            className="py-20"
-          />
-        ) : (
-          <VirtualizedResourceGrid
-            scrollRef={scrollRef}
-            columnCount={columnCount}
-            resources={resources}
-            variant={variant}
-            allGroups={allGroups}
-            onDelete={onDelete}
-            onDuplicate={onDuplicate}
-            onEdit={onEdit}
-            onExport={onExport}
-            onLaunchSkill={onLaunchSkill}
-          />
-        )}
+      <Scrollbar ref={scrollRef} className={cn('min-h-0 flex-1', isSettings ? 'px-6 pt-4 pb-6' : 'px-5 py-4')}>
+        <div ref={contentRef} className={cn(isSettings && 'mx-auto w-full max-w-3xl')}>
+          {isLoading ? (
+            <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
+          ) : resources.length === 0 ? (
+            <EmptyState
+              preset={search ? 'no-result' : 'no-resource'}
+              title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
+              description={
+                search ? t('library.empty_state.no_match_description') : t('library.empty_state.description')
+              }
+              className="py-20"
+            />
+          ) : (
+            <VirtualizedResourceGrid
+              scrollRef={scrollRef}
+              columnCount={columnCount}
+              resources={resources}
+              variant={variant}
+              allGroups={allGroups}
+              onDelete={onDelete}
+              onDuplicate={onDuplicate}
+              onEdit={onEdit}
+              onExport={onExport}
+              onLaunchSkill={onLaunchSkill}
+            />
+          )}
+        </div>
       </Scrollbar>
     </div>
   )
@@ -667,6 +676,7 @@ function VirtualizedResourceGrid({
                 key={resource.id}
                 resource={resource}
                 variant={variant}
+                columnCount={columnCount}
                 allGroups={allGroups}
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}

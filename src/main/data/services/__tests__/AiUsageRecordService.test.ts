@@ -208,6 +208,40 @@ describe('AiUsageRecordService', () => {
     )
   })
 
+  it('persists flat provider tokens without the gateway normalize middleware', async () => {
+    const capture = createLanguageUsageMiddleware(context())
+    const flatFinish = {
+      type: 'finish',
+      finishReason: { unified: 'stop', raw: 'stop' },
+      usage: {
+        inputTokens: 1_000_000,
+        outputTokens: 500_000,
+        totalTokens: 1_500_000,
+        cachedInputTokens: 0
+      }
+    } as unknown as LanguageModelV3StreamPart
+    const stream = new ReadableStream<LanguageModelV3StreamPart>({
+      start(controller) {
+        controller.enqueue(flatFinish)
+        controller.close()
+      }
+    })
+    const wrapped = await capture.wrapStream!({ doStream: async () => ({ stream }) } as never)
+
+    await wrapped.stream.pipeTo(new WritableStream())
+
+    expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      totalTokens: 1_500_000,
+      noCacheTokens: 1_000_000,
+      cacheReadTokens: 0,
+      cost: 2,
+      costCurrency: 'USD',
+      costSource: 'computed'
+    })
+  })
+
   it('persists normalized gateway tokens and computed cost from a flat finish chunk', async () => {
     const capture = createLanguageUsageMiddleware(context())
     const gateway = await getGatewayUsageNormalizeMiddleware()
@@ -591,6 +625,39 @@ describe('AiUsageRecordService', () => {
       capturedAt: '2026-07-28T00:00:00.000Z'
     })
   })
+
+  it.each([
+    { imageCount: 1, price: 0.04, multiplier: 1, amount: 0.04 },
+    { imageCount: 3, price: 0.04, multiplier: 2, amount: 0.24 },
+    { imageCount: 3, price: 0, multiplier: 1, amount: 0 },
+    { imageCount: 0, price: 0.04, multiplier: 1, amount: 0 }
+  ])(
+    'prices $imageCount images at $price with multiplier $multiplier without token usage',
+    ({ imageCount, price, multiplier, amount }) => {
+      const pricing = {
+        input: { perMillionTokens: null, currency: 'CNY' as const },
+        output: { perMillionTokens: null, currency: 'CNY' as const },
+        perImage: { price, unit: 'image' as const }
+      }
+      const captured = context({
+        pricingSnapshot: undefined,
+        pricing,
+        billing: { defaultMultiplier: multiplier, scheduleEnabled: false, timeZone: 'UTC', periods: [] }
+      })
+      pricing.perImage.price = 99
+      aiUsageRecordService.recordInvocation(
+        invocation({ context: captured, modality: 'image', imageCount, usage: undefined })
+      )
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        imageCount,
+        totalTokens: null,
+        cost: amount,
+        costCurrency: 'CNY',
+        costSource: 'computed',
+        costBreakdown: { image: amount }
+      })
+    }
+  )
 
   it('does not invent a currency for tiered pricing without an explicit currency', () => {
     expect(

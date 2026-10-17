@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-09-10T18:57:46.000Z
- * Total icons: 162
+ * Generated at: 2026-10-11T15:18:33.533Z
+ * Total icons: 164
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -39,6 +39,7 @@ import { CherryinIcon } from './cherryin'
 import { ClaudeCodeIcon } from './claude-code'
 import { CloudflareIcon } from './cloudflare'
 import { CohereIcon } from './cohere'
+import { ComfyuiIcon } from './comfyui/comfyui'
 import { ComposioIcon } from './composio'
 import { CozeIcon } from './coze'
 import { DangbeiIcon } from './dangbei'
@@ -89,6 +90,7 @@ import { LanyunIcon } from './lanyun'
 import { LeptonIcon } from './lepton'
 import { LingxiIcon } from './lingxi'
 import { LiquidIcon } from './liquid'
+import { LitellmIcon } from './litellm/litellm'
 import { LmstudioIcon } from './lmstudio'
 import { LongcatIcon } from './longcat'
 import { MacosIcon } from './macos'
@@ -204,6 +206,7 @@ export const PROVIDER_ICON_CATALOG = {
   'claude-code': ClaudeCodeIcon,
   cloudflare: CloudflareIcon,
   cohere: CohereIcon,
+  comfyui: ComfyuiIcon,
   composio: ComposioIcon,
   coze: CozeIcon,
   dangbei: DangbeiIcon,
@@ -254,6 +257,7 @@ export const PROVIDER_ICON_CATALOG = {
   lepton: LeptonIcon,
   lingxi: LingxiIcon,
   liquid: LiquidIcon,
+  litellm: LitellmIcon,
   lmstudio: LmstudioIcon,
   longcat: LongcatIcon,
   macos: MacosIcon,

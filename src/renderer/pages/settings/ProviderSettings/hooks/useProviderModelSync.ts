@@ -24,12 +24,7 @@ interface SyncProviderModelsOptions {
   createModels: ReturnType<typeof useModelMutations>['createModels']
 }
 
-/**
- * Populate an empty provider from its remote model endpoint.
- *
- * Skips remote discovery when any local model already exists. Deep-link
- * auto-sync must therefore only call this for a newly created provider.
- */
+/** Populate an empty provider from its remote model endpoint. */
 export async function syncProviderModelsForProvider({
   providerId,
   endpointProvider,
@@ -52,7 +47,7 @@ export async function syncProviderModelsForProvider({
   }
 
   logger.info('Fetching remote provider models for sync', { providerId })
-  const resolvedModels = await fetchResolvedProviderModels(providerId)
+  const { models: resolvedModels } = await fetchResolvedProviderModels(providerId)
   if (resolvedModels.length === 0) {
     logger.info('No remote provider models were resolved for sync', { providerId })
     return []
@@ -63,8 +58,17 @@ export async function syncProviderModelsForProvider({
     .filter((model) => !existingModelIds.has(model.id))
     .map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(endpointProvider, model)))
 
+  if (payload.length === 0) {
+    logger.info('Skipping provider model creation because resolved models are already present', {
+      providerId,
+      resolvedModelCount: resolvedModels.length
+    })
+    return latestModels
+  }
+
+  const chunks = chunkArray(payload, MODELS_BATCH_MAX_ITEMS)
   const createdModels: Model[] = []
-  for (const chunk of chunkArray(payload, MODELS_BATCH_MAX_ITEMS)) {
+  for (const chunk of chunks) {
     const created = await createModels(chunk)
     createdModels.push(...created)
   }

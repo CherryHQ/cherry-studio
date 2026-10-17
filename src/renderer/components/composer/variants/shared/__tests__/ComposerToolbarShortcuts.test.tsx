@@ -181,6 +181,33 @@ describe('ComposerToolbarShortcuts', () => {
     expect(screen.queryByRole('button', { name: 'kb-label' })).not.toBeInTheDocument()
   })
 
+  it('uses the live command label for the pinned button accessible name', () => {
+    mocks.manifests = [
+      {
+        id: 'dictation',
+        kind: 'command',
+        order: 60,
+        label: 'dictation-tool-label',
+        icon: <span data-testid="icon-dictation-manifest" />
+      }
+    ]
+    mocks.launchers = [
+      {
+        id: 'dictation',
+        kind: 'command',
+        label: 'stop-recording-label',
+        icon: <span data-testid="icon-dictation-stop" />,
+        sources: ['popover'],
+        active: true
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['dictation'], customizeOpen: true })
+
+    expect(screen.getByRole('button', { name: 'stop-recording-label' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('checkbox', { name: 'dictation-tool-label' })).toBeChecked()
+  })
+
   it('keeps nested brand artwork under its own sizing contract', () => {
     mocks.launchers = [
       {
@@ -294,6 +321,35 @@ describe('ComposerToolbarShortcuts', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
+  it('runs manifest-backed tools explicitly available without a model', () => {
+    mocks.manifests = [
+      {
+        id: 'dictation',
+        kind: 'command',
+        order: 60,
+        label: 'dictation-tool-label',
+        icon: <span />,
+        availableWithoutModel: true
+      }
+    ]
+    mocks.launchers = [
+      {
+        id: 'dictation',
+        kind: 'command',
+        label: 'start-dictation-label',
+        icon: <span />,
+        sources: ['popover']
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['dictation'], isModelUnavailable: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'start-dictation-label' }))
+
+    expect(mocks.dispatchLauncher).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('keeps manifest presentation stable while a launcher is cleared and re-registered', () => {
     mocks.manifests = [thinkingManifest]
     mocks.launchers = [thinkingLauncher]
@@ -393,6 +449,60 @@ describe('ComposerToolbarShortcuts', () => {
       inputAdapter: props.inputAdapter,
       unifiedPanelControl: props.unifiedPanelControl
     })
+  })
+
+  // Catches the #20198 regression where MCP (and other customTools) stayed visually idle
+  // even when the session had tools enabled — active was hard-coded false for custom shortcuts.
+  it('marks custom toolbar tools active when their activation flag is set', () => {
+    renderShortcuts({
+      pinnedIds: ['mcp-status'],
+      customTools: [
+        {
+          id: 'mcp-status',
+          label: 'MCP',
+          icon: <span />,
+          active: true,
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    const mcpButton = screen.getByRole('button', { name: 'MCP' })
+    expect(mcpButton).toHaveAttribute('data-active', 'true')
+    expect(mcpButton.className).toContain('bg-accent')
+  })
+
+  it('keeps custom toolbar tools inactive when activation is unset or false', () => {
+    const { rerender, props } = renderShortcuts({
+      pinnedIds: ['mcp-status'],
+      customTools: [
+        {
+          id: 'mcp-status',
+          label: 'MCP',
+          icon: <span />,
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    expect(screen.getByRole('button', { name: 'MCP' })).not.toHaveAttribute('data-active')
+
+    rerender(
+      <ComposerToolbarShortcuts
+        {...props}
+        customTools={[
+          {
+            id: 'mcp-status',
+            label: 'MCP',
+            icon: <span />,
+            active: false,
+            onSelect: vi.fn()
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'MCP' })).not.toHaveAttribute('data-active')
   })
 
   it('lists pinned rows (switch on) then unpinned candidates (switch off) in the customize popover', () => {
