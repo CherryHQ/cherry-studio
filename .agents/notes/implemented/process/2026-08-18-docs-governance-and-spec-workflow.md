@@ -110,7 +110,7 @@ Every in-scope document is an English/Chinese pair plus a consistency sidecar: `
 
 Scope rolls out by discovery root — a deliberate deviation from dsh's no-rollout-list stance: active `.agents/notes/**`, root `CONTRIBUTING.md`, and new `docs/i18n/**` governance first, extending to the audited documentation corpus only after the final translation backfill. `scripts/i18n-glossary.json` remains the machine terminology owner; `docs/i18n/terminology.md` is its generated bilingual agent view.
 
-The routine gate checks hashes, switchers, Markdown structure, and Cherry frontmatter. A staged-index mode prevents partial commits. Merge drivers, snapshot refs, translation brief generation, and automated semantic translation remain deferred until a measured need exists.
+The routine gate checks hashes, switchers, Markdown structure, and Cherry frontmatter. Its staged-index mode discovers pair artifacts from Git's staged diff, including deletions and both sides of renames, then validates index blobs to prevent partial commits. Merge drivers, snapshot refs, translation brief generation, and automated semantic translation remain deferred until a measured need exists.
 
 ### P6 — Skills
 

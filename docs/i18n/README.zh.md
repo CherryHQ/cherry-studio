@@ -51,7 +51,7 @@ Sidecar 是一致性指纹，不是翻译质量证明。修改任一侧后，只
 | `pnpm docs:check-pairing --write --all` | 在 corpus 操作后显式记录所有完整 pair。 |
 | `pnpm docs:check-pairing --list` | 报告 pair 状态但不失败。 |
 
-Pre-commit hook 只对 staged pair 产物运行 `--cached`，防止 sidecar 确认未暂存内容。`pnpm docs:check` 和 CI 仍运行完整 worktree 检查。
+Pre-commit hook 始终调用 `--cached`。该模式从 Git 的 staged diff（包括删除）发现 pair 产物，并且只校验它们在 index 中的 blob，防止 sidecar 确认未暂存内容。`pnpm docs:check` 和 CI 仍运行完整 worktree 检查。
 
 ## 失败模型
 

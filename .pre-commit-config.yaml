@@ -29,7 +29,8 @@ repos:
         language: system
         entry: pnpm docs:check-pairing --cached
         files: '^(\.agents/notes/|CONTRIBUTING(?:\.i18n\.yaml|(?:\.zh)?\.md)$|docs/i18n/)'
-        pass_filenames: true
+        always_run: true
+        pass_filenames: false
 
       - id: post-checkout-install
         name: pnpm install after checkout

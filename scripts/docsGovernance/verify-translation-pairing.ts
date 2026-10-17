@@ -5,9 +5,10 @@ import * as path from 'node:path'
 
 import {
   blobHash,
+  corpusPairAnchors,
   isExcluded,
   isInScope,
-  pairAnchor,
+  pairAnchorsFromPaths,
   pairPaths,
   parseManifest,
   parsePairingArgs,
@@ -50,9 +51,20 @@ const walkFiles = (relative: string, files: Set<string>): void => {
 const corpusAnchors = (roots: string[]): string[] => {
   const files = new Set<string>()
   for (const root of roots) walkFiles(root, files)
-  return [
-    ...new Set([...files].filter((file) => file.endsWith('.md') || file.endsWith('.i18n.yaml')).map(pairAnchor))
-  ].sort()
+  return corpusPairAnchors(roots, [...files])
+}
+
+export const stagedPairAnchors = (root = ROOT): string[] => {
+  const result = spawnSync(
+    'git',
+    ['diff', '--cached', '--name-only', '--no-renames', '--diff-filter=ACMRD', '-z', '--'],
+    { cwd: root, maxBuffer: 32 * 1024 * 1024 }
+  )
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message ?? result.stderr.toString('utf8').trim()
+    throw new Error(`cannot read staged paths${detail ? `: ${detail}` : ''}`)
+  }
+  return pairAnchorsFromPaths(result.stdout.toString('utf8').split('\0').filter(Boolean))
 }
 
 const validatePair = (
@@ -117,7 +129,18 @@ export const runPairing = (args: string[]): number => {
     return 2
   }
 
-  const anchors = request.scope === 'corpus' ? corpusAnchors(manifest.roots) : request.anchors
+  let anchors: string[]
+  try {
+    anchors =
+      request.scope === 'corpus'
+        ? corpusAnchors(manifest.roots)
+        : request.scope === 'staged'
+          ? stagedPairAnchors()
+          : request.anchors
+  } catch (error) {
+    console.error(`docs:check-pairing: ${error instanceof Error ? error.message : String(error)}`)
+    return 2
+  }
 
   if (request.mode === 'write') {
     const errors: string[] = []

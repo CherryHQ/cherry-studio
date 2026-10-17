@@ -110,7 +110,7 @@ sources: # code paths this document describes; directories preferred
 
 范围按发现根逐步扩——这是对 dsh"不设灰度清单"立场的有意偏离:active `.agents/notes/**`、根 `CONTRIBUTING.md` 和新 `docs/i18n/**` 治理文档先行,最终翻译回填后才扩到已审计文档语料。`scripts/i18n-glossary.json` 保持机器术语 owner;`docs/i18n/terminology.md` 是由它生成的双语 agent 视图。
 
-常规门禁检查 hash、switcher、Markdown 结构和 Cherry frontmatter。Staged-index 模式防止 partial commit。Merge driver、snapshot ref、translation brief 生成和自动语义翻译继续延后,直到出现可测需求。
+常规门禁检查 hash、switcher、Markdown 结构和 Cherry frontmatter。Staged-index 模式从 Git 的 staged diff 发现 pair 产物，包括删除和 rename 两侧，再校验 index blob 以防止 partial commit。Merge driver、snapshot ref、translation brief 生成和自动语义翻译继续延后,直到出现可测需求。
 
 ### P6 — Skills
 

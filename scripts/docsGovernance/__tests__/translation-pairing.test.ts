@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   blobHash,
+  corpusPairAnchors,
   pairAnchor,
+  pairAnchorsFromPaths,
   pairPaths,
   parseManifest,
   parsePairingArgs,
@@ -19,6 +21,8 @@ describe('translation pairing helpers', () => {
     expect(blobHash(Buffer.from(''))).toBe('e69de29bb2d1d6434b8b29ae775ad8c2e48c5391')
     expect(pairAnchor('.\\docs\\foo.zh.md')).toBe('docs/foo.md')
     expect(pairAnchor('docs/foo.i18n.yaml')).toBe('docs/foo.md')
+    expect(pairAnchorsFromPaths(['docs/foo.zh.md', 'docs/foo.i18n.yaml', 'src/foo.ts'])).toEqual(['docs/foo.md'])
+    expect(corpusPairAnchors(['.agents/notes', 'CONTRIBUTING.md'], [])).toEqual(['CONTRIBUTING.md'])
   })
 
   it('round-trips canonical sidecars', () => {
@@ -39,6 +43,12 @@ describe('translation pairing helpers', () => {
       mode: 'check',
       scope: 'pairs',
       anchors: ['docs/foo.md']
+    })
+    expect(parsePairingArgs(['--cached'])).toEqual({
+      input: 'index',
+      mode: 'check',
+      scope: 'staged',
+      anchors: []
     })
     expect(() => parsePairingArgs(['--write'])).toThrow('requires confirmed pair paths')
     expect(() => parsePairingArgs(['--write', 'docs/../../outside.md'])).toThrow('repo-relative paths')
@@ -82,6 +92,35 @@ describe('translation pairing helpers', () => {
   it('rejects matching non-switcher links to Chinese documents', () => {
     const paths = pairPaths('docs/i18n/README.md')
     const body = '[Guide](../guide.zh.md)'
+    const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', body)
+    const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', body)
+
+    expect(validatePairContent(paths, Buffer.from(source), Buffer.from(zh))).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('docs/i18n/README.md: non-switcher link'),
+        expect.stringContaining('docs/i18n/README.zh.md: non-switcher link')
+      ])
+    )
+  })
+
+  it('rejects divergent reference-style link targets', () => {
+    const paths = pairPaths('docs/i18n/README.md')
+    const source = normalPair(
+      'Pairing rules',
+      'English | [中文](README.zh.md)',
+      'Pairing',
+      '[Details][doc]\n\n[doc]: ../first.md'
+    )
+    const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', '[Details][doc]\n\n[doc]: ../second.md')
+
+    expect(validatePairContent(paths, Buffer.from(source), Buffer.from(zh))).toContainEqual(
+      expect.stringContaining('link target')
+    )
+  })
+
+  it('rejects reference-style links to Chinese documents', () => {
+    const paths = pairPaths('docs/i18n/README.md')
+    const body = '[Guide][doc]\n\n[doc]: ../guide.zh.md'
     const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', body)
     const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', body)
 

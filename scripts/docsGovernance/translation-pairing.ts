@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { basename } from 'node:path'
 
 import matter from 'gray-matter'
-import type { Root } from 'mdast'
+import type { Definition, Root } from 'mdast'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
@@ -36,7 +36,7 @@ export interface StructureSignature {
 export type PairingRequest = {
   input: 'worktree' | 'index'
   mode: 'check' | 'list' | 'write'
-  scope: 'corpus' | 'pairs'
+  scope: 'corpus' | 'pairs' | 'staged'
   anchors: string[]
 }
 
@@ -50,6 +50,14 @@ export const pairAnchor = (argument: string): string => {
   if (value.endsWith('.i18n.yaml')) return `${value.slice(0, -'.i18n.yaml'.length)}.md`
   return value.endsWith('.md') ? value : `${value}.md`
 }
+
+const isPairingArtifact = (file: string): boolean => file.endsWith('.md') || file.endsWith('.i18n.yaml')
+
+export const pairAnchorsFromPaths = (files: readonly string[]): string[] =>
+  [...new Set(files.filter(isPairingArtifact).map(pairAnchor))].sort()
+
+export const corpusPairAnchors = (roots: readonly string[], discoveredFiles: readonly string[]): string[] =>
+  pairAnchorsFromPaths([...roots.filter(isPairingArtifact), ...discoveredFiles])
 
 export const pairPaths = (source: string): PairPaths => {
   if (!source.endsWith('.md') || source.endsWith('.zh.md')) throw new Error(`invalid English Markdown path: ${source}`)
@@ -148,12 +156,16 @@ export const parsePairingArgs = (args: string[]): PairingRequest => {
   if (list && (write || all || cached || anchors.length)) throw new Error('--list takes no other flags or paths')
   if (all && !write) throw new Error('--all only applies to --write')
   if (cached && write) throw new Error('--cached is read-only')
-  if (cached && anchors.length === 0) throw new Error('--cached requires staged paths')
   if (write && anchors.length === 0 && !all) throw new Error('--write requires confirmed pair paths or --all')
   if (write && anchors.length > 0 && all) throw new Error('--write takes paths or --all, not both')
   if (list) return { input: 'worktree', mode: 'list', scope: 'corpus', anchors: [] }
   if (write) return { input: 'worktree', mode: 'write', scope: all ? 'corpus' : 'pairs', anchors }
-  return { input: cached ? 'index' : 'worktree', mode: 'check', scope: anchors.length ? 'pairs' : 'corpus', anchors }
+  return {
+    input: cached ? 'index' : 'worktree',
+    mode: 'check',
+    scope: cached && anchors.length === 0 ? 'staged' : anchors.length ? 'pairs' : 'corpus',
+    anchors
+  }
 }
 
 const parseMarkdown = (content: string): Root => unified().use(remarkParse).use(remarkGfm).parse(content)
@@ -178,12 +190,20 @@ const structureSignature = (content: string, ignoredLink: string): StructureSign
       node.ordered ? `ordered:${node.start ?? 1}:${node.children.length}` : `bullet:${node.children.length}`
     )
   )
-  visit(tree, 'link', (node) => {
-    if (!ignoredSwitcher && node.url === ignoredLink) {
+  const definitions = new Map<string, string>()
+  visit(tree, 'definition', (node: Definition) => {
+    if (!definitions.has(node.identifier)) definitions.set(node.identifier, node.url)
+  })
+  visit(tree, (node) => {
+    let target: string | undefined
+    if (node.type === 'link') target = node.url
+    else if (node.type === 'linkReference') target = definitions.get(node.identifier)
+    if (!target) return
+    if (!ignoredSwitcher && target === ignoredLink) {
       ignoredSwitcher = true
       return
     }
-    signature.links.push(node.url)
+    signature.links.push(target)
   })
   return signature
 }

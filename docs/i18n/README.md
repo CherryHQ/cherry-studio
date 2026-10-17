@@ -51,7 +51,7 @@ The discovery roots live in `scripts/docsGovernance/translation-pairing.manifest
 | `pnpm docs:check-pairing --write --all` | Explicitly record every complete pair after a corpus operation. |
 | `pnpm docs:check-pairing --list` | Report pair states without failing. |
 
-The pre-commit hook runs `--cached` only for staged pair artifacts, preventing a sidecar from confirming unstaged content. `pnpm docs:check` and CI still run the complete worktree check.
+The pre-commit hook always invokes `--cached`. That mode discovers pair artifacts from Git's staged diff, including deletions, and validates only their index blobs so a sidecar cannot confirm unstaged content. `pnpm docs:check` and CI still run the complete worktree check.
 
 ## Failure model
 
