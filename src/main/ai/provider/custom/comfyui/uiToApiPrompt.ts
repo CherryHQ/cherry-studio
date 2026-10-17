@@ -26,7 +26,7 @@ export interface UiNode {
   mode?: number
   title?: string
   inputs?: Array<{ name: string; type?: string; link?: number | null; widget?: { name: string } }>
-  outputs?: Array<{ name: string; type?: string; links?: number[] | null }>
+  outputs?: Array<{ name: string; type?: string; links?: number[] | null; widget?: { name: string } }>
   widgets_values?: unknown[] | JsonObject
   widgets_values_named?: JsonObject
 }
@@ -98,6 +98,33 @@ const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'])
  * for the control_after_generate pseudo-widget, which never reaches the prompt. */
 const CONTROL_AFTER_GENERATE = 'control_after_generate'
 
+/** The frontend's bounds for a randomized widget (`valueControl.ts`): past 2^50
+ * a double no longer holds every integer the step lands on. */
+const SAFE_INTEGER_MAX = 1125899906842624
+const SAFE_INTEGER_MIN = -1125899906842624
+
+export interface ConversionOptions {
+  /**
+   * Redraw every number widget the workflow set to `randomize` — in practice a
+   * seed, the only kind the backend offers that control on — the way the
+   * frontend does each time it queues. Without it the value the workflow last
+   * saved runs every time, so the same prompt renders the same image.
+   */
+  random?: () => number
+}
+
+const isSeedName = (name: string): boolean =>
+  name === 'seed' || name === 'noise_seed' || name.endsWith('.seed') || name.endsWith('.noise_seed')
+
+/** A value the frontend's `randomize` could land on, inside the widget's range. */
+function randomWidgetValue(config: JsonObject, random: () => number): number {
+  const max = Math.min(SAFE_INTEGER_MAX, typeof config.max === 'number' ? config.max : SAFE_INTEGER_MAX)
+  const min = Math.max(SAFE_INTEGER_MIN, typeof config.min === 'number' ? config.min : 0)
+  const step = typeof config.step === 'number' && config.step > 0 ? config.step : 1
+  const next = Math.floor(random() * ((max - min) / step)) * step + min
+  return Math.min(Math.max(next, min), max)
+}
+
 /** Further frontend widget input types that spend a positional value: COLOR
  * holds a color string (or int), COLORS a list of color strings, RANGE a
  * `{min, max, midpoint?}` object. The frontend serializes them plainly in
@@ -127,6 +154,22 @@ interface WidgetNames {
   positions: (string | null)[]
   /** Widgets whose API value must carry the frontend's CURVE envelope. */
   curves: Set<string>
+}
+
+/** The declaration config of a top-level widget, `{}` when it has none. */
+function widgetConfig(info: ObjectInfo[string], name: string): JsonObject {
+  const entry = (info.input?.required?.[name] ?? info.input?.optional?.[name]) as unknown[] | undefined
+  return Array.isArray(entry) && entry.length > 1 && typeof entry[1] === 'object' ? (entry[1] as JsonObject) : {}
+}
+
+/** The top-level widget the server declares control_after_generate on, if any. */
+function controlledWidget(info: ObjectInfo[string]): string | undefined {
+  for (const section of [info.input?.required, info.input?.optional]) {
+    for (const name of Object.keys(section ?? {})) {
+      if (widgetConfig(info, name)[CONTROL_AFTER_GENERATE]) return name
+    }
+  }
+  return undefined
 }
 
 /** The widget names a node def's positions resolve to, dummies removed. */
@@ -329,7 +372,11 @@ function wrapWidgetValue(value: unknown): unknown {
   return Array.isArray(value) ? { __value__: value } : value
 }
 
-export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo): ConversionResult {
+export function convertUiWorkflowToPrompt(
+  ui: UiWorkflow,
+  objectInfo: ObjectInfo,
+  options: ConversionOptions = {}
+): ConversionResult {
   const subgraphs = new Map((ui.definitions?.subgraphs ?? []).map((sub) => [sub.id, sub]))
   const prompt: Record<string, ApiPromptNode> = {}
   const promotedText: { nodeId: string; input: string }[] = []
@@ -400,13 +447,24 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     return out
   }
 
-  /** Widget values, aligned to the backend's declaration order. */
-  function widgetValues(node: UiNode, linked: Set<string>): Record<string, unknown> {
+  /** Widget values, aligned to the backend's declaration order, and the
+   * control_after_generate mode of each widget that has one. */
+  function widgetValues(
+    node: UiNode,
+    linked: Set<string>
+  ): { values: Record<string, unknown>; controls: Map<string, string> } {
     const raw = node.widgets_values
     const info = objectInfo[node.type]
-    if (!info) return {}
+    const controls = new Map<string, string>()
+    if (!info) return { values: {}, controls }
     let out: Record<string, unknown>
     let values: unknown[]
+    // A named map keys the mode as `control_after_generate` itself; the widget it
+    // belongs to is the one the server declares the control on.
+    const named = node.widgets_values_named ?? (raw !== undefined && !Array.isArray(raw) ? raw : undefined)
+    const namedControl = named?.[CONTROL_AFTER_GENERATE]
+    const controlled = controlledWidget(info)
+    if (typeof namedControl === 'string' && controlled) controls.set(controlled, namedControl)
     // Named values (widgets_values_named, or the object form of widgets_values)
     // key straight to the inputs — a schema change cannot silently remap them
     // to a different position. A node the frontend has no widget for can still
@@ -449,7 +507,12 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       }
       const positional: Record<string, unknown> = {}
       names.forEach((name, index) => {
-        if (name === CONTROL_AFTER_GENERATE || index >= values.length || linked.has(name)) return
+        if (name === CONTROL_AFTER_GENERATE) {
+          // The mode follows the widget it controls.
+          if (typeof values[index] === 'string') controls.set(names[index - 1], values[index])
+          return
+        }
+        if (index >= values.length || linked.has(name)) return
         // A curve widget value rides the frontend's envelope; the backend
         // unwraps it during execution.
         positional[name] = curves.has(name)
@@ -469,7 +532,21 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       if (linked.has(name) || name in out) continue
       out[name] = wrapWidgetValue(fallback)
     }
-    return out
+    return { values: out, controls }
+  }
+
+  /**
+   * The frontend redraws a `randomize` widget each time it queues — a promoted
+   * one too, whose value the subgraph instance binds — so a run does the same.
+   * A combo keeps its saved option, and an input another node feeds follows
+   * that node's own control.
+   */
+  function redrawRandomized(node: UiNode, inputs: Record<string, unknown>, controls: Map<string, string>) {
+    if (!options.random) return
+    for (const [name, mode] of controls) {
+      if (mode !== 'randomize' || typeof inputs[name] !== 'number') continue
+      inputs[name] = randomWidgetValue(widgetConfig(objectInfo[node.type], name), options.random)
+    }
   }
 
   /**
@@ -514,7 +591,14 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
    * value itself, so `Value: 3` feeding `steps` becomes `steps: 3`.
    */
   function emitPrimitive(node: UiNode, remap: Map<number, number>) {
-    const value = Array.isArray(node.widgets_values) ? node.widgets_values[0] : undefined
+    const saved = Array.isArray(node.widgets_values) ? node.widgets_values : []
+    // A primitive carries its own control mode after the value. The range lives on
+    // the widget it feeds, so only one feeding a seed is redrawn, over 0 … 2^50.
+    const feedsSeed = (node.outputs ?? []).some((output) => output.widget && isSeedName(output.widget.name))
+    const value =
+      options.random && feedsSeed && saved[1] === 'randomize' && typeof saved[0] === 'number'
+        ? randomWidgetValue({}, options.random)
+        : saved[0]
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
     ;(node.outputs ?? []).forEach((_, slot) => {
       alias[slot] = () => ({ kind: 'value', value: wrapWidgetValue(value) })
@@ -564,7 +648,9 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       linked.add(slot.name)
       inputs[slot.name] = resolved
     }
-    Object.assign(inputs, widgetValues(node, linked))
+    const widgets = widgetValues(node, linked)
+    Object.assign(inputs, widgets.values)
+    redrawRandomized(node, inputs, widgets.controls)
     prompt[String(id)] = {
       class_type: node.type,
       inputs,

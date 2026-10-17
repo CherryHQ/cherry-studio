@@ -2,8 +2,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
-import Scrollbar from '@renderer/components/Scrollbar'
+import { MenuItem, MenuList, PageHeader, RowFlex, Scrollbar } from '@cherrystudio/ui'
 import {
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
