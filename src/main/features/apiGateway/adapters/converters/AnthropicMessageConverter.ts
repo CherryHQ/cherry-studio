@@ -15,7 +15,15 @@ import type {
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
-import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
+import type {
+  DynamicToolUIPart,
+  FileUIPart,
+  JSONValue,
+  ProviderMetadata,
+  ReasoningUIPart,
+  TextUIPart,
+  ToolSet
+} from 'ai'
 import { tool, zodSchema } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -30,6 +38,59 @@ import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
 const RESPONSES_TOOL_NAME_MAX_LENGTH = 64
 const TOOL_NAME_HASH_LENGTH = 12
+
+/**
+ * An inbound `cache_control` breakpoint marker from an Anthropic-format request.
+ * Anthropic clients (Claude Agent SDK, Claude Code) place ≤4 of these to pin the
+ * prompt-prefix cache; they are preserved on the converted parts so dialects that
+ * can honor them (Anthropic targets re-emit via `providerOptions.anthropic`) keep
+ * the client's cache plan instead of silently re-prefilling every round.
+ */
+type InboundCacheControl = {
+  type: 'ephemeral'
+  ttl?: '5m' | '1h'
+}
+
+/** The `cache_control` marker on a content block, narrowed to the shape we forward. */
+function blockCacheControl(block: object): InboundCacheControl | undefined {
+  const marker = (block as { cache_control?: { type?: string; ttl?: string } | null }).cache_control
+  if (!marker || marker.type !== 'ephemeral') return undefined
+  return marker.ttl === '5m' || marker.ttl === '1h' ? { type: 'ephemeral', ttl: marker.ttl } : { type: 'ephemeral' }
+}
+
+/** Last `cache_control` among content blocks — clients mark the tail of a cacheable prefix. */
+function lastBlockCacheControl(
+  content: MessageCreateParams['system'] | MessageParam['content']
+): InboundCacheControl | undefined {
+  if (!Array.isArray(content)) return undefined
+  let marker: InboundCacheControl | undefined
+  for (const block of content) {
+    const found = blockCacheControl(block)
+    if (found) marker = found
+  }
+  return marker
+}
+
+/** Attach an inbound marker to a UI part's `anthropic` provider metadata (kept alongside any existing keys). */
+function withAnthropicCacheControl<P extends { providerMetadata?: ProviderMetadata }>(
+  part: P,
+  cacheControl: InboundCacheControl
+): P {
+  const providerMetadata: ProviderMetadata = {
+    ...part.providerMetadata,
+    anthropic: { ...part.providerMetadata?.anthropic, cacheControl }
+  }
+  return { ...part, providerMetadata }
+}
+
+/** Merge a marker into converter-built provider options (tool calls have no UI part to hang it on). */
+function mergeAnthropicCacheControl(
+  options: ProviderOptions | undefined,
+  cacheControl: InboundCacheControl | undefined
+): ProviderOptions | undefined {
+  if (!cacheControl) return options
+  return { ...options, anthropic: { ...options?.anthropic, cacheControl } }
+}
 
 function isResponsesCompatibleToolName(name: string): boolean {
   return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
@@ -179,6 +240,12 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * would attribute the Agent SDK's harness context to the model, and hoisting them
    * would rewrite the prompt prefix on every turn one arrives, costing the prefix
    * cache. `hoistSystemMessages` folds them only for targets that reject them.
+   *
+   * Inbound `cache_control` markers ride along on the parts' `anthropic` provider
+   * metadata: Anthropic-dialect targets re-emit them verbatim (the client's cache
+   * plan survives the round trip), while OpenAI/Google targets ignore the foreign
+   * namespace. `transformAnthropicCacheParams` yields to preserved markers so the
+   * two sources never double-book the 4-breakpoint budget.
    */
   toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
     this.prepareToolNames(params.tools)
@@ -187,14 +254,18 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     // Array covariance widens without a cast, so `role` narrows natively from here on.
     const inputMessages: AgentInputMessage[] = params.messages
 
-    // System message
+    // System message — clients mark its tail block, so flatten keeps that marker.
     const systemText = textContentToString(params.system)
     if (systemText) {
-      messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: systemText }] })
+      const systemMarker = lastBlockCacheControl(params.system)
+      const base: TextUIPart = { type: 'text', text: systemText }
+      const part: TextUIPart = systemMarker ? withAnthropicCacheControl(base, systemMarker) : base
+      messages.push({ id: nextUIMessageId(), role: 'system', parts: [part] })
     }
 
     // tool_use id → result conversion.
     const toolResults = new Map<string, ToolResultConversion>()
+    const toolResultCacheMarkers = new Map<string, InboundCacheControl>()
     for (const msg of params.messages) {
       if (!Array.isArray(msg.content)) continue
       for (const block of msg.content) {
@@ -203,6 +274,8 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
             block.tool_use_id,
             block.content ? toolResultToOutput(block.tool_use_id, block.content) : { output: '', relocatedParts: [] }
           )
+          const marker = blockCacheControl(block)
+          if (marker) toolResultCacheMarkers.set(block.tool_use_id, marker)
         }
       }
     }
@@ -211,7 +284,10 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       if (msg.role === 'system') {
         const text = textContentToString(msg.content)
         if (text) {
-          messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] })
+          const marker = lastBlockCacheControl(msg.content)
+          const base: TextUIPart = { type: 'text', text }
+          const part: TextUIPart = marker ? withAnthropicCacheControl(base, marker) : base
+          messages.push({ id: nextUIMessageId(), role: 'system', parts: [part] })
         }
         continue
       }
@@ -229,17 +305,19 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
       for (const block of msg.content) {
         if (block.type === 'text') {
-          const part: TextUIPart = { type: 'text', text: block.text }
-          parts.push(part)
+          const marker = blockCacheControl(block)
+          const base: TextUIPart = { type: 'text', text: block.text }
+          parts.push(marker ? withAnthropicCacheControl(base, marker) : base)
         } else if (block.type === 'thinking') {
           // Preserve the signature (even '') — @ai-sdk/anthropic drops reasoning
           // parts without one, so thinking blocks would never replay upstream (#18150).
-          const part: ReasoningUIPart = {
+          const marker = blockCacheControl(block)
+          const base: ReasoningUIPart = {
             type: 'reasoning',
             text: block.thinking,
             providerMetadata: { anthropic: { signature: block.signature } }
           }
-          parts.push(part)
+          parts.push(marker ? withAnthropicCacheControl(base, marker) : base)
         } else if (block.type === 'redacted_thinking') {
           const part: ReasoningUIPart = {
             type: 'reasoning',
@@ -254,7 +332,14 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           }
         } else if (block.type === 'tool_use') {
           const toolName = this.toProviderToolName(block.name)
-          const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.id)
+          // The marker rides the tool-call provider options. Client tools also replay
+          // their result's marker from this same object (the result has no separate
+          // carrier on a client-executed tool part); the Anthropic cache middleware
+          // drops the call-side duplicate so only the intended breakpoint remains.
+          const callProviderMetadata = mergeAnthropicCacheControl(
+            this.buildToolCallProviderOptions(params.model, block.id),
+            blockCacheControl(block) ?? toolResultCacheMarkers.get(block.id)
+          )
           const result = toolResults.get(block.id)
           const base = {
             type: 'dynamic-tool' as const,
