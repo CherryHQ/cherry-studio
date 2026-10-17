@@ -152,6 +152,33 @@ describe('toGbnfJsonSchema', () => {
     expect(toToolArguments(schema, generated)).toEqual(generated)
   })
 
+  it('picks the union branch whose every declared argument the arguments carry', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        filter: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: { id: { type: 'string' }, limit: { type: 'integer' }, extra: { type: 'string' } },
+              required: ['id']
+            },
+            {
+              type: 'object',
+              properties: { id: { type: 'string' }, limit: { type: ['integer', 'null'] } },
+              required: ['id', 'limit']
+            }
+          ]
+        }
+      },
+      required: ['filter']
+    }
+    const generated = { filter: { id: 'x', limit: null } }
+
+    expect(generates(schema, generated)).toBe(true)
+    expect(toToolArguments(schema, generated)).toEqual(generated)
+  })
+
   it('keeps the arguments a union shares with its siblings required in every alternative', () => {
     const schema = {
       type: 'object',
@@ -343,6 +370,28 @@ describe('toGbnfJsonSchema', () => {
     expect(toToolArguments(schema, { filter: { id: 'row-1', limit: 1 } })).toEqual({
       filter: { id: 'row-1', limit: 1 }
     })
+  })
+
+  it('requires an alternative of every union an allOf combines', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        limit: { type: 'integer' },
+        cursor: { type: 'string' }
+      },
+      allOf: [
+        { anyOf: [{ required: ['id'] }, { required: ['name'] }] },
+        { anyOf: [{ required: ['limit'] }, { required: ['cursor'] }] }
+      ]
+    }
+    const generated = { id: 'row-1', name: null, limit: 1, cursor: null }
+
+    expect(generates(schema, generated)).toBe(true)
+    expect(generates(schema, { id: null, name: null, limit: 1, cursor: null })).toBe(false)
+    expect(generates(schema, { id: 'row-1', name: null, limit: null, cursor: null })).toBe(false)
+    expect(toToolArguments(schema, generated)).toEqual({ id: 'row-1', limit: 1 })
   })
 
   it('follows a chain of references in an allOf part without dropping the other parts', () => {

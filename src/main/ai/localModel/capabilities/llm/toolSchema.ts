@@ -21,6 +21,8 @@ const ANY_VALUE: Schema = {
   ]
 }
 const NULL_VALUE: Schema = { type: 'null' }
+// Keywords that annotate a schema instead of constraining its value.
+const ANNOTATION_KEYS = ['description', '$defs', 'definitions']
 
 /**
  * Rewrites a tool's JSON Schema into the subset node-llama-cpp compiles into a grammar. Shapes it
@@ -193,7 +195,8 @@ function matchesType(schema: Schema, type: unknown, value: unknown, defs: Schema
       if (!isRecord(value)) return false
       const properties = isRecord(schema.properties) ? schema.properties : undefined
       const required = requiredKeys(schema)
-      if ([...required].some((key) => !Object.hasOwn(value, key))) return false
+      // The grammar requires every declared property, the optional ones as null.
+      if (Object.keys(properties ?? {}).some((key) => !Object.hasOwn(value, key))) return false
       const additional = schema.additionalProperties ?? !properties
       const declared = Object.keys(properties ?? {}).length
       const size = Object.keys(value).length
@@ -229,10 +232,22 @@ function mergeAllOf(schema: Schema, defs: Schema, seen = new Set<Schema>()): Sch
   seen.add(schema)
   // A `$ref` beside `allOf` is one more part of the intersection.
   const { allOf, $ref, ...rest } = schema
-  return [...allOf, ...(typeof $ref === 'string' ? [{ $ref }] : [])]
+  const merged = [...allOf, ...(typeof $ref === 'string' ? [{ $ref }] : [])]
     .filter(isRecord)
     .map((part) => expand(part, defs, seen))
-    .reduce(mergeObjectSchemas, rest)
+    .reduce((target, part) => intersect(target, part, defs, seen), omit(rest, ANNOTATION_KEYS))
+  return { ...merged, ...pick(rest, ANNOTATION_KEYS) }
+}
+
+/** Both schemas at once; a union on either side keeps each of its alternatives combined with the other side. */
+function intersect(target: Schema, source: Schema, defs: Schema, seen: Set<Schema>): Schema {
+  if (isUnion(target)) {
+    return { oneOf: alternatives(target, defs, seen).map((option) => intersect(option, source, defs, seen)) }
+  }
+  if (isUnion(source)) {
+    return { oneOf: alternatives(source, defs, seen).map((option) => intersect(target, option, defs, seen)) }
+  }
+  return mergeObjectSchemas(target, source)
 }
 
 /** The schema with its reference chain followed and `allOf` merged; `allOf` goes first since it may sit beside a `$ref`. */
@@ -242,13 +257,20 @@ function expand(schema: Schema, defs: Schema, seen = new Set<Schema>()): Schema 
 
 /** Keywords beside `anyOf`/`oneOf` constrain every alternative, so each alternative takes them in. */
 function distributeUnion(schema: Schema, defs: Schema): Schema {
-  const union = schema.anyOf ?? schema.oneOf
-  const shared = omit(schema, ['anyOf', 'oneOf', 'description', '$defs', 'definitions'])
-  if (!Array.isArray(union) || Object.keys(shared).length === 0) return schema
-  return {
-    ...pick(schema, ['description', '$defs', 'definitions']),
-    oneOf: union.filter(isRecord).map((option) => mergeObjectSchemas(shared, expand(option, defs)))
-  }
+  if (!isUnion(schema) || Object.keys(omit(schema, ['anyOf', 'oneOf', ...ANNOTATION_KEYS])).length === 0) return schema
+  return { ...pick(schema, ANNOTATION_KEYS), oneOf: alternatives(schema, defs) }
+}
+
+/** The alternatives of a union, each expanded and carrying the keywords beside the union. */
+function alternatives(schema: Schema, defs: Schema, seen?: Set<Schema>): Schema[] {
+  const shared = omit(schema, ['anyOf', 'oneOf', ...ANNOTATION_KEYS])
+  return ((schema.anyOf ?? schema.oneOf) as unknown[])
+    .filter(isRecord)
+    .map((option) => mergeObjectSchemas(shared, expand(option, defs, seen)))
+}
+
+function isUnion(schema: Schema): boolean {
+  return Array.isArray(schema.anyOf ?? schema.oneOf)
 }
 
 function resolveRef(schema: Schema, defs: Schema): Schema {
