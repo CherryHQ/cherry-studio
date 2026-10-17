@@ -33,6 +33,8 @@ interface Entry {
   projection: PiProjection
   session: AgentSession
   owner?: AgentRuntimeSession
+  /** For a subagent's session: the session that runs it, whose controls stop it. */
+  parentSession?: AgentRuntimeSession
   admission: Promise<void>
   pending: Set<Promise<void>>
 }
@@ -103,6 +105,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               onSessionCreated: (session: AgentSession) => {
                 configured.onSessionCreated?.(session)
                 const entry = attach(session)
+                entry.parentSession = owner
                 entries.set(session.sessionId, Promise.resolve({ status: 'confirmed', value: entry }))
                 if (!parent) childRelations.push({ child: entry, trigger: child.continuedBy ?? child.parentToolCallId })
                 publishChild(entry, child.continuedBy ?? child.parentToolCallId)
@@ -222,7 +225,14 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       async interrupt(): Promise<OperationResult<InterruptReceipt>> {
         if (unavailable()) return rejected('interrupt', 'closed')
         try {
-          await (entry.owner ? entry.owner.abort() : entry.session.abort())
+          if (entry.owner) await entry.owner.abort()
+          else if (entry.parentSession) {
+            // The user's stop of a subagent (background spec §9): a background run stops through its
+            // parent; a foreground one is part of the parent's turn, which stops with it.
+            if (entry.parentSession.stopSubagent(entry.ref.id))
+              return { status: 'confirmed', value: { effect: 'requested' } }
+            if (entry.session.isStreaming) await entry.parentSession.abort()
+          } else await entry.session.abort()
           return { status: 'confirmed', value: { effect: 'native-scope-idle' } }
         } catch (cause) {
           report(cause)

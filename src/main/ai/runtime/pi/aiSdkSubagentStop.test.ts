@@ -1,7 +1,11 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 
+import { type ObservationPayload, type OperationResult, runtimeId, type Thread } from '@cherrystudio/agent-runtime'
+import { createPiRuntime, type PiSessionOptions } from '@cherrystudio/agent-runtime-pi'
+
+import { createAiSdkModelBinding } from './aiSdkModelBinding'
 import {
   gate,
   NOTE,
@@ -18,7 +22,7 @@ import {
   untilStopped,
   waitFor
 } from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, plain, streamTextPort, textParts } from './aiSdkSupport'
+import { createTestSession, finish, hostStore, MODEL, plain, streamTextPort, tempDir, textParts } from './aiSdkSupport'
 import { textOf } from './aiSdkToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
@@ -371,5 +375,106 @@ describe('stopping subagents', () => {
     })
     await rebuilt.prompt('And now?')
     expect(notified(calls)).toEqual([])
+  })
+
+  describe("a subagent thread's interrupt", () => {
+    function confirmed<T>(result: OperationResult<T>): T {
+      if (result.status !== 'confirmed') throw new Error(result.error.message)
+      return result.value
+    }
+    /** A Pi runtime whose root session runs `model` with the parent's subagents and the `work` tool. */
+    async function rootThread(model: Parameters<typeof streamTextPort>[0], subagents: PiSessionOptions['subagents']) {
+      const binding = await createAiSdkModelBinding({
+        port: streamTextPort(model).port,
+        model: MODEL,
+        requestOptions: undefined
+      })
+      const runtime = confirmed(await createPiRuntime({ backendId: runtimeId('test-pi') }))
+      onTestFinished(async () => {
+        await runtime.shutdown()
+      })
+      const work = untilStopped()
+      const parent = hostStore()
+      const root = confirmed(
+        await runtime.create({
+          ...binding,
+          cwd: tempDir('cwd'),
+          agentDir: tempDir('agent'),
+          systemPrompt: 'Test',
+          tools: [work.tool],
+          subagents,
+          onEvent: parent.onEvent
+        })
+      )
+      const events: ObservationPayload[] = []
+      confirmed(await root.observe((event) => void events.push(event)))
+      const child = async (): Promise<Thread> => {
+        await waitFor(() => events.some((event) => event.type === 'delegation.upsert'))
+        const relation = events.find((event) => event.type === 'delegation.upsert')
+        if (relation?.type !== 'delegation.upsert') throw new Error('no child')
+        return relation.delegation.child
+      }
+      return { runtime, root, work, child, parent }
+    }
+    const draft = (text: string) => ({ inputId: runtimeId<'input'>(text), text, whenBusy: 'reject' as const })
+
+    // Breaks when a background child's interrupt aborts its session directly: the run would end
+    // `aborted`, wake the parent with a notification and stay continuable, unlike the user's stop.
+    it("stops a background subagent as the user's stop: no wake-up, not continuable", async () => {
+      const store = storingSubagentPort()
+      const { model, calls } = routedModel(({ userText, lastText, humanText, lastRole }) => {
+        if (userText.includes('TASK-A'))
+          return lastText.includes('TASK-A') ? [toolCallPart('work_1', 'work'), finish('tool-calls')] : reply('LATE-A')
+        if (lastText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+        if (humanText === 'Go on with A' && lastRole !== 'tool')
+          return [
+            toolCallPart('call_msg', 'message_subagent', { id: store.subagents[0].sessionId, message: 'GO-ON' }),
+            finish('tool-calls')
+          ]
+        return reply('OK.')
+      })
+      const { runtime, root, work, child, parent } = await rootThread(model, store.port)
+      await root.submit(draft('Check A in the background'))
+      await work.reached
+      const thread = confirmed(await runtime.open(await child()))
+      const turns = () => parent.events.filter((event) => event.type === 'turn-complete').length
+      await waitFor(() => turns() === 1)
+
+      confirmed(await thread.interrupt!())
+      await waitFor(() =>
+        subagentStates(parent.entries).some((state) => state.stoppedBy === 'user' && state.status === 'finished')
+      )
+      // A run the stop would start begins as the stop is recorded, so it would show by now.
+      expect(turns()).toBe(1)
+      expect(notified(calls)).toEqual([])
+
+      await root.submit(draft('Go on with A'))
+      const answerOf = (call: RoutedCall) => toolResults(call).find((part) => part.toolCallId === 'call_msg')
+      await waitFor(() => calls.some((call) => answerOf(call) !== undefined))
+      const answer = answerOf(calls.find((call) => answerOf(call) !== undefined)!)
+      expect(JSON.stringify(answer?.output)).toContain('was stopped by the user and cannot be continued')
+    })
+
+    // Breaks when a foreground child's interrupt stops only the child and the parent's turn goes on
+    // as if its subagent had failed: a foreground subagent's stop is its parent turn's (spec §9).
+    it("stops a foreground subagent with its parent's turn", async () => {
+      const store = recordingSubagentPort()
+      const { model, calls } = routedModel(({ userText, lastText }) => {
+        if (userText.includes('TASK-A'))
+          return lastText.includes('TASK-A') ? [toolCallPart('work_1', 'work'), finish('tool-calls')] : reply('LATE-A')
+        if (lastText === 'Check A')
+          return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }), finish('tool-calls')]
+        return reply('Carried on without A.')
+      })
+      const { runtime, root, work, child, parent } = await rootThread(model, store.port)
+      await root.submit(draft('Check A'))
+      await work.reached
+      const thread = confirmed(await runtime.open(await child()))
+
+      confirmed(await thread.interrupt!())
+      await waitFor(() => parent.events.some((event) => event.type === 'turn-complete'))
+      expect(parent.events.find((event) => event.type === 'turn-complete')).toMatchObject({ aborted: true })
+      expect(calls.some((call) => call.lastRole === 'tool' && !call.userText.includes('TASK-A'))).toBe(false)
+    })
   })
 })
