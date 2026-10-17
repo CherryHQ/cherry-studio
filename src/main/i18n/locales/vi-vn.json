@@ -32,6 +32,7 @@
   "apiGateway.docs.tags.gemini": "Các endpoint tương thích Gemini, phục vụ dưới `/v1beta` giống API gốc.",
   "apiGateway.docs.tags.openai": "Các endpoint tương thích OpenAI. Trỏ base URL của OpenAI SDK tới gateway này để sử dụng.",
   "appMenu.about": "Về",
+  "appMenu.center": "Căn giữa",
   "appMenu.close": "Đóng cửa sổ",
   "appMenu.copy": "Sao chép",
   "appMenu.cut": "Cắt",
