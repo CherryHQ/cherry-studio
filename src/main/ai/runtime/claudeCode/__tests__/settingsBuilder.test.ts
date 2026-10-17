@@ -512,7 +512,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    setSessionEffectivePermissionMode('session-1', 'acceptEdits')
+    setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
     try {
       const approved = await buildClaudeCodeSessionSettings(session as never, {} as never)
       expect(approved.permissionMode).toBe('acceptEdits')

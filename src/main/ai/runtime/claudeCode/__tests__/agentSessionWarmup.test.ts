@@ -1253,7 +1253,7 @@ describe('deriveConnectionConfig', () => {
       mcps: [],
       configuration: { permission_mode: 'plan' }
     })
-    setSessionEffectivePermissionMode('session-1', 'acceptEdits')
+    setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
     try {
       const overridden = await deriveSignature()
       expect(overridden.live.toolPolicy.permissionMode).toBe('acceptEdits')

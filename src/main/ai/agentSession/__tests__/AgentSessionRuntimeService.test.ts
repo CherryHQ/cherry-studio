@@ -834,8 +834,104 @@ describe('AgentSessionRuntimeService', () => {
       expect(getSessionEffectivePermissionMode('session-1')).toBe('acceptEdits')
     })
 
+    it('retires the restored override on an explicit permission edit after the handoff removed the entry', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-entryless',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-entryless',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const realCloseSession = service.closeSession.bind(service)
+      const closeSession = vi
+        .spyOn(service, 'closeSession')
+        .mockImplementation((sessionId: string) => realCloseSession(sessionId))
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-entryless' })
+      const result = service.respondToolApproval('approval-plan-entryless', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      await vi.waitFor(() => expect(closeSession).toHaveBeenCalledWith('session-1'))
+      await closeSession.mock.results[0]?.value
+      // Navigation cancelled the renderer follow-up: the restored override now belongs to a session
+      // with no live runtime entry.
+      expect(getSessionEffectivePermissionMode('session-1')).toBe('acceptEdits')
+      expect((service as any).entries.has('session-1')).toBe(false)
+
+      const handleAgentUpdated = (
+        service as unknown as { handleAgentUpdated(...args: unknown[]): Promise<void> }
+      ).handleAgentUpdated.bind(service)
+      const agent = { id: 'agent-1', type: 'test-runtime', configuration: { permission_mode: 'default' } }
+      await handleAgentUpdated('agent-1', { configuration: { permission_mode: 'default' } }, agent)
+      expect(getSessionEffectivePermissionMode('session-1')).toBeUndefined()
+
+      // Renewing the restriction must not resurrect the stale override either, or reopening the
+      // session would spawn Claude with `acceptEdits` despite the row saying Plan Only.
+      await handleAgentUpdated(
+        'agent-1',
+        { configuration: { permission_mode: 'plan' } },
+        { ...agent, configuration: { permission_mode: 'plan' } }
+      )
+      expect(getSessionEffectivePermissionMode('session-1')).toBeUndefined()
+    })
+
+    it('does not resurrect the approved permission across an explicit edit made while the teardown pends', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-pending',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-pending',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const pendingClose = createDeferred<void>()
+      const closeSession = vi.spyOn(service, 'closeSession').mockReturnValue(pendingClose.promise)
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-pending' })
+      const result = service.respondToolApproval('approval-plan-pending', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      await vi.waitFor(() => expect(closeSession).toHaveBeenCalledWith('session-1'))
+
+      const handleAgentUpdated = (
+        service as unknown as { handleAgentUpdated(...args: unknown[]): Promise<void> }
+      ).handleAgentUpdated.bind(service)
+      const agent = { id: 'agent-1', type: 'test-runtime', configuration: { permission_mode: 'default' } }
+      await handleAgentUpdated('agent-1', { configuration: { permission_mode: 'default' } }, agent)
+      await handleAgentUpdated(
+        'agent-1',
+        { configuration: { permission_mode: 'plan' } },
+        { ...agent, configuration: { permission_mode: 'plan' } }
+      )
+
+      pendingClose.resolve()
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 0))
+      // The edit landed after the approved permission was captured: restoring it now would override
+      // the user's renewed Plan Only choice, even though the row reads `plan` again.
+      expect(getSessionEffectivePermissionMode('session-1')).toBeUndefined()
+    })
+
     it('retires the session-scoped permission when the user edits the agent permission mode', async () => {
-      setSessionEffectivePermissionMode('session-1', 'acceptEdits')
+      setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
       const agent = {
         id: 'agent-1',
         type: 'test-runtime',
