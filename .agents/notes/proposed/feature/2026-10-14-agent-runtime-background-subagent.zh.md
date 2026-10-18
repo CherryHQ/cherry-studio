@@ -152,3 +152,5 @@ active 且已武装的 goal 用完预算后，拒绝新的后台派出和续接�
 [包 README](../../../../packages/agent-runtime-pi/README.md)说明当前入口。[子智能体控制](../../../../packages/agent-runtime-pi/src/subagent.ts)、[原生子存储](../../../../packages/agent-runtime-pi/src/subagentSession.ts)、[运行执行](../../../../packages/agent-runtime-pi/src/subagentRun.ts)、[注册表/恢复](../../../../packages/agent-runtime-pi/src/subagentRegistry.ts)和[投递](../../../../packages/agent-runtime-pi/src/subagentDelivery.ts)实现上述 Pi 专属行为。[Goal 状态](../../../../packages/agent-runtime-pi/src/goalState.ts)和[goal 执行](../../../../packages/agent-runtime-pi/src/goalExtension.ts)拥有计量与预算转换。
 
 列出的 `gateway*.test.ts` 位于 `src/main/ai/runtime/pi/`，包测试位于 `packages/agent-runtime-pi/tests/`。这些测试通过测试提供商和受控时序覆盖原生 Pi 与 Cherry 模型 binding。[接入 README](../../../../src/main/ai/runtime/pi/README.md)明确说明桌面连接仍使用原有路径。源码覆盖、真实提供商验收、Electron 行为和打包加载属于不同证据层级，见 [harness 证据](../testing/2026-10-17-agent-harness-evidence.md)。本次文档迁移未重跑这些执行测试。
+
+[Agent 行为包](../architecture/2026-10-18-agent-behavior-package.md)部分取代本文：去掉前台转后台（AC4），后台用量改为发生即计入而不是送达时计一次（AC11）。其余内容在行为包的后续 PR 更新之前保持有效。
