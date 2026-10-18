@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "chat.message.user_content.default_expanded",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Expand long user messages by default unless the user has manually toggled that message"
+    },
+    {
       "targetKey": "app.computer_use.agent_control.enabled",
       "type": "boolean",
       "defaultValue": false,

@@ -4828,6 +4828,8 @@
   "settings.messages.show_message_outline": "Nachrichtenübersicht anzeigen",
   "settings.messages.title": "Nachrichteneinstellungen",
   "settings.messages.use_serif_font": "Serifenschrift verwenden",
+  "settings.messages.user_content.default_expanded.hint": "Lange Benutzernachrichten standardmäßig vollständig anzeigen. Manuell auf- oder zugeklappte Nachrichten behalten Ihre Auswahl für diese Sitzung.",
+  "settings.messages.user_content.default_expanded.label": "Lange Benutzernachrichten standardmäßig aufklappen",
   "settings.messages.wide_mode": "Breitbild-Modus",
   "settings.miniApps.cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
   "settings.miniApps.cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",

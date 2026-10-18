@@ -306,6 +306,7 @@ interface RenderGroupedEntryOptions {
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
 const EMPTY_HIDDEN_COMPOSER_TOKENS: ReadonlySet<ComposerMessageToken> = new Set()
+const EMPTY_EXPANDED_TEXT_PART_IDS: ReadonlySet<string> = new Set()
 
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
@@ -1561,7 +1562,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  const { subagentListTitle } = useMessageRenderConfig()
+  const { subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !previewInputFile && !!(previewFile || openFile)
   const { t } = useTranslation()
@@ -1571,22 +1572,22 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const getDisclosures = React.useCallback(() => getCachedMessageUiState(message.id).disclosures, [message.id])
   const disclosures = React.useSyncExternalStore(subscribeDisclosures, getDisclosures, getDisclosures)
-  const expandedTextPartIds = useMemo(
-    () =>
-      new Set(
-        Object.entries(disclosures ?? {})
-          .filter(([, expanded]) => expanded)
-          .map(([partId]) => partId)
-      ),
-    [disclosures]
-  )
+  const expandedTextPartIds = useMemo(() => {
+    if (message.role !== 'user') return EMPTY_EXPANDED_TEXT_PART_IDS
+    return new Set(
+      messageParts.flatMap((part, index) => {
+        const partId = `${message.id}-part-${index}`
+        return part.type === 'text' && (disclosures?.[partId] ?? userMessageDefaultExpanded) ? [partId] : []
+      })
+    )
+  }, [disclosures, message.id, message.role, messageParts, userMessageDefaultExpanded])
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
   )
   const handleTextPartExpandedChange = React.useCallback(
     (partId: string, expanded: boolean) => {
       updateCachedMessageUiState(message.id, (current) => {
-        if ((current.disclosures?.[partId] ?? false) === expanded) return current
+        if (current.disclosures?.[partId] === expanded) return current
         return { ...current, disclosures: { ...current.disclosures, [partId]: expanded } }
       })
     },
