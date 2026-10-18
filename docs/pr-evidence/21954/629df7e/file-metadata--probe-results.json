@@ -1,0 +1,15 @@
+{
+  "results": {
+    "chinese-notes.txt": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"text\",\"size\":2052,\"createdAt\":1792350547168,\"modifiedAt\":1792350576660,\"mime\":\"text/plain\"}}",
+    "chinese-notes-noext": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"text\",\"size\":2052,\"createdAt\":1792350547168,\"modifiedAt\":1792350576660,\"mime\":\"application/octet-stream\"}}",
+    "utf16-notes.txt": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"text\",\"size\":66,\"createdAt\":1792350547170,\"modifiedAt\":1792350576661,\"mime\":\"text/plain\"}}",
+    "random-bytes-noext": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"other\",\"size\":4096,\"createdAt\":1792350547168,\"modifiedAt\":1792350576661,\"mime\":\"application/octet-stream\"}}",
+    "bin-blob-noext": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"other\",\"size\":41,\"createdAt\":1792350658863,\"modifiedAt\":1792350658863,\"mime\":\"application/octet-stream\"}}",
+    "sample.png": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"image\",\"size\":12275,\"createdAt\":1792350547170,\"modifiedAt\":1792350576661,\"mime\":\"image/png\"}}",
+    "sample.jpg": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"image\",\"size\":33444,\"createdAt\":1792350658856,\"modifiedAt\":1792350658857,\"mime\":\"image/jpeg\"}}",
+    "sample.webp": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"image\",\"size\":7540,\"createdAt\":1792350658858,\"modifiedAt\":1792350658858,\"mime\":\"image/webp\"}}",
+    "sample.zip": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"other\",\"size\":254,\"createdAt\":1792350658854,\"modifiedAt\":1792350658855,\"mime\":\"application/zip\"}}",
+    "corrupted.pdf": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"document\",\"size\":49,\"createdAt\":1792350658860,\"modifiedAt\":1792350658860,\"mime\":\"application/pdf\"}}",
+    "empty.txt": "{\"ok\":true,\"data\":{\"kind\":\"file\",\"type\":\"text\",\"size\":0,\"createdAt\":1792350658861,\"modifiedAt\":1792350658861,\"mime\":\"text/plain\"}}"
+  }
+}
