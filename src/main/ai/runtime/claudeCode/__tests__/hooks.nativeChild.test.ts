@@ -334,4 +334,61 @@ describe('native Claude child authority across a desktop follow-up', () => {
       userResponse: 'unavailable'
     })
   })
+
+  // SubagentStop alone is not authoritative: the pinned SDK (0.3.284) lets ANOTHER SubagentStop hook
+  // continue the same child via additionalContext, so a "stopped" child can still issue MCP calls —
+  // and those carry no bridgeOrigin, so only this membership separates them from the desktop
+  // follow-up's interactive authority. While the follow-up's own background server keeps the shared
+  // responder busy, the stop must not release the restriction.
+  it('keeps an unattributed call denied while another hook may still continue the child', async () => {
+    // The headless delivery spawns the child.
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    // A desktop follow-up starts and its interactive background server retains the responder.
+    beginTurn(false)
+    const entry = (runtime() as unknown as { entries: Map<string, any> }).entries.get(SESSION_ID)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        refreshTraceContext: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      },
+      occupancy: {}
+    }
+    ;(runtime() as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+    aiStreamManager.getInteractionWindow.mockReturnValue('window-1')
+    windowManager.getWindow.mockReturnValue({})
+
+    // The child now stops — but another hook may keep it running on this same connection.
+    await hook('SubagentStop')(
+      { hook_event_name: 'SubagentStop', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID)).toMatchObject({
+      currentTurn: 'headless',
+      userResponse: 'unavailable'
+    })
+    expect(runtime().getMcpInteractionHost(SESSION_ID)).toBeUndefined()
+
+    // With the connection's own work gone, nothing can still be carrying the continued child, so the
+    // stop becomes authoritative and the follow-up's own calls resolve interactively again.
+    ;(runtime() as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+    await hook('SubagentStop')(
+      { hook_event_name: 'SubagentStop', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID)).toMatchObject({ currentTurn: 'interactive' })
+    expect(runtime().getMcpInteractionHost(SESSION_ID)).toMatchObject({ windowId: 'window-1' })
+  })
 })

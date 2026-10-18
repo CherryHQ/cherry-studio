@@ -3702,7 +3702,17 @@ export class AgentSessionRuntimeService extends BaseService {
    * look alive again.
    */
   releaseNativeChildLiveness(sessionId: string, nativeSubagentId: string): void {
-    this.entries.get(sessionId)?.liveNativeChildren?.delete(nativeSubagentId)
+    const entry = this.entries.get(sessionId)
+    if (!entry) return
+    // SubagentStop is NOT authoritative on its own: the pinned SDK (0.3.284) lets ANOTHER
+    // SubagentStop hook keep the same child running by returning additionalContext, so a "stopped"
+    // child can still issue unattributed MCP calls — and those carry no bridgeOrigin, so only this
+    // membership stands between them and the desktop follow-up's interactive authority.
+    // Release only when the connection reports no background work of its own: nothing else could
+    // then be carrying that continued child. While work is still active the restriction survives
+    // until the connection resets — the one event that certainly killed the child.
+    if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) return
+    entry.liveNativeChildren?.delete(nativeSubagentId)
   }
 
   /** Whether a native child runs under unattended authority. An unbound child fails closed. */

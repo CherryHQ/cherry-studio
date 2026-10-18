@@ -3507,10 +3507,11 @@ describe('AgentSessionRuntimeService', () => {
       })
       expect(service.getMcpInteractionHost('session-1')).toBeUndefined()
 
-      // The child finished: SubagentStop releases its liveness and the connection drains idle. The
-      // follow-up's own root calls must no longer inherit the denial.
-      service.releaseNativeChildLiveness('session-1', 'agent-b')
+      // The child finished: the connection drains idle first — with no work of the connection's own
+      // left, nothing can still be carrying a continued child — and only then does SubagentStop
+      // become authoritative. The follow-up's own root calls must no longer inherit the denial.
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      service.releaseNativeChildLiveness('session-1', 'agent-b')
       expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({ currentTurn: 'interactive' })
       expect(service.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
 
