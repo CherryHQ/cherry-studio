@@ -26,6 +26,13 @@ describe('dsh receipt identities', () => {
     expect(extractLaunchReceiptId('I started subagent dsh-child-1 earlier')).toBeUndefined()
   })
 
+  it('reads the id the current SDK prints after its parenthetical metadata', () => {
+    const receipt =
+      "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: agent-a1b2c3d4e5f6 (internal ID - do not mention to user. Use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent.)"
+
+    expect(extractLaunchReceiptId(receipt)).toBe('agent-a1b2c3d4e5f6')
+  })
+
   it('does not read an embedded marker line as a launch receipt', () => {
     // A child's own multi-line answer may quote the phrase; only the whole output is a receipt.
     expect(
