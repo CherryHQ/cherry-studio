@@ -324,11 +324,13 @@ const probe = () => {
       continue
     }
     // A row the shell left behind, or one whose parent an earlier poll verified, is work from
-    // across a dead link — unless a live replacement took that pid after the row appeared,
-    // in which case the row is the replacement's, not this task's.
+    // across a dead link. A child is always created after the parent it was created under, so a
+    // live parent is what proves the row is that parent's own — and a row is refused when a live
+    // replacement took the parent's pid after it appeared: such a replacement is stamped later
+    // than the row, which is therefore not the replacement's child but this task's orphan.
     if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
       const parent = byPid.get(row.ppid)
-      if (!parent || row.created < parent.created) keep.add(row.pid)
+      if (!parent || row.created > parent.created) keep.add(row.pid)
     }
   }
   let grew = true
