@@ -1189,8 +1189,9 @@ async function materializeUserContent(
       attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
       isToolCapable: supportsAttachmentReads,
-      // An unlisted-extension image (AVIF/HEIC — accepted wildcard on the agent surface) must
-      // stay a file part so the local-path fallback below still holds its file reference.
+      // An image the router cannot turn into model input (failed inline materialization,
+      // unlisted extension, or OCR yielding no text on a non-vision model) must stay a
+      // file part so the local-path fallback below still holds its file reference.
       keepUnroutableFileParts: true
     })
     preparedParts = prepared.parts
