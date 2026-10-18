@@ -3146,6 +3146,100 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(2)
     })
 
+    // A dropped prefix whose parts all completed inside it leaves nothing suppressed: recording
+    // them would only evict the ids of parts that are still streaming.
+    it('keeps a stream refused while sibling parts fill and overflow the buffer', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw new Error('db busy')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'tool-input-available', toolCallId: 'root-a', toolName: 'Agent', input: { prompt: 'A' } }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'tool-input-available', toolCallId: 'root-b', toolName: 'Agent', input: { prompt: 'B' } }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (rootToolCallId: string, chunk: unknown) =>
+        (service as any).handleRuntimeEvent(entry, { type: 'background-flow-chunk', rootToolCallId, chunk })
+
+      // A's text part fills the message buffer and its prefix is dropped, so only its own restart
+      // can re-open it.
+      send('root-a', { type: 'text-start', id: 'a-open' })
+      for (let index = 0; index < 1_000; index += 1) send('root-a', { type: 'text-delta', id: 'a-open', delta: 'x' })
+      expect(entry.pendingBackgroundFlowDiscardedParts?.get('assistant-1')?.has('a-open')).toBe(true)
+
+      // B streams 500 tool parts that each complete inside one dropped prefix: none is left open,
+      // so none may enter the record — evicting here would forget A's still-open part instead.
+      for (let part = 0; part < 500; part += 1) {
+        send('root-b', { type: 'tool-input-available', toolCallId: `b-${part}`, toolName: 'Read', input: {} })
+        send('root-b', { type: 'tool-output-available', toolCallId: `b-${part}`, output: {} })
+      }
+      send('root-b', { type: 'text-start', id: 'b-open' })
+      const discarded = entry.pendingBackgroundFlowDiscardedParts?.get('assistant-1')
+      expect(discarded?.has('a-open')).toBe(true)
+      expect([...(discarded ?? [])].filter((id) => /^b-\d+$/.test(id))).toEqual([])
+      expect(discarded?.has('b-open')).toBe(true)
+
+      // A's next delta still has no start: admitting it would abort the reader and kill B's output.
+      const held = entry.pendingBackgroundFlowChunks?.get('assistant-1')?.length ?? 0
+      send('root-a', { type: 'text-delta', id: 'a-open', delta: 'orphan' })
+      expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')?.length ?? 0).toBe(held)
+    })
+
+    it('forgets a discarded part once its end arrives', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (chunk: unknown) =>
+        (service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+
+      send({ type: 'text-start', id: 'lost' })
+      for (let index = 0; index < 1_001; index += 1) send({ type: 'text-delta', id: 'lost', delta: 'x' })
+      expect(entry.recoveryFlowDiscardedParts?.get('task-root')?.has('lost')).toBe(true)
+
+      // The end has no part to close, so it is refused — and with the part closed for good, the
+      // record retires instead of holding the id until teardown.
+      send({ type: 'text-end', id: 'lost' })
+      expect(entry.recoveryFlowDiscardedParts?.has('task-root')).toBe(false)
+      expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toBeUndefined()
+    })
+
+    it('bounds the per-root recovery look-up stamps', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      for (let index = 0; index < 300; index += 1) {
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: `root-${index}`,
+          chunk: { type: 'text-start', id: `part-${index}` }
+        })
+      }
+      expect(entry.recoveryLookupAt?.size).toBe(256)
+      expect(entry.recoveryLookupAt?.has('root-0')).toBe(false)
+      expect(entry.recoveryLookupAt?.has('root-299')).toBe(true)
+    })
+
     it('drops anchors for a persisted row whose marker is evicted', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
