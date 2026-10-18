@@ -14,4 +14,4 @@ queue or execution lifecycle. Adapters maintain source identity before publishin
 
 Pi-specific APIs previously in this package live in `@cherrystudio/agent-runtime-pi`. Pi Durable
 has a separate adapter in `@cherrystudio/agent-runtime-pi-durable`. Neither adapter is wired into
-the desktop app yet. See the [interface design](../../docs/superpowers/specs/2026-10-17-agent-runtime-ownership-and-behavior.md).
+the desktop app yet. See the [runtime contract](../../.agents/notes/proposed/architecture/2026-10-17-agent-runtime-contract.md).
