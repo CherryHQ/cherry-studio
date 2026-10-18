@@ -3,16 +3,18 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
-import { serializeError } from '@main/ai/utils/serializeError'
+import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener } from '@main/ai/streamManager'
+import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -22,36 +24,11 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { exposeAiError } from './exposeAiError'
 
 const logger = loggerService.withContext('ipc/ai')
-
-/**
- * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
- * the streaming-chat ops delegate to `AiStreamManager`. Business logic, provider
- * resolution, the abort registry and the stream registry all stay in those
- * services — these handlers only translate the IPC call.
- *
- * Every generating call is wrapped by {@link exposeAiError}: a provider/SDK failure
- * is re-thrown as an `AI_REQUEST_FAILED` IpcError carrying the full SerializedError
- * in `data`. Without this the renderer would only ever see `message` (Electron's
- * invoke reject drops `code`/`data`) — the detail this migration exists to surface.
- */
-async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T> {
-  try {
-    return await op()
-  } catch (e) {
-    // Log the FULL serialized error at the source (statusCode / responseBody / AI SDK
-    // subtype). The `data` rides the IpcError for the renderer, but Electron's invoke
-    // reject keeps only `message`, and a downstream normalize (e.g. the paintings
-    // pipeline → `REMOTE_ERROR`) can collapse even that — so the only durable record of
-    // the real cause is this log. User-initiated aborts are control flow, not failures.
-    const serializedError = serializeError(e)
-    if (!(e instanceof Error && e.name === 'AbortError')) {
-      logger.error(`${route} failed`, serializedError)
-    }
-    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, serializedError.message ?? '', serializedError)
-  }
-}
 
 async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
@@ -125,6 +102,9 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.claude_code.binary.status': async () => application.get('ClaudeCodeBinaryService').getStatus(),
+  'ai.claude_code.binary.ensure': async () => application.get('ClaudeCodeBinaryService').ensure(),
+  'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
   'ai.text.generate': ({ requestId, ...request }) => {
@@ -154,10 +134,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
   'ai.stream.open': async (request, { senderId }) => {
+    if (!senderId) throw new Error('ai.stream.open requires a managed window')
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const subscriber = new WebContentsListener(wc, request.topicId)
-    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, request))
+    const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
+    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatch(subscriber, dispatchRequest))
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
@@ -206,6 +188,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     exposeAgentSessionArchiveError(() =>
       application.get('AgentLifecycleService').deleteActiveAgentPermanently(agentId, deleteSessions)
     ),
+  'ai.agent.attachment_selections.list': ({ sessionId }) =>
+    application.get('AttachmentPresenceService').list(sessionId),
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
@@ -250,6 +234,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
   },
+  'ai.agent.workspace.register': async ({ path, name }) =>
+    agentWorkspaceStorageService.registerWorkspace(path, { name }),
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 
@@ -291,6 +277,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
+  'ai.agent.session.open_path': async ({ sessionId, path }) => {
+    const workspacePath = agentSessionService.getById(sessionId).workspace.path
+    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
+  },
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),

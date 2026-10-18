@@ -1,67 +1,36 @@
 // Brave Search MCP Server
 // port https://github.com/modelcontextprotocol/servers/blob/main/src/brave-search/index.ts
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { McpServer } from '@modelcontextprotocol/server'
 import { net } from 'electron'
+import * as z from 'zod'
 
-const WEB_SEARCH_TOOL: Tool = {
-  name: 'brave_web_search',
-  description:
-    'Performs a web search using the Brave Search API, ideal for general queries, news, articles, and online content. ' +
-    'Use this for broad information gathering, recent events, or when you need diverse web sources. ' +
-    'Supports pagination, content filtering, and freshness controls. ' +
-    'Maximum 20 results per request, with offset for pagination. ',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: {
-        type: 'string',
-        description: 'Search query (max 400 chars, 50 words)'
-      },
-      count: {
-        type: 'number',
-        description: 'Number of results (1-20, default 10)',
-        default: 10
-      },
-      offset: {
-        type: 'number',
-        description: 'Pagination offset (max 9, default 0)',
-        default: 0
-      }
-    },
-    required: ['query']
-  }
-}
+const WEB_SEARCH_DESCRIPTION =
+  'Performs a web search using the Brave Search API, ideal for general queries, news, articles, and online content. ' +
+  'Use this for broad information gathering, recent events, or when you need diverse web sources. ' +
+  'Supports pagination, content filtering, and freshness controls. ' +
+  'Maximum 20 results per request, with offset for pagination. '
 
-const LOCAL_SEARCH_TOOL: Tool = {
-  name: 'brave_local_search',
-  description:
-    "Searches for local businesses and places using Brave's Local Search API. " +
-    'Best for queries related to physical locations, businesses, restaurants, services, etc. ' +
-    'Returns detailed information including:\n' +
-    '- Business names and addresses\n' +
-    '- Ratings and review counts\n' +
-    '- Phone numbers and opening hours\n' +
-    "Use this when the query implies 'near me' or mentions specific locations. " +
-    'Automatically falls back to web search if no local results are found.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: {
-        type: 'string',
-        description: "Local search query (e.g. 'pizza near Central Park')"
-      },
-      count: {
-        type: 'number',
-        description: 'Number of results (1-20, default 5)',
-        default: 5
-      }
-    },
-    required: ['query']
-  }
-}
+const WebSearchArgsSchema = z.object({
+  query: z.string().describe('Search query (max 400 chars, 50 words)'),
+  count: z.number().default(10).describe('Number of results (1-20, default 10)'),
+  offset: z.number().default(0).describe('Pagination offset (max 9, default 0)')
+})
+
+const LOCAL_SEARCH_DESCRIPTION =
+  "Searches for local businesses and places using Brave's Local Search API. " +
+  'Best for queries related to physical locations, businesses, restaurants, services, etc. ' +
+  'Returns detailed information including:\n' +
+  '- Business names and addresses\n' +
+  '- Ratings and review counts\n' +
+  '- Phone numbers and opening hours\n' +
+  "Use this when the query implies 'near me' or mentions specific locations. " +
+  'Automatically falls back to web search if no local results are found.'
+
+const LocalSearchArgsSchema = z.object({
+  query: z.string().describe("Local search query (e.g. 'pizza near Central Park')"),
+  count: z.number().default(5).describe('Number of results (1-20, default 5)')
+})
 
 const RATE_LIMIT = {
   perSecond: 1,
@@ -134,24 +103,6 @@ interface BravePoiResponse {
 
 interface BraveDescription {
   descriptions: { [id: string]: string }
-}
-
-function isBraveWebSearchArgs(args: unknown): args is { query: string; count?: number } {
-  return (
-    typeof args === 'object' &&
-    args !== null &&
-    'query' in args &&
-    typeof (args as { query: string }).query === 'string'
-  )
-}
-
-function isBraveLocalSearchArgs(args: unknown): args is { query: string; count?: number } {
-  return (
-    typeof args === 'object' &&
-    args !== null &&
-    'query' in args &&
-    typeof (args as { query: string }).query === 'string'
-  )
 }
 
 async function performWebSearch(apiKey: string, query: string, count: number = 10, offset: number = 0) {
@@ -288,87 +239,25 @@ Description: ${descData.descriptions[poi.id] || 'No description available'}
   )
 }
 
-class BraveSearchServer {
-  public server: Server
-  private apiKey: string
+export function createBraveSearchServer(apiKey: string): McpServer {
+  if (!apiKey) throw new Error('BRAVE_API_KEY is required for Brave Search MCP server')
+  const server = new McpServer({ name: 'brave-search-server', version: '0.1.0' })
 
-  constructor(apiKey: string) {
-    if (!apiKey) {
-      throw new Error('BRAVE_API_KEY is required for Brave Search MCP server')
-    }
-    this.apiKey = apiKey
-    this.server = new Server(
-      {
-        name: 'brave-search-server',
-        version: '0.1.0'
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    )
-    this.initialize()
-  }
-
-  initialize() {
-    // Tool handlers
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [WEB_SEARCH_TOOL, LOCAL_SEARCH_TOOL]
-    }))
-
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      try {
-        const { name, arguments: args } = request.params
-
-        if (!args) {
-          throw new Error('No arguments provided')
-        }
-
-        switch (name) {
-          case 'brave_web_search': {
-            if (!isBraveWebSearchArgs(args)) {
-              throw new Error('Invalid arguments for brave_web_search')
-            }
-            const { query, count = 10 } = args
-            const results = await performWebSearch(this.apiKey, query, count)
-            return {
-              content: [{ type: 'text', text: results }],
-              isError: false
-            }
-          }
-
-          case 'brave_local_search': {
-            if (!isBraveLocalSearchArgs(args)) {
-              throw new Error('Invalid arguments for brave_local_search')
-            }
-            const { query, count = 5 } = args
-            const results = await performLocalSearch(this.apiKey, query, count)
-            return {
-              content: [{ type: 'text', text: results }],
-              isError: false
-            }
-          }
-
-          default:
-            return {
-              content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-              isError: true
-            }
-        }
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error: ${error instanceof Error ? error.message : String(error)}`
-            }
-          ],
-          isError: true
-        }
-      }
+  server.registerTool(
+    'brave_web_search',
+    { description: WEB_SEARCH_DESCRIPTION, inputSchema: WebSearchArgsSchema },
+    // offset is advertised but has never been forwarded to the API.
+    async ({ query, count }) => ({
+      content: [{ type: 'text', text: await performWebSearch(apiKey, query, count) }]
     })
-  }
-}
+  )
 
-export default BraveSearchServer
+  server.registerTool(
+    'brave_local_search',
+    { description: LOCAL_SEARCH_DESCRIPTION, inputSchema: LocalSearchArgsSchema },
+    async ({ query, count }) => ({
+      content: [{ type: 'text', text: await performLocalSearch(apiKey, query, count) }]
+    })
+  )
+  return server
+}

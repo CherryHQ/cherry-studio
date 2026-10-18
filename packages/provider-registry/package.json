@@ -1,8 +1,7 @@
 {
   "name": "@cherrystudio/provider-registry",
-  "version": "0.0.1-alpha.1",
-  "private": true,
-  "description": "Provider and Model Registry",
+  "version": "0.2.2",
+  "description": "Cross-platform AI provider and model catalogs, schemas, and lookup utilities",
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "bugs": {
     "url": "https://github.com/CherryHQ/cherry-studio/issues"
@@ -11,17 +10,25 @@
   "author": "Cherry Studio",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CherryHQ/cherry-studio.git"
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/provider-registry"
   },
   "files": [
     "dist/**/*",
-    "data/**/*"
+    "data/**/*",
+    "LICENSE"
   ],
+  "type": "module",
+  "sideEffects": false,
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.cts",
   "exports": {
     ".": {
+      "react-native": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
       "import": {
         "types": "./dist/index.d.mts",
         "default": "./dist/index.mjs"
@@ -30,7 +37,6 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       },
-      "react-native": "./dist/index.cjs",
       "default": "./dist/index.mjs"
     },
     "./node": {
@@ -42,8 +48,74 @@
         "types": "./dist/registry-loader.d.cts",
         "default": "./dist/registry-loader.cjs"
       },
-      "default": "./dist/registry-loader.cjs"
-    }
+      "default": "./dist/registry-loader.mjs"
+    },
+    "./data": {
+      "react-native": {
+        "types": "./dist/bundled-catalog.d.mts",
+        "default": "./dist/bundled-catalog.mjs"
+      },
+      "import": {
+        "types": "./dist/bundled-catalog.d.mts",
+        "default": "./dist/bundled-catalog.mjs"
+      },
+      "require": {
+        "types": "./dist/bundled-catalog.d.cts",
+        "default": "./dist/bundled-catalog.cjs"
+      },
+      "default": "./dist/bundled-catalog.mjs"
+    },
+    "./data/models": {
+      "react-native": {
+        "types": "./dist/bundled-models.d.mts",
+        "default": "./dist/bundled-models.mjs"
+      },
+      "import": {
+        "types": "./dist/bundled-models.d.mts",
+        "default": "./dist/bundled-models.mjs"
+      },
+      "require": {
+        "types": "./dist/bundled-models.d.cts",
+        "default": "./dist/bundled-models.cjs"
+      },
+      "default": "./dist/bundled-models.mjs"
+    },
+    "./data/providers": {
+      "react-native": {
+        "types": "./dist/bundled-providers.d.mts",
+        "default": "./dist/bundled-providers.mjs"
+      },
+      "import": {
+        "types": "./dist/bundled-providers.d.mts",
+        "default": "./dist/bundled-providers.mjs"
+      },
+      "require": {
+        "types": "./dist/bundled-providers.d.cts",
+        "default": "./dist/bundled-providers.cjs"
+      },
+      "default": "./dist/bundled-providers.mjs"
+    },
+    "./data/provider-models": {
+      "react-native": {
+        "types": "./dist/bundled-provider-models.d.mts",
+        "default": "./dist/bundled-provider-models.mjs"
+      },
+      "import": {
+        "types": "./dist/bundled-provider-models.d.mts",
+        "default": "./dist/bundled-provider-models.mjs"
+      },
+      "require": {
+        "types": "./dist/bundled-provider-models.d.cts",
+        "default": "./dist/bundled-provider-models.cjs"
+      },
+      "default": "./dist/bundled-provider-models.mjs"
+    },
+    "./data/models.json": "./data/models.json",
+    "./data/providers.json": "./data/providers.json",
+    "./data/provider-models.json": "./data/provider-models.json"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown",
@@ -54,25 +126,25 @@
     "dev": "pnpm --workspace-root exec tsc -w -p packages/provider-registry/tsconfig.json",
     "generate": "tsx scripts/generate-catalog.ts --write && pnpm --workspace-root exec oxfmt --write packages/provider-registry/data/models.json packages/provider-registry/data/provider-models.json packages/provider-registry/data/providers.json packages/provider-registry/src/patterns/reasoning-families.gen.ts packages/provider-registry/src/patterns/server-tool-models.gen.ts packages/provider-registry/src/patterns/server-tool-constraints.gen.ts",
     "generate:check": "tsx scripts/generate-catalog.ts --report",
+    "prepack": "pnpm build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:package": "pnpm typecheck && pnpm build && node scripts/check-package.mjs",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "json-schema": "^0.4.0",
-    "lucide-react": "^0.563.0",
     "semver": "^7.7.1"
   },
   "devDependencies": {
     "@ai-sdk/provider-utils": "^4.0.40",
-    "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^5.0.1",
-    "zod": "^4.1.12"
+    "zod": "4.4.3"
   },
-  "peerDependencies": {},
-  "packageManager": "pnpm@10.27.0"
+  "peerDependencies": {
+    "zod": "^4.4.3"
+  }
 }

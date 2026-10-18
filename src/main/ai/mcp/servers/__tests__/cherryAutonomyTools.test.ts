@@ -2,6 +2,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import type { Client } from '@modelcontextprotocol/client'
+import { McpServer } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChannelsModule from '@main/ai/channels'
@@ -138,42 +141,49 @@ vi.mock('@main/services/MainWindowService', () => ({
   }
 }))
 
-const { CherryAutonomyTools } = await import('../cherryAutonomyTools')
-type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
+const { registerAutonomyTools } = await import('../cherryAutonomyTools')
 const WORKSPACE_SOURCE = { type: 'system' as const }
 const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
+const clients: Client[] = []
 
-function createServer(
+async function createServer(
   agentId = 'agent_test',
   workspacePath = WORKSPACE_PATH,
   notifyChannelIds: string | string[] | null = 'ch1'
-) {
+): Promise<Client> {
   const trustedNotifyChannels = (Array.isArray(notifyChannelIds) ? notifyChannelIds : [notifyChannelIds]).flatMap(
     (id) => (id ? [{ id, type: 'telegram' as const }] : [])
   )
-  // getKnowledgeBaseIds is required on CherryAgentContext but unused by the autonomy tools.
-  return new CherryAutonomyTools({
-    agentId,
-    sessionId: 'session_test',
-    workspaceSource: WORKSPACE_SOURCE,
-    workspacePath,
-    trustedNotifyChannels,
-    allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string',
-    getKnowledgeBaseIds: () => []
+  const client = await connectMcpTestClient(() => {
+    const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
+    registerAutonomyTools(server, {
+      agentId,
+      sessionId: 'session_test',
+      workspaceSource: WORKSPACE_SOURCE,
+      workspacePath,
+      trustedNotifyChannels,
+      allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string'
+    })
+    return server
   })
+  clients.push(client)
+  return client
 }
 
-// Helper mirroring how CherryBuiltinToolsServer's CallTool handler routes autonomy calls
-// (returns `any` so assertions can poke content items without narrowing the SDK union).
+// Returns `any` so assertions can poke content items without narrowing the SDK union.
 async function callTool(
-  server: CherryAutonomyToolsInstance,
+  server: Client | Promise<Client>,
   args: Record<string, unknown>,
   toolName = 'cron'
 ): Promise<any> {
-  return server.call(toolName, args)
+  return (await server).callTool({ name: toolName, arguments: args })
 }
 
-describe('CherryAutonomyTools', () => {
+async function listTools(server: Client | Promise<Client>) {
+  return (await (await server).listTools()).tools
+}
+
+describe('cherry-tools autonomy tools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetChannel.mockImplementation((channelId: string) => ({ id: channelId, agentId: 'agent_1' }))
@@ -187,14 +197,16 @@ describe('CherryAutonomyTools', () => {
     mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   })
 
-  it('advertises the read contract, search limit and configured notification recipient', () => {
-    const server = createServer('agent_test', WORKSPACE_PATH, 'ch1')
-    const tools = server.tools()
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map((client) => client.close()))
+  })
+
+  it('advertises the read contract, search limit and configured notification recipient', async () => {
+    const tools = await listTools(createServer('agent_test', WORKSPACE_PATH, 'ch1'))
     expect(tools.map((tool) => tool.name)).toContain('agent_list')
     const readSchema = tools.find((tool) => tool.name === 'session_read')?.inputSchema
     expect(readSchema?.required).toContain('session_id')
     expect(readSchema?.properties?.limit).toMatchObject({ type: 'integer', exclusiveMinimum: 0 })
-    expect(readSchema).not.toHaveProperty('$schema')
     expect(readSchema?.properties).not.toHaveProperty('type')
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
@@ -205,17 +217,11 @@ describe('CherryAutonomyTools', () => {
     )
   })
 
-  it('hides notify for sessions without a source channel', async () => {
+  it('does not offer notify for sessions without a source channel', async () => {
     const server = createServer('agent_test', WORKSPACE_PATH, null)
 
-    expect(server.tools().map((tool) => tool.name)).not.toContain('notify')
-    expect(server.handles('notify')).toBe(true)
-
-    const result = await callTool(server, { message: 'Hello' }, 'notify')
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain(
-      'notify is unavailable because this turn has no configured notification recipients'
-    )
+    expect((await listTools(server)).map((tool) => tool.name)).not.toContain('notify')
+    await expect(callTool(server, { message: 'Hello' }, 'notify')).rejects.toThrow('notify')
     expect(mockGetNotifyAdapters).not.toHaveBeenCalled()
   })
 
@@ -267,7 +273,9 @@ describe('CherryAutonomyTools', () => {
             ? { message: 'delegate' }
             : toolName === 'session_send'
               ? { target_session_id: 'session_b', message: 'delegate' }
-              : {}
+              : toolName === 'session_read'
+                ? { session_id: 'topic-1' }
+                : {}
 
       const result = await callTool(createServer(), args, toolName)
 
@@ -445,7 +453,6 @@ describe('CherryAutonomyTools', () => {
       const result = await callTool(createServer(), { direction: 'sideways' }, 'session_deliveries')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("invalid 'direction'")
       expect(mockListSessionDeliveries).not.toHaveBeenCalled()
     })
 
@@ -899,7 +906,6 @@ describe('CherryAutonomyTools', () => {
         })
 
         expect(result.isError).toBe(true)
-        expect(result.content[0].text).toContain("'channel_ids' must be an array of channel ids")
         expect(mockCreateTask).not.toHaveBeenCalled()
       }
     )
@@ -1399,15 +1405,18 @@ describe('CherryAutonomyTools', () => {
         expect(parsed.model).toBe('claude-sonnet-4-20250514')
         expect(parsed.channels).toHaveLength(1)
         expect(parsed.channels[0].type).toBe('telegram')
-        expect(parsed.supported_channel_types).toHaveLength(6)
-        expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual([
-          'telegram',
-          'feishu',
-          'qq',
-          'wechat',
-          'discord',
-          'slack'
-        ])
+        expect(parsed.supported_channel_types.map((t: any) => t.type)).toEqual(
+          expect.arrayContaining(['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'dingtalk'])
+        )
+        expect(
+          (await listTools(server)).find((tool) => tool.name === 'config')?.inputSchema.properties?.type
+        ).toMatchObject({
+          enum: expect.arrayContaining(['dingtalk'])
+        })
+        expect(parsed.supported_channel_types.find((type: any) => type.type === 'dingtalk')).toMatchObject({
+          required_fields: ['client_id', 'client_secret', 'robot_code'],
+          optional_fields: ['allowed_chat_ids', 'allowed_user_ids', 'card_template_id']
+        })
         expect(parsed.soul_enabled).toBeUndefined()
         expect(parsed.heartbeat_enabled).toBe(true)
       })
@@ -1487,7 +1496,6 @@ describe('CherryAutonomyTools', () => {
         )
 
         expect(result.isError).toBe(true)
-        expect(result.content[0].text).toContain("'config' must be an object")
         expect(mockCreateChannel).not.toHaveBeenCalled()
       })
 
@@ -1500,8 +1508,8 @@ describe('CherryAutonomyTools', () => {
         )
 
         expect(result.isError).toBe(true)
-        expect(result.content[0].text).toContain("'auth_mode' must be a string")
         expect(mockCreateChannel).not.toHaveBeenCalled()
+        expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
       })
 
       it('should error when unsupported type is given', async () => {
@@ -1509,7 +1517,8 @@ describe('CherryAutonomyTools', () => {
         const result = await callTool(server, { action: 'add_channel', type: 'whatsapp', name: 'test' }, 'config')
 
         expect(result.isError).toBe(true)
-        expect(result.content[0].text).toContain('Unknown channel type')
+        expect(result.content[0].text).toContain('telegram')
+        expect(mockCreateChannel).not.toHaveBeenCalled()
       })
 
       it('should add a wechat channel without a token path and return QR code image', async () => {
@@ -1926,7 +1935,7 @@ describe('CherryAutonomyTools', () => {
       const result = await callTool(server, { action: 'unknown' }, 'config')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Unknown action')
+      expect(result.content[0].text).toContain('status')
     })
   })
 })

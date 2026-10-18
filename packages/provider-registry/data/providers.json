@@ -29,6 +29,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://open.cherryin.ai/console/token",
+          "billing": "https://open.cherryin.ai/console/topup",
           "docs": "https://open.cherryin.ai",
           "models": "https://open.cherryin.ai/pricing",
           "official": "https://open.cherryin.ai"
@@ -295,6 +296,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.deepseek.com/api_keys",
+          "billing": "https://platform.deepseek.com/top_up",
           "docs": "https://api-docs.deepseek.com/",
           "models": "https://api-docs.deepseek.com/",
           "official": "https://deepseek.com/"
@@ -364,9 +366,21 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AIOnly - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "newapi"
+        },
+        "google-generate-content": {
+          "adapterFamily": "newapi"
+        },
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.aiionly.com"
+          "adapterFamily": "newapi",
+          "baseUrl": "https://api.aiionly.com",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "newapi"
         }
       },
       "id": "aionly",
@@ -767,6 +781,12 @@
             "type": "openai-chat"
           }
         },
+        "openai-image-edit": {
+          "adapterFamily": "newapi"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "newapi"
+        },
         "openai-responses": {
           "adapterFamily": "newapi"
         }
@@ -821,6 +841,30 @@
       "name": "LM Studio"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "LiteLLM - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:4000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "litellm",
+      "metadata": {
+        "website": {
+          "apiKey": "https://docs.litellm.ai/docs/proxy/virtual_keys",
+          "docs": "https://docs.litellm.ai/docs/proxy/quick_start",
+          "official": "https://www.litellm.ai/"
+        }
+      },
+      "name": "LiteLLM"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
@@ -834,6 +878,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://console.anthropic.com/settings/keys",
+          "billing": "https://platform.claude.com/settings/billing",
           "docs": "https://docs.anthropic.com/en/docs",
           "models": "https://docs.anthropic.com/en/docs/about-claude/models",
           "official": "https://anthropic.com/"
@@ -1135,6 +1180,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://platform.openai.com/api-keys",
+          "billing": "https://platform.openai.com/settings/organization/billing/overview",
           "docs": "https://platform.openai.com/docs",
           "models": "https://platform.openai.com/docs/models",
           "official": "https://openai.com/"
@@ -2471,6 +2517,10 @@
           "adapterFamily": "anthropic",
           "baseUrl": "https://router.huggingface.co/v1/"
         },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.huggingface.co/v1"
+        },
         "openai-responses": {
           "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
@@ -2676,5 +2726,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "dbca1ba38bf86df7"
+  "version": "1b44511badb438e6"
 }

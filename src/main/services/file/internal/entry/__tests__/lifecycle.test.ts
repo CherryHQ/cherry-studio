@@ -263,15 +263,12 @@ describe('internal/entry/lifecycle', () => {
 
       // DB row is gone — DB delete is mandatory regardless of FS outcome.
       expect(fileEntryService.findById(id)).toBeNull()
-      // The non-ENOENT unlink failure surfaced via logger.warn, including
-      // the physical path so operators can grep / `ls` the leak directly
-      // (S3 — the previous payload only had `id`, forcing reconstruction
-      // from the since-removed DB row).
       const warnCalls = mockLoggerWarn.mock.calls.filter(
         ([msg]) => typeof msg === 'string' && msg.includes('failed to unlink internal physical file')
       )
       expect(warnCalls).toHaveLength(1)
-      expect(warnCalls[0][1]).toMatchObject({ id, physical })
+      expect(warnCalls[0][1]).toEqual({ id, code: expect.stringMatching(/^(EPERM|EISDIR)$/) })
+      expect(JSON.stringify(warnCalls)).not.toContain(physical)
 
       // Manual cleanup of the directory we swapped in.
       const { rmdir } = await import('node:fs/promises')

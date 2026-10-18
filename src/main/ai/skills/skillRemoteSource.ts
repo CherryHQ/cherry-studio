@@ -15,6 +15,7 @@ import { ClawhubSkillDetailSchema } from '@shared/types/skill'
 import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 
 import {
+  assertNoFoldedPathCollisions,
   assertSkillDirectoryWithinLimits,
   extractZip,
   MAX_SKILL_FILES,
@@ -501,8 +502,6 @@ function assertGithubTargetTree(
   target: GithubSkillTarget,
   descriptorFileNames: readonly SkillDescriptorFileName[]
 ): void {
-  const foldKey = (value: string) => value.normalize('NFC').toLowerCase()
-
   const entryPaths = tree.split('\0').flatMap((record) => {
     if (!record) return []
     const tab = record.indexOf('\t')
@@ -512,21 +511,7 @@ function assertGithubTargetTree(
     return [record.slice(tab + 1)]
   })
 
-  const seenPaths = new Map<string, string>()
-  for (const entryPath of entryPaths) {
-    const parts = entryPath.split('/')
-    for (let length = 1; length <= parts.length; length++) {
-      const prefix = parts.slice(0, length).join('/')
-      const key = parts.slice(0, length).map(foldKey).join('/')
-      const previous = seenPaths.get(key)
-      if (previous && previous !== prefix) {
-        throw new Error(
-          `The commit contains paths that collide once case and Unicode are normalized (${previous}, ${prefix}).`
-        )
-      }
-      seenPaths.set(key, prefix)
-    }
-  }
+  assertNoFoldedPathCollisions(entryPaths)
 
   if (!entryPaths.some((entryPath) => descriptorFileNames.includes(entryPath as SkillDescriptorFileName))) {
     throw missingDescriptorError(target, descriptorFileNames)

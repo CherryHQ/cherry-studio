@@ -163,7 +163,9 @@ describe('AgentJobsService', () => {
         case 'AgentSessionRuntimeService':
           return {
             isSessionBusy: () => false,
+            isSessionBusyForArchive: () => false,
             closeSession: async () => {},
+            closeSessionForArchive: async () => {},
             cancelSessionForks: async () => {},
             recoverSessionForks: async () => {}
           }

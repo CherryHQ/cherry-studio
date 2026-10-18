@@ -3570,6 +3570,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-haiku-5-5",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-opus-4-1",
       "providerId": "claude-code"
     },
@@ -4515,6 +4519,14 @@
     {
       "apiModelId": "kimi/kimi-k3",
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "providerId": "dashscope",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -12746,6 +12758,44 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "google/gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "google/gemini-nano-banana-2.1",
+      "modelId": "gemini-nano-banana-2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "google/gemini-omni-flash-preview",
       "modelId": "gemini-omni-flash-preview",
       "pricing": {
@@ -19040,6 +19090,18 @@
       }
     },
     {
+      "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot"
+    },
+    {
       "apiModelId": "kimi-k2.5",
       "modelId": "kimi-k2-5",
       "parameterSupport": {
@@ -19234,6 +19296,18 @@
           }
         }
       }
+    },
+    {
+      "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot-global"
     },
     {
       "apiModelId": "nvidia/active-speaker-detection",
@@ -21471,6 +21545,31 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6.1-sol",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-1-sol",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "gpt-6-astra",
       "endpointTypes": ["openai-responses"],
       "limits": {
@@ -21571,6 +21670,38 @@
               {
                 "kind": "effort",
                 "values": ["high", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "deepseek-v4.1-flash",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "deepseek-v4-1-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.003
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "high", "max"]
               }
             ]
           }
@@ -25867,6 +25998,44 @@
       }
     },
     {
+      "apiModelId": "google/gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.1875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "~google/gemini-flash-latest",
       "modelId": "gemini-flash-latest",
       "pricing": {
@@ -25900,6 +26069,117 @@
             ],
             "defaultEffort": "medium",
             "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "google/gemini-nano-banana-2.1",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
+      "modelId": "gemini-nano-banana-2-1",
+      "outputModalities": ["image", "text"],
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "minimal",
+                "kind": "effort",
+                "values": ["high", "minimal"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "minimal",
+            "supportedEfforts": ["high", "minimal", "none"]
           }
         }
       }
@@ -29380,6 +29660,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.5",
       "modelId": "kimi-k2-5",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29412,6 +29700,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.6",
       "modelId": "kimi-k2-6",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29444,6 +29740,14 @@
     {
       "apiModelId": "moonshotai/kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29470,6 +29774,14 @@
     {
       "apiModelId": "moonshotai/kimi-k3",
       "modelId": "kimi-k3",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29508,6 +29820,14 @@
     {
       "apiModelId": "~moonshotai/kimi-latest",
       "modelId": "kimi-latest",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -40428,6 +40748,25 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-embedding-001",
       "modelId": "gemini-embedding-001",
       "pricing": {
@@ -40476,6 +40815,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.5
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
+      "apiModelId": "gemini-nano-banana-2.1",
+      "modelId": "gemini-nano-banana-2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
         }
       },
       "providerId": "vertexai"
@@ -40953,5 +41311,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "8fb0dde9d8d03bba"
+  "version": "24243e9504b54823"
 }

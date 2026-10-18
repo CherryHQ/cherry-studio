@@ -3,8 +3,10 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
+import { inferReasoningControls } from '../patterns/reasoning-heuristics'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { RegistryLoader } from '../registry-loader'
+import { buildParamsSchema } from '../utils/buildParamsSchema'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const loader = new RegistryLoader({
@@ -14,6 +16,98 @@ const loader = new RegistryLoader({
 })
 
 describe('OpenAI catalog', () => {
+  it('offers widescreen, portrait, 16:10, and 4K GPT-Image-2 sizes within the API limits', () => {
+    const support = loader.findModel('gpt-image-2')?.imageGeneration
+    const size = support?.modes.generate?.supports.size
+    expect(size).toMatchObject({
+      default: '1024x1024',
+      options: expect.arrayContaining([
+        'auto',
+        '1024x1024',
+        '1536x1024',
+        '1024x1536',
+        '1536x864',
+        '864x1536',
+        '1536x960',
+        '3840x2160',
+        '2160x3840'
+      ])
+    })
+    if (size?.type !== 'enum') throw new Error('Expected size presets')
+    for (const value of size.options.filter((option) => option !== 'auto')) {
+      const [width, height] = value.split('x').map(Number)
+      expect(width % 16).toBe(0)
+      expect(height % 16).toBe(0)
+      expect(Math.max(width, height)).toBeLessThanOrEqual(3840)
+      expect(width / height).toBeGreaterThanOrEqual(1 / 3)
+      expect(width / height).toBeLessThanOrEqual(3)
+      expect(width * height).toBeGreaterThanOrEqual(655360)
+      expect(width * height).toBeLessThanOrEqual(8294400)
+      expect(buildParamsSchema(support, 'generate').parse({ size: value }).size).toBe(value)
+    }
+  })
+
+  it.each(['gpt-image-1', 'gpt-image-1-mini'])('keeps unsupported sizes out of %s requests', (id) => {
+    const support = loader.findModel(id)?.imageGeneration
+    const schema = buildParamsSchema(support, 'generate')
+    expect(support?.modes.generate?.supports.size).toMatchObject({
+      options: ['auto', '1024x1024', '1536x1024', '1024x1536']
+    })
+    expect(schema.parse({ size: '1536x864' }).size).toBeUndefined()
+    expect(schema.parse({ size: '3840x2160' }).size).toBeUndefined()
+  })
+
+  it('resolves GPT-6.1 Sol with API pricing, limits, and supported reasoning', () => {
+    expect(loader.findModel('gpt-6-1-sol')).toMatchObject({
+      name: 'GPT-6.1 Sol',
+      ownedBy: 'openai',
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      capabilities: expect.arrayContaining([
+        'reasoning',
+        'function-call',
+        'image-recognition',
+        'structured-output',
+        'file-search'
+      ]),
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.1 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 2.5 },
+        output: { currency: 'USD', perMillionTokens: 10 }
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+      }
+    })
+    expect(isServerToolModelEligible('gpt-6.1-sol', 'openai', 'web-search')).toBe(true)
+  })
+
+  it.each(['gpt-6.1-sol', 'gpt-6-1-sol', 'openai/gpt-6.1-sol'])('never offers disabled reasoning for %s', (id) => {
+    expect(inferReasoningControls(id)).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }])
+  })
+
+  it('offers GPT-6.1 Sol on Codex with the backend wire ID, limits, and default', () => {
+    expect(loader.findOverride('openai-codex', 'gpt-6-1-sol')).toMatchObject({
+      apiModelId: 'gpt-6.1-sol',
+      endpointTypes: ['openai-responses'],
+      limits: { contextWindow: 272000, maxInputTokens: 144000 },
+      supportsFastMode: true,
+      reasoningContracts: {
+        'openai-responses': {
+          support: {
+            controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'low' }],
+            defaultEffort: 'low'
+          }
+        }
+      }
+    })
+  })
+
   it.each([
     ['gpt-6-sol', 'GPT-6 Sol', 2, 0.2, 2.5, 10],
     ['gpt-6-luna', 'GPT-6 Luna', 0.1, 0.01, 0.125, 0.5]
@@ -48,6 +142,7 @@ describe('OpenAI catalog', () => {
   )
 
   it.each([
+    ['gpt-6-1-sol', 4, 0.2, 5, 15],
     ['gpt-6-sol', 4, 0.4, 5, 15],
     ['gpt-6-luna', 0.2, 0.02, 0.25, 0.75]
   ] as const)('prices %s long-context requests above 272K input tokens', (id, input, cacheRead, cacheWrite, output) => {

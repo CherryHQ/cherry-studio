@@ -19,4 +19,5 @@ contracts.
 | [FileManager Architecture](./file-manager-architecture.md) | Storage, entry lifecycle, atomic writes, external liveness, watcher, caches, and orphan sweeps |
 | [Directory Tree Architecture](./directory-tree.md) | Builder/manager ownership, snapshot activation, mutation stream, renderer mirror, and cleanup |
 | [File Entry Cleanup](./file-entry-cleanup.md) | Policy-based scan that reclaims old unreferenced automatic entries |
+| [Upload Integrity](./upload-integrity.md) | Native mobile SHA-256, verified completion, recovery, and release acceptance |
 | [Fuzzy Search for Directory Listings](./fuzzy-search.md) | Legacy listing modes, ripgrep-backed fuzzy matching, ranking, exclusions, and errors |

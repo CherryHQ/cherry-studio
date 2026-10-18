@@ -24,6 +24,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -1143,6 +1144,15 @@ export class AiStreamManager extends BaseService {
 
   // ── Public: listener management ───────────────────────────────────
 
+  getInteractionWindow(topicId: string): string | undefined {
+    const listeners = this.activeStreams.get(topicId)?.listeners.values()
+    if (!listeners) return undefined
+    for (const listener of listeners) {
+      if (listener.isAlive() && listener.windowId) return listener.windowId
+    }
+    return undefined
+  }
+
   addListener(topicId: string, listener: StreamListener): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
@@ -1525,6 +1535,7 @@ export class AiStreamManager extends BaseService {
     const result: StreamErrorResult = {
       error,
       finalMessage,
+      userMessageId: exec.userMessageId,
       status: 'error',
       modelId: exec.modelId,
       attemptId: exec.attemptId,
@@ -1583,6 +1594,7 @@ export class AiStreamManager extends BaseService {
       status: 'error',
       modelId,
       attemptId: exec?.attemptId,
+      userMessageId: exec?.userMessageId,
       ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
       anchorMessageId: exec?.anchorMessageId,
       isTopicDone
@@ -1913,6 +1925,10 @@ export class AiStreamManager extends BaseService {
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
+      userMessageId:
+        request.runtime?.kind === 'agent-session'
+          ? request.messages?.findLast((message) => message.role === 'user')?.id
+          : undefined,
       attemptId: ++this.nextExecutionAttemptSequence,
       anchorMessageId: request.messageId,
       seedFromEmpty,
@@ -2017,6 +2033,14 @@ export class AiStreamManager extends BaseService {
 
     exec.timings.completedAt = result.broadcastCompletedAt
 
+    if (result.accumulationError !== undefined) {
+      logger.error('Message accumulation failed', {
+        topicId,
+        modelId,
+        err: chatErrorContext(result.accumulationError.error)
+      })
+    }
+
     if (result.threw !== undefined) {
       const fromThrow = serializeError(result.threw.error)
       if (signal.aborted) {
@@ -2041,6 +2065,10 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+    } else if (result.accumulationError !== undefined) {
+      const error = serializeError(result.accumulationError.error)
+      error.executionFailure = toExecutionFailure(error, modelId, 'host')
+      await this.onExecutionError(topicId, modelId, error, exec)
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }
@@ -2050,6 +2078,7 @@ export class AiStreamManager extends BaseService {
   private async broadcastExecutionDone(stream: ActiveStream, exec: StreamExecution, isTopicDone = true): Promise<void> {
     const result: StreamDoneResult = {
       finalMessage: exec.finalMessage,
+      userMessageId: exec.userMessageId,
       status: 'success',
       modelId: exec.modelId,
       attemptId: exec.attemptId,
@@ -2072,6 +2101,7 @@ export class AiStreamManager extends BaseService {
     const result = {
       finalMessage: exec.finalMessage,
       status: 'paused' as const,
+      userMessageId: exec.userMessageId,
       modelId: exec.modelId,
       attemptId: exec.attemptId,
       ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),

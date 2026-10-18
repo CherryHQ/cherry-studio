@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "80a8c39c-0219-44c5-ac55-bd898f0ddb6f",
+  "id": "d7821b2f-98c4-4781-a3fb-0afaea036bdb",
   "prevId": "ba5e70d9-757c-413b-85b9-073af609895f",
   "tables": {
     "agent": {
@@ -576,14 +576,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
-        },
-        "mirror_enabled": {
-          "name": "mirror_enabled",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -3703,6 +3695,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "group_id": {
           "name": "group_id",
           "type": "text",
@@ -3811,7 +3810,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "knowledge_base_group_id_order_key_idx": {
+          "name": "knowledge_base_group_id_order_key_idx",
+          "columns": [
+            "group_id",
+            "order_key"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "knowledge_base_group_id_group_id_fk": {
           "name": "knowledge_base_group_id_group_id_fk",

@@ -369,7 +369,7 @@ describe('FeishuAdapter', () => {
     await adapter.onTextUpdate('oc_123', 'partial response')
     mockSetContent.mockRejectedValueOnce(new Error('card update failed'))
 
-    await expect(adapter.onStreamError('oc_123', 'generation failed')).resolves.toBeUndefined()
+    await expect(adapter.onStreamError('oc_123', 'generation failed')).resolves.toBe(true)
   })
 
   it('ignores late card updates after disconnecting an active stream', async () => {
