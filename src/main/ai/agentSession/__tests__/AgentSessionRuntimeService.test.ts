@@ -54,6 +54,8 @@ const mocks = vi.hoisted(() => ({
   closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
+  getModelByKey: vi.fn(),
+  getProviderById: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
   trackTokenUsage: vi.fn()
@@ -97,6 +99,16 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
+}))
+
+// The frozen model's provider/model rows decide whether an 'invalid' verdict is ownership-only:
+// deleting the model mid-turn is not a reassignment, and must stay fail-closed.
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.getModelByKey }
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { getByProviderId: mocks.getProviderById }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -518,6 +530,9 @@ describe('AgentSessionRuntimeService', () => {
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    // Both rows resolve by default, so the frozen model is routable unless a test deletes one.
+    mocks.getModelByKey.mockReturnValue({ id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' })
+    mocks.getProviderById.mockReturnValue({ id: 'claude-code', name: 'Claude Code' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -2541,6 +2556,75 @@ describe('AgentSessionRuntimeService', () => {
       'agent-1',
       { disabledTools: ['Bash'] },
       { id: 'agent-1', model: baseTurnInput.modelId }
+    )
+
+    expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+    expect(service.inspect('session-1')).toBeDefined()
+  })
+
+  it('keeps an invalid verdict fail-closed when the frozen model was deleted, not the owner reassigned', async () => {
+    // A reassignment-only verdict may be suppressed; an unroutable *model* may not. The turn started
+    // on M1; A later moved to a valid M2, the nondefault M1 row was deleted, and the session was
+    // re-pointed to same-runtime B — so reconciliation fails on the frozen model before it ever
+    // refreshes the tool-policy snapshot. Suppressing teardown there lets the turn keep running with
+    // the restrictions that were in force before Bash was disabled on A.
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('invalid')
+    }
+    entry.connection = connection
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+    // Agent A survives with a model — only the frozen M1 row is gone, so a predicate reading the
+    // agent alone would call this ownership-only.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockImplementation((id: string) =>
+      id === 'agent-1' ? { id: 'agent-1', type: 'test-runtime', model: switchedModelId } : undefined
+    )
+    mocks.getModelByKey.mockReturnValue(undefined)
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { disabledTools: ['Bash'] },
+      { id: 'agent-1', model: switchedModelId }
+    )
+
+    // Fail closed: the turn is torn down instead of retaining stale tool permissions.
+    expect(mocks.pauseRuntimeTurn).toHaveBeenCalled()
+    expect(connection.close).toHaveBeenCalled()
+  })
+
+  it('still defers an ownership-only invalid verdict for an accepted turn', async () => {
+    // The same sequence as above minus the model deletion: the frozen model still resolves, so the
+    // rejection really is ownership-only and the accepted turn keeps its connection.
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('invalid')
+    }
+    entry.connection = connection
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockImplementation((id: string) =>
+      id === 'agent-1' ? { id: 'agent-1', type: 'test-runtime', model: switchedModelId } : undefined
+    )
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { disabledTools: ['Bash'] },
+      { id: 'agent-1', model: switchedModelId }
     )
 
     expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()

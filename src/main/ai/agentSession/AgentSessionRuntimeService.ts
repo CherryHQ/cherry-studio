@@ -9,6 +9,8 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
@@ -1978,16 +1980,31 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /**
    * An 'invalid' reconcile verdict that fired only because the session row was re-pointed away
-   * from the agent a live turn froze to (top-bar switch): the frozen agent is still runnable, so
-   * the accepted turn keeps its connection until the turn boundary — where adoption picks up the
-   * session's new agent. A verdict from an actually unroutable owner (row gone, model cleared)
-   * returns false and keeps the full-invalidation handling.
+   * from the agent a live turn froze to (top-bar switch): the frozen agent and the model the turn
+   * started on are both still resolvable, so the accepted turn keeps its connection until the turn
+   * boundary — where adoption picks up the session's new agent.
+   *
+   * Everything else stays fail-closed. `invalid` also covers an unroutable *model* (provider or
+   * model row deleted mid-turn), which is not an ownership failure: publishes there would keep a
+   * connection whose tool-policy snapshot cannot be refreshed, leaving the restrictions that were
+   * in force before the deletion running for the rest of the turn.
    */
   private invalidVerdictIsReassignmentOnly(entry: AgentSessionRuntimeEntry): boolean {
-    if (!this.liveTurn(entry)) return false
+    const turn = this.liveTurn(entry)
+    if (!turn) return false
     const session = agentSessionService.getById(entry.sessionId)
     if (!session?.agentId || session.agentId === entry.agentId) return false
-    return Boolean(agentService.getAgent(entry.agentId)?.model)
+    return this.isRoutableModelId(turn.modelId ?? entry.modelId)
+  }
+
+  /** Whether a unique model id still resolves to a live provider and model row. */
+  private isRoutableModelId(uniqueModelId: UniqueModelId): boolean {
+    try {
+      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+      return Boolean(providerService.getByProviderId(providerId) && modelService.getByKey(providerId, modelId))
+    } catch {
+      return false
+    }
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
