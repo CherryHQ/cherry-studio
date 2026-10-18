@@ -10,15 +10,13 @@ A long-running objective needs more than another model prompt: it needs a persis
 
 The Pi package implements this capability through a native extension. The desktop still uses its existing `PiRuntimeConnection`, so package behavior does not establish desktop delivery. This note keeps the goal decision and its remaining host obligations together; it remains proposed until the complete integration and acceptance criteria are verified. It does not declare a lifecycle transition or approval for a new implementation.
 
-Implementation facts in this note refer to the cumulative runtime stack inspected at `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766`. Behavior supplied by later layers remains a target at this layer; the note does not claim those features are already present here. Source links use that fixed snapshot, and notes not yet introduced link to their owning PR.
-
 ## Proposal
 
 ### Ownership and scope
 
-[`createGoalExtension`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalExtension.ts) owns autonomous continuation, goal tools, and stop decisions within a native Pi session. [`goalState.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalState.ts) owns the state transitions and branch-derived accounting. Pi owns model execution, tool execution, compaction, and native session persistence. Cherry supplies model transport, approval events, defaults, an optional completion verifier, and presentation through `GoalPort` and the existing session builder.
+[`createGoalExtension`](../../../../packages/agent-runtime-pi/src/goalExtension.ts) owns autonomous continuation, goal tools, and stop decisions within a native Pi session. [`goalState.ts`](../../../../packages/agent-runtime-pi/src/goalState.ts) owns the state transitions and branch-derived accounting. Pi owns model execution, tool execution, compaction, and native session persistence. Cherry supplies model transport, approval events, defaults, an optional completion verifier, and presentation through `GoalPort` and the existing session builder.
 
-The goal extension is an optional Pi capability, not a new loop in the [common runtime contract](../architecture/2026-10-17-agent-runtime-contract.md). The [harness boundaries](../architecture/2026-10-17-agent-harness-boundaries.md) and [background subagent note](https://github.com/CherryHQ/cherry-studio/pull/21693) govern execution ownership and child-result delivery. This feature does not introduce a second transcript format, a goal-specific database, or an independent host scheduler.
+The goal extension is an optional Pi capability, not a new loop in the [common runtime contract](../architecture/2026-10-17-agent-runtime-contract.md). The [harness boundaries](../architecture/2026-10-17-agent-harness-boundaries.md) and [background subagent note](2026-10-14-agent-runtime-background-subagent.md) govern execution ownership and child-result delivery. This feature does not introduce a second transcript format, a goal-specific database, or an independent host scheduler.
 
 ### Persistent state and recovery
 
@@ -42,7 +40,7 @@ Abort, pause, and clear have different meanings. A runtime abort pauses an activ
 
 ### Usage and progress come from the native branch
 
-[`goalUsage` and `goalProgress`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalState.ts) derive their answers from native entries every time a budget, status, completion check, or snapshot needs them. `tokensUsed`, `costUsed`, and `progressRounds` in a snapshot record the values at that moment for display; they are never the source of subsequent decisions. This keeps live and reopened sessions consistent and avoids a second ledger.
+[`goalUsage` and `goalProgress`](../../../../packages/agent-runtime-pi/src/goalState.ts) derive their answers from native entries every time a budget, status, completion check, or snapshot needs them. `tokensUsed`, `costUsed`, and `progressRounds` in a snapshot record the values at that moment for display; they are never the source of subsequent decisions. This keeps live and reopened sessions consistent and avoids a second ledger.
 
 - A parent request counts when its input ended in an admitted goal round while the goal was active. State written while the response is in flight does not remove that request. The request that invokes a stopping tool counts; later requests, including the summary after completion, do not.
 - Parent token usage includes input, output, cache reads, and cache writes. Cost comes from each entry's recorded price, never from repricing history with the current model. Unpriced models provide no useful USD limit and need a token budget.
@@ -118,17 +116,17 @@ These are complete delivery outcomes. Source tests listed below are evidence loc
 
 ## Current implementation and evidence
 
-The [package README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/README.md) describes the implemented package API. The [desktop Pi README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md) explicitly identifies the existing production connection and the separate package integration. Rebuilding the native session on every host turn is not a goal requirement, and doing so while background children run would violate their ownership contract.
+The [package README](../../../../packages/agent-runtime-pi/README.md) describes the implemented package API. The [desktop Pi README](../../../../src/main/ai/runtime/pi/README.md) explicitly identifies the existing production connection and the separate package integration. Rebuilding the native session on every host turn is not a goal requirement, and doing so while background children run would violate their ownership contract.
 
 | Evidence location | Contract it exercises |
 | --- | --- |
-| [`goalState.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/tests/goalState.test.ts) | State transitions, limits, branch interpretation, progress classification, and prompt/view shapes. |
-| [`gatewayGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoal.test.ts) | Tools, command grammar, admission, queued input, and autonomy. |
-| [`gatewayGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalStops.test.ts) | Limits, stale reservations, interruption, approvals, completion, progress, and request-time accounting. |
-| [`gatewayGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalRebuild.test.ts) | Disarmed restoration, reservation identity across crashes, compaction, unsupported models, and fork isolation. |
-| [`gatewayGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSubagents.test.ts) | Background waiting, notification ordering, budget ownership, stop deduplication, continuation, and approval isolation. |
+| [`goalState.test.ts`](../../../../packages/agent-runtime-pi/tests/goalState.test.ts) | State transitions, limits, branch interpretation, progress classification, and prompt/view shapes. |
+| [`gatewayGoal.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoal.test.ts) | Tools, command grammar, admission, queued input, and autonomy. |
+| [`gatewayGoalStops.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalStops.test.ts) | Limits, stale reservations, interruption, approvals, completion, progress, and request-time accounting. |
+| [`gatewayGoalRebuild.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalRebuild.test.ts) | Disarmed restoration, reservation identity across crashes, compaction, unsupported models, and fork isolation. |
+| [`gatewayGoalSubagents.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalSubagents.test.ts) | Background waiting, notification ordering, budget ownership, stop deduplication, continuation, and approval isolation. |
 
-The [goal test helper](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSupport.ts) drives native Pi through real AI SDK streaming with scripted models and compares restored goal views with live checkpoints. These tests do not establish live-provider behavior, desktop wiring, UI acceptance, or a shipped permission policy. No test result or approval is inferred from the presence of these files.
+The [goal test helper](../../../../src/main/ai/runtime/pi/gatewayGoalSupport.ts) drives native Pi through real AI SDK streaming with scripted models and compares restored goal views with live checkpoints. These tests do not establish live-provider behavior, desktop wiring, UI acceptance, or a shipped permission policy. No test result or approval is inferred from the presence of these files.
 
 ## Risks
 

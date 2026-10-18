@@ -10,15 +10,13 @@ Status: proposed
 
 Pi 包通过原生扩展实现了这项能力。桌面仍使用现有的 `PiRuntimeConnection`，因此包内行为不能证明桌面已交付。本记录同时保留目标功能的决策及尚待完成的宿主职责；完整接入和验收条件得到验证前，状态保持 proposed。本文不宣告生命周期迁移，也不授予新实现的批准。
 
-本文的实现事实以累计 Runtime 栈 `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766` 的检查结果为依据。由上层提供的行为在本层仍属于目标，不表示这些功能已存在于本层。源码链接指向该固定快照，尚未引入的文档链接到其所属 PR。
-
 ## Proposal
 
 ### 所有权与范围
 
-[`createGoalExtension`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalExtension.ts) 负责原生 Pi 会话内的自主续跑、目标工具和停止决策。[`goalState.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalState.ts) 负责状态迁移及从分支推导的统计。Pi 负责模型执行、工具执行、压缩和原生会话持久化。Cherry 通过 `GoalPort` 和现有会话构建器提供模型传输、审批事件、默认值、可选的完成核验器及界面呈现。
+[`createGoalExtension`](../../../../packages/agent-runtime-pi/src/goalExtension.ts) 负责原生 Pi 会话内的自主续跑、目标工具和停止决策。[`goalState.ts`](../../../../packages/agent-runtime-pi/src/goalState.ts) 负责状态迁移及从分支推导的统计。Pi 负责模型执行、工具执行、压缩和原生会话持久化。Cherry 通过 `GoalPort` 和现有会话构建器提供模型传输、审批事件、默认值、可选的完成核验器及界面呈现。
 
-目标扩展是 Pi 的可选能力，不是[公共运行时契约](../architecture/2026-10-17-agent-runtime-contract.md) 中的一套新循环。[Harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)与[后台子智能体记录](https://github.com/CherryHQ/cherry-studio/pull/21693)分别约束执行所有权和子任务结果交付。本功能不引入第二套 transcript 格式、目标专用数据库或独立的宿主调度器。
+目标扩展是 Pi 的可选能力，不是[公共运行时契约](../architecture/2026-10-17-agent-runtime-contract.md) 中的一套新循环。[Harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)与[后台子智能体记录](2026-10-14-agent-runtime-background-subagent.md)分别约束执行所有权和子任务结果交付。本功能不引入第二套 transcript 格式、目标专用数据库或独立的宿主调度器。
 
 ### 持久状态与恢复
 
@@ -42,7 +40,7 @@ Pi 包通过原生扩展实现了这项能力。桌面仍使用现有的 `PiRunt
 
 ### 从原生分支推导用量和进展
 
-每当预算、状态、完成检查或快照需要统计时，[`goalUsage` 和 `goalProgress`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalState.ts) 都从原生条目推导结果。快照中的 `tokensUsed`、`costUsed` 和 `progressRounds` 仅记录写入时的值供展示，绝不作为后续决策的数据源。这使实时会话和重新打开的会话保持一致，也避免了第二套账本。
+每当预算、状态、完成检查或快照需要统计时，[`goalUsage` 和 `goalProgress`](../../../../packages/agent-runtime-pi/src/goalState.ts) 都从原生条目推导结果。快照中的 `tokensUsed`、`costUsed` 和 `progressRounds` 仅记录写入时的值供展示，绝不作为后续决策的数据源。这使实时会话和重新打开的会话保持一致，也避免了第二套账本。
 
 - 父请求的输入结束位置处于已接纳的目标轮次，且当时目标为 active 时，该请求计入目标。响应在途期间写入的状态不会把这次请求排除。调用停止工具的请求计入；之后的请求，包括完成后的总结，不再计入。
 - 父请求的 token 用量包含输入、输出、缓存读取和缓存写入。金额采用各条目记录的价格，绝不用当前模型价格重新计算历史。没有定价的模型无法依赖 USD 限额，需要 token 预算。
@@ -118,17 +116,17 @@ Pi 包通过原生扩展实现了这项能力。桌面仍使用现有的 `PiRunt
 
 ## Current implementation and evidence
 
-[包内 README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/README.md) 描述已实现的包 API。[桌面 Pi README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md) 明确区分现有生产连接和独立的包接入。目标不要求每个宿主回合重建原生会话，后台子智能体运行时这样做还会违反其所有权契约。
+[包内 README](../../../../packages/agent-runtime-pi/README.md) 描述已实现的包 API。[桌面 Pi README](../../../../src/main/ai/runtime/pi/README.md) 明确区分现有生产连接和独立的包接入。目标不要求每个宿主回合重建原生会话，后台子智能体运行时这样做还会违反其所有权契约。
 
 | 证据位置 | 覆盖的契约 |
 | --- | --- |
-| [`goalState.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/tests/goalState.test.ts) | 状态迁移、限额、分支解释、进展分类和提示及视图结构。 |
-| [`gatewayGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoal.test.ts) | 工具、命令语法、接纳、排队输入和自主模式。 |
-| [`gatewayGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalStops.test.ts) | 限额、陈旧预约、中止、审批、完成、进展及按请求时点统计。 |
-| [`gatewayGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalRebuild.test.ts) | 解除武装恢复、跨崩溃的预约身份、压缩、不支持的模型及 fork 隔离。 |
-| [`gatewayGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSubagents.test.ts) | 后台等待、通知顺序、预算所有权、停止去重、续跑和审批隔离。 |
+| [`goalState.test.ts`](../../../../packages/agent-runtime-pi/tests/goalState.test.ts) | 状态迁移、限额、分支解释、进展分类和提示及视图结构。 |
+| [`gatewayGoal.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoal.test.ts) | 工具、命令语法、接纳、排队输入和自主模式。 |
+| [`gatewayGoalStops.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalStops.test.ts) | 限额、陈旧预约、中止、审批、完成、进展及按请求时点统计。 |
+| [`gatewayGoalRebuild.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalRebuild.test.ts) | 解除武装恢复、跨崩溃的预约身份、压缩、不支持的模型及 fork 隔离。 |
+| [`gatewayGoalSubagents.test.ts`](../../../../src/main/ai/runtime/pi/gatewayGoalSubagents.test.ts) | 后台等待、通知顺序、预算所有权、停止去重、续跑和审批隔离。 |
 
-[目标测试辅助代码](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSupport.ts) 以脚本模型通过真实 AI SDK 流式调用驱动原生 Pi，并将恢复后的目标视图与实时检查点比较。这些测试不证明真实提供商行为、桌面接线、UI 验收或已交付的权限策略。不能仅因文件存在就推断测试结果或批准。
+[目标测试辅助代码](../../../../src/main/ai/runtime/pi/gatewayGoalSupport.ts) 以脚本模型通过真实 AI SDK 流式调用驱动原生 Pi，并将恢复后的目标视图与实时检查点比较。这些测试不证明真实提供商行为、桌面接线、UI 验收或已交付的权限策略。不能仅因文件存在就推断测试结果或批准。
 
 ## Risks
 

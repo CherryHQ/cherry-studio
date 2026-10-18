@@ -149,7 +149,7 @@ changes the session's list). `ASK_USER_TOOL_NAME` and `TODO_TOOL_NAME` hold the 
 fork?, background?, model? })` with DSH's name, so Cherry's renderer shows it as a Task card,
 `message_subagent({ id, message })` and `stop_subagent({ id })` (`SUBAGENT_TOOL_NAME`,
 `MESSAGE_SUBAGENT_TOOL_NAME`, `STOP_SUBAGENT_TOOL_NAME`). Design:
-`docs/superpowers/specs/2026-10-14-agent-runtime-background-subagent-design.md`.
+[background subagent note](../../.agents/notes/proposed/feature/2026-10-14-agent-runtime-background-subagent.md).
 
 Each call builds a session in-process from the parent's options (model runtime, model, prompts,
 tools, compaction, offload, recall, settings) plus the extensions, native event listener and
@@ -281,7 +281,7 @@ makes is approved on its own.
 ## Goals
 
 `createGoalExtension(port)` adds a persisted objective the runtime keeps pushing while the model is
-idle. Design: `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`.
+idle. Design: [goal note](../../.agents/notes/proposed/feature/2026-10-11-agent-runtime-goal.md).
 
 - **State** – native `cherry.goal` entries hold one snapshot per change and a tombstone on clear;
   each round is a `cherry.goal-round` custom message the host maps to the "round N" header. A
