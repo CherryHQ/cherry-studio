@@ -4828,6 +4828,8 @@
   "settings.messages.show_message_outline": "メッセージの概要を表示します",
   "settings.messages.title": "メッセージ設定",
   "settings.messages.use_serif_font": "セリフフォントを使用",
+  "settings.messages.user_content.default_expanded.hint": "長いユーザーメッセージを既定で全文表示します。手動で展開・折りたたみしたメッセージは、このセッション中その状態を保持します。",
+  "settings.messages.user_content.default_expanded.label": "長いユーザーメッセージを既定で展開",
   "settings.messages.wide_mode": "ワイドレイアウトモード",
   "settings.miniApps.cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
   "settings.miniApps.cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
