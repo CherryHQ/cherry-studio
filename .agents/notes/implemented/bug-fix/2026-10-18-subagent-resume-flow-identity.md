@@ -36,7 +36,7 @@ The launch tool-use id is the single identity of a sub-agent run, and it survive
 ## Verification
 
 - Regression — `pnpm test:main src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`: 220 passed, including overflow suppression past recovery, marker-eviction anchor invalidation, interleaved roots sharing one host message, a still-open part surviving a sibling's overflow of completed parts, the bounded look-up stamps, and a flow root staying anchored to the row its round streams into.
-- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`: 85 passed, including the prose launch receipt and a foreground answer's trailing trailer registering the launch.
+- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`: 86 passed, including the prose launch receipt, a foreground answer's trailing trailer registering the launch, and another tool's receipt-shaped output not re-tagging the agent.
 - Regression — `pnpm test:shared src/shared/ai/__tests__/launchReceipt.test.ts`: 6 passed (receipt forms, spoof rejections, and the trailer a foreground answer carries).
 - Regression — `pnpm test:renderer` pane and chat-renderer suites: 198 and 239 passed, including liveness reconciliation, capsule navigability, and pre-root receipt rounds; `typecheck:node` / `typecheck:web` clean.
 - Regression — every new test was verified to fail before its fix.

@@ -36,7 +36,7 @@ launch tool-use id 是子 agent 运行的唯一身份,并在每个边界上存�
 ## Verification
 
 - Regression — `pnpm test:main src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`:220 通过,含恢复后的溢出抑制、marker 逐出时 anchor 失效、共享同一宿主行的交错 root、兄弟流溢出已完结部件后仍被抑制的未闭合部件、有界查找戳记,以及 flow root 在轮次流进的行上保持锚定。
-- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`:85 通过,含散文启动收据与前台回答尾部 trailer 的启动注册。
+- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`:86 通过,含散文启动收据、前台回答尾部 trailer 的启动注册,以及其他工具形似收据的输出不会重标该 agent。
 - Regression — `pnpm test:shared src/shared/ai/__tests__/launchReceipt.test.ts`:6 通过(各种收据形态、伪造拒绝,以及前台回答携带的 trailer)。
 - Regression — `pnpm test:renderer` 面板与聊天渲染套件:198 与 239 通过,含存活度协调、胶囊可导航性与前置收据轮次;`typecheck:node` / `typecheck:web` 干净。
 - Regression — 每个新回归测试都验证过"修复前失败、修复后通过"。
