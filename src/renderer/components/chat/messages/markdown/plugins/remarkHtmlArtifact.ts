@@ -114,15 +114,94 @@ const RAW_TEXT_ELEMENT_NAMES = [
 // close, moving the cursor backward, and looping forever on consecutive raw-text elements
 // whose second close has not arrived yet.
 const RAW_TEXT_CLOSE_REGEXES = new Map(RAW_TEXT_ELEMENT_NAMES.map((name) => [name, new RegExp(`</${name}\\s*>`, 'gi')]))
+// Same-node raw-text bodies the token regex may consume lazily up to their end tag. `script` is
+// excluded: its escaped/double-escaped tokenizer states decide where the element really ends
+// (see scanScriptDataEnd), and a lazy first-`</script>` match would expose a following literal
+// `</details>` as a boundary. `plaintext` is excluded: it has NO end tag at all — a lazy match
+// through `</plaintext>` would treat everything after it as scan-able when its body in fact
+// runs to end-of-input. Both still enter the raw-text state through their generic open tag.
+const SAME_NODE_RAW_TEXT_ELEMENT_NAMES = RAW_TEXT_ELEMENT_NAMES.filter(
+  (name) => name !== 'script' && name !== 'plaintext'
+)
 // Lexical scan for `<details` / `</details` boundaries: comments, raw-text element bodies and
 // ordinary tags are consumed whole, so a literal `</details>` inside them — a comment, a quoted
 // attribute — can never close a disclosure. Disclosure tags consume their full attribute list
 // (`title="</details>"` is legal HTML whose decoy must not reach the depth counter); a generic
 // tag does the same so a quoted `>` never ends the tag early.
 const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
-  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
+  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
   'gi'
 )
+
+// Script data tokenizer regions (HTML spec): `<!--` opens the escaped region and a `<script`
+// inside it re-enters double-escaping — there a literal `</script>` only steps back to escaped
+// instead of ending the element, so in `<script>const t="<!--<script></script> literal
+// </details>";</script>` the string's `</details>` is script source and the element really ends
+// at the LAST `</script>`. The flags ride on the shared scan state because a script body split
+// across blank-line-separated html nodes resumes inside its tokenizer region.
+const SCRIPT_OPEN_TAG_REGEX = /^<script(?=[\t\n\f />])/i
+const SCRIPT_END_TAG_OPEN_REGEX = /^<\/script(?=[\t\n\f />])/i
+const SCRIPT_END_TAG_REGEX = /^<\/script\s*>/i
+
+/**
+ * Finds where a script element's data truly ends: the offset just past the element-ending
+ * `</script …>` tag, or `undefined` while the body (or an unterminated end tag) continues in
+ * later nodes. Mutates the script flags on `state` so the region survives across nodes.
+ */
+function scanScriptDataEnd(value: string, from: number, state: ContainerScanState): number | undefined {
+  let escaped = state.scriptEscaped ?? false
+  let doubleEscaped = state.scriptDoubleEscaped ?? false
+  let position = from
+  while (position < value.length) {
+    const lt = value.indexOf('<', position)
+    // `-->` leaves the escaped/double-escaped region for plain script data (before any earlier
+    // `<` would).
+    if (escaped || doubleEscaped) {
+      const dash = value.indexOf('-->', position)
+      if (dash !== -1 && (lt === -1 || dash < lt)) {
+        escaped = false
+        doubleEscaped = false
+        position = dash + 3
+        continue
+      }
+    }
+    if (lt === -1) break
+    if (value.startsWith('<!--', lt)) {
+      // In plain script data this enters the escaped region; inside it (escaped or
+      // double-escaped) the sequence is ordinary script text with no state change.
+      if (!escaped) {
+        escaped = true
+        doubleEscaped = false
+      }
+      position = lt + 4
+      continue
+    }
+    if (SCRIPT_END_TAG_OPEN_REGEX.test(value.slice(lt, lt + 10))) {
+      const complete = SCRIPT_END_TAG_REGEX.exec(value.slice(lt))
+      if (!complete) break // the end tag itself continues in a later node
+      if (!doubleEscaped) {
+        state.scriptEscaped = undefined
+        state.scriptDoubleEscaped = undefined
+        return lt + complete[0].length
+      }
+      // A double-escaped `</script>` only steps back to escaped script data.
+      position = lt + complete[0].length
+      doubleEscaped = false
+      continue
+    }
+    if (SCRIPT_OPEN_TAG_REGEX.test(value.slice(lt, lt + 8))) {
+      // `<script` inside the escaped region re-enters double-escaping; plain script data
+      // treats it as ordinary text.
+      if (escaped) doubleEscaped = true
+      position = lt + 7
+      continue
+    }
+    position = lt + 1
+  }
+  state.scriptEscaped = escaped
+  state.scriptDoubleEscaped = doubleEscaped
+  return undefined
+}
 
 /**
  * Lexical position carried across the html nodes of one pairing search: the open `<details>`
@@ -139,6 +218,9 @@ interface ContainerScanState {
   pendingQuote?: string
   inCDATA?: boolean
   pendingRawText?: string
+  /** Script data tokenizer region flags, carried while `rawText === 'script'`. */
+  scriptEscaped?: boolean
+  scriptDoubleEscaped?: boolean
 }
 
 interface ContainerScanResult {
@@ -210,6 +292,13 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
     // candidate is body text.
     if (state.rawText !== undefined) {
       if (state.rawText === 'plaintext') return { closed: false }
+      if (state.rawText === 'script') {
+        const end = scanScriptDataEnd(value, position, state)
+        if (end === undefined) return { closed: false }
+        position = end
+        state.rawText = undefined
+        continue
+      }
       const closeRegex = RAW_TEXT_CLOSE_REGEXES.get(state.rawText)
       if (!closeRegex) {
         state.rawText = undefined
@@ -331,9 +420,34 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
 function findUnmatchedDetailsClose(value: string): { start: number; end: number } | undefined {
   let depth = 0
   let scanned = 0
+  let rawText: string | undefined
   CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = 0
   let match: RegExpExecArray | null
-  while ((match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)) !== null) {
+  while (true) {
+    // A raw-text body opened earlier in this node keeps swallowing content until its end tag;
+    // `<plaintext>` never ends (body to end-of-input) and a script body ends where its
+    // tokenizer states say — nothing inside either can be a trusted boundary.
+    if (rawText !== undefined) {
+      if (rawText === 'plaintext') return undefined
+      let closeEnd: number | undefined
+      if (rawText === 'script') {
+        closeEnd = scanScriptDataEnd(value, scanned, { count: 0 })
+      } else {
+        const closeRegex = RAW_TEXT_CLOSE_REGEXES.get(rawText)
+        if (closeRegex) {
+          closeRegex.lastIndex = scanned
+          const close = closeRegex.exec(value)
+          if (close) closeEnd = close.index + close[0].length
+        }
+      }
+      if (closeEnd === undefined) return undefined
+      scanned = closeEnd
+      rawText = undefined
+      CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = scanned
+      continue
+    }
+    match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
+    if (match === null) return undefined
     const commentStart = value.indexOf('<!--', scanned)
     if (commentStart !== -1 && commentStart < match.index) {
       return undefined // an unfinished comment opens before the boundary and never terminates
@@ -341,7 +455,11 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
     scanned = match.index + match[0].length
     if (match[1] !== undefined) continue // a same-node raw-text body holds no real boundary
     const token = match[0].toLowerCase()
-    if (!token.startsWith('<details') && !token.startsWith('</details')) continue
+    if (!token.startsWith('<details') && !token.startsWith('</details')) {
+      const name = /^<([a-z][a-z0-9-]*)/.exec(token)?.[1]
+      if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name)) rawText = name
+      continue
+    }
     if (token[1] === '/') {
       if (depth === 0) return { start: match.index, end: match.index + match[0].length }
       depth -= 1
@@ -349,7 +467,6 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
       depth += 1
     }
   }
-  return undefined
 }
 
 interface PairedContainerClose {
@@ -360,6 +477,8 @@ interface PairedContainerClose {
   closeEnd: number
   /** Open boundaries still awaiting a close once the opening node ends. */
   retainedOpens: number
+  /** Lexical state at the opening node's end — the paired body continues this stream. */
+  bodyEntryState: ContainerScanState
 }
 
 function findPairedContainerClose(
@@ -378,6 +497,10 @@ function findPairedContainerClose(
   // Adjacent opening lines without a blank line merge into ONE html node: every open still
   // awaiting a close after this node must receive its close from inside the paired body.
   const retainedOpens = state.count
+  // The body's first node continues the stream EXACTLY as the opening node left it — a
+  // raw-text body (or dangling comment/tag/CDATA) opened beside the retained openings holds
+  // the body's own literals, so the body scan must resume inside it, not start fresh.
+  const bodyEntryState: ContainerScanState = { ...state }
   for (let index = startIndex + 1; index < end; index += 1) {
     const child = children[index]
     if (child?.type !== 'html') continue
@@ -388,7 +511,8 @@ function findPairedContainerClose(
         closeNode: child,
         closeStart: scan.closeStart ?? 0,
         closeEnd: scan.closeEnd ?? child.value.length,
-        retainedOpens
+        retainedOpens,
+        bodyEntryState
       }
     }
   }
@@ -518,12 +642,22 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
   const children: RootContent[] = []
 
   // `retainedOpens` counts disclosures opened by a shared opening node outside this range —
-  // the range must keep their closes raw instead of letting them become code.
-  const processRange = (items: RootContent[], from: number, to: number, retainedOpens: number): void => {
+  // the range must keep their closes raw instead of letting them become code. `entryState`
+  // carries the enclosing opening node's lexical state (raw-text body, dangling comment or
+  // tag, script tokenizer region) into the retained-close scan: the body's first html node
+  // continues that stream, so its literals must not resolve as boundaries.
+  const processRange = (
+    items: RootContent[],
+    from: number,
+    to: number,
+    retainedOpens: number,
+    entryState?: ContainerScanState
+  ): void => {
     let pendingCloses = retainedOpens
-    // Lexical state for resolving retained closes across the body's html nodes (depth 1 means
-    // "the next unmatched close is the retained one"; re-armed after each resolution).
-    const pendingScanState: ContainerScanState = { count: 1 }
+    // Lexical state for resolving retained closes across the body's html nodes: depth 1 means
+    // "the next unmatched close is the retained one" — it re-arms only AFTER a resolution, so
+    // the depth the body's own nested openings accumulate survives between resolutions.
+    const pendingScanState: ContainerScanState = entryState ? { ...entryState, count: 1 } : { count: 1 }
     for (let index = from; index < to; index += 1) {
       const documentEndIndex = findHtmlDocumentEnd(items, index, to)
       if (documentEndIndex !== undefined) {
@@ -571,7 +705,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // The paired close closes the outermost opening of the opening node; every opening
         // retained next to it has no matching open inside the body, so its close arrives as an
         // unpaired body node and must stay raw (see the fallback below).
-        processRange(body, 0, body.length, Math.max(paired.retainedOpens - 1, 0))
+        processRange(body, 0, body.length, Math.max(paired.retainedOpens - 1, 0), paired.bodyEntryState)
         children.push(sliceHtmlNode(closeNode, paired.closeStart, paired.closeEnd))
         if (paired.closeEnd < closeNode.value.length) {
           // The NEXT disclosure's opening after the boundary (`</details>` and `<details>`
@@ -593,9 +727,9 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
       if (child.type === 'html' && pendingCloses > 0) {
         // Resolve the retained close with the SAME cross-node lexical state the body built up
         // (a textarea opened in an earlier body node holds its literal `</details>` until the
-        // real end tag). The scan seeds depth 1 — a close with no open before it is exactly
-        // the retained boundary — and re-arms after every resolution for the next one.
-        pendingScanState.count = 1
+        // real end tag). The scan keeps the depth accumulated across earlier body nodes — a
+        // nested opening raises it, so only the close that brings it back to 1→0 is the
+        // retained boundary; the seed re-arms after each resolution for the next one.
         const scan = scanContainerBoundaries(child.value, pendingScanState)
         const close =
           scan.closed && scan.closeStart !== undefined && scan.closeEnd !== undefined
@@ -610,6 +744,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
           }
           children.push(sliceHtmlNode(child, close.start, close.end))
           pendingCloses -= 1
+          pendingScanState.count = 1
           if (close.end < child.value.length) {
             // Adjacent content (`</details>` and a new `<details>` merge into one html block)
             // re-enters pairing as a fresh open. Leading whitespace on the remainder is

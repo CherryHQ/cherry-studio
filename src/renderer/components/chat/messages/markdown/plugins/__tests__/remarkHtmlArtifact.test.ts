@@ -764,6 +764,185 @@ inner two
     expect(body).toBeDefined()
   })
 
+  // The paired body re-enters processing with the OPENING node's lexical state: a textarea
+  // opened beside the shared openings holds the following `</details>` as literal text, so
+  // the retained-close resolution must not fire on it and the REAL inner close stays raw —
+  // otherwise the inner close collapses into code and the following prose hides inside the
+  // outer disclosure.
+  it('carries the opening node lexical state into the paired body scan', () => {
+    const source = `<details><summary>Outer</summary><details><summary>Inner</summary><textarea>
+
+</details>
+
+</textarea>
+
+Inner body
+
+</details>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // Shape: [shared open raw, literal close CODE (textarea body), `</textarea>` CODE,
+    // `Inner body` paragraph, the real inner close raw, the outer close raw, `After` outside].
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'html',
+      'code',
+      'code',
+      'paragraph',
+      'html',
+      'html',
+      'paragraph'
+    ])
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues.filter((value) => value.startsWith('</details')).length).toBe(2)
+    expect(tree.children.at(-1)).toMatchObject({
+      type: 'paragraph',
+      children: [{ value: 'After' }]
+    })
+  })
+
+  // The retained-close resolution must keep the depth accumulated across the body's own
+  // nested openings: a `<details>` opened inside a `<div>` in the body raises the depth, so
+  // its close is NOT the retained boundary — re-arming the seed before every node would
+  // forget the opening and emit Third's close as Inner's, exposing `Inner body` outside the
+  // collapsed disclosure.
+  it('preserves accumulated nesting depth across HTML body nodes', () => {
+    const source = `<details open><summary>Outer</summary><details><summary>Inner</summary>
+
+<div><details><summary>Third</summary>
+
+Third body
+
+</details></div>
+
+Inner body
+
+</details>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // Shape: [shared open raw, Third's opening CODE, `Third body` paragraph, Third's close
+    // CODE, `Inner body` paragraph, the real inner close raw, the outer close raw, `After`].
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'html',
+      'code',
+      'paragraph',
+      'code',
+      'paragraph',
+      'html',
+      'html',
+      'paragraph'
+    ])
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues.filter((value) => value.startsWith('</details')).length).toBe(2)
+    expect(tree.children.at(-1)).toMatchObject({
+      type: 'paragraph',
+      children: [{ value: 'After' }]
+    })
+  })
+
+  // Script data has its own tokenizer states: after `<!--` a literal `<script>` re-enters
+  // double-escaping, where a `</script>` only steps back to escaped — the element really ends
+  // at the LAST `</script>`, and the `</details>` between them is script source, never a
+  // boundary.
+  it('never pairs on the literal close inside script escaped regions', () => {
+    const source = `<details>
+<summary>Spec</summary>
+
+<script>const template="<!--<script></script> literal </details>";</script>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: '<script>const template="<!--<script></script> literal </details>";</script>'
+    })
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+  })
+
+  // The same state machine keeps a complete document inside a disclosure ONE exact-source
+  // artifact: the literal close inside the script string must not split the document or pair
+  // the disclosure early.
+  it('keeps the exact document artifact when a script string hides a literal close', () => {
+    const document = `<!doctype html>
+<html>
+<body>
+<script>const template="<!--<script></script> literal </details>";</script>
+<style>p { color: red; }</style>
+</body>
+</html>`
+    const source = `<details>
+<summary>Doc</summary>
+
+${document}
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'code', lang: 'html', value: document })
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues).toEqual(['<details>\n<summary>Doc</summary>', '</details>'])
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
+  })
+
+  // `<plaintext>` has NO end tag, so `</plaintext>` is literal text and everything after it
+  // runs to end-of-input: the same-node pairing shortcut must not consume the apparent close
+  // and pair the disclosure on the following literal — the opening keeps its unpaired
+  // fragment path and `Body` stays visible.
+  it('never pairs on a same-node plaintext literal close', () => {
+    const source = `<details><summary>Answer</summary>
+
+Body
+
+<div><plaintext>literal </plaintext> </details>
+
+After`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['code', 'paragraph', 'code', 'paragraph'])
+    expect(tree.children.some((child) => child.type === 'html')).toBe(false)
+    expect((tree.children[0] as { value: string }).value).toContain('<details>')
+  })
+
+  // The script tokenizer region also carries across blank-line-split html nodes: a body ending
+  // inside `<!--<script>` leaves the NEXT node double-escaped, where its literal `</script>`
+  // only steps back to escaped — the element never truly ends, so the trailing `</details>` is
+  // script source and must not pair the disclosure.
+  it('carries script escaped regions across nodes until the true end tag', () => {
+    const source = `<details>
+<summary>Doc</summary>
+
+<html><body><script>const a="<!--<script>
+
+<div>literal </details>";</script></body></html>
+
+</details>`
+    const tree = parse(source)
+
+    // The double-escaped region swallows the `</script>` stepback AND the literal close: the
+    // disclosure never pairs, and the document tail still assembles ONE exact-source artifact.
+    expect(tree.children.map((child) => child.type)).toEqual(['code', 'code', 'code'])
+    const document = (tree.children[1] as { value: string }).value
+    expect(document).toContain('<script>const a="<!--<script>')
+    expect(document).toContain('literal </details>";')
+    expect(document).toContain('</html>')
+    expect(tree.children.some((child) => child.type === 'html')).toBe(false)
+  })
+
   describe('classifyHtmlArtifactSource', () => {
     it.each([
       ['<div>Fragment</div>', 'fragment'],
