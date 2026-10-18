@@ -6,6 +6,7 @@ import { agentBackgroundTaskService } from '@data/services/AgentBackgroundTaskSe
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { sanitizeChannelOutput } from '@main/ai/channels'
+import { isSameOrInside } from '@main/utils/file'
 
 import {
   getDetachedBackgroundTask,
@@ -67,13 +68,9 @@ export async function purgeAgentBackgroundTasks<T>(agentId: string, runDeletion:
 
 /**
  * Every detached task this app can still reach that has not reached a terminal state, across all
- * agents. Restore replaces the whole `Data/Agents` tree wholesale, so a task listed here is one
- * whose record and index row promotion would delete while its process keeps running: nothing
- * could list, stop, or purge it afterwards. Read-only — unlike {@link stopAllAgentBackgroundTasks},
- * it does not stop anything, because a restore that is going to delete the task's own storage is
- * not made safe by stopping the task into it first.
+ * agents. Read-only — unlike {@link stopAllAgentBackgroundTasks}, it does not stop anything.
  */
-export async function listLiveDetachedBackgroundTasks(): Promise<Array<{ agentId: string; id: string; pid: number }>> {
+async function listLiveTaskRecords(): Promise<Array<{ agentId: string; record: BackgroundTaskRecord }>> {
   // Only a confirmed absence counts as empty. Restore treats the result as "no live detached task",
   // so an inventory read that fails for any reason must reach its caller as a failure instead of
   // being flattened into the same empty list a genuinely task-free install produces.
@@ -100,11 +97,30 @@ export async function listLiveDetachedBackgroundTasks(): Promise<Array<{ agentId
           .filter(
             (record) => record.status === 'running' || (record.status === 'unknown' && hasLiveGroupEvidence(record))
           )
-          .map((record) => ({ agentId, id: record.id, pid: record.pid }))
+          .map((record) => ({ agentId, record }))
       )
     })
   )
   return perAgent.flat()
+}
+
+/**
+ * Every live detached task, across all agents. Restore replaces the whole `Data/Agents` tree
+ * wholesale, so a task listed here is one whose record and index row promotion would delete while
+ * its process keeps running: nothing could list, stop, or purge it afterwards.
+ */
+export async function listLiveDetachedBackgroundTasks(): Promise<Array<{ agentId: string; id: string; pid: number }>> {
+  return (await listLiveTaskRecords()).map(({ agentId, record }) => ({ agentId, id: record.id, pid: record.pid }))
+}
+
+/**
+ * Whether a live detached task still works inside `workspacePath`. Such a task outlives its
+ * session, so archiving that session may not rename or remove the directory it runs in.
+ */
+export async function workspaceHasLiveDetachedTasks(workspacePath: string): Promise<boolean> {
+  return (await listLiveTaskRecords()).some(
+    ({ record }) => typeof record.cwd === 'string' && isSameOrInside(record.cwd, workspacePath)
+  )
 }
 
 export async function listAgentBackgroundTasks(agentId: string): Promise<BackgroundTaskRecord[]> {

@@ -266,101 +266,110 @@ const writeEvidence = (payload) => {
 }
 writeEvidence({ shellPid: task.pid || 0, ...stamps })
 task.on('error', () => process.exit(1))
-task.on('exit', (code, signal) => {
-  const status = signal ? 1 : (code == null ? 1 : code)
-  let emptyReadings = 0
-  let timer = null
-  // Members an earlier poll verified as the task's work, each under the creation stamp it was
-  // seen with. A worker's death orphans the children it forked — their parent pid no longer
-  // reaches any live row — so this memory is what keeps such a descendant counted after the
-  // parent that would have vouched for it is gone.
-  const known = new Map()
-  const settle = () => {
-    if (timer) clearInterval(timer)
-    process.exit(status)
+// The ancestry probe runs from spawn, not from the shell's exit: an intermediate process can
+// fork a worker and exit before any post-exit poll, leaving the worker parented to a pid no
+// live row names. Only the settle rule waits for the shell.
+let exitStatus = 0
+let shellExited = false
+let emptyReadings = 0
+let timer = null
+// Members an earlier poll verified as the task's work, each under the creation stamp it was
+// seen with. A worker's death orphans the children it forked — their parent pid no longer
+// reaches any live row — so this memory is what keeps such a descendant counted after the
+// parent that would have vouched for it is gone.
+const known = new Map()
+const settle = () => {
+  if (timer) clearInterval(timer)
+  process.exit(exitStatus)
+}
+const probe = () => {
+  let table
+  try {
+    table = execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
+      ],
+      { encoding: 'utf8', timeout: 5000, windowsHide: true }
+    )
+  } catch (error) {
+    // A probe that cannot run at all will never read evidence, so it cannot hold the anchor
+    // open once the shell is gone; a read that failed or timed out proves nothing and keeps
+    // waiting. While the shell still runs, the anchor is its own.
+    if (error.code === 'ENOENT' && shellExited) settle()
+    return
   }
-  const probe = () => {
-    let table
-    try {
-      table = execFileSync(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
-        ],
-        { encoding: 'utf8', timeout: 5000, windowsHide: true }
-      )
-    } catch (error) {
-      // A probe that cannot run at all will never read evidence, so it cannot hold the anchor
-      // open; a read that failed or timed out proves nothing and keeps waiting.
-      if (error.code === 'ENOENT') settle()
-      return
+  const shellPid = Number(task.pid) || 0
+  const rows = []
+  for (const row of String(table).split('\\n')) {
+    const fields = row.replace(/"/g, '').trim().split(',')
+    const pid = Number(fields[0])
+    if (fields.length !== 3 || !pid || !fields[2]) continue
+    rows.push({ pid, ppid: Number(fields[1]), created: fields[2] })
+  }
+  const byPid = new Map(rows.map((row) => [row.pid, row]))
+  const keep = new Set()
+  for (const row of rows) {
+    // This runner itself, and every row it parents except the shell, is the task's own
+    // supervision — this very probe — not the task's work.
+    if (row.pid === process.pid) continue
+    if (row.ppid === process.pid && row.pid !== shellPid) continue
+    // A member still reading the stamp it was verified under is still the work; the same pid
+    // reading a different stamp is a reuse, refused like any stranger.
+    if (known.get(row.pid) === row.created) {
+      keep.add(row.pid)
+      continue
     }
-    const shellPid = Number(task.pid) || 0
-    const rows = []
-    for (const row of String(table).split('\\n')) {
-      const fields = row.replace(/"/g, '').trim().split(',')
-      const pid = Number(fields[0])
-      if (fields.length !== 3 || !pid || !fields[2]) continue
-      rows.push({ pid, ppid: Number(fields[1]), created: fields[2] })
+    // A row the shell left behind, or one whose parent an earlier poll verified, is work from
+    // across a dead link — unless a live replacement took that pid after the row appeared,
+    // in which case the row is the replacement's, not this task's.
+    if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
+      const parent = byPid.get(row.ppid)
+      if (!parent || row.created < parent.created) keep.add(row.pid)
     }
-    const byPid = new Map(rows.map((row) => [row.pid, row]))
-    const keep = new Set()
+  }
+  let grew = true
+  while (grew) {
+    grew = false
     for (const row of rows) {
-      // This runner itself, and every row it parents except the shell, is the task's own
-      // supervision — this very probe — not the task's work.
-      if (row.pid === process.pid) continue
+      if (keep.has(row.pid) || row.pid === process.pid) continue
       if (row.ppid === process.pid && row.pid !== shellPid) continue
-      // A member still reading the stamp it was verified under is still the work; the same pid
-      // reading a different stamp is a reuse, refused like any stranger.
-      if (known.get(row.pid) === row.created) {
+      if (keep.has(row.ppid)) {
         keep.add(row.pid)
-        continue
-      }
-      // A row the shell left behind, or one whose parent an earlier poll verified, is work from
-      // across a dead link — unless a live replacement took that pid after the row appeared,
-      // in which case the row is the replacement's, not this task's.
-      if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
-        const parent = byPid.get(row.ppid)
-        if (!parent || row.created < parent.created) keep.add(row.pid)
+        grew = true
       }
     }
-    let grew = true
-    while (grew) {
-      grew = false
-      for (const row of rows) {
-        if (keep.has(row.pid) || row.pid === process.pid) continue
-        if (row.ppid === process.pid && row.pid !== shellPid) continue
-        if (keep.has(row.ppid)) {
-          keep.add(row.pid)
-          grew = true
-        }
-      }
-    }
-    for (const row of rows) {
-      if (keep.has(row.pid)) known.set(row.pid, row.created)
-    }
-    // The ancestry memory rides in the evidence file: a kill destroys this runner together with
-    // it, and the stamps recorded here are what keep its observations attributable afterwards.
-    writeEvidence({
-      shellPid: task.pid || 0,
-      ...stamps,
-      known: Array.from(known, ([pid, created]) => ({ pid, created }))
-    })
-    // A job the shell just backgrounded can surface a beat late, so the tree must read empty
-    // twice before the anchor may leave.
-    if (keep.size > 0) {
-      emptyReadings = 0
-      return
-    }
-    if (++emptyReadings < 2) return
-    settle()
   }
+  for (const row of rows) {
+    if (keep.has(row.pid)) known.set(row.pid, row.created)
+  }
+  // The ancestry memory rides in the evidence file: a kill destroys this runner together with
+  // it, and the stamps recorded here are what keep its observations attributable afterwards.
+  writeEvidence({
+    shellPid: task.pid || 0,
+    ...stamps,
+    known: Array.from(known, ([pid, created]) => ({ pid, created }))
+  })
+  // A job the shell just backgrounded can surface a beat late, so the tree must read empty
+  // twice before the anchor may leave. The shell's own life is not evidence of work.
+  if (!shellExited) return
+  if (keep.size > 0) {
+    emptyReadings = 0
+    return
+  }
+  if (++emptyReadings < 2) return
+  settle()
+}
+task.on('exit', (code, signal) => {
+  exitStatus = signal ? 1 : (code == null ? 1 : code)
+  shellExited = true
   probe()
-  timer = setInterval(probe, 500)
 })
+probe()
+timer = setInterval(probe, 500)
 `
 
 /**
@@ -1175,18 +1184,20 @@ async function waitForTaskEvidence(
 }
 
 /**
- * Whether the recorded runner pid may be signalled. A live occupant is only the process this app
- * spawned while it reads the stamp captured at spawn; a dead one is nothing to refuse — nothing
- * here is signalled, and the walk below still reaches the shell's side of the tree. Without a
- * captured stamp there is nothing to check against, so the pre-stamp behavior stands.
+ * Whether the recorded runner pid may be signalled. A dead number has nothing to signal, and the
+ * walk below still reaches the shell's side of the tree. A live occupant is only the process this
+ * app spawned while it reads the stamp captured at spawn; without that stamp — the identity query
+ * failed — nothing ties the occupant to the task, so it is refused and the record stays unresolved
+ * rather than killing whatever the OS has since put at that number.
  */
 async function isWindowsRunnerVerified(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
+  if (!isPidAlive(record.pid)) return true
   const evidence = await readTaskEvidence(storageDir, record.id)
-  if (!evidence?.runnerCreatedAt) return true
   const rows = await readWindowsProcessTable()
   if (!rows) return false
   const row = rows.find((candidate) => candidate.pid === record.pid)
-  return !row || row.created === evidence.runnerCreatedAt
+  if (!row) return true
+  return evidence?.runnerCreatedAt !== undefined && row.created === evidence.runnerCreatedAt
 }
 
 /**

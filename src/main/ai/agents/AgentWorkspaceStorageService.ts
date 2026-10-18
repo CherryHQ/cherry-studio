@@ -12,6 +12,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
 import * as storage from './agentWorkspaceStorage'
+import { workspaceHasLiveDetachedTasks } from './backgroundTaskActions'
 
 const logger = loggerService.withContext('AgentWorkspaceStorageService')
 type Workspace = { id: string; path: string }
@@ -243,6 +244,10 @@ class AgentWorkspaceStorageService {
   }
 
   private async archive(root: string, workspace: Workspace): Promise<void> {
+    // A detached task keeps its cwd across the session's archival: renaming and removing this
+    // directory would pull it out from under the running task. Retained until the task ends.
+    if (await workspaceHasLiveDetachedTasks(workspace.path))
+      throw new Error('Workspace is still in use by a detached background task')
     const state = await this.inspect(root, workspace)
     if (!state) return
     let record = state.record

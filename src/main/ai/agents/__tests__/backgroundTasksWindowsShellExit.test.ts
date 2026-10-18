@@ -449,6 +449,81 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     await vi.waitFor(() => expect(startOnExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
   }, 30_000)
 
+  it('refuses to signal a live runner whose spawn identity was never captured', async () => {
+    // The startup identity query failed, so the evidence carries no runner stamp — yet the runner
+    // wrote the file and keeps working. If Windows hands the recorded runner pid to someone else,
+    // a kill that trusts the bare number takes down the unrelated occupant's tree, and the later
+    // descendant walk cannot undo that signal. Without a stamp a live occupant is unverifiable,
+    // so the stop must leave the record unresolved instead of signalling it.
+    const onExit = vi.fn()
+    await useFakeProbe(TABLE_HEADER, { withStamps: false })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    // The recorded runner pid now names an unrelated occupant; the task's own orphan still runs.
+    await writeFakeRows(
+      [
+        TABLE_HEADER,
+        `"${record.pid}","4","20261017000010.000000+480"`,
+        `"999999","${shellPid}","20261017000005.000000+480"`
+      ].join('\n') + '\n'
+    )
+    const requested: string[][] = []
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      requested.push(args[1] as string[])
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const withheld = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    // Nothing at the unverified number may be signalled: not the occupant and not its tree.
+    expect(requested.flat()).not.toContain(String(record.pid))
+    expect(withheld).toBeUndefined()
+    expect(onExit).not.toHaveBeenCalled()
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+  }, 20_000)
+
+  it('keeps tracking a worker whose parent exited while the shell was still running', async () => {
+    // shell → intermediate → worker: the intermediate forks the worker and exits while the shell
+    // still runs. The worker's parent pid then names a process no longer in the table, so tracking
+    // that begins only at shell exit never sees the intermediate and cannot keep the worker: two
+    // empty probes publish completion while it works. Tracking across the whole task lifetime
+    // observes the intermediate while it lives, so its worker stays attributable afterwards.
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 3_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    // Both members are alive while the shell runs; a lifetime probe records them.
+    await writeFakeRows(
+      `${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n"888888","999999","${SPAWN_STAMP}"\n`
+    )
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    // The intermediate exits and only the worker it forked is left, parented to a dead pid.
+    await writeFakeRows(`${TABLE_HEADER}\n"888888","999999","${SPAWN_STAMP}"\n`)
+
+    // The shell has exited by now and the worker survives behind the dead intermediate: the task
+    // may not be published as completed while it still works.
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+
+    // The worker is gone too: the tree reads empty and the runner may settle.
+    await writeFakeRows(`${TABLE_HEADER}\n`)
+    await vi.waitFor(
+      async () => {
+        await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({
+          status: 'completed'
+        })
+      },
+      { timeout: 10_000, interval: 100 }
+    )
+  }, 30_000)
+
   it('keeps counting a grandchild whose worker parent died between polls', async () => {
     // shell → worker → child: once the worker exits, the surviving child's parent pid no longer
     // connects to any recorded root. The polls must remember the members they verified — the

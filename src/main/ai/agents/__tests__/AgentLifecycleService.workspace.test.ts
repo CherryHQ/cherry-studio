@@ -387,6 +387,45 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
   })
 
+  it('retains a system workspace while a detached task still works in it', async () => {
+    // A detached task runs with the session workspace as its cwd and outlives the turn. Archiving
+    // the session must not rename and remove that directory from under it: the workspace is
+    // retained while the task is live, and the sweep archives it once the task has finished.
+    const parent = workspacePath(root, 'system')
+    const taskDir = path.join(root, 'agent', 'background-tasks')
+    await mkdir(taskDir, { recursive: true })
+    const recordFile = path.join(taskDir, 'bt-live.json')
+    const writeTask = (status: 'running' | 'completed') =>
+      writeFile(
+        recordFile,
+        JSON.stringify({
+          id: 'bt-live',
+          name: 'live',
+          command: 'true',
+          pid: process.pid,
+          cwd: parent,
+          startedAt: new Date().toISOString(),
+          logFile: path.join(taskDir, 'bt-live.log'),
+          status,
+          exitCode: status === 'completed' ? 0 : null,
+          signal: null
+        })
+      )
+    await writeTask('running')
+
+    await lifecycle.archiveSessions(['system'])
+    expect(await readFile(path.join(parent, 'output.txt'), 'utf8')).toBe('system output')
+    expect(existsSync(`${parent}.tar.gz`)).toBe(false)
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+    ).not.toBeNull()
+
+    await writeTask('completed')
+    await lifecycle.sweepOrphans()
+    expect(existsSync(parent)).toBe(false)
+    expect(existsSync(`${parent}.tar.gz`)).toBe(true)
+  })
+
   it('keeps the directory if runtime shutdown fails', async () => {
     mocks.closeSession.mockRejectedValueOnce(new Error('runtime still holds files'))
     await lifecycle.archiveSessions(['system'])
