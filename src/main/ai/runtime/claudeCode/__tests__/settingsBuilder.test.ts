@@ -3706,11 +3706,55 @@ describe('buildClaudeCodeSessionSettings', () => {
       cachedTools = [{ id: 'tool-x', name: 'tool_x', description: 'X' }]
       resolveRefresh()
       await vi.waitFor(() => {
-        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
+        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }), {
+          keepRetainedDenied: true
+        })
         expect(settings.mcpToolMetadata).toMatchObject({
           'mcp__srv-a__tool_x': expect.objectContaining({ name: 'tool_x', serverId: 'srv-a' })
         })
       })
+    })
+
+    it('keeps retained denials when the timed-out warm reconciliation refreshes the same connection', async () => {
+      // The reconciliation runs on the connection this build produced while its replacement is
+      // still deferred: a rename reconcile may have retained the OLD identity in the snapshot
+      // (the live connection still serves it), and this same-connection warm refresh must not
+      // release it — only the replacement connection's connect refresh does. Passing no option
+      // clears the retained denial and the still-mounted pre-rename tool executes.
+      let resolveRefresh!: () => void
+      mocks.warmToolsCache.mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveRefresh = resolve
+        })
+      )
+      const snapshot = {
+        resolve: vi.fn(),
+        isDisabled: vi.fn(() => false),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      }
+      mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+      const session = sessionWithMcps(['srv-a'])
+
+      vi.useFakeTimers()
+      const build = buildClaudeCodeSessionSettings(session as never, {} as never)
+      try {
+        await vi.advanceTimersByTimeAsync(100)
+      } finally {
+        vi.useRealTimers()
+      }
+      await build
+
+      resolveRefresh()
+      await vi.waitFor(() => {
+        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }), {
+          keepRetainedDenied: true
+        })
+      })
+      // The reconciliation never passes a bare update: the retained set must never be released
+      // from the warm path.
+      const options = snapshot.update.mock.calls.map((call) => call[1])
+      expect(options.every((option) => option?.keepRetainedDenied === true)).toBe(true)
     })
 
     it('keeps the live policy snapshot and metadata aligned with later MCP tool-list changes', async () => {

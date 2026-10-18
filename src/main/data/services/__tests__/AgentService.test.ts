@@ -961,8 +961,31 @@ describe('AgentService', () => {
       // The persisted order is the allocation order both sides share: B claims `docs`, A falls
       // back to its id.
       expect(reloaded?.mcps).toEqual(['srv-b', 'srv-a'])
-      // B's denial followed B onto the key B actually holds after the reorder.
-      expect(reloaded?.disabledTools).toEqual(['mcp__docs__run'])
+      // B's denial followed B onto the key B actually holds after the reorder; the raw id form
+      // stays because Pi matches `mcp__<id>__tool` verbatim regardless of the allocated key.
+      expect(reloaded?.disabledTools).toEqual(['mcp__srv-b__run', 'mcp__docs__run'])
+    })
+
+    it('keeps the Pi-supported UUID denial and emits the camelized alias when unmounting promotes the server to a mixed-case key', async () => {
+      // A and B are both named `GitHub`; B mounts second, so its denial was saved under the raw
+      // id form. Unmounting A hands the name to B — Pi registers servers under their id and
+      // matches `mcp__<id>__tool` verbatim (dropping the original re-enables the disabled tool),
+      // and it also resolves through `buildFunctionCallToolName('GitHub', 'run')`
+      // (`mcp__github__run`), which the migration must emit alongside the runtime key form.
+      await insertMcpServer('id-a', 'GitHub')
+      await insertMcpServer('id-b', 'GitHub')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mount Pi Alias',
+        model: TEST_MODEL_ID,
+        mcps: ['id-a', 'id-b'],
+        disabledTools: ['mcp__id-b__run']
+      })
+
+      agentService.updateAgent(created.id, { mcps: ['id-b'] })
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.disabledTools).toEqual(['mcp__id-b__run', 'mcp__GitHub__run', 'mcp__github__run'])
     })
 
     it('reads same-timestamp mount rows in mcpServerId order', async () => {

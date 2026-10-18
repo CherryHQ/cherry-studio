@@ -413,6 +413,15 @@ interface AgentKeyRewrite {
    * the runtime-independent migration would strip Pi's only surviving form.
    */
   camelToKey?: string
+  /**
+   * The old key was this server's id: Pi registers servers under their id and matches
+   * `mcp__<id>__tool` verbatim at any tool length, so that form stays resolvable across every
+   * reallocation and must survive the migration (the replacements cannot regenerate a bounded
+   * long-tool identity — the full tool name is unrecoverable past the runtime's truncation).
+   * An id can never be reassigned to a different server, so keeping the original cannot
+   * over-block.
+   */
+  fromIsId?: boolean
 }
 
 /**
@@ -468,7 +477,12 @@ export function migrateAgentDisabledToolsForServerRename(
       toCamelCase(input.toName) !== newKey
         ? toCamelCase(input.toName)
         : undefined
-    rewrites.push({ fromKey: oldKey, toKey: newKey, camelToKey })
+    rewrites.push({
+      fromKey: oldKey,
+      toKey: newKey,
+      camelToKey,
+      fromIsId: oldKey === sanitizeAgentServerKey(mcpId)
+    })
   }
   return applyAgentKeyRewrites(disabledTools, rewrites)
 }
@@ -491,7 +505,9 @@ export interface AgentAllocationChangeInput {
  * saved rule keyed by the displaced key would then resolve through the newcomer's pre-name
  * alias, blocking the wrong server's tool while the explicitly disabled one executes. Compare
  * the complete before/after allocations and rewrite every mounted server whose record key
- * changed; a stable allocation returns undefined.
+ * changed; a stable allocation returns undefined. A mixed-case destination configured name
+ * carries the camelized alias Pi resolves denials through, and an id-keyed original survives
+ * the migration (Pi's verbatim `mcp__<id>__tool` match is allocation-independent).
  */
 export function migrateAgentDisabledToolsForAllocationChange(
   disabledTools: readonly string[],
@@ -504,10 +520,24 @@ export function migrateAgentDisabledToolsForAllocationChange(
     ])
   const oldKeys = allocation(input.oldMountedServers)
   const newKeys = allocation(input.newMountedServers)
-  const rewrites: Array<{ fromKey: string; toKey: string }> = []
+  const rewrites: AgentKeyRewrite[] = []
   for (const [mcpId, oldKey] of oldKeys) {
     const newKey = newKeys.get(mcpId)
-    if (newKey !== undefined && newKey !== oldKey) rewrites.push({ fromKey: oldKey, toKey: newKey })
+    if (newKey === undefined || newKey === oldKey) continue
+    // Pi's camelized alias derives from the configured name, so the extra form is only
+    // meaningful when the post-change configured name actually won its allocation (and
+    // camelizes differently) — the same condition the rename migration applies.
+    const next = input.newMountedServers.find((server) => server.mcpId === mcpId)
+    const camelToKey =
+      next?.name && newKey === sanitizeAgentServerKey(next.name) && toCamelCase(next.name) !== newKey
+        ? toCamelCase(next.name)
+        : undefined
+    rewrites.push({
+      fromKey: oldKey,
+      toKey: newKey,
+      camelToKey,
+      fromIsId: oldKey === sanitizeAgentServerKey(mcpId)
+    })
   }
   if (rewrites.length === 0) return undefined
   return applyAgentKeyRewrites(disabledTools, rewrites)
@@ -528,7 +558,9 @@ export function migrateAgentDisabledToolsForAllocationChange(
  * registrations are built from the camelized form, and mixed-case destinations register plain
  * names the camelized fragment can never key). The original is kept — it can simultaneously
  * be another server's exact denial. Plain entries move verbatim onto the new key (plus the
- * camelized alias a `camelToKey` rewrite carries).
+ * camelized alias a `camelToKey` rewrite carries), except an id-keyed original stays: Pi
+ * registers servers under their id and matches `mcp__<id>__tool` verbatim at any tool length,
+ * so that form is the one denial Pi still matches after every reallocation.
  *
  * A truncated DSH identity (`mcp__<50 fused chars>_<12hex>` — a long server key pushes the
  * `__` delimiter and the tool fragment past the retention cap, so no delimiter survives) is
@@ -573,6 +605,12 @@ function applyAgentKeyRewrites(
           const targets = new Set<string>([`mcp__${matched.toKey}__${toolPart}`])
           targets.add(`mcp__${matched.camelToKey ?? matched.toKey}__${toCamelCase(toolPart)}`)
           replacements = [...targets]
+          // An id-keyed original is Pi's stable alias (Pi registers servers under their id and
+          // matches `mcp__<id>__tool` verbatim at any tool length), so it must survive the
+          // migration: the copies cannot regenerate a bounded long-tool identity, and dropping
+          // the original removes the only form Pi still matches. An id is never reassigned to
+          // a different server, so the kept original cannot over-block.
+          keepOriginal = matched.fromIsId === true
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = rewriteHashed(toolPart, lossyMatched.toKey)
           keepOriginal = true

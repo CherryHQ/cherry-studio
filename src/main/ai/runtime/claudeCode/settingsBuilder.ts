@@ -280,7 +280,11 @@ export async function buildClaudeCodeSessionSettings(
       .then(async () => {
         const liveAgent = agentService.getAgent(agent.id)
         if (!liveAgent) return
-        await sessionState().getToolPolicySnapshot(session.id)?.update(liveAgent)
+        // Same-connection refresh: the warm landing fills THIS connection's catalog while its
+        // replacement is still deferred, so a rename reconcile's retained denials (the old
+        // identities the live connection still serves) must stay blocking. Only the replacement
+        // connection's connect refresh releases them — never this warm path.
+        await sessionState().getToolPolicySnapshot(session.id)?.update(liveAgent, { keepRetainedDenied: true })
         const freshMetadata = await buildMcpToolMetadata(liveAgent, { serverAllocation })
         if (!metadataRef || !freshMetadata) return
         for (const key of Object.keys(metadataRef)) delete metadataRef[key]

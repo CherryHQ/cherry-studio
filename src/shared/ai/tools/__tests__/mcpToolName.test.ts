@@ -553,8 +553,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
 
   it('keeps the first claimant of a duplicate name and migrates only the renamed server', () => {
     // A and B are both named `docs`; A mounts first and claims `docs`, B falls back to its id.
-    // Renaming B to `github` rewrites B's id-keyed rule onto `github` and leaves A's `docs`
-    // denial — and `other`'s — untouched.
+    // Renaming B to `github` rewrites B's id-keyed rule onto `github` — keeping the raw id form
+    // (Pi matches it verbatim at any length) — and leaves A's `docs` denial — and `other`'s —
+    // untouched.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__docs__run', 'mcp__srv-b__run', 'mcp__other__run'], {
         mountedServers: [
@@ -565,7 +566,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__docs__run', 'mcp__github__run', 'mcp__other__run'])
+    ).toEqual(['mcp__docs__run', 'mcp__srv-b__run', 'mcp__github__run', 'mcp__other__run'])
   })
 
   it('rewrites onto the post-rename allocation, including the id fallback for reserved names', () => {
@@ -753,7 +754,8 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     // A UUID-backed server named `skills` (reserved) keeps its denial under the raw id form;
     // after renaming to `GitHub` the runtime registers `mcp__GitHub__run`, but Pi resolves
     // denials through the camelized configured name (`mcp__github__run`) — without that alias
-    // in the list the explicitly disabled tool executes on Pi.
+    // in the list the explicitly disabled tool executes on Pi. The raw id form stays: Pi
+    // registers servers under their id and matches it verbatim at any tool length.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__srv-1__run'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'skills' }],
@@ -761,7 +763,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'GitHub',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__GitHub__run', 'mcp__github__run'])
+    ).toEqual(['mcp__srv-1__run', 'mcp__GitHub__run', 'mcp__github__run'])
   })
 
   it('camelizes the tool segment of the alias Pi recognizes after a mixed-case rename', () => {
@@ -776,7 +778,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'GitHub',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__GitHub__get_time', 'mcp__github__getTime'])
+    ).toEqual(['mcp__srv-1__get_time', 'mcp__GitHub__get_time', 'mcp__github__getTime'])
   })
 
   it('emits the camelized-tool alias even when the destination key is already camelCase', () => {
@@ -791,7 +793,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'docs',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__docs__get_time', 'mcp__docs__getTime'])
+    ).toEqual(['mcp__srv-1__get_time', 'mcp__docs__get_time', 'mcp__docs__getTime'])
   })
 
   it('carries a truncated DSH identity onto the renamed key fragment', () => {
@@ -867,5 +869,43 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
         reservedKeys: RESERVED
       })
     ).toBeUndefined()
+  })
+
+  it('keeps the UUID denial and emits the camelized alias when unmounting promotes an id-keyed server to a mixed-case key', () => {
+    // A and B are both named `GitHub`; B mounts second so its denial was saved under the raw id
+    // form (`mcp__<idB>__run`). Unmounting A frees the name and B's allocation moves onto it.
+    // Pi registers servers under their id and matches the raw `mcp__<id>__tool` alias verbatim,
+    // so dropping the original re-enables the explicitly disabled tool on Pi; Pi also resolves
+    // through `buildFunctionCallToolName('GitHub', 'run')` (`mcp__github__run`), which the
+    // replacement must carry now that the destination key camelizes differently.
+    const saved = `mcp__${idB}__run`
+    expect(
+      migrateAgentDisabledToolsForAllocationChange([saved], {
+        oldMountedServers: [
+          { mcpId: idA, name: 'GitHub' },
+          { mcpId: idB, name: 'GitHub' }
+        ],
+        newMountedServers: [{ mcpId: idB, name: 'GitHub' }],
+        reservedKeys: RESERVED
+      })
+    ).toEqual([saved, `mcp__GitHub__run`, `mcp__github__run`])
+  })
+
+  it('keeps a long raw UUID alias regardless of tool length because Pi matches the id form verbatim', () => {
+    // Pi's serverId check (`mcp__<id>__<tool.name>`) has no length cap, so a long tool's saved
+    // id-form denial blocks at any length; the migrated replacements cannot regenerate that
+    // bounded identity (the full tool name is unrecoverable past the runtime's truncation), so
+    // the original must survive the migration.
+    const saved = `mcp__${idB}__${'a'.repeat(60)}`
+    expect(
+      migrateAgentDisabledToolsForAllocationChange([saved], {
+        oldMountedServers: [
+          { mcpId: idA, name: 'GitHub' },
+          { mcpId: idB, name: 'GitHub' }
+        ],
+        newMountedServers: [{ mcpId: idB, name: 'GitHub' }],
+        reservedKeys: RESERVED
+      })
+    ).toEqual([saved, `mcp__GitHub__${'a'.repeat(60)}`, `mcp__github__${'a'.repeat(60)}`])
   })
 })
