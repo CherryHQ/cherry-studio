@@ -47,9 +47,9 @@ Agent edit settings also provide one agent-specific fallback model. It is stored
 chat preference. A configured agent fallback enables fallback for that agent even
 when the global chat retry toggle is off. Agent-session fallback remains limited
 to one replay before any turn content. Claude Code rebuilds its query in its
-driver; Pi and DSH rebuild their connection behind a stable host event stream.
-Pi/DSH skip fallback while background work is active because rebuilding would
-tear down those runtime-owned tasks.
+driver; Pi rebuilds its connection behind a stable host event stream. Pi also
+skips fallback while background work is active because rebuilding would tear
+down its runtime-owned tasks.
 
 These keys are generated from `scripts/data-classify/data/target-key-definitions.json`
 — edit there and regenerate, never edit `preferenceSchemas.ts` by hand.
@@ -145,10 +145,11 @@ and per-attempt diagnostics. All logging goes through
 
 ## Agent sessions — turn-level fallback
 
-The wrapper above never reaches agent-session turns: Claude Code / Pi / DSH
-own their provider transport. Claude Code implements turn-level fallback in
-`src/main/ai/runtime/claudeCode/modelFallback.ts`; Pi and DSH use
-`src/main/ai/runtime/AgentSessionFallbackConnection.ts`.
+The wrapper above never reaches agent-session turns: Claude Code and Pi own
+their provider transport. Claude Code implements turn-level fallback in
+`src/main/ai/runtime/claudeCode/modelFallback.ts`; Pi uses
+`src/main/ai/runtime/AgentSessionFallbackConnection.ts`. These are the only
+registered agent-session runtimes.
 
 - When a turn terminally fails on a **retryable provider error** — a result
   error carrying `api_error_status` 429/500/502/503/529, or an `api_error` terminal reason
