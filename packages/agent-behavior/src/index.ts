@@ -113,3 +113,12 @@ export type {
   Settings,
   HostPorts
 } from './ports/host'
+export { harnessContract } from './contract/cases'
+export type {
+  ContractCase,
+  ContractHarness,
+  ContractNeed,
+  OpenContractHarness,
+  ScriptedReply,
+  ScriptedToolCall
+} from './contract/harness'
