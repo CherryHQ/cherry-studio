@@ -52,3 +52,16 @@ export type {
 } from './core/hostFacts'
 export type { EncodedEntry, RawEntry } from './core/entryCodec'
 export { decodeEntry, encodeEntry } from './core/entryCodec'
+export type {
+  TurnInput,
+  StopCause,
+  ChildSpec,
+  JobKind,
+  JobSpec,
+  SubagentView,
+  BehaviorEvent,
+  TxOp,
+  Effect,
+  Step
+} from './core/decisions'
+export type { Key } from './core/keys'
