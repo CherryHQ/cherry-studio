@@ -914,6 +914,9 @@ function emphasisSpans(source: string): Set<number> {
 /** A run of tildes — the `~~` of `# foo~~bar~~baz`, whose pairing decides the text it renders. */
 const TILDE_RUN = /^~+/
 
+/** A run of equals signs — the `==` of `# foo==bar==baz`, whose pairing decides the text it renders. */
+const EQUALS_RUN = /^=+/
+
 /**
  * The tilde runs of `source` that the renderer reads as the markers of a strikethrough — which
  * render no text of their own. The renderer turns single tildes away, so a run is eligible only
@@ -947,6 +950,42 @@ function strikethroughSpans(source: string): Set<number> {
         spans.add(index)
         open.pop()
       } else if (opens) {
+        open.push(index)
+      }
+    }
+    index = end
+  }
+  return spans
+}
+
+/**
+ * The `==` runs of `source` that the renderer reads as the markers of a highlight — which render no
+ * text of their own. A highlight is an extension rather than core CommonMark, so it has no flank
+ * tests of its own: it opens and closes on any run of two, pairing a closing run with the nearest
+ * earlier one, and a run that pairs with nothing stays the text it was written as.
+ */
+function highlightSpans(source: string): Set<number> {
+  const spans = new Set<number>()
+  const open: number[] = []
+  for (let index = 0; index < source.length;) {
+    const character = source[index]
+    if (character === '\\') {
+      index += 2
+      continue
+    }
+    if (character !== '=') {
+      index += 1
+      continue
+    }
+    const run = EQUALS_RUN.exec(source.slice(index))?.[0] ?? character
+    const end = index + run.length
+    if (run.length === 2) {
+      const partner = open.length - 1
+      if (partner >= 0) {
+        spans.add(open[partner])
+        spans.add(index)
+        open.pop()
+      } else {
         open.push(index)
       }
     }
@@ -1074,6 +1113,8 @@ function headingRenderedText(source: string): string {
     let spans: Set<number> | null = null
     // The strikethrough markers, matched the same way on their own first use.
     let strikes: Set<number> | null = null
+    // The highlight markers, matched the same way on their own first use.
+    let highlights: Set<number> | null = null
     let index = 0
     while (index < segment.length) {
       const character = segment[index]
@@ -1130,6 +1171,13 @@ function headingRenderedText(source: string): string {
         const run = TILDE_RUN.exec(segment.slice(index))?.[0] ?? character
         // The same for a strikethrough: only the run that found its partner renders nothing.
         if (!(strikes ??= strikethroughSpans(segment)).has(index)) text += run
+        index += run.length
+      } else if (character === '=') {
+        const run = EQUALS_RUN.exec(segment.slice(index))?.[0] ?? character
+        // The same for a highlight: `==bar==` renders `bar`, so the markers are no part of the text
+        // the slug is numbered from — without this the heading keys on `foo-bar-baz` while the
+        // renderer keys `foobarbaz`, and a later duplicate takes the id a link resolves to.
+        if (!(highlights ??= highlightSpans(segment)).has(index)) text += run
         index += run.length
       } else if ((character === '[' && !entry.label) || (character === '!' && segment[index + 1] === '[')) {
         const open = index + (character === '!' ? 1 : 0)

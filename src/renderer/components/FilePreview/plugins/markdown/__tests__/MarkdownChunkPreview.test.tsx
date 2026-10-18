@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MarkdownChunkPreview } from '../MarkdownChunkPreview'
@@ -67,5 +67,48 @@ describe('MarkdownChunkPreview', () => {
     const ids = (await screen.findAllByRole('heading')).map((heading) => heading.getAttribute('id'))
 
     expect(ids).toEqual(['heading-doc:0--title', 'heading-doc:3--title-1'])
+  })
+
+  it('resolves a footnote backlink inside the chunk that was clicked', async () => {
+    // Each mounted chunk numbers its footnotes from the same reference, so every chunk emits the
+    // same reference id and a preview-wide search always finds the first chunk's — a later chunk's
+    // backlink then jumps to another chunk's definition. The click has to resolve in the container
+    // it was made in first.
+    const content = ['first[^n]', '', '[^n]: first note', '', 'filler', '', 'second[^n]', '', '[^n]: second note'].join(
+      '\n'
+    )
+    mocks.range = [0, 3]
+
+    const { container } = render(<MarkdownChunkPreview chunks={splitMarkdownChunks(content, 1).chunks} id="doc" />)
+
+    const backlinks = await screen.findAllByRole('link')
+    const withHref = backlinks.filter((link) => link.getAttribute('href') === '#user-content-fnref-n')
+    // The second chunk's backlink: the one a preview-wide search sends to the first chunk's copy.
+    const backlink = withHref[withHref.length - 1] as HTMLElement
+    const ownChunk = backlink.closest('.markdown') as HTMLElement
+    const others = Array.from(container.querySelectorAll('.markdown')).filter((part) => part !== ownChunk)
+
+    // The collision that makes scoping matter: the reference exists in the clicked chunk and in
+    // another mounted one under the very same id.
+    expect(others.length).toBeGreaterThan(0)
+    expect(ownChunk.querySelectorAll('[id="user-content-user-content-fnref-n"]')).toHaveLength(1)
+    expect(others.every((part) => part.querySelector('[id="user-content-user-content-fnref-n"]'))).toBe(true)
+
+    // Clicking the last chunk's backlink scrolls to the reference in that chunk — the preview-wide
+    // search used to pick the first chunk's copy, so the jump landed in another chunk entirely.
+    const scrolled: Element[] = []
+    // jsdom lays nothing out, so scrolling is stubbed on the prototype: the element it lands on is
+    // what says which chunk the click resolved in.
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: Element) {
+        scrolled.push(this)
+      }
+    })
+
+    fireEvent.click(backlink)
+
+    expect(scrolled).toHaveLength(1)
+    expect(scrolled[0].closest('.markdown')).toBe(ownChunk)
   })
 })

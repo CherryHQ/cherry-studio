@@ -36,6 +36,9 @@ export function MarkdownChunkPreview({ chunks, id }: MarkdownChunkPreviewProps) 
   // scopes to the nearest one — cannot see a heading that lives in a different chunk. Resolving
   // against the scroller covers the whole preview; a chunk the virtualizer has not mounted still
   // has no element to find, and the event is left to the default handler in that case.
+  // The clicked chunk's own container is searched first: every mounted chunk numbering its
+  // footnotes from the same reference hands the same id to its own backlink, so a preview-wide
+  // search picks the first chunk's reference — and jumps to another chunk's definition.
   const scrollToPreviewAnchor = (event: ReactMouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as Element | null)?.closest?.('a[href]')
     const href = anchor?.getAttribute('href')
@@ -49,7 +52,9 @@ export function MarkdownChunkPreview({ chunks, id }: MarkdownChunkPreviewProps) 
     }
     if (!fragment) return
 
-    const target = findMarkdownAnchorTarget(scrollerRef.current, fragment)
+    const target =
+      findMarkdownAnchorTarget(anchor?.closest('.markdown'), fragment) ??
+      findMarkdownAnchorTarget(scrollerRef.current, fragment)
     if (!target) return
 
     event.preventDefault()

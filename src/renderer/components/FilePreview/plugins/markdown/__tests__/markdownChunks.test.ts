@@ -2464,6 +2464,25 @@ describe('heading ids assigned from the text the renderer reads', () => {
     expect(renderedHeadingIds(content)).toEqual(['chunk--foobarbaz', 'chunk--foobarbaz-1'])
   })
 
+  it('numbers a highlighted heading toward the text the renderer reads', () => {
+    // The renderer reads `==bar==` as the `mark` it renders — `foo<mark>bar</mark>baz`, whose text
+    // is `foobarbaz` — so both headings read `foobarbaz` and the second takes the `-1` the link
+    // beside it points at. Counting the first under its literal `==` markers keyed it `foo-bar-baz`
+    // and left the duplicate unsuffixed, so `[jump](#foobarbaz-1)` aimed at a fragment that no
+    // chunk mounted. The markers are asserted here rather than through `renderedHeadingIds`, whose
+    // parser runs without the highlight extension.
+    const content = '# foo==bar==baz\n\n' + 'filler\n\n'.repeat(3100) + '# foobarbaz\n\n[jump](#foobarbaz-1)'
+
+    const chunks = chunksOf(content)
+    expect(chunks.filter((chunk) => chunk.headingSlugs)).toHaveLength(2)
+    // Both chunks key the heading on `foobarbaz`; it is the second one's assignment that carries
+    // the `-1` the link resolves, which is what counting the markers as text took away.
+    expect(chunks.flatMap((chunk) => [...(chunk.headingSlugs?.values() ?? [])].flat())).toEqual([
+      'foobarbaz',
+      'foobarbaz-1'
+    ])
+  })
+
   it('keeps the backslash a heading renders before a non-punctuation character', () => {
     // Markdown preserves a backslash before anything but ASCII punctuation, so `C:\Users` renders
     // with the backslash and slugs as `c-users-alice`. Dropping every backslash keyed the first
