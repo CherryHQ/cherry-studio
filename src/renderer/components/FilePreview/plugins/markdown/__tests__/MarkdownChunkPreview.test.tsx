@@ -84,7 +84,7 @@ describe('MarkdownChunkPreview', () => {
     const backlinks = await screen.findAllByRole('link')
     const withHref = backlinks.filter((link) => link.getAttribute('href') === '#user-content-fnref-n')
     // The second chunk's backlink: the one a preview-wide search sends to the first chunk's copy.
-    const backlink = withHref[withHref.length - 1] as HTMLElement
+    const backlink = withHref[withHref.length - 1]
     const ownChunk = backlink.closest('.markdown') as HTMLElement
     const others = Array.from(container.querySelectorAll('.markdown')).filter((part) => part !== ownChunk)
 
