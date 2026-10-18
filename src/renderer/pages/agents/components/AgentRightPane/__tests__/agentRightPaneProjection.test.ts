@@ -900,6 +900,38 @@ describe('agent right pane projections', () => {
     expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'completed' })])
   })
 
+  // A resume starts a new run under the same task: its started edge must revive the settled row,
+  // or the pane would show the child completed while it runs again.
+  it('revives a settled task on a new run start', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          title: 'Fetch latest',
+          taskType: 'subagent'
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'bg-1', status: 'completed', summary: 'done' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {
+        'bg-1': { event: 'started', taskId: 'bg-1', status: 'in_progress', description: 'Fetch latest' }
+      }
+    )
+
+    expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'in_progress' })])
+  })
+
   it('keeps a stopped task terminal when liveness no longer reports it', () => {
     const parts = [
       {

@@ -7,7 +7,7 @@ import {
   isTaskRecord,
   normalizeTaskStatus
 } from '@renderer/components/chat/messages/tools/agent'
-import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import { AgentToolsType, resolveTaskStatusAfter } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
@@ -199,13 +199,8 @@ function applyAgentTaskEvent(
   const title = existing?.title || data.title?.trim() || data.description?.trim()
   if (!title) return
 
-  // Events reach this map from two orderings (message parts, then the late-event cache), so a stale
-  // pre-completion event can apply after the completion did. A settled task never resurrects.
-  const incoming = data.status ?? existing?.status ?? 'pending'
-  const status =
-    existing && RUN_TASK_TERMINAL_STATUSES.has(existing.status) && !RUN_TASK_TERMINAL_STATUSES.has(incoming)
-      ? existing.status
-      : incoming
+  // A stale pre-completion event can apply after the completion did; a new run's start revives.
+  const status = resolveTaskStatusAfter(existing?.status, data)
 
   runTaskMap.set(data.taskId, {
     id: data.taskId,

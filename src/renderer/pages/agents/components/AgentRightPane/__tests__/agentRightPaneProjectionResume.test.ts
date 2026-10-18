@@ -137,6 +137,40 @@ describe('agent right pane flow rounds', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // A failed send resumed nothing: its input still names the target, but the child was never
+  // woken, so the undelivered instruction must not appear as a round prompt.
+  it('keeps a failed send out of the round splitting', () => {
+    const parts = [
+      dshToolPart(
+        'call_launch',
+        'subagent',
+        'output-available',
+        { description: 'Audit the renderer' },
+        'started subagent dsh-child-1'
+      ),
+      textPart('First round findings', 'call_launch'),
+      dshToolPart(
+        'call_failed_send',
+        'send_message',
+        'output-error',
+        { agent_id: 'dsh-child-1', message: 'Please keep going' },
+        'delivery failed: child not reachable'
+      ),
+      textPart('More child output', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    // No resume round: the child's output stays in the round it belongs to.
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings', 'More child output'])
+  })
+
   // Prose that merely contains an `agentId:` token is not a launch receipt — it must not create
   // a fake continuation boundary inside an unrelated flow timeline.
   it('does not split rounds when text only mentions an agent id token', () => {
