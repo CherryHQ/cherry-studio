@@ -1,0 +1,137 @@
+# Agent Note: Pi 自主目标与宿主接入
+
+Status: proposed
+
+[English](2026-10-11-agent-runtime-goal.md) | 中文
+
+## Problem
+
+长期目标需要的不只是再发一条模型提示，还需要持久身份、明确的续跑许可、跨请求及子任务的用量统计，以及可靠的停止方式。Cherry 支持的模型遵循指令的能力各不相同。即使模型忽略停止要求，或反复报告同样的工作，运行时也必须限制自主续跑。
+
+Pi 包通过原生扩展实现了这项能力。桌面仍使用现有的 `PiRuntimeConnection`，因此包内行为不能证明桌面已交付。本记录同时保留目标功能的决策及尚待完成的宿主职责；完整接入和验收条件得到验证前，状态保持 proposed。本文不宣告生命周期迁移，也不授予新实现的批准。
+
+本文的实现事实以累计 Runtime 栈 `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766` 的检查结果为依据。由上层提供的行为在本层仍属于目标，不表示这些功能已存在于本层。源码链接指向该固定快照，尚未引入的文档链接到其所属 PR。
+
+## Proposal
+
+### 所有权与范围
+
+[`createGoalExtension`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalExtension.ts) 负责原生 Pi 会话内的自主续跑、目标工具和停止决策。[`goalState.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalState.ts) 负责状态迁移及从分支推导的统计。Pi 负责模型执行、工具执行、压缩和原生会话持久化。Cherry 通过 `GoalPort` 和现有会话构建器提供模型传输、审批事件、默认值、可选的完成核验器及界面呈现。
+
+目标扩展是 Pi 的可选能力，不是[公共运行时契约](../architecture/2026-10-17-agent-runtime-contract.md) 中的一套新循环。[Harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)与[后台子智能体记录](https://github.com/CherryHQ/cherry-studio/pull/21693)分别约束执行所有权和子任务结果交付。本功能不引入第二套 transcript 格式、目标专用数据库或独立的宿主调度器。
+
+### 持久状态与恢复
+
+- 活动分支上最新的原生 `cherry.goal` 条目表示当前目标。变更追加完整快照；清除追加墓碑而不删除历史。阶段只有 `active`、`paused`、`blocked` 和 `complete` 四种。停止细节放在 `lastStop` 中，不再增加阶段。
+- 变更校验目标 id 和 revision。创建从 revision 1 开始；编辑、停止和轮次接纳都会递增 revision。重复暂停、恢复已 active 且已武装的目标，以及对已 blocked 的目标重复报告 blocked，都不再追加状态变更。陈旧变更返回当前视图，不应用修改。
+- `armed` 记录目标是否可以驱动会话。快照中包含该字段，但重新打开会话始终解除已恢复目标的武装，并在不递增 revision 的情况下记录这一变化。阶段可以仍为 `active`；仅恢复上下文绝不重启工作。重新武装 active 目标也保留其 revision。
+- `cherry.goal-round` 自定义消息有独立的随机预约 id、目标 id、revision、轮号和类型（`work`、`hint` 或 `wrap-up`）。快照的 `admittedRound` 证明具体哪个预约真正运行过。崩溃后复用同一轮号，不会接纳旧预约。
+- 每轮提示在 `untrusted_objective` 中以数据形式重复完整目标，列明轮号和上限，并要求在完成前给出具体证据。压缩不会删除原生目标状态，下一轮提示不依赖早先的目标消息仍在上下文中。
+
+### 接纳、续跑与停止
+
+空闲时通过 `/goal` 命令创建或恢复目标，会启动第一轮。运行中的命令或模型工具只武装目标，等待下一次决策边界。常规续跑在 `agent_before_settle` 决定；轮消息在 `message_end` 或 `turn_start` 被接纳后才计数，不在扩展提出续跑时计数。先加载扩展提出的边界条目会保留。
+
+接纳前，扩展重新检查身份、revision、激活状态、下一轮号和余量。如果其他 settle 处理器正在等待，期间执行的编辑、暂停、清除或降低上限命令可能使预约失效。陈旧轮次会在模型请求发出前撤回，不计入轮数。`agent_settled` 可以为这种内部撤回启动替代轮次，也可以按新上限停止。如果用户同时调用 `abort()`，仍以用户停止为先并暂停目标。
+
+后加载的扩展可以否决续跑。尚存但未被接纳的预约会变为 `blocked / continuation_rejected`；实际中止优先于它。未接纳的轮消息保留在原生历史里，但会从后续模型请求和完成核验器输入中滤除。压缩摘要器仍会看到它们，这是尚存的限制。
+
+决策边界先处理执行中止或失败、待处理停止原因、激活状态与自主模式，以及排队中的用户输入，再选择是否开下一轮。排队的用户消息优先，且不会取消已武装目标；该人类回合不属于目标轮次。`confirm-each-round` 在接纳的一轮结束后暂停，一次恢复只允许再跑一轮。后台结果交付与目标续跑不能在同一边界各自启动工作：通知回合先结束，目标随后再决策。在续跑边界，仍运行的后台子智能体使已武装目标等待，不改变阶段，也不写入 `waiting_subagents` 停止状态。
+
+中止、暂停和清除含义不同。运行时中止把 active 且已武装的目标记为 `aborted` 并暂停；宿主请求信号通过 settle 路径得到相同结果。`/goal pause` 记录 `paused_by_user`，`/goal clear` 写入墓碑。这些命令仅在目标原为 active 且已武装时中止忙碌的回合；已解除武装目标上无关的人类回合不受影响。宿主必须使用 `AgentRuntimeSession.prompt`、`compact` 和 `abort`，使通知交付与用户停止共用包内的接纳边界。
+
+### 从原生分支推导用量和进展
+
+每当预算、状态、完成检查或快照需要统计时，[`goalUsage` 和 `goalProgress`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/goalState.ts) 都从原生条目推导结果。快照中的 `tokensUsed`、`costUsed` 和 `progressRounds` 仅记录写入时的值供展示，绝不作为后续决策的数据源。这使实时会话和重新打开的会话保持一致，也避免了第二套账本。
+
+- 父请求的输入结束位置处于已接纳的目标轮次，且当时目标为 active 时，该请求计入目标。响应在途期间写入的状态不会把这次请求排除。调用停止工具的请求计入；之后的请求，包括完成后的总结，不再计入。
+- 父请求的 token 用量包含输入、输出、缓存读取和缓存写入。金额采用各条目记录的价格，绝不用当前模型价格重新计算历史。没有定价的模型无法依赖 USD 限额，需要 token 预算。
+- 工具结果报告的用量归属于发起该调用的请求。暂停后才返回的前台子智能体仍计入。这是目标预算统计，不是再次收费：Cherry 已经记录底层模型调用的费用。
+- 由已计入请求启动、转为后台或继续的后台运行归属于该目标。其用量在通知或 `stop_subagent` 结果交付时计入一次，按子会话与运行编号去重。暂停、受阻或解除武装后交付仍计入；后来由人类回合启动的运行不会继承旧目标的归属。
+- 独立通知回合既不是人类回合，也不是目标轮次。目标 active 且已武装时，该回合的父请求计入预算。随人类消息或目标轮次一起进入的通知则归属于那个回合。独立通知结束前一目标轮次的进展统计区间。
+- 一轮中有成功且不只是读取或记账的工具结果，或者最后一条未截断的文本回复经空白归一化后与之前不同，即算有进展。`NON_PROGRESS_TOOLS` 定义排除集合，包括读取、回忆、todo 更新和用户提问。同批次更早完成的工具工作对完成检查可见。中止的轮不贡献进展；人类消息重置无进展连续计数，重新武装还会重置文本比较。子智能体内部调用不作为父智能体动作出现；成功的 `subagent` 调用本身可以算进展。
+
+### 上限、人工介入与完成
+
+宿主必须提供 `maxGoalRounds`、`maxGoalRoundsCeiling`、`blockedAfter` 和实时的 `autonomy()` 回调；包内没有它们的内置默认值。建议的宿主基线也是测试辅助代码采用的值：100 轮、绝对上限 1000、连续三轮报告受阻、`auto`，且不设 token 或 USD 预算。一轮指模型停下后的一次自主续跑，不是一次模型请求；其中的工具循环可以包含多次请求。包内固定阈值为两轮无进展后提示、三轮后停止、第三次相同工具调用开始拦截、第五次终止。工具调用比较使用工具名与规范化参数，不受对象键顺序影响。目标文本会去掉首尾空白，长度限定为 1–4000 字符。
+
+| 条件 | 行为 |
+| --- | --- |
+| 轮数上限 | 最后一轮为收尾轮，之后目标以 `round_limit` 受阻。运行中把上限降至已经开始的轮数，不再额外收尾。 |
+| Token 或 USD 预算 | 任一预算耗尽后，在轮数上限仍有余量时允许一次收尾，随后以 `budget_exhausted` 受阻。这是续跑限额，不是严格的单请求支出上限。 |
+| 无进展 | 两轮无进展产生提示，三轮以 `no_progress` 停止。相同调用从第三次尝试开始拦截，第五次终止该工具循环并请求停止。截断本身不触发停止，但截断文本不算进展。 |
+| 目标轮中的人工介入 | 审批被拒请求 `approval_denied`；审批无人处理请求 `awaiting_approval`；用户拒答问题请求 `needs_user_input`。审批等待期间不开新轮。问题无人可答不会单独停止目标。普通人类回合的审批不触发这些目标停止。 |
+| 模型请求错误 | 模型层重试结束后，active 且已武装的目标以 `provider_error` 受阻，并记录原生错误文本。目标层不重试。 |
+| 完成或模型自报受阻 | 核验通过的完成进入 `complete`；接受的阻碍进入 `blocked / model_blocked`。不会暗中从普通模型文本推断这些结果。 |
+
+调高限额仅在轮数与预算都有余量时重新打开因限额受阻的目标；它会清除旧停止原因和收尾标志，但仍需 resume 才武装。只调高一个已耗尽的限额不能换来额外收尾。没有余量时拒绝恢复。完成对暂停、恢复及再次报告完成或受阻是终态；编辑不会使已完成目标重新可运行，新工作需要新目标。
+
+`GoalVerifier` 接收目标、完成声明、经过 replay 规则处理的完整压缩后原生会话、当前模型和取消信号。`met` 完成目标，`not_met` 附原因拒绝声明，`impossible` 则使目标受阻。异常不会放行完成。包不设置核验超时；宿主必须响应取消并自行限时。核验后再次检查目标 revision，避免覆盖期间发生的编辑、暂停或清除。未提供核验器时，要求非空证据以及至少一轮进展；这是退化检查，不是对正确性的独立证明。
+
+模型报告受阻时必须给出原因。人类回合中立即接受；自主报告需要连续 `blockedAfter` 轮，每轮最多计一次。人类输入、恢复或编辑会重置计数。实现统计连续报告次数，不证明不同原因文本描述的是同一条件。
+
+当前目标的已观测预算耗尽后，在 turn end 和 settle 决策前会以 `stoppedBy: 'budget'` 停止其拥有的运行中后台子智能体，即使目标已暂停、受阻或正在让路给用户输入。active 且已武装目标的预算耗尽时也拒绝新建后台运行。预算内的暂停、中止或其他停止保留后台子智能体。包通过内部 `SubagentGoalLink` 连接这些行为，没有 `hasRunningSubagents` 宿主端口。
+
+### 工具、命令与宿主职责
+
+顺序执行且仅供模型调用的工具仍为 `get_goal`、`create_goal` 和 `update_goal`，保留既有目标视图及 `activation: 'armed' | 'disarmed'`。精确 schema 和错误码由源码定义。模型只能在人类回合创建、编辑、暂停或恢复目标；通知回合不算人类输入。创建要求当前没有未完成目标。可选空字符串与零按未填写处理，负数限额校验失败，不带字段的编辑会被拒绝。
+
+`/goal [<objective> | edit <objective> | pause | resume | clear | rounds <n> | budget <tokens|$usd>]` 作为原生命令处理，本身不调用模型。控制词不区分大小写，但必须占满输入；数字子命令后只能跟一个数字参数。没有目标时，`edit <text>` 作为目标文本，而单独的 `edit` 报告缺少目标。反馈使用原生 `cherry.goal-notice` 状态条目，不进入模型上下文。
+
+不支持工具调用的模型不注册目标工具和命令；已有 active 目标标为 `unsupported_model`。子智能体不能控制 fork 继承的父目标：目标工具返回 `in_subagent`，禁用自动续跑，子会话不订阅父会话的审批端口。会话配置必须维持这条边界，不能假设父扩展会自动继承。
+
+尚待完成的桌面接入必须：
+
+- 将原生目标快照、轮消息和通知投影为目标状态、轮次消息头及独立的停止本轮、暂停目标、清除目标控件。撤回预约表现为中止的运行时回合，不是已完成轮次或用户主动停止；UI 必须保留这一区别。
+- 通过现有审批系统确认模型发起的 `create_goal`，提供当前会话的审批事件，并在用户启动自主目标时说明交互审批要求。其他会话的事件不得停止父目标；应优先使用会话身份，而不是只按调用 id 匹配。
+- 决定并执行权限模式策略，包括在 plan 模式下不启动自主轮。包目前不知道 Cherry 的权限模式，也没有 plan 模式的接纳钩子；宿主行为尚未实现。
+- 对每个新的 `lastStop.at` 只记录一次，用于停止原因、轮数、用量和时长分析。完成后用户作出纠正可用于评估完成质量，但不能自动把之后的每个请求都认作对目标完成的推翻。
+
+外部事件唤醒、cron 调度、`waiting` 目标阶段、每轮全新上下文及 AI 审批员均不在本提案范围。独立评估模型的选择属于未来对现有核验端口的宿主实现，不是另一套包内循环。
+
+## Alternatives considered
+
+- 仅靠提示词重复续跑：不足以保证停止、预算和人工介入，因为这些行为会依赖模型遵循指令。原生运行时边界提供可执行的续跑决策。
+- 宿主调度配合重复的 transcript 或计数存储：未采用，因为 replay、统计和取消会出现竞争的所有者。原生分支条目提供持久事实。
+- 在提出续跑时计数，或仅用目标、revision 和轮号标识轮次：拒绝，因为后续扩展否决、陈旧预约及崩溃可能留下未执行的提示，却被算成工作。接纳记录使用独立的预约 id。
+- 在内存中累计用量或进展，或从快照总量恢复：拒绝，因为请求中途停止、子结果晚到及同批次完成可能使实时与恢复后的决策不一致。从分支重算接受了扫描开销，以保留唯一事实来源。
+- 无上限续跑，或每次模型请求算一轮：未采用。可配置的较高轮数上限限制有用但未完成的工作，无进展检查与可选预算处理循环和成本。显示轮数是为了可预期性；它是否促使模型过早完成仍需宿主证据。
+- 仅因子智能体仍运行就把目标记为 blocked：已改为在 active 目标内等待，由原生结果交付先结束，再继续目标。普通目标暂停不会取消独立后台工作。
+- 信任所有完成声明，或要求先有评估模型才能使用：均未采用。端口支持独立核验，退化路径要求证据和观测到的进展，同时明确其保证较弱。
+
+## Acceptance criteria
+
+以下为完整交付结果。下文列出的源码测试是证据位置，不表示本次文档迁移执行或通过了这些测试。
+
+- AC1 — 原生会话重新打开后保留同一目标身份、阶段、限额和分支推导用量，但处于解除武装状态；必须显式恢复，压缩不丢失目标。 (verification: unit — Pi 适配器维护者，`aiSdkGoalRebuild.test.ts` 和 `goalState.test.ts`)
+- AC2 — 只有已接纳预约才推进轮数；被否决、撤回或启动前崩溃的预约不进入后续模型或核验器输入，也不消耗轮次。 (verification: unit — Pi 适配器维护者，`aiSdkGoal.test.ts`、`aiSdkGoalStops.test.ts` 和 `aiSdkGoalRebuild.test.ts`)
+- AC3 — 用户输入、中止、暂停、清除、逐轮确认和模型错误阻止不应开始的下一轮，包括与后加载 settle 处理器或核验器竞争时。 (verification: unit — Pi 适配器维护者，`aiSdkGoal.test.ts` 和 `aiSdkGoalStops.test.ts`)
+- AC4 — 上限和预算只允许约定的收尾；陈旧变更和无余量恢复被拒绝，所有已耗尽限额调高后可以显式继续。 (verification: unit — Pi 适配器维护者，`goalState.test.ts` 和 `aiSdkGoalStops.test.ts`)
+- AC5 — 在途父请求、晚到前台结果、通知回合、后台续跑和重叠停止回执的实时与恢复统计一致，不把人类工作归入目标，也不重复计费底层请求。 (verification: unit — Pi 适配器与模型绑定维护者，`aiSdkGoalStops.test.ts` 和 `aiSdkGoalSubagents.test.ts`)
+- AC6 — 运行时进展检查停止重复工作、在完成批次中识别先前成功工作并排除中止轮；核验拒绝、异常或并发目标编辑不能悄悄完成目标。 (verification: unit — Pi 适配器维护者，`aiSdkGoalStops.test.ts`)
+- AC7 — 后台结果和目标续跑不启动互相竞争的回合；预算超限仅停止当前目标拥有的运行中子智能体，预算内暂停保留它们运行。 (verification: unit — Pi 适配器维护者，`aiSdkGoalSubagents.test.ts`)
+- AC8 — 不支持的模型和子会话不能启动父目标的自主工作，其他会话的审批事件不能停止该目标。 (verification: unit — Pi 适配器维护者，`aiSdkGoalRebuild.test.ts` 和 `aiSdkGoalSubagents.test.ts`)
+- AC9 — 桌面使用包内会话入口、确认模型创建的目标、执行权限模式策略、呈现独立停止控件与撤回轮次，并能恢复目标而不自动重启。 (verification: Electron — Cherry 宿主接入负责人)
+- AC10 — 宿主停止遥测去重、反映快照时点和目标预算归属，不把脚本模型测试报告为真实提供商或桌面验收。 (verification: unit and Electron — Cherry 宿主接入负责人)
+
+## Current implementation and evidence
+
+[包内 README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/README.md) 描述已实现的包 API。[桌面 Pi README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md) 明确区分现有生产连接和独立的包接入。目标不要求每个宿主回合重建原生会话，后台子智能体运行时这样做还会违反其所有权契约。
+
+| 证据位置 | 覆盖的契约 |
+| --- | --- |
+| [`goalState.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/tests/goalState.test.ts) | 状态迁移、限额、分支解释、进展分类和提示及视图结构。 |
+| [`aiSdkGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoal.test.ts) | 工具、命令语法、接纳、排队输入和自主模式。 |
+| [`aiSdkGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalStops.test.ts) | 限额、陈旧预约、中止、审批、完成、进展及按请求时点统计。 |
+| [`aiSdkGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalRebuild.test.ts) | 解除武装恢复、跨崩溃的预约身份、压缩、不支持的模型及 fork 隔离。 |
+| [`aiSdkGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSubagents.test.ts) | 后台等待、通知顺序、预算所有权、停止去重、续跑和审批隔离。 |
+
+[目标测试辅助代码](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSupport.ts) 以脚本模型通过真实 AI SDK 流式调用驱动原生 Pi，并将恢复后的目标视图与实时检查点比较。这些测试不证明真实提供商行为、桌面接线、UI 验收或已交付的权限策略。不能仅因文件存在就推断测试结果或批准。
+
+## Risks
+
+- 进展是启发式判断：文本变化或动作成功不证明目标有所推进。退化完成检查弱于独立核验，受阻原因也没有语义比较。
+- 预算在边界观测，并允许一次收尾。一轮可以包含多个请求，后台用量直到结果交付才可见；本功能不能保证在途工作的精确 token 或 USD 上限。
+- 原生分支扫描随历史增长。快照总量刻意不替代它；若要替代，必须先证明晚到结果和恢复行为完全一致。
+- 扩展顺序和 Pi 事件时序影响接纳。未接纳提示仍会进入压缩摘要器，即使请求过滤后也可能影响后续摘要。
+- 宿主 UI、审批接线、plan 模式策略、遥测及真实提供商验证仍未完成。不带会话身份的审批事件可能因工具调用 id 冲突而混淆，不响应取消的核验器也可能违反信号契约并延迟返回。
