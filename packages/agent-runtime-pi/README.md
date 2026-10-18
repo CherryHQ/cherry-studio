@@ -192,7 +192,7 @@ approval extension, so each call a subagent makes is approved on its own.
 ## Goals
 
 `createGoalExtension(port)` adds a persisted objective the runtime keeps pushing while the model is
-idle. Design: `docs/superpowers/specs/2026-10-11-agent-runtime-goal-design.md`.
+idle. Design: [goal note](../../.agents/notes/proposed/feature/2026-10-11-agent-runtime-goal.md).
 
 - **State** – native `cherry.goal` entries hold one snapshot per change and a tombstone on clear;
   each round is a `cherry.goal-round` custom message the host maps to the "round N" header. A
