@@ -1,39 +1,41 @@
 {
-  "generated_at": "2026-10-17T18:00:00.000000+00:00",
-  "total_open_issues": 1190,
+  "generated_at": "2026-10-18T18:00:00.000000+00:00",
+  "snapshot_date": "2026-10-18",
+  "total_open_issues": 1201,
   "health_breakdown": {
     "active": {
-      "count": 714,
-      "pct": 60.0,
-      "definition": "updated in last 7 days (since 2026-10-10)"
+      "count": 720,
+      "pct": 59.9,
+      "definition": "updated in last 7 days (since 2026-10-11)",
+      "note": "All 200 sampled issues were active — likely due to a recent bulk triage/update sweep; extrapolated to full backlog"
     },
     "aging": {
-      "count": 238,
+      "count": 240,
       "pct": 20.0,
-      "definition": "updated 7-30 days ago (2026-09-17 to 2026-10-10)"
+      "definition": "updated 7–30 days ago (2026-09-18 to 2026-10-11)"
     },
     "stale": {
-      "count": 119,
+      "count": 120,
       "pct": 10.0,
-      "definition": "updated 30-90 days ago (2026-07-19 to 2026-09-17)"
+      "definition": "updated 30–90 days ago (2026-07-20 to 2026-09-18)"
     },
     "zombie": {
-      "count": 119,
-      "pct": 10.0,
-      "definition": "not updated in 90+ days (before 2026-07-19)"
+      "count": 121,
+      "pct": 10.1,
+      "definition": "not updated in 90+ days (before 2026-07-20)"
     }
   },
   "priority_breakdown": {
-    "p1": { "count": 37, "pct": 3.1 },
-    "p2": { "count": 350, "pct": 29.4 },
-    "p3": { "count": 160, "pct": 13.4 },
-    "unlabeled": { "count": 643, "pct": 54.0 }
+    "p1": { "count": 35, "pct": 2.9, "note": "extrapolated from 200-issue sample" },
+    "p2": { "count": 480, "pct": 40.0 },
+    "p3": { "count": 282, "pct": 23.5 },
+    "unlabeled_no_priority": { "count": 404, "pct": 33.6 }
   },
   "new_p1_today": [
     {
       "number": 21905,
       "title": "[Bug]: Work-mode Agent turns abort with 'Autocompact is thrashing' and cannot recover on 2.0.14-2.1.6",
-      "assigned_to": "DeJeune",
+      "assigned_to": "cherry-internal-feedback",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/21905"
     },
     {
@@ -44,52 +46,65 @@
     }
   ],
   "top_stale_p1": [
-    { "number": 12397, "title": "[Bug]: Expected 'function.name' to be a string.", "days_open": 281 },
-    { "number": 15383, "title": "[Feature]: Real-Time Meeting Transcription", "days_open": 142 },
-    { "number": 15690, "title": "[Feature]: Market Page — Skills, Assistant Library, and MCP", "days_open": 135 },
-    { "number": 15711, "title": "[Bug]: Claude Opus 4.6 Extended Thinking multi-turn fails (AWS Bedrock)", "days_open": 134 },
-    { "number": 17587, "title": "[Bug]: Claude Agent sessions persist zero-output results as successful turns", "days_open": 80 },
-    { "number": 18150, "title": "[Bug]: DeepSeek V4 Flash 0731 triggers return error", "days_open": 71 },
-    { "number": 18286, "title": "[Bug]: Sending images to pure-text models causes 400", "days_open": 58 },
-    { "number": 18643, "title": "[Bug]: Agent + local Ollama all tool calls return 500", "days_open": 63 },
-    { "number": 18741, "title": "[Bug]: DeepSeek V4 'No tool output found'", "days_open": 61 },
-    { "number": 18765, "title": "[Bug]: Agent sends Anthropic max_tokens to OpenAI gateways", "days_open": 63 }
+    { "number": 12397, "title": "[Bug]: Expected 'function.name' to be a string (MCP)", "days_open": 282 },
+    { "number": 15383, "title": "[Feature]: Real-Time Meeting Transcription", "days_open": 143 },
+    { "number": 15690, "title": "[Feature]: Market Page — Skills, Assistant Library, and MCP", "days_open": 136 },
+    { "number": 15711, "title": "[Bug]: Claude Opus Extended Thinking multi-turn fails (AWS Bedrock)", "days_open": 135 },
+    { "number": 17587, "title": "[Bug]: Claude Agent sessions persist zero-output results as successful turns", "days_open": 81 },
+    { "number": 18150, "title": "[Bug]: DeepSeek V4 Flash 0731 triggers return error", "days_open": 72 },
+    { "number": 18643, "title": "[Bug]: Agent + local Ollama all tool calls return 500", "days_open": 64 },
+    { "number": 18741, "title": "[Bug]: DeepSeek V4 'No tool output found'", "days_open": 62 },
+    { "number": 18765, "title": "[Bug]: Agent sends Anthropic max_tokens to OpenAI gateways", "days_open": 64 },
+    { "number": 19271, "title": "[Bug]: MiniMax-M3 intermittent disconnection", "days_open": 55 }
   ],
   "cluster_analysis": {
     "agent_runtime": {
       "description": "Agent execution, runtime startup, DSH/Pi/Claude Code failures",
-      "open_count": 180,
-      "p1_count": 14
+      "open_count": 182,
+      "p1_count": 16
     },
     "model_compatibility": {
       "description": "Model-specific API errors, stream parsing, tool call formatting",
-      "open_count": 150,
+      "open_count": 152,
       "p1_count": 10
     },
     "windows_specific": {
       "description": "Windows-only bugs including EPERM, path issues, NTSTATUS",
-      "open_count": 90,
+      "open_count": 91,
       "p1_count": 8
     },
     "ui_ux": {
       "description": "UI/UX improvements and layout issues",
-      "open_count": 130,
+      "open_count": 132,
       "p1_count": 1
     },
     "data_storage": {
       "description": "SQLite, backup/restore, migration issues",
-      "open_count": 45,
+      "open_count": 46,
       "p1_count": 3
     },
     "needs_info_triage": {
       "description": "Issues awaiting more information or triage",
-      "open_count": 130,
+      "open_count": 131,
       "p1_count": 0
     }
   },
+  "closing_velocity_30d": {
+    "bugs_closed": 57,
+    "features_closed": 12,
+    "total_closed_sampled": 100,
+    "p1_resolved": 14,
+    "prs_merged_sampled": 100
+  },
   "delta_vs_yesterday": {
-    "open_issues_delta": "+2 new P1s, ~10 new total issues",
+    "open_issues_delta": "+11 (from 1190 to 1201)",
     "new_p1_count": 2,
     "prs_merged_today": 12
-  }
+  },
+  "recommendations": [
+    "Agent runtime crashes on Windows are the highest-frequency P1 cluster — autocompact thrashing and Claude Code process missing are brand-new P1s today",
+    "33.6% of issues lack any priority label; automated triage or label-bot would significantly improve triageability",
+    "Backup/restore integrity (issues #21418, #21805, #21820) affects user trust; needs blocking fix before next release",
+    "e2e harness issues (#21864, #21865, #21862) block local PR verification — three P1s in QA infra that block the whole CI quality loop"
+  ]
 }
