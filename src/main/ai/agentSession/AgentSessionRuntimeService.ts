@@ -2331,6 +2331,13 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
 
+    // An overflowed stream lost its start; a delta without it aborts the accumulator, so the
+    // suppression follows the stream past recovery — only a fresh start re-opens it.
+    if (entry.recoveryFlowOverflowRoots?.has(rootToolCallId)) {
+      if (!startsFlowStream(chunk)) return
+      entry.recoveryFlowOverflowRoots.delete(rootToolCallId)
+    }
+
     let messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
     if (messageId) this.rememberFlowAnchor(entry, rootToolCallId, messageId)
     // A fresh entry (restart or session reopen) has no in-memory anchor: look the host row up and
@@ -2364,6 +2371,12 @@ export class AgentSessionRuntimeService extends BaseService {
         this.bufferRecoveryChunk(entry, rootToolCallId, chunk)
         return
       }
+    }
+
+    // Same suppression for a row whose message buffer overflowed: its held prefix is gone too.
+    if (messageId && entry.pendingBackgroundFlowOverflowIds?.has(messageId)) {
+      if (!startsFlowStream(chunk)) return
+      entry.pendingBackgroundFlowOverflowIds.delete(messageId)
     }
 
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
@@ -2448,6 +2461,12 @@ export class AgentSessionRuntimeService extends BaseService {
       const oldest = persisted.values().next().value
       if (oldest === undefined) break
       persisted.delete(oldest)
+      // An anchor outliving its marker would skip the recovery look-up that re-marks the row.
+      const anchors = entry.flowMessageIdsByToolCallId
+      if (!anchors) continue
+      for (const [callId, anchoredMessageId] of anchors) {
+        if (anchoredMessageId === oldest) anchors.delete(callId)
+      }
     }
   }
 
