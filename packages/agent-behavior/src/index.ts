@@ -65,3 +65,51 @@ export type {
   Step
 } from './core/decisions'
 export type { Key } from './core/keys'
+export type {
+  TransactResult,
+  Ledger,
+  StartResult,
+  RetractResult,
+  Turns,
+  MessageResult,
+  Helpers,
+  JobHandler,
+  Jobs,
+  Waits,
+  Memory,
+  Clock,
+  ToolCall,
+  ToolOutcome,
+  ToolDefinition,
+  Tools,
+  GateVerdict,
+  GatePorts,
+  GateHandlers,
+  ToolGate,
+  ContextFilterHandler,
+  ContextFilter,
+  RequestAllowance,
+  RequestMeterHandler,
+  RequestMeter,
+  LifecycleHandlers,
+  Lifecycle,
+  HarnessPorts,
+  BoundPorts,
+  PortMethod
+} from './ports/harness'
+export type {
+  ApprovalRequest,
+  Approvals,
+  QuestionRequest,
+  Questions,
+  Models,
+  VerifyRequest,
+  Verifier,
+  OutputFile,
+  OutputStore,
+  SummaryRequest,
+  Summarizer,
+  Observation,
+  Settings,
+  HostPorts
+} from './ports/host'
