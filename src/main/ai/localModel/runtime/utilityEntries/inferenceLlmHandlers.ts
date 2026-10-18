@@ -123,6 +123,7 @@ export const llmHandlers: UtilityProcessHandlers<LlmInferenceContract> = {
       // the hybrid model's state just before it, so the next turn resumes there instead of re-reading the prompt.
       const chat = new runtime!.LlamaChat({ contextSequence: state.sequence })
       let outputTokens = 0
+      let functionParams = ''
       let textStarted = false
       try {
         const result = await chat.generateResponse(toChatHistory(input.messages), {
@@ -135,6 +136,10 @@ export const llmHandlers: UtilityProcessHandlers<LlmInferenceContract> = {
           topP: sampling.topP,
           topK: sampling.topK,
           repeatPenalty: { presencePenalty: sampling.presencePenalty },
+          // Tool-call parameters bypass onResponseChunk, so their tokens are counted from this text.
+          onFunctionCallParamsChunk: (chunk) => {
+            functionParams += chunk.paramsChunk
+          },
           onResponseChunk: (chunk) => {
             outputTokens += chunk.tokens.length
             if (chunk.type === 'segment') {
@@ -148,6 +153,7 @@ export const llmHandlers: UtilityProcessHandlers<LlmInferenceContract> = {
             emit({ type: 'text', delta })
           }
         })
+        outputTokens += functionParams ? state.model.tokenize(functionParams).length : 0
         return {
           finishReason: FINISH_REASONS[result.metadata.stopReason],
           toolCalls: result.functionCalls?.map((call) => ({
