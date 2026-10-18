@@ -921,7 +921,8 @@ After`
   // The script tokenizer region also carries across blank-line-split html nodes: a body ending
   // inside `<!--<script>` leaves the NEXT node double-escaped, where its literal `</script>`
   // only steps back to escaped — the element never truly ends, so the trailing `</details>` is
-  // script source and must not pair the disclosure.
+  // script source and must not pair the disclosure, and the literal `</html>` inside the same
+  // string is never a document boundary.
   it('carries script escaped regions across nodes until the true end tag', () => {
     const source = `<details>
 <summary>Doc</summary>
@@ -933,14 +934,16 @@ After`
 </details>`
     const tree = parse(source)
 
-    // The double-escaped region swallows the `</script>` stepback AND the literal close: the
-    // disclosure never pairs, and the document tail still assembles ONE exact-source artifact.
-    expect(tree.children.map((child) => child.type)).toEqual(['code', 'code', 'code'])
-    const document = (tree.children[1] as { value: string }).value
-    expect(document).toContain('<script>const a="<!--<script>')
-    expect(document).toContain('literal </details>";')
-    expect(document).toContain('</html>')
-    expect(tree.children.some((child) => child.type === 'html')).toBe(false)
+    // The disclosure never pairs (no real `</script>` exists past the double-escaped region):
+    // every fragment keeps its artifact path except the document-boundary fragments.
+    expect(tree.children.map((child) => child.type)).toEqual(['code', 'html', 'html', 'code'])
+    expect((tree.children[1] as { value: string }).value).toContain('<script>const a="<!--<script>')
+    expect((tree.children[2] as { value: string }).value).toContain('literal </details>";')
+    expect(
+      tree.children.every(
+        (child) => child.type !== 'html' || !(child as { value: string }).value.startsWith('</details')
+      )
+    ).toBe(true)
   })
 
   // The retained-close prefix recursion must inherit the lexical state accumulated BEFORE the
@@ -1002,6 +1005,34 @@ After`
     expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html', 'paragraph'])
     expect(tree.children[1]).toMatchObject({ type: 'code', lang: 'html', value: document })
     expect((tree.children[2] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
+  })
+
+  // The document-end search must respect script context: a literal `</html>` inside a script
+  // string is document TEXT. Matching it truncates the artifact inside the string and lets the
+  // following literal `</details>` resolve as a native boundary.
+  it('keeps the exact document artifact when a script string hides the html close', () => {
+    const source = `<details><summary>Outer</summary><details><summary>Inner</summary>
+
+<html><body><script>const example="</html></details>";</script><style>p{color:red}</style></body></html>
+
+</details>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // Shape: [shared open raw, the exact document source as ONE code node, the real inner
+    // close raw, the outer close raw, `After` outside both disclosures].
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: `<html><body><script>const example="</html></details>";</script><style>p{color:red}</style></body></html>`
+    })
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues.filter((value) => value.startsWith('</details')).length).toBe(2)
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
   })
 

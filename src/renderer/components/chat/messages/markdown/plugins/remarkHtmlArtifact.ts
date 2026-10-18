@@ -61,11 +61,108 @@ function isHtmlDocumentBoundary(node: Html): boolean {
   return HTML_DOCUMENT_START_REGEX.test(content) || HTML_DOCUMENT_END_REGEX.test(node.value)
 }
 
+// First lexically-real `</html …>` in `value`: occurrences inside comments, unfinished tags,
+// CDATA and raw-text bodies (script's escaped regions included) are document TEXT, never the
+// document boundary. `state` carries the lexical context across the document's html nodes, so
+// a script string hiding `</html>` cannot end the document early.
+function findDocumentHtmlClose(value: string, state: ContainerScanState): number | undefined {
+  let position = 0
+  while (position < value.length) {
+    if (state.inComment) {
+      const end = value.indexOf('-->', position)
+      if (end === -1) return undefined
+      position = end + 3
+      state.inComment = false
+      continue
+    }
+    if (state.rawText !== undefined) {
+      if (state.rawText === 'plaintext') return undefined
+      let resume: number | undefined
+      if (state.rawText === 'script') {
+        resume = scanScriptDataEnd(value, position, state)
+      } else {
+        const closeRegex = RAW_TEXT_CLOSE_REGEXES.get(state.rawText)
+        if (closeRegex) {
+          closeRegex.lastIndex = position
+          const close = closeRegex.exec(value)
+          if (close) resume = close.index + close[0].length
+        } else {
+          state.rawText = undefined
+          continue
+        }
+      }
+      if (resume === undefined) return undefined
+      position = resume
+      state.rawText = undefined
+      continue
+    }
+    if (state.inCDATA) {
+      const end = value.indexOf(']]>', position)
+      if (end === -1) return undefined
+      position = end + 3
+      state.inCDATA = false
+      continue
+    }
+    if (state.inTag) {
+      const end = findUnfinishedTagEnd(value, 0, state)
+      if (end === undefined) return undefined
+      position = end + 1
+      state.inTag = false
+      if (state.pendingRawText !== undefined) {
+        state.rawText = state.pendingRawText
+        state.pendingRawText = undefined
+      }
+      continue
+    }
+    const lt = value.indexOf('<', position)
+    if (lt === -1) return undefined
+    const closeMatch = /^<\/html\s*>/i.exec(value.slice(lt))
+    if (closeMatch) return lt + closeMatch[0].length
+    if (value.startsWith('<!--', lt)) {
+      const end = value.indexOf('-->', lt + 4)
+      if (end === -1) {
+        state.inComment = true
+        return undefined
+      }
+      position = end + 3
+      continue
+    }
+    if (value.startsWith('<![CDATA[', lt)) {
+      const end = value.indexOf(']]>', lt + 9)
+      if (end === -1) {
+        state.inCDATA = true
+        return undefined
+      }
+      position = end + 3
+      continue
+    }
+    // A close tag of anything else: its interior holds no boundary, skip past the marker.
+    if (value.startsWith('</', lt)) {
+      position = lt + 2
+      continue
+    }
+    // An open tag consumes its attribute list whole (quoted `>` included) and may open a
+    // raw-text body; an unterminated tag dangles into later nodes.
+    const tagName = /^<([a-z][a-z0-9-]*)/i.exec(value.slice(lt))?.[1]?.toLowerCase()
+    state.inTag = true
+    if (tagName !== undefined && RAW_TEXT_CLOSE_REGEXES.has(tagName)) state.pendingRawText = tagName
+    const end = findUnfinishedTagEnd(value, lt + 1, state)
+    if (end === undefined) return undefined
+    position = end + 1
+    state.inTag = false
+    if (state.pendingRawText !== undefined) {
+      state.rawText = state.pendingRawText
+      state.pendingRawText = undefined
+    }
+  }
+  return undefined
+}
+
 function findHtmlDocumentEnd(
   children: readonly RootContent[],
   startIndex: number,
   end = children.length
-): number | undefined {
+): { index: number; htmlCloseEnd: number } | undefined {
   let documentStartIndex = startIndex
 
   while (true) {
@@ -83,9 +180,12 @@ function findHtmlDocumentEnd(
     return undefined
   }
 
+  const state: ContainerScanState = { count: 0 }
   for (let index = documentStartIndex; index < end; index += 1) {
     const child = children[index]
-    if (child?.type === 'html' && HTML_DOCUMENT_END_REGEX.test(child.value)) return index
+    if (child?.type !== 'html') continue
+    const htmlCloseEnd = findDocumentHtmlClose(child.value, state)
+    if (htmlCloseEnd !== undefined) return { index, htmlCloseEnd }
   }
 
   return undefined
@@ -576,11 +676,11 @@ function collectProtectedHtmlRanges(tree: Root): SourceRange[] {
   const ranges: SourceRange[] = []
 
   for (let index = 0; index < tree.children.length; index += 1) {
-    const documentEndIndex = findHtmlDocumentEnd(tree.children, index)
-    if (documentEndIndex !== undefined) {
-      const range = getSourceRange(tree.children.slice(index, documentEndIndex + 1))
+    const documentEnd = findHtmlDocumentEnd(tree.children, index)
+    if (documentEnd !== undefined) {
+      const range = getSourceRange(tree.children.slice(index, documentEnd.index + 1))
       if (range) ranges.push(range)
-      index = documentEndIndex
+      index = documentEnd.index
       continue
     }
 
@@ -661,19 +761,20 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
     // the depth the body's own nested openings accumulate survives between resolutions.
     const pendingScanState: ContainerScanState = entryState ? { ...entryState, count: 1 } : { count: 1 }
     for (let index = from; index < to; index += 1) {
-      const documentEndIndex = findHtmlDocumentEnd(items, index, to)
-      if (documentEndIndex !== undefined) {
+      const documentEnd = findHtmlDocumentEnd(items, index, to)
+      if (documentEnd !== undefined) {
+        const documentEndIndex = documentEnd.index
         let documentNodes = items.slice(index, documentEndIndex + 1)
         let resumeIndex = documentEndIndex
         // A document tail sharing its node with the closes owed to retained openings (a shared
         // opening node's `</details>` merged after `</html>`) must not be swallowed into the
         // artifact: split the tail off so the pending-close path below can keep those closes
-        // raw.
+        // raw. The boundary offset comes from the LEXICAL document-end search — a literal
+        // `</html>` inside a script string is document text, never the boundary.
         if (pendingCloses > 0) {
           const last = items[documentEndIndex]
           if (last?.type === 'html') {
-            const htmlEndMatch = HTML_DOCUMENT_END_REGEX.exec(last.value)
-            const htmlEnd = htmlEndMatch ? htmlEndMatch.index + htmlEndMatch[0].length : last.value.length
+            const htmlEnd = documentEnd.htmlCloseEnd
             const tail = last.value.slice(htmlEnd)
             if (htmlEnd < last.value.length && findUnmatchedDetailsClose(tail) !== undefined) {
               documentNodes = [...items.slice(index, documentEndIndex), sliceHtmlNode(last, 0, htmlEnd)]
