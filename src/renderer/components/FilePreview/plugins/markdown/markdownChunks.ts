@@ -1182,17 +1182,6 @@ function headingRenderedText(source: string): string {
       } else if ((character === '[' && !entry.label) || (character === '!' && segment[index + 1] === '[')) {
         const open = index + (character === '!' ? 1 : 0)
         const label = pastBracketRun(segment, open)
-        // A destination or reference follows only a label that closed; otherwise the scan already
-        // read to the end of the segment, and the run cannot be part of a construct at all.
-        const reference =
-          segment[label.end] === '[' ? pastBracketRun(segment, label.end) : { end: label.end, closed: true }
-        const follow = label.closed
-          ? segment[label.end] === '('
-            ? pastParenRun(segment, label.end)
-            : reference.closed
-              ? reference.end
-              : -1
-          : -1
         // A link the label holds forbids the one around it, which leaves the outer brackets as text
         // — so the scan moves one character and reads the inner link where it stands. An image is
         // allowed inside a label, so only a link decides this. Every run is charged what it cost to
@@ -1204,6 +1193,20 @@ function headingRenderedText(source: string): string {
           index = label.end
           continue
         }
+        // A destination or reference follows only a label that closed; otherwise the scan already
+        // read to the end of the segment, and the run cannot be part of a construct at all. One
+        // that never closes reads that far again, so the run behind the label is charged the tail
+        // it cost too — a heading of `[a](` repeated paid it from every bracket in turn.
+        const reference =
+          segment[label.end] === '[' ? pastBracketRun(segment, label.end) : { end: label.end, closed: true }
+        const follow = label.closed
+          ? segment[label.end] === '('
+            ? pastParenRun(segment, label.end)
+            : reference.closed
+              ? reference.end
+              : -1
+          : -1
+        labelChars += (follow >= label.end ? follow : segment.length) - label.end
         const nested = label.closed && holdsLink(segment.slice(open + 1, label.end - 1))
         if (label.closed && !nested && follow >= label.end) {
           // A link renders its label; an image renders none once it has a destination, while one

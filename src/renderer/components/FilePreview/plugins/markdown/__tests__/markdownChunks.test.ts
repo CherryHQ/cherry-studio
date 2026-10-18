@@ -2835,6 +2835,21 @@ describe('a heading whose label nests another link', () => {
     expect(elapsed).toBeLessThan(1_000)
   })
 
+  it('keeps a heading of unclosed destinations inside the budget', () => {
+    // Every `[` re-read the destination run behind it, and a run that never closes reads to the end
+    // of the line, so a heading of `[a](` repeated cost its length squared — 4.8 seconds at 32K, on
+    // a line already past the long-line budget but read before the fallback is decided.
+    const content = `# ${'[a]('.repeat(32_768)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks).toHaveLength(1)
+    expect(window.longLines).toBe(true)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
   it('does not exhaust the call stack on a deeply nested bracket run', () => {
     // Each label used to be read by a recursive call, so a heading whose label nests another label
     // thousands deep exhausted the stack. The line is far past the long-line budget, but the split
