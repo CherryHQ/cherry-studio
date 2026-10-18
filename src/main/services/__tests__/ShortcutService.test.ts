@@ -1,6 +1,17 @@
 import { EventEmitter } from 'events'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as MainPlatformModule from '@main/core/platform'
+
+const { platformState } = vi.hoisted(() => ({ platformState: { isLinux: false } }))
+
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof MainPlatformModule>()),
+  get isLinux() {
+    return platformState.isLinux
+  }
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -159,6 +170,7 @@ describe('ShortcutService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
+    platformState.isLinux = false
 
     mainWindow = new MockBrowserWindow()
     currentMainWindow = mainWindow
@@ -174,6 +186,8 @@ describe('ShortcutService', () => {
 
     service = new ShortcutService()
   })
+
+  afterEach(() => vi.unstubAllEnvs())
 
   it('registers only explicitly global shortcuts with Electron globalShortcut', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
@@ -422,7 +436,9 @@ describe('ShortcutService', () => {
     expect(nextWindow.webContents.on).toHaveBeenCalledWith('before-input-event', expect.any(Function))
   })
 
-  it('notifies the renderer when a shortcut cannot be registered', async () => {
+  it('preserves the occupied warning on X11 when a shortcut cannot be registered', async () => {
+    platformState.isLinux = true
+    vi.stubEnv('XDG_SESSION_TYPE', 'x11')
     MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
       binding: ['CommandOrControl', '0'],
       enabled: true
@@ -437,7 +453,31 @@ describe('ShortcutService', () => {
       {
         key: 'shortcut.app.window.show',
         accelerator: 'CommandOrControl+0',
-        hasConflict: true
+        hasConflict: true,
+        reason: 'occupied'
+      }
+    )
+  })
+
+  it('does not misclassify a failed Wayland registration as an occupied accelerator', async () => {
+    platformState.isLinux = true
+    vi.stubEnv('XDG_SESSION_TYPE', 'wayland')
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+      binding: ['CommandOrControl', '0'],
+      enabled: true
+    })
+    globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'CommandOrControl+0')
+
+    await (service as any).onInit()
+
+    expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+      WindowType.Main,
+      IpcChannel.Shortcut_RegistrationConflict,
+      {
+        key: 'shortcut.app.window.show',
+        accelerator: 'CommandOrControl+0',
+        hasConflict: true,
+        reason: 'wayland'
       }
     )
   })
