@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { builtinModules } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -117,6 +118,90 @@ const FILE_PREVIEW_HOST_IMPORTS = [
   '**/src/main/**'
 ]
 
+// Agent behavior must run unchanged on coding-agent, Durable and the fake (packages/agent-behavior/README.md).
+const AGENT_BEHAVIOR_PORTABLE =
+  'Agent behavior is harness-neutral: no Pi, Node, Electron, host, logger or AI SDK modules.'
+const AGENT_BEHAVIOR_IMPORTS = {
+  paths: [
+    {
+      name: '@cherrystudio/agent-runtime',
+      allowTypeImports: true,
+      message: 'Agent behavior imports only types from @cherrystudio/agent-runtime.'
+    },
+    ...['ai', 'electron', '@logger', '@application', ...builtinModules].map((name) => ({
+      name,
+      message: AGENT_BEHAVIOR_PORTABLE
+    }))
+  ],
+  patterns: [
+    BAN_MCP_SDK_V1,
+    BAN_WEB_SEARCH_INTERNALS,
+    {
+      group: [
+        'node:*',
+        'electron/**',
+        '@earendil-works/*',
+        '@earendil-works/**',
+        'ai/**',
+        '@ai-sdk/*',
+        '@ai-sdk/**',
+        '@main/**',
+        '@shared/**',
+        '@renderer/**',
+        '@data/**',
+        '@cherrystudio/agent-runtime-pi',
+        '@cherrystudio/agent-runtime-pi/**',
+        '@cherrystudio/agent-runtime-pi-durable',
+        '@cherrystudio/agent-runtime-pi-durable/**',
+        '**/src/main/**',
+        '**/src/shared/**',
+        '**/src/renderer/**'
+      ],
+      message: AGENT_BEHAVIOR_PORTABLE
+    }
+  ]
+}
+// One import rule per layer: flat config replaces a rule wholesale, so each layer repeats the package bans.
+const agentBehaviorLayer = (regex, message) => [
+  'error',
+  { ...AGENT_BEHAVIOR_IMPORTS, patterns: [...AGENT_BEHAVIOR_IMPORTS.patterns, { regex, message }] }
+]
+const AGENT_RUNTIME_TYPE_NAMES =
+  /^(?:RuntimeId|BackendId|ThreadId|InputId|ItemId|DelegationId|NativeInputId|JsonValue|ContentPart)$/
+const AGENT_RUNTIME_SELECTORS = [
+  {
+    selector: `ImportDeclaration[source.value='@cherrystudio/agent-runtime'] > ImportSpecifier[imported.name!=${AGENT_RUNTIME_TYPE_NAMES}]`,
+    message:
+      'Take only ids, JsonValue and ContentPart from @cherrystudio/agent-runtime; observation items are not history.'
+  },
+  {
+    selector:
+      "ImportDeclaration[source.value='@cherrystudio/agent-runtime'] > :matches(ImportNamespaceSpecifier, ImportDefaultSpecifier)",
+    message: 'Import named id types from @cherrystudio/agent-runtime.'
+  }
+]
+const KEY_MINT_SELECTORS = [
+  {
+    selector: "TSAsExpression[typeAnnotation.typeName.name='Key'], TSTypeAssertion[typeAnnotation.typeName.name='Key']",
+    message: 'Keys come only from core/keys.ts.'
+  }
+]
+const CORE_SYNC_SELECTORS = [
+  { selector: ':function[async=true]', message: 'Core is synchronous so it can run inside a commit.' },
+  { selector: 'AwaitExpression', message: 'Core is synchronous so it can run inside a commit.' },
+  { selector: 'YieldExpression', message: 'Core is synchronous so it can run inside a commit.' },
+  { selector: 'Identifier[name=/^Promise/]', message: 'Core is synchronous so it can run inside a commit.' }
+]
+const CORE_ENVIRONMENT = 'Core does not touch the environment; take time and ids as facts.'
+const AGENT_BEHAVIOR_TIMERS = [
+  'setTimeout',
+  'setInterval',
+  'setImmediate',
+  'clearTimeout',
+  'clearInterval',
+  'queueMicrotask'
+]
+
 // Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
 // separate process that has no lifecycle container, no logger, and no database. Importing a
 // main-only singleton there fails at runtime — or silently drags winston/Drizzle into the
@@ -183,7 +268,7 @@ const collectIndexTs = (dir, out = []) => {
   }
   return out
 }
-const RUNTIME_PACKAGES = ['agent-runtime', 'agent-runtime-pi', 'agent-runtime-pi-durable']
+const RUNTIME_PACKAGES = ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable']
 const RUNTIME_SOURCE_DIRS = RUNTIME_PACKAGES.map((name) => path.join(RENDERER_DIRNAME, 'packages', name, 'src'))
 const BARREL_DIRS = new Set()
 for (const idx of [SRC_DIR, ...RUNTIME_SOURCE_DIRS].flatMap((dir) => collectIndexTs(dir))) {
@@ -1168,6 +1253,76 @@ export default defineConfig([
         }
       ],
       'no-restricted-globals': ['error', 'window', 'document', 'Worker']
+    }
+  },
+  {
+    files: ['packages/agent-behavior/src/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', AGENT_BEHAVIOR_IMPORTS],
+      'no-restricted-syntax': ['error', ...AGENT_RUNTIME_SELECTORS]
+    }
+  },
+  {
+    files: ['packages/agent-behavior/src/core/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
+        '(?:^|/)(?:ports|orchestration|fake|contract|index)(?:/|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        'core/ imports only core/.'
+      ),
+      'no-restricted-syntax': ['error', ...AGENT_RUNTIME_SELECTORS, ...KEY_MINT_SELECTORS, ...CORE_SYNC_SELECTORS],
+      'no-restricted-globals': [
+        'error',
+        ...['Date', 'crypto', 'performance', 'process', 'fetch', 'globalThis', ...AGENT_BEHAVIOR_TIMERS].map(
+          (name) => ({
+            name,
+            message: CORE_ENVIRONMENT
+          })
+        )
+      ],
+      'no-restricted-properties': ['error', { object: 'Math', property: 'random', message: CORE_ENVIRONMENT }]
+    }
+  },
+  {
+    files: ['packages/agent-behavior/src/ports/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
+        '(?:^|/)(?:orchestration|fake|contract|index)(?:/|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        'ports/ depends only on core/ types.'
+      ),
+      'no-restricted-syntax': [
+        'error',
+        ...AGENT_RUNTIME_SELECTORS,
+        {
+          selector:
+            ':matches(FunctionDeclaration, ClassDeclaration, VariableDeclaration, TSEnumDeclaration, ExpressionStatement)',
+          message: 'ports/ holds interfaces and TSDoc only.'
+        },
+        { selector: "ImportDeclaration[importKind='value']", message: 'ports/ imports types only.' }
+      ]
+    }
+  },
+  {
+    files: ['packages/agent-behavior/src/orchestration/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
+        '(?:^|/)(?:fake|contract|index)(?:/|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        'Orchestration never depends on the fake or the contract.'
+      ),
+      'no-restricted-syntax': [
+        'error',
+        ...AGENT_RUNTIME_SELECTORS,
+        ...KEY_MINT_SELECTORS,
+        {
+          selector:
+            "Program > VariableDeclaration[kind!='const'], Program > ExportNamedDeclaration > VariableDeclaration[kind!='const']",
+          message: 'Orchestration keeps no module state.'
+        },
+        { selector: "NewExpression[callee.name='Promise']", message: 'Orchestration waits only through ports.' }
+      ],
+      'no-restricted-globals': [
+        'error',
+        ...AGENT_BEHAVIOR_TIMERS.map((name) => ({ name, message: 'Orchestration waits only through ports.' }))
+      ]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
