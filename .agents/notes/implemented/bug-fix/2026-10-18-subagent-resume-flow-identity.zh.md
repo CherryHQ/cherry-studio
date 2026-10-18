@@ -1,0 +1,41 @@
+# Agent Note: Continued sub-agent flow identity across reconnects
+
+Status: implemented
+
+[English](2026-10-18-subagent-resume-flow-identity.md) | 中文
+
+## Problem
+
+被继续(resume)的子 agent 的身份只存在于按进程、按轮次的内存映射里。Claude Code 会把续跑内容重新以**原始 launch tool-use id** 流式输出,而描述这次续跑的生命周期边携带的是**发起续跑的 call id**;DSH(在本工作推进期间已被上游退役)则把冷续跑的子 agent 绑定到它自己的 `send_message` 调用。映射一旦丢失,就会产生多种不同的故障:续跑内容在 drain 或连接重置后被丢弃;续跑边可能顶替 launch root;新进程完全没有映射;延迟输出可能因持久化标记被逐出而搁浅在缓冲里;UI 还会把已续跑的子 agent 显示为已完成——因为状态是从"已完结工具组"被刻意清空的 parts 上下文里读取的。
+
+## Decision
+
+launch tool-use id 是子 agent 运行的唯一身份,并在每个边界上存活。
+
+**主进程。** flow anchor 在 drain 与连接重置后仍然保留;新连接从数据库恢复 launch root 与宿主行,重试按节流间隔进行,避免故障期间按 chunk 读库。task→tool-call 注册采用**首个注册优先**,续跑边永远不会顶替 launch root。宿主行暂不可解析的 detached chunk 在受限预算内缓冲;溢出时整段前缀被放弃,抑制按**被丢弃的部件**记录——只有该部件自己的重启才能重开它的流,兄弟流的重启不会放行会中止 SDK reader 的孤儿 delta。逐出持久化标记时同步失效对应 anchor,延迟输出因此会重新解析宿主行,而不是一直缓冲到 teardown。当前 SDK 的启动收据是散文格式(前缀与 `agentId:` trailer 之间夹着括号元数据);该原生格式通过共享文法解析,并按结构化格式同样的方式钉住收据自身的 call id。
+
+**聊天渲染层。** 续跑收据呈现为 launch 风格条目:一个共享解析器决定 flow 目标(adapter 戳记 → 跨消息 launch 索引 → 子 agent 的运行时保留根,使后续 send 打开运行时保留任务的根);当历史 launch 不在已加载窗口内、但自身 call 是已被证实的根时,行保持可点击;任务状态改由列表级 launch 索引推导——已终结的任务只有新 run 的 `started` 边能复活——而不再依赖被清空的组内 parts。
+
+**flow 面板。** flow 按每次续跑切分轮次,轮次顺序按"开启该轮的 resume 调用"而非遍历位置(冷重启会把续跑内容移进 launch 所在行);每轮保留自己的 prompt;重复最终报告的 launch 结果文本被丢弃;冷续跑的 DSH 子 agent 自成一根;失败或被取消的 send 不再算续跑;状态面板同样允许新 run 的 `started` 边复活已终结的任务行。
+
+## Alternatives considered
+
+- 只在内存里保留身份——否决:重启与会话重开会丢失。
+- 消息级溢出抑制——否决:一个流的重启会放行兄弟流的孤儿 delta。
+- 在主进程复制启动收据文法——否决:统一使用 `src/shared/ai/launchReceipt.ts` 的共享文法,供 runtime adapter 与渲染层使用。
+- 在 launch-root 查询失败时钉住续跑边的 call id——否决:会让后续导航指错;只有启动收据自身的 call id 才允许回退。
+- 事后对 flow 消息排序——否决:一轮内容被拆到多行时归属仍然错误。
+
+## Consequences
+
+- 数据库是新进程的恢复来源;查询按节流间隔进行。
+- 有界缓冲可能丢弃某个流的前缀;该流只能通过同一部件的新 start 重新汇入。
+- DSH 已被上游退役;残留的 DSH 专用处理只服务历史转写。
+
+## Verification
+
+- Regression — `pnpm test:main src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`:216 通过,含恢复后的溢出抑制、marker 逐出时 anchor 失效、以及共享同一宿主行的交错 root。
+- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`:84 通过,含散文启动收据注册自身 call id。
+- Regression — `pnpm test:shared src/shared/ai/__tests__/launchReceipt.test.ts`:4 通过(各种收据形态与伪造拒绝)。
+- Regression — `pnpm test:renderer` 面板与聊天渲染套件:196 与 323 通过;`typecheck:node` / `typecheck:web` 干净。
+- Regression — 每个新回归测试都验证过"修复前失败、修复后通过"。
