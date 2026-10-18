@@ -49,7 +49,7 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { AgentLaunchIndexProvider } from '@renderer/components/chat/messages/tools/agent'
+import { AgentLaunchIndexProvider, useAgentTaskLivenessValue } from '@renderer/components/chat/messages/tools/agent'
 import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageInputFilePreview, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import {
@@ -757,6 +757,7 @@ function AgentRightPaneStateProvider({
     () => buildAgentLaunchIndex(partsByMessageId, lateTaskEvents),
     [lateTaskEvents, partsByMessageId]
   )
+  const liveness = useAgentTaskLivenessValue(messages, sessionId)
   const editPath =
     editMode === 'edit' && previewFileSelection && !previewFileSelection.readOnly
       ? getArtifactPaneSelectionPath(previewFileSelection)
@@ -999,7 +1000,7 @@ function AgentRightPaneStateProvider({
       <AgentRightPaneMetaContext value={meta}>
         <AgentRightPaneFileStateContext value={fileState}>
           <AgentRightPaneRuntimeContext value={runtime}>
-            <AgentLaunchIndexProvider value={launchIndex}>
+            <AgentLaunchIndexProvider value={launchIndex} liveness={liveness}>
               <RightPanelProvider
                 capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
                 scope={scope}

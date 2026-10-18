@@ -606,9 +606,18 @@ export function buildAgentToolFlowProjection(
     const receiptRank = new Map<string, number>()
     const rankReceiptCallId = new Map<number, string>()
     if (launchedAgentId) {
+      // Receipts preceding the selected root belong to the flows earlier roots opened — a cold
+      // reconnect rebinds the child to a newer send — so only receipts from the root on register.
+      // An absent root (paged out) leaves every receipt in play rather than dropping the rounds.
+      const rootInWindow = messageEntries.some(({ parts }) =>
+        parts.some((part) => getToolCallId(part) === selectedToolCallId)
+      )
+      let rootSeen = !rootInWindow
       for (const { parts } of messageEntries) {
         for (const part of parts) {
           const toolCallId = getToolCallId(part)
+          if (toolCallId === selectedToolCallId) rootSeen = true
+          if (!rootSeen) continue
           // The flow's own root never opens a round of its own flow: a receipt root already reads
           // as the flow prompt, so registering it here would repeat that prompt between rounds.
           if (!toolCallId || toolCallId === selectedToolCallId || receiptPrompts.has(toolCallId)) continue

@@ -502,6 +502,100 @@ describe('agent right pane flow rounds', () => {
     expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Continue'])
   })
 
+  // A child can be cold-rebound to a newer send while an older receipt for the same child still
+  // sits earlier in the walk: that older round belongs to the flow its own receipt opened, and
+  // letting it move currentRank files the new root's answer under the old instruction.
+  it('excludes a receipt preceding the selected cold-resume root from its rounds', () => {
+    const parts = [
+      dshToolPart(
+        'call_old_send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1', message: 'Old instruction' },
+        'message delivered to agent dsh-child-1'
+      ),
+      dshToolPart(
+        'call_new_send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1', message: 'New instruction' },
+        'message delivered to agent dsh-child-1'
+      ),
+      textPart('New round answer', 'call_new_send'),
+      dshToolPart(
+        'call_next_send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1', message: 'Later instruction' },
+        'message delivered to agent dsh-child-1'
+      ),
+      textPart('Later round answer', 'call_new_send')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_new_send')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_new_send:agent-flow-prompt',
+      'call_new_send:agent-flow-assistant',
+      'call_new_send:agent-flow-resume-1',
+      'call_new_send:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_new_send:agent-flow-prompt')).toEqual(['New instruction'])
+    expect(texts('call_new_send:agent-flow-assistant')).toEqual(['New round answer'])
+    expect(texts('call_new_send:agent-flow-resume-1')).toEqual(['Later instruction'])
+    expect(texts('call_new_send:agent-flow-assistant-1')).toEqual(['Later round answer'])
+  })
+
+  // The same holds when the runtime tagged the root's content with its own call: that marker
+  // cannot split (its receipt is the root), and the older receipt must not have moved the round.
+  it('keeps a marked cold-resume root answer in its own round', () => {
+    const marked = (text: string, resumedViaCallId: string) =>
+      ({
+        type: 'text',
+        text,
+        providerMetadata: { 'claude-code': { parentToolCallId: 'call_new_send' }, cherry: { resumedViaCallId } }
+      }) as unknown as CherryMessagePart
+    const parts = [
+      dshToolPart(
+        'call_old_send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1', message: 'Old instruction' },
+        'message delivered to agent dsh-child-1'
+      ),
+      dshToolPart(
+        'call_new_send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1', message: 'New instruction' },
+        'message delivered to agent dsh-child-1'
+      ),
+      marked('New round answer', 'call_new_send'),
+      dshToolPart(
+        'call_next_send',
+        'send_message',
+        'output-available',
+        { agent_id: 'dsh-child-1', message: 'Later instruction' },
+        'message delivered to agent dsh-child-1'
+      ),
+      marked('Later round answer', 'call_next_send')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_new_send')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_new_send:agent-flow-prompt',
+      'call_new_send:agent-flow-assistant',
+      'call_new_send:agent-flow-resume-1',
+      'call_new_send:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_new_send:agent-flow-assistant')).toEqual(['New round answer'])
+    expect(texts('call_new_send:agent-flow-resume-1')).toEqual(['Later instruction'])
+    expect(texts('call_new_send:agent-flow-assistant-1')).toEqual(['Later round answer'])
+  })
+
   // The CLI also spells the trailer 'agent_id:'; that spelling must establish the identity too.
   it('splits rounds for an agent_id-spelled textual launch receipt', () => {
     const launchOutput = 'Async agent launched successfully.\nagent_id: agent-77 (internal metadata - do not mention.)'
