@@ -1,1 +1,54 @@
-export {}
+export type {
+  CallKey,
+  UsageFact,
+  ToolCallFact,
+  EntryKind,
+  GoalPhase,
+  GoalStopCode,
+  GoalBudget,
+  GoalStop,
+  GoalSnapshot,
+  GoalCleared,
+  GoalNotice,
+  RoundDetails,
+  RunEnd,
+  SubagentOutcome,
+  SubagentStopper,
+  SubagentRunRecord,
+  SubagentOrigin,
+  DeliveredRun,
+  PlanState,
+  PolicyRecord,
+  MarkerFact,
+  HistoryEntry,
+  ChildFacts,
+  LiveFacts,
+  ConversationFacts,
+  RunEndFacts,
+  ToolResultFact,
+  GateCall,
+  GateFacts
+} from './core/facts'
+export { callKeyOf, ENTRY_KINDS } from './core/facts'
+export type {
+  CallRef,
+  ApprovalOutcome,
+  ToolCategory,
+  ApprovalHostFacts,
+  ApprovalAnswer,
+  QuestionOption,
+  QuestionItem,
+  QuestionAnswer,
+  SubagentModelCandidate,
+  ModelFacts,
+  VerifierVerdict,
+  GoalDefaults,
+  Autonomy,
+  PermissionMode,
+  Attendance,
+  CompactionReason,
+  HostSettingsSnapshot,
+  CallInputs
+} from './core/hostFacts'
+export type { EncodedEntry, RawEntry } from './core/entryCodec'
+export { decodeEntry, encodeEntry } from './core/entryCodec'

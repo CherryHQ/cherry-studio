@@ -44,6 +44,12 @@ describe('agent-behavior boundary guards', () => {
     ['ai provider', `${SRC}/fake/probe.ts`, `import { openai } from '@ai-sdk/openai'\nexport { openai }`, IMPORTS],
     ['adapter', `${SRC}/fake/probe.ts`, `import { x } from '@cherrystudio/agent-runtime-pi'\nexport { x }`, IMPORTS],
     [
+      'adapter deep import',
+      'packages/agent-runtime-pi/src/probe.ts',
+      `import { ENTRY_KINDS } from '@cherrystudio/agent-behavior/core/facts'\nexport { ENTRY_KINDS }`,
+      'barrel/closed'
+    ],
+    [
       'runtime value',
       `${SRC}/fake/probe.ts`,
       `import { runtimeId } from '@cherrystudio/agent-runtime'\nexport { runtimeId }`,
