@@ -98,16 +98,35 @@ describe('AgentSessionBackgroundTasks', () => {
     expect(screen.getByText('Background shell')).toBeVisible()
   })
 
-  // A cold-resumed child's row is its receipt, which lives in the message that resumed it — often
-  // older than the anchor this capsule row attaches to. The index covers the whole map, so the
-  // capsule disappears instead of duplicating a subtask that is already listed.
-  it('does not draw a capsule for a task whose row the subtask list already owns', () => {
+  // A resumed child's content can stream under a launch id whose row sits outside the loaded
+  // window: the parent link proves loaded content, not a rendered row, so the capsule stays.
+  it('keeps the capsule while the row that owns the task content is outside the loaded window', () => {
     mocks.backgroundTasks = [
       { id: 'child', type: 'subagent', description: 'Review watcher freeze fix plan', toolCallId: 'call-send' }
     ]
     mocks.launchIndex = {
       toolCallIds: new Set(),
       childRootCallIds: new Set(['call-send']),
+      dshTaskRootCallIds: new Set()
+    }
+    render(
+      <MessagePartsScopeProvider messageId="reply" parts={[{ type: 'text', text: 'done' } as never]}>
+        <AgentSessionBackgroundTasks sessionId="session-1" />
+      </MessagePartsScopeProvider>
+    )
+
+    expect(screen.getByRole('button', { name: 'Review watcher freeze fix plan' })).toBeVisible()
+  })
+
+  // The launch row itself is loaded, so the subtask list already owns it and the capsule would
+  // only duplicate the same navigation.
+  it('does not draw a capsule for a task whose loaded launch row the subtask list owns', () => {
+    mocks.backgroundTasks = [
+      { id: 'child', type: 'subagent', description: 'Review watcher freeze fix plan', toolCallId: 'call-send' }
+    ]
+    mocks.launchIndex = {
+      toolCallIds: new Set(['call-send']),
+      childRootCallIds: new Set(),
       dshTaskRootCallIds: new Set()
     }
     render(

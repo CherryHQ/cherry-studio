@@ -26,10 +26,9 @@ export default function AgentSessionBackgroundTasks({ sessionId }: Props) {
         openAgentToolFlow &&
         (task.type === 'subagent' || task.type === 'local_agent') &&
         task.toolCallId &&
-        // The task's row may live in an older message than this one, and a resumed child's row is
-        // its receipt: the index covering the whole map is what makes the capsule disappear.
+        // The capsule yields only to a loaded row that can navigate to the task's flow — a launch
+        // or receipt the index saw as a part; content parented under a paged-out row proves nothing.
         (launchIndex?.toolCallIds.has(task.toolCallId) === true ||
-          launchIndex?.childRootCallIds.has(task.toolCallId) === true ||
           launchIndex?.dshTaskRootCallIds.has(task.toolCallId) === true ||
           parts.some((part) => isToolUIPart(part) && part.toolCallId === task.toolCallId))
       )
