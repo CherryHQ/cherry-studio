@@ -10,6 +10,13 @@ import { hasOversizedMarkdownChunk, MARKDOWN_MAX_BLOCK_CHARS, splitMarkdownChunk
 const joined = (chunks: Array<{ text: string }>) => chunks.map((chunk) => chunk.text).join('\n')
 const chunksOf = (content: string, budgetChars?: number) => splitMarkdownChunks(content, budgetChars).chunks
 
+/**
+ * The definition copy the splitter hoists to the front of a chunk, which is where a definition
+ * built from a failed title shows what it accumulated: the copy is the text up to the blank that
+ * ends it, so a rollback that leaves rejected title lines behind writes them here.
+ */
+const hoistedDefinition = (content: string): string => joined(chunksOf(content)).split('\n\n')[0]
+
 const parsed = (source: string) => unified().use(remarkParse).use(remarkGfm).parse(source)
 
 /**
@@ -246,6 +253,33 @@ describe('splitMarkdownChunks', () => {
     const windowed = chunksOf('para one\n\n<svg width="1"/>\n\npara two', 10)
 
     expect(windowed).toHaveLength(3)
+  })
+
+  it('keeps scanning a tag whose quotes never close in time to window the document', () => {
+    // A tag's attributes alternate between quoted runs and plain characters, so an unterminated tag
+    // makes those alternatives overlap and a regex engine backtracks exponentially in the number of
+    // quotes — the splitter stalled here before the fallback could guard the UI.
+    const content = `<div ${'"x"'.repeat(20)}\n\nbody`
+
+    const started = performance.now()
+    const chunks = chunksOf(content)
+    const elapsed = performance.now() - started
+
+    expect(elapsed).toBeLessThan(500)
+    // Twenty repetitions cost the regex over seven seconds and grew exponentially from there;
+    // a linear scan finishes in one pass over the line.
+    expect(chunks.join('')).not.toBe('')
+    expect(joined(chunks)).toBe(content)
+  })
+
+  it('keeps scanning a line of stray quotes without stalling, at every size', () => {
+    // The blowup is quadratic-per-quote, so a document a user could hold is the case that matters —
+    // a hundred repetitions, not just the twenty that already tripped a cap.
+    const content = `<div ${'"x"'.repeat(100)}\n\nbody`
+
+    const started = performance.now()
+    chunksOf(content)
+    expect(performance.now() - started).toBeLessThan(500)
   })
 
   it('keeps windowing when a comment inside an HTML block holds a tag', () => {
@@ -2386,6 +2420,24 @@ describe('a title left open across a long document', () => {
     // and the document is one chunk; the unterminated title itself renders in that chunk alone.
     expect(window.chunks).toHaveLength(1)
     expect(window.chunks.filter((chunk) => chunk.text.includes('[spec]: /url'))).toHaveLength(1)
+  })
+
+  it('drops the whole tentative title when one starting below the destination fails', () => {
+    // The parser accepts the destination-only definition (`{url: '/right', title: null}`), so a
+    // title opened a line below it either closes or leaves no trace. Rewinding only the line where
+    // the attempt died left the earlier rejected title lines in the definition, and the copy the
+    // splitter hoists into the later chunk emitted them a second time — an extra paragraph the
+    // parser never produces.
+    const content = ['[label]: /right', '"never closed', 'second line', '', 'see [label]'].join('\n')
+
+    expect(hoistedDefinition(content)).toBe('[label]: /right')
+  })
+
+  it('emits one copy of a definition whose failing title spans several lines', () => {
+    // The rewind has to cover every line the attempt consumed, not just the last one.
+    const content = ['[spec]: /url', '"the long', 'and longer', 'and longest', '', 'text'].join('\n')
+
+    expect(hoistedDefinition(content)).toBe('[spec]: /url')
   })
 })
 

@@ -502,6 +502,66 @@ const VOID_HTML_ELEMENTS = new Set([
   'wbr'
 ])
 
+interface HtmlTag {
+  name: string
+  closing: boolean
+  selfClosing: boolean
+}
+
+/**
+ * Walk the tags a line carries, one character run at a time. A tag opens at `<` plus a name, ends
+ * at the first `>` that is not inside matched quotes, and an unterminated one is dropped — which is
+ * what keeps a line of stray quotes linear instead of exponential.
+ */
+function* eachHtmlTag(line: string): Generator<HtmlTag> {
+  let index = 0
+  while (index < line.length) {
+    const at = line.indexOf('<', index)
+    if (at < 0) return
+    const named = /^<(\/?)([A-Za-z][A-Za-z0-9-]*)/.exec(line.slice(at))
+    if (!named) {
+      index = at + 1
+      continue
+    }
+    const attrsStart = at + named[0].length
+    let cursor = attrsStart
+    let terminated = false
+    while (cursor < line.length) {
+      const char = line[cursor]
+      if (char === '>') {
+        terminated = true
+        break
+      }
+      // A quoted run is opaque: a `>` inside it does not end the tag, and an unterminated quote
+      // runs to the end of the line rather than backtracking into the alternatives behind it.
+      if (char === '"' || char === "'") {
+        const end = line.indexOf(char, cursor + 1)
+        if (end < 0) {
+          // An unterminated quote holds no run: the rest of the tag is plain characters, and it
+          // ends at the next `>` — or the tag is dropped, which is what keeps a line of stray
+          // quotes linear instead of exponential.
+          const close = line.indexOf('>', cursor + 1)
+          if (close < 0) return
+          cursor = close
+          terminated = true
+          break
+        }
+        cursor = end + 1
+        continue
+      }
+      cursor += 1
+    }
+    if (terminated) {
+      yield {
+        name: named[2].toLowerCase(),
+        closing: named[1] === '/',
+        selfClosing: /\/\s*$/.test(line.slice(attrsStart, cursor))
+      }
+    }
+    index = terminated ? cursor + 1 : at + 1
+  }
+}
+
 /**
  * Fold one line's tags into the stack of elements the renderer reads as open after it. A closing
  * tag ends the nearest element of its own name — with the ones opened inside it, the way a
@@ -512,19 +572,22 @@ const VOID_HTML_ELEMENTS = new Set([
  * written whole.
  */
 function trackHtmlElements(line: string, open: string[]): void {
-  for (const tag of line.matchAll(/<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:"[^"]*"|'[^']*'|[^>])*)>/g)) {
-    const name = tag[2].toLowerCase()
-    if (tag[1]) {
-      const at = open.lastIndexOf(name)
+  // Scanned by hand, not by a regex: the tag's attributes alternate between quoted runs and
+  // `[^>]`, and a tag that never closes makes those alternatives overlap — the backtracking an
+  // engine spends on it grows exponentially in the number of quotes, which stalls the splitter
+  // before the fallback has a chance to guard it. Each step here advances over one quote run or
+  // one plain character, so a whole line costs one pass over it.
+  for (const tag of eachHtmlTag(line)) {
+    if (tag.closing) {
+      const at = open.lastIndexOf(tag.name)
       if (at >= 0) open.length = at
       continue
     }
-    const selfClosing = /\/\s*$/.test(tag[3])
-    const foreign = name === 'svg' || name === 'math' || open.includes('svg') || open.includes('math')
+    const foreign = tag.name === 'svg' || tag.name === 'math' || open.includes('svg') || open.includes('math')
     // A raw name keeps the region contract its own tag shape sets: `<pre/>` is the type-7 tag the
     // parser reads plain, and holding an element open there would swallow the lines below it.
-    const opens = selfClosing ? !foreign && !HTML_RAW_TAGS.has(name) : !VOID_HTML_ELEMENTS.has(name)
-    if (opens) open.push(name)
+    const opens = tag.selfClosing ? !foreign && !HTML_RAW_TAGS.has(tag.name) : !VOID_HTML_ELEMENTS.has(tag.name)
+    if (opens) open.push(tag.name)
   }
 }
 
@@ -1303,6 +1366,11 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   // so a failure there rewinds to it — where a failure on the destination's own line leaves the
   // trailing text standing, and with it no definition at all.
   let titleOpensBelow = false
+  // The definition as it stands with its destination alone, before the title is attempted. A title
+  // that opens below the destination and fails across several lines has to be rewound whole: the
+  // parser accepts the destination-only definition, so every rejected title line goes with it —
+  // dropping only the last one left the earlier ones in the definition and re-emitted them.
+  const withoutTitle = { body: [...body], span }
   if (/^[ \t]*$/.test(tail)) {
     const below = continuation(lines[index + span], quotes, quoteColumns, labelColumn)
     if (below !== undefined && (LINK_TITLE.test(below) || LINK_TITLE_OPEN.test(below))) {
@@ -1325,8 +1393,8 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
     // the attempt dies where the parser's would.
     if (next === undefined || scan === 'dead') {
       if (titleOpensBelow) {
-        body.pop()
-        span -= 1
+        body = [...withoutTitle.body]
+        span = withoutTitle.span
         break
       }
       return null
