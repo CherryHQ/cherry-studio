@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.core.json --noEmit"
   },
   "dependencies": {
     "@cherrystudio/agent-runtime": "workspace:*"
