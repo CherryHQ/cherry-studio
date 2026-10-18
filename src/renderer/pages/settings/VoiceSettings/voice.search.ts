@@ -26,6 +26,18 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.voice.recognition.title'
   },
   {
+    anchorId: 'dictation-hold',
+    titleKey: 'settings.voice.shortcuts.hold.label',
+    groupKey: 'settings.voice.recognition.title',
+    aliases: ['hold to dictate', '按住听写', 'Alt']
+  },
+  {
+    anchorId: 'dictation-toggle',
+    titleKey: 'settings.voice.shortcuts.toggle.label',
+    groupKey: 'settings.voice.recognition.title',
+    aliases: ['toggle dictation', '切换听写', 'Ctrl Alt']
+  },
+  {
     anchorId: 'speech-model',
     titleKey: 'settings.voice.speech.model',
     groupKey: 'settings.voice.speech.title',

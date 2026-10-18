@@ -2,7 +2,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT = path.resolve(__dirname, '../..')
 
 /** The closed set of reference domains. Adding a domain is deliberate: extend this list in the same PR that creates the directory. */
 export const REFERENCE_DOMAINS: readonly string[] = [
@@ -39,7 +39,7 @@ export const checkStructure = (referencesDir: string, domains: readonly string[]
     if (entry.isDirectory()) {
       if (!domains.includes(entry.name)) {
         failures.push(
-          `${entry.name}/: not in the closed domain set — add it to REFERENCE_DOMAINS in scripts/verify-doc-structure.ts deliberately, or relocate the directory`
+          `${entry.name}/: not in the closed domain set — add it to REFERENCE_DOMAINS in scripts/docsGovernance/verify-doc-structure.ts deliberately, or relocate the directory`
         )
       }
       if (!fs.existsSync(path.join(referencesDir, entry.name, 'README.md'))) {

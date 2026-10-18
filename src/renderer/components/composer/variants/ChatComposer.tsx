@@ -561,6 +561,7 @@ const ChatComposerInner = ({
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  const releaseFollowupEditRef = useRef<() => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -611,6 +612,7 @@ const ChatComposerInner = ({
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
+      releaseFollowupEditRef.current()
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
@@ -1127,6 +1129,7 @@ const ChatComposerInner = ({
 
     if (!savedDraft) return
 
+    releaseFollowupEditRef.current()
     exitInputHistoryPreview()
     actionsRef.current.replaceDraft({ text: savedDraft.text, tokens: savedDraft.draftTokens })
     setText(savedDraft.text)
@@ -1164,6 +1167,7 @@ const ChatComposerInner = ({
   }, [editingMessageId])
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
+    releaseFollowupEditRef.current()
     const editableDraft = createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
@@ -1535,6 +1539,7 @@ const ChatComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
+    releaseFollowupEditRef.current()
     setText('')
     setDraftTokens(undefined)
     setFiles([])
@@ -1555,6 +1560,9 @@ const ChatComposerInner = ({
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    takeForEdit: takeFollowupForEdit,
+    releaseEdit,
+    beginSend,
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
@@ -1563,6 +1571,9 @@ const ChatComposerInner = ({
     markSeen,
     onDrain: sendQueuedPayload
   })
+  releaseFollowupEditRef.current = releaseEdit
+  const followupScopeRef = useLatest(selectedKnowledgeBasesScopeKey)
+
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
@@ -1572,8 +1583,21 @@ const ChatComposerInner = ({
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
-  // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
-  // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.
+  const captureOutgoingFollowup = useCallback(
+    (taken: FollowupQueueItem) => {
+      const draft = actionsRef.current.getDraft()
+      const payload = buildQueuedPayload(draft)
+      if (payload === null) {
+        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
+        return null
+      }
+      return { draft, payload: { ...payload, chatTarget: taken.payload.chatTarget } }
+    },
+    [actionsRef, buildQueuedPayload, files]
+  )
+
+  // After takeForEdit removes the queued item, atomic replacement preserves unmanaged tokens
+  // even when the restored text is unchanged.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       resetHistoryIndex()
@@ -1974,14 +1998,29 @@ const ChatComposerInner = ({
                   if (!item) return
                   // Only drop the item once the send actually succeeds; a failed manual
                   // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
+                  const release = beginSend(id)
+                  if (!release) return
+                  const dispatchScope = followupScopeRef.current
+                  try {
+                    const sent = await sendQueuedPayload(item.payload)
+                    if (sent && followupScopeRef.current === dispatchScope) removeFollowup(id)
+                  } finally {
+                    release()
+                  }
                 }}
                 onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  restoreFollowupDraft(item)
-                  removeFollowup(id)
+                  if (directSendInFlightRef.current) return
+                  if (editingMessageForCurrentTopic) {
+                    releaseEdit()
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    restoreFollowupDraft(item)
+                    removeFollowup(id)
+                    return
+                  }
+                  const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
+                  if (!incoming) return
+                  restoreFollowupDraft(incoming)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
