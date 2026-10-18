@@ -199,8 +199,11 @@ export interface AgentRuntimeConnection {
    * Submit a user prompt to the runtime. Returns/resolves `false` when the driver discarded the
    * prompt before submission (a stop invalidated it mid-preparation) — the host must not treat it
    * as admitted. Any other result means the prompt was handed to the runtime.
+   *
+   * Asynchronous void stays assignable so a wrapper that only forwards to another connection
+   * (a fallback connection, say) can implement this without fabricating a submission result.
    */
-  send(input: AgentRuntimeUserInput): boolean | Promise<boolean> | void
+  send(input: AgentRuntimeUserInput): boolean | void | Promise<boolean | void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
    * when the message was stashed for injection (a turn is live) — the host then folds it into the
