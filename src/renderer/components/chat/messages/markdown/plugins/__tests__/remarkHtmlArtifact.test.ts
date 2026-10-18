@@ -943,6 +943,68 @@ After`
     expect(tree.children.some((child) => child.type === 'html')).toBe(false)
   })
 
+  // The retained-close prefix recursion must inherit the lexical state accumulated BEFORE the
+  // resolving node: a textarea opened in an earlier body node holds the prefix's own
+  // `</details>` as literal text, so a fresh prefix scan would emit that literal raw and place
+  // the outer tail outside the collapsed disclosure.
+  it('carries the entry lexical state into the retained-close prefix recursion', () => {
+    const source = `<details><summary>Outer</summary><details><summary>Inner</summary>
+
+<div><textarea>
+
+</details>
+</textarea>
+</details>
+
+Outer tail
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // Shape: [shared open raw, `<div><textarea>` CODE, the prefix literal CODE (textarea body
+    // — never a retained close), the real inner close raw, `Outer tail` (still inside Outer),
+    // the outer close raw, `After` outside].
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'html',
+      'code',
+      'code',
+      'html',
+      'paragraph',
+      'html',
+      'paragraph'
+    ])
+    const htmlValues = tree.children.filter((child) => child.type === 'html').map((child) => child.value)
+    expect(htmlValues.filter((value) => value.startsWith('</details')).length).toBe(2)
+    // `Outer tail` renders between the two raw closes (inside Outer), `After` after both.
+    expect(tree.children[4]).toMatchObject({ type: 'paragraph', children: [{ value: 'Outer tail' }] })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
+  })
+
+  // HTML parsers ignore the trailing slash on a NON-void element's start tag: `<details/>`
+  // opens a disclosure. Skipping it as self-closing lets the embedded document's own
+  // `</details>` close the outer pairing early, splitting the document artifact.
+  it('counts a slash-terminated details opener as an opening', () => {
+    const document = `<html><body><details/><summary>Inner</summary><p>Card</p></details><style>p{color:red}</style></body></html>`
+    const source = `<details>
+<summary>Doc</summary>
+
+${document}
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // The document's inner close belongs to `<details/>`: the outer pairing waits for the real
+    // boundary, the document keeps one exact-source artifact and `After` stays outside.
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'code', lang: 'html', value: document })
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
+  })
+
   describe('classifyHtmlArtifactSource', () => {
     it.each([
       ['<div>Fragment</div>', 'fragment'],

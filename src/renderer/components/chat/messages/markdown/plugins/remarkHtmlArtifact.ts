@@ -405,9 +405,10 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
         return { closed: true, closeStart: match.index, closeEnd: match.index + match[0].length }
       }
     } else {
-      // A self-closing `<details … />` opens and closes itself. The token carries the complete
-      // tag, so this reads the real tag end instead of a `>` inside a quoted attribute.
-      if (!match[0].endsWith('/>')) state.count += 1
+      // HTML parsers ignore the trailing slash on a NON-void element's start tag, so
+      // `<details … />` is an opening like any other. The token carries the complete tag
+      // (quotes consumed), so no `>` inside a quoted attribute can end it early.
+      state.count += 1
     }
   }
   return { closed: false }
@@ -463,7 +464,8 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
     if (token[1] === '/') {
       if (depth === 0) return { start: match.index, end: match.index + match[0].length }
       depth -= 1
-    } else if (!match[0].endsWith('/>')) {
+    } else {
+      // `<details … />` opens too: HTML ignores the trailing slash on non-void start tags.
       depth += 1
     }
   }
@@ -730,6 +732,7 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // real end tag). The scan keeps the depth accumulated across earlier body nodes — a
         // nested opening raises it, so only the close that brings it back to 1→0 is the
         // retained boundary; the seed re-arms after each resolution for the next one.
+        const stateBeforeNode: ContainerScanState = { ...pendingScanState }
         const scan = scanContainerBoundaries(child.value, pendingScanState)
         const close =
           scan.closed && scan.closeStart !== undefined && scan.closeEnd !== undefined
@@ -740,7 +743,10 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
           // the retained disclosure actually closes instead of swallowing the following prose.
           if (close.start > 0) {
             // Content preceding the boundary keeps the normal path, like a shared close prefix.
-            processRange([sliceHtmlNode(child, 0, close.start)], 0, 1, pendingCloses)
+            // It continues the lexical stream as of BEFORE this node — a raw-text body opened
+            // in an earlier body node holds the prefix's own literals, so a fresh scan would
+            // fire on them and emit a stray raw close.
+            processRange([sliceHtmlNode(child, 0, close.start)], 0, 1, pendingCloses, stateBeforeNode)
           }
           children.push(sliceHtmlNode(child, close.start, close.end))
           pendingCloses -= 1
