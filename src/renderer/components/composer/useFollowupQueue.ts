@@ -46,6 +46,12 @@ export interface FollowupQueueController {
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
   removeId: (id: string) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
+  takeForEdit(
+    id: string,
+    captureOutgoing: (taken: FollowupQueueItem) => Pick<FollowupQueueItem, 'draft' | 'payload'> | null
+  ): FollowupQueueItem | null
+  releaseEdit(): void
+  beginSend(id: string): (() => void) | null
   paused: boolean
   setPaused: (paused: boolean) => void
 }
@@ -67,9 +73,11 @@ export function useFollowupQueue({
   const [paused, setPausedState] = useState(() => loadPaused(scopeKey))
 
   // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
+  const pausedRef = useRef(paused)
   const scopeKeyRef = useRef(scopeKey)
   const itemsRef = useRef(items)
-  itemsRef.current = items
+  const takenRef = useRef<{ item: FollowupQueueItem; slot: number } | null>(null)
+  const admissionsRef = useRef(new Set<string>())
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
@@ -83,41 +91,88 @@ export function useFollowupQueue({
   useEffect(() => {
     if (scopeKeyRef.current === scopeKey) return
     scopeKeyRef.current = scopeKey
-    setItems(loadQueue(scopeKey))
-    setPausedState(loadPaused(scopeKey))
+    takenRef.current = null
+    admissionsRef.current = new Set()
+    itemsRef.current = loadQueue(scopeKey)
+    setItems(itemsRef.current)
+    pausedRef.current = loadPaused(scopeKey)
+    setPausedState(pausedRef.current)
   }, [scopeKey])
 
   const setPaused = useCallback((nextPaused: boolean) => {
     cacheService.setCasual(pausedKeyFor(scopeKeyRef.current), nextPaused)
+    pausedRef.current = nextPaused
     setPausedState(nextPaused)
   }, [])
 
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      setItems((prev) => {
-        const next = [...prev, { id: crypto.randomUUID(), draft, payload }]
-        persist(next)
-        return next
-      })
+      const next = [...itemsRef.current, { id: crypto.randomUUID(), draft, payload }]
+      itemsRef.current = next
+      setItems(next)
+      persist(next)
     },
     [persist]
   )
 
   const removeId = useCallback(
     (id: string) => {
-      setItems((prev) => {
-        const next = prev.filter((item) => item.id !== id)
-        persist(next)
-        return next
-      })
+      const index = itemsRef.current.findIndex((item) => item.id === id)
+      if (takenRef.current?.item.id === id) takenRef.current = null
+      if (index < 0) return
+      if (takenRef.current && index < takenRef.current.slot) takenRef.current.slot -= 1
+      const next = itemsRef.current.filter((item) => item.id !== id)
+      itemsRef.current = next
+      setItems(next)
+      persist(next)
     },
     [persist]
   )
 
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
+      itemsRef.current = nextItems
       setItems(nextItems)
       persist(nextItems)
+    },
+    [persist]
+  )
+
+  const releaseEdit = useCallback(() => {
+    takenRef.current = null
+  }, [])
+
+  const beginSend = useCallback((id: string) => {
+    const admissions = admissionsRef.current
+    if (admissions.has(id) || !itemsRef.current.some((item) => item.id === id)) return null
+    admissions.add(id)
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      admissions.delete(id)
+    }
+  }, [])
+
+  const takeForEdit = useCallback<FollowupQueueController['takeForEdit']>(
+    (id, captureOutgoing) => {
+      const current = itemsRef.current
+      if (takenRef.current?.item.id === id || admissionsRef.current.has(id)) return null
+      if (!current.some((item) => item.id === id)) return null
+      const taken = takenRef.current
+      const next = [...current]
+      if (taken) {
+        const outgoing = captureOutgoing(taken.item)
+        if (!outgoing) return null
+        next.splice(Math.min(taken.slot, next.length), 0, { ...taken.item, ...outgoing })
+      }
+      const slot = next.findIndex((item) => item.id === id)
+      const [incoming] = next.splice(slot, 1)
+      takenRef.current = { item: incoming, slot }
+      itemsRef.current = next
+      setItems(next)
+      persist(next)
+      return incoming
     },
     [persist]
   )
@@ -125,16 +180,23 @@ export function useFollowupQueue({
   // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
   // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
   useEffect(() => {
-    if (!isFulfilled || paused) return
+    if (!isFulfilled || pausedRef.current) return
     const head = itemsRef.current[0]
     if (!head) return
+    const release = beginSend(head.id)
+    if (!release) return
+    const dispatchScope = scopeKeyRef.current
     markSeen()
     const reportDrainFailure = () => onDrainFailedRef.current?.()
-    void onDrainRef.current(head.payload).then((sent) => {
-      if (sent) removeId(head.id)
-      else reportDrainFailure()
-    }, reportDrainFailure)
+    void onDrainRef
+      .current(head.payload)
+      .then((sent) => {
+        if (sent && scopeKeyRef.current === dispatchScope) removeId(head.id)
+        else if (!sent) reportDrainFailure()
+      }, reportDrainFailure)
+      .finally(release)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Stable admission does not introduce a completion trigger.
   }, [isFulfilled, paused, markSeen, removeId])
 
-  return { items, enqueue, removeId, reorder, paused, setPaused }
+  return { items, enqueue, removeId, reorder, takeForEdit, releaseEdit, beginSend, paused, setPaused }
 }

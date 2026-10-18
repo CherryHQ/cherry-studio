@@ -43,6 +43,10 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     ]),
     crawl4ai: provider('crawl4ai', 'Crawl4AI', [capability('fetchUrls', 'optional')]),
     parallel: provider('parallel', 'Parallel', [capability('searchKeywords', 'required', 'https://api.parallel.ai')]),
-    serply: provider('serply', 'Serply', [capability('searchKeywords', 'required', 'https://api.serply.io')])
+    serply: provider('serply', 'Serply', [capability('searchKeywords', 'required', 'https://api.serply.io')]),
+    deepseek: provider('deepseek', 'DeepSeek', [
+      capability('searchKeywords', 'required', 'https://api.deepseek.com'),
+      capability('fetchUrls', 'required', 'https://api.deepseek.com')
+    ])
   }
 )
