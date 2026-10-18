@@ -11,8 +11,9 @@ export function parseLaunchReceiptText(output: string): string | undefined {
   if (dshLaunch) return dshLaunch
   // The id trailer alone is spoofable, and so is a trailer that merely appears somewhere after the
   // prefix: a foreground launch's result is the child's own answer, and prose that quotes an id
-  // must not bind the flow to it. Every real receipt names the id within the prefix's own breath.
-  return /^(?:Async agent launched successfully|done)\.[^\n]{0,240}(?:\n\s*|\s+)(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9_-]+)/.exec(
+  // must not bind the flow to it. The prefix names the id in its own breath — the only thing the
+  // SDK may print between them is its one parenthetical metadata.
+  return /^(?:Async agent launched successfully|done)\.(?:\s*\([^\n]*\))?(?:\n\s*|\s+)(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9_-]+)/.exec(
     text
   )?.[1]
 }

@@ -36,6 +36,9 @@ describe('launch receipt text', () => {
     ).toBeUndefined()
     expect(parseLaunchReceiptText("To continue, use SendMessage with to: 'agent-77'.")).toBeUndefined()
     expect(parseLaunchReceiptText('started subagent dsh-child-1 and then more prose')).toBeUndefined()
+    // A result that opens with the prefix but continues as prose must not bind a quoted trailer.
+    expect(parseLaunchReceiptText('done. Here is my report. The agentId: spoofed-id was mentioned.')).toBeUndefined()
+    expect(parseLaunchReceiptText('done.\nHere is my report. The agentId: spoofed-id was mentioned.')).toBeUndefined()
     // The trailer must stay within the prefix's own breath, not somewhere later in the text.
     expect(
       parseLaunchReceiptText(`Async agent launched successfully. ${'x'.repeat(300)} agentId: far-1`)
