@@ -40,7 +40,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 
-import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
+import { USER_STOP_ABORT_REASON, extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type {
   AiStreamRequest,
@@ -368,6 +368,8 @@ export class AiStreamManager extends BaseService {
   /** In-flight steer-continuation launches (registered synchronously in `scheduleNextChatTurn`),
    *  part of `drainInFlight`'s wait-set — a launch admitted before a pause must be awaited. */
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
+  /** Stop drains in flight by topic and reason, so duplicate abort requests join instead of stacking. */
+  private readonly drainingTopics = new Map<string, Promise<void>>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -1240,19 +1242,37 @@ export class AiStreamManager extends BaseService {
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
   async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
-    await this.withDispatchLock(topicId, async () => {
+    // A renderer Stop sends its abort twice (explicit abort + `sdkStop`'s transport signal). The
+    // duplicate must join the running drain: once the lock releases it would capture — and cancel —
+    // the queued successor the first stop just resumed. Only hookless callers join: a `beforeAbort`
+    // (remote cancellation validating `expectedExecutionId`) owns its guard and its cancellation.
+    const drainKey = `${topicId}\u0000${reason}`
+    const inFlight = beforeAbort ? undefined : this.drainingTopics.get(drainKey)
+    if (inFlight) return inFlight
+    const draining = this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
+      // Bind the stop to the turn being drained: terminal handling can admit a queued successor
+      // while this lock is held, and the driver cancel is identity-free.
+      const stoppedTurnId = isAgentSessionTopic(topicId)
+        ? application.get('AgentSessionRuntimeService').getLiveTurnId(extractAgentSessionId(topicId))
+        : undefined
 
       this.abort(topicId, reason)
       await Promise.allSettled(loopPromises)
 
       if (isAgentSessionTopic(topicId)) {
-        const runtimeClosing = application
-          .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId))
+        const runtime = application.get('AgentSessionRuntimeService')
+        const sessionId = extractAgentSessionId(topicId)
+        // A UI Stop gives the runtime a chance to gracefully interrupt the turn — the SDK
+        // subprocess (background tasks, subagents) survives — falling back to the session teardown
+        // when the driver cannot. Every other drain reason tears the session down outright.
+        const runtimeClosing =
+          reason === USER_STOP_ABORT_REASON
+            ? runtime.handleUserStop(sessionId, stoppedTurnId)
+            : runtime.closeSession(sessionId)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -1269,11 +1289,15 @@ export class AiStreamManager extends BaseService {
           }
         }
 
-        await drainReplacementLoops()
+        if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
         await runtimeClosing
-        await drainReplacementLoops()
+        if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
       }
+    }).finally(() => {
+      if (this.drainingTopics.get(drainKey) === draining) this.drainingTopics.delete(drainKey)
     })
+    this.drainingTopics.set(drainKey, draining)
+    return draining
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────

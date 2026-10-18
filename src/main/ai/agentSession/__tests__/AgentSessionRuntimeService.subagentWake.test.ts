@@ -156,6 +156,9 @@ describe('subagent settlement wake (incident replay)', () => {
         for await (const message of readUIMessageStream({ stream })) final = message
       })()
       await vi.waitFor(() => expect(entry.runtimeState.execution.stream).toBe('open'))
+      // The replayed results belong to the submitted owner turn: wait out the admission
+      // confirmation so the completions land in production order.
+      await vi.waitFor(() => expect(entry.runtimeState.execution.admission).toBe('admitted'))
       emit({ type: 'background-work-state', active: true })
       for (const [index, text] of ['Delegated review', 'First reviewer finished', 'Final summary'].entries()) {
         if (index > 0) emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })

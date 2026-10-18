@@ -495,6 +495,8 @@ export class ClaudeCodeStreamAdapter {
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
   /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
   private turnActive = false
+  /** Monotonic turn identity: every `beginTurn` starts a new generation. */
+  private turnSequence = 0
   /** The current turn was started by parentless SDK content rather than a host `send()`. */
   private autonomousTurn = false
   /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
@@ -599,12 +601,27 @@ export class ClaudeCodeStreamAdapter {
     return this.turnActive
   }
 
+  /** Monotonic id of the generation a `beginTurn` most recently opened. */
+  get turnGeneration(): number {
+    return this.turnSequence
+  }
+
+  /**
+   * Whether the given generation is still the open turn. A stop latches the generation it
+   * interrupts: a successor generation (background work waking the main agent) must not stand in
+   * for that generation's settlement.
+   */
+  isGenerationActive(generation: number): boolean {
+    return this.turnActive && this.turnSequence === generation
+  }
+
   get hasTurnActivity(): boolean {
     return this.turnHasActivity
   }
 
   /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
   beginTurn(): void {
+    this.turnSequence++
     this.turnHasActivity = false
     this.ctx = this.createTurnContext()
     this.turnActive = true
