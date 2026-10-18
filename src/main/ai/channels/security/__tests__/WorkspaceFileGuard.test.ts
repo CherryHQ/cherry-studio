@@ -120,8 +120,8 @@ describe('resolveWorkspaceFile', () => {
     // The snapshot reports a small size (passes the pre-read cap), but the stream yields
     // an oversize buffer — the post-read recheck must still reject it.
     vi.mocked(openReadableFileSnapshot).mockResolvedValueOnce({
-      dev: 1,
-      ino: 1,
+      dev: 1n,
+      ino: 1n,
       modifiedAt: 0,
       size: 5,
       createReadStream: () => Readable.from([oversize]),
