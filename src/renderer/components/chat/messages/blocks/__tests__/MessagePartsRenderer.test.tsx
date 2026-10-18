@@ -1956,6 +1956,31 @@ describe('MessagePartsRenderer', () => {
       expect(list?.querySelectorAll('[data-tool-name]')).toHaveLength(2)
     })
 
+    // A resumed child is running again, and its task edge may live only in the runtime's live
+    // cache: the subtask summary must count it as in progress, not as a completed delivery.
+    it('counts a resumed child as running from the live task edge', () => {
+      const receipt = {
+        type: 'tool-SendMessage',
+        toolCallId: 'resume',
+        state: 'output-available',
+        input: { to: 'child', message: 'Please continue' },
+        output: { success: true, resumedAgentId: 'child' }
+      } as CherryMessagePart
+      const launchIndex = buildAgentLaunchIndex(
+        { 'msg-1': [receipt] },
+        { child: { event: 'started', taskId: 'child', toolUseId: 'resume', status: 'in_progress' } }
+      )
+
+      render(
+        <AgentLaunchIndexProvider value={launchIndex}>
+          {renderPartsTree([receipt], msg({ id: 'msg-1', status: 'pending' }), { openAgentToolFlow: vi.fn() })}
+        </AgentLaunchIndexProvider>
+      )
+
+      expect(screen.getByText('agent.right_pane.status.task_count')).toBeInTheDocument()
+      expect(screen.queryByText('agent.right_pane.status.tasks_completed')).toBeNull()
+    })
+
     // A receipt whose result is still an envelope names no child, but the adapter stamp already
     // ties it to a launch of this message — it belongs in the list, not inline with the flow.
     it('lists a stamp-only resume receipt as a subtask of the message it continued', () => {
