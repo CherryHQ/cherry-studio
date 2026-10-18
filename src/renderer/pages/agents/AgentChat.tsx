@@ -206,6 +206,9 @@ const AgentChat = ({
   }>()
   // Latest (session, agent) pair, readable from stale respond callbacks that survive navigation.
   const latestSessionKeyRef = useRef<{ id: string | null; agentId: string | null }>({ id: null, agentId: null })
+  // A user stop must disarm an in-flight handoff: the follow-up effect fires when the turn settles,
+  // and a stopped turn settles too — so a handoff left armed would restart the cancelled plan.
+  const disarmPlanExecutionHandoff = useCallback(() => setPlanExecutionHandoff(undefined), [])
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
@@ -285,6 +288,7 @@ const AgentChat = ({
     reservedMessages: EMPTY_MESSAGES,
     modelFilter: agentModelFilter,
     isModelDisabled: isHandoffModelUnavailable,
+    onStop: disarmPlanExecutionHandoff,
     onPlanModelHandoff: (modelId) => {
       // The respond callback can outlive navigation and hold a stale session: only arm while the
       // session snapshot still matches what is on screen, so a cleared handoff cannot resurrect.

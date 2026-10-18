@@ -530,6 +530,72 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.toastWarning).not.toHaveBeenCalled()
   })
 
+  // Stop lands while the approval is still in flight: the plan the user just cancelled must not
+  // arm a handoff, or the follow-up fires once the stopped turn settles and executes it anyway.
+  it('drops a plan-execution handoff the user stopped while the approval was in flight', async () => {
+    let releaseApproval: (value: unknown) => void = () => {}
+    mocks.respondToolApproval.mockReturnValueOnce(new Promise((resolve) => (releaseApproval = resolve)))
+    const handoff = vi.fn()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: handoff
+      })
+    )
+
+    const approval = act(() => result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5')))
+    await act(async () => {
+      await result.current.stop()
+      releaseApproval({ ok: true, handoff: 'started', executionModelId: 'anthropic::claude-opus-5' })
+    })
+    await approval
+
+    expect(mocks.chatStop).toHaveBeenCalled()
+    expect(handoff).not.toHaveBeenCalled()
+  })
+
+  it('still hands off an approved plan-execution model when the user did not stop', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({
+      ok: true,
+      handoff: 'started',
+      executionModelId: 'anthropic::claude-opus-5'
+    })
+    const handoff = vi.fn()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onPlanModelHandoff: handoff
+      })
+    )
+
+    await act(() => result.current.respondToolApproval(makePlanApprovalInput('anthropic::claude-opus-5')))
+
+    expect(handoff).toHaveBeenCalledWith('anthropic::claude-opus-5')
+  })
+
+  it('disarms a pending handoff when the user stops', async () => {
+    const onStop = vi.fn()
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: [],
+        onStop
+      })
+    )
+
+    await act(async () => {
+      await result.current.stop()
+    })
+
+    expect(onStop).toHaveBeenCalledTimes(1)
+    expect(mocks.chatStop).toHaveBeenCalled()
+  })
+
   it.each([
     { beforeAck: false, queued: false },
     { beforeAck: true, queued: false },

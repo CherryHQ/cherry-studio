@@ -169,6 +169,12 @@ interface UseAgentChatRuntimeStateParams {
   modelFilter?: ModelSelectorFilter
   /** The availability gate for that same model. */
   isModelDisabled?: ModelSelectorFilter
+  /**
+   * Runs on every user stop, before the abort. The host page disarms a pending plan-execution
+   * handoff here: the follow-up effect fires once the turn settles, which a cancelled turn still
+   * does, so cancelling the user's cancellation would restart the plan.
+   */
+  onStop?: () => void
 }
 
 export function useAgentChatRuntimeState({
@@ -180,7 +186,8 @@ export function useAgentChatRuntimeState({
   reservedMessages,
   onPlanModelHandoff,
   modelFilter,
-  isModelDisabled
+  isModelDisabled,
+  onStop
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { t } = useTranslation()
@@ -243,7 +250,17 @@ export function useAgentChatRuntimeState({
     void seedReservedMessages(reservedMessages)
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
-  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { activeExecutions, setMessages, stop: stopHistory } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const onStopRef = useRef(onStop)
+  onStopRef.current = onStop
+  // Invalidation counter: a stop bumps it, so a respond callback already in flight sees the bump
+  // when its request resolves and drops the handoff instead of arming one the user just cancelled.
+  const stopGenerationRef = useRef(0)
+  const stop = useCallback(async () => {
+    stopGenerationRef.current += 1
+    onStopRef.current?.()
+    await stopHistory()
+  }, [stopHistory])
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -403,6 +420,7 @@ export function useAgentChatRuntimeState({
       const { match, approved, reason, updatedInput } = input
       const approvalId = match.approvalId
       const optimisticToolCallId = isAskUserQuestionApprovalResponse(input) ? match.toolCallId : undefined
+      const stopGeneration = stopGenerationRef.current
 
       if (optimisticToolCallId) {
         setOptimisticAskUserQuestionInputsByToolCallId((current) => ({
@@ -437,7 +455,11 @@ export function useAgentChatRuntimeState({
       if (result.handoff === 'refused' && input.executionModelId) {
         toast.warning(t('agent.toolPermission.executionModel.notApplied'))
       }
-      if (result.executionModelId) onPlanModelHandoff?.(result.executionModelId)
+      // A stop that landed while this approval was in flight already cancelled the plan: arming the
+      // handoff now would execute it despite the cancellation.
+      if (result.executionModelId && stopGenerationRef.current === stopGeneration) {
+        onPlanModelHandoff?.(result.executionModelId)
+      }
       await refresh()
     },
     [onPlanModelHandoff, refresh, removeOptimisticAskUserQuestionInput, sessionTopicId, t]

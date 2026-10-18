@@ -210,13 +210,17 @@ vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => agentSessionPartsMocks.result
 }))
 
-vi.mock('@renderer/hooks/useChatWithHistory', () => ({
-  useChatWithHistory: () => ({
-    activeExecutions: [],
+const chatHistoryMocks = vi.hoisted(() => ({
+  result: {
+    activeExecutions: [] as unknown[],
     sendMessage: vi.fn(),
     stop: vi.fn(),
     setMessages: vi.fn()
-  })
+  }
+}))
+
+vi.mock('@renderer/hooks/useChatWithHistory', () => ({
+  useChatWithHistory: () => chatHistoryMocks.result
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
@@ -303,6 +307,12 @@ describe('AgentChat plan-execution handoff gates', () => {
     }
     ipcMocks.request.mockReset().mockResolvedValue({ ok: true, data: { ok: true } })
     ipcMocks.on.mockClear()
+    chatHistoryMocks.result = {
+      activeExecutions: [],
+      sendMessage: vi.fn(),
+      stop: vi.fn(async () => {}),
+      setMessages: vi.fn()
+    }
     MockUsePreferenceUtils.setPreferenceValue('chat.plan_execution.model_id', PLAN_EXECUTION_MODEL_ID)
     agentSessionPartsMocks.result = {
       messages: [planApprovalMessage()],
