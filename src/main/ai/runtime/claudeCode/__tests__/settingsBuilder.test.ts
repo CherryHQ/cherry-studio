@@ -1587,7 +1587,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   )
 
-  it('follows the live permission mode for interactive delegation in hooks and canUseTool', async () => {
+  it('follows the live permission mode for ordinary interactive delegation in hooks', async () => {
     let permissionMode: string | undefined = undefined
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
@@ -1639,14 +1639,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     for (const mode of ['auto', 'bypassPermissions']) {
       permissionMode = mode
       for (const toolName of DELEGATION_RUNTIME_NAMES) {
-        await expect(permissionDecisions(toolName)).resolves.toContain('allow')
         for (let call = 0; call < 2; call++) {
-          await expect(
-            settings.canUseTool!(toolName, { message: 'Delegate this task' }, {
-              signal: new AbortController().signal,
-              toolUseID: `delegation-${call}`
-            } as never)
-          ).resolves.toEqual({ behavior: 'allow', updatedInput: { message: 'Delegate this task' } })
+          await expect(permissionDecisions(toolName)).resolves.toContain('allow')
         }
       }
     }
@@ -1655,6 +1649,61 @@ describe('buildClaudeCodeSessionSettings', () => {
     for (const toolName of ['Bash', 'mcp__assistant__navigate', 'mcp__assistant__product_info']) {
       await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
     }
+  })
+
+  describe.each(['auto', 'bypassPermissions'])('SDK-forced delegation approval in %s', (permissionMode) => {
+    it.each(
+      DELEGATION_RUNTIME_NAMES.flatMap((toolName) =>
+        [undefined, 'subagent-1'].map((agentID) => ({ toolName, agentID }))
+      )
+    )('waits for the user decision for $toolName (agentID=$agentID)', async ({ toolName, agentID }) => {
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn(() => ({ approval: 'auto' })),
+        isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => permissionMode),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      const input = { message: 'Delegate this task' }
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+
+      for (const matchedAskRule of [undefined, { source: 'projectSettings', toolName }]) {
+        for (const approved of [false, true]) {
+          mocks.approvalRegister.mockClear()
+          emit.mockClear()
+          const pending = settings.canUseTool!(toolName, input, {
+            signal: new AbortController().signal,
+            toolUseID: 'forced-delegation',
+            requestId: 'forced-request',
+            agentID,
+            matchedAskRule
+          })
+          let settled = false
+          void pending.then(() => (settled = true))
+          await Promise.resolve()
+          expect(settled).toBe(false)
+          expect(emit).toHaveBeenCalledWith(
+            expect.objectContaining({ toolName, presentation: agentID ? 'message' : 'stream' })
+          )
+
+          mocks.approvalRegister.mock.lastCall![0].resolve({ approved })
+          await expect(pending).resolves.toEqual(
+            approved
+              ? { behavior: 'allow', updatedInput: input }
+              : { behavior: 'deny', message: 'User denied permission for this tool' }
+          )
+        }
+      }
+    })
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {

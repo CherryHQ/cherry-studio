@@ -540,8 +540,10 @@ async function buildToolPermissions(
     if (delegationApproval === 'deny') {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
     }
+    // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
+    // requires a user decision, even when matchedAskRule is absent.
     const approvalHoldsInThisMode =
-      delegationApproval === 'ask' ||
+      policy?.approval === 'delegation' ||
       (policy?.approval === 'required' &&
         !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
     const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
@@ -556,7 +558,7 @@ async function buildToolPermissions(
     if (
       toolName !== ASK_USER_QUESTION_TOOL_NAME &&
       !approvalHoldsInThisMode &&
-      (delegationApproval === 'allow' || policy?.approval === 'auto' || access?.approval === 'auto')
+      (policy?.approval === 'auto' || access?.approval === 'auto')
     ) {
       return { behavior: 'allow', updatedInput: input }
     }

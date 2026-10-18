@@ -267,6 +267,8 @@ tool argument because Sessions use their owning Agent's model.
 `session_send` and `session_create` follow the calling Session's permission mode: interactive calls
 are auto-approved in `auto` and `bypassPermissions`, including the first send; other modes require
 per-call approval. Existing Agents in either automatic mode adopt this behavior without migration.
+Claude SDK approval requests, including explicit `permissions.ask` rules, still require a user
+decision in automatic modes; ordinary delegation is approved by `PreToolUse` before that callback.
 A headless delivery, channel turn, scheduled turn, or execution without an approval responder is
 denied in every mode before either tool runs. Runtime-generated completion
 results do not call a model tool and route only to the immutable sender Session stored on the
