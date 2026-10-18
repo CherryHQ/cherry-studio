@@ -41,6 +41,7 @@ export interface DictationSnapshot {
 
 export interface DictationRun {
   readonly result: Promise<void>
+  stop(): Promise<void>
   cancel(): Promise<void>
 }
 
@@ -221,6 +222,12 @@ export class DictationService {
       result: this.startRun(runToken, generation, target).finally(() => {
         if (this.pendingStart === runToken) this.pendingStart = undefined
       }),
+      stop: () =>
+        this.currentRunToken !== runToken
+          ? Promise.resolve()
+          : this.active?.runToken === runToken && this.active.recorder
+            ? this.stop()
+            : this.cancelRun(runToken),
       cancel: () => this.cancelRun(runToken)
     }
   }

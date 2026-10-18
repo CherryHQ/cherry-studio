@@ -32,6 +32,11 @@ describe('validation selection', () => {
     expect(mixed.tasks).toContain('types-web')
     expect(mixed.projects).not.toContain('main')
   })
+  it('keeps a complete translation pair out of code tests', () => {
+    const plan = createPlan(['CONTRIBUTING.md', 'CONTRIBUTING.zh.md', 'CONTRIBUTING.i18n.yaml'])
+    expect(plan.tasks).toEqual(['format', 'docs'])
+    expect(plan.projects).toEqual([])
+  })
   it.each([
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
@@ -73,6 +78,7 @@ describe('validation selection', () => {
   it.each([
     'pnpm-lock.yaml',
     '.node-version',
+    '.github/workflows/release.i18n.yaml',
     'tests/new.setup.ts',
     'packages/new-package/src/index.ts',
     'scripts/validation/plan.mjs'

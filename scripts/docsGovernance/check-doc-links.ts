@@ -7,7 +7,7 @@ import * as path from 'path'
  * Exits with code 1 if any broken links are found.
  */
 
-const ROOT = path.resolve(__dirname, '..')
+const ROOT = path.resolve(__dirname, '../..')
 
 // Markdown link pattern: [text](url) — exclude external URLs and anchors-only
 const LINK_RE = /\[(?:[^\]]*)\]\(([^)]+)\)/g
