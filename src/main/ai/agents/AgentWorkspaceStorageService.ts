@@ -222,7 +222,12 @@ class AgentWorkspaceStorageService {
             if (options.now - newest <= options.freshnessGateMs) return []
             artifacts.push(target)
           }
-          if (artifacts.length) await this.purge({ id: path.basename(workspacePath), path: workspacePath })
+          if (!artifacts.length) return []
+          // A detached task outlives the session that started it and keeps this directory as its
+          // cwd, so removing it here pulls the directory out from under running work — the next
+          // write the task makes fails with ENOENT. The sweep runs again once the task ends.
+          if (await workspaceHasLiveDetachedTasks(workspacePath)) return []
+          await this.purge({ id: path.basename(workspacePath), path: workspacePath })
           return artifacts
         },
         true
@@ -413,6 +418,12 @@ class AgentWorkspaceStorageService {
     const root = application.getPath('feature.agents.system_workspaces')
     const state = await this.inspect(root, workspace)
     if (!state || !this.workspaceStoragePaths(workspace.path).some(existsSync)) return
+    // Every destructive cleanup — a permanent session deletion, its retention purge, and the
+    // orphan sweep — lands here. A detached task outlives its session and keeps this directory as
+    // its cwd, so none of them may remove it while such a task still runs: the removal is deferred
+    // until the task ends rather than dropped, and the caller's retry is what completes it.
+    if (await workspaceHasLiveDetachedTasks(workspace.path))
+      throw new Error('Workspace is still in use by a detached background task')
     const record: storage.WorkspaceStorageRecord =
       state.record?.operation === 'purge'
         ? state.record
