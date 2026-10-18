@@ -9,7 +9,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
@@ -155,6 +155,8 @@ const mocks = vi.hoisted(() => ({
   deriveConfig: vi.fn(),
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
+  getProviderById: vi.fn((providerId: string) => ({ id: providerId, isEnabled: true })),
+  getPreference: vi.fn(),
   applicationGet: vi.fn(),
   getPhysicalPath: vi.fn(),
   probeReadable: vi.fn(),
@@ -167,6 +169,8 @@ const mocks = vi.hoisted(() => ({
   materializeNativeFilePart: vi.fn(),
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
+  disposeToolPolicySnapshot: vi.fn(),
+  disposeSessionHolders: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -197,6 +201,10 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: mocks.getModelByKey }
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: { getByProviderId: mocks.getProviderById }
 }))
 
 vi.mock('@main/ai/messages/attachmentRouting', () => ({
@@ -459,6 +467,24 @@ function createAsyncQueue<T>() {
   }
 }
 
+/** Minimal stand-in for the shared, session-keyed tool-policy snapshot `canUseTool` resolves. */
+function createToolPolicySnapshot() {
+  let disallowed = new Set<string>()
+  let permissionMode: string | undefined
+  return {
+    update(agent: any) {
+      disallowed = new Set(agent?.disabledTools ?? [])
+      permissionMode = agent?.configuration?.permission_mode
+    },
+    isDisabled(runtimeName: string) {
+      return disallowed.has(runtimeName)
+    },
+    getPermissionMode() {
+      return permissionMode
+    }
+  }
+}
+
 function createDeferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -498,8 +524,21 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
-      if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
+      if (name === 'ClaudeCodeSessionStateService')
+        return {
+          disposeToolPolicySnapshot: mocks.disposeToolPolicySnapshot,
+          disposeSessionHolders: mocks.disposeSessionHolders
+        }
+      if (name === 'PreferenceService') return { get: mocks.getPreference }
       throw new Error(`Unexpected application.get(${name})`)
+    })
+    // Model retry is disabled unless a fallback test opts in.
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return false
+      if (key === 'chat.retry.max_attempts') return 3
+      if (key === 'chat.retry.backoff_enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return []
+      return undefined
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
     mocks.getPhysicalPath.mockImplementation((id: string) => `/managed/${id}`)
@@ -3606,6 +3645,1282 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'chunk' }))
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
+    void connection.close()
+  })
+
+  it('falls back to the next configured model when a rate-limited turn fails before any content', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    // The same turn restarts on the fallback model: a new query is spawned from a request rebuilt
+    // for the fallback id, and the original user message re-enters it.
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    expect(mocks.buildRequest.mock.calls[1]).toEqual([
+      'session-1',
+      'failed-session',
+      'other-provider::haiku',
+      'default',
+      false,
+      undefined,
+      // The replay pins the turn's live mode (null here — none stored) and its captured prompt, so
+      // a mid-backoff save of either cannot re-admit it under the new value.
+      { permissionMode: null, instructions: null, disabledTools: [] }
+    ])
+    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
+    expect(retrySpawn.options).toMatchObject({ model: 'haiku' })
+    const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
+    expect(replayed.value).toMatchObject({ type: 'user', session_id: 'failed-session' })
+
+    fallbackQueue.push({ type: 'system', subtype: 'init', session_id: 'fallback-1' })
+    fallbackQueue.push({ type: 'result', subtype: 'success', session_id: 'fallback-1', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    expect(seen.map((event) => event?.type)).not.toContain('error')
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'chunk',
+        chunk: expect.objectContaining({
+          type: 'data-model-fallback',
+          data: { from: 'claude-code::sonnet', to: 'other-provider::haiku', reason: 'http 429' }
+        })
+      })
+    )
+    void connection.close()
+  })
+
+  it('keeps a tool disable that reconciled while the fallback request was being built', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // One shared, session-keyed snapshot — exactly what `canUseTool` resolves at fire-time.
+    const snapshot = createToolPolicySnapshot()
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const baseline = {
+      rebuildSignature: 'sig-1',
+      live: { toolPolicy: { permissionMode: 'bypassPermissions', disabledTools: [], mcps: [] } }
+    }
+    let capturedAgent: any
+    const fallbackBuild = createDeferred<any>()
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: baseline,
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockImplementationOnce(() => {
+        // The builder reads the agent row when the build starts, then publishes it through
+        // `ensureToolPolicySnapshot` when the build (route, settings, skills) finally settles.
+        capturedAgent = mocks.getAgent()
+        return fallbackBuild.promise
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.buildRequest).toHaveBeenCalledTimes(2))
+
+    // The user disables Bash while that build is still in flight; the host pushes it and the live
+    // reconcile lands first, tightening the shared snapshot.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: ['Bash'] })
+    mocks.deriveConfig.mockResolvedValue({
+      ok: true,
+      config: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: 'bypassPermissions', disabledTools: ['Bash'], mcps: [] } }
+      }
+    })
+    await expect(connection.reconcile({ modelId: 'claude-code::sonnet' })).resolves.toBe('patched')
+    expect(snapshot.isDisabled('Bash')).toBe(true)
+
+    // The builder now settles and publishes the agent it captured BEFORE the disable — the
+    // reconcile's tightening is gone the moment the replay's tool calls resolve against it.
+    snapshot.update(capturedAgent)
+    expect(snapshot.isDisabled('Bash')).toBe(false)
+    fallbackBuild.resolve({
+      connectionConfig: {
+        rebuildSignature: 'sig-2',
+        live: { toolPolicy: { permissionMode: 'bypassPermissions', disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'haiku' },
+      settings: { toolPolicySnapshot: snapshot },
+      sdkModelId: 'haiku-sdk',
+      initializeTimeoutMs: 100
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    await delay(10)
+
+    // The newer restriction must survive the publication: the replay never runs Bash, without
+    // approval under bypassPermissions. The installed baseline records it too, so a later turn
+    // that re-enables Bash is still seen as a change and lifts the restriction (not stuck on).
+    expect(snapshot.isDisabled('Bash')).toBe(true)
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', disabledTools: [] })
+    mocks.deriveConfig.mockResolvedValue({
+      ok: true,
+      config: {
+        rebuildSignature: 'sig-2',
+        live: { toolPolicy: { permissionMode: 'bypassPermissions', disabledTools: [], mcps: [] } }
+      }
+    })
+    await expect(connection.reconcile({ modelId: 'other-provider::haiku' })).resolves.toBe('patched')
+    expect(snapshot.isDisabled('Bash')).toBe(false)
+    void connection.close()
+  })
+
+  it("keeps the turn's pinned permission mode when reapplying the turn's tool disables", async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // The turn was admitted under `default` with Bash disabled: the shared snapshot `canUseTool`
+    // resolves at fire-time must keep enforcing exactly that for the replay.
+    const snapshot = createToolPolicySnapshot()
+    snapshot.update({ disabledTools: ['Bash'], configuration: { permission_mode: 'default' } })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: 'default', disabledTools: ['Bash'], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: 'default', disabledTools: ['Bash'], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: { toolPolicySnapshot: snapshot },
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    // Saved while the provider request backs off: the row now says bypassPermissions — exactly the
+    // mode change mid-turn reconciliation defers to the next turn boundary.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      disabledTools: ['Bash'],
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    await delay(10)
+
+    // The disable-keep re-publish onto the shared snapshot must not import the saved mode: under
+    // bypassPermissions an enabled Write resolves to automatic approval, silently dropping the
+    // approvals this turn was admitted with. The turn's disable stays in force.
+    expect(snapshot.getPermissionMode()).toBe('default')
+    expect(snapshot.isDisabled('Bash')).toBe(true)
+    void connection.close()
+  })
+
+  it('rebuilds the fallback replay under the live turn permission mode, not a mode saved mid-backoff', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          // The failing turn was admitted under `default`; a row save mid-backoff sets
+          // bypassPermissions, which reconcile explicitly defers while the turn is active.
+          live: { toolPolicy: { permissionMode: 'default', disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          // The pinned builder derives the fallback baseline from the SAME frozen agent, so a
+          // bypassPermissions row save can no longer leak into the replay's live policy.
+          live: { toolPolicy: { permissionMode: 'default', disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    // The replay rebuild carries the live mode into the builder, so the SDK settings, the shared
+    // approval snapshot, and the derived baseline all re-derive from the frozen mode. The turn's
+    // captured prompt rides along: the replay stays inside the turn it was admitted for.
+    expect(mocks.buildRequest.mock.calls[1]).toEqual([
+      'session-1',
+      'failed-session',
+      'other-provider::haiku',
+      'default',
+      false,
+      undefined,
+      { permissionMode: 'default', instructions: null, disabledTools: [] }
+    ])
+    void connection.close()
+  })
+
+  it('rebuilds the fallback replay on the prompt the turn was admitted with, not one saved mid-turn', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // The turn was admitted with instructions A; a save while the provider is backing off must wait
+    // for the next fresh turn (agent-prompt-layers.md) — the replay stays in THIS host turn.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', instructions: 'A' })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest.mockImplementation(async () => {
+      const isFallbackBuild = mocks.buildRequest.mock.calls.length > 1
+      return {
+        connectionConfig: {
+          rebuildSignature: isFallbackBuild ? 'sig-2' : 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        capturedInstructions: 'A',
+        key: 'warm-key',
+        options: { model: isFallbackBuild ? 'haiku' : 'sonnet' },
+        settings: {},
+        sdkModelId: isFallbackBuild ? 'haiku-sdk' : 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      }
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', instructions: 'B' })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    // The replay must re-materialize the prompt the turn was admitted with, not the saved B.
+    expect(mocks.buildRequest.mock.calls[1][6]).toEqual({
+      permissionMode: null,
+      instructions: 'A',
+      disabledTools: []
+    })
+    void connection.close()
+  })
+
+  // Pinning the raw instructions preserves the TEMPLATE, not its resolved values: {{username}} is
+  // read from app.user.name at every materialization, so a name saved while the provider backs off
+  // used to change the replayed turn's instructions. The driver must carry the admitted values.
+  it('rebuilds the fallback replay on the variable values the turn was admitted with', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      if (key === 'app.user.name') return 'Alice'
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest.mockImplementation(async () => {
+      const isFallbackBuild = mocks.buildRequest.mock.calls.length > 1
+      return {
+        connectionConfig: {
+          rebuildSignature: isFallbackBuild ? 'sig-2' : 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        capturedInstructions: 'Address {{username}}.',
+        capturedPromptVariables: { username: isFallbackBuild ? 'Alice' : 'Alice', modelName: null },
+        key: 'warm-key',
+        options: { model: isFallbackBuild ? 'haiku' : 'sonnet' },
+        settings: {},
+        sdkModelId: isFallbackBuild ? 'haiku-sdk' : 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      }
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    // Saved mid-backoff: the row's instruction text is unchanged, but the variable input moved.
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      if (key === 'app.user.name') return 'Bob'
+      return undefined
+    })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    expect(mocks.buildRequest.mock.calls[1][6]).toEqual({
+      permissionMode: null,
+      instructions: 'Address {{username}}.',
+      disabledTools: [],
+      promptVariables: { username: 'Alice', modelName: null }
+    })
+    void connection.close()
+  })
+
+  // The connection's model is what the INSTALLED query serves, which after a fallback is not the
+  // constructor's primary. Everything downstream of the swap — fallback selection, the transcript
+  // notice, and the image capability the next turn's attachments are materialized for — has to read
+  // that installed model. Reading the constructor's P instead means a second failure re-picks the
+  // model the connection is already on and burns the turn's single fallback attempt on it.
+  it('tracks the installed model across a fallback, so a second failure reaches the next candidate', async () => {
+    const PRIMARY: UniqueModelId = 'claude-code::sonnet'
+    const SECOND: UniqueModelId = 'other-provider::haiku'
+    const THIRD: UniqueModelId = 'other-provider::glm'
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      // [F, G]: the turn's second fallback attempt must land on G, never back on F.
+      if (key === 'chat.retry.fallback_model_ids') return [SECOND, THIRD]
+      return undefined
+    })
+    mocks.buildRequest.mockImplementation(async (_sessionId, _resume, modelId: string) => ({
+      connectionConfig: {
+        // One stable signature: nothing about the connection forces a rebuild, so the host keeps
+        // reusing this warm connection across turns — exactly the reuse the bug depends on.
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: modelId },
+      settings: {},
+      sdkModelId: modelId,
+      initializeTimeoutMs: 100
+    }))
+    const liveQueues: Array<ReturnType<typeof createAsyncQueue<any>>> = []
+    mocks.createClaudeQuery.mockImplementation(() => {
+      const queue = createAsyncQueue<any>()
+      liveQueues.push(queue)
+      return { ...queue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: PRIMARY
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    const fail = (queue: ReturnType<typeof createAsyncQueue<any>>) =>
+      queue.push({
+        type: 'result',
+        subtype: 'error_during_execution',
+        session_id: 'failed-session',
+        usage: {},
+        terminal_reason: 'api_error',
+        errors: ['API Error: 429 {"type":"rate_limit_error"}']
+      })
+
+    // ── Turn 1 on P ──────────────────────────────────────────────────────────────────────────
+    await connection.send({ message: userMessage() })
+    fail(liveQueues[0])
+
+    // A fallback [F, G] on P picks F. While the backoff runs, the agent's primary is saved as F:
+    // the connection must not adopt that as "its" model — it is still serving P's failed turn.
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: SECOND })
+    expect(mocks.buildRequest.mock.calls[1][2]).toBe(SECOND)
+    // Let the fallback complete: the connection is now genuinely installed on F.
+    liveQueues[1].push({ type: 'system', subtype: 'init', session_id: 'fb-1' })
+    liveQueues[1].push({ type: 'result', subtype: 'success', session_id: 'fb-1', usage: {} })
+    const firstTurn: any[] = []
+    while (true) {
+      const next = await events.next()
+      firstTurn.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    expect(firstTurn).toContainEqual(
+      expect.objectContaining({
+        type: 'chunk',
+        chunk: expect.objectContaining({
+          type: 'data-model-fallback',
+          data: { from: PRIMARY, to: SECOND, reason: 'http 429' }
+        })
+      })
+    )
+
+    // ── Turn 2: a fresh turn targeting F reuses this connection ────────────────────────────────
+    // The saved primary is F and nothing else changed, so reconciliation matches and the host keeps
+    // the connection it already holds — it is not rebuilt, so F carries over from the fallback.
+    await expect(connection.reconcile({ modelId: SECOND })).resolves.toBe('current')
+    await connection.send({ message: userMessage() })
+
+    // A retryable failure on F must advance to G. Reading the constructor's P instead selects F
+    // again — an attempt already spent — and the turn loses its fallback entirely.
+    fail(liveQueues[1])
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(3))
+    expect(mocks.buildRequest.mock.calls[2][2]).toBe(THIRD)
+
+    liveQueues[2].push({ type: 'system', subtype: 'init', session_id: 'fb-2' })
+    liveQueues[2].push({ type: 'result', subtype: 'success', session_id: 'fb-2', usage: {} })
+    const secondTurn: any[] = []
+    while (true) {
+      const next = await events.next()
+      secondTurn.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    // The notice describes the swap that actually happened (F → G), not P → G.
+    expect(secondTurn).toContainEqual(
+      expect.objectContaining({
+        type: 'chunk',
+        chunk: expect.objectContaining({
+          type: 'data-model-fallback',
+          data: { from: SECOND, to: THIRD, reason: 'http 429' }
+        })
+      })
+    )
+    void connection.close()
+  })
+
+  it('declines the fallback replay when the live turn permission mode cannot be read', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    // A connection with no materialized baseline cannot prove what mode the turn runs under, so
+    // pinning is impossible and replaying it would adopt whatever the agent row now says.
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    // No second query is ever built: the turn surfaces the original 429 error instead of replaying
+    // under an unverifiable policy.
+    await vi.waitFor(async () => {
+      const next = await events.next()
+      expect(next.value?.type).toBe('error')
+    })
+    expect(mocks.buildRequest).toHaveBeenCalledTimes(1)
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('attributes fallback telemetry to the fallback model while keeping the turn trace', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      trace: {
+        topicId: 'agent-session:session-1',
+        traceId: 'a'.repeat(32),
+        rootSpanId: 'b'.repeat(16),
+        sessionId: 'session-1',
+        turnId: 'turn-1',
+        modelName: 'sonnet'
+      }
+    })
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    // installQuery re-derives the trace env from the connection context on every install: after the
+    // swap it must name the running fallback model, or the whole fallback turn spans as the primary.
+    expect(mocks.prepareTrace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ modelName: 'haiku', traceId: 'a'.repeat(32), turnId: 'turn-1' })
+    )
+    expect(mocks.refreshTraceContext).toHaveBeenCalledWith(expect.objectContaining({ modelName: 'haiku' }))
+    void connection.close()
+  })
+
+  it('rebinds the fallback trace from the refreshed turn context, not the constructor frozen one', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      // Primed with no live turn: the constructor context carries an empty turnId.
+      trace: {
+        topicId: 'agent-session:session-1',
+        traceId: 'a'.repeat(32),
+        rootSpanId: 'b'.repeat(16),
+        sessionId: 'session-1',
+        turnId: '',
+        modelName: 'sonnet'
+      }
+    })
+    // The host refreshes tracing on turn admission; the fallback must rebind from that refresh —
+    // overwriting the bridge with the frozen context would file the fallback spans under no turn.
+    void connection.refreshTraceContext?.({
+      topicId: 'agent-session:session-1',
+      traceId: 'a'.repeat(32),
+      rootSpanId: 'b'.repeat(16),
+      sessionId: 'session-1',
+      turnId: 'turn-9',
+      modelName: 'sonnet'
+    })
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    expect(mocks.refreshTraceContext).toHaveBeenLastCalledWith(
+      expect.objectContaining({ modelName: 'haiku', turnId: 'turn-9' })
+    )
+    expect(mocks.prepareTrace).toHaveBeenLastCalledWith(
+      expect.objectContaining({ modelName: 'haiku', turnId: 'turn-9' })
+    )
+    void connection.close()
+  })
+
+  it('re-materializes the replayed turn when the fallback model resolves a different image capability', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // Text-only primary: its own materialization degrades the image. The fallback reads images
+    // natively, so replaying the primary's OCR form would withhold the picture from it.
+    mocks.getModelByKey.mockImplementation((providerId: string) =>
+      providerId === 'claude-code' ? { capabilities: [] } : { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+    )
+    mocks.prepareChatMessages.mockImplementation(async (_messages: any, options: any) => [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: options.nativeSupport.image ? 'VISION-FORM' : 'OCR-FORM' }]
+      }
+    ])
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+
+    const primaryInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+    await expect(primaryInput).resolves.toMatchObject({ value: { message: { content: 'OCR-FORM' } } })
+
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    const replayed = await mocks.createClaudeQuery.mock.calls[1][0].prompt[Symbol.asyncIterator]().next()
+    expect(replayed.value).toMatchObject({ message: { role: 'user', content: 'VISION-FORM' } })
+    void connection.close()
+  })
+
+  it('does not announce a fallback whose query fails to install', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    // The primary installs; the fallback's install fails after the swap had already been decided.
+    mocks.consumeWarmQuery
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('warm query manager unavailable'))
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+    }
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({ message: expect.stringContaining('429') })
+      })
+    )
+    void connection.close()
+  })
+
+  it('drops the fallback setup registrations when Stop closes the connection during request construction', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    // The builder recreates these session-keyed registrations while constructing the fallback
+    // request; after a mid-build close they are the ones nobody would otherwise dispose.
+    const abandonedApproval = { dispose: vi.fn() }
+    const abandonedSteer = { pending: [], dispose: vi.fn() }
+    const fallbackBuild = createDeferred<any>()
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockImplementationOnce(() => fallbackBuild.promise)
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.buildRequest).toHaveBeenCalledTimes(2))
+
+    // Stop: close while the fallback request is still being built, then let construction finish.
+    const closed = connection.close()
+    fallbackBuild.resolve({
+      connectionConfig: {
+        rebuildSignature: 'sig-2',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'haiku' },
+      settings: { approvalEmitter: abandonedApproval, steerHolder: abandonedSteer },
+      sdkModelId: 'haiku-sdk',
+      initializeTimeoutMs: 100
+    })
+    await closed
+    await delay(10)
+
+    // No session state survives closure: the abandoned request's fresh registrations are disposed
+    // and nothing was installed after cancellation (no re-registration, no second query).
+    expect(abandonedApproval.dispose).toHaveBeenCalledOnce()
+    expect(abandonedSteer.dispose).toHaveBeenCalledOnce()
+    expect(mocks.disposeToolPolicySnapshot).toHaveBeenCalledTimes(2) // close teardown + abandoned snapshot
+    expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledTimes(1) // primary install only
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+  })
+
+  it('disposes the half-registered settings a rejected fallback build leaves after Stop', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackBuild = createDeferred<any>()
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockImplementationOnce(() => fallbackBuild.promise)
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.buildRequest).toHaveBeenCalledTimes(2))
+
+    let closeResolved = false
+    const closed = Promise.resolve(connection.close()).then(() => {
+      closeResolved = true
+    })
+    // The build is still parked mid-construction: close must not resolve past it, or the host's
+    // closing barrier releases while the builder can still register fresh session state.
+    await delay(20)
+    expect(closeResolved).toBe(false)
+
+    // Stop already latched the teardown, and the builder re-registered the session's approval and
+    // steer holders before its workspace read (e.g. AGENTS.md) rejected — nothing else disposes them.
+    fallbackBuild.reject(new Error('AGENTS.md is no longer readable'))
+    await closed
+
+    expect(mocks.disposeSessionHolders).toHaveBeenCalledWith('session-1')
+    expect(mocks.disposeToolPolicySnapshot).toHaveBeenCalledTimes(2) // close teardown + abandoned registration
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1) // nothing installed after the rejection
+  })
+
+  it('holds the closing barrier until a fallback build racing the close settles', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const abandonedApproval = { dispose: vi.fn() }
+    const abandonedSteer = { pending: [], dispose: vi.fn() }
+    const fallbackBuild = createDeferred<any>()
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockImplementationOnce(() => fallbackBuild.promise)
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.buildRequest).toHaveBeenCalledTimes(2))
+
+    let closeResolved = false
+    const closed = Promise.resolve(connection.close()).then(() => {
+      closeResolved = true
+    })
+    // The build is still parked mid-construction: close must not resolve past it, or the host's
+    // closing barrier releases while the builder can still register fresh session state.
+    await delay(20)
+    expect(closeResolved).toBe(false)
+    fallbackBuild.resolve({
+      connectionConfig: {
+        rebuildSignature: 'sig-2',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'haiku' },
+      settings: { approvalEmitter: abandonedApproval, steerHolder: abandonedSteer },
+      sdkModelId: 'haiku-sdk',
+      initializeTimeoutMs: 100
+    })
+    await closed
+    expect(closeResolved).toBe(true)
+    expect(abandonedApproval.dispose).toHaveBeenCalledOnce()
+    expect(abandonedSteer.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('refuses fallback installation after close and disposes the abandoned warm process', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const warmConsume = createDeferred<any>()
+    const warmDispose = vi.fn(async () => {})
+    mocks.consumeWarmQuery
+      .mockResolvedValueOnce(undefined) // primary installs cold
+      .mockImplementationOnce(() => warmConsume.promise) // fallback install parks consuming a warm process
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    await connection.send({ message: userMessage() })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    await vi.waitFor(() => expect(mocks.consumeWarmQuery).toHaveBeenCalledTimes(2))
+
+    // Stop lands while the fallback install is mid-consumption; the consumed warm process was
+    // evicted from its manager, so abandoning the install must dispose it explicitly.
+    const closed = connection.close()
+    warmConsume.resolve({ warmQuery: { [Symbol.asyncDispose]: warmDispose } })
+    await closed
+    await delay(10)
+
+    expect(warmDispose).toHaveBeenCalledOnce()
+    expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledTimes(1) // primary install only
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    expect(mocks.disposeToolPolicySnapshot).toHaveBeenCalledTimes(1) // close teardown only — nothing re-registered
+  })
+
+  it('does not re-send a completed turn when a later failure is retryable', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'turn-1', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete') break
+    }
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
+
+    // The connection stays alive and an autonomous generation opens its own turn (an `assistant`
+    // message with no turn active), then fails before producing content. That failure has no host
+    // turn to re-open, so the finished prompt must not be replayed on a fallback model.
+    queryQueue.push({ type: 'assistant', uuid: 'a-1', message: { role: 'assistant', content: [] } })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'turn-1',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+    void (async () => {
+      while (true) {
+        const next = await events.next()
+        if (next.done) break
+        seen.push(next.value)
+      }
+    })()
+    // The failure surfaces on the primary model rather than restarting it on a fallback.
+    await vi.waitFor(() => expect(seen).toContainEqual(expect.objectContaining({ type: 'error' })))
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('keeps the primary model and surfaces the error when the failed turn already produced content', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // Content streams first — the response is committed to the primary model, like the chat path.
+    queryQueue.push({ type: 'stream_event', event: { type: 'content_block_delta' } })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+    }
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({ message: expect.stringContaining('429') })
+      })
+    )
+    expect(seen).not.toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-model-fallback' }) })
+    )
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
     void connection.close()
   })
 

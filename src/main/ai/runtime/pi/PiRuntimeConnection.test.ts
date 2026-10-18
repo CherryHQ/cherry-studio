@@ -75,6 +75,7 @@ const mocks = vi.hoisted(() => ({
   loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn(),
   replacePromptVariables: vi.fn(),
+  promptUserName: vi.fn(() => 'Alice'),
   captureConnectionSnapshot: vi.fn(),
   ensureAgentDataDirectory: vi.fn(),
   buildAgentMcpServers: vi.fn(),
@@ -159,7 +160,13 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
-vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
+vi.mock('@main/utils/prompt', () => ({
+  replacePromptVariables: mocks.replacePromptVariables,
+  capturePromptVariableInputs: (modelName?: string | null) => ({
+    username: mocks.promptUserName(),
+    modelName: modelName ?? null
+  })
+}))
 vi.mock('@main/utils/commandResolver', () => ({
   autoDiscoverGitBash: mocks.autoDiscoverGitBash,
   validateGitBashPath: mocks.validateGitBashPath
@@ -1186,6 +1193,18 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.compact).not.toHaveBeenCalled()
   })
 
+  it('emits an error event when building the turn content throws before prompting', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const rejected = userInput('hello')
+    rejected.message.data.parts!.push({ type: 'file' as const, url: 'file:///tmp/a%2Fb' } as never)
+
+    expect(() => conn.send(rejected)).toThrow()
+    const events = await collectUntilTerminal(conn.events)
+
+    expect(events.some((event) => event.type === 'error')).toBe(true)
+    expect(mocks.prompt).not.toHaveBeenCalled()
+  })
+
   it('sends cross-Session provenance and forged instructions inside the untrusted delivery boundary', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     const delivery = userInput(
@@ -1803,6 +1822,238 @@ describe('PiRuntimeConnection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  it('starts a fallback replay under the pinned turn policy, not the freshly saved agent row', async () => {
+    // Saved mid-backoff: bypassPermissions plus a re-enabled write. The replaying turn was admitted
+    // under default with write disabled, and reconcile defers exactly these changes while streaming.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      disabledTools: [],
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      permissionPolicy: { permissionMode: 'default', disabledTools: ['write'] }
+    }).start()
+
+    expect(mocks.createOpts?.excludeTools).toEqual(['write'])
+    expect(conn.getPermissionPolicy?.()).toEqual({ permissionMode: 'default', disabledTools: ['write'] })
+
+    // Approvals the turn was admitted under still hold: default-mode bash prompts instead of the
+    // freshly saved bypassPermissions auto-allow.
+    const handler = approvalGateHandler()
+    void handler({ type: 'tool_call', toolName: 'bash', toolCallId: 'tc-replay', input: { command: 'ls' } }, {})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(toolApprovalRegistry.size()).toBe(1)
+    toolApprovalRegistry.abort(SESSION_ID, 'test-boundary')
+  })
+
+  it('keeps an admitted absence of a System Prompt through the replay, not one saved mid-turn', async () => {
+    // The turn started with NO System Prompt configured; instructions are saved while the provider
+    // request backs off. The replay stays inside this host turn, so it keeps materializing the
+    // prompt the turn was admitted with — an explicit null, not the saved value (agent-prompt-layers.md).
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Saved mid-turn.',
+      configuration: {}
+    })
+    const conn = await new PiRuntimeConnection({ ...input, promptPolicy: { instructions: null } }).start()
+
+    expect(appendedSystemPrompt()).not.toContain('Saved mid-turn.')
+    expect(appendedSystemPrompt()).not.toContain('<agent_instructions>')
+    void conn
+  })
+
+  it('rebuilds the fresh turn after a replay whose pinned prompt the saved row no longer has', async () => {
+    // The turn started on the primary with instructions A; the user saved the fallback model plus
+    // instructions B while the provider backed off. The replay on the fallback materializes A, but
+    // the next fresh turn targets the same saved row and must rebuild onto B — the startup
+    // signature was captured from a row whose prompt this connection never materialized.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'f::m', instructions: 'Saved B.', configuration: {} })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      modelId: 'f::m',
+      permissionPolicy: { permissionMode: 'default', disabledTools: [] },
+      promptPolicy: { instructions: 'Pinned A.' }
+    }).start()
+    expect(appendedSystemPrompt()).toContain('Pinned A.')
+    expect(appendedSystemPrompt()).not.toContain('Saved B.')
+
+    conn.send(userInput('Replayed turn.'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
+  })
+
+  // Pinning the raw instructions preserves the TEMPLATE, but {{username}} is resolved from
+  // app.user.name at every materialization — so a replay has to carry the admitted values too.
+  it('keeps a replay on the variable values the turn was admitted with', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      modelName: 'Pi Model',
+      instructions: 'Address {{username}} on {{model_name}}.',
+      configuration: {}
+    })
+    mocks.replacePromptVariables.mockImplementation(
+      async (prompt: string, modelName?: string, pinned?: { username?: string | null }) =>
+        prompt.replace(/{{username}}/g, pinned?.username ?? 'Bob').replace(/{{model_name}}/g, modelName ?? '')
+    )
+
+    await new PiRuntimeConnection({
+      ...input,
+      promptPolicy: {
+        instructions: 'Address {{username}} on {{model_name}}.',
+        promptVariables: { username: 'Alice', modelName: 'Pi Model' }
+      }
+    }).start()
+
+    const prompt = appendedSystemPrompt()
+    expect(prompt).toContain('Address Alice on Pi Model.')
+    expect(prompt).not.toContain('Bob')
+  })
+
+  // The pinned values are not just a render-time convenience: the inputs underneath the replay keep
+  // changing, so the next fresh turn has to see that this connection's prompt no longer matches.
+  it('rebuilds a fresh turn after the user renamed themselves under a replay', async () => {
+    // `app.user.name` is not an agent column, so it never moves the connection signature — the only
+    // thing that can record this divergence is a comparison against what was actually materialized.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', 'Alice')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      modelName: 'Pi Model',
+      instructions: 'Report for {{username}}.',
+      configuration: {}
+    })
+    mocks.replacePromptVariables.mockImplementation(
+      async (prompt: string, _modelName?: string, pinned?: { username?: string | null }) =>
+        prompt.replace(/{{username}}/g, pinned?.username ?? 'Bob')
+    )
+
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      promptPolicy: {
+        instructions: 'Report for {{username}}.',
+        promptVariables: { username: 'Alice', modelName: 'Pi Model' }
+      }
+    }).start()
+    expect(appendedSystemPrompt()).toContain('Report for Alice.')
+
+    // The user renames themselves while this replay is still live.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', 'Carol')
+
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('rebuild')
+  })
+
+  // A replay bakes the turn's pinned exclusions into the SDK session's `excludeTools`, but the
+  // startup signature it stores comes from the row the user just saved — so a re-enabled tool is
+  // "not disabled" everywhere the signature looks, while its definition is still absent from the
+  // running session. Only a rebuild gives the next turn a session that can see it again.
+  it('rebuilds after a replay baked out a tool the saved row re-enabled', async () => {
+    // Admitted with Bash disabled; Bash re-enabled (and the fallback F saved as primary) during
+    // provider backoff. The replay keeps the turn's exclusion, so nothing in the row's signature
+    // records that Bash is baked out of this session.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'f::m', disabledTools: [], configuration: {} })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      modelId: 'f::m',
+      permissionPolicy: { permissionMode: 'default', disabledTools: ['bash'] }
+    }).start()
+    expect(mocks.createOpts?.excludeTools).toEqual(['bash'])
+
+    const promptRun = createDeferred<void>()
+    mocks.prompt.mockReturnValueOnce(promptRun.promise)
+    conn.send(userInput('Replayed turn.'))
+
+    // Mid-turn: the pinned exclusion is still in force, so the live turn keeps its own session.
+    await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('current')
+
+    promptRun.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // The replayed turn is over and nothing is disabled any more, yet this session was spawned with
+    // Bash excluded — the model cannot see it. Rebuild rather than reuse (agent-session-runtime.md).
+    await expect(conn.reconcile({ modelId: 'f::m' })).resolves.toBe('rebuild')
+  })
+
+  it('keeps a restriction carried across the fallback swap disabled after the row re-enables it', async () => {
+    // The startup window disabled Bash and a later save re-enabled it; the fallback carried the
+    // applied restriction across the swap. The row this replay re-derives no longer names Bash, so
+    // only the carried set can keep the turn's live restriction in force.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'f::m', disabledTools: [], configuration: {} })
+    const conn = await new PiRuntimeConnection({
+      ...input,
+      modelId: 'f::m',
+      permissionPolicy: { permissionMode: 'default', disabledTools: [] }
+    }).start()
+    try {
+      await expect(conn.reconcile({ modelId: 'f::m', carriedDisabledTools: ['bash'] })).resolves.toBe('patched')
+      expect(conn.getPermissionPolicy?.()).toEqual({ permissionMode: 'default', disabledTools: ['bash'] })
+    } finally {
+      await conn.close()
+    }
+  })
+
+  // A manual `/compact` settles its host turn without ever calling finishPromptRun(), so a replayed
+  // compaction used to leak `replayTurnPending`. Permission mode is excluded from the connection
+  // signature, so the host kept reusing that connection and the next ordinary turn kept the frozen
+  // mode instead of the saved one — skipping approvals it should have asked for.
+  describe.each([
+    // compaction_end settles the turn; the later compact() resolve is the no-op.
+    ['a successful compaction event', { emitsEvent: true, errorMessage: undefined, compactRejects: false }],
+    // pi resolves without emitting any compaction event; the promise settles the turn.
+    ['a no-op completion', { emitsEvent: false, errorMessage: undefined, compactRejects: false }],
+    // Real pi order: the failed compaction_end settles the turn, then compact() rejects.
+    ['a failed compaction event', { emitsEvent: true, errorMessage: 'context too large', compactRejects: true }],
+    // Defensive path: compaction_end never arrived, so the rejection settles the turn itself.
+    ['a rejection with no compaction event', { emitsEvent: false, errorMessage: undefined, compactRejects: true }]
+  ])('a replayed compaction ending with %s releases the replay freeze', (_label, options) => {
+    const emitCompactionEnd = () =>
+      mocks.subscribeCb!({
+        type: 'compaction_end',
+        reason: 'manual',
+        result: { summary: 's', firstKeptEntryId: 'e' },
+        aborted: false,
+        willRetry: false,
+        errorMessage: options.errorMessage
+      } as unknown as AgentSessionEvent)
+
+    it('lets the next turn adopt a permission mode saved after the replay ended', async () => {
+      const conn = await new PiRuntimeConnection({
+        ...input,
+        permissionPolicy: { permissionMode: 'bypassPermissions', disabledTools: [] }
+      }).start()
+
+      if (options.compactRejects) mocks.compact.mockRejectedValueOnce(new Error('compact rejected'))
+      conn.send(userInput('/compact focus on the API changes'))
+      if (options.emitsEvent) emitCompactionEnd()
+      const terminals = (await collectUntilTerminal(conn.events)).filter(
+        (event) => event.type === 'turn-complete' || event.type === 'error'
+      )
+      expect(terminals).toHaveLength(1)
+      expect(terminals[0].type).toBe(options.errorMessage || options.compactRejects ? 'error' : 'turn-complete')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      // Saved after the replay ended: default mode, so the next turn's bash call must prompt again.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        instructions: 'Be helpful.',
+        configuration: { permission_mode: 'default' }
+      })
+      await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('patched')
+
+      const handler = approvalGateHandler()
+      void handler({ type: 'tool_call', toolName: 'bash', toolCallId: 'tc-next-turn', input: { command: 'ls' } }, {})
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(toolApprovalRegistry.size()).toBe(1)
+      toolApprovalRegistry.abort(SESSION_ID, 'test-boundary')
+    })
+  })
+
   it('defers a permission-mode change while streaming and applies it once idle', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     mocks.isStreaming = true
@@ -2214,7 +2465,10 @@ describe('PiRuntimeConnection', () => {
 
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.replacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Pi Model')
+      expect(mocks.replacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Pi Model', {
+        username: 'Alice',
+        modelName: 'Pi Model'
+      })
       expect(appendedSystemPrompt()).toContain('<agent_instructions>\nUse Pi Model.\n</agent_instructions>')
     })
 

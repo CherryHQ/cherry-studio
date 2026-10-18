@@ -40,6 +40,7 @@ import {
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
 import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
+import { capturePromptVariableInputs, type PromptVariableInputs } from '@main/utils/prompt'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -61,6 +62,8 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimePermissionPolicy,
+  AgentRuntimePromptPolicy,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
@@ -168,7 +171,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private modelId = ''
   /** Live tool policy read by the approval extension at fire-time (plan D4). */
   private permissionMode: AgentPermissionMode = 'default'
+  /** `agent.instructions` as this turn captured it; a fallback replay keeps materializing it. */
+  private turnInstructions?: string | null
+  /** Variable values this turn resolved its instructions with; a replay reuses them, not live rows. */
+  private turnPromptVariables?: PromptVariableInputs
+  /** Whether this connection materialized a pinned (replayed) prompt rather than the row's own. */
+  private replayingPrompt = false
   private disabledTools = new Set<string>()
+  /** Tools baked out of the spawned SDK session. Re-enabling one in the row cannot restore its
+   *  definition mid-connection, so the next fresh turn needs a rebuilt session. */
+  private bakedExclusions?: ReadonlySet<string>
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
   /** Serializes push/pull reconciles so snapshot reads and live policy writes cannot land out of order. */
@@ -176,6 +188,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private traceContext?: AgentRuntimeTraceContext
   private _usageCapture?: AgentSessionUsageCapture
   private promptRunActive = false
+  /** True from a pinned connect until the replayed turn ends: the turn is live but not streaming
+   *  yet, so a reconcile in that window must keep the frozen mode and only tighten disabled tools. */
+  private replayTurnPending = false
   /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
    *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
   private manualCompactInFlight = false
@@ -234,9 +249,24 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
-    this.permissionMode = agent.configuration?.permission_mode ?? 'default'
+    // A model-fallback replay pins the turn's live policy here; reading the freshly saved agent
+    // row would re-admit the replayed turn under a mode that mid-turn reconciliation defers.
+    this.permissionMode =
+      this.input.permissionPolicy?.permissionMode ?? agent.configuration?.permission_mode ?? 'default'
     this.mcpServerSnapshots = initialSnapshot.mcpServerSnapshots
-    this.disabledTools = normalizeDisabledTools(agent.disabledTools, initialSnapshot)
+    this.disabledTools = this.input.permissionPolicy
+      ? new Set(this.input.permissionPolicy.disabledTools)
+      : normalizeDisabledTools(agent.disabledTools, initialSnapshot)
+    this.bakedExclusions = new Set(this.disabledTools)
+    this.replayTurnPending = this.input.permissionPolicy !== undefined
+    // A replay stays inside the turn it was admitted for: it materializes that turn's System
+    // Prompt — a captured `null` is an explicit "none configured", never the row's later save.
+    this.turnInstructions = this.input.promptPolicy
+      ? this.input.promptPolicy.instructions
+      : (initialSnapshot.agent.instructions ?? null)
+    this.turnPromptVariables =
+      this.input.promptPolicy?.promptVariables ?? capturePromptVariableInputs(initialSnapshot.agent.modelName ?? null)
+    this.replayingPrompt = this.input.promptPolicy !== undefined
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
@@ -310,9 +340,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const prompt = await buildAgentRuntimePrompt({
         workspacePath,
         agentDataPath,
-        agent,
+        // The replay materializes the prompt this turn was admitted with; an edit saved mid-backoff
+        // applies on the next fresh turn (agent-prompt-layers.md).
+        agent: { ...agent, instructions: this.turnInstructions ?? undefined },
         citationsGuidance,
-        effectiveLanguage: initialSnapshot.effectiveLanguage
+        effectiveLanguage: initialSnapshot.effectiveLanguage,
+        promptVariables: this.turnPromptVariables
       })
       const mountedServers = resolveMountedMcpServers(agent, {
         browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
@@ -476,10 +509,20 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   send(input: AgentRuntimeUserInput): void {
     const session = this.session
     if (!session) {
-      this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
-      return
+      // Also thrown so the fallback wrapper can observe the rejected submission (dsh parity).
+      const error = new Error('pi session is not started')
+      this.eventQueue.push({ type: 'error', error })
+      throw error
     }
-    const rawContent = buildAgentUserContent(input.message)
+    let rawContent: string
+    try {
+      rawContent = buildAgentUserContent(input.message)
+    } catch (error) {
+      // Same contract as the not-started path above: the fallback wrapper swallows rejected
+      // submissions, so a failure with no error event would leave the turn pending forever.
+      this.eventQueue.push({ type: 'error', error })
+      throw error
+    }
 
     // A `systemReminder` message is a steer the host re-queued as its own turn (an undelivered steer
     // or a mid-turn-queued message). It must reach pi wrapped as a redirect (invariant 7, mirroring
@@ -493,11 +536,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         // settles the no-op case where pi resolves without emitting any compaction event.
         () => this.maybeCompleteManualCompactTurn(),
         (error) => {
-          // pi always emits compaction_end (which already settled the turn and cleared the flag)
-          // before rejecting, so this is normally a no-op. Only settle here defensively if the flag
-          // is somehow still set (compaction_end never arrived) — never push a second terminal.
+          // pi always emits compaction_end (which already settled the turn and cleared the
+          // in-flight flag) before rejecting, so this is normally a no-op. Only settle here
+          // defensively if the flag is somehow still set (compaction_end never arrived) — never
+          // push a second terminal.
           if (!this.manualCompactInFlight) return
           this.manualCompactInFlight = false
+          this.releaseReplayFreeze()
           if (this.closed) return
           logger.error('pi compact failed', error as Error)
           this.eventQueue.push({ type: 'error', error })
@@ -541,6 +586,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.traceContext = context
   }
 
+  /** The live policy the approval extension enforces — what a fallback replay must be pinned to. */
+  getPermissionPolicy(): AgentRuntimePermissionPolicy {
+    return { permissionMode: this.permissionMode, disabledTools: [...this.disabledTools] }
+  }
+
+  /** The prompt this turn was admitted with — what a fallback replay must keep materializing. */
+  getPromptPolicy(): AgentRuntimePromptPolicy {
+    return { instructions: this.turnInstructions ?? null, promptVariables: this.turnPromptVariables }
+  }
+
   /**
    * Reconcile Pi against the current agent snapshot. Disabled tools tighten immediately;
    * permission-mode changes wait for an idle boundary. Any spawn-frozen difference is
@@ -549,6 +604,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   async reconcile(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    carriedDisabledTools?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
@@ -561,6 +617,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(input: {
     modelId: UniqueModelId
     knowledgeBaseIds?: readonly string[]
+    carriedDisabledTools?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
     let snapshot
     try {
@@ -578,18 +635,34 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     const nextPermissionMode = agent.configuration?.permission_mode ?? 'default'
     // Changing the permission mode can alter admission for the current tool loop, so defer it until
-    // pi is idle. Disabled tools only tighten policy and still apply immediately below.
-    const applicablePermissionMode = this.session?.isStreaming ? this.permissionMode : nextPermissionMode
+    // pi is idle. Disabled tools only tighten policy and still apply immediately below. A replaying
+    // turn is live before pi reports it as streaming, so its pending window counts as mid-turn.
+    const midTurn = this.session?.isStreaming === true || this.replayTurnPending
+    const applicablePermissionMode = midTurn ? this.permissionMode : nextPermissionMode
     const nextDisabledTools = normalizeDisabledTools(agent.disabledTools, snapshot)
-    const applicableDisabledTools = this.session?.isStreaming
-      ? new Set([...this.disabledTools, ...nextDisabledTools])
-      : nextDisabledTools
+    // Tools carried from a replaced connection were applied to this live turn; the row may already
+    // reflect a later re-enable, so they union in regardless of what the snapshot derives.
+    const applicableDisabledTools = midTurn
+      ? new Set([...this.disabledTools, ...nextDisabledTools, ...(input.carriedDisabledTools ?? [])])
+      : new Set([...nextDisabledTools, ...(input.carriedDisabledTools ?? [])])
     const policyChanged =
       applicablePermissionMode !== this.permissionMode || !setsEqual(applicableDisabledTools, this.disabledTools)
     this.permissionMode = applicablePermissionMode
     this.disabledTools = applicableDisabledTools
 
-    if (snapshot.signature !== this.connectionSignature) {
+    // A replay materializes its pinned prompt, so a row-matching signature does not prove this
+    // connection materialized the row's prompt; the divergence rebuilds on the next fresh turn.
+    // The captured variable values are the same: a fallback replacing the primary mid-backoff
+    // changes `{{model_name}}` in the row while this turn must keep materializing the admitted
+    // value, so a later fresh turn sees the row's values as a mismatch and rebuilds.
+    // A tool baked out of the spawned session is the same: the row can re-enable it, but its
+    // definition is still absent here (agent-session-runtime.md), so only a rebuild restores it.
+    if (
+      snapshot.signature !== this.connectionSignature ||
+      (snapshot.agent.instructions ?? null) !== this.turnInstructions ||
+      !promptVariablesEqual(snapshot.agent.modelName, this.turnPromptVariables, this.replayingPrompt) ||
+      [...(this.bakedExclusions ?? [])].some((name) => !applicableDisabledTools.has(name))
+    ) {
       return 'rebuild'
     }
     return policyChanged ? 'patched' : 'current'
@@ -688,6 +761,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private finishPromptRun(error?: unknown): void {
     if (this.closed) return
     this.promptRunActive = false
+    // The replayed turn ended: its policy freeze goes with it, so idle reconciles adopt row saves.
+    this.releaseReplayFreeze()
     this.maybeEmitResumeToken()
     const undelivered = this.pendingSteers.splice(0).map((pending) => pending.input)
     if (undelivered.length > 0) {
@@ -725,6 +800,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     this.lastStopReason = undefined
     this.lastAgentError = undefined
+  }
+
+  /** End the replayed turn's policy freeze so an idle reconcile adopts the saved permission mode. */
+  private releaseReplayFreeze(): void {
+    this.replayTurnPending = false
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
@@ -880,6 +960,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // clearing the flag here makes the later reject handler a no-op.
       if (this.manualCompactInFlight) {
         this.manualCompactInFlight = false
+        // The replayed turn is over, so its policy freeze ends with it — a leaked freeze would
+        // keep deferring permission-mode saves past the compaction and into the next turn.
+        this.releaseReplayFreeze()
         this.eventQueue.push({ type: 'error', error: new Error(event.errorMessage ?? 'pi compaction aborted') })
         return
       }
@@ -897,6 +980,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (this.closed) return
     if (!this.manualCompactInFlight) return
     this.manualCompactInFlight = false
+    // A replayed compaction ends its turn without a prompt run to release the freeze.
+    this.releaseReplayFreeze()
     this.eventQueue.push({ type: 'turn-complete' })
   }
 
@@ -1085,6 +1170,26 @@ function normalizeDisabledTools(
 
 function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
   return left.size === right.size && [...left].every((value) => right.has(value))
+}
+
+/**
+ * Whether a fresh agent row resolves to the same prompt variables this connection materialized.
+ * Only a replay pins values: its turn must keep materializing what it was admitted with, so a row
+ * saved mid-backoff has to read as a divergence — otherwise a fresh turn would keep serving the
+ * replay's prompt until an unrelated rebuild. A non-replaying connection re-resolves from the row
+ * every turn, so its divergence is already the signature's job.
+ */
+function promptVariablesEqual(
+  agentModelName: string | null | undefined,
+  materialized: PromptVariableInputs | undefined,
+  replaying: boolean
+): boolean {
+  if (!replaying) return true
+  return (
+    (materialized?.username ?? 'Unknown Username') ===
+      (application.get('PreferenceService').get('app.user.name') || 'Unknown Username') &&
+    (materialized?.modelName ?? null) === (agentModelName ?? null)
+  )
 }
 
 /** pi triggers `manual` on `compact()`, `threshold`/`overflow` automatically — Cherry's
