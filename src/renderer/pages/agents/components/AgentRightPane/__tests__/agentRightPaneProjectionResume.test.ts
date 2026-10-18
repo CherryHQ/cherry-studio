@@ -137,6 +137,38 @@ describe('agent right pane flow rounds', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // The current SDK prints parenthetical metadata between the launch prefix and the id trailer;
+  // the flow must still learn the agent and split its rounds for that form.
+  it('splits rounds for the receipt form the current SDK prints', () => {
+    const launchOutput =
+      "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: agent-a1b2c3d4e5f6 (internal ID - do not mention to user. Use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent.)"
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_resume',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'agent-a1b2c3d4e5f6', message: 'Continue' },
+        { success: true, resumedAgentId: 'agent-a1b2c3d4e5f6' }
+      ),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Continue'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+  })
+
   // A failed send resumed nothing: its input still names the target, but the child was never
   // woken, so the undelivered instruction must not appear as a round prompt.
   it('keeps a failed send out of the round splitting', () => {
