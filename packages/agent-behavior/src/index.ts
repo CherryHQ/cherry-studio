@@ -124,3 +124,5 @@ export type {
 } from './contract/harness'
 export { createFakeHarness } from './fake/fakeHarness'
 export type { FakeHarness, FakeHarnessOptions } from './fake/fakeHarness'
+export { createScriptedHost } from './fake/scriptedHost'
+export type { ScriptedHost, ScriptedHostOptions } from './fake/scriptedHost'
