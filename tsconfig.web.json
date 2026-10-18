@@ -61,7 +61,7 @@
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.web.tsbuildinfo"
   },
-  "exclude": ["packages/aiCore/src/**/__tests__/**"],
+  "exclude": ["packages/aiCore/src/**/__tests__/**", "tests/__mocks__/main/**"],
   "include": [
     "local/src/renderer/**/*",
     "src/renderer/**/*",

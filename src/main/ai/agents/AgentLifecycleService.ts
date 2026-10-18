@@ -16,6 +16,7 @@ import type {
 import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { sweepAgentOrphans } from './agentOrphanSweep'
 import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
+import { purgeAgentBackgroundTasks } from './backgroundTaskActions'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
@@ -435,9 +436,12 @@ export class AgentLifecycleService extends BaseService {
       }
     }
 
+    // A purged agent's records are swept with its data dir; any detached task left running
+    // would lose its only Cherry control path. The purge mutex also blocks new starts for
+    // this agent until the stop sweep and the deletion are done. Archival keeps them running.
     return this.withStableSessions(
       () => agentSessionService.listIdsByAgent(agentId),
-      deleteAgent,
+      () => (permanent ? purgeAgentBackgroundTasks(agentId, deleteAgent) : deleteAgent()),
       permanent && targetState === 'trashed'
     )
   }

@@ -7,7 +7,8 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import {
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
-  findLatestAgentPreviewUrl
+  findLatestAgentPreviewUrl,
+  isTaskListResponseCurrent
 } from '../agentRightPaneProjection'
 
 const message = (id: string, parts: CherryMessagePart[]): CherryUIMessage =>
@@ -909,5 +910,27 @@ describe('agent right pane projections', () => {
     expect(status.runTasks).toEqual([
       expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
     ])
+  })
+})
+
+describe('isTaskListResponseCurrent', () => {
+  it('drops a poll that was asked before the user stopped a task', () => {
+    // The poll is in flight; the stop lands and the row shows `stopped`; the stale response would
+    // put it back to `running`, where the Stop/Kill buttons disappear.
+    expect(isTaskListResponseCurrent({ mutation: 1, seq: 3 }, { mutation: 2, appliedSeq: 3 })).toBe(false)
+  })
+
+  it('applies a poll asked after the last mutation', () => {
+    expect(isTaskListResponseCurrent({ mutation: 2, seq: 3 }, { mutation: 2, appliedSeq: 3 })).toBe(true)
+  })
+
+  it('drops the slower of two overlapping polls that share a mutation count', () => {
+    // A round trip outlasting the 3s interval leaves two in flight; nothing local changed, so only
+    // their issue order can tell the older snapshot from the newer one.
+    expect(isTaskListResponseCurrent({ mutation: 0, seq: 4 }, { mutation: 0, appliedSeq: 5 })).toBe(false)
+  })
+
+  it('applies the newer of two overlapping polls', () => {
+    expect(isTaskListResponseCurrent({ mutation: 0, seq: 5 }, { mutation: 0, appliedSeq: 5 })).toBe(true)
   })
 })
