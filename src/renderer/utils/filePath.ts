@@ -41,7 +41,7 @@ export const resolveInlineFilePath = (value: string, options: { preserveWrapping
 
 export function isInlineFilePath(value: string): boolean {
   const normalizedPath = normalizeInlineFilePath(value)
-  const resolvedPath = resolveInlineFilePath(value)
+  const resolvedPath = expandHomeRelativePath(normalizedPath)
   return (
     ABSOLUTE_FILE_PATH_PATTERN.test(resolvedPath) ||
     HOME_RELATIVE_FILE_PATH_PATTERN.test(normalizedPath) ||

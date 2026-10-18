@@ -13,37 +13,6 @@ export function normalizePathValue(path: string): string {
   return path.replace(/\\/g, '/')
 }
 
-export function addUniquePath(list: string[], path: string): string[] {
-  const normalized = normalizePathValue(path)
-  return list.includes(normalized) ? list : [...list, normalized]
-}
-
-export function removePathEntries(list: string[], path: string, deep: boolean): string[] {
-  const normalized = normalizePathValue(path)
-  const prefix = `${normalized}/`
-  return list.filter((item) => {
-    if (item === normalized) {
-      return false
-    }
-    return !(deep && item.startsWith(prefix))
-  })
-}
-
-export function replacePathEntries(list: string[], oldPath: string, newPath: string, deep: boolean): string[] {
-  const oldNormalized = normalizePathValue(oldPath)
-  const newNormalized = normalizePathValue(newPath)
-  const prefix = `${oldNormalized}/`
-  return list.map((item) => {
-    if (item === oldNormalized) {
-      return newNormalized
-    }
-    if (deep && item.startsWith(prefix)) {
-      return `${newNormalized}${item.slice(oldNormalized.length)}`
-    }
-    return item
-  })
-}
-
 export function findNode(tree: NotesTreeNode[], nodeId: string): NotesTreeNode | null {
   for (const node of tree) {
     if (node.id === nodeId) {

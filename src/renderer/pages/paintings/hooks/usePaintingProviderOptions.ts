@@ -23,11 +23,6 @@ const logger = loggerService.withContext('usePaintingProviderOptions')
 let cachedOvmsState: OvmsState | undefined
 let inflightOvmsPromise: Promise<OvmsState> | undefined
 
-export function resetOvmsCache(): void {
-  cachedOvmsState = undefined
-  inflightOvmsPromise = undefined
-}
-
 async function loadOvmsState(): Promise<OvmsState> {
   if (cachedOvmsState) return cachedOvmsState
   if (!inflightOvmsPromise) {

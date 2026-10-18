@@ -11,19 +11,6 @@ type ToolResultContentItem = Extract<ToolResultOutput, { type: 'content' }>['val
 /** Describe omitted media without implying the model received it. */
 const unseenByModel = (label: string): string => `${label} — the model cannot see this content]`
 
-/** True if the call produced any image / audio / binary resource. */
-export function hasMultimodalContent(result: CallToolResult): boolean {
-  return (
-    Array.isArray(result?.content) &&
-    result.content.some(
-      (item) =>
-        item.type === 'image' ||
-        item.type === 'audio' ||
-        (item.type === 'resource' && 'blob' in item.resource && Boolean(item.resource.blob))
-    )
-  )
-}
-
 /** Text summary for errors and results that cannot carry structured content. */
 export function mcpResultToTextSummary(result: CallToolResult): string {
   if (!result || !result.content || !Array.isArray(result.content)) {

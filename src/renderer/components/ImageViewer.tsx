@@ -7,7 +7,6 @@ import {
   type ImagePreviewActionContext,
   ImagePreviewDialog,
   type ImagePreviewItem,
-  type ImagePreviewLabels,
   type ImagePreviewTransform
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -21,6 +20,7 @@ import {
   getImageBlobFromSource,
   transformImageToPng
 } from '@renderer/utils/image'
+import { getImagePreviewLabels } from '@renderer/utils/imagePreviewLabels'
 import { cn } from '@renderer/utils/style'
 
 export { copyImageToClipboard } from '@renderer/utils/image'
@@ -93,22 +93,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     setActiveIndex(initialIndex)
   }, [initialIndex])
 
-  const labels = React.useMemo<Partial<ImagePreviewLabels>>(
-    () => ({
-      close: t('preview.close'),
-      dialogTitle: t('preview.label'),
-      flipHorizontal: t('preview.flip_horizontal'),
-      flipVertical: t('preview.flip_vertical'),
-      next: t('preview.next'),
-      previous: t('preview.previous'),
-      reset: t('preview.reset'),
-      rotateLeft: t('preview.rotate_left'),
-      rotateRight: t('preview.rotate_right'),
-      zoomIn: t('preview.zoom_in'),
-      zoomOut: t('preview.zoom_out')
-    }),
-    [t]
-  )
+  const labels = React.useMemo(() => getImagePreviewLabels(t), [t])
 
   const handleCopyImage = React.useCallback(
     async (item: ImagePreviewItem) => {

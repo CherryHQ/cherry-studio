@@ -2,12 +2,7 @@ import CopyIcon from 'lucide-react/dist/esm/icons/copy'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  type ImagePreviewAction,
-  ImagePreviewDialog,
-  type ImagePreviewItem,
-  type ImagePreviewLabels
-} from '@cherrystudio/ui'
+import { type ImagePreviewAction, ImagePreviewDialog, type ImagePreviewItem } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -17,6 +12,7 @@ import {
   imageInputToPreviewUrl,
   type ImagePreviewOptions
 } from '@renderer/utils/image'
+import { getImagePreviewLabels } from '@renderer/utils/imagePreviewLabels'
 
 const logger = loggerService.withContext('ImagePreviewService')
 
@@ -24,22 +20,7 @@ type PreviewProps = { src: string } & PopupInjectedProps<void>
 
 const ImagePreviewContainer: React.FC<PreviewProps> = ({ src, open, resolve }) => {
   const { t } = useTranslation()
-  const labels = useMemo<Partial<ImagePreviewLabels>>(
-    () => ({
-      close: t('preview.close'),
-      dialogTitle: t('preview.label'),
-      flipHorizontal: t('preview.flip_horizontal'),
-      flipVertical: t('preview.flip_vertical'),
-      next: t('preview.next'),
-      previous: t('preview.previous'),
-      reset: t('preview.reset'),
-      rotateLeft: t('preview.rotate_left'),
-      rotateRight: t('preview.rotate_right'),
-      zoomIn: t('preview.zoom_in'),
-      zoomOut: t('preview.zoom_out')
-    }),
-    [t]
-  )
+  const labels = useMemo(() => getImagePreviewLabels(t), [t])
 
   const handleVisibleChange = (visible: boolean) => {
     if (!visible) {

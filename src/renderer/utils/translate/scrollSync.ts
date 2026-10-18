@@ -49,11 +49,4 @@ export const createOutputScrollHandler = (
   targetRef: RefObject<HTMLDivElement | null>,
   isProgrammaticScrollRef: RefObject<boolean>,
   isScrollSyncEnabled: boolean
-) => {
-  return () => {
-    const sourceEl = sourceRef.current
-    const targetEl = targetRef.current
-    if (!isScrollSyncEnabled || !sourceEl || !targetEl || isProgrammaticScrollRef.current) return
-    handleScrollSync(sourceEl, targetEl, isProgrammaticScrollRef)
-  }
-}
+) => createInputScrollHandler(sourceRef, targetRef, isProgrammaticScrollRef, isScrollSyncEnabled)

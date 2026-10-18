@@ -29,17 +29,6 @@ export function getTextFromParts(parts: CherryMessagePart[]): string {
 }
 
 /**
- * Extract concatenated reasoning/thinking content from parts (equivalent to getThinkingContent).
- */
-export function getReasoningFromParts(parts: CherryMessagePart[]): string {
-  return parts
-    .filter((p): p is Extract<CherryMessagePart, { type: 'reasoning' }> => p.type === 'reasoning')
-    .map((p) => p.text)
-    .filter((t) => t.trim().length > 0)
-    .join('\n\n')
-}
-
-/**
  * Check if parts contain any text content (equivalent to findMainTextBlocks().length > 0).
  */
 export function hasTextParts(parts: CherryMessagePart[]): boolean {

@@ -1,9 +1,8 @@
 import { Info } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Tooltip } from '@cherrystudio/ui'
+import { Input, Slider, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 
 export const RagFieldLabel = ({ className, label, hint }: { className?: string; label: string; hint?: string }) => {
   return (
@@ -15,33 +14,6 @@ export const RagFieldLabel = ({ className, label, hint }: { className?: string; 
         </Tooltip>
       ) : null}
     </div>
-  )
-}
-
-export const RagSelectField = ({
-  value,
-  options,
-  placeholder,
-  onValueChange
-}: {
-  value?: string
-  options: KnowledgeSelectOption[]
-  placeholder?: string
-  onValueChange: (value: string) => void
-}) => {
-  return (
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   )
 }
 
@@ -92,15 +64,6 @@ export const RagInlineField = ({
         ) : null}
       </div>
     </RagFieldRow>
-  )
-}
-
-export const RagReadonlyField = ({ label, value, hint }: { label: string; value: string; hint?: string }) => {
-  return (
-    <div>
-      <RagFieldLabel label={label} hint={hint} />
-      <Input readOnly value={value} className="shadow-none" />
-    </div>
   )
 }
 

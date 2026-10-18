@@ -89,40 +89,6 @@ export function shouldCompressImage(file: File, maxSize: number = 1024 * 1024): 
 }
 
 /**
- * 获取图片的基本信息
- * @param file 图片文件
- * @returns 图片信息
- */
-export async function getImageInfo(file: File): Promise<{
-  width: number
-  height: number
-  size: number
-  type: string
-}> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve({
-        width: img.width,
-        height: img.height,
-        size: file.size,
-        type: file.type
-      })
-    }
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('无法加载图片'))
-    }
-
-    img.src = url
-  })
-}
-
-/**
  * 将 Blob 转换为 ArrayBuffer
  * @param blob Blob 对象
  * @returns ArrayBuffer

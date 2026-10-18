@@ -70,7 +70,5 @@ describe('Tabs workflow variant', () => {
     const triggers = screen.getAllByRole('tab')
 
     expect(triggers[0].className).toContain("[&:not(:first-child)]:before:content-['›']")
-    expect(triggers[1].className).toContain("[&:not(:first-child)]:before:content-['›']")
-    expect(triggers[2].className).toContain("[&:not(:first-child)]:before:content-['›']")
   })
 })

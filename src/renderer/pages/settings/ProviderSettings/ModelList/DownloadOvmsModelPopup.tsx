@@ -254,7 +254,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
   const footer = (
     <div className={drawerClasses.footer}>
       <Button variant={loading ? 'default' : 'outline'} type="button" onClick={() => void onCancel()}>
-        {loading ? t('common.cancel') : t('common.cancel')}
+        {t('common.cancel')}
       </Button>
       <Button disabled={loading} onClick={() => void onFinish()}>
         {t('ovms.download.button')}
