@@ -19,7 +19,9 @@ await prepareWindow({
     // topic must already see the saved value here or it silently falls back to the global chain.
     'feature.quick_assistant.context_max_messages',
     'chat.default_model_id',
-    'feature.quick_assistant.read_clipboard_at_startup'
+    'feature.quick_assistant.read_clipboard_at_startup',
+    'feature.voice.dictation.hold_shortcut',
+    'feature.voice.dictation.toggle_shortcut'
   ]
 })
 

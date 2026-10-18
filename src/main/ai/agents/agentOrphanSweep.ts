@@ -11,6 +11,9 @@ import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 
+import { WORKSPACE_STORAGE_SUFFIXES } from './agentWorkspaceStorage'
+import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
+
 const logger = loggerService.withContext('AgentOrphanSweep')
 
 /** Per-agent dirs are named by `agent.id` (uuid v4). */
@@ -33,7 +36,7 @@ export interface AgentSweepReport {
  *
  * Three passes, because the layouts differ:
  *  - `{agents.data}/{agent.id}` — per-agent identity/memory dirs. They sit next
- *    to the app-owned runtime roots (`.claude`, `.pi`, `.dsh`, `system`), so
+ *    to the app-owned runtime roots (`.claude`, `.pi`, `system`), so
  *    only uuid-named children are ever candidates.
  *  - `{agents.system_workspaces}/{date}/{sessionId}` — app-owned session
  *    workspaces, claimed by `agent_workspace.path`. Workspace rows survive
@@ -41,8 +44,8 @@ export interface AgentSweepReport {
  *  - each runtime driver's own session persistence, claimed by the union of
  *    resume tokens on surviving `agent_session_message` rows and the live runtime snapshot.
  *
- * Trashed agents/sessions keep everything: their rows (and tokens) are still
- * there, so restore stays lossless. Removal failures are logged for the next run.
+ * Trashed sessions claim compressed workspaces and interrupted-operation artifacts
+ * too, so restore stays lossless. Removal failures are logged for the next run.
  *
  * Every pass is freshness-gated: the keep-sets are one snapshot, so a dir created
  * before its claiming row commits would otherwise read as an orphan and be lost.
@@ -90,14 +93,37 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
   for (const dateEntry of await listEntries(workspacesRoot)) {
     if (!dateEntry.isDirectory()) continue
     const dateDir = path.resolve(workspacesRoot, dateEntry.name)
+    const candidates = new Set<string>()
     for (const sessionEntry of await listEntries(dateDir)) {
       signal?.throwIfAborted()
-      if (!sessionEntry.isDirectory()) continue
+      if (
+        !sessionEntry.isDirectory() &&
+        !WORKSPACE_STORAGE_SUFFIXES.some((suffix) => sessionEntry.name.endsWith(suffix))
+      )
+        continue
       const sessionDir = path.resolve(dateDir, sessionEntry.name)
-      if (claimedWorkspaces.has(sessionDir)) continue
-      if (await reclaim(sessionDir, removed, options)) workspaceDirs++
+      const suffix = WORKSPACE_STORAGE_SUFFIXES.find((suffix) => sessionDir.endsWith(suffix))
+      const workspace = suffix ? sessionDir.slice(0, -suffix.length) : sessionDir
+      if (!claimedWorkspaces.has(workspace)) candidates.add(workspace)
     }
-    await removeIfEmpty(dateDir, removed)
+    for (const workspace of candidates) {
+      signal?.throwIfAborted()
+      try {
+        const artifacts = await agentWorkspaceStorageService.reclaimOrphanWorkspace(workspace, options)
+        removed.push(...artifacts)
+        if (artifacts.length) workspaceDirs++
+      } catch (error) {
+        logger.warn('Workspace orphan cleanup retained for retry', { workspace, error })
+      }
+    }
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([dateDir])
+    if (release) {
+      try {
+        await removeIfEmpty(dateDir, removed)
+      } finally {
+        release()
+      }
+    }
   }
 
   signal?.throwIfAborted()

@@ -5,8 +5,7 @@ import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } 
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { createClaudeCodeRuntimeDriver } from './claudeCode'
-import { DshRuntimeDriver } from './dsh/DshRuntimeDriver'
+import { createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
@@ -90,6 +89,11 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     return { removed }
   }
 
+  /** Pure filesystem work like the sweep above, so it never loads the implementation either. */
+  readTranscriptEvidence(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined> {
+    return readClaudeTranscriptEvidence(application.getPath('feature.agents.claude.projects'), resumeToken, maxEntries)
+  }
+
   private loadImplementation(): Promise<AgentSessionRuntimeDriver> {
     this.implementationPromise ??= createClaudeCodeRuntimeDriver()
     return this.implementationPromise
@@ -100,5 +104,4 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 export function registerRuntimeDrivers(): void {
   runtimeDriverRegistry.register(new LazyClaudeCodeRuntimeDriver())
   runtimeDriverRegistry.register(new PiRuntimeDriver())
-  runtimeDriverRegistry.register(new DshRuntimeDriver())
 }

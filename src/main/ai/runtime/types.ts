@@ -116,6 +116,8 @@ export type AgentRuntimeEvent =
         /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
         model: string
+        /** Present only when the driver froze pricing at the provider invocation boundary. */
+        pricingSnapshot?: AiUsagePricingSnapshot | null
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
         messageAssociation: 'current-turn' | 'stateless'
         usage?: {
@@ -242,6 +244,8 @@ export interface AgentRuntimeConnection {
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
+  recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /**
    * Per-driver session prerequisite check: throws if the session can't be
@@ -271,6 +275,11 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
     keptResumeTokens: ReadonlySet<string>,
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }>
+  /**
+   * Diagnostic events (API errors, retries, failing tools, hook errors) from the tail of this runtime's
+   * own transcript for a resume token, unredacted. Undefined when no readable transcript exists.
+   */
+  readTranscriptEvidence?(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined>
 }
 
 export interface OrphanSessionReclaimOptions {

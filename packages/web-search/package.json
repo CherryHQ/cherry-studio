@@ -1,0 +1,315 @@
+{
+  "name": "@cherrystudio/web-search",
+  "version": "0.2.0",
+  "description": "Portable web search provider protocols with host-owned transports and policies",
+  "license": "AGPL-3.0-only",
+  "author": "Cherry Studio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/web-search"
+  },
+  "files": [
+    "dist/**/*",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.cts",
+  "exports": {
+    ".": {
+      "react-native": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "default": "./dist/index.mjs"
+    },
+    "./catalog": {
+      "react-native": {
+        "types": "./dist/catalog.d.mts",
+        "default": "./dist/catalog.mjs"
+      },
+      "import": {
+        "types": "./dist/catalog.d.mts",
+        "default": "./dist/catalog.mjs"
+      },
+      "require": {
+        "types": "./dist/catalog.d.cts",
+        "default": "./dist/catalog.cjs"
+      },
+      "default": "./dist/catalog.mjs"
+    },
+    "./providers/zhipu": {
+      "react-native": {
+        "types": "./dist/providers/zhipu.d.mts",
+        "default": "./dist/providers/zhipu.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/zhipu.d.mts",
+        "default": "./dist/providers/zhipu.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/zhipu.d.cts",
+        "default": "./dist/providers/zhipu.cjs"
+      },
+      "default": "./dist/providers/zhipu.mjs"
+    },
+    "./providers/tavily": {
+      "react-native": {
+        "types": "./dist/providers/tavily.d.mts",
+        "default": "./dist/providers/tavily.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/tavily.d.mts",
+        "default": "./dist/providers/tavily.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/tavily.d.cts",
+        "default": "./dist/providers/tavily.cjs"
+      },
+      "default": "./dist/providers/tavily.mjs"
+    },
+    "./providers/searxng": {
+      "react-native": {
+        "types": "./dist/providers/searxng.d.mts",
+        "default": "./dist/providers/searxng.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/searxng.d.mts",
+        "default": "./dist/providers/searxng.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/searxng.d.cts",
+        "default": "./dist/providers/searxng.cjs"
+      },
+      "default": "./dist/providers/searxng.mjs"
+    },
+    "./providers/exa": {
+      "react-native": {
+        "types": "./dist/providers/exa.d.mts",
+        "default": "./dist/providers/exa.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/exa.d.mts",
+        "default": "./dist/providers/exa.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/exa.d.cts",
+        "default": "./dist/providers/exa.cjs"
+      },
+      "default": "./dist/providers/exa.mjs"
+    },
+    "./providers/exa-mcp": {
+      "react-native": {
+        "types": "./dist/providers/exa-mcp.d.mts",
+        "default": "./dist/providers/exa-mcp.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/exa-mcp.d.mts",
+        "default": "./dist/providers/exa-mcp.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/exa-mcp.d.cts",
+        "default": "./dist/providers/exa-mcp.cjs"
+      },
+      "default": "./dist/providers/exa-mcp.mjs"
+    },
+    "./providers/bocha": {
+      "react-native": {
+        "types": "./dist/providers/bocha.d.mts",
+        "default": "./dist/providers/bocha.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/bocha.d.mts",
+        "default": "./dist/providers/bocha.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/bocha.d.cts",
+        "default": "./dist/providers/bocha.cjs"
+      },
+      "default": "./dist/providers/bocha.mjs"
+    },
+    "./providers/querit": {
+      "react-native": {
+        "types": "./dist/providers/querit.d.mts",
+        "default": "./dist/providers/querit.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/querit.d.mts",
+        "default": "./dist/providers/querit.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/querit.d.cts",
+        "default": "./dist/providers/querit.cjs"
+      },
+      "default": "./dist/providers/querit.mjs"
+    },
+    "./providers/jina": {
+      "react-native": {
+        "types": "./dist/providers/jina.d.mts",
+        "default": "./dist/providers/jina.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/jina.d.mts",
+        "default": "./dist/providers/jina.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/jina.d.cts",
+        "default": "./dist/providers/jina.cjs"
+      },
+      "default": "./dist/providers/jina.mjs"
+    },
+    "./providers/firecrawl": {
+      "react-native": {
+        "types": "./dist/providers/firecrawl.d.mts",
+        "default": "./dist/providers/firecrawl.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/firecrawl.d.mts",
+        "default": "./dist/providers/firecrawl.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/firecrawl.d.cts",
+        "default": "./dist/providers/firecrawl.cjs"
+      },
+      "default": "./dist/providers/firecrawl.mjs"
+    },
+    "./providers/crawl4ai": {
+      "react-native": {
+        "types": "./dist/providers/crawl4ai.d.mts",
+        "default": "./dist/providers/crawl4ai.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/crawl4ai.d.mts",
+        "default": "./dist/providers/crawl4ai.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/crawl4ai.d.cts",
+        "default": "./dist/providers/crawl4ai.cjs"
+      },
+      "default": "./dist/providers/crawl4ai.mjs"
+    },
+    "./providers/parallel": {
+      "react-native": {
+        "types": "./dist/providers/parallel.d.mts",
+        "default": "./dist/providers/parallel.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/parallel.d.mts",
+        "default": "./dist/providers/parallel.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/parallel.d.cts",
+        "default": "./dist/providers/parallel.cjs"
+      },
+      "default": "./dist/providers/parallel.mjs"
+    },
+    "./providers/serply": {
+      "react-native": {
+        "types": "./dist/providers/serply.d.mts",
+        "default": "./dist/providers/serply.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/serply.d.mts",
+        "default": "./dist/providers/serply.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/serply.d.cts",
+        "default": "./dist/providers/serply.cjs"
+      },
+      "default": "./dist/providers/serply.mjs"
+    },
+    "./providers/deepseek": {
+      "react-native": {
+        "types": "./dist/providers/deepseek.d.mts",
+        "default": "./dist/providers/deepseek.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/deepseek.d.mts",
+        "default": "./dist/providers/deepseek.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/deepseek.d.cts",
+        "default": "./dist/providers/deepseek.cjs"
+      },
+      "default": "./dist/providers/deepseek.mjs"
+    },
+    "./tools/config": {
+      "react-native": {
+        "types": "./dist/tools/config.d.mts",
+        "default": "./dist/tools/config.mjs"
+      },
+      "import": {
+        "types": "./dist/tools/config.d.mts",
+        "default": "./dist/tools/config.mjs"
+      },
+      "require": {
+        "types": "./dist/tools/config.d.cts",
+        "default": "./dist/tools/config.cjs"
+      },
+      "default": "./dist/tools/config.mjs"
+    },
+    "./tools/url-filter": {
+      "react-native": {
+        "types": "./dist/tools/url-filter.d.mts",
+        "default": "./dist/tools/url-filter.mjs"
+      },
+      "import": {
+        "types": "./dist/tools/url-filter.d.mts",
+        "default": "./dist/tools/url-filter.mjs"
+      },
+      "require": {
+        "types": "./dist/tools/url-filter.d.cts",
+        "default": "./dist/tools/url-filter.cjs"
+      },
+      "default": "./dist/tools/url-filter.mjs"
+    },
+    "./tools/content": {
+      "react-native": {
+        "types": "./dist/tools/content.d.mts",
+        "default": "./dist/tools/content.mjs"
+      },
+      "import": {
+        "types": "./dist/tools/content.d.mts",
+        "default": "./dist/tools/content.mjs"
+      },
+      "require": {
+        "types": "./dist/tools/content.d.cts",
+        "default": "./dist/tools/content.cjs"
+      },
+      "default": "./dist/tools/content.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "pnpm build",
+    "test": "vitest run --config vitest.config.ts",
+    "test:package": "pnpm typecheck && pnpm build && node scripts/check-package.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "eventsource-parser": "3.1.1",
+    "js-base64": "3.7.7",
+    "tokenx": "^1.1.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.1"
+  }
+}

@@ -1,4 +1,5 @@
-import { Archive, PinIcon } from 'lucide-react'
+import dayjs from 'dayjs'
+import { Archive, Folder, PinIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,8 +18,9 @@ import {
   useResourceListActions,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
+import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
@@ -88,8 +90,7 @@ const SessionItem = ({
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
-  const [renamingTopics] = useCache('topic.renaming')
-  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
+  const { isRenaming, isNewlyRenamed } = useTopicRenameState(topicId)
   const {
     status,
     awaitingApprovalAnchors,
@@ -100,9 +101,26 @@ const SessionItem = ({
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
-  const isRenaming = renamingTopics?.includes(topicId) === true
-  const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
+  // The row truncates its title, so the hover card carries the full name, when the session
+  // was last active, and the workspace it runs in (absent for system workspaces).
+  const workspacePath = session.workspace?.path
+  const hoverCard = (
+    <div className="flex max-w-72 flex-col gap-0.5 text-left">
+      <span className="font-medium">{sessionName}</span>
+      <span className="text-muted-foreground">
+        {t('agent.session.hover.last_activity', {
+          time: dayjs(session.lastActivityAt).format('YYYY-MM-DD HH:mm')
+        })}
+      </span>
+      {workspacePath && (
+        <span className="text-muted-foreground flex items-center gap-1">
+          <Folder aria-hidden="true" size={12} className="shrink-0" />
+          <span className="truncate">{session.workspace.name || workspacePath}</span>
+        </span>
+      )}
+    </div>
+  )
   // A live stream can pause for tool approval without a status transition
   // (anchors set mid-stream), while the MCP needsApproval path ends the stream
   // with the terminal 'awaiting-approval' status — the badge must cover both.
@@ -254,8 +272,7 @@ const SessionItem = ({
       className="relative"
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
-      onAuxClick={handleAuxClick}
-      title={sessionName}>
+      onAuxClick={handleAuxClick}>
       {showLeadingSlot && (
         <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
           {!rowState.renaming && channelIcon ? (
@@ -276,24 +293,25 @@ const SessionItem = ({
       />
 
       {!rowState.renaming && (
-        <ResourceList.ItemTitle
-          fade
-          title={sessionName}
-          className={cn(
-            nameAnimationClassName,
-            // The stream indicator is an absolute overlay (keeps no flex space),
-            // so the title needs a standing yield for its dot zone; on hover the
-            // overlay fades out, the standing yield closes, and the in-flow action rail expands. The
-            // awaiting-approval pill (mutually exclusive with the overlay) is an
-            // in-flow sibling the title simply fades against — no standing margin.
-            hasStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
-          )}
-          onDoubleClick={(event) => {
-            event.stopPropagation()
-            startInlineEdit()
-          }}>
-          {sessionName}
-        </ResourceList.ItemTitle>
+        <SessionHoverPreview id={session.id} content={hoverCard}>
+          <ResourceList.ItemTitle
+            fade
+            className={cn(
+              nameAnimationClassName,
+              // The stream indicator is an absolute overlay (keeps no flex space),
+              // so the title needs a standing yield for its dot zone; on hover the
+              // overlay fades out, the standing yield closes, and the in-flow action rail expands. The
+              // awaiting-approval pill (mutually exclusive with the overlay) is an
+              // in-flow sibling the title simply fades against — no standing margin.
+              hasStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
+            )}
+            onDoubleClick={(event) => {
+              event.stopPropagation()
+              startInlineEdit()
+            }}>
+            {sessionName}
+          </ResourceList.ItemTitle>
+        </SessionHoverPreview>
       )}
 
       {!rowState.renaming && (

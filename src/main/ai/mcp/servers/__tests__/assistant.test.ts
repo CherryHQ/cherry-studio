@@ -7,8 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import type { Client } from '@modelcontextprotocol/client'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,34 +54,44 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.providerGetById }
 }))
 
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import type { AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 
-import AssistantServer, { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
+import { createAssistantServer, isBlockedSourceFile } from '../assistant'
 
 const SUPPORT_ASSISTANT_TOOL_NAMES = resolveAgentCapabilities({
   configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
 }).hostTools?.tools
 
 const temporaryDirectories: string[] = []
+const clients: Client[] = []
 
-function writeProductManifest(content: string): string {
+function writeProductManifest(content: string): void {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-assistant-manifest-'))
   temporaryDirectories.push(directory)
   const manifestPath = path.join(directory, 'product-manifest.json')
   fs.writeFileSync(manifestPath, content, 'utf-8')
-  mocks.applicationGetPath.mockReturnValue(manifestPath)
-  return manifestPath
+  mocks.applicationGetPath.mockImplementation((key: string) =>
+    key === 'feature.agents.assistant.manifest.file' ? manifestPath : '/mock/unrelated-path'
+  )
 }
 
-async function connectAssistantClient(enabledToolNames?: readonly AssistantToolName[]) {
-  const server = new AssistantServer(undefined, enabledToolNames)
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-  const client = new Client({ name: 'assistant-test-client', version: '1.0.0' }, { capabilities: {} })
-  await server.mcpServer.connect(serverTransport)
-  await client.connect(clientTransport)
+async function connectAssistantClient(
+  enabledToolNames?: readonly AssistantToolName[],
+  defaultModel?: UniqueModelId
+): Promise<Client> {
+  const client = await connectMcpTestClient(() => createAssistantServer(defaultModel, enabledToolNames))
+  clients.push(client)
   return client
+}
+
+async function callTool(name: string, args: Record<string, unknown>, client?: Client) {
+  return (client ?? (await connectAssistantClient())).callTool({ name, arguments: args })
 }
 
 function toolResultText(result: unknown): string {
@@ -90,7 +99,8 @@ function toolResultText(result: unknown): string {
   return content[0]?.type === 'text' ? (content[0].text ?? '') : ''
 }
 
-afterEach(() => {
+afterEach(async () => {
+  await Promise.all(clients.splice(0).map((client) => client.close()))
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   for (const directory of temporaryDirectories.splice(0)) {
@@ -127,7 +137,6 @@ describe('product_info', () => {
     const properties = diagnose?.inputSchema.properties as Record<string, { enum?: string[] }>
 
     expect(properties.action.enum).not.toContain('check_update')
-    await client.close()
   })
 
   it('returns a compact current-package manifest index through its registered path', async () => {
@@ -137,21 +146,18 @@ describe('product_info', () => {
       routes: { primary: [], all: [] },
       extraFutureField: { preserved: true }
     }
-    const manifestPath = writeProductManifest(JSON.stringify(manifest))
+    writeProductManifest(JSON.stringify(manifest))
     const client = await connectAssistantClient()
 
     const listed = await client.listTools()
     const result = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
 
     expect(listed.tools.map((tool) => tool.name)).toContain('product_info')
-    expect(mocks.applicationGetPath).toHaveBeenCalledWith('feature.agents.assistant.manifest.file')
-    expect(manifestPath).toContain('product-manifest.json')
     expect(JSON.parse(toolResultText(result))).toEqual({
       runtimeVersion: '1.0.0',
       manifestVersion: '2.0.0-dev',
       sections: ['package', 'routes', 'extraFutureField']
     })
-    await client.close()
   })
 
   it('reads one requested manifest section and supports an explicit full-manifest fallback', async () => {
@@ -184,7 +190,6 @@ describe('product_info', () => {
       section: 'all',
       manifest
     })
-    await client.close()
   })
 
   it('rejects a manifest section that is not present in the installed package', async () => {
@@ -198,7 +203,6 @@ describe('product_info', () => {
 
     expect(result.isError).toBe(true)
     expect(toolResultText(result)).toContain('Unknown product manifest section')
-    await client.close()
   })
 
   it('rejects a package manifest containing invalid JSON', async () => {
@@ -209,7 +213,6 @@ describe('product_info', () => {
 
     expect(result.isError).toBe(true)
     expect(toolResultText(result)).toContain('Product manifest contains invalid JSON')
-    await client.close()
   })
 
   it('does not expose the installed manifest path when the package asset is unavailable', async () => {
@@ -221,7 +224,6 @@ describe('product_info', () => {
     expect(result.isError).toBe(true)
     expect(toolResultText(result)).toContain('Product manifest is unavailable')
     expect(toolResultText(result)).not.toContain('/private/install')
-    await client.close()
   })
 
   it('rejects manifests that do not satisfy the supported schema', async () => {
@@ -238,7 +240,6 @@ describe('product_info', () => {
     const emptyVersionResult = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
     expect(emptyVersionResult.isError).toBe(true)
     expect(toolResultText(emptyVersionResult)).toContain('Product manifest schema is invalid')
-    await client.close()
   })
 
   it('rejects arbitrary path and URL arguments', async () => {
@@ -251,10 +252,8 @@ describe('product_info', () => {
         arguments: { source: 'manifest', ...extra }
       })
       expect(result.isError).toBe(true)
-      expect(toolResultText(result)).toContain('Unsupported product_info argument')
+      expect(toolResultText(result)).toContain('Input validation error')
     }
-
-    await client.close()
   })
 
   it('rejects sources other than the installed manifest', async () => {
@@ -267,8 +266,7 @@ describe('product_info', () => {
     })
 
     expect(result.isError).toBe(true)
-    expect(toolResultText(result)).toContain('Unknown product_info source')
-    await client.close()
+    expect(toolResultText(result)).toContain('Input validation error')
   })
 })
 
@@ -298,30 +296,29 @@ describe('navigate', () => {
     expect(dynamicRoute.isError).not.toBe(true)
     expect(removedRoute.isError).toBe(true)
     expect(unknownSettingsRoute.isError).toBe(true)
-    await client.close()
   })
 })
 
 describe('apply_setting', () => {
-  async function applySetting(args: Record<string, string>) {
-    const server = new AssistantServer()
-    return await (
-      server as unknown as {
-        applySetting: (input: Record<string, string>) => Promise<{ content: Array<{ text: string }> }>
-      }
-    ).applySetting(args)
-  }
-
   it('updates the v2 theme preference', async () => {
-    await applySetting({ setting: 'theme', value: 'dark' })
+    const result = await callTool('apply_setting', { setting: 'theme', value: 'dark' })
 
+    expect(result.isError).not.toBe(true)
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('ui.theme_mode')).toBe('dark')
   })
 
   it('rejects settings outside the narrow whitelist', async () => {
-    await expect(applySetting({ setting: 'launch_on_boot', value: 'true' })).rejects.toThrow(
-      "Setting 'launch_on_boot' is not on the apply_setting whitelist"
-    )
+    const result = await callTool('apply_setting', { setting: 'launch_on_boot', value: 'true' })
+
+    expect(result.isError).toBe(true)
+  })
+
+  it('rejects a value outside the setting allowlist without writing it', async () => {
+    const result = await callTool('apply_setting', { setting: 'theme', value: 'neon' })
+
+    expect(result.isError).toBe(true)
+    expect(toolResultText(result)).toContain("Value 'neon' is not valid for setting 'theme'")
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('ui.theme_mode')).not.toBe('neon')
   })
 })
 
@@ -337,34 +334,20 @@ describe('create_agent', () => {
 
     expect(result.isError).not.toBe(true)
     expect(mocks.agentCreate).toHaveBeenCalledOnce()
-    await client.close()
   })
 
   it('is neither listed nor callable for the Support capability set', async () => {
     const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
 
     expect((await client.listTools()).tools.map((tool) => tool.name)).not.toContain('create_agent')
-    const result = await client.callTool({
-      name: 'create_agent',
-      arguments: { name: 'Reviewer', instructions: 'Review code.' }
-    })
-
-    expect(result.isError).toBe(true)
-    expect(toolResultText(result)).toContain('Unknown tool: create_agent')
+    await expect(
+      client.callTool({ name: 'create_agent', arguments: { name: 'Reviewer', instructions: 'Review code.' } })
+    ).rejects.toThrow('create_agent')
     expect(mocks.agentCreate).not.toHaveBeenCalled()
-    await client.close()
   })
 
   it('creates an agent through the v2 data service', async () => {
-    const server = new AssistantServer()
-    const result = await (
-      server as unknown as {
-        createAgent: (args: Record<string, string>) => Promise<{
-          content: Array<{ text: string }>
-          structuredContent: unknown
-        }>
-      }
-    ).createAgent({
+    const result = await callTool('create_agent', {
       name: ' Reviewer ',
       description: ' Reviews code ',
       instructions: ' Review Python code. ',
@@ -382,7 +365,6 @@ describe('create_agent', () => {
         env_vars: {}
       }
     })
-    expect(mocks.modelGetByKey).toHaveBeenCalledWith('anthropic', 'claude-sonnet')
     const output = {
       ok: true,
       agentId: 'agent-created',
@@ -390,38 +372,26 @@ describe('create_agent', () => {
       model: 'anthropic::claude-sonnet'
     }
     expect(result.structuredContent).toEqual(output)
-    expect(JSON.parse(result.content[0].text)).toEqual(output)
+    expect(JSON.parse(toolResultText(result))).toEqual(output)
   })
 
   it("defaults to Cherry Assistant's current model when model is omitted", async () => {
-    const server = new AssistantServer('openai::gpt-5')
+    const client = await connectAssistantClient(undefined, 'openai::gpt-5')
 
-    await (
-      server as unknown as {
-        createAgent: (args: Record<string, string>) => Promise<unknown>
-      }
-    ).createAgent({
-      name: 'Reviewer',
-      instructions: 'Review code.'
-    })
+    await callTool('create_agent', { name: 'Reviewer', instructions: 'Review code.' }, client)
 
     expect(mocks.agentCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'openai::gpt-5' }))
   })
 
   it('rejects legacy single-colon model ids', async () => {
-    const server = new AssistantServer()
+    const result = await callTool('create_agent', {
+      name: 'Reviewer',
+      instructions: 'Review code.',
+      model: 'anthropic:claude-sonnet'
+    })
 
-    await expect(
-      (
-        server as unknown as {
-          createAgent: (args: Record<string, string>) => Promise<unknown>
-        }
-      ).createAgent({
-        name: 'Reviewer',
-        instructions: 'Review code.',
-        model: 'anthropic:claude-sonnet'
-      })
-    ).rejects.toThrow('providerId::modelId')
+    expect(result.isError).toBe(true)
+    expect(toolResultText(result)).toContain('providerId::modelId')
     expect(mocks.agentCreate).not.toHaveBeenCalled()
   })
 
@@ -429,19 +399,25 @@ describe('create_agent', () => {
     mocks.modelGetByKey.mockImplementationOnce(() => {
       throw DataApiErrorFactory.notFound('Model', 'anthropic/missing')
     })
-    const server = new AssistantServer()
+    const result = await callTool('create_agent', {
+      name: 'Reviewer',
+      instructions: 'Review code.',
+      model: 'anthropic::missing'
+    })
 
-    await expect(
-      (
-        server as unknown as {
-          createAgent: (args: Record<string, string>) => Promise<unknown>
-        }
-      ).createAgent({
-        name: 'Reviewer',
-        instructions: 'Review code.',
-        model: 'anthropic::missing'
-      })
-    ).rejects.toThrow('Model is not configured in Cherry Studio: anthropic::missing')
+    expect(result.isError).toBe(true)
+    expect(toolResultText(result)).toContain('Model is not configured in Cherry Studio: anthropic::missing')
+    expect(mocks.agentCreate).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['blank name', { name: '   ', instructions: 'Review code.', model: 'anthropic::claude-sonnet' }],
+    ['missing instructions', { name: 'Reviewer', model: 'anthropic::claude-sonnet' }],
+    ['no model and no default model', { name: 'Reviewer', instructions: 'Review code.' }]
+  ])('rejects %s without creating an agent', async (_case, args) => {
+    const result = await callTool('create_agent', args)
+
+    expect(result.isError).toBe(true)
     expect(mocks.agentCreate).not.toHaveBeenCalled()
   })
 })
@@ -472,9 +448,6 @@ describe('prepare_diagnostic_report', () => {
         additionalProperties: false
       }
     })
-
-    await assistantClient.close()
-    await supportClient.close()
   })
 
   it('returns an editable normalized draft without performing submission', async () => {
@@ -489,7 +462,6 @@ describe('prepare_diagnostic_report', () => {
     expect(result.structuredContent).toEqual(output)
     expect(result.content).toEqual([{ type: 'text', text: JSON.stringify(output) }])
     expect(result.isError).not.toBe(true)
-    await client.close()
   })
 
   it('accepts a description at the normalized UTF-8 byte limit', async () => {
@@ -499,7 +471,6 @@ describe('prepare_diagnostic_report', () => {
     const result = await client.callTool({ name: 'prepare_diagnostic_report', arguments: { description } })
 
     expect(result.structuredContent).toEqual({ ok: true, description })
-    await client.close()
   })
 
   it.each([
@@ -513,7 +484,6 @@ describe('prepare_diagnostic_report', () => {
     const result = await client.callTool({ name: 'prepare_diagnostic_report', arguments: args })
 
     expect(result.isError).toBe(true)
-    await client.close()
   })
 })
 
@@ -544,7 +514,7 @@ describe('isBlockedSourceFile', () => {
   })
 })
 
-describe('isAllowedAssistantNavigationPath', () => {
+describe('isAllowedNavigationPath', () => {
   const allowedRoutes = [
     '/settings',
     '/settings/provider',
@@ -556,32 +526,32 @@ describe('isAllowedAssistantNavigationPath', () => {
   ]
 
   it('allows exact routes and manifest-declared dynamic routes', () => {
-    expect(isAllowedAssistantNavigationPath('/app/agents', allowedRoutes)).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/app/mini-app/example', allowedRoutes)).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/app/chat', allowedRoutes)).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/settings/provider', allowedRoutes)).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/settings/mcp/example/details', allowedRoutes)).toBe(true)
-    expect(isAllowedAssistantNavigationPath('/settings/mcp/settings/server-1', allowedRoutes)).toBe(true)
+    expect(isAllowedNavigationPath('/app/agents', allowedRoutes)).toBe(true)
+    expect(isAllowedNavigationPath('/app/mini-app/example', allowedRoutes)).toBe(true)
+    expect(isAllowedNavigationPath('/app/chat', allowedRoutes)).toBe(true)
+    expect(isAllowedNavigationPath('/settings/provider', allowedRoutes)).toBe(true)
+    expect(isAllowedNavigationPath('/settings/mcp/example/details', allowedRoutes)).toBe(true)
+    expect(isAllowedNavigationPath('/settings/mcp/settings/server-1', allowedRoutes)).toBe(true)
   })
 
   it('blocks undeclared descendants, removed routes, and prefix lookalikes', () => {
-    expect(isAllowedAssistantNavigationPath('/', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/store', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/app', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/app/agents/assistant-1', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/app/mini-app/example/details', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/app/library', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/app/openclaw', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/settings/not-in-this-package', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/openclaw', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/agents', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/agents-legacy', allowedRoutes)).toBe(false)
-    expect(isAllowedAssistantNavigationPath('/settings/provider?tab=models', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/store', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/app', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/app/agents/assistant-1', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/app/mini-app/example/details', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/app/library', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/app/openclaw', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/settings/not-in-this-package', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/openclaw', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/agents', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/agents-legacy', allowedRoutes)).toBe(false)
+    expect(isAllowedNavigationPath('/settings/provider?tab=models', allowedRoutes)).toBe(false)
   })
 })
 
 describe('diagnose mcp_status', () => {
-  it('redacts authenticated MCP URLs to origin only', () => {
+  it('redacts authenticated MCP URLs to origin only', async () => {
     mocks.mcpList.mockReturnValue({
       items: [
         {
@@ -595,11 +565,7 @@ describe('diagnose mcp_status', () => {
       ]
     })
 
-    const server = new AssistantServer()
-    const result = (
-      server as unknown as { diagnoseMcpStatus: () => { content: Array<{ text: string }> } }
-    ).diagnoseMcpStatus()
-    const text = result.content[0].text
+    const text = toolResultText(await callTool('diagnose', { action: 'mcp_status' }))
     const status = JSON.parse(text) as { servers: Array<{ baseUrl?: string }> }
 
     expect(status.servers[0]?.baseUrl).toBe('https://mcp.example:8443')
@@ -614,13 +580,10 @@ describe('diagnose config', () => {
   it('reports the quick model used by topic naming', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'openai::gpt-4o-mini')
 
-    const server = new AssistantServer()
-    const result = await (
-      server as unknown as {
-        diagnoseConfig: () => Promise<{ content: Array<{ text: string }> }>
-      }
-    ).diagnoseConfig()
-    const config = JSON.parse(result.content[0].text) as Record<string, unknown>
+    const config = JSON.parse(toolResultText(await callTool('diagnose', { action: 'config' }))) as Record<
+      string,
+      unknown
+    >
 
     expect(config.quickModel).toEqual({
       id: 'openai::gpt-4o-mini',
@@ -636,13 +599,7 @@ describe('diagnose config', () => {
       'http://user:pass@proxy.example:8080/path?token=secret'
     )
 
-    const server = new AssistantServer()
-    const result = await (
-      server as unknown as {
-        diagnoseConfig: () => Promise<{ content: Array<{ text: string }> }>
-      }
-    ).diagnoseConfig()
-    const text = result.content[0].text
+    const text = toolResultText(await callTool('diagnose', { action: 'config' }))
     const config = JSON.parse(text) as { proxy?: string }
 
     expect(config.proxy).toBe('http://proxy.example:8080')
@@ -665,14 +622,16 @@ describe('diagnose health', () => {
     })
   }
 
-  async function diagnoseHealth(providerId: string) {
-    const server = new AssistantServer()
-    return await (
-      server as unknown as {
-        diagnoseHealth: (id: string) => Promise<{ content: Array<{ text: string }> }>
-      }
-    ).diagnoseHealth(providerId)
+  async function diagnoseHealth(providerId: string): Promise<string> {
+    return toolResultText(await callTool('diagnose', { action: 'health', provider_id: providerId }))
   }
+
+  it('requires a provider id', async () => {
+    const result = await callTool('diagnose', { action: 'health' })
+
+    expect(result.isError).toBe(true)
+    expect(mocks.diagnoseEndpoint).not.toHaveBeenCalled()
+  })
 
   it('reports the layered verdict with only the endpoint origin', async () => {
     mockProvider()
@@ -686,8 +645,7 @@ describe('diagnose health', () => {
       verdict: 'reachable'
     })
 
-    const result = await diagnoseHealth('health-success')
-    const text = result.content[0].text
+    const text = await diagnoseHealth('health-success')
     const health = JSON.parse(text) as {
       status: string
       host: string
@@ -728,7 +686,7 @@ describe('diagnose health', () => {
       verdict: 'unreachable'
     })
 
-    const health = JSON.parse((await diagnoseHealth('health-connection-failure')).content[0].text) as {
+    const health = JSON.parse(await diagnoseHealth('health-connection-failure')) as {
       status: string
       dns: { kind: string; code: string }
     }
@@ -737,7 +695,7 @@ describe('diagnose health', () => {
 
   it('does not probe a provider without an API key', async () => {
     mocks.providerGetById.mockReturnValue({ apiKeys: [], endpointConfigs: { chat: { baseUrl: endpoint } } })
-    const health = JSON.parse((await diagnoseHealth('health-no-key')).content[0].text) as { error: string }
+    const health = JSON.parse(await diagnoseHealth('health-no-key')) as { error: string }
     expect(health.error).toBe('No API key configured')
     expect(mocks.diagnoseEndpoint).not.toHaveBeenCalled()
   })
@@ -759,7 +717,7 @@ describe('diagnose health', () => {
       verdict: 'reachable'
     })
 
-    const health = JSON.parse((await diagnoseHealth('health-external-cli')).content[0].text) as {
+    const health = JSON.parse(await diagnoseHealth('health-external-cli')) as {
       status: string
       host: string
       error?: string
@@ -805,12 +763,7 @@ describe('diagnose doctor', () => {
         summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 1 }
       }
     })
-    const server = new AssistantServer()
-    const text = (
-      await (
-        server as unknown as { diagnoseDoctor: (tier: string) => Promise<{ content: Array<{ text: string }> }> }
-      ).diagnoseDoctor('quick')
-    ).content[0].text
+    const text = toolResultText(await callTool('diagnose', { action: 'doctor' }))
 
     expect(mocks.doctorRun).toHaveBeenCalledWith({ tier: 'quick', subject: { kind: 'global' } })
     expect(JSON.parse(text)).toMatchObject({ summary: { warn: 1 } })
@@ -823,12 +776,7 @@ describe('diagnose doctor', () => {
 
   it('passes a busy outcome through so the model can retry later', async () => {
     mocks.doctorRun.mockResolvedValue({ status: 'busy', runId: 'r9' })
-    const server = new AssistantServer()
-    const text = (
-      await (
-        server as unknown as { diagnoseDoctor: (tier: string) => Promise<{ content: Array<{ text: string }> }> }
-      ).diagnoseDoctor('live')
-    ).content[0].text
+    const text = toolResultText(await callTool('diagnose', { action: 'doctor', tier: 'live' }))
     expect(JSON.parse(text)).toEqual({ status: 'busy', runId: 'r9' })
   })
 })
