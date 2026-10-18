@@ -140,9 +140,10 @@ function deriveStage(
   if (error.claudeCodeExitCategory !== undefined) return 'runtime'
   if (layer === 'tool') return 'runtime'
 
-  // A real HTTP status means the request got through and the provider answered, so
-  // the failure is in the response (status or body) rather than the transport.
-  if (status !== undefined && status >= 100 && status <= 599) return 'http'
+  // An error status means the request got through and the provider rejected it, so the failure is
+  // in the response (status or body) rather than the transport. A successful status does not: some
+  // providers raise an APICallError carrying the 2xx for a body the client could not decode.
+  if (status !== undefined && status >= 400 && status <= 599) return 'http'
   if (category === 'network' || category === 'proxy') return 'transport'
   if (category === 'stream') return 'stream'
   if (category === 'parse') return 'parse'

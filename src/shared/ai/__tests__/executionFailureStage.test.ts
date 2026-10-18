@@ -25,6 +25,18 @@ describe('execution failure — pipeline stage', () => {
     expect(failure.failure.stage).toBe('parse')
   })
 
+  it('names the parse stage for a 2xx body that could not be decoded', () => {
+    // SiliconFlow/MiniMax raise an APICallError carrying the 2xx status, so the status alone
+    // would attribute this to `http` and claim the provider rejected a request it accepted.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Invalid JSON response',
+      stack: null,
+      statusCode: 200
+    })
+    expect(failure.failure.stage).toBe('parse')
+  })
+
   it('names the runtime stage for a bare "No response"', () => {
     const failure = toExecutionFailure({
       name: 'AgentRuntimeError',
