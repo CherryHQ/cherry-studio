@@ -121,4 +121,12 @@ describe('media catalogs are grounded in mime-db', () => {
     expect(audioExts).not.toContain('.mid')
     expect(audioExts).toContain('.midi')
   })
+
+  it('keeps the Acclaim .asf alias out of the video catalog so motion-capture text files stay text', () => {
+    // Acclaim motion-capture skeletons are plain-text `.asf` files, and the
+    // CMU Graphics Lab archive publishes them with that extension. The video
+    // catalog cannot claim the extension without rejecting those text files
+    // before the content sniff runs (same contract as `.mid` and `.dts`).
+    expect(videoExts).not.toContain('.asf')
+  })
 })
