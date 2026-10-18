@@ -3091,7 +3091,7 @@ describe('AgentSessionRuntimeService', () => {
 
       send({ type: 'text-start', id: 'lost' })
       for (let index = 0; index < 1_001; index += 1) send({ type: 'text-delta', id: 'lost', delta: 'x' })
-      expect(entry.recoveryFlowOverflowRoots?.has('task-root')).toBe(true)
+      expect(entry.recoveryFlowDiscardedParts?.get('task-root')?.has('lost')).toBe(true)
 
       // The host row is persisted now, so a look-up would succeed — but the delta still has no
       // start, and admitting it would abort the reader on the missing part.
@@ -3103,6 +3103,47 @@ describe('AgentSessionRuntimeService', () => {
       // A fresh start re-opens the stream and is delivered to the row.
       send({ type: 'text-start', id: 'fresh' })
       expect(enqueue).toHaveBeenCalledWith({ type: 'text-start', id: 'fresh' })
+    })
+
+    // Two detached subagents can share one host message: a restart of one stream must not admit
+    // the other's orphaned delta, or the reader aborts on the part whose start was dropped.
+    it('keeps an overflowed sibling stream refused when another root restarts', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+      mocks.getSessionMessage.mockImplementation(() => {
+        throw new Error('db busy')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'tool-input-available', toolCallId: 'root-a', toolName: 'Agent', input: { prompt: 'A' } }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'tool-input-available', toolCallId: 'root-b', toolName: 'Agent', input: { prompt: 'B' } }
+      })
+      service.markTurnTerminal('session-1', 'success')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (rootToolCallId: string, chunk: unknown) =>
+        (service as any).handleRuntimeEvent(entry, { type: 'background-flow-chunk', rootToolCallId, chunk })
+
+      // A's stream fills the message buffer; B's start trips the cap and is dropped with the whole
+      // prefix, so both starts are gone.
+      send('root-a', { type: 'text-start', id: 'a-1' })
+      for (let index = 0; index < 999; index += 1) send('root-a', { type: 'text-delta', id: 'a-1', delta: 'x' })
+      send('root-b', { type: 'text-start', id: 'b-1' })
+      expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')).toBeUndefined()
+
+      // B restarts its own stream: that re-opens b-1 only — A's delta stays refused.
+      send('root-b', { type: 'text-start', id: 'b-1' })
+      send('root-a', { type: 'text-delta', id: 'a-1', delta: 'orphan' })
+      expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(1)
+
+      // A's own restart re-opens its stream too.
+      send('root-a', { type: 'text-start', id: 'a-1' })
+      expect(entry.pendingBackgroundFlowChunks?.get('assistant-1')).toHaveLength(2)
     })
 
     it('drops anchors for a persisted row whose marker is evicted', () => {
