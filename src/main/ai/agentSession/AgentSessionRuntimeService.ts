@@ -185,6 +185,19 @@ function endsFlowStream(chunk: UIMessageChunk): boolean {
   )
 }
 
+/** The flow root a chunk streams under, from the parent link the adapter stamps on a subagent
+ *  stream's opening chunks; only a string counts (top-level tool chunks carry JSON null). */
+function flowChunkRootCallId(chunk: UIMessageChunk): string | undefined {
+  const metadata = (chunk as { providerMetadata?: Record<string, unknown> }).providerMetadata
+  for (const namespace of ['claude-code', 'cherry'] as const) {
+    const entry = metadata?.[namespace]
+    if (!entry || typeof entry !== 'object') continue
+    const parent = (entry as { parentToolCallId?: unknown }).parentToolCallId
+    if (typeof parent === 'string') return parent
+  }
+  return undefined
+}
+
 /**
  * Whether a chunk may join a stream whose buffered start was discarded: only that part's own
  * restart re-opens it, so a sibling stream's start cannot admit this part's orphaned delta.
@@ -2566,6 +2579,15 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  /** A flow root follows the row its content streams into: a round that starts in a live turn must
+   *  keep flowing there after a mid-turn detach, or its tail lands in the launch's row instead. */
+  private rememberFlowChunkRootAnchor(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk, messageId: string): void {
+    const rootCallId = flowChunkRootCallId(chunk)
+    if (!rootCallId) return
+    this.rememberFlowAnchor(entry, rootCallId, messageId)
+    entry.recoveryLookupAt?.delete(rootCallId)
+  }
+
   /**
    * Recover the persisted host row for a detached root and replay its buffered chunks. Used by
    * the chunk path and by teardown, which must give recovery-buffered chunks a last chance.
@@ -3138,6 +3160,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.rememberFlowAnchor(entry, chunk.toolCallId, turn.assistantMessageId)
         entry.recoveryLookupAt?.delete(chunk.toolCallId)
       }
+      if (turn) this.rememberFlowChunkRootAnchor(entry, chunk, turn.assistantMessageId)
       this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
       return true
     }
@@ -3159,6 +3182,7 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       turn.activeToolIds.delete(chunk.toolCallId)
     }
+    this.rememberFlowChunkRootAnchor(entry, chunk, turn.assistantMessageId)
 
     turn.controller?.enqueue(chunk)
   }

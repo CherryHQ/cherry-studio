@@ -2604,6 +2604,37 @@ describe('AgentSessionRuntimeService', () => {
       )
     })
 
+    // A round that starts in the live turn can outlive the adapter's mid-turn detach: its root must
+    // keep following the turn's row, or the tail lands in the launch's row and reads out of order.
+    it('keeps a flow root anchored to the row its round streams into', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      entry.currentTurn.controller = { enqueue } as never
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-launch')
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'text-start',
+          id: 'subagent-text',
+          providerMetadata: { 'claude-code': { parentToolCallId: 'task-root' } }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'subagent-text', delta: 'Late findings' }
+      })
+
+      expect(enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'text-delta', id: 'subagent-text', delta: 'Late findings' })
+      )
+      expect(mocks.findFlowHostMessageId).not.toHaveBeenCalledWith('session-1', 'task-root')
+    })
+
     // A SendMessage resume re-streams under the original tool-call id after the first background
     // flow has drained — the retained anchor is what lets that second generation still land.
     it('patches resumed subagent chunks onto the spawning message after the first flow drained', async () => {
