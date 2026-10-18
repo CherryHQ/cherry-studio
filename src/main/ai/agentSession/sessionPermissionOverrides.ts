@@ -15,8 +15,9 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
  * update carries a new `permission_mode` — the row is then the user's own choice again — and
  * when the session is reassigned to another agent. Those retires work by agent ownership, not by
  * live entries: a handoff restores its override after `closeSession` removed the entry, so the
- * entry-less override must still die with the edit or the reassignment, and the per-agent epoch
- * lets a pending handoff restore recognize either instead of resurrecting what they invalidated.
+ * entry-less override must still die with the edit or the reassignment. A per-agent edit epoch
+ * and a per-session reassignment epoch let a pending handoff restore recognize either instead of
+ * resurrecting what they invalidated; the reassignment epoch survives the override's deletion.
  */
 interface SessionPermissionOverride {
   agentId: string
@@ -25,9 +26,14 @@ interface SessionPermissionOverride {
 
 const sessionPermissionModes = new Map<string, SessionPermissionOverride>()
 const agentPermissionEditEpochs = new Map<string, number>()
+/** Last observed owner per session. It outlives the override: `closeSession` retires that
+ *  synchronously, yet a reassignment landing during the handoff teardown must still count. */
+const sessionAgentOwners = new Map<string, string | null>()
+const sessionReassignmentEpochs = new Map<string, number>()
 
 export function setSessionEffectivePermissionMode(sessionId: string, agentId: string, mode: AgentPermissionMode): void {
   sessionPermissionModes.set(sessionId, { agentId, mode })
+  sessionAgentOwners.set(sessionId, agentId)
 }
 
 /** The read names the agent the session currently belongs to: a foreign owner's override is dead. */
@@ -40,21 +46,32 @@ export function clearSessionEffectivePermissionMode(sessionId: string): void {
   sessionPermissionModes.delete(sessionId)
 }
 
-/** Whether the session carries an override at all — the cheap gate for the reassignment check. */
-export function hasSessionEffectivePermissionMode(sessionId: string): boolean {
-  return sessionPermissionModes.has(sessionId)
+/**
+ * Whether this session has permission state worth observing on a session update: a live override
+ * or an owner recorded for one. Sessions that never entered the handoff stay off the DB path.
+ */
+export function tracksSessionPermission(sessionId: string): boolean {
+  return sessionPermissionModes.has(sessionId) || sessionAgentOwners.has(sessionId)
 }
 
 /**
  * A session reassigned to another agent leaves its previous agent's scope: the approved execution
- * must not follow it, and the previous agent's epoch moves so a pending handoff restore recognizes
- * the reassignment instead of resurrecting what it invalidated.
+ * must not follow it, and the session's reassignment epoch moves so a pending handoff restore
+ * recognizes the reassignment instead of resurrecting what it invalidated. The epoch is keyed on
+ * the session's own owner history, not on the override — `closeSession` deletes the override
+ * before its connection teardown finishes, and a reassignment in that window must still count.
  */
 export function retireReassignedSessionPermissionMode(sessionId: string, currentAgentId: string | null): void {
-  const override = sessionPermissionModes.get(sessionId)
-  if (!override || override.agentId === currentAgentId) return
+  const previousAgentId = sessionAgentOwners.get(sessionId)
+  sessionAgentOwners.set(sessionId, currentAgentId)
+  if (previousAgentId === undefined || previousAgentId === currentAgentId) return
   sessionPermissionModes.delete(sessionId)
-  agentPermissionEditEpochs.set(override.agentId, (agentPermissionEditEpochs.get(override.agentId) ?? 0) + 1)
+  sessionReassignmentEpochs.set(sessionId, (sessionReassignmentEpochs.get(sessionId) ?? 0) + 1)
+}
+
+/** Epoch stamp to compare against {@link retireReassignedSessionPermissionMode} after an await. */
+export function sessionReassignmentEpoch(sessionId: string): number {
+  return sessionReassignmentEpochs.get(sessionId) ?? 0
 }
 
 /**

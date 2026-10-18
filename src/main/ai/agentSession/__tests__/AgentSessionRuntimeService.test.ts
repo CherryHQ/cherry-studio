@@ -974,6 +974,64 @@ describe('AgentSessionRuntimeService', () => {
       expect(getSessionEffectivePermissionMode('session-1', 'agent-2')).toBeUndefined()
     })
 
+    it('does not resurrect the approved permission across a reassignment made during the real entry-removing close', async () => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-real-close',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-real-close',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const closeGate = createDeferred<void>()
+      // The real close removes the entry and retires the live override synchronously; only the
+      // connection teardown pends, which is the window the reassignment lands in.
+      const realCloseSession = service.closeSession.bind(service)
+      const closeSession = vi
+        .spyOn(service, 'closeSession')
+        .mockImplementation((sessionId: string) => realCloseSession(sessionId))
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-real-close' })
+      getEntry(service).connection = {
+        send: vi.fn(),
+        close: vi.fn(() => closeGate.promise),
+        refreshTraceContext: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+
+      const result = service.respondToolApproval('approval-plan-real-close', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      await vi.waitFor(() => expect(closeSession).toHaveBeenCalledWith('session-1'))
+      expect((service as any).entries.has('session-1')).toBe(false)
+      expect(getSessionEffectivePermissionMode('session-1', 'agent-1')).toBeUndefined()
+
+      const handleSessionUpdated = (
+        service as unknown as { handleSessionUpdated(sessionId: string): void }
+      ).handleSessionUpdated.bind(service)
+      // Reassigned away while the connection close still pends...
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      handleSessionUpdated('session-1')
+      // ...and back to the approving agent.
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      handleSessionUpdated('session-1')
+
+      closeGate.resolve()
+      await closeSession.mock.results[0]?.value
+      // The pending restore recognizes the reassignment independently of the now-absent override:
+      // fresh Claude startup must read the saved `plan` row, not a resurrected `acceptEdits`.
+      expect(getSessionEffectivePermissionMode('session-1', 'agent-1')).toBeUndefined()
+    })
+
     it('retires the override when the session is reassigned and refuses a foreign owner on read', () => {
       setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
       const service = new AgentSessionRuntimeService()
