@@ -12,6 +12,6 @@ export default openaiCompatible({
     models:
       'https://platform.acedata.cloud/models?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_models',
     official:
-      'https://acedata.cloud?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_website'
+      'https://platform.acedata.cloud?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_website'
   }
 })
