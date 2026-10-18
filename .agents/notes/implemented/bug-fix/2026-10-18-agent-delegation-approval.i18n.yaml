@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-18-agent-delegation-approval.md
+2026-10-18-agent-delegation-approval.md: 21514fadd3632af1a50a86a324107a72bc32a36a
+2026-10-18-agent-delegation-approval.zh.md: ec1ba9126258db5b5e305bb338562eedbb0960ce

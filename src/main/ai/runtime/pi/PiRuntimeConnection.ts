@@ -345,6 +345,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           mountedPolicies
             .filter(({ approval, bypassApproval }) => approval === 'required' && bypassApproval === 'enforce')
             .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        delegationTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'delegation')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
         )
       }
       const mcpServers = buildAgentMcpServers(

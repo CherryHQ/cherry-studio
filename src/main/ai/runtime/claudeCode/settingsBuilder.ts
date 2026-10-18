@@ -48,6 +48,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
+  resolveDelegationApproval,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -532,9 +533,17 @@ async function buildToolPermissions(
     // `canUseTool` under bypassPermissions.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
     const policy = findBuiltinToolPolicy(toolName, mountedServers)
+    const delegationApproval =
+      policy?.approval === 'delegation'
+        ? resolveDelegationApproval(snapshot.getPermissionMode(), interactionState)
+        : undefined
+    if (delegationApproval === 'deny') {
+      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+    }
     const approvalHoldsInThisMode =
-      policy?.approval === 'required' &&
-      !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift')
+      delegationApproval === 'ask' ||
+      (policy?.approval === 'required' &&
+        !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
     const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
       return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
@@ -547,7 +556,7 @@ async function buildToolPermissions(
     if (
       toolName !== ASK_USER_QUESTION_TOOL_NAME &&
       !approvalHoldsInThisMode &&
-      (policy?.approval === 'auto' || access?.approval === 'auto')
+      (delegationApproval === 'allow' || policy?.approval === 'auto' || access?.approval === 'auto')
     ) {
       return { behavior: 'allow', updatedInput: input }
     }
