@@ -659,6 +659,7 @@
   "chat.compaction.compacted": "Kontext komprimiert, ~{{count}} Token gespart",
   "chat.compaction.compacted_plain": "Kontext komprimiert",
   "chat.compaction.compacting": "Kontext wird komprimiert…",
+  "chat.compaction.failed": "Kontextkomprimierung fehlgeschlagen",
   "chat.conversation.new": "Neuer Chat",
   "chat.default.name": "Cherry-Assistent",
   "chat.default.topic.name": "Standardthema",

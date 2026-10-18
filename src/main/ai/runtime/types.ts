@@ -148,7 +148,7 @@ export type AgentRuntimeEvent =
   | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
-  | { type: 'compaction-error'; error: string }
+  | { type: 'compaction-error'; error: string; aborted?: boolean }
   /** The SDK is backing off before retrying a failed API request (`system/api_retry`). Ephemeral
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
