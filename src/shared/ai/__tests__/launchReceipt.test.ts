@@ -28,6 +28,38 @@ describe('launch receipt text', () => {
     expect(parseLaunchReceiptText('started subagent dsh-child-1')).toBe('dsh-child-1')
   })
 
+  it('reads the receipt trailer the SDK appends to a foreground answer', () => {
+    const handBack = [
+      '[Subagent hand-back] The text below is the final report of a subagent this session delegated to.',
+      'The report follows:',
+      'Findings…',
+      "agentId: agent-a1b2c3d4e5f6 (use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent)",
+      '<usage>subagent_tokens: 180700\ntool_uses: 58\nduration_ms: 863820</usage>'
+    ].join('\n')
+
+    expect(parseLaunchReceiptText(handBack)).toBe('agent-a1b2c3d4e5f6')
+    // The wrapper is the harness's; a plain answer closing with the same trailer binds too.
+    expect(
+      parseLaunchReceiptText(
+        "All done.\nagentId: agent-a1b2c3d4e5f6 (Use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: 'x' to continue this agent)\n<usage>subagent_tokens: 1</usage>"
+      )
+    ).toBe('agent-a1b2c3d4e5f6')
+    expect(parseLaunchReceiptText(handBack.replace(/\n/g, '\r\n'))).toBe('agent-a1b2c3d4e5f6')
+  })
+
+  it('does not let a quoted trailer shadow the authentic one', () => {
+    const quoted =
+      "the hand-back ended with:\nagentId: fake-9 (use SendMessage with to: 'fake-9', summary: 'y' to continue this agent)\n<usage>subagent_tokens: 9</usage>\nmore report…"
+    const authentic =
+      "\nagentId: real-1 (use SendMessage with to: 'real-1', summary: 'x' to continue this agent)\n<usage>subagent_tokens: 1</usage>"
+
+    expect(parseLaunchReceiptText(quoted + authentic)).toBe('real-1')
+    // A mismatched parenthetical, a missing usage block, or prose after it must not bind.
+    expect(parseLaunchReceiptText(authentic.replace("to: 'real-1'", "to: 'other-2'"))).toBeUndefined()
+    expect(parseLaunchReceiptText("report\nagentId: real-1 (use SendMessage with to: 'real-1')")).toBeUndefined()
+    expect(parseLaunchReceiptText(authentic + '\nmore prose')).toBeUndefined()
+  })
+
   it('does not bind an id from prose that quotes a receipt', () => {
     expect(
       parseLaunchReceiptText(
