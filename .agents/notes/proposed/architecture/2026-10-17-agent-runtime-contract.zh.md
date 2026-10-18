@@ -52,7 +52,7 @@ interface Observation {
 
 Pi Durable 还在具体接口上提供 Runtime 级 `resume`，以及输入查询、撤回和去重。原生命令发现、配置变更、上下文编辑和 fork 不属于公共强制方法。工具、审批和模型桥保留在现有适配器与宿主边界；只有消费者需要跨实现相同语义时才提取公共行为。
 
-v0 没有通用 `spawn`、精确委派取消、交互响应、历史分页或重放游标。必选的 `submit` 和 `Delegation.child` 无法完整表达只能观察或无法独立访问的 child。[可选子智能体控制](https://github.com/CherryHQ/cherry-studio/pull/21578) 是另一份方案，不是已实现签名。当前 Pi 的托管 child 句柄不暴露输入策略，提交返回 `unsupported`；不能绕过扩展所有者直接向 child prompt。
+v0 没有通用 `spawn`、精确委派取消、交互响应、历史分页或重放游标。必选的 `submit` 和 `Delegation.child` 无法完整表达只能观察或无法独立访问的 child。[可选子智能体控制](2026-10-18-agent-runtime-subagent-control.md) 是另一份方案，不是已实现签名。当前 Pi 的托管 child 句柄不暴露输入策略，提交返回 `unsupported`；不能绕过扩展所有者直接向 child prompt。
 
 ### 把提交定义为原生输入接纳
 
