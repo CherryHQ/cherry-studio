@@ -141,6 +141,8 @@ const MAX_FLOW_ANCHOR_ENTRIES = 1_024
 const MAX_PERSISTED_FLOW_MESSAGE_IDS = 1_024
 /** Cap on seed-failure stamps; an evicted id costs one extra seed attempt, not one per chunk. */
 const MAX_SEED_FAILURE_ENTRIES = 256
+/** Cap on per-root look-up stamps; an evicted root costs one extra database round-trip, not a leak. */
+const MAX_RECOVERY_LOOKUP_ENTRIES = 256
 /** Per-message and per-session caps for chunks buffered while no accumulator can be seeded. */
 const MAX_PENDING_FLOW_CHUNKS_PER_MESSAGE = 1_000
 const MAX_PENDING_FLOW_CHUNKS_PER_SESSION = 4_000
@@ -168,43 +170,62 @@ function flowChunkPartId(chunk: UIMessageChunk): string | undefined {
   return undefined
 }
 
-/** Cap on remembered discarded starts per key; an evicted id costs one late drop, not a leak. */
-const MAX_DISCARDED_FLOW_PARTS = 64
+/**
+ * Whether a chunk closes its part. The producer emits one terminal chunk per part and nothing
+ * after it, so a part that closed can never come back.
+ */
+function endsFlowStream(chunk: UIMessageChunk): boolean {
+  return (
+    chunk.type === 'text-end' ||
+    chunk.type === 'reasoning-end' ||
+    chunk.type === 'tool-input-error' ||
+    chunk.type === 'tool-output-available' ||
+    chunk.type === 'tool-output-error' ||
+    chunk.type === 'tool-output-denied'
+  )
+}
 
 /**
  * Whether a chunk may join a stream whose buffered start was discarded: only that part's own
  * restart re-opens it, so a sibling stream's start cannot admit this part's orphaned delta.
  */
-function admitRestartedFlowPart(discarded: Set<string> | undefined, chunk: UIMessageChunk): boolean {
+function admitRestartedFlowPart(
+  discardedParts: Map<string, Set<string>> | undefined,
+  key: string,
+  chunk: UIMessageChunk
+): boolean {
+  const discarded = discardedParts?.get(key)
   if (!discarded?.size) return true
   const partId = flowChunkPartId(chunk)
   if (partId === undefined || !discarded.has(partId)) return true
-  if (!startsFlowStream(chunk)) return false
+  const opens = startsFlowStream(chunk)
+  if (!opens && !endsFlowStream(chunk)) return false
   discarded.delete(partId)
-  return true
+  // A closed part cannot emit again, so forgetting it here is what keeps the record from growing.
+  if (discarded.size === 0) discardedParts?.delete(key)
+  return opens
 }
 
-/** Remember the starts a dropped prefix took with it, plus the trigger when it is a start itself. */
+/**
+ * Remember the parts a dropped prefix left open, plus the trigger when it left one open itself: a
+ * part the prefix also closed is complete, so nothing of it can ever arrive again.
+ */
 function recordDiscardedFlowStarts(
   discardedParts: Map<string, Set<string>>,
   key: string,
   dropped: UIMessageChunk[],
   trigger: UIMessageChunk
 ): void {
-  const starts = [...dropped, trigger].filter(startsFlowStream)
-  if (!starts.length) return
-  const discarded = discardedParts.get(key) ?? new Set<string>()
-  for (const start of starts) {
-    const partId = flowChunkPartId(start)
+  const open = new Set<string>()
+  for (const chunk of [...dropped, trigger]) {
+    const partId = flowChunkPartId(chunk)
     if (partId === undefined) continue
-    discarded.delete(partId)
-    discarded.add(partId)
+    if (startsFlowStream(chunk)) open.add(partId)
+    else if (endsFlowStream(chunk)) open.delete(partId)
   }
-  while (discarded.size > MAX_DISCARDED_FLOW_PARTS) {
-    const oldest = discarded.values().next().value
-    if (oldest === undefined) break
-    discarded.delete(oldest)
-  }
+  if (!open.size) return
+  const discarded = discardedParts.get(key) ?? new Set<string>()
+  for (const partId of open) discarded.add(partId)
   discardedParts.set(key, discarded)
 }
 
@@ -2380,7 +2401,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     // An overflowed stream lost its start; a delta without it aborts the accumulator, so the
     // suppression follows the stream past recovery — only that part's restart re-opens it.
-    if (!admitRestartedFlowPart(entry.recoveryFlowDiscardedParts?.get(rootToolCallId), chunk)) return
+    if (!admitRestartedFlowPart(entry.recoveryFlowDiscardedParts, rootToolCallId, chunk)) return
 
     let messageId = entry.flowMessageIdsByToolCallId?.get(rootToolCallId)
     if (messageId) this.rememberFlowAnchor(entry, rootToolCallId, messageId)
@@ -2396,7 +2417,14 @@ export class AgentSessionRuntimeService extends BaseService {
         if (due) {
           // Stamp before the query: a throwing lookup is throttled like a miss, or every following
           // chunk pays another synchronous database round-trip.
-          ;(entry.recoveryLookupAt ??= new Map()).set(rootToolCallId, Date.now())
+          const lookups = (entry.recoveryLookupAt ??= new Map<string, number>())
+          lookups.set(rootToolCallId, Date.now())
+          // The stamp is only a throttle, so evicting an aged root costs one extra look-up.
+          while (lookups.size > MAX_RECOVERY_LOOKUP_ENTRIES) {
+            const oldest = lookups.keys().next().value
+            if (oldest === undefined) break
+            lookups.delete(oldest)
+          }
           messageId = this.recoverDetachedFlowHost(entry, rootToolCallId)
         }
       } catch (error) {
@@ -2418,7 +2446,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     // Same suppression for a row whose message buffer overflowed: its held prefix is gone too.
-    if (messageId && !admitRestartedFlowPart(entry.pendingBackgroundFlowDiscardedParts?.get(messageId), chunk)) {
+    if (messageId && !admitRestartedFlowPart(entry.pendingBackgroundFlowDiscardedParts, messageId, chunk)) {
       return
     }
 
@@ -2458,7 +2486,7 @@ export class AgentSessionRuntimeService extends BaseService {
   ): { held: number; dropped: number } {
     // An orphaned delta must not take a buffer slot: refusing it first keeps it from tripping the
     // cap and discarding other parts' buffered chunks with it.
-    if (!admitRestartedFlowPart(discardedParts.get(key), chunk)) return { held: 0, dropped: 0 }
+    if (!admitRestartedFlowPart(discardedParts, key, chunk)) return { held: 0, dropped: 0 }
     const chunks = buffers.get(key) ?? []
     if (chunks.length >= limits.perKey || sessionHeld >= limits.perSession) {
       buffers.delete(key)

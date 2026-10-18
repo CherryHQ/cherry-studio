@@ -71,7 +71,7 @@ import {
   getSubagentTaskStatus,
   getSubagentTaskStatusFromIndex
 } from '../tools/agent'
-import { useAgentLaunchIndex, resolveAgentToolFlowTarget } from '../tools/agent'
+import { useAgentLaunchIndex, useAgentTaskLiveness, resolveAgentToolFlowTarget } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import {
   AgentToolsType,
@@ -1573,6 +1573,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const hoistNonImageFiles = !!hoistAttachments && !previewInputFile && !!(previewFile || openFile)
   // The same index the rows resolve their flow target with, so the disclosure and the click agree.
   const launchIndex = useAgentLaunchIndex()
+  const liveness = useAgentTaskLiveness()
   const { t } = useTranslation()
   const subscribeDisclosures = React.useCallback(
     (listener: () => void) => subscribeCachedMessageUiState(message.id, listener),
@@ -1699,7 +1700,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       ? getSubagentTaskStatusFromIndex(
           launchIndex,
           resolveAgentToolFlowTarget(response, launchIndex, true),
-          response.status
+          response.status,
+          liveness
         )
       : getSubagentTaskStatus(messageParts, response.toolCallId, response.status)
     return taskStatus ?? response.status

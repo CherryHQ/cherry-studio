@@ -1,11 +1,21 @@
 import { createContext, type ReactElement, type ReactNode, use, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type AgentLaunchIndex, getPartLaunchToolCallId, resolveResumeReceiptState } from '../shared/agentToolTypes'
+import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
+import type { CherryUIMessage } from '@shared/data/types/message'
+
+import {
+  type AgentLaunchIndex,
+  type AgentTaskLiveness,
+  getPartLaunchToolCallId,
+  resolveResumeReceiptState
+} from '../shared/agentToolTypes'
 import type { ToolResponseLike } from '../toolResponse'
 import { buildResumeToolHeader } from './agentResumeHeader'
 
 const AgentLaunchIndexContext = createContext<AgentLaunchIndex | null>(null)
+
+const AgentTaskLivenessContext = createContext<AgentTaskLiveness | undefined>(undefined)
 
 /**
  * Provide the list-level launch-identity index so resume resolution is O(1) instead of
@@ -24,7 +34,16 @@ export interface AgentResumePresentation {
 
 const AgentResumePresentationContext = createContext<AgentResumePresentation | null>(null)
 
-export function AgentLaunchIndexProvider({ value, children }: { value: AgentLaunchIndex | null; children: ReactNode }) {
+export function AgentLaunchIndexProvider({
+  value,
+  liveness,
+  children
+}: {
+  value: AgentLaunchIndex | null
+  /** The runtime liveness task statuses are reconciled against (omitted by hosts without a run). */
+  liveness?: AgentTaskLiveness
+  children: ReactNode
+}) {
   const { t } = useTranslation()
   const presentation = useMemo<AgentResumePresentation>(
     () => ({
@@ -42,7 +61,9 @@ export function AgentLaunchIndexProvider({ value, children }: { value: AgentLaun
   )
   return (
     <AgentLaunchIndexContext value={value}>
-      <AgentResumePresentationContext value={presentation}>{children}</AgentResumePresentationContext>
+      <AgentTaskLivenessContext value={liveness}>
+        <AgentResumePresentationContext value={presentation}>{children}</AgentResumePresentationContext>
+      </AgentTaskLivenessContext>
     </AgentLaunchIndexContext>
   )
 }
@@ -50,6 +71,30 @@ export function AgentLaunchIndexProvider({ value, children }: { value: AgentLaun
 /** Read the list-level launch index (null when no provider is mounted). */
 export function useAgentLaunchIndex() {
   return use(AgentLaunchIndexContext)
+}
+
+/** Read the runtime liveness a row reconciles nonterminal task edges against (undefined without one). */
+export function useAgentTaskLiveness(): AgentTaskLiveness | undefined {
+  return use(AgentTaskLivenessContext)
+}
+
+/**
+ * The liveness a host provides: the assistant rows whose own turn is still pending, plus the
+ * runtime's current background-task membership. Mirrors what the status pane reconciles against.
+ */
+export function useAgentTaskLivenessValue(messages: CherryUIMessage[], sessionId?: string): AgentTaskLiveness {
+  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
+  return useMemo(
+    () => ({
+      activeMessageIds: new Set(
+        messages
+          .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
+          .map((message) => message.id)
+      ),
+      liveBackgroundTaskIds: new Set(backgroundTasks.map((task) => task.id))
+    }),
+    [backgroundTasks, messages]
+  )
 }
 
 /** Read the host's resume presentation (null when the host mounts no Agent launch index). */

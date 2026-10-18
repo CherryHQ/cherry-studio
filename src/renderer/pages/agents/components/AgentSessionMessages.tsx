@@ -5,7 +5,8 @@ import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import {
   AgentLaunchIndexProvider,
-  AskUserQuestionOptimisticInputProvider
+  AskUserQuestionOptimisticInputProvider,
+  useAgentTaskLivenessValue
 } from '@renderer/components/chat/messages/tools/agent'
 import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type {
@@ -190,6 +191,7 @@ const AgentSessionMessages = ({
   // A resume edge can live only in the runtime's live task-event cache; the index decides whether
   // a receipt roots its own flow, so it has to see those edges too.
   const lateTaskEvents = useAgentSessionTaskEvents(sessionId)
+  const liveness = useAgentTaskLivenessValue(messages, sessionId)
 
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
@@ -197,7 +199,8 @@ const AgentSessionMessages = ({
         value={useMemo(
           () => buildAgentLaunchIndex(partsByMessageId, lateTaskEvents),
           [lateTaskEvents, partsByMessageId]
-        )}>
+        )}
+        liveness={liveness}>
         <MessageListProvider value={messageList}>
           <MessageList enableSearch />
         </MessageListProvider>
