@@ -261,12 +261,11 @@ describe('native Claude child authority across a desktop follow-up', () => {
     expect(decisionOf(await fireGuard({ tool_name: SESSION_SEND_TOOL })).permissionDecision).toBe('ask')
   })
 
-  // SubagentStop is not an authoritative termination: the consumed SDK (0.3.284) explicitly lets a
-  // SubagentStop hook continue the same child via additionalContext, so a "stopped" child can still
-  // issue MCP calls. Releasing its binding there would flip those unattributed calls from the
-  // headless denial to the desktop follow-up's interactive stream — auto-approved cross-Session
-  // discovery. The binding survives until the connection resets (children are connection-owned).
-  it('keeps a stopped child’s binding until the connection resets', async () => {
+  // SubagentStop is not an authoritative termination for the BINDING: the consumed SDK (0.3.284)
+  // explicitly lets a SubagentStop hook continue the same child via additionalContext, so the
+  // provenance must survive for a resumed child's own `agent_id` calls. Liveness is tracked
+  // separately: once the child has stopped, an unattributed call is the follow-up's own.
+  it('keeps a stopped child’s provenance while releasing its liveness', async () => {
     beginTurn(true)
     await hook('SubagentStart')(
       { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
@@ -280,13 +279,54 @@ describe('native Claude child authority across a desktop follow-up', () => {
     )
     settleTurn()
 
-    // Desktop follow-up takes the entry and a continue-via-additionalContext call from the
-    // "stopped" child arrives with no per-call provenance.
+    // Desktop follow-up takes the entry.
     beginTurn(false)
-    expect(runtime().getSessionToolsAuthorization(SESSION_ID)).toMatchObject({
+    // The child's own calls still resolve by its bound origin.
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID, NATIVE_CHILD)).toMatchObject({
       currentTurn: 'headless',
       userResponse: 'unavailable'
     })
+    // No live child remains, so an unattributed call belongs to the follow-up's interactive turn.
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID)).toMatchObject({ currentTurn: 'interactive' })
+  })
+
+  // The historical binding must not be revived by unrelated work: a desktop follow-up starting an
+  // ordinary background Bash server re-activates the connection's background slot, but that server
+  // says nothing about whether the OLD headless child is still running.
+  it('does not revive a drained child’s headless denial when unrelated background work starts', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    await hook('SubagentStop')(
+      { hook_event_name: 'SubagentStop', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    beginTurn(false)
+    const entry = (runtime() as unknown as { entries: Map<string, any> }).entries.get(SESSION_ID)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        refreshTraceContext: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      },
+      occupancy: {}
+    }
+    ;(runtime() as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+    aiStreamManager.getInteractionWindow.mockReturnValue('window-1')
+    windowManager.getWindow.mockReturnValue({})
+
+    // The follow-up keeps its own interactive authorization and consent host.
+    expect(runtime().getSessionToolsAuthorization(SESSION_ID)).toMatchObject({ currentTurn: 'interactive' })
+    expect(runtime().getMcpInteractionHost(SESSION_ID)).toMatchObject({ windowId: 'window-1' })
+    // Provenance still names the drained child, so its own calls stay headless.
     expect(runtime().getSessionToolsAuthorization(SESSION_ID, NATIVE_CHILD)).toMatchObject({
       currentTurn: 'headless',
       userResponse: 'unavailable'

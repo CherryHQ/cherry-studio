@@ -772,7 +772,8 @@ describe('AiStreamManager', () => {
       modelId: 'provider-a::model-a',
       request: req(topicId),
       listeners: [new FakeListener('agent-runtime:s1')],
-      carryChannelListeners: true
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set(['task-b'])
     })
     await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
     expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
@@ -845,7 +846,8 @@ describe('AiStreamManager', () => {
       modelId: 'provider-a::model-a',
       request: req(topicId),
       listeners: [new FakeListener('agent-runtime:s1')],
-      carryChannelListeners: true
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set(['task-b'])
     })
     await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
     expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
@@ -853,6 +855,74 @@ describe('AiStreamManager', () => {
     mgr.onChunk(topicId, 'provider-a::model-a', chunk('Subagent summary: 42'))
     await mgr.onExecutionDone(topicId, 'provider-a::model-a')
     expect(sent).toEqual(['Subagent summary: 42'])
+  })
+
+  // A claim settles only the obligations that completed. The fire's stash owed BOTH the subagent
+  // and the server a delivery; consuming the whole stash at the subagent's wake strands the
+  // server's later summary — its wake finds no recipients, and the scheduled sentinel has already
+  // removed itself from the stream.
+  it('keeps the stash for a co-spawned task after the first wake consumes its own obligation', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a', 'task-b']))
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    // task-a settled; the server task-b is still listed. The first wake consumes only task-a's debt.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set(['task-b'])
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Subagent summary: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Subagent summary: 42'])
+
+    // task-b drains later. Its wake must still own the chat, or the server's result has no route.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set())).toBe(true)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(4))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Server output'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Subagent summary: 42', 'Server output'])
   })
 
   // The stash is the wake's ONLY route to channel recipients. A listener still attached to the held

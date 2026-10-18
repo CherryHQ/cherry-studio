@@ -40,7 +40,7 @@ vi.mock('../security/OutputSanitizer', () => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { abort: vi.fn() },
+    AiStreamManager: { abort: vi.fn(), removeListener: vi.fn() },
     AgentSessionRuntimeService: { hasPendingBackgroundWork: vi.fn(() => false) }
   } as never)
 })

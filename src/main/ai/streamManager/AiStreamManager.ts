@@ -161,6 +161,12 @@ export interface StartRuntimeTurnInput {
    * work has drained may claim the stash.
    */
   carryChannelListeners?: boolean
+  /**
+   * The driver's live background task ids at claim time. The claim consumes only the owed ids
+   * absent from it, so a co-spawned task's later wake still owns its own delivery. Omitted means
+   * the whole stash is consumed.
+   */
+  listedBackgroundTaskIds?: ReadonlySet<string>
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -1016,10 +1022,21 @@ export class AiStreamManager extends BaseService {
 
     // Retained recipients were stashed by the fire that owes their delivery; a successor turn that
     // drops them must not re-stash whatever it found, or a served chat rides into an unrelated wake.
-    const owedChannelListeners = input.carryChannelListeners
-      ? (this.pendingChannelListeners.get(input.topicId)?.listeners ?? [])
-      : []
-    if (input.carryChannelListeners) this.pendingChannelListeners.delete(input.topicId)
+    let owedChannelListeners: StreamListener[] = []
+    if (input.carryChannelListeners) {
+      const pending = this.pendingChannelListeners.get(input.topicId)
+      if (pending) {
+        owedChannelListeners = pending.listeners
+        // Consume only the obligations this wake settles: a co-spawned task's later wake still owes
+        // its own delivery, so its debt — and the recipients it needs — stay stashed for it.
+        const remaining = new Set<string>()
+        for (const id of pending.owesTaskIds) {
+          if (input.listedBackgroundTaskIds?.has(id)) remaining.add(id)
+        }
+        if (remaining.size === 0) this.pendingChannelListeners.delete(input.topicId)
+        else this.pendingChannelListeners.set(input.topicId, { listeners: pending.listeners, owesTaskIds: remaining })
+      }
+    }
 
     return this.send({
       topicId: input.topicId,

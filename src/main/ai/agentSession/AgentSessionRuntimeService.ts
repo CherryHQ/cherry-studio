@@ -330,6 +330,13 @@ type AgentSessionRuntimeEntry = {
    * binding lives until the connection resets, the only authoritative termination for its child.
    */
   nativeChildOrigins?: Map<string, boolean>
+  /**
+   * Native children announced and not yet stopped on the current connection. Liveness is separate
+   * from `nativeChildOrigins` (historical provenance for a resumed child): session-wide background
+   * occupancy says nothing about which child it belongs to, so an unrelated interactive task must
+   * not revive a drained headless child's unattributed-call denial.
+   */
+  liveNativeChildren?: Set<string>
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -2836,6 +2843,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Children are connection-owned: the crash that detached this connection killed them, and a
     // successor reconnect must not fail-closed on their stale bindings (same-session turns keep them).
     entry.nativeChildOrigins?.clear()
+    entry.liveNativeChildren?.clear()
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
@@ -3336,6 +3344,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages
       })
     }
+    const wakeClaim = this.wakeClaim(entry)
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
       modelId,
@@ -3352,8 +3361,10 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: receiveOnlyTurn.abortController,
       // The wake delivers the background work's result to whichever chat or scheduled fire spawned
       // it — but only once the stashed obligation's own tasks have drained; another fire's
-      // still-running task in the live set must neither delay nor steal the claim.
-      carryChannelListeners: this.wakeClaimsStashedRecipients(entry),
+      // still-running task in the live set must neither delay nor steal the claim. The live set
+      // rides along so the claim consumes only the tasks that actually completed.
+      carryChannelListeners: wakeClaim.claim,
+      listedBackgroundTaskIds: wakeClaim.listedTaskIds,
       listeners: [
         this.createPersistenceListener(entry, syntheticMessage),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, assistantMessageId),
@@ -3363,16 +3374,19 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Whether this wake may claim the topic's stashed channel recipients. The stash is bound to the
-   * work owing a delivery: it recorded the task ids its fire saw pending, and the claim discharges
-   * once those very ids have left the driver's live set. Session-wide emptiness would strand the
-   * first settler's delivery and let a later unrelated wake post its output to those chats — the
-   * live set legitimately mixes concurrent fires' tasks.
+   * Whether this wake may claim the topic's stashed channel recipients, plus the driver's live task
+   * ids the claim must consume against. The stash is bound to the work owing a delivery: it recorded
+   * the task ids its fire saw pending, and the claim discharges once those very ids have left the
+   * live set. Session-wide emptiness would strand the first settler's delivery and let a later
+   * unrelated wake post its output to those chats — the live set mixes concurrent fires' tasks.
    */
-  private wakeClaimsStashedRecipients(entry: AgentSessionRuntimeEntry): boolean {
+  private wakeClaim(entry: AgentSessionRuntimeEntry): { claim: boolean; listedTaskIds: ReadonlySet<string> } {
     const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
-    const listed = new Set((tasks ?? []).map((task) => task.id))
-    return application.get('AiStreamManager').stashedWakeRecipientsDischarged(entry.topicId, listed)
+    const listedTaskIds = new Set((tasks ?? []).map((task) => task.id))
+    return {
+      claim: application.get('AiStreamManager').stashedWakeRecipientsDischarged(entry.topicId, listedTaskIds),
+      listedTaskIds
+    }
   }
 
   /**
@@ -3634,25 +3648,18 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.headlessNativeChild(entry, bridgeOrigin)
   }
 
-  /** Whether any native Claude child is bound to unattended authority. */
-  private hasHeadlessNativeChild(entry: AgentSessionRuntimeEntry): boolean {
-    for (const headless of entry.nativeChildOrigins?.values() ?? []) {
-      if (headless) return true
-    }
-    return false
-  }
-
   /**
-   * Whether a headless-bound native child may still be running. Bindings are historical provenance —
-   * a finished child's binding must survive so a resumed one keeps its origin — so the
-   * unattributed-call restriction keys on the connection's live background occupancy instead: it is
-   * active whenever the SDK lists work and drops only at the trustworthy idle drain, after held-back
-   * results and the background-agent loop have emptied membership. A drained connection has no child
-   * left to attribute an unprovenanced call to.
+   * Whether a headless-bound native child is still running. Bindings are historical provenance — a
+   * finished child's binding must survive so a resumed one keeps its origin — so the
+   * unattributed-call restriction keys on the separately tracked live membership. Background
+   * occupancy is session-wide and cannot say whose task it is: an unrelated interactive server must
+   * not make a drained headless child look alive again.
    */
   private hasLiveHeadlessNativeChild(entry: AgentSessionRuntimeEntry): boolean {
-    if (!this.hasHeadlessNativeChild(entry)) return false
-    return hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+    for (const nativeSubagentId of entry.liveNativeChildren ?? []) {
+      if (this.headlessNativeChild(entry, nativeSubagentId)) return true
+    }
+    return false
   }
 
   /**
@@ -3681,11 +3688,21 @@ export class AgentSessionRuntimeService extends BaseService {
   bindNativeChildOrigin(sessionId: string, nativeSubagentId: string): void {
     const entry = this.entries.get(sessionId)
     if (!entry) return
+    ;(entry.liveNativeChildren ??= new Set<string>()).add(nativeSubagentId)
     const origins = (entry.nativeChildOrigins ??= new Map<string, boolean>())
     // First binding wins: a later turn waking or resuming the same child must not upgrade it.
     if (origins.has(nativeSubagentId)) return
     const turn = this.currentTurn(entry)
     origins.set(nativeSubagentId, turn === undefined || turn.headless === true)
+  }
+
+  /**
+   * The child stopped running. Its origin binding deliberately stays (a resumed child keeps its
+   * provenance); only liveness drops, so an unrelated task on the shared connection cannot make it
+   * look alive again.
+   */
+  releaseNativeChildLiveness(sessionId: string, nativeSubagentId: string): void {
+    this.entries.get(sessionId)?.liveNativeChildren?.delete(nativeSubagentId)
   }
 
   /** Whether a native child runs under unattended authority. An unbound child fails closed. */

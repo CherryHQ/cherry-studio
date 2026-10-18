@@ -3479,9 +3479,9 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getMcpInteractionHost('session-1', 'agent-a')).toMatchObject({ windowId: 'window-1' })
     })
 
-    // Bindings are historical provenance: after a headless child finishes (membership empties, the
-    // SDK drains idle) its stale binding must not keep a desktop follow-up's unprovenanced root
-    // calls failing closed — only a child still listed on the live connection does that.
+    // Bindings are historical provenance: after a headless child finishes (SubagentStop releases
+    // its liveness, the SDK drains idle) its stale binding must not keep a desktop follow-up's
+    // unprovenanced root calls failing closed — only a still-live child does that.
     it('releases the unattributed-call denial once the headless child’s work drains', () => {
       const service = new AgentSessionRuntimeService()
 
@@ -3507,8 +3507,9 @@ describe('AgentSessionRuntimeService', () => {
       })
       expect(service.getMcpInteractionHost('session-1')).toBeUndefined()
 
-      // The child finished: membership empties and the connection drains idle. The follow-up's own
-      // root calls must no longer inherit the denial.
+      // The child finished: SubagentStop releases its liveness and the connection drains idle. The
+      // follow-up's own root calls must no longer inherit the denial.
+      service.releaseNativeChildLiveness('session-1', 'agent-b')
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({ currentTurn: 'interactive' })
       expect(service.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })

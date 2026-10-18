@@ -877,6 +877,7 @@ export class ChannelMessageHandler {
     })
     let accumulatedText = ''
     const channelListener = new ChannelAdapterListener(adapter, chatId, false, responseOptions)
+    const topicId = buildAgentSessionTopicId(session.id)
     // Same retention rule as the scheduled fire: a settle with this request's background work still
     // pending owes this chat the work's result, stashed with the live task ids as its claim debt.
     const retainForWake = () => {
@@ -884,27 +885,37 @@ export class ChannelMessageHandler {
       const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(session.id))
       application
         .get('AiStreamManager')
-        .stashWakeChannelListeners(
-          buildAgentSessionTopicId(session.id),
-          [channelListener],
-          new Set((tasks ?? []).map((task) => task.id))
-        )
+        .stashWakeChannelListeners(topicId, [channelListener], new Set((tasks ?? []).map((task) => task.id)))
+    }
+    // `startRuntimeTurn` carries ordinary listeners into a queued successor, so a desktop follow-up
+    // must not inherit this request's sentinel — its terminal would retain the external chat against
+    // the follow-up's own background work. Retire it at its own terminal, once.
+    const sentinelId = `channel-completion:${chatId}`
+    let retired = false
+    const retire = (): boolean => {
+      if (retired) return false
+      retired = true
+      application.get('AiStreamManager').removeListener(topicId, sentinelId)
+      return true
     }
     const sentinel: StreamListener = {
-      id: `channel-completion:${chatId}`,
+      id: sentinelId,
       onChunk(chunk) {
         // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
         if (chunk.type === 'text-delta') accumulatedText += chunk.delta
       },
       onDone() {
+        if (!retire()) return
         retainForWake()
         resolveExecution(accumulatedText.trim())
       },
       onPaused() {
+        if (!retire()) return
         retainForWake()
         resolveExecution(accumulatedText.trim())
       },
       onError(result) {
+        if (!retire()) return
         retainForWake()
         rejectExecution(new Error(result.error.message ?? 'Execution failed'))
       },

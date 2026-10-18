@@ -249,12 +249,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
-  // The authorization binding deliberately stays: the SDK lets a SubagentStop hook continue the
-  // same child via additionalContext, so only the connection reset (which killed the child) may
-  // release it — otherwise the continued child's unattributed calls inherit the foreground turn.
+  // The authorization binding deliberately stays (the SDK lets a SubagentStop hook continue the
+  // same child via additionalContext), but liveness drops: an unrelated task on the shared
+  // connection must not make the drained child look alive again.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
     sessionState().disposeBashScope(sessionId, input.agent_id)
+    application.get('AgentSessionRuntimeService').releaseNativeChildLiveness(sessionId, input.agent_id)
     return {}
   }
 

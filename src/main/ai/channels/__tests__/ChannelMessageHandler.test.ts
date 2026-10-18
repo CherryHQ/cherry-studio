@@ -65,15 +65,22 @@ vi.mock('../security/OutputSanitizer', () => ({
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
 // AiStreamManager; the abort path reads it, so override locally with a captured spy.
-const { mockStreamAbort, mockStashWakeChannelListeners, mockHasPendingBackgroundWork } = vi.hoisted(() => ({
-  mockStreamAbort: vi.fn(),
-  mockStashWakeChannelListeners: vi.fn(),
-  mockHasPendingBackgroundWork: vi.fn(() => false)
-}))
+const { mockStreamAbort, mockStashWakeChannelListeners, mockRemoveListener, mockHasPendingBackgroundWork } = vi.hoisted(
+  () => ({
+    mockStreamAbort: vi.fn(),
+    mockStashWakeChannelListeners: vi.fn(),
+    mockRemoveListener: vi.fn(),
+    mockHasPendingBackgroundWork: vi.fn(() => false)
+  })
+)
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { abort: mockStreamAbort, stashWakeChannelListeners: mockStashWakeChannelListeners },
+    AiStreamManager: {
+      abort: mockStreamAbort,
+      stashWakeChannelListeners: mockStashWakeChannelListeners,
+      removeListener: mockRemoveListener
+    },
     AgentSessionRuntimeService: { hasPendingBackgroundWork: mockHasPendingBackgroundWork }
   } as never)
 })
@@ -306,6 +313,50 @@ describe('ChannelMessageHandler', () => {
       [expect.objectContaining({ id: 'channel:channel-1:chat-9:unthreaded' })],
       new Set(['task-inbound-1'])
     )
+  })
+
+  // A desktop follow-up queued during the inbound turn inherits the turn's ordinary listeners via
+  // `startRuntimeTurn`. The completion sentinel belongs to THIS request: if it survived, the
+  // follow-up's terminal would run its retention callback again and bind the external chat to the
+  // follow-up's own background work, posting that work's summary into the chat.
+  it('retires the completion sentinel on its own terminal so a queued follow-up cannot re-stash the chat', async () => {
+    const adapter = createMockAdapter()
+    let sentinel: { id: string; onDone: (result: { status: string }) => void | Promise<void> } | undefined
+    let sessionId = ''
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners, sessionId: id }: any) => {
+      sessionId = id
+      application
+        .get('CacheService')
+        .setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(id), [
+          { id: 'task-inbound-1', type: 'task', description: 'background work' }
+        ])
+      sentinel = listeners.find((listener: { id: string }) => listener.id.startsWith('channel-completion:'))
+      for (const listener of listeners) await listener.onDone({ status: 'success' })
+      return { mode: 'started' }
+    })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-9',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'start it in the background'
+    })
+
+    expect(sentinel).toBeDefined()
+    // The sentinel left the stream at its own terminal, so a successor turn cannot carry it.
+    expect(mockRemoveListener).toHaveBeenCalledWith(`agent-session:${sessionId}`, sentinel!.id)
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledTimes(1)
+
+    // The desktop follow-up now starts its own background work. Even if a stale terminal reaches
+    // the inherited callback, the retired sentinel must not bind the external chat to that work.
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(sessionId), [
+        { id: 'task-desktop-1', type: 'task', description: 'desktop work' }
+      ])
+    await sentinel!.onDone({ status: 'success' })
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledTimes(1)
   })
 
   it('delivers a sanitized terminal reply when admission throws an unexpected error', async () => {
