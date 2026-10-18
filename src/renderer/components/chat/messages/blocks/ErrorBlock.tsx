@@ -54,17 +54,23 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
       : undefined
 
   if (i18n.exists(i18nKey)) {
+    // A persisted failure snapshot outlives the localization key: stage decoration wraps the
+    // localized text instead of being skipped by it.
+    const stage = getFailureStageText(error, t)
     const providerId =
       error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined
     if (providerId && typeof providerId === 'string') {
       return (
-        <Trans
-          i18nKey={i18nKey}
-          values={{ provider: t(getProviderLabelKey(providerId)) }}
-          components={{
-            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
-          }}
-        />
+        <>
+          {stage ? `${stage} ` : ''}
+          <Trans
+            i18nKey={i18nKey}
+            values={{ provider: t(getProviderLabelKey(providerId)) }}
+            components={{
+              provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
+            }}
+          />
+        </>
       )
     }
     // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
@@ -78,12 +84,13 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           | undefined
         return (
           <span>
+            {stage ? `${stage} ` : ''}
             {t(i18nKey)} {t(detailFullKey, detailValues)}
           </span>
         )
       }
     }
-    return t(i18nKey)
+    return stage ? `${stage} ${t(i18nKey)}` : t(i18nKey)
   }
 
   if (i18n.exists(errorKey)) {

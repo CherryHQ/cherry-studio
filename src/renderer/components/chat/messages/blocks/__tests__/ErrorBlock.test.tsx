@@ -473,6 +473,31 @@ describe('ErrorBlock', () => {
       expect(screen.getByText(`${STAGE_LABELS.runtime} No response`)).toBeInTheDocument()
     })
 
+    it('names the stage next to a localized error that carries a failure snapshot', () => {
+      // Attachment-routing errors keep their localization key through serialization and pick up a
+      // failure snapshot during persistence, so the key alone must not suppress the stage.
+      mocks.i18nKeys.add('error.attachment_routing_failed')
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'Error',
+            message: 'attachment_routing_failed',
+            stack: null,
+            i18nKey: 'attachment_routing_failed',
+            executionFailure: {
+              message: 'attachment_routing_failed',
+              retryable: true,
+              failure: { version: 1, reasonCode: 'unknown', source: { layer: 'provider' }, stage: 'parse' }
+            }
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText(new RegExp(`${STAGE_LABELS.parse}\\s`))).toBeInTheDocument()
+    })
+
     it('names the parse stage for an undecodable provider reply', () => {
       render(
         <ErrorBlock
