@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-14-agent-runtime-background-subagent.md
-2026-10-14-agent-runtime-background-subagent.md: c992e6d25fc380ef3f20df34ab49cf984f3736a9
-2026-10-14-agent-runtime-background-subagent.zh.md: 2a0e645859991a11fb1ef3b99b56fceb22f06027
+2026-10-14-agent-runtime-background-subagent.md: 9e0811e567555019b9b49bea04011fc080fdba9b
+2026-10-14-agent-runtime-background-subagent.zh.md: 851ae3305fd443214146b8b6bc11da118e9ee25c
