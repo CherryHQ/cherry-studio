@@ -37,7 +37,9 @@ const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, a
     finalizeHeldTopicStream: vi.fn(async () => undefined),
     clearPendingChannelListeners: vi.fn()
   },
-  windowManager: { getWindow: vi.fn(() => undefined) },
+  // Explicit return type: `vi.fn(() => undefined)` would pin the mock to `undefined` and leave no
+  // way to stand in for a live window. Callers only test the handle for existence.
+  windowManager: { getWindow: vi.fn((): object | undefined => undefined) },
   cacheService: { setShared: vi.fn(), getShared: vi.fn(), deleteShared: vi.fn() },
   warmQueryManager: { closeAll: vi.fn().mockResolvedValue(undefined), closeAgentSessionWarm: vi.fn() },
   analyticsService: { trackTokenUsage: vi.fn() }
