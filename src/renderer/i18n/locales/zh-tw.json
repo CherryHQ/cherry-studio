@@ -4828,6 +4828,8 @@
   "settings.messages.show_message_outline": "顯示訊息大綱",
   "settings.messages.title": "訊息設定",
   "settings.messages.use_serif_font": "使用襯線字型",
+  "settings.messages.user_content.default_expanded.hint": "預設完整顯示較長的使用者訊息。手動展開或收合的訊息會在本次工作階段保留你的選擇。",
+  "settings.messages.user_content.default_expanded.label": "預設展開較長的使用者訊息",
   "settings.messages.wide_mode": "寬版面模式",
   "settings.miniApps.cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
   "settings.miniApps.cache_description": "設定同時保持活躍狀態的小程式最大數量",
