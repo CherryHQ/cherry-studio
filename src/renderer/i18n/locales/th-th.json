@@ -1509,6 +1509,7 @@
   "file_preview.markdown.mode.label": "โหมดมุมมอง Markdown",
   "file_preview.markdown.mode.preview": "พรีวิว",
   "file_preview.markdown.mode.source": "ซอร์ส",
+  "file_preview.markdown.plain_fallback.description": "[to be translated]:This file is shown as plain text because rendering it would slow down the app.",
   "file_preview.markdown.read_error.title": "ไม่สามารถอ่านไฟล์นี้",
   "file_preview.markdown.too_large.description": "ไฟล์ Markdown ที่ใหญ่กว่า {{limit}} MiB ไม่สามารถพรีวิวได้",
   "file_preview.markdown.too_large.title": "ไฟล์ใหญ่เกินไป",
