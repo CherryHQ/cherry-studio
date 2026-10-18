@@ -89,6 +89,8 @@ Status: proposed
 
 宿主通过 `configure` 安装审批处理，并用子会话真实的 session 与 tool-call ID 标识请求。待审批时子会话标为 `awaiting_approval`，审批结束或调用完成后恢复 `running`。应提供 `ToolApprovalEvent.sessionId`，因为不同会话的调用 ID 可能冲突。父会话审批 UI 必须在父会话空闲时仍可用，把反馈路由到请求子会话，并在父轮次结束后保留后台子会话的请求。拒绝只影响该工具调用；无人值守时使用宿主的 unavailable/拒绝路径。批准委派不等于批准子会话的所有工具。
 
+后台子会话的审批交给用户，这是其他产品试过别的做法之后都落到的方案（见 Alternatives considered）。请求显示在父会话中，标明是哪个子会话在请求，该子会话同时等待；每条请求对应一个子会话、逐条确认，不提供一次批准多条。拒绝只拒那一次调用，子会话收到原因后继续。父会话必须看得到 `awaiting_approval`：否则它分不清卡在审批上的子会话和仍在工作的子会话，无人值守的运行会整晚停在那里。goal 运行期间，子会话的审批照常等用户处理；goal 不会自动拒绝或放行它。
+
 [goal 文档](2026-10-11-agent-runtime-goal.md)维护 goal 状态机。没有更高优先级的停止条件时，active 且已武装的 goal 等待后台工作，不变成 blocked，也不写停止快照；进展仍可落盘。投递先于 goal 的 settle 决定执行；该 settle 已选中通知时，不再添加竞争的 goal 轮次提示。
 
 独立通知轮既不是人类回合，也不是 goal 轮。它结束之前轮次的进展边界，不增加 goal 轮数，也不能授权仅人类回合可做的 goal 修改。随人类或 goal 轮开头附带的通知则属于该轮。active 且已武装的 goal 会计入独立通知轮里父会话请求的预算用量。
@@ -111,10 +113,13 @@ active 且已武装的 goal 用完预算后，拒绝新的后台派出和续接�
 - 一视同仁处理所有停止，或允许后来的停止覆盖用户意图：拒绝，因为模型停止允许续接、用户停止禁止续接，而关闭中断不等于用户拒绝。
 - 仅在内存累计 goal 费用、只按子会话 ID 计量，或只在继续轮次时检查预算：拒绝，因为重启、多次运行、重复停止结果、暂停与排队用户输入会导致错误归属，或让超预算工作继续。
 - 从父会话指针重建 fork 历史：暂缓。它能减少重复存储，但会让续接依赖可能已编辑或删除的父分支。
+- 自动拒绝后台子会话的审批、让子会话永不询问或强制自动模式、只允许子会话使用无需确认的工具，或把批准委派当作批准子会话运行的所有工具：拒绝，因为 Claude Code、Codex、Goose 和 Gemini CLI 都放弃过前四种之一，而 Cline 改用最后一种只是因为并发子会话共用一个终端提示，逐条确认每个请求就能避免这一点。
 
 最初的 2026-10-13/14 对比保留了具体故障证据：[Codex #15723](https://github.com/openai/codex/issues/15723) 区分收到结果和唤醒空闲所有者；[Codex #34268](https://github.com/openai/codex/issues/34268) 记录完整历史 fork 导致的存储膨胀；[VS Code #337339](https://github.com/microsoft/vscode/issues/337339) 记录父会话取消后子审批失去路由；[OpenCode #45417](https://github.com/anomalyco/opencode/issues/45417) 记录子会话费用被遗漏。这些证据支撑上述唤醒策略、存储取舍、审批生命周期和费用展示，不代表对上游当前实现的断言。
 
 历史上的 [Claude Code 2.1.178 更新记录](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21178) 记录了子会话结束时丢消息、转后台重跑工作的修复；[2.1.191](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21191) 和 [2.1.211](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21211) 处理用户停止后复活和模型保留；[2.1.280](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21280) 处理迟到消息、压缩导致未读报告丢失，以及重开后自行发起轮次；[2.1.296](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21296) 区分关闭中断和用户拒绝。[Codex #13850](https://github.com/openai/codex/pull/13850) 与 [#41183](https://github.com/openai/codex/pull/41183) 保留另外两项曾考虑的选择：中断不作为终态，以及子会话用量归入根 goal。当前设计把这些故障类型转为本地约束和回归标准，而非复制其他产品的控制接口。
+
+同一份对比还记录了子会话审批的演变。[Claude Code 2.1.186](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21186) 把后台 agent 工具的自动拒绝改为在主会话弹出提示并标明请求的 agent，Esc 只拒绝那一次工具调用。[Codex #11464](https://github.com/openai/codex/pull/11464)（v0.100）让子会话永不询问；[#12767](https://github.com/openai/codex/pull/12767)（v0.105）恢复继承父会话的审批策略，并列出等待审批的线程，[#12995](https://github.com/openai/codex/pull/12995)（v0.110）支持在其他线程中审批子会话的请求。[Goose #12802](https://github.com/aaif-goose/goose/pull/12802) 把强制 Auto 模式改为把审批转发给父回合。Gemini CLI 从[只允许无需确认的工具白名单](https://github.com/google-gemini/gemini-cli/blob/v0.10.0/packages/core/src/agents/executor.ts#L698-L728)改为[把确认冒泡到主界面](https://github.com/google-gemini/gemini-cli/blob/51617c1bcbcb038291125b092501b4342f4e7f77/packages/core/src/agents/local-executor.ts#L170-L216)。[Cline 3.0.63](https://github.com/cline/cline/blob/ed469c753a0d7a0d41f906cf3fc75a983cd766ac/apps/cli/CHANGELOG.md#L99) 走了另一条路：委派获批后不再询问已配置子智能体的工具，原因是并发子会话共用一个终端提示，按一次 `y` 可能批准多项操作；Cherry 改为逐条确认每个子会话的请求。[Claude Code #99887](https://github.com/anthropics/claude-code/issues/99887) 记录了父会话看不到子会话卡在审批上，导致无人值守的运行整晚停住。
 
 ## Acceptance criteria
 
@@ -140,7 +145,7 @@ active 且已武装的 goal 用完预算后，拒绝新的后台派出和续接�
 
 关闭切断的工作无法区分正常退出与崩溃；没有已结束运行记录时，恢复通知的用量可能为零。逐次运行回复总量和延迟送达的结果不能构成严格的实时费用上限。已经排队的消息可能被后续停止丢弃。停止被接受不代表已结束，通知被提交也不证明模型在中止前已经消费它。
 
-审批事件缺少会话身份且调用 ID 冲突时无法区分来源。共享工作目录没有写冲突隔离。当前禁止子会话直接提问、缺少全部停止 UI，以及关闭缓存保温，都是本次接入接受的限制。维护自有扩展仍需持续跟进 Pi 兼容性。
+审批事件缺少会话身份且调用 ID 冲突时无法区分来源。共享工作目录没有写冲突隔离。等待用户的审批是接受的代价：goal 运行期间，子会话待处理的审批会让该子会话，以及等待它的 goal，一直停到有人处理；无人值守的运行无法使用需要审批的工具。当前禁止子会话直接提问、缺少全部停止 UI，以及关闭缓存保温，都是本次接入接受的限制。维护自有扩展仍需持续跟进 Pi 兼容性。
 
 ## Current evidence
 
