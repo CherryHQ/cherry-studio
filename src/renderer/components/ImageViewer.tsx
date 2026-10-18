@@ -21,6 +21,7 @@ import {
   getImageBlobFromSource,
   transformImageToPng
 } from '@renderer/utils/image'
+import { isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 export { copyImageToClipboard } from '@renderer/utils/image'
@@ -278,6 +279,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         <ImagePreviewDialog
           actions={contextActions}
           activeIndex={activeIndex}
+          className={isWin ? '[--image-preview-titlebar-height:env(titlebar-area-height,0px)]' : undefined}
           items={items}
           labels={labels}
           onActionError={onActionError}
