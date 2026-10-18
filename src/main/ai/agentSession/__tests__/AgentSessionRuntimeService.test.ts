@@ -766,6 +766,16 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.hasBusySessions()).toBe(true)
     })
 
+    it('names the agent a live turn still executes for after the session row switches', () => {
+      const service = new AgentSessionRuntimeService()
+      // The top-bar switch re-points the row while the turn runs; adoption waits for the boundary.
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      service.beginTurn(baseTurnInput)
+
+      expect(service.listSessionIdsByExecutingAgent('agent-1')).toEqual(['session-1'])
+      expect(service.listSessionIdsByExecutingAgent('agent-2')).toEqual([])
+    })
+
     it('is false once a turn settles with no queued follow-ups', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

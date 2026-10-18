@@ -1469,6 +1469,18 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.isSessionBusy(sessionId) || Boolean(entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
   }
 
+  /**
+   * Session ids whose runtime still executes for `agentId`: a live turn keeps the agent that
+   * started it after a top-bar switch re-points the row, and detached work keeps its author.
+   */
+  listSessionIdsByExecutingAgent(agentId: string): string[] {
+    const sessionIds: string[] = []
+    for (const [sessionId, entry] of this.entries) {
+      if (entry.agentId === agentId || entry.backgroundAuthor?.agentId === agentId) sessionIds.push(sessionId)
+    }
+    return sessionIds
+  }
+
   /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
   getTurnTrustedNotifyChannels(sessionId: string): readonly NotifyChannel[] | undefined {
     const entry = this.entries.get(sessionId)
