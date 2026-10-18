@@ -53,6 +53,7 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 import { getPartCherryString, getPartParentToolCallId } from '../toolParentMetadata'
 import type { ToolDisclosureItem } from './ToolDisclosure'
@@ -438,6 +439,17 @@ export interface AgentLaunchIndex {
    * owning its content, so only dsh's own binding is trusted here.
    */
   dshTaskRootCallIds: ReadonlySet<string>
+  /**
+   * Task id each call id is bound to, first binding wins. A launch whose child has task edges maps
+   * to the child even when the launch's own edge never loaded, so a cold-resumed child keeps
+   * answering through the row that still names it.
+   */
+  taskIdByCallId: ReadonlyMap<string, string>
+  /**
+   * Latest lifecycle edge per task id, folded from the loaded parts and then the live cache — in
+   * that order, so the fold assumes `partsByMessageId` iterates in message order.
+   */
+  latestTaskEventByTaskId: ReadonlyMap<string, AgentTaskEventPartData>
 }
 
 /** Shared default so every no-argument call reads the same identity and hits the cache below. */
@@ -474,14 +486,32 @@ function computeAgentLaunchIndex(
   const taskBoundCallIds = new Set<string>()
   const dshResumeCallIds = new Set<string>()
   const dshTaskRootCallIds = new Set<string>()
+  const taskIdByCallId = new Map<string, string>()
+  const latestTaskEventByTaskId = new Map<string, AgentTaskEventPartData>()
+  const applyTaskEvent = (data: AgentTaskEventPartData): void => {
+    if (data.toolUseId && !taskIdByCallId.has(data.toolUseId)) taskIdByCallId.set(data.toolUseId, data.taskId)
+    latestTaskEventByTaskId.set(data.taskId, {
+      ...data,
+      status: resolveTaskStatusAfter(latestTaskEventByTaskId.get(data.taskId)?.status, data)
+    })
+  }
   if (!partsByMessageId)
-    return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds, dshTaskRootCallIds }
+    return {
+      toolCallIds,
+      launchesByAgentId,
+      descriptionsByToolCallId,
+      childRootCallIds,
+      dshTaskRootCallIds,
+      taskIdByCallId,
+      latestTaskEventByTaskId
+    }
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
       // Task events are data parts, so the call a task is bound to is read before the tool-part gate.
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
         if (part.data.toolUseId) taskBoundCallIds.add(part.data.toolUseId)
+        applyTaskEvent(part.data)
         continue
       }
       // Child content is text and reasoning parts, not tool parts, so the parent link is read
@@ -520,11 +550,50 @@ function computeAgentLaunchIndex(
   }
   for (const data of Object.values(lateTaskEvents)) {
     if (data.toolUseId) taskBoundCallIds.add(data.toolUseId)
+    applyTaskEvent(data)
   }
   for (const callId of taskBoundCallIds) {
     if (dshResumeCallIds.has(callId)) dshTaskRootCallIds.add(callId)
   }
-  return { toolCallIds, launchesByAgentId, descriptionsByToolCallId, childRootCallIds, dshTaskRootCallIds }
+  // A launch answers through the child it launched: a cold-resumed child's task moves to the
+  // resume call, so the launch's own call would otherwise resolve no status at all.
+  for (const [agentId, launch] of launchesByAgentId) {
+    if (latestTaskEventByTaskId.has(agentId) && !taskIdByCallId.has(launch.toolCallId)) {
+      taskIdByCallId.set(launch.toolCallId, agentId)
+    }
+  }
+  return {
+    toolCallIds,
+    launchesByAgentId,
+    descriptionsByToolCallId,
+    childRootCallIds,
+    dshTaskRootCallIds,
+    taskIdByCallId,
+    latestTaskEventByTaskId
+  }
+}
+
+const TERMINAL_TASK_STATUSES = new Set<NonNullable<AgentTaskEventPartData['status']>>(['completed', 'stopped', 'error'])
+
+/**
+ * The status a lifecycle edge leaves behind: a settled task only revives when a new run starts.
+ * Events reach consumers from two orderings (parts, then the live cache), so a stale
+ * pre-completion edge can apply after the completion did.
+ */
+export function resolveTaskStatusAfter(
+  existing: AgentTaskEventPartData['status'] | undefined,
+  data: AgentTaskEventPartData
+): AgentTaskEventPartData['status'] {
+  const incoming = data.status ?? existing ?? 'pending'
+  if (
+    existing &&
+    TERMINAL_TASK_STATUSES.has(existing) &&
+    !TERMINAL_TASK_STATUSES.has(incoming) &&
+    data.event !== 'started'
+  ) {
+    return existing
+  }
+  return incoming
 }
 
 /**
@@ -559,15 +628,24 @@ export function resolveResumeReceiptState(
   if (isDeferredToolOutput(output)) return canNavigate ? { kind: 'self' } : { kind: 'labelled' }
   const resumedAgentId = getResumedAgentId(output)
   const launch = resumedAgentId ? launchIndex?.launchesByAgentId.get(resumedAgentId) : undefined
+  // A dsh child keeps the root it was resumed under — the runtime rebinds its task to that call —
+  // so a later send must open that root: the historical launch misses the rounds resumed under it.
+  const retainedRoot = resumedAgentId ? launchIndex?.latestTaskEventByTaskId.get(resumedAgentId)?.toolUseId : undefined
+  const retained = retainedRoot && launchIndex?.dshTaskRootCallIds.has(retainedRoot) ? retainedRoot : undefined
   // The stamp resolves without scanning, but it must land inside the loaded window — a paged-out
   // launch root would open an empty flow pane. When the output carries no identity (a receipt
   // whose result is still a deferred envelope) the stamp is the only correlation there is.
   const stamped = launchToolCallId && launchIndex?.toolCallIds.has(launchToolCallId) ? launchToolCallId : undefined
-  const toolCallId = stamped ?? launch?.toolCallId
+  const toolCallId = retained ?? stamped ?? launch?.toolCallId
   if (toolCallId) {
     // The label comes from the same launch as the target: a stale stamp must not pair one launch's
-    // id with another's description.
-    return { kind: 'navigable', toolCallId, description: launchIndex?.descriptionsByToolCallId.get(toolCallId) }
+    // id with another's description. A retained root has no entry of its own, so the identity
+    // still comes from the launch the child was born under.
+    return {
+      kind: 'navigable',
+      toolCallId,
+      description: launchIndex?.descriptionsByToolCallId.get(toolCallId) ?? launch?.description
+    }
   }
   // Nothing names where this receipt resumed from, so it is the flow: redirecting it to a launch
   // root would show that launch's flow, which may hold none of this receipt's content.

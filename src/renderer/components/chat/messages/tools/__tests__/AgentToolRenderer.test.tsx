@@ -1508,6 +1508,145 @@ describe('AgentToolRenderer', () => {
       })
     })
 
+    // The runtime keeps a resumed child under the call that first resumed it, so a later send must
+    // open that root — the historical launch would miss the rounds resumed under it.
+    it('opens the retained resume root from a later send', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'subagent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer' },
+            output: 'started subagent dsh-child-1',
+            callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-resume-1',
+            toolName: 'send_message',
+            state: 'output-available',
+            input: { agent_id: 'dsh-child-1' },
+            output: 'message delivered to agent dsh-child-1',
+            callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+          },
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'started', taskId: 'dsh-child-1', toolUseId: 'call-resume-1', status: 'in_progress' }
+          }
+        ],
+        m2: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-resume-2',
+            toolName: 'send_message',
+            state: 'output-available',
+            input: { agent_id: 'dsh-child-1' },
+            output: 'message delivered to agent dsh-child-1',
+            callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-resume-2',
+        arguments: { agent_id: 'dsh-child-1', message: 'keep going' },
+        response: 'message delivered to agent dsh-child-1'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /Inspect renderer/ }))
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-resume-1',
+        toolName: 'SendMessage',
+        title: 'Inspect renderer'
+      })
+    })
+
+    // The launch can be paged out while the resumed content stays loaded under the receipt; its
+    // proven local root must keep the row clickable, or chat loses navigation entirely.
+    it('keeps a receipt clickable when its launch is outside the loaded window', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-resume-1',
+            toolName: 'send_message',
+            state: 'output-available',
+            input: { agent_id: 'dsh-child-1' },
+            output: 'message delivered to agent dsh-child-1',
+            callProviderMetadata: { cherry: { transport: 'dsh-agent' } }
+          },
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'started', taskId: 'dsh-child-1', toolUseId: 'call-resume-1', status: 'in_progress' }
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-resume-1',
+        arguments: { agent_id: 'dsh-child-1', message: 'keep going' },
+        response: 'message delivered to agent dsh-child-1'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /keep going/ }))
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-resume-1',
+        toolName: 'SendMessage',
+        title: 'keep going'
+      })
+    })
+
+    // A continuation row answers through its flow root: while the child runs again the row must
+    // show that, not the delivery receipt's own done status.
+    it('shows a continuation row running while its child is resumed', () => {
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow: vi.fn() })
+      mockPartsMap.mockReturnValue({
+        m1: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-launch',
+            toolName: 'Agent',
+            state: 'output-available',
+            input: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+            output: "done. agentId: agent-77 (internal metadata. Use SendMessage with to: 'agent-77')"
+          },
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'notification', taskId: 'agent-77', toolUseId: 'call-launch', status: 'completed' }
+          }
+        ],
+        m2: [
+          {
+            type: 'data-agent-task-event',
+            data: { event: 'started', taskId: 'agent-77', toolUseId: 'call-launch', status: 'in_progress' }
+          }
+        ]
+      })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-resume',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { success: true, message: 'resumed from transcript in the background', resumedAgentId: 'agent-77' }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('message.tools.status.running')).toBeVisible()
+    })
+
     // The continue-handling label must not gate on resolution (B-label enhacement), but the click
     // must: an unresolved resume would otherwise open the receipt's own empty flow.
     it('shows no continuation affordance for an unresolvable receipt in a navigable host', () => {

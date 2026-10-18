@@ -68,7 +68,8 @@ import {
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
   SessionResultCards,
-  getSubagentTaskStatus
+  getSubagentTaskStatus,
+  getSubagentTaskStatusFromIndex
 } from '../tools/agent'
 import { useAgentLaunchIndex, resolveAgentToolFlowTarget } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
@@ -1691,9 +1692,17 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const subagentStatuses = subagentEntries.map(({ part, index }) => {
     const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
-    return response
-      ? (getSubagentTaskStatus(messageParts, response.toolCallId, response.status) ?? response.status)
-      : undefined
+    if (!response) return undefined
+    // The row answers through the flow root it opens — a continuation's child keeps running under
+    // that root, whose lifecycle can live outside this message's parts.
+    const taskStatus = launchIndex
+      ? getSubagentTaskStatusFromIndex(
+          launchIndex,
+          resolveAgentToolFlowTarget(response, launchIndex, true),
+          response.status
+        )
+      : getSubagentTaskStatus(messageParts, response.toolCallId, response.status)
+    return taskStatus ?? response.status
   })
   const completedSubagents = subagentStatuses.filter((status) => status === 'done').length
   const failedSubagents = subagentStatuses.filter((status) => status === 'error').length

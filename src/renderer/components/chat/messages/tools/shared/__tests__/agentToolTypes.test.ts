@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { getSubagentTaskStatusFromIndex } from '../../agent/subagentStatus'
 import {
   buildAgentLaunchIndex,
   extractLaunchReceiptId,
@@ -171,6 +172,73 @@ describe('dsh receipt identities', () => {
     expect(buildAgentLaunchIndex(parts).dshTaskRootCallIds.size).toBe(0)
   })
 
+  it('folds a resumed run back to running and keeps a stale progress edge settled', () => {
+    const launch = launchPart('call-launch', 'agent-77', 'Inspect renderer')
+    const settled = buildAgentLaunchIndex({
+      m1: [
+        launch,
+        taskEvent({ event: 'notification', taskId: 'agent-77', toolUseId: 'call-launch', status: 'completed' }),
+        // A stale pre-completion edge can apply after the completion did — parts then the cache.
+        taskEvent({ event: 'progress', taskId: 'agent-77', toolUseId: 'call-launch', status: 'in_progress' })
+      ]
+    })
+    expect(getSubagentTaskStatusFromIndex(settled, 'call-launch', 'done')).toBe('done')
+
+    // A new run's start is the one edge that revives a settled task.
+    const resumed = buildAgentLaunchIndex(
+      {
+        m1: [
+          launch,
+          taskEvent({ event: 'notification', taskId: 'agent-77', toolUseId: 'call-launch', status: 'completed' })
+        ]
+      },
+      {
+        'agent-77': { event: 'started', taskId: 'agent-77', toolUseId: 'call-launch', status: 'in_progress' }
+      }
+    )
+    expect(getSubagentTaskStatusFromIndex(resumed, 'call-launch', 'done')).toBe('invoking')
+  })
+
+  it('answers a launch through its child when the task moved to the resume call', () => {
+    const launch = launchPart('call-launch', 'agent-77', 'Inspect renderer')
+    const index = buildAgentLaunchIndex(
+      { m1: [launch] },
+      { 'agent-77': { event: 'started', taskId: 'agent-77', toolUseId: 'call-resume', status: 'in_progress' } }
+    )
+
+    expect(getSubagentTaskStatusFromIndex(index, 'call-launch', 'done')).toBe('invoking')
+  })
+
+  it('routes a later send through the root the child was resumed under', () => {
+    const launch = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-launch',
+      toolName: 'subagent',
+      state: 'output-available',
+      input: { description: 'Audit the renderer' },
+      output: 'started subagent dsh-child-1'
+    } as unknown as CherryMessagePart
+    const index = buildAgentLaunchIndex(
+      { m1: [launch, dshSendMessagePart('call-resume-1')], m2: [dshSendMessagePart('call-resume-2')] },
+      {
+        'dsh-child-1': {
+          event: 'started',
+          taskId: 'dsh-child-1',
+          toolUseId: 'call-resume-1',
+          status: 'in_progress'
+        }
+      }
+    )
+
+    // The runtime keeps the child under the first resume call, so the later send must open that
+    // root — the historical launch would miss the rounds resumed under it.
+    expect(resolveResumeReceiptState('message delivered to agent dsh-child-1', undefined, index, true)).toEqual({
+      kind: 'navigable',
+      toolCallId: 'call-resume-1',
+      description: 'Audit the renderer'
+    })
+  })
+
   it('keeps a send that has not returned yet out of the flow entries', () => {
     // Nothing has resumed while the call is in flight, so the row must stay plain rather than
     // offering a flow whose content cannot exist yet.
@@ -222,4 +290,8 @@ function launchPart(
     input: input ?? { description, prompt: description },
     output: `done. agentId: ${agentId} (internal metadata. Use SendMessage with to: '${agentId}')`
   } as unknown as CherryMessagePart
+}
+
+function taskEvent(data: Record<string, unknown>): CherryMessagePart {
+  return { type: 'data-agent-task-event', data } as unknown as CherryMessagePart
 }
