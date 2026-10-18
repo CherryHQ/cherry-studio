@@ -329,6 +329,25 @@ describe('translateLegacyMcpToolRules', () => {
       'mcp__U__x__run'
     ])
   })
+
+  it('normalizes the rewritten key onto the segment the Claude SDK actually invokes', () => {
+    // The SDK derives tool names from the server record key by replacing every character
+    // outside [A-Za-z0-9_] with an underscore (`Docs MCP` → `Docs_MCP`). The live policy must
+    // emit that form — an entry spelling the raw key names a tool the SDK never serves, so the
+    // exact-match denial silently lapses under Full Access.
+    const withSpace = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Docs MCP']])
+    expect(translateLegacyMcpToolRules(['mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'], withSpace)).toEqual([
+      'mcp__Docs_MCP__run'
+    ])
+    // An id-keyed server registers under its hyphenated id, which the SDK underscores too: the
+    // raw string is still that server's current-form rule (and Pi's verbatim serverId form), so
+    // both forms emit.
+    const hyphenated = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']])
+    expect(translateLegacyMcpToolRules(['mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'], hyphenated)).toEqual([
+      'mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run',
+      'mcp__aaaaaaaa_aaaa_4aaa_8aaa_aaaaaaaaaaaa__run'
+    ])
+  })
 })
 
 describe('translateMcpToolRulesToRuntimeNames', () => {
@@ -833,6 +852,27 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         reservedKeys: RESERVED
       })
     ).toEqual([entry, 'mcp__srvB_abc123def456', 'mcp__srv-b_abc123def456'])
+  })
+
+  it('keeps a denial that doubles as another mounted server native id identity', () => {
+    // A's configured name equals B's id in Pi's registered segment form (hyphens underscored),
+    // so A claims that key while Pi still registers B under `mcp__<b id underscored>__run`
+    // verbatim. Disabling B saved that native identity; renaming A must migrate A's rule but
+    // keep the string — it is B's registered name, and dropping it re-enables B's tool on Pi.
+    const idB = 'cccccccc-dddd-4eee-8fff-000000000000'
+    const piForm = idB.replace(/-/g, '_')
+    const saved = `mcp__${piForm}__run`
+    expect(
+      migrateAgentDisabledToolsForServerRename([saved], {
+        mountedServers: [
+          { mcpId: 'srv-a', name: piForm },
+          { mcpId: idB, name: 'bee' }
+        ],
+        renamedServerId: 'srv-a',
+        toName: 'other',
+        reservedKeys: RESERVED
+      })
+    ).toEqual([saved, 'mcp__other__run'])
   })
 })
 

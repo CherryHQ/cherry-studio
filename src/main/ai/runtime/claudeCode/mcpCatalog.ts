@@ -16,7 +16,7 @@ import {
   type McpServerSnapshotMap,
   resolveMountedAgentMcpServers
 } from '@main/ai/runtime/agentMcpServers'
-import { toCamelCase } from '@shared/ai/tools/mcpToolName'
+import { toCamelCase, toSdkMcpServerSegment } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -185,10 +185,17 @@ export async function buildMcpToolMetadata(
   const metadataByName: Record<string, McpToolDisplayMetadata> = {}
   // Exact runtime names claim first: every tool gets its own `mcp__<key>__<tool>` entry
   // before any alias exists, so one tool's camelized alias can never take another tool's
-  // exact name (`search_docs` + `searchDocs` on one server).
+  // exact name (`search_docs` + `searchDocs` on one server). The SDK derives its invoked
+  // name from the record key by underscoring non-identifier characters (`Docs MCP` →
+  // `Docs_MCP`), so that segment form is registered alongside the raw key.
   for (const { server, key, tools } of mounted) {
     for (const tool of tools) {
       addMcpToolMetadataAlias(metadataByName, `mcp__${key}__${tool.name}`, toMcpToolMetadata(server, tool))
+      addMcpToolMetadataAlias(
+        metadataByName,
+        `mcp__${toSdkMcpServerSegment(key)}__${tool.name}`,
+        toMcpToolMetadata(server, tool)
+      )
     }
   }
   // Compatibility aliases: camelized key forms, catalog id, uuid forms, raw/camel name forms.

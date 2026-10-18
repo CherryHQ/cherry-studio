@@ -263,6 +263,37 @@ describe('McpServerService', () => {
       expect(agent.disabledTools).toEqual(['mcp__oldServer__run_4f7413c24ae4', 'mcp__newServer__run_4f7413c24ae4'])
     })
 
+    it('keeps a denial that doubles as another mounted server native Pi identity through a rename', async () => {
+      // A's configured name equals B's id in Pi's registered segment form (hyphens underscored):
+      // A claims that key, B registers natively under `mcp__<b id underscored>__run`, and the
+      // saved denial for B spells exactly that string. Renaming A must migrate A's rule while
+      // retaining B's identity — interpreting the string as A's old-name rule alone would drop
+      // it and re-enable B's tool on Pi after reconnect.
+      const idB = 'cccccccc-dddd-4eee-8fff-000000000000'
+      const piForm = idB.replace(/-/g, '_')
+      await seedServer({ id: 'srv-a', name: piForm })
+      await seedServer({ id: idB, name: 'bee' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-native-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: [`mcp__${piForm}__run`]
+      })
+      await dbh.db.insert(agentMcpServerTable).values([
+        { agentId: 'agent-1', mcpServerId: 'srv-a' },
+        { agentId: 'agent-1', mcpServerId: idB }
+      ])
+
+      mcpServerService.update('srv-a', { name: 'other' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      // B's native identity survives alongside A's migrated configured-name rule.
+      expect(agent.disabledTools).toEqual([`mcp__${piForm}__run`, 'mcp__other__run'])
+    })
+
     it('keeps an explicitly submitted disabledTools list on a combined rename update', async () => {
       // A PATCH carrying both name and disabledTools owns the list: migrating the stored rules
       // over it would silently discard the requested denial.

@@ -146,6 +146,16 @@ export type McpFunctionCallToolNameParts = {
 }
 
 /**
+ * The Claude Agent SDK derives MCP tool names from the server record key by replacing every
+ * character outside `[A-Za-z0-9_]` with an underscore (`Docs MCP` → `Docs_MCP`, hyphenated ids
+ * included). Policy identities that name SDK-served tools must use this segment form — an entry
+ * spelling the raw key names a tool the SDK never invokes, so an exact-match denial lapses.
+ */
+export function toSdkMcpServerSegment(key: string): string {
+  return key.replace(/[^A-Za-z0-9_]/g, '_')
+}
+
+/**
  * Saved agent-level denials written while MCP tools were keyed by server id (`mcp__<uuid>__tool`)
  * no longer match runtime names derived from the configured server name. Rewrite each legacy rule
  * whose server segment is a known id into the current server key; name-form rules (and rules naming
@@ -154,7 +164,8 @@ export type McpFunctionCallToolNameParts = {
  *
  * A configured name can extend another server's id (`U__x`): the saved string is then also that
  * server's current-form rule, so the rewrite emits both forms — stripping the literal form would
- * remove an explicit denial from the server that owns it under an exact-match policy.
+ * remove an explicit denial from the server that owns it under an exact-match policy. The
+ * rewritten form carries the SDK-normalized key segment (see {@link toSdkMcpServerSegment}).
  */
 export function translateLegacyMcpToolRules(
   rules: readonly string[] | null | undefined,
@@ -168,7 +179,7 @@ export function translateLegacyMcpToolRules(
     if (delimiterIndex <= 0) return [rule]
     const mapped = serverNameById.get(rest.slice(0, delimiterIndex))
     if (mapped === undefined) return [rule]
-    const rewritten = `mcp__${mapped}${rest.slice(delimiterIndex)}`
+    const rewritten = `mcp__${toSdkMcpServerSegment(mapped)}${rest.slice(delimiterIndex)}`
     if (rewritten === rule) return [rule]
     const nameFormOwner = [...mountedKeys].some((key) => rest.startsWith(`${key}__`))
     return nameFormOwner ? [rule, rewritten] : [rewritten]
@@ -484,7 +495,7 @@ export function migrateAgentDisabledToolsForServerRename(
       fromIsId: oldKey === sanitizeAgentServerKey(mcpId)
     })
   }
-  return applyAgentKeyRewrites(disabledTools, rewrites)
+  return applyAgentKeyRewrites(disabledTools, rewrites, collectMountedIdSegments(input.mountedServers))
 }
 
 export interface AgentAllocationChangeInput {
@@ -540,7 +551,29 @@ export function migrateAgentDisabledToolsForAllocationChange(
     })
   }
   if (rewrites.length === 0) return undefined
-  return applyAgentKeyRewrites(disabledTools, rewrites)
+  return applyAgentKeyRewrites(disabledTools, rewrites, collectMountedIdSegments(input.oldMountedServers))
+}
+
+/**
+ * Every segment form a mounted server's id registers under: the raw sanitized id (agent-level
+ * key forms and Claude's legacy-rule translation) and the SDK/Pi-normalized form (non-identifier
+ * characters underscored — Pi names servers by their id and matches the registered tool name
+ * verbatim). An entry carrying one of these segments is that server's native registered
+ * identity, so a rewrite must never strip it even when the segment also spells another server's
+ * old configured-name key.
+ *
+ * Computed from the PRE-change mount set only: a server entering in the new set has no denial
+ * written before it existed, so a segment spelling its id is purely the displaced owner's old
+ * configured-name rule and must move off it (blocking the newcomer's tool in its place would
+ * be exactly the mis-attribution the allocation migration exists to fix).
+ */
+function collectMountedIdSegments(servers: ReadonlyArray<MountedServerRef>): Set<string> {
+  const segments = new Set<string>()
+  for (const { mcpId } of servers) {
+    segments.add(sanitizeAgentServerKey(mcpId))
+    segments.add(toSdkMcpServerSegment(mcpId))
+  }
+  return segments
 }
 
 /**
@@ -560,7 +593,8 @@ export function migrateAgentDisabledToolsForAllocationChange(
  * be another server's exact denial. Plain entries move verbatim onto the new key (plus the
  * camelized alias a `camelToKey` rewrite carries), except an id-keyed original stays: Pi
  * registers servers under their id and matches `mcp__<id>__tool` verbatim at any tool length,
- * so that form is the one denial Pi still matches after every reallocation.
+ * so that form is the one denial Pi still matches after every reallocation — including when
+ * the entry's segment doubles as another server's old configured-name key.
  *
  * A truncated DSH identity (`mcp__<50 fused chars>_<12hex>` — a long server key pushes the
  * `__` delimiter and the tool fragment past the retention cap, so no delimiter survives) is
@@ -569,7 +603,8 @@ export function migrateAgentDisabledToolsForAllocationChange(
  */
 function applyAgentKeyRewrites(
   disabledTools: readonly string[],
-  rewrites: ReadonlyArray<AgentKeyRewrite>
+  rewrites: ReadonlyArray<AgentKeyRewrite>,
+  idSegments: ReadonlySet<string> = new Set()
 ): string[] | undefined {
   const rewriteHashed = (toolPart: string, targetKey: string): string[] => {
     const targets = new Set<string>([toCamelCase(targetKey)])
@@ -605,12 +640,14 @@ function applyAgentKeyRewrites(
           const targets = new Set<string>([`mcp__${matched.toKey}__${toolPart}`])
           targets.add(`mcp__${matched.camelToKey ?? matched.toKey}__${toCamelCase(toolPart)}`)
           replacements = [...targets]
-          // An id-keyed original is Pi's stable alias (Pi registers servers under their id and
-          // matches `mcp__<id>__tool` verbatim at any tool length), so it must survive the
-          // migration: the copies cannot regenerate a bounded long-tool identity, and dropping
-          // the original removes the only form Pi still matches. An id is never reassigned to
-          // a different server, so the kept original cannot over-block.
-          keepOriginal = matched.fromIsId === true
+          // An id-keyed original is a native registered identity (Pi registers servers under
+          // their id and matches `mcp__<id>__tool` verbatim at any tool length), so it must
+          // survive the migration: the copies cannot regenerate a bounded long-tool identity,
+          // and dropping the original removes the only form Pi still matches. This includes an
+          // entry whose segment merely SPELLS another server's old configured-name key — it is
+          // still that other server's native id form, and an id is never reassigned to a
+          // different server, so the kept original cannot over-block.
+          keepOriginal = matched.fromIsId === true || idSegments.has(serverPart)
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = rewriteHashed(toolPart, lossyMatched.toKey)
           keepOriginal = true

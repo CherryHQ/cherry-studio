@@ -246,7 +246,7 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
   })
 
-  it('keeps the newest policy when an older rebuild completes late', async () => {
+  it('applies overlapping updates in submission order so the newest policy wins', async () => {
     // Construction runs one rebuild against the default (immediately-resolved) mock.
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
     const baselineCalls = mocks.listMcpTools.mock.calls.length
@@ -257,20 +257,46 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
       .mockImplementationOnce(() => firstCatalog.promise)
       .mockImplementationOnce(() => secondCatalog.promise)
 
-    // Older update disables Bash; newer update re-enables it. The newer one resolves FIRST.
+    // Older update disables Bash; newer update re-enables it. Updates serialize: the newer
+    // rebuild starts only after the older one completes, so the final policy is the newest
+    // update and a slow older rebuild can never clobber it.
     const olderUpdate = snapshot.update(makeAgent(['Bash'], ['mcp-1']))
     const newerUpdate = snapshot.update(makeAgent([], ['mcp-1']))
 
+    firstCatalog.resolve([])
     await vi.waitFor(() => expect(mocks.listMcpTools).toHaveBeenCalledTimes(baselineCalls + 2))
     secondCatalog.resolve([])
-    await newerUpdate
+    await Promise.all([olderUpdate, newerUpdate])
     expect(snapshot.isDisabled('Bash')).toBe(false)
+  })
 
-    // The older (disabling) rebuild now completes late — the sequence guard must drop it so it can't
-    // clobber the newer policy and re-disable Bash.
-    firstCatalog.resolve([])
-    await olderUpdate
-    expect(snapshot.isDisabled('Bash')).toBe(false)
+  it('lands a preserved-denial update that overlaps a same-connection catalog refresh', async () => {
+    // A rename reconcile retains the old identity (the active connection still serves it while
+    // its replacement is deferred). A live catalog refresh fires while that rebuild is still
+    // awaiting its catalog: serialization must let the reconcile land its retention BEFORE the
+    // refresh runs, or the refresh drops the retained denial and the still-mounted pre-rename
+    // tool becomes executable under Full Access.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
+
+    const renameCatalog = createDeferred<[]>()
+    const refreshCatalog = createDeferred<[]>()
+    mocks.listMcpTools
+      .mockImplementationOnce(() => renameCatalog.promise)
+      .mockImplementationOnce(() => refreshCatalog.promise)
+
+    const renameReconcile = snapshot.update(makeAgent(['mcp__github__run'], ['mcp-1']), {
+      preserveDenied: ['mcp__docs__run']
+    })
+    const catalogRefresh = snapshot.update(makeAgent(['mcp__github__run'], ['mcp-1']), {
+      keepRetainedDenied: true
+    })
+
+    renameCatalog.resolve([])
+    refreshCatalog.resolve([])
+    await Promise.all([renameReconcile, catalogRefresh])
+
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__github__run')).toBe(true)
   })
 })
 

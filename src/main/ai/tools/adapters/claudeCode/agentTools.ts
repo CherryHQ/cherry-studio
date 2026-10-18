@@ -201,6 +201,12 @@ export async function createClaudeAgentToolPolicySnapshot(
   // first reconciliation's preservation while the old connection still serves that tool.
   let retainedDenied = new Set<string>()
   let rebuildSequence = 0
+  // Updates serialize: an overlapping same-connection refresh must not advance past a rename
+  // reconcile's rebuild and discard its preservation merge — the refresh's newer sequence made
+  // the reconcile return early, dropping the retained denial while the old connection still
+  // exposed it. The chain keeps every rebuild's retention semantics (preserve/keep/release) in
+  // submission order; the sequence guard below stays as defense.
+  let rebuildChain: Promise<void> = Promise.resolve()
   // The id → server-key mapping is mutable state: a server renamed mid-session must be
   // translated under its CURRENT key, or a later-added id-keyed denial blocks the
   // pre-rename name while the executable tool answers to the new one.
@@ -287,7 +293,9 @@ export async function createClaudeAgentToolPolicySnapshot(
 
     update(agent, nextOptions) {
       if (nextOptions?.serverNameById) serverNameById = nextOptions.serverNameById
-      return rebuild(agent, nextOptions?.preserveDenied, nextOptions?.keepRetainedDenied)
+      const run = rebuildChain.then(() => rebuild(agent, nextOptions?.preserveDenied, nextOptions?.keepRetainedDenied))
+      rebuildChain = run.catch(() => undefined)
+      return run
     }
   }
 }
