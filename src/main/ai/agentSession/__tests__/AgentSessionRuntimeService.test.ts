@@ -3073,6 +3073,65 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.pendingRecoveryFlowChunks?.get('task-root')).toHaveLength(4)
     })
 
+    it('keeps an overflowed root suppressed after recovery until a fresh start', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      entry.currentTurn.controller = { enqueue } as never
+      mocks.findFlowHostMessageId.mockReturnValue(null)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      const send = (chunk: unknown) =>
+        (service as any).handleRuntimeEvent(entry, {
+          type: 'background-flow-chunk',
+          rootToolCallId: 'task-root',
+          chunk
+        })
+
+      send({ type: 'text-start', id: 'lost' })
+      for (let index = 0; index < 1_001; index += 1) send({ type: 'text-delta', id: 'lost', delta: 'x' })
+      expect(entry.recoveryFlowOverflowRoots?.has('task-root')).toBe(true)
+
+      // The host row is persisted now, so a look-up would succeed — but the delta still has no
+      // start, and admitting it would abort the reader on the missing part.
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      entry.recoveryLookupAt?.delete('task-root')
+      send({ type: 'text-delta', id: 'lost', delta: 'orphan' })
+      expect(enqueue).not.toHaveBeenCalled()
+
+      // A fresh start re-opens the stream and is delivered to the row.
+      send({ type: 'text-start', id: 'fresh' })
+      expect(enqueue).toHaveBeenCalledWith({ type: 'text-start', id: 'fresh' })
+    })
+
+    it('drops anchors for a persisted row whose marker is evicted', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      entry.currentTurn.controller = { enqueue } as never
+      entry.flowMessageIdsByToolCallId = new Map([['task-root', 'assistant-1']])
+      entry.persistedFlowMessageIds = new Set(['assistant-1'])
+
+      // 1,024 newer rows cycle the bounded marker set; the old row's anchor must not outlive it,
+      // or the next chunk would skip the look-up that re-marks the row.
+      for (let index = 0; index < 1_024; index += 1) {
+        ;(service as any).rememberPersistedFlowMessage(entry, `assistant-new-${index}`)
+      }
+      expect(entry.persistedFlowMessageIds?.has('assistant-1')).toBe(false)
+      expect(entry.flowMessageIdsByToolCallId?.has('task-root')).toBe(false)
+
+      // The next chunk re-resolves the row from the database and reaches it.
+      mocks.findFlowHostMessageId.mockReturnValue('assistant-1')
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'live', delta: 'x' }
+      })
+      expect(enqueue).toHaveBeenCalledWith({ type: 'text-delta', id: 'live', delta: 'x' })
+    })
+
     it('bounds the message-id buffer and waits for a fresh start after it overflows', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
