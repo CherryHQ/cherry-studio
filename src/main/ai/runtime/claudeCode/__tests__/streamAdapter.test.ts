@@ -2201,6 +2201,85 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(stamped).toBe('launch-use')
     })
 
+    it('stamps the receipt for a foreground launch whose answer carries the SDK trailer', () => {
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue(null)
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              // A foreground launch returns the child's own answer with the SDK's receipt trailer
+              // appended, so a later send can continue the agent.
+              content: [
+                '[Subagent hand-back] The text below is the final report of a subagent this session delegated to.',
+                'The report follows:',
+                'Findings…',
+                "agentId: agent-a1b2c3d4e5f6 (use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent)",
+                '<usage>subagent_tokens: 180700\ntool_uses: 58\nduration_ms: 863820</usage>'
+              ].join('\n'),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Resuming agent',
+                resumedAgentId: 'agent-a1b2c3d4e5f6'
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      const receiptChunk = parts.find(
+        (part) => part.type === 'tool-output-available' && (part as { toolCallId?: string }).toolCallId === 'send-use'
+      ) as {
+        resultProviderMetadata?: { cherry?: { launchToolCallId?: string } }
+        providerMetadata?: { cherry?: { launchToolCallId?: string } }
+      }
+      const stamped =
+        receiptChunk?.resultProviderMetadata?.cherry?.launchToolCallId ??
+        receiptChunk?.providerMetadata?.cherry?.launchToolCallId
+      expect(stamped).toBe('launch-use')
+    })
+
     it('does not rescan the transcript for every unresolvable resume receipt', () => {
       let lookupCalls = 0
       messageServiceMocks.findLaunchToolCallId.mockImplementation(() => {
