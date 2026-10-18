@@ -105,7 +105,17 @@ export function classifyRuntimeFallbackError(error: unknown): string | undefined
  * emitted only these has shown the user nothing, so replaying its input on the fallback model
  * cannot duplicate an answer — they must not mark the stream active and suppress the fallback.
  */
-const NON_CONTENT_CHUNK_TYPES = new Set(['start', 'start-step', 'finish-step', 'finish', 'message-metadata', 'abort'])
+const NON_CONTENT_CHUNK_TYPES = new Set([
+  'start',
+  'start-step',
+  'finish-step',
+  'finish',
+  'message-metadata',
+  'abort',
+  // Pi emits block starts separately from their deltas, so an empty boundary shows nothing yet.
+  'text-start',
+  'reasoning-start'
+])
 
 /**
  * Rebuilds a Pi/DSH connection once when a provider fails before producing turn content. It owns
@@ -388,6 +398,9 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       // Policy saves that landed while the replacement was starting must reach it before the replay
       // is admitted: the replacement keeps the turn's frozen mode and only tightens disabled tools.
       await this.applyRetainedReconcile(connection, fallbackModelId)
+      // A Stop that landed during reconciliation owns this connection's teardown: submitting the
+      // replay would start a prompt on the closing connection and discard its output.
+      if (this.closed) return false
       // A retained restriction it could not apply leaves the replacement on the turn's OLD policy;
       // the replay would then execute the very tool the user just disabled.
       if (this.replacementPolicyFailed) throw new Error('fallback replay rejected: stale tool permissions')
