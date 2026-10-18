@@ -54,7 +54,7 @@ Asynchronous factories and `create` stay adapter-specific. Pi accepts `AgentRunt
 
 Pi Durable additionally exposes runtime-wide `resume`, and input lookup, retraction, and deduplication on its concrete handle. Native command discovery, configuration changes, context editing, and forking are not mandatory common methods. Tools, approval, and model bridges stay at their existing adapter/host boundaries. Shared behavior is extracted only when a consumer needs the same semantics across implementations.
 
-The v0 interface has no universal `spawn`, exact delegation cancellation, interaction response, history pagination, or replay cursor. Its mandatory `submit` and `Delegation.child` cannot fully express observation-only or inaccessible children. [Optional subagent controls](https://github.com/CherryHQ/cherry-studio/pull/21578) are a separate proposal, not already implemented signatures. Current Pi managed-child handles expose no input policies and return `unsupported` for submission; direct child prompting must not bypass the extension owner.
+The v0 interface has no universal `spawn`, exact delegation cancellation, interaction response, history pagination, or replay cursor. Its mandatory `submit` and `Delegation.child` cannot fully express observation-only or inaccessible children. [Optional subagent controls](2026-10-18-agent-runtime-subagent-control.md) are a separate proposal, not already implemented signatures. Current Pi managed-child handles expose no input policies and return `unsupported` for submission; direct child prompting must not bypass the extension owner.
 
 ### Treat submission as native input admission
 
