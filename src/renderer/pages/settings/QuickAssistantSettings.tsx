@@ -256,6 +256,7 @@ const QuickAssistantSettings: FC = () => {
             <div className="w-55 shrink-0">
               <InputNumber
                 min={1}
+                max={Number.MAX_SAFE_INTEGER}
                 step={1}
                 aria-label={t('settings.quickAssistant.context_max_messages')}
                 placeholder={t('settings.quickAssistant.context_max_messages_follow_global')}

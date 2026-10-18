@@ -93,11 +93,13 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     let cancelled = false
 
     const body: { assistantId?: string; maxMessages?: number } = assistantId ? { assistantId } : {}
-    // The transport contract only carries a positive integer; junk the user
-    // may have hand-edited into the preference stays renderer-side.
+    // The transport contract only carries a positive safe integer (zod 4 `.int()` enforces the
+    // safe-integer range); junk the user may have hand-edited into the preference stays
+    // renderer-side, and an out-of-range cap falls back to the general chain instead of
+    // poisoning the lease.
     const maxMessages = maxMessagesRef.current
-    if (typeof maxMessages === 'number' && Number.isFinite(maxMessages) && maxMessages >= 1) {
-      body.maxMessages = Math.floor(maxMessages)
+    if (typeof maxMessages === 'number' && Number.isSafeInteger(maxMessages) && maxMessages >= 1) {
+      body.maxMessages = maxMessages
     }
 
     void dataApiService
