@@ -1,7 +1,6 @@
+import type * as FsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-
-import type * as FsPromises from 'node:fs/promises'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
