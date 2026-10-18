@@ -583,7 +583,7 @@ const TERMINAL_TASK_STATUSES = new Set<NonNullable<AgentTaskEventPartData['statu
 export function resolveTaskStatusAfter(
   existing: AgentTaskEventPartData['status'] | undefined,
   data: AgentTaskEventPartData
-): AgentTaskEventPartData['status'] {
+): NonNullable<AgentTaskEventPartData['status']> {
   const incoming = data.status ?? existing ?? 'pending'
   if (
     existing &&
