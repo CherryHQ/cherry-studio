@@ -1,6 +1,6 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import type { AgentLaunchIndex } from '../shared/agentToolTypes'
+import { type AgentLaunchIndex, type AgentTaskLiveness, TERMINAL_TASK_STATUSES } from '../shared/agentToolTypes'
 import type { ToolStatus } from '../shared/GenericTools'
 
 function mapTaskStatus(status: string | undefined, fallback?: ToolStatus): ToolStatus | undefined {
@@ -21,17 +21,29 @@ function mapTaskStatus(status: string | undefined, fallback?: ToolStatus): ToolS
 
 /**
  * A row's task status through the list-level index: the row's resolved flow root answers for the
- * child's whole history and live edges, which a settled group's emptied parts context cannot.
+ * child's whole history and live edges, which a settled group's emptied parts context cannot. A
+ * nonterminal edge is only trusted while the task is live, as the status pane already requires.
  */
 export function getSubagentTaskStatusFromIndex(
   launchIndex: AgentLaunchIndex | null | undefined,
   rootCallId: string | undefined,
-  status?: ToolStatus
+  status?: ToolStatus,
+  liveness?: AgentTaskLiveness
 ): ToolStatus | undefined {
   if (!rootCallId) return undefined
   const taskId = launchIndex?.taskIdByCallId.get(rootCallId)
   if (!taskId) return undefined
-  return mapTaskStatus(launchIndex?.latestTaskEventByTaskId.get(taskId)?.status, status)
+  const eventStatus = launchIndex?.latestTaskEventByTaskId.get(taskId)?.status
+  if (eventStatus && !TERMINAL_TASK_STATUSES.has(eventStatus) && liveness) {
+    const originMessageId = launchIndex?.taskOriginMessageIdByTaskId.get(taskId)
+    const live =
+      (originMessageId !== undefined && liveness.activeMessageIds.has(originMessageId)) ||
+      liveness.liveBackgroundTaskIds.has(taskId)
+    // An interrupted turn or a process exit leaves the last edge at in_progress forever, so an
+    // unvouched nonterminal edge must not override the row's own status.
+    if (!live) return undefined
+  }
+  return mapTaskStatus(eventStatus, status)
 }
 
 /** Parts-only lookup for hosts that mount no launch index (image capture, export). */

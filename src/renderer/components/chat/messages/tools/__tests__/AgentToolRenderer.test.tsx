@@ -51,6 +51,7 @@ vi.mock('../agent/AgentLaunchIndexContext', async () => {
   const index = () => agentToolTypes.buildAgentLaunchIndex(mockPartsMap() as Record<string, CherryMessagePart[]> | null)
   return {
     useAgentLaunchIndex: () => index(),
+    useAgentTaskLiveness: () => undefined,
     // The host seam, assembled from the same pieces the provider uses, so a resume receipt still
     // heads its group through the real chain in these tests.
     useAgentResumePresentation: () => {

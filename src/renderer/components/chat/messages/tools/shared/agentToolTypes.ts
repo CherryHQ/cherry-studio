@@ -430,6 +430,23 @@ export interface AgentLaunchIndex {
    * that order, so the fold assumes `partsByMessageId` iterates in message order.
    */
   latestTaskEventByTaskId: ReadonlyMap<string, AgentTaskEventPartData>
+  /**
+   * First message whose parts carried an edge for a task id. A persisted nonterminal edge is only
+   * trustworthy while that message's own turn is active — or the task is still running.
+   */
+  taskOriginMessageIdByTaskId: ReadonlyMap<string, string>
+}
+
+/**
+ * Ground truth for "is this task actually still running", supplied by the host: a row's own events
+ * cannot answer it, since an interrupted turn or a process exit leaves the last edge at
+ * `in_progress` forever.
+ */
+export interface AgentTaskLiveness {
+  /** Assistant message ids whose own turn is still pending. */
+  activeMessageIds: ReadonlySet<string>
+  /** Task ids currently present in the runtime's background-task membership snapshot. */
+  liveBackgroundTaskIds: ReadonlySet<string>
 }
 
 /** Shared default so every no-argument call reads the same identity and hits the cache below. */
@@ -468,6 +485,7 @@ function computeAgentLaunchIndex(
   const dshTaskRootCallIds = new Set<string>()
   const taskIdByCallId = new Map<string, string>()
   const latestTaskEventByTaskId = new Map<string, AgentTaskEventPartData>()
+  const taskOriginMessageIdByTaskId = new Map<string, string>()
   const applyTaskEvent = (data: AgentTaskEventPartData): void => {
     if (data.toolUseId && !taskIdByCallId.has(data.toolUseId)) taskIdByCallId.set(data.toolUseId, data.taskId)
     latestTaskEventByTaskId.set(data.taskId, {
@@ -483,14 +501,18 @@ function computeAgentLaunchIndex(
       childRootCallIds,
       dshTaskRootCallIds,
       taskIdByCallId,
-      latestTaskEventByTaskId
+      latestTaskEventByTaskId,
+      taskOriginMessageIdByTaskId
     }
-  for (const parts of Object.values(partsByMessageId)) {
+  for (const [messageId, parts] of Object.entries(partsByMessageId)) {
     for (const part of parts) {
       const record = part as { toolName?: unknown; toolCallId?: unknown; input?: unknown; output?: unknown }
       // Task events are data parts, so the call a task is bound to is read before the tool-part gate.
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
         if (part.data.toolUseId) taskBoundCallIds.add(part.data.toolUseId)
+        if (!taskOriginMessageIdByTaskId.has(part.data.taskId)) {
+          taskOriginMessageIdByTaskId.set(part.data.taskId, messageId)
+        }
         applyTaskEvent(part.data)
         continue
       }
@@ -549,11 +571,16 @@ function computeAgentLaunchIndex(
     childRootCallIds,
     dshTaskRootCallIds,
     taskIdByCallId,
-    latestTaskEventByTaskId
+    latestTaskEventByTaskId,
+    taskOriginMessageIdByTaskId
   }
 }
 
-const TERMINAL_TASK_STATUSES = new Set<NonNullable<AgentTaskEventPartData['status']>>(['completed', 'stopped', 'error'])
+export const TERMINAL_TASK_STATUSES: ReadonlySet<NonNullable<AgentTaskEventPartData['status']>> = new Set([
+  'completed',
+  'stopped',
+  'error'
+])
 
 /**
  * The status a lifecycle edge leaves behind: a settled task only revives when a new run starts.

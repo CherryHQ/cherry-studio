@@ -2,7 +2,13 @@ export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from 
 export { buildResumeToolHeader } from './agentResumeHeader'
 export { resolveAgentToolFlowTarget } from './agentToolFlowTarget'
 export { AgentExecutionTimeline, AgentToolRenderer } from './AgentExecutionTimeline'
-export { AgentLaunchIndexProvider, useAgentLaunchIndex, useAgentResumePresentation } from './AgentLaunchIndexContext'
+export {
+  AgentLaunchIndexProvider,
+  useAgentLaunchIndex,
+  useAgentResumePresentation,
+  useAgentTaskLiveness,
+  useAgentTaskLivenessValue
+} from './AgentLaunchIndexContext'
 export { agentInlineResultPresentationRegistry } from './agentInlineResultPresentationRegistry'
 export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'

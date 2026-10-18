@@ -12,7 +12,8 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => (
 }))
 
 vi.mock('../AgentLaunchIndexContext', () => ({
-  useAgentLaunchIndex: () => null
+  useAgentLaunchIndex: () => null,
+  useAgentTaskLiveness: () => undefined
 }))
 
 vi.mock('../AgentToolCallCard', () => ({

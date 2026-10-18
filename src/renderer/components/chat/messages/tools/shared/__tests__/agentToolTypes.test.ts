@@ -206,6 +206,34 @@ describe('dsh receipt identities', () => {
     expect(getSubagentTaskStatusFromIndex(resumed, 'call-launch', 'done')).toBe('invoking')
   })
 
+  it('defers a nonterminal edge that nothing vouches for to the row it answers', () => {
+    const launch = launchPart('call-launch', 'agent-77', 'Inspect renderer')
+    // A turn that settled with the child still at in_progress — a process exit before any terminal
+    // edge — so only a live membership or an active origin turn can vouch for the edge.
+    const index = buildAgentLaunchIndex({
+      m1: [launch, taskEvent({ event: 'started', taskId: 'agent-77', toolUseId: 'call-launch', status: 'in_progress' })]
+    })
+    const dead = { activeMessageIds: new Set<string>(), liveBackgroundTaskIds: new Set<string>() }
+    expect(getSubagentTaskStatusFromIndex(index, 'call-launch', 'done', dead)).toBeUndefined()
+
+    // The origin turn is still running, so the edge is current.
+    const foreground = { activeMessageIds: new Set(['m1']), liveBackgroundTaskIds: new Set<string>() }
+    expect(getSubagentTaskStatusFromIndex(index, 'call-launch', 'done', foreground)).toBe('invoking')
+
+    // A background child the runtime still reports as running keeps its status too.
+    const background = { activeMessageIds: new Set<string>(), liveBackgroundTaskIds: new Set(['agent-77']) }
+    expect(getSubagentTaskStatusFromIndex(index, 'call-launch', 'done', background)).toBe('invoking')
+
+    // A settled edge is history and needs no liveness.
+    const settled = buildAgentLaunchIndex({
+      m1: [
+        launch,
+        taskEvent({ event: 'notification', taskId: 'agent-77', toolUseId: 'call-launch', status: 'completed' })
+      ]
+    })
+    expect(getSubagentTaskStatusFromIndex(settled, 'call-launch', 'done', dead)).toBe('done')
+  })
+
   it('answers a launch through its child when the task moved to the resume call', () => {
     const launch = launchPart('call-launch', 'agent-77', 'Inspect renderer')
     const index = buildAgentLaunchIndex(

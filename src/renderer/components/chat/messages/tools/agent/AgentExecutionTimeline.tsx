@@ -11,7 +11,7 @@ import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { getPartLaunchToolCallId } from '../toolParentMetadata'
 import { isToolPartAwaitingApproval } from '../toolResponse'
-import { useAgentLaunchIndex } from './AgentLaunchIndexContext'
+import { useAgentLaunchIndex, useAgentTaskLiveness } from './AgentLaunchIndexContext'
 import { buildResumeToolHeader } from './agentResumeHeader'
 import { AgentToolCallCard, getAgentToolFlowTitle } from './AgentToolCallCard'
 import { ownsItsFlowCall, resolveAgentToolFlowTarget } from './agentToolFlowTarget'
@@ -26,6 +26,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
 
   const partsMap = usePartsMap()
   const launchIndex = useAgentLaunchIndex()
+  const liveness = useAgentTaskLiveness()
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
@@ -73,10 +74,10 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
     () =>
       statusRoot
         ? launchIndex
-          ? getSubagentTaskStatusFromIndex(launchIndex, statusRoot, status)
+          ? getSubagentTaskStatusFromIndex(launchIndex, statusRoot, status, liveness)
           : getSubagentTaskStatus(Object.values(partsMap ?? {}).flat(), statusRoot, status)
         : undefined,
-    [launchIndex, partsMap, status, statusRoot]
+    [launchIndex, liveness, partsMap, status, statusRoot]
   )
 
   if (tool?.name === 'mcp__assistant__navigate') {
