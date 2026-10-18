@@ -51,6 +51,7 @@ import * as z from 'zod'
 
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { parseLaunchReceiptText } from '@shared/ai/launchReceipt'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -353,20 +354,9 @@ function parseReceiptText(output: string): Record<string, unknown> | undefined {
  */
 /** The launched agent id a launch receipt reports — the text trailer or a structured field. */
 export function extractLaunchReceiptId(output: unknown): string | undefined {
-  if (typeof output === 'string') {
-    // dsh acknowledges a continuable launch with exactly `started subagent <childId>` and no other
-    // prose; the whole output must match, or a child's own answer naming the phrase would register.
-    const dshLaunch = /^started subagent[ \t]+([A-Za-z0-9_-]+)$/.exec(output.trim())?.[1]
-    if (dshLaunch) return dshLaunch
-    // The id trailer alone is spoofable, and so is a trailer that merely appears somewhere after the
-    // prefix: a foreground launch's result is the child's own answer, and prose that quotes an id
-    // must not bind the flow to it. Every real receipt opens with the SDK's launch prefix and names
-    // the id in the same breath — on the same line, or on the next one (`Internal id:` before
-    // `output_file` on older receipts) — so one adjacency-anchored grammar reads them all.
-    return /^(?:Async agent launched successfully\.?|done\.)\s*(?:\r?\n\s*)?(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9-]+)/.exec(
-      output.trim()
-    )?.[1]
-  }
+  // The text form is the SDK's native receipt, read through the same shared grammar the runtime
+  // adapter parses when it registers a fresh launch.
+  if (typeof output === 'string') return parseLaunchReceiptText(output)
   if (isRecord(output)) {
     // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools);
     // dsh names its children subagentId or subagent_id.

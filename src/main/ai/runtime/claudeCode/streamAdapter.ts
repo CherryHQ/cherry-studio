@@ -40,6 +40,7 @@ import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import { parseLaunchReceiptText } from '@shared/ai/launchReceipt'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -1236,7 +1237,11 @@ export class ClaudeCodeStreamAdapter {
     const isLocalWorkflowLaunch =
       toolName === 'Workflow' && isRecord(normalizedResult) && normalizedResult.taskType === 'local_workflow'
     if (!isError && (isSubagentToolName(toolName) || isLocalWorkflowLaunch)) {
-      const taskId = getLaunchedBackgroundTaskId(normalizedResult)
+      // The current SDK prints its launch receipt as prose; its own call id is the launch root
+      // when the host look-up misses, exactly as for the structured form.
+      const taskId =
+        getLaunchedBackgroundTaskId(normalizedResult) ??
+        (typeof normalizedResult === 'string' ? parseLaunchReceiptText(normalizedResult) : undefined)
       if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id, true)
     }
     // A SendMessage receipt that resumed a background agent carries the launch root id in its
