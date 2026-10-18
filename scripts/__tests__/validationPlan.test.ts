@@ -40,8 +40,9 @@ describe('validation selection', () => {
   it.each([
     [
       'packages/agent-runtime/src/contracts.ts',
-      ['agent-runtime', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main']
+      ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main']
     ],
+    ['packages/agent-behavior/src/index.ts', ['agent-behavior']],
     ['packages/agent-runtime-pi/src/runtime.ts', ['agent-runtime-pi', 'main']],
     ['packages/agent-runtime-pi-durable/src/runtime.ts', ['agent-runtime-pi-durable']],
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
@@ -56,6 +57,12 @@ describe('validation selection', () => {
     ['src/shared/types/agent.ts', ['main', 'renderer', 'scripts']]
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
+  })
+  // Catches an agent-behavior change falling back to the full gate (unknown package) or skipping its own typecheck.
+  it('checks agent-behavior on its own project and typecheck', () => {
+    const plan = createPlan(['packages/agent-behavior/src/core/facts.ts'])
+    expect(plan.projects).toEqual(['agent-behavior'])
+    expect(plan.tasks).toContain('types-agent-behavior')
   })
   it('selects the portable web search typecheck alongside its Desktop consumers', () => {
     const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
