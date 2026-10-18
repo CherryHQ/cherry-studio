@@ -2755,6 +2755,12 @@ export class AgentSessionRuntimeService extends BaseService {
       if (value !== undefined) merged[field] = value
     }
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
+    // A cancelled or failed task leaves the live membership snapshot exactly like a completed one,
+    // so the stash must be told explicitly: it owes this chat no delivery, and must not credit the
+    // absence to whichever unrelated work wakes next.
+    if (data.status === 'stopped' || data.status === 'error') {
+      application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
+    }
     // A live turn stream carries the lifecycle edge as an in-reply part; with no stream open (the
     // spawning turn already settled) the cached edge above is the delivery — the tasks panel reads it.
     if (hasAgentSessionRuntimeOpenStream(entry.runtimeState)) {

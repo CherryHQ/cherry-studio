@@ -925,6 +925,73 @@ describe('AiStreamManager', () => {
     expect(sent).toEqual(['Subagent summary: 42', 'Server output'])
   })
 
+  // A cancelled obligation must be retired on its own, not silently treated as dischargeable. An
+  // external request stashes two tasks; the subagent is STOPPED (no receive-only wake, no admireble
+  // result) while the server keeps the topic from whole-drain cleanup, so 'task-a' is simply ABSENT
+  // from the live set. Absence must not read as "task-a completed and owes its delivery now": the
+  // desktop follow-up's own unrelated completion would otherwise claim the stash and post private
+  // desktop work to that external chat.
+  it('does not let an unrelated completion claim a stash whose owed task was cancelled', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    // The external request settles owing deliveries for both tasks it spawned.
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a', 'task-server']))
+
+    // A desktop follow-up replaces the held stream and drops the recipients.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+
+    // task-a is CANCELLED, not completed — retire that obligation on its own terms.
+    mgr.retireStashedWakeTaskIds(topicId, new Set(['task-a']))
+
+    // The desktop follow-up's own background work completes. The server is still listed (it is what
+    // keeps whole-topic drain from cleaning up), and the only absent owed id is the CANCELLED one —
+    // so this unrelated completion must not claim the stash.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-server', 'desktop-task']))).toBe(false)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set(['task-server', 'desktop-task'])
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('private desktop background result'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual([])
+
+    // The server's own completion is still owed a route to that chat.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set())).toBe(true)
+  })
+
   // The stash is the wake's ONLY route to channel recipients. A listener still attached to the held
   // stream was either already served or never recorded as owed — carrying a copy of it into the
   // wake would hand the wake's output (possibly another fire's) to that chat.

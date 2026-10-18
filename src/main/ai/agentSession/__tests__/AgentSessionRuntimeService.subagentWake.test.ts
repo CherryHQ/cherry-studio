@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   finalizeHeldTopicStream: vi.fn(async () => undefined),
   clearPendingChannelListeners: vi.fn(),
   stashedWakeRecipientsDischarged: vi.fn(),
+  retireStashedWakeTaskIds: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -124,7 +125,8 @@ beforeEach(() => {
         terminateHeldTopicStream: mocks.terminateHeldTopicStream,
         finalizeHeldTopicStream: mocks.finalizeHeldTopicStream,
         clearPendingChannelListeners: mocks.clearPendingChannelListeners,
-        stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged
+        stashedWakeRecipientsDischarged: mocks.stashedWakeRecipientsDischarged,
+        retireStashedWakeTaskIds: mocks.retireStashedWakeTaskIds
       }
     }
     if (name === 'CacheService') {
@@ -196,6 +198,47 @@ describe('subagent settlement wake (incident replay)', () => {
     // Draining the work releases the occupancy without touching any turn.
     emit({ type: 'background-work-state', active: false })
     expect(entry.runtimeState.connection.occupancy).toEqual({})
+    await service.closeSession('session-1')
+  })
+
+  // A cancelled task leaves the driver's membership snapshot exactly like a completed one — REPLACE
+  // semantics carry no per-task verdict — so the stash has to be told explicitly. Otherwise its
+  // absence stays "discharged" forever and the NEXT completion, whatever work produced it, claims
+  // the recipients: a desktop follow-up's private result would be posted to the external chat.
+  it('retires the stashed obligation when a task is stopped rather than completed', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      },
+      occupancy: {}
+    }
+    service.markTurnTerminal('session-1', 'success')
+
+    const emit = (event: unknown) => (service as any).handleRuntimeEvent(entry, event)
+    emit({
+      type: 'background-task-event',
+      data: { event: 'started', taskId: 'child-1', status: 'in_progress', taskType: 'subagent' }
+    })
+    // A completion owes the chat a delivery, so it must not retire anything.
+    emit({
+      type: 'background-task-event',
+      data: { event: 'notification', taskId: 'child-2', status: 'completed' }
+    })
+    expect(mocks.retireStashedWakeTaskIds).not.toHaveBeenCalled()
+    // A stop is a cancellation: no delivery is coming for that id.
+    emit({
+      type: 'background-task-event',
+      data: { event: 'notification', taskId: 'child-1', status: 'stopped' }
+    })
+    expect(mocks.retireStashedWakeTaskIds).toHaveBeenCalledWith('agent-session:session-1', new Set(['child-1']))
     await service.closeSession('session-1')
   })
 

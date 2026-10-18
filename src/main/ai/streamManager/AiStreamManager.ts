@@ -392,6 +392,12 @@ export class AiStreamManager extends BaseService {
     string,
     { listeners: StreamListener[]; owesTaskIds: ReadonlySet<string> }
   >()
+  /**
+   * Per topic, the stashed obligations explicitly cancelled rather than completed. A cancelled task
+   * leaves the live set exactly like a completed one, so discharge must not credit its absence to
+   * whichever unrelated work wakes next.
+   */
+  private readonly retiredStashedTaskIds = new Map<string, Set<string>>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -988,20 +994,43 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
+   * Retire stashed obligations that will never produce a wake. A cancelled or killed task leaves the
+   * driver's live set exactly like a completed one — membership is a REPLACE snapshot with no
+   * per-task verdict — so absence alone cannot distinguish them. Recording the cancellation up front
+   * keeps the stash from crediting that absence to whichever unrelated work wakes next: a desktop
+   * follow-up's private result would otherwise be claimed by an external chat's stale recipients.
+   */
+  retireStashedWakeTaskIds(topicId: string, taskIds: ReadonlySet<string>): void {
+    const pending = this.pendingChannelListeners.get(topicId)
+    if (!pending) return
+    const retired = this.retiredStashedTaskIds.get(topicId) ?? new Set<string>()
+    for (const id of taskIds) retired.add(id)
+    this.retiredStashedTaskIds.set(topicId, retired)
+    const debts = new Set(pending.owesTaskIds)
+    for (const id of taskIds) debts.delete(id)
+    if (debts.size === 0) this.pendingChannelListeners.delete(topicId)
+    else this.pendingChannelListeners.set(topicId, { listeners: pending.listeners, owesTaskIds: debts })
+  }
+
+  /**
    * Whether the topic's stashed recipients are ready to be claimed: at least one task they owe has
-   * left the driver's live background set. Each completion is its own delivery opportunity — the
-   * first owed task to settle is the wake that carries the recipients — so a co-spawned long-lived
-   * task must not hold the claim hostage until the whole snapshot drains (a mixed fire's finite
-   * subagent would never reach the requesting chat while its server stays up). Bound to the stash's
-   * own recorded debt, not to the live set being empty — an unrelated fire's still-running task
-   * must not delay this claim.
+   * COMPLETED. Each completion is its own delivery opportunity — the first owed task to settle is
+   * the wake that carries the recipients — so a co-spawned long-lived task must not hold the claim
+   * hostage until the whole snapshot drains (a mixed fire's finite subagent would never reach the
+   * requesting chat while its server stays up). Bound to the stash's own recorded debt, not to the
+   * live set being empty — an unrelated fire's still-running task must not delay this claim.
    */
   stashedWakeRecipientsDischarged(topicId: string, listedTaskIds: ReadonlySet<string>): boolean {
     const pending = this.pendingChannelListeners.get(topicId)
     if (!pending) return true
     if (pending.owesTaskIds.size === 0) return true
+    // Task-correlated discharge: an owed id that left the live set discharges only if it was not
+    // explicitly cancelled. Membership is a REPLACE snapshot that cannot distinguish "finished" from
+    // "killed", so a cancelled id would otherwise stay absent forever and let the NEXT completion —
+    // whatever work it belongs to — claim this chat's recipients.
+    const retired = this.retiredStashedTaskIds.get(topicId)
     for (const id of pending.owesTaskIds) {
-      if (!listedTaskIds.has(id)) return true
+      if (!listedTaskIds.has(id) && !retired?.has(id)) return true
     }
     return false
   }
@@ -1025,7 +1054,9 @@ export class AiStreamManager extends BaseService {
     let owedChannelListeners: StreamListener[] = []
     if (input.carryChannelListeners) {
       const pending = this.pendingChannelListeners.get(input.topicId)
-      if (pending) {
+      // A wake that cannot discharge the stash's debt carries no recipients: its completion belongs
+      // to work that owes this chat nothing, and handing it the stash would post it there anyway.
+      if (pending && this.stashedWakeRecipientsDischarged(input.topicId, input.listedBackgroundTaskIds ?? new Set())) {
         owedChannelListeners = pending.listeners
         // Consume only the obligations this wake settles: a co-spawned task's later wake still owes
         // its own delivery, so its debt — and the recipients it needs — stay stashed for it.
@@ -1273,6 +1304,7 @@ export class AiStreamManager extends BaseService {
    */
   clearPendingChannelListeners(topicId: string): void {
     this.pendingChannelListeners.delete(topicId)
+    this.retiredStashedTaskIds.delete(topicId)
   }
 
   /**
