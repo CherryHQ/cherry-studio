@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 48ea06eecf6397b44f4176acea05664541cc4e1f..d8791d7df3c5bae0c69a4c60d5a470d77c2708bd 100644
+index 48ea06eecf6397b44f4176acea05664541cc4e1f..db1d7990251082aeac231384d18f8cd1549915ef 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1012,7 +1012,7 @@ var OpenAIChatLanguageModel = class {
@@ -149,6 +149,17 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..d8791d7df3c5bae0c69a4c60d5a470d7
              namespace: import_v422.z.string().nullish()
            }),
            import_v422.z.object({
+@@ -4621,8 +4649,8 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+         annotation: import_v422.z.discriminatedUnion("type", [
+           import_v422.z.object({
+             type: import_v422.z.literal("url_citation"),
+-            start_index: import_v422.z.number(),
+-            end_index: import_v422.z.number(),
++            start_index: import_v422.z.number().optional(),
++            end_index: import_v422.z.number().optional(),
+             url: import_v422.z.string(),
+             title: import_v422.z.string()
+           }),
 @@ -4658,6 +4686,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
          summary_index: import_v422.z.number(),
          delta: import_v422.z.string()
@@ -161,6 +172,17 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..d8791d7df3c5bae0c69a4c60d5a470d7
        import_v422.z.object({
          type: import_v422.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v422.z.string(),
+@@ -4727,8 +4760,8 @@ var openaiResponsesResponseSchema = (0, import_provider_utils28.lazySchema)(
+                   import_v422.z.discriminatedUnion("type", [
+                     import_v422.z.object({
+                       type: import_v422.z.literal("url_citation"),
+-                      start_index: import_v422.z.number(),
+-                      end_index: import_v422.z.number(),
++                      start_index: import_v422.z.number().optional(),
++                      end_index: import_v422.z.number().optional(),
+                       url: import_v422.z.string(),
+                       title: import_v422.z.string()
+                     }),
 @@ -4752,7 +4785,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils28.lazySchema)(
                        index: import_v422.z.number()
                      })
@@ -198,7 +220,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..d8791d7df3c5bae0c69a4c60d5a470d7
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 26483821603be3057bd67afc71143f97e8c33ac9..f2b4369a64760d5e8cc5e1e168f4508677d42ab5 100644
+index 26483821603be3057bd67afc71143f97e8c33ac9..57d68be8d0a40fff271f331b5bcdb663976c5c3f 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1008,7 +1008,7 @@ var OpenAIChatLanguageModel = class {
@@ -348,6 +370,17 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..f2b4369a64760d5e8cc5e1e168f45086
              namespace: z22.string().nullish()
            }),
            z22.object({
+@@ -4722,8 +4750,8 @@ var openaiResponsesChunkSchema = lazySchema20(
+         annotation: z22.discriminatedUnion("type", [
+           z22.object({
+             type: z22.literal("url_citation"),
+-            start_index: z22.number(),
+-            end_index: z22.number(),
++            start_index: z22.number().optional(),
++            end_index: z22.number().optional(),
+             url: z22.string(),
+             title: z22.string()
+           }),
 @@ -4759,6 +4787,11 @@ var openaiResponsesChunkSchema = lazySchema20(
          summary_index: z22.number(),
          delta: z22.string()
@@ -360,6 +393,17 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..f2b4369a64760d5e8cc5e1e168f45086
        z22.object({
          type: z22.literal("response.reasoning_summary_part.done"),
          item_id: z22.string(),
+@@ -4828,8 +4861,8 @@ var openaiResponsesResponseSchema = lazySchema20(
+                   z22.discriminatedUnion("type", [
+                     z22.object({
+                       type: z22.literal("url_citation"),
+-                      start_index: z22.number(),
+-                      end_index: z22.number(),
++                      start_index: z22.number().optional(),
++                      end_index: z22.number().optional(),
+                       url: z22.string(),
+                       title: z22.string()
+                     }),
 @@ -4853,7 +4886,7 @@ var openaiResponsesResponseSchema = lazySchema20(
                        index: z22.number()
                      })
@@ -397,7 +441,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..f2b4369a64760d5e8cc5e1e168f45086
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..14e90aae8546ad49797d1bbfb7de6ac8740b3357 100644
+index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..ad4e7d2d7bdfa1df1bfcca9b6fd7ad5d3ad859c6 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1047,7 +1047,7 @@ var OpenAIChatLanguageModel = class {
@@ -547,6 +591,17 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..14e90aae8546ad49797d1bbfb7de6ac8
              namespace: import_v418.z.string().nullish()
            }),
            import_v418.z.object({
+@@ -4565,8 +4593,8 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+         annotation: import_v418.z.discriminatedUnion("type", [
+           import_v418.z.object({
+             type: import_v418.z.literal("url_citation"),
+-            start_index: import_v418.z.number(),
+-            end_index: import_v418.z.number(),
++            start_index: import_v418.z.number().optional(),
++            end_index: import_v418.z.number().optional(),
+             url: import_v418.z.string(),
+             title: import_v418.z.string()
+           }),
 @@ -4602,6 +4630,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
          summary_index: import_v418.z.number(),
          delta: import_v418.z.string()
@@ -559,6 +614,17 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..14e90aae8546ad49797d1bbfb7de6ac8
        import_v418.z.object({
          type: import_v418.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v418.z.string(),
+@@ -4671,8 +4704,8 @@ var openaiResponsesResponseSchema = (0, import_provider_utils26.lazySchema)(
+                   import_v418.z.discriminatedUnion("type", [
+                     import_v418.z.object({
+                       type: import_v418.z.literal("url_citation"),
+-                      start_index: import_v418.z.number(),
+-                      end_index: import_v418.z.number(),
++                      start_index: import_v418.z.number().optional(),
++                      end_index: import_v418.z.number().optional(),
+                       url: import_v418.z.string(),
+                       title: import_v418.z.string()
+                     }),
 @@ -4696,7 +4729,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils26.lazySchema)(
                        index: import_v418.z.number()
                      })
@@ -596,7 +662,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..14e90aae8546ad49797d1bbfb7de6ac8
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..6e74d6462bf33f7f1b915a36ed9d50a8c798fbf4 100644
+index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..f30c3d53fe52e54c00329ab5563d4634112d1567 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1000,7 +1000,7 @@ var OpenAIChatLanguageModel = class {
@@ -746,6 +812,17 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..6e74d6462bf33f7f1b915a36ed9d50a8
              namespace: z18.string().nullish()
            }),
            z18.object({
+@@ -4613,8 +4641,8 @@ var openaiResponsesChunkSchema = lazySchema16(
+         annotation: z18.discriminatedUnion("type", [
+           z18.object({
+             type: z18.literal("url_citation"),
+-            start_index: z18.number(),
+-            end_index: z18.number(),
++            start_index: z18.number().optional(),
++            end_index: z18.number().optional(),
+             url: z18.string(),
+             title: z18.string()
+           }),
 @@ -4650,6 +4678,11 @@ var openaiResponsesChunkSchema = lazySchema16(
          summary_index: z18.number(),
          delta: z18.string()
@@ -758,6 +835,17 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..6e74d6462bf33f7f1b915a36ed9d50a8
        z18.object({
          type: z18.literal("response.reasoning_summary_part.done"),
          item_id: z18.string(),
+@@ -4719,8 +4752,8 @@ var openaiResponsesResponseSchema = lazySchema16(
+                   z18.discriminatedUnion("type", [
+                     z18.object({
+                       type: z18.literal("url_citation"),
+-                      start_index: z18.number(),
+-                      end_index: z18.number(),
++                      start_index: z18.number().optional(),
++                      end_index: z18.number().optional(),
+                       url: z18.string(),
+                       title: z18.string()
+                     }),
 @@ -4744,7 +4777,7 @@ var openaiResponsesResponseSchema = lazySchema16(
                        index: z18.number()
                      })
@@ -970,7 +1058,7 @@ index 5c27d8f988a37082af53de78c0b542a5b8373eed..dfa4a0500e26fd95370c2cc55d31d383
  
  export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index aef872bfbed2218f104c6cf864cde8005173ff6d..a1287a934d55e8241949bb55bf9ecdb99f2de09c 100644
+index aef872bfbed2218f104c6cf864cde8005173ff6d..d897f346a29e0f9f6a3a18896e02cd0f266debd8 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
 @@ -771,7 +771,7 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
@@ -982,6 +1070,17 @@ index aef872bfbed2218f104c6cf864cde8005173ff6d..a1287a934d55e8241949bb55bf9ecdb9
              namespace: z.string().nullish(),
            }),
            z.object({
+@@ -1169,8 +1169,8 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+         annotation: z.discriminatedUnion('type', [
+           z.object({
+             type: z.literal('url_citation'),
+-            start_index: z.number(),
+-            end_index: z.number(),
++            start_index: z.number().optional(),
++            end_index: z.number().optional(),
+             url: z.string(),
+             title: z.string(),
+           }),
 @@ -1206,6 +1206,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
          summary_index: z.number(),
          delta: z.string(),
@@ -994,6 +1093,17 @@ index aef872bfbed2218f104c6cf864cde8005173ff6d..a1287a934d55e8241949bb55bf9ecdb9
        z.object({
          type: z.literal('response.reasoning_summary_part.done'),
          item_id: z.string(),
+@@ -1302,8 +1307,8 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
+                     z.discriminatedUnion('type', [
+                       z.object({
+                         type: z.literal('url_citation'),
+-                        start_index: z.number(),
+-                        end_index: z.number(),
++                        start_index: z.number().optional(),
++                        end_index: z.number().optional(),
+                         url: z.string(),
+                         title: z.string(),
+                       }),
 @@ -1327,7 +1332,7 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
                          index: z.number(),
                        }),
