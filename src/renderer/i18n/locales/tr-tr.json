@@ -4828,6 +4828,8 @@
   "settings.messages.show_message_outline": "Mesaj ana hatlarını göster",
   "settings.messages.title": "Mesaj Ayarları",
   "settings.messages.use_serif_font": "Serif yazı tipi kullan",
+  "settings.messages.user_content.default_expanded.hint": "Uzun kullanıcı mesajlarını varsayılan olarak tam göster. Elle genişlettiğiniz veya daralttığınız mesajlar bu oturum boyunca seçiminizi korur.",
+  "settings.messages.user_content.default_expanded.label": "Uzun kullanıcı mesajlarını varsayılan olarak genişlet",
   "settings.messages.wide_mode": "Geniş düzen modu",
   "settings.miniApps.cache_change_notice": "Değişiklikler, açık mini uygulama sayısı ayarlanan değere ulaştığında geçerli olur",
   "settings.miniApps.cache_description": "Bellekte tutulacak en fazla etkin mini uygulama sayısını ayarlayın",

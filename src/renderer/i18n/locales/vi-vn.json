@@ -4828,6 +4828,8 @@
   "settings.messages.show_message_outline": "Hiển thị dàn bộ tin nhắn",
   "settings.messages.title": "Cài đặt tin nhắn",
   "settings.messages.use_serif_font": "Dùng phông chữ có chân",
+  "settings.messages.user_content.default_expanded.hint": "Mặc định hiển thị đầy đủ tin nhắn dài của người dùng. Tin nhắn bạn mở rộng hoặc thu gọn thủ công sẽ giữ lựa chọn đó trong phiên này.",
+  "settings.messages.user_content.default_expanded.label": "Mặc định mở rộng tin nhắn dài của người dùng",
   "settings.messages.wide_mode": "Chế độ bố cục rộng",
   "settings.miniApps.cache_change_notice": "Các thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
   "settings.miniApps.cache_description": "Đặt số lượng tối đa các ứng dụng mini đang hoạt động cần giữ trong bộ nhớ",
