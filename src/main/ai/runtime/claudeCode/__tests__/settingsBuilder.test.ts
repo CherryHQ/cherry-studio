@@ -3733,7 +3733,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       listener?.({ serverId: 'srv-a' })
 
       await vi.waitFor(() => {
-        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
+        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }), {
+          keepRetainedDenied: true
+        })
         expect(settings.mcpToolMetadata).toHaveProperty('mcp__srv-a__new_tool')
       })
       expect(settings.mcpToolMetadata).not.toHaveProperty('mcp__srv-a__old_tool')

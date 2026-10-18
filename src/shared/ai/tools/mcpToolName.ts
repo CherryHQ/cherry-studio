@@ -329,15 +329,35 @@ export function migrateDisabledToolsForServerRename(
   if (!fromKey || fromKey === toKey) return undefined
 
   let changed = false
-  const migrated = disabledTools.map((entry) => {
-    if (!entry.startsWith('mcp__')) return entry
+  const migrated: string[] = []
+  const emitted = new Set<string>()
+  const push = (value: string) => {
+    if (emitted.has(value)) return
+    emitted.add(value)
+    migrated.push(value)
+  }
+  for (const entry of disabledTools) {
+    if (!entry.startsWith('mcp__')) {
+      push(entry)
+      continue
+    }
     const rest = entry.slice('mcp__'.length)
     const delimiterIndex = rest.indexOf('__')
-    if (delimiterIndex <= 0) return entry
-    if (rest.slice(0, delimiterIndex) !== fromKey) return entry
+    if (delimiterIndex <= 0 || rest.slice(0, delimiterIndex) !== fromKey) {
+      push(entry)
+      continue
+    }
+    // Server-level rules feed matchesMcpSourceToolRule, where an entry matches the literal
+    // provider tool name, the tool id, or the wire form of the CURRENT configured name. A
+    // `mcp__<old-key>__<tool>` entry can therefore be either a literal tool name that happens
+    // to look like a qualified identity (rename-independent) or the old wire form
+    // (rename-dependent) — indistinguishable at migration time, so keep the original alongside
+    // the migrated alias. These rules only ever gate this server's own tools, so the kept
+    // literal cannot over-block another server.
     changed = true
-    return `mcp__${toKey}__${rest.slice(delimiterIndex + 2)}`
-  })
+    push(entry)
+    push(`mcp__${toKey}__${rest.slice(delimiterIndex + 2)}`)
+  }
   return changed ? migrated : undefined
 }
 
@@ -547,10 +567,11 @@ function applyAgentKeyRewrites(
           // Pi resolves denials through `buildFunctionCallToolName`, which camelizes BOTH
           // segments (`GitHub` + `get_time` registers `mcp__github__getTime`): copying the raw
           // tool segment onto the camelized key emits a string no runtime registered, and the
-          // explicitly disabled tool executes. Set-dedup folds the copy when the tool segment
-          // is already camelCase.
+          // explicitly disabled tool executes. The camelized-tool variant is emitted
+          // unconditionally — a plain destination key folds onto itself in the set — because
+          // the key needing no camelization says nothing about the tool segment.
           const targets = new Set<string>([`mcp__${matched.toKey}__${toolPart}`])
-          if (matched.camelToKey) targets.add(`mcp__${matched.camelToKey}__${toCamelCase(toolPart)}`)
+          targets.add(`mcp__${matched.camelToKey ?? matched.toKey}__${toCamelCase(toolPart)}`)
           replacements = [...targets]
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = rewriteHashed(toolPart, lossyMatched.toKey)

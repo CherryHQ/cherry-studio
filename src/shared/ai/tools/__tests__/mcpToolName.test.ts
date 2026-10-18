@@ -496,15 +496,26 @@ describe('migrateDisabledToolsForServerRename', () => {
   it('rewrites saved denial rules from the old key onto the renamed key', () => {
     // `docs` renamed to `github`: the saved `mcp__docs__run` encodes the key of the moment and
     // would otherwise match nothing, letting the disabled tool execute under bypassPermissions.
-    expect(migrateDisabledToolsForServerRename(['mcp__docs__run'], 'docs', 'github')).toEqual(['mcp__github__run'])
+    // Server-level rules feed matchesMcpSourceToolRule, where an entry may be either a literal
+    // provider tool name (rename-independent) or the old wire form (rename-dependent) — the two
+    // are indistinguishable, so the original stays alongside the migrated alias. These rules
+    // only ever gate THIS server's tools, so the kept literal cannot block another server.
+    expect(migrateDisabledToolsForServerRename(['mcp__docs__run'], 'docs', 'github')).toEqual([
+      'mcp__docs__run',
+      'mcp__github__run'
+    ])
   })
 
   it('keeps the tool segment verbatim even when it contains `__`', () => {
-    expect(migrateDisabledToolsForServerRename(['mcp__docs__x__y'], 'docs', 'github')).toEqual(['mcp__github__x__y'])
+    expect(migrateDisabledToolsForServerRename(['mcp__docs__x__y'], 'docs', 'github')).toEqual([
+      'mcp__docs__x__y',
+      'mcp__github__x__y'
+    ])
   })
 
   it('sanitizes both sides before matching and rewriting', () => {
     expect(migrateDisabledToolsForServerRename(['mcp__docs_search__run'], 'docs__search', 'my__server')).toEqual([
+      'mcp__docs_search__run',
       'mcp__my_server__run'
     ])
   })
@@ -766,6 +777,21 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         reservedKeys: RESERVED
       })
     ).toEqual(['mcp__GitHub__get_time', 'mcp__github__getTime'])
+  })
+
+  it('emits the camelized-tool alias even when the destination key is already camelCase', () => {
+    // Renaming the UUID-keyed `skills` onto a plain lowercase name (`docs`) needs no key
+    // camelization, but Pi still registers `buildFunctionCallToolName('docs', 'get_time')` as
+    // `mcp__docs__getTime`. The raw-form copy matches neither that identity nor the UUID alias
+    // the migration replaces, so the tool executes on Pi after reconnect.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__srv-1__get_time'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'skills' }],
+        renamedServerId: 'srv-1',
+        toName: 'docs',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__docs__get_time', 'mcp__docs__getTime'])
   })
 
   it('carries a truncated DSH identity onto the renamed key fragment', () => {

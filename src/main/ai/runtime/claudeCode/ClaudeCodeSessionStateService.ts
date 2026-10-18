@@ -243,7 +243,9 @@ export class ClaudeCodeSessionStateService extends BaseService {
     const sequence = ++state.refreshSequence
 
     const [policyResult, metadataResult] = await Promise.allSettled([
-      this.getToolPolicySnapshot(sessionId)?.update(liveAgent),
+      // Same active connection: keep the retained denials untouched — the replacement
+      // connection's refresh is the only path that releases them.
+      this.getToolPolicySnapshot(sessionId)?.update(liveAgent, { keepRetainedDenied: true }),
       // Attribute under the running connection's frozen allocation: the live agent may have
       // dropped or renamed a mounted server mid-turn, and re-allocating from agent.mcps would
       // hand its configured-name key to a same-named survivor the connection still binds under
