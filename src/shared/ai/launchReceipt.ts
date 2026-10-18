@@ -13,7 +13,14 @@ export function parseLaunchReceiptText(output: string): string | undefined {
   // prefix: a foreground launch's result is the child's own answer, and prose that quotes an id
   // must not bind the flow to it. The prefix names the id in its own breath — the only thing the
   // SDK may print between them is its one parenthetical metadata.
-  return /^(?:Async agent launched successfully|done)\.(?:\s*\([^\n]*\))?(?:\n\s*|\s+)(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9_-]+)/.exec(
+  const anchored =
+    /^(?:Async agent launched successfully|done)\.(?:\s*\([^\n]*\))?(?:\n\s*|\s+)(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9_-]+)/.exec(
+      text
+    )?.[1]
+  if (anchored) return anchored
+  // The SDK also appends this trailer to a foreground subagent's own answer so a later send can
+  // continue it; the id repeats in the send parenthetical and a usage block closes the output.
+  return /(?:\n|^)agentId: ([A-Za-z0-9_-]+) \([Uu]se SendMessage with to: '\1'[^\r\n]*\)\r?\n<usage>(?:(?!<\/usage>)[\s\S])*<\/usage>\s*$/.exec(
     text
   )?.[1]
 }

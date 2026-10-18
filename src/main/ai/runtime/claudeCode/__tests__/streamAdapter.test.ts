@@ -1788,6 +1788,105 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(textStart.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
     })
 
+    // Only the SendMessage tool produces a resume receipt: another tool's JSON output that
+    // happens to carry the receipt's keys must not re-tag the agent or stamp its own row.
+    it('ignores receipt-shaped output from tools other than SendMessage', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              content: JSON.stringify({ status: 'async_launched', agentId: 'agent-a1b2c3d4e5f6' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Resuming agent',
+                resumedAgentId: 'agent-a1b2c3d4e5f6'
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      for (const [toolCallId, toolName, content] of [
+        ['read-use', 'Read', JSON.stringify({ resumedAgentId: 'agent-a1b2c3d4e5f6' })],
+        ['bash-use', 'Bash', JSON.stringify({ pin: { id: 'agent-a1b2c3d4e5f6', name: 'worker' } })]
+      ] as const) {
+        adapter.handleMessage({
+          type: 'assistant',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: { content: [{ type: 'tool_use', id: toolCallId, name: toolName, input: {} }] }
+        } as any)
+        adapter.handleMessage({
+          type: 'user',
+          parent_tool_use_id: null,
+          session_id: 'sdk-1',
+          uuid: crypto.randomUUID(),
+          message: {
+            content: [{ type: 'tool_result', tool_use_id: toolCallId, content, is_error: false }]
+          }
+        } as any)
+        const part = parts.find(
+          (chunk) => chunk.type === 'tool-output-available' && chunk.toolCallId === toolCallId
+        ) as { providerMetadata?: Record<string, Record<string, unknown>> } | undefined
+        expect(part?.providerMetadata?.cherry?.launchToolCallId).toBeUndefined()
+      }
+
+      adapter.handleMessage({
+        type: 'stream_event',
+        event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } },
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID()
+      } as any)
+
+      const textStart = parts.filter((chunk) => chunk.type === 'text-start').at(-1) as {
+        providerMetadata?: Record<string, Record<string, unknown>>
+      }
+      expect(textStart.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+    })
+
     it('enriches a local workflow task from its launch receipt without handling remote agents', () => {
       const { adapter, statusEvents } = createAdapter()
 
@@ -2181,6 +2280,85 @@ describe('ClaudeCodeStreamAdapter', () => {
               content: JSON.stringify({
                 success: true,
                 message: 'Agent "agent-a1b2c3d4e5f6" had no active task; resumed from transcript',
+                resumedAgentId: 'agent-a1b2c3d4e5f6'
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+
+      const receiptChunk = parts.find(
+        (part) => part.type === 'tool-output-available' && (part as { toolCallId?: string }).toolCallId === 'send-use'
+      ) as {
+        resultProviderMetadata?: { cherry?: { launchToolCallId?: string } }
+        providerMetadata?: { cherry?: { launchToolCallId?: string } }
+      }
+      const stamped =
+        receiptChunk?.resultProviderMetadata?.cherry?.launchToolCallId ??
+        receiptChunk?.providerMetadata?.cherry?.launchToolCallId
+      expect(stamped).toBe('launch-use')
+    })
+
+    it('stamps the receipt for a foreground launch whose answer carries the SDK trailer', () => {
+      messageServiceMocks.findLaunchToolCallId.mockReturnValue(null)
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              // A foreground launch returns the child's own answer with the SDK's receipt trailer
+              // appended, so a later send can continue the agent.
+              content: [
+                '[Subagent hand-back] The text below is the final report of a subagent this session delegated to.',
+                'The report follows:',
+                'Findings…',
+                "agentId: agent-a1b2c3d4e5f6 (use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent)",
+                '<usage>subagent_tokens: 180700\ntool_uses: 58\nduration_ms: 863820</usage>'
+              ].join('\n'),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Resuming agent',
                 resumedAgentId: 'agent-a1b2c3d4e5f6'
               }),
               is_error: false
