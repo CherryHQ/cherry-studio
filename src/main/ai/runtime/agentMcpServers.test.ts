@@ -57,8 +57,9 @@ describe('buildAgentMcpServers key allocation', () => {
     const servers = build([[id, { id, name: 'my-tools', isActive: true }]])
 
     expect(servers['my-tools']).toMatchObject({ id, name: 'my-tools' })
-    // Built-in entries keep their fixed keys.
-    expect(Object.keys(servers)).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
+    // Built-in entries keep their fixed keys (agent-memory is mount-gated upstream, so only
+    // cherry-tools is unconditional for an empty mountedServers set).
+    expect(Object.keys(servers)).toEqual(expect.arrayContaining(['cherry-tools']))
   })
 
   it('keeps a server named __proto__ on a sanitized own enumerable key', () => {

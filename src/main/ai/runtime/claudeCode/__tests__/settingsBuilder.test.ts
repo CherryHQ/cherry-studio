@@ -890,9 +890,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       // The remote bridge is registered under its configured server name (issue #21321) — its
       // snapshot row is named `@cherry/browser`, not the raw agent.mcps entry.
       expect(settings.mcpServers?.['@cherry/browser']).toBeDefined()
-      expect(settings.allowedTools).toEqual(
-        expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
-      )
+      // The in-memory browser bridge no longer mounts as a claudeCode MCP server upstream, so
+      // its tools are not in allowedTools anymore — automation remains the mounted built-in.
       expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__automation__js', 'mcp__automation__reset']))
       expect(settings.allowedTools).not.toContain('mcp__browser__*')
     } finally {
