@@ -2,7 +2,7 @@
  * Central registry of legacy Electron IPC channel names. Command IPC has largely moved to
  * IpcApi (`ipcApi.request`); what remains here is the data/IpcApi transport infrastructure
  * plus channels not yet migrated — v1-only backup / nutstore / copilot, the file module,
- * LAN transfer, and a handful of micro-domains.
+ * and a handful of micro-domains.
  */
 export enum IpcChannel {
   App_Select = 'app:select',
@@ -92,8 +92,6 @@ export enum IpcChannel {
   Backup_RestoreFromS3 = 'backup:restoreFromS3',
   Backup_ListS3Files = 'backup:listS3Files',
   Backup_DeleteS3File = 'backup:deleteS3File',
-  Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // zip
   Zip_Decompress = 'zip:decompress',
@@ -130,17 +128,7 @@ export enum IpcChannel {
 
   // TRACE
   TRACE_GET_DATA = 'trace:getData',
-  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-
-  // LAN Transfer
-  LanTransfer_StartScan = 'lan-transfer:start-scan',
-  LanTransfer_StopScan = 'lan-transfer:stop-scan',
-  LanTransfer_ServicesUpdated = 'lan-transfer:services-updated',
-  LanTransfer_Connect = 'lan-transfer:connect',
-  LanTransfer_Disconnect = 'lan-transfer:disconnect',
-  LanTransfer_ClientEvent = 'lan-transfer:client-event',
-  LanTransfer_SendFile = 'lan-transfer:send-file',
-  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer'
+  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

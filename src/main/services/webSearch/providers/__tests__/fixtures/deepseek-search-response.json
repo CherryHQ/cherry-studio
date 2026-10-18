@@ -1,0 +1,22 @@
+{
+  "results": [
+    {
+      "title": "DeepSeek Result Title",
+      "site_name": "example.com",
+      "site_icon": "https://cdn.deepseek.com/site-icons/example.com",
+      "authority": 3,
+      "rerank_score": 2.257854461669922,
+      "date": "2026-10-01T00:00:00+00:00",
+      "url": "https://example.com/deepseek-result",
+      "summary": "DeepSeek Summary"
+    },
+    {
+      "title": " DeepSeek Snippet Only ",
+      "site_name": "snippet.example",
+      "authority": 1,
+      "rerank_score": 1.1,
+      "url": "https://snippet.example/page",
+      "snippet": "DeepSeek Snippet"
+    }
+  ]
+}

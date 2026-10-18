@@ -1,6 +1,7 @@
 import { defineProvider } from './types'
 
 const webToolModels = [
+  'claude-haiku-5-5',
   'claude-sonnet-5-5',
   'claude-opus-5-5',
   'claude-opus-4',
@@ -28,6 +29,7 @@ export default defineProvider({
   ],
   metadata: {
     website: {
+      billing: 'https://platform.claude.com/settings/billing',
       apiKey: 'https://console.anthropic.com/settings/keys',
       docs: 'https://docs.anthropic.com/en/docs',
       models: 'https://docs.anthropic.com/en/docs/about-claude/models',

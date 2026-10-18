@@ -10,8 +10,11 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { appStateTable } from '@data/db/schemas/appState'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 
 // Fake registry providers — two preset providers: 'openai' and 'anthropic'.
@@ -93,6 +96,50 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     const ids = rows.map((r) => r.providerId)
     expect(ids).toContain('anthropic')
     expect(ids).not.toContain('cherryai')
+  })
+
+  it('repairs a legacy provider order key before appending preset providers', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'existing', name: 'Existing', orderKey: generateOrderKeyBetween(null, null) },
+      { providerId: 'legacy-b', name: 'Legacy B', orderKey: 'zz' },
+      { providerId: 'legacy-a', name: 'Legacy A', orderKey: 'zz' }
+    ])
+
+    await dbh.db.insert(appStateTable).values({
+      key: 'seed:presetProvider',
+      value: { version: 'test-version' }
+    })
+
+    const seed = new PresetProviderSeeder()
+    new SeedRunner(dbh.db).runAll([seed])
+
+    const rows = await dbh.db.select().from(userProviderTable)
+    expect(rows.map((row) => row.providerId)).toContain('openai')
+    const legacyRows = rows.filter((row) => row.providerId.startsWith('legacy-'))
+    expect(legacyRows).toHaveLength(2)
+    expect([...legacyRows].sort((a, b) => a.providerId.localeCompare(b.providerId)).map((row) => row.name)).toEqual([
+      'Legacy A',
+      'Legacy B'
+    ])
+    for (const legacy of legacyRows) {
+      expect(legacy.orderKey).not.toBe('zz')
+      expect(() => generateOrderKeyBetween(legacy.orderKey, null)).not.toThrow()
+    }
+
+    const ordered = [...rows].sort((a, b) => a.orderKey.localeCompare(b.orderKey))
+    expect(ordered.map((row) => row.providerId).slice(0, 3)).toEqual(['existing', 'legacy-a', 'legacy-b'])
+  })
+
+  it('repairs legacy provider order keys even when the registry is empty', async () => {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'legacy', name: 'Legacy', orderKey: 'zz' })
+    vi.spyOn(RegistryLoader.prototype, 'loadProviders').mockReturnValueOnce([])
+
+    const seed = new PresetProviderSeeder()
+    new SeedRunner(dbh.db).runAll([seed])
+
+    const [legacy] = await dbh.db.select().from(userProviderTable)
+    expect(legacy.orderKey).not.toBe('zz')
+    expect(() => generateOrderKeyBetween(legacy.orderKey, null)).not.toThrow()
   })
 
   it('never seeds endpointConfigs — registry connection config resolves at read time', async () => {

@@ -179,6 +179,7 @@ describe('AgentService', () => {
     await dbh.db
       .insert(knowledgeBaseTable)
       .values({
+        orderKey: 'a0',
         id,
         name: id,
         status: 'completed',

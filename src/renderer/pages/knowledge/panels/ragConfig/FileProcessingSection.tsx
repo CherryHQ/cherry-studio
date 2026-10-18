@@ -6,7 +6,7 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
+import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 
 import { useOpenMineruConnectivity } from '../../hooks/useOpenMineruConnectivity'
 import { FileProcessorSelector, type FileProcessorSelectorOption } from './FileProcessorSelector'
@@ -38,7 +38,7 @@ const FileProcessingSection = ({
   onFileProcessorChange
 }: FileProcessingSectionProps) => {
   const { t } = useTranslation()
-  const { status, isStatusResolved } = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr)
+  const { status, isStatusResolved } = useLocalModel(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr)
   // Open MinerU is the only self-hosted processor, so one unconditional probe
   // covers it. Probing every API processor instead would
   // fire requests at third-party SaaS hosts the user never asked us to contact.
@@ -119,7 +119,7 @@ const FileProcessingSection = ({
     // disk. Selecting before that would leave the user with a processor whose job
     // dies on the missing model if they cancel or the download fails.
     const downloaded = await LocalModelDownloadPopup.show({
-      id: LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr,
+      id: DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr,
       description: t('settings.dependencies.localModels.ocr.subtitle')
     })
     if (!downloaded) {

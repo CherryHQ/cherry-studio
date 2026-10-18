@@ -18,7 +18,11 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import {
+  resolveAgentCapabilities,
+  resolveAutomationAccess,
+  resolveMountedMcpServers
+} from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { BUILTIN_AGENT_PLUGIN_NAME } from '@main/ai/agents/builtin/builtinAgentDefinition'
 import {
   getBuiltinAgentPluginDirectory,
@@ -40,6 +44,7 @@ import {
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
+import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import {
   findBuiltinToolPolicy,
@@ -65,7 +70,6 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
-import { AgentsMdLoader } from './AgentsMdLoader'
 import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
 import {
   AUTO_COMPACT_TRIGGER_PCT,
@@ -180,6 +184,7 @@ export async function buildClaudeCodeSessionSettings(
   const capabilities = resolveAgentCapabilities(agent)
   const mountedServers = resolveMountedMcpServers(agent, {
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     channelLinked: linkedChannelSnapshot !== null
   })
 
@@ -215,8 +220,6 @@ export async function buildClaudeCodeSessionSettings(
   // stream exits abnormally.
   const approvalEmitter = sessionState().getToolApprovalEmitterHolder(session.id)
   const steerHolder = sessionState().getSteerHolder(session.id)
-  const agentsMdLoader = await AgentsMdLoader.create(cwd)
-  const agentsMdContext = await agentsMdLoader.loadInitialContext()
   // The running connection's server allocation, captured once: legacy denial translation
   // (step 4), tool metadata (step 6 + the reconciliation in step 7), and the live catalog sync
   // registration all attribute tools under the exact keys THIS build registers until a rebuild
@@ -230,7 +233,6 @@ export async function buildClaudeCodeSessionSettings(
     agent,
     mountedServers,
     agentDataPath,
-    agentsMdLoader,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
     options?.supportsImages !== false,
     // Same allocation the step-6 record build consumes, so legacy id-keyed denials translate
@@ -248,7 +250,6 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    agentsMdContext,
     options?.effectiveLanguage
   )
 
@@ -303,7 +304,7 @@ export async function buildClaudeCodeSessionSettings(
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
   // is maintained by SkillService (install/uninstall/startup), not here.
-  const skills = await buildSkillWhitelist(agent, cwd)
+  const skills = await buildSkillWhitelist(agent, cwd, linkedChannelSnapshot !== null)
 
   // 10. Build settings
   const declaredContextWindow = options?.contextWindow
@@ -341,12 +342,14 @@ export async function buildClaudeCodeSessionSettings(
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
-    // Support loads only Cherry-owned plugin configuration. AGENTS.md context is injected above
-    // by AgentsMdLoader, so disabling filesystem settings does not remove workspace instructions.
+    // Sealed agents exclude filesystem settings and native workspace instructions.
     settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
     settings: {
       autoCompactEnabled: true,
       cleanupPeriodDays: CLAUDE_SESSION_RETENTION_DAYS,
+      pluginConfigs: {
+        'agents-md@builtin': { options: { instructionFiles: 'claude-md-and-agents-md' } }
+      },
       // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
       // Disable Claude Code's separate auto-memory store so the preset does not introduce a
       // second, conflicting memory contract.
@@ -415,8 +418,9 @@ export { buildMcpServers } from './mcpCatalog'
  * startup reconcile, never here — so concurrent session builds never race.
  */
 export async function buildSkillWhitelist(
-  agent: Pick<AgentEntity, 'id' | 'configuration'>,
-  cwd: string
+  agent: Pick<AgentEntity, 'id' | 'configuration' | 'disabledTools'>,
+  cwd: string,
+  channelLinked = false
 ): Promise<string[]> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
@@ -426,7 +430,14 @@ export async function buildSkillWhitelist(
       skillService.list({ agentId: agent.id }),
       skillService.listLocalFolderNames(cwd)
     ])
-    const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
+    const access = resolveAutomationAccess(agent, {
+      channelLinked,
+      browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+      computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
+    })
+    const enabledNames = installedSkills
+      .filter((skill) => skill.isEnabled && isAutomationSkillAvailable(skill, access))
+      .map((skill) => skill.folderName)
     names = [...enabledNames, ...workspaceNames, ...bundledNames]
   }
 
@@ -481,7 +492,6 @@ async function buildToolPermissions(
   agent: AgentEntity,
   mountedServers: ReadonlySet<string>,
   agentDataPath: string,
-  agentsMdLoader: AgentsMdLoader,
   pluginDirectories: ReadonlyMap<string, string>,
   supportsImages: boolean,
   /** Mounted-server id → runtime record key, for translating legacy id-keyed denial rules. */
@@ -629,8 +639,7 @@ async function buildToolPermissions(
     builtinRole,
     mountedServers,
     pluginDirectories,
-    supportsImages,
-    agentsMdLoader
+    supportsImages
   })
 
   return {
@@ -654,8 +663,6 @@ export async function buildSystemPrompt(
   knowledgeBaseIds: readonly string[] = agent.knowledgeBaseIds ?? [],
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
-  /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
-  agentsMdContext?: string,
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
@@ -678,7 +685,6 @@ export async function buildSystemPrompt(
     agentDataPath,
     agent,
     citationsGuidance,
-    workspaceInstructions: agentsMdContext,
     customBaseContext,
     effectiveLanguage
   })

@@ -39,6 +39,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://bochaai.com',
     apiKeyWebsite: 'https://open.bochaai.com/overview'
   },
+  deepseek: {
+    descriptionKey: 'settings.tool.websearch.provider_description.deepseek',
+    iconRef: providerIconRef('deepseek'),
+    officialWebsite: 'https://api-docs.deepseek.com/guides/search',
+    apiKeyWebsite: 'https://platform.deepseek.com/api_keys'
+  },
   exa: {
     descriptionKey: 'settings.tool.websearch.provider_description.exa',
     iconRef: providerIconRef('exa'),
@@ -100,6 +106,11 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('firecrawl'),
     officialWebsite: 'https://firecrawl.dev',
     apiKeyWebsite: 'https://firecrawl.dev/app/api-keys'
+  },
+  duckduckgo: {
+    descriptionKey: 'settings.tool.websearch.provider_description.duckduckgo',
+    iconRef: providerIconRef('duck'),
+    officialWebsite: 'https://duckduckgo.com'
   }
 }
 

@@ -34,11 +34,14 @@ export const BuiltinMcpServerNamesArray = Object.values(BuiltinMcpServerNames)
 export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
   BROWSER: 'browser',
+  COMPUTER: 'computer',
+  AUTOMATION: 'automation',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',
   ASSISTANT: 'assistant',
-  ASSISTANT_FILES: 'assistant-files'
+  ASSISTANT_FILES: 'assistant-files',
+  DOCTOR: 'doctor'
 } as const
 
 export const isBuiltinMcpServerName = (name: string): name is BuiltinMcpServerName => {

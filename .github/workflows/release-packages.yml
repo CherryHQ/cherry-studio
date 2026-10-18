@@ -6,9 +6,12 @@ on:
       - main
     paths:
       - ".changeset/**"
+      - "packages/provider-registry/**"
+      - "packages/web-search/**"
       - "packages/aiCore/**"
       - "packages/ai-sdk-provider/**"
       - "packages/extension-table-plus/**"
+      - "packages/file-preview/**"
       - "packages/remote-protocol/**"
       - "packages/remote-transport/**"
   workflow_dispatch:
@@ -56,8 +59,19 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Check changeset release policy
+        run: pnpm changeset:check
+
       - name: Build Packages
         run: pnpm packages:build
+
+      - name: Check Web Search Package
+        run: |
+          pnpm --filter @cherrystudio/web-search test
+          pnpm --filter @cherrystudio/web-search test:package
+
+      - name: Check Provider Registry Package
+        run: pnpm --filter @cherrystudio/provider-registry test:package
 
       - name: Check Remote Packages
         run: |
@@ -69,6 +83,8 @@ jobs:
         uses: changesets/action@v2
         with:
           create-github-releases: false
+          # Keep CLI tag events for publish outputs, but reserve remote tags for desktop releases.
+          push-git-tags: false
           publish-script: pnpm changeset:publish
           version-script: pnpm changeset:version
           commit-message: "chore: version packages"

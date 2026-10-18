@@ -1,6 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+
 const store = new Map<string, unknown>()
 vi.mock('@data/CacheService', () => ({
   cacheService: {
@@ -165,5 +167,279 @@ describe('useFollowupQueue', () => {
     expect(result.current.paused).toBe(true)
     expect(onDrain).not.toHaveBeenCalled()
     expect(result.current.items).toHaveLength(1)
+  })
+})
+
+describe('queued edit switching', () => {
+  beforeEach(() => {
+    store.clear()
+    vi.mocked(cacheService.setCasual).mockClear()
+  })
+
+  const setup = (ids = ['A', 'B']) => {
+    const entries = ids.map((id) => item(id, id))
+    store.set('followup-queue.s1', entries)
+    const markSeen = vi.fn()
+    const onDrain = vi.fn().mockResolvedValue(true)
+    const onDrainFailed = vi.fn()
+    const hook = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen, onDrain, onDrainFailed }),
+      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+    )
+    return { ...hook, entries, markSeen, onDrain, onDrainFailed }
+  }
+  const capture = (taken: ReturnType<typeof item>) => ({ draft: taken.draft, payload: taken.payload })
+
+  it('commits consecutive takes synchronously with one final visible-array write per take and the existing TTL', () => {
+    const {
+      result,
+      entries: [a, b]
+    } = setup()
+    const outgoing = vi.fn(() => ({ draft: draft('A-prime'), payload: payload('A-prime') }))
+    act(() => {
+      expect(result.current.takeForEdit(a.id, outgoing), 'first take returns the whole incoming item').toEqual(a)
+      expect(result.current.takeForEdit(b.id, outgoing), 'same-act take must see the authoritative queue').toEqual(b)
+    })
+    expect(result.current.items, 'switch must preserve edited A under its original identity').toEqual([
+      { ...a, draft: draft('A-prime'), payload: payload('A-prime') }
+    ])
+    expect(outgoing.mock.calls.length, 'capture runs exactly once only for the outgoing taken document').toBe(1)
+    expect(
+      vi.mocked(cacheService.setCasual).mock.calls,
+      'each successful transaction persists once with 24h TTL'
+    ).toEqual([
+      ['followup-queue.s1', [b], 86400000],
+      ['followup-queue.s1', result.current.items, 86400000]
+    ])
+  })
+
+  it('refuses missing, taken and invalid outgoing drafts without mutations or capture of invalid ids', () => {
+    const {
+      result,
+      entries: [a, b]
+    } = setup()
+    const outgoing = vi.fn(() => null)
+    act(() => {
+      expect(result.current.takeForEdit('missing', outgoing), 'unknown ids must refuse').toBeNull()
+      result.current.takeForEdit(a.id, outgoing)
+      expect(result.current.takeForEdit(a.id, outgoing), 'already-taken ids must refuse').toBeNull()
+    })
+    expect(outgoing.mock.calls.length, 'invalid ids must not capture').toBe(0)
+    const writes = vi.mocked(cacheService.setCasual).mock.calls.length
+    act(() => {
+      expect(result.current.takeForEdit(b.id, outgoing), 'invalid outgoing document must refuse').toBeNull()
+    })
+    expect(result.current.items, 'refusal must retain B').toEqual([b])
+    expect(store.get('followup-queue.s1'), 'refusal must retain persisted B').toEqual([b])
+    expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'refusal must not write cache').toBe(writes)
+    act(() => {
+      result.current.takeForEdit(b.id, capture)
+    })
+    expect(result.current.items, 'refusal must retain ownership of A for a later valid switch').toEqual([a])
+  })
+
+  it.each(['remove', 'drain'])('adjusts the absent slot after a preceding %s, once only', async (mode) => {
+    const {
+      result,
+      rerender,
+      entries: [x, a, b, c]
+    } = setup(['X', 'A', 'B', 'C'])
+    act(() => {
+      result.current.takeForEdit(a.id, capture)
+    })
+    if (mode === 'remove')
+      act(() => {
+        result.current.removeId(x.id)
+      })
+    else
+      await act(async () => {
+        rerender({ scopeKey: 's1', isFulfilled: true })
+      })
+    act(() => {
+      result.current.removeId(x.id)
+      result.current.takeForEdit(b.id, capture)
+    })
+    expect(result.current.items, 'removing or draining X must return A before C without double decrement').toEqual([
+      a,
+      c
+    ])
+  })
+
+  it('keeps explicit visible reorder and the absent numerical slot, clamping only upon insertion', () => {
+    const {
+      result,
+      entries: [x, a, b, c]
+    } = setup(['X', 'A', 'B', 'C'])
+    act(() => {
+      result.current.takeForEdit(b.id, capture)
+      result.current.reorder([c, a, x])
+      result.current.takeForEdit(c.id, capture)
+    })
+    expect(result.current.items, 'reorder must keep the supplied order across the absent slot').toEqual([a, b, x])
+    act(() => {
+      result.current.takeForEdit(b.id, capture)
+      result.current.reorder([x])
+      result.current.takeForEdit(x.id, capture)
+    })
+    expect(result.current.items, 'an absent slot beyond the new queue length must clamp safely').toEqual([b])
+  })
+
+  it.each(['release', 'matching removal'])('ends a taken record through %s even when its id is absent', (mode) => {
+    const {
+      result,
+      entries: [a, b]
+    } = setup()
+    act(() => {
+      result.current.takeForEdit(a.id, capture)
+    })
+    const writes = vi.mocked(cacheService.setCasual).mock.calls.length
+    act(() => {
+      if (mode === 'release') {
+        result.current.releaseEdit()
+        result.current.releaseEdit()
+      } else {
+        result.current.removeId(a.id)
+        result.current.removeId(a.id)
+      }
+    })
+    expect(result.current.items, 'ending ownership must leave the visible queue untouched').toEqual([b])
+    expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'ending absent ownership must not persist').toBe(writes)
+    const outgoing = vi.fn(capture)
+    act(() => {
+      result.current.takeForEdit(b.id, outgoing)
+    })
+    expect(result.current.items, 'ended ownership must never resurrect A').toEqual([])
+    expect(outgoing.mock.calls.length, 'ended ownership must not capture an unrelated editor').toBe(0)
+  })
+
+  it('admits each visible id once, refuses taking it and permits another id until idempotent release', () => {
+    const {
+      result,
+      entries: [a, b]
+    } = setup()
+    let release!: () => void
+    act(() => {
+      expect(result.current.beginSend('missing'), 'absent ids cannot dispatch').toBeNull()
+      release = result.current.beginSend(a.id)!
+      expect(result.current.beginSend(a.id), 'duplicate dispatch must refuse').toBeNull()
+      expect(result.current.takeForEdit(a.id, capture), 'admitted dispatch must refuse Edit').toBeNull()
+    })
+    expect(result.current.items, 'admission must not change visible items').toEqual([a, b])
+    expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'admission must not persist').toBe(0)
+    act(() => {
+      result.current.takeForEdit(b.id, capture)
+      release()
+      release()
+      result.current.takeForEdit(a.id, capture)
+    })
+    expect(result.current.items, 'another id remains editable and released A can open').toEqual([b])
+  })
+
+  it('does not let an old admission release cancel a subsequent admission of the same id', () => {
+    const { result } = setup()
+    const release = result.current.beginSend('A')!
+    release()
+    const nextRelease = result.current.beginSend('A')!
+    release()
+    expect(
+      result.current.takeForEdit('A', capture),
+      'idempotent release must not reopen a newly admitted item'
+    ).toBeNull()
+    nextRelease()
+    act(() => {
+      expect(result.current.takeForEdit('A', capture), 'the current admission release must reopen A').toEqual(
+        item('A', 'A')
+      )
+    })
+  })
+
+  it.each(['success', 'false', 'reject'])(
+    'holds drain admission until %s and preserves one head per completion',
+    async (outcome) => {
+      const {
+        result,
+        rerender,
+        entries: [a, b],
+        onDrain,
+        onDrainFailed
+      } = setup()
+      let resolve!: (sent: boolean) => void
+      let reject!: (error: Error) => void
+      onDrain.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((done, fail) => {
+            resolve = done
+            reject = fail
+          })
+      )
+      act(() => {
+        rerender({ scopeKey: 's1', isFulfilled: true })
+      })
+      act(() => {
+        expect(result.current.takeForEdit(a.id, capture), 'draining head must refuse editing').toBeNull()
+      })
+      await act(async () => {
+        if (outcome === 'reject') reject(new Error('rejected'))
+        else resolve(outcome === 'success')
+      })
+      expect(result.current.items, 'only successful admission removes the head').toEqual(
+        outcome === 'success' ? [b] : [a, b]
+      )
+      expect(onDrain.mock.calls, 'queue mutations must not dispatch a second head on the same completion').toEqual([
+        [a.payload]
+      ])
+      expect(onDrainFailed.mock.calls.length, 'failed acceptance must keep existing failure reporting').toBe(
+        outcome === 'success' ? 0 : 1
+      )
+      if (outcome !== 'success') {
+        act(() => {
+          expect(result.current.takeForEdit(a.id, capture), 'failure must release admission for retry/edit').toEqual(a)
+        })
+      }
+    }
+  )
+
+  it('discards taken metadata and admissions on scope change and ignores old-scope success', async () => {
+    const {
+      result,
+      rerender,
+      entries: [a, b],
+      onDrain
+    } = setup()
+    const c = item('C', 'C'),
+      d = item('D', 'D')
+    store.set('followup-queue.s2', [c, d])
+    let resolve!: (sent: boolean) => void
+    onDrain.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((done) => {
+          resolve = done
+        })
+    )
+    act(() => {
+      result.current.takeForEdit(b.id, capture)
+      rerender({ scopeKey: 's1', isFulfilled: true })
+    })
+    act(() => {
+      rerender({ scopeKey: 's2', isFulfilled: false })
+    })
+    act(() => {
+      result.current.takeForEdit(c.id, capture)
+    })
+    await act(async () => {
+      resolve(true)
+    })
+    act(() => {
+      result.current.takeForEdit(d.id, capture)
+    })
+    expect(result.current.items, 'old success must not clear the new scope taken record').toEqual([c])
+    expect(store.get('followup-queue.s1'), 'old success must not mutate the prior scope cache').toEqual([a])
+    act(() => {
+      rerender({ scopeKey: 's1', isFulfilled: false })
+    })
+    act(() => {
+      expect(result.current.takeForEdit(a.id, capture), 'scope reload must discard old admission').toEqual(a)
+    })
+    expect(result.current.items, 'scope reload must not reinsert old taken B').toEqual([])
   })
 })

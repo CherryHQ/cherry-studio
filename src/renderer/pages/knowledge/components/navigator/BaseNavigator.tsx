@@ -8,6 +8,8 @@ import {
   buildKnowledgeBaseGroupSections,
   DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
 } from '@renderer/pages/knowledge/utils/group'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { ReorderKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -16,6 +18,9 @@ import BaseNavigatorContent from './BaseNavigatorContent'
 import BaseNavigatorResizeHandle from './BaseNavigatorResizeHandle'
 
 interface BaseNavigatorProps {
+  onReorderBase?: (id: string, request: ReorderKnowledgeBaseDto) => Promise<void>
+  onReorderGroup?: (id: string, anchor: OrderRequest) => Promise<void>
+  isReordering?: boolean
   bases: KnowledgeBaseListItem[]
   groups: Group[]
   isLoading: boolean
@@ -33,6 +38,9 @@ interface BaseNavigatorProps {
 }
 
 const BaseNavigator = ({
+  onReorderBase,
+  onReorderGroup,
+  isReordering,
   bases,
   groups,
   isLoading,
@@ -85,6 +93,9 @@ const BaseNavigator = ({
         </div>
 
         <BaseNavigatorContent
+          onReorderBase={onReorderBase}
+          onReorderGroup={onReorderGroup}
+          isReordering={isReordering}
           isLoading={isLoading}
           sections={knowledgeBaseGroupSections}
           groups={groups}

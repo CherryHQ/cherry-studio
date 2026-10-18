@@ -180,6 +180,13 @@ describe('doubao (Ark) endpoint matrix', () => {
  * secondary endpoint silently sends that protocol's traffic to localhost:3000.
  */
 describe('new-api single-host endpoints', () => {
+  it.each(['openai-image-generation', 'openai-image-edit'] as const)(
+    'routes %s through the New API adapter without overriding the user host',
+    (endpointType) => {
+      expect(provider('new-api').endpointConfigs?.[endpointType]).toEqual({ adapterFamily: 'newapi' })
+    }
+  )
+
   it('carries a placeholder baseUrl on the default chat endpoint only', () => {
     const withBaseUrl = Object.entries(provider('new-api').endpointConfigs ?? {})
       .filter(([, config]) => config?.baseUrl)
@@ -195,6 +202,32 @@ describe('new-api single-host endpoints', () => {
    */
   it('declares no per-model overrides', () => {
     expect(provider('new-api').overrides ?? []).toEqual([])
+  })
+})
+
+// Hugging Face documents Chat Completions for general chat and Anthropic Messages for Claude Code.
+// Declaring both lets Agents reach the router directly while keeping Responses selectable (#18676).
+describe('huggingface (router) endpoint matrix', () => {
+  it('preserves the Responses default inherited by existing unpinned models', () => {
+    expect(provider('huggingface').defaultChatEndpoint).toBe('openai-responses')
+  })
+
+  it('configures a base URL for Anthropic Messages so Claude Code Agents can address the router', () => {
+    expect(provider('huggingface').endpointConfigs?.['anthropic-messages']).toEqual({
+      adapterFamily: 'anthropic',
+      baseUrl: 'https://router.huggingface.co/v1/'
+    })
+  })
+
+  it('keeps all three router surfaces on the same host', () => {
+    expect(provider('huggingface').endpointConfigs).toEqual({
+      'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://router.huggingface.co/v1/' },
+      'openai-chat-completions': {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://router.huggingface.co/v1'
+      },
+      'openai-responses': { adapterFamily: 'open-responses', baseUrl: 'https://router.huggingface.co/v1/' }
+    })
   })
 })
 

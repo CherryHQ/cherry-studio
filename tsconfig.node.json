@@ -27,6 +27,7 @@
       "@data/*": ["./src/main/data/*"],
       "@logger": ["./src/main/core/logger/LoggerService"],
       "@main/*": ["./src/main/*"],
+      "@renderer/*": ["./src/renderer/*"],
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"],
       "@shared/*": ["./src/shared/*"],
       "@cherrystudio/ai-core": ["./packages/aiCore/src"],
@@ -36,7 +37,25 @@
       "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src"],
       "@cherrystudio/ai-sdk-provider/*": ["./packages/ai-sdk-provider/src/*"],
       "@test-helpers/*": ["./tests/helpers/*"],
-      "@test-mocks/*": ["./tests/__mocks__/*"]
+      "@test-mocks/*": ["./tests/__mocks__/*"],
+      "@cherrystudio/web-search": ["./packages/web-search/src/index.ts"],
+      "@cherrystudio/web-search/catalog": ["./packages/web-search/src/catalog.ts"],
+      "@cherrystudio/web-search/providers/zhipu": ["./packages/web-search/src/providers/zhipu.ts"],
+      "@cherrystudio/web-search/providers/tavily": ["./packages/web-search/src/providers/tavily.ts"],
+      "@cherrystudio/web-search/providers/searxng": ["./packages/web-search/src/providers/searxng.ts"],
+      "@cherrystudio/web-search/providers/exa": ["./packages/web-search/src/providers/exa.ts"],
+      "@cherrystudio/web-search/providers/exa-mcp": ["./packages/web-search/src/providers/exaMcp.ts"],
+      "@cherrystudio/web-search/providers/bocha": ["./packages/web-search/src/providers/bocha.ts"],
+      "@cherrystudio/web-search/providers/querit": ["./packages/web-search/src/providers/querit.ts"],
+      "@cherrystudio/web-search/providers/jina": ["./packages/web-search/src/providers/jina.ts"],
+      "@cherrystudio/web-search/providers/firecrawl": ["./packages/web-search/src/providers/firecrawl.ts"],
+      "@cherrystudio/web-search/providers/crawl4ai": ["./packages/web-search/src/providers/crawl4ai.ts"],
+      "@cherrystudio/web-search/providers/parallel": ["./packages/web-search/src/providers/parallel.ts"],
+      "@cherrystudio/web-search/providers/serply": ["./packages/web-search/src/providers/serply.ts"],
+      "@cherrystudio/web-search/providers/deepseek": ["./packages/web-search/src/providers/deepseek.ts"],
+      "@cherrystudio/web-search/tools/config": ["./packages/web-search/src/tools/config.ts"],
+      "@cherrystudio/web-search/tools/url-filter": ["./packages/web-search/src/tools/urlFilter.ts"],
+      "@cherrystudio/web-search/tools/content": ["./packages/web-search/src/tools/content.ts"]
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": ["electron-vite/node", "vitest/globals"]
@@ -52,7 +71,8 @@
     "packages/ai-sdk-provider/src/**/*",
     "src/shared/**/*",
     "tests/__mocks__/**/*",
-    "tests/helpers/**/*"
+    "tests/helpers/**/*",
+    "packages/web-search/src/**/*"
   ],
   "exclude": ["packages/aiCore/src/**/__tests__", "packages/aiCore/test_utils"]
 }

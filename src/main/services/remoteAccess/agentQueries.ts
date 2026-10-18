@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
+import { open } from 'node:fs/promises'
 
 import { getToolName, isToolUIPart } from 'ai'
 
+import { application } from '@application'
 import { modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
 import type {
   AgentInteraction,
@@ -21,15 +23,17 @@ import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
 
+import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
 import { toMessageUsage } from './agentUsage'
 
 /** Text above this many UTF-16 units travels as a content reference so records stay under the wire budget. */
 export const INLINE_TEXT_LIMIT = 4096
-const DEFAULT_PAGE = 20
 
 export const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 export const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text)
@@ -72,17 +76,6 @@ export function sliceContent(
     eof: start + slice.length === bytes.length,
     sha256: sha256(bytes)
   }
-}
-
-export function pageOf<T>(
-  items: readonly T[],
-  cursor: string | undefined,
-  limit: number | undefined
-): { items: T[]; nextCursor: string | null } {
-  const start = cursor === undefined ? 0 : Number(cursor)
-  if (!Number.isSafeInteger(start) || start < 0) throw new RemoteRpcError('NOT_FOUND', 'Invalid page cursor')
-  const end = start + (limit ?? DEFAULT_PAGE)
-  return { items: items.slice(start, end), nextCursor: end < items.length ? String(end) : null }
 }
 
 export function toSessionSummary(session: AgentSessionEntity, activeExecutionId?: string): AgentSession | undefined {
@@ -163,8 +156,28 @@ export function projectPersistedParts(message: AgentSessionMessageEntity): Proje
         dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
       )
     } else if (part.type === 'file') {
-      // ponytail: file bytes are not served remotely yet; expose metadata only, add content refs when Mobile renders files.
-      projected.push(dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null }))
+      const metadata = readCherryMeta(part)?.remoteAttachment
+      if (metadata && readCherryMeta(part)?.fileEntryId) {
+        projected.push({
+          text: '',
+          part: {
+            partId,
+            revision,
+            kind: 'file',
+            name: part.filename || 'file',
+            ref: {
+              contentId: partId,
+              revision,
+              byteLength: String(metadata.byteLength),
+              mediaType: part.mediaType,
+              sha256: metadata.sha256
+            }
+          }
+        })
+      } else
+        projected.push(
+          dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null })
+        )
     } else if (part.type !== 'step-start') {
       const { type, ...rest } = part as { type: string }
       projected.push(dataPart(partId, revision, type, rest))
@@ -225,10 +238,12 @@ export function listMessages(
   const session = getSession(sessionId)
   if (revisionOf(session.updatedAt) !== historyRevision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'History revision expired')
-  const page = notFound(() =>
-    agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: limit ?? DEFAULT_PAGE })
-  )
-  return { items: page.items.map(toMessage), nextCursor: page.nextCursor ?? null }
+  return queryPage((attemptLimit) => {
+    const page = notFound(() =>
+      agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: attemptLimit })
+    )
+    return { items: page.items.map(toMessage), nextCursor: page.nextCursor ?? null }
+  }, limit)
 }
 
 export function listParts(
@@ -361,4 +376,47 @@ export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParam
           : { type: 'user', workspaceId: input.workspaceId }
     })
   )
+}
+
+/** Resolve bytes only through a current message reference, never a client-supplied file path. */
+export async function readPersistedFileContent(params: AgentParams<'agent.content.read'>) {
+  const [messageId] = params.contentId.split(':')
+  const index = Number(params.contentId.slice(messageId.length + 1))
+  if (`${messageId}:${index}` !== params.contentId) return undefined
+  let message: AgentSessionMessageEntity
+  try {
+    message = agentSessionMessageService.getSessionMessage(params.sessionId, messageId)
+  } catch (error) {
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return undefined
+    throw error
+  }
+  const part = message.data.parts?.[index]
+  if (part?.type !== 'file') return undefined
+  const meta = readCherryMeta(part)
+  if (!meta?.remoteAttachment || !meta.fileEntryId) return undefined
+  if (revisionOf(message.updatedAt) !== params.revision)
+    throw new RemoteRpcError('REVISION_EXPIRED', 'Content revision expired')
+  const offset = Number(params.offset)
+  const { byteLength, sha256 } = meta.remoteAttachment
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > byteLength)
+    throw new RemoteRpcError('NOT_FOUND', 'Invalid file offset')
+  const handle = await open(
+    application.get('FileManager').getPhysicalPath(FileEntryIdSchema.parse(meta.fileEntryId)),
+    'r'
+  )
+  try {
+    const bytes = Buffer.alloc(Math.min(params.maxBytes, byteLength - offset))
+    const { bytesRead } = await handle.read(bytes, 0, bytes.length, offset)
+    if (bytesRead !== bytes.length || (await handle.stat()).size !== byteLength)
+      throw new RemoteRpcError('NOT_FOUND', 'Attachment is unavailable')
+    return {
+      ...params,
+      dataBase64: bytes.toString('base64'),
+      nextOffset: String(offset + bytesRead),
+      eof: offset + bytesRead === byteLength,
+      sha256
+    }
+  } finally {
+    await handle.close()
+  }
 }
