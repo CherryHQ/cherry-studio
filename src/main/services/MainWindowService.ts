@@ -24,6 +24,7 @@ import {
   isAllowedAgentHtmlArtifactEntryUrl
 } from '@main/utils/agentWebviewRequest'
 import { getAppEdition } from '@main/utils/appEdition'
+import { resolveDownloadSavePath } from '@main/utils/downloadPath'
 import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -399,6 +400,7 @@ export class MainWindowService extends BaseService {
     restrictedSession.setUserAgent(userAgent)
     restrictedSession.setPermissionCheckHandler(() => false)
     restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
+    const handleBrowserDownload = allowDownloads ? this.attachBrowserDownloadHandler(restrictedSession) : undefined
     if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       try {
@@ -420,9 +422,28 @@ export class MainWindowService extends BaseService {
       restrictedSession.setPermissionCheckHandler(null)
       restrictedSession.setPermissionRequestHandler(null)
       restrictedSession.removeListener('will-download', handleWillDownload)
+      handleBrowserDownload?.dispose()
       restrictedSession.webRequest.onBeforeRequest(null)
       clearPolicy?.()
     })
+  }
+
+  /**
+   * Route built-in browser downloads straight to the configured folder once the
+   * user turned off the per-file save dialog; leaving the item untouched keeps
+   * Electron's native save dialog (the default, matching Chrome).
+   */
+  private attachBrowserDownloadHandler(restrictedSession: Electron.Session): { dispose: () => void } {
+    const preferenceService = application.get('PreferenceService')
+    const handleDownload = (_event: Electron.Event, item: Electron.DownloadItem) => {
+      if (preferenceService.get('app.browser.downloads.ask_where_to_save')) return
+      const dir = preferenceService.get('app.browser.downloads.dir') || app.getPath('downloads')
+      item.setSavePath(resolveDownloadSavePath(dir, item.getFilename()))
+    }
+    restrictedSession.on('will-download', handleDownload)
+    return {
+      dispose: () => restrictedSession.removeListener('will-download', handleDownload)
+    }
   }
 
   private isBrowserEntryUrl(url: string): boolean {

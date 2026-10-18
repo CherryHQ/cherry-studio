@@ -848,7 +848,9 @@ describe('MainWindowService', () => {
         await expect(dispatch(url)).resolves.toEqual({ cancel: true })
       await expect(dispatch('blob:https://example.com/fixture', 'image')).resolves.toEqual({ cancel: false })
       expect(agentBrowserSessionMock.setPermissionCheckHandler.mock.calls[0][0]()).toBe(false)
-      expect(agentBrowserSessionMock.on.mock.calls.some(([event]) => event === 'will-download')).toBe(false)
+      // The Agent browser allows downloads; a preference-aware handler resolves
+      // the save path (or defers to Electron's dialog) on each download.
+      expect(agentBrowserSessionMock.on.mock.calls.some(([event]) => event === 'will-download')).toBe(true)
     })
 
     it('enforces the bound dev origin for programmatic main-frame loads', async () => {

@@ -51,6 +51,10 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'app.browser.agent_control.enabled': boolean
     // target-key-definitions/complex/complex
+    'app.browser.downloads.ask_where_to_save': boolean
+    // target-key-definitions/complex/complex
+    'app.browser.downloads.dir': string
+    // target-key-definitions/complex/complex
     'app.browser.open_links_in_browser': boolean
     // target-key-definitions/complex/complex
     'app.computer_use.agent_control.enabled': boolean
@@ -633,6 +637,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'agent.session.display_mode': 'agent',
     'agent.session.position': 'left',
     'app.browser.agent_control.enabled': true,
+    'app.browser.downloads.ask_where_to_save': true,
+    'app.browser.downloads.dir': '',
     'app.browser.open_links_in_browser': true,
     'app.computer_use.agent_control.enabled': false,
     'app.developer_mode.enabled': false,
