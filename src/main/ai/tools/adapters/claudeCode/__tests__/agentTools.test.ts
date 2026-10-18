@@ -101,6 +101,35 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('mcp__github__other')).toBe(false)
   })
 
+  it('translates a legacy id-keyed denial onto a hyphenated configured key the SDK keeps verbatim', async () => {
+    // The pinned SDK underscores only characters outside [A-Za-z0-9_-], so a hyphenated key
+    // registers `mcp__my-tools__run` verbatim. Emitting the underscored form (`my_tools`) names
+    // a tool the SDK never invokes and silently re-enables the disabled tool under Full Access.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'my-tools']])
+    })
+    expect(snapshot.isDisabled('mcp__my-tools__run')).toBe(true)
+    expect(snapshot.isDisabled('mcp__my_tools__run')).toBe(false)
+  })
+
+  it('keeps blocking a legacy denial after a live update renames the server to a space-bearing key', async () => {
+    // Startup translation (settingsBuilder) and the live gate share translateLegacyMcpToolRules.
+    // A rename during an active turn moves the key to `Docs MCP`, whose SDK identity is
+    // `mcp__Docs_MCP__run`; the live rebuild must emit that form, not only the raw/camelized ones.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'docs']])
+    })
+    expect(snapshot.isDisabled('mcp__docs__run')).toBe(true)
+
+    await snapshot.update(makeAgent([`mcp__${serverId}__run`]), {
+      serverNameById: new Map([[serverId, 'Docs MCP']])
+    })
+
+    expect(snapshot.isDisabled('mcp__Docs_MCP__run')).toBe(true)
+  })
+
   it('refreshes the server-key mapping on update so a renamed server keeps catching later denials', async () => {
     // Prewarm under `old`, the server is renamed to `new`, and the denial is added during an
     // active turn: the rebuild must translate against the CURRENT key mapping, or the live

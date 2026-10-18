@@ -1675,6 +1675,57 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
+  it('translates a legacy id-keyed denial onto the hyphenated key the pinned SDK keeps verbatim', async () => {
+    // Pinned SDK 0.3.284 derives `mcp__<key>__<tool>` by underscoring only characters outside
+    // [A-Za-z0-9_-]: a configured `my-tools` registers `mcp__my-tools__run` verbatim. Startup
+    // must emit that form — `mcp__my_tools__run` names nothing the SDK serves, so the denial
+    // silently lapses under Full Access.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [serverId],
+      allowedTools: [],
+      disabledTools: [`mcp__${serverId}__run`],
+      configuration: {}
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    mocks.findByIdOrName.mockReturnValue({ id: serverId, name: 'my-tools', type: 'stdio' })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.disallowedTools).toContain('mcp__my-tools__run')
+    expect(settings.disallowedTools).not.toContain('mcp__my_tools__run')
+  })
+
+  it('emits the SDK-normalized identity for a legacy denial on a space-bearing server name', async () => {
+    // The SDK invokes `mcp__Docs_MCP__run` for the key `Docs MCP`; the raw-key and camelized
+    // forms alone leave the previously disabled tool callable.
+    const serverId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [serverId],
+      allowedTools: [],
+      disabledTools: [`mcp__${serverId}__run`],
+      configuration: {}
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    mocks.findByIdOrName.mockReturnValue({ id: serverId, name: 'Docs MCP', type: 'stdio' })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never
+    )
+
+    expect(settings.disallowedTools).toContain('mcp__Docs_MCP__run')
+  })
+
   it('does not auto-approve disabled MCP tools', async () => {
     const disabledTools = ['mcp__cherry-tools__web_fetch', 'mcp__agent-memory__memory']
     mocks.getAgent.mockReturnValue({

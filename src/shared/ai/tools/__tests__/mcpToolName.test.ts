@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  allocateMountedServerKeys,
   buildFunctionCallToolName,
   buildMcpToolName,
   generateMcpToolFunctionName,
@@ -331,21 +332,24 @@ describe('translateLegacyMcpToolRules', () => {
   })
 
   it('normalizes the rewritten key onto the segment the Claude SDK actually invokes', () => {
-    // The SDK derives tool names from the server record key by replacing every character
-    // outside [A-Za-z0-9_] with an underscore (`Docs MCP` → `Docs_MCP`). The live policy must
-    // emit that form — an entry spelling the raw key names a tool the SDK never serves, so the
-    // exact-match denial silently lapses under Full Access.
+    // The SDK derives tool names from the server record key by replacing only the characters
+    // invalid in a Claude tool name with underscores: a space underscores (`Docs MCP` →
+    // `Docs_MCP`) while hyphens survive verbatim (`my-tools` → `my-tools`). The live policy
+    // must emit that form — an entry spelling the raw key with a space names a tool the SDK
+    // never serves, so the exact-match denial silently lapses under Full Access.
     const withSpace = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Docs MCP']])
     expect(translateLegacyMcpToolRules(['mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'], withSpace)).toEqual([
       'mcp__Docs_MCP__run'
     ])
-    // An id-keyed server registers under its hyphenated id, which the SDK underscores too: the
-    // raw string is still that server's current-form rule (and Pi's verbatim serverId form), so
-    // both forms emit.
+    const withHyphens = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'my-tools']])
+    expect(translateLegacyMcpToolRules(['mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'], withHyphens)).toEqual([
+      'mcp__my-tools__run'
+    ])
+    // A hyphenated id key is already a valid SDK segment: the rewrite folds onto the rule
+    // itself and passes through unchanged.
     const hyphenated = new Map([['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']])
     expect(translateLegacyMcpToolRules(['mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'], hyphenated)).toEqual([
-      'mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run',
-      'mcp__aaaaaaaa_aaaa_4aaa_8aaa_aaaaaaaaaaaa__run'
+      'mcp__aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa__run'
     ])
   })
 })
@@ -622,7 +626,8 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     // so the rename copies the entry onto the new lossy base and keeps the original (which can
     // simultaneously be another server's exact denial). The runtime's stripped-base lookup
     // resolves the copy onto the renamed pair. Plain entries also carry the camelized
-    // configured-name form Pi resolves denials through (`New server` → `newServer`).
+    // configured-name form Pi resolves denials through (`New server` → `newServer`) and the
+    // SDK-normalized segment form the SDK invokes (`New server` → `New_Server`).
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__oldServer__run_4f7413c24ae4', 'mcp__Old server__other'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'Old server' }],
@@ -634,7 +639,8 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       'mcp__oldServer__run_4f7413c24ae4',
       'mcp__newServer__run_4f7413c24ae4',
       'mcp__New server__other',
-      'mcp__newServer__other'
+      'mcp__newServer__other',
+      'mcp__New_server__other'
     ])
   })
 
@@ -874,6 +880,34 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
       })
     ).toEqual([saved, 'mcp__other__run'])
   })
+
+  it('emits the SDK-normalized destination identity when the new key needs underscoring', () => {
+    // Renaming to `Docs MCP` emits the raw key form and the camelized alias, but the SDK
+    // invokes `mcp__Docs_MCP__run` (spaces underscored) — neither surviving copy blocks the
+    // previously disabled tool without that identity in the list.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__docs__run'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
+        renamedServerId: 'srv-1',
+        toName: 'Docs MCP',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__Docs MCP__run', 'mcp__docsMcp__run', 'mcp__Docs_MCP__run'])
+  })
+
+  it('recognizes a saved SDK-normalized key form as the renamed server on a subsequent rename', () => {
+    // A prior migration persisted the SDK form (`Docs_MCP` for the key `Docs MCP`); renaming
+    // again must treat that segment as the renamed server's rule, or the denial passes through
+    // unmigrated and keeps pointing at the dead key.
+    expect(
+      migrateAgentDisabledToolsForServerRename(['mcp__Docs_MCP__run'], {
+        mountedServers: [{ mcpId: 'srv-1', name: 'Docs MCP' }],
+        renamedServerId: 'srv-1',
+        toName: 'github',
+        reservedKeys: RESERVED
+      })
+    ).toEqual(['mcp__github__run'])
+  })
 })
 
 describe('migrateAgentDisabledToolsForAllocationChange', () => {
@@ -947,5 +981,36 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
         reservedKeys: RESERVED
       })
     ).toEqual([saved, `mcp__GitHub__${'a'.repeat(60)}`, `mcp__github__${'a'.repeat(60)}`])
+  })
+})
+
+describe('allocateMountedServerKeys', () => {
+  it('falls back to the id when another claim collapses into the same SDK namespace', () => {
+    // `Docs MCP` and `Docs_MCP` are distinct keys, but the SDK underscores the space: both
+    // would register `mcp__Docs_MCP__*` callables and one server's tools would be unreachable.
+    // The later claim must fall back to its id.
+    const keys = allocateMountedServerKeys(
+      [
+        { mcpId: 'id-a', name: 'Docs MCP' },
+        { mcpId: 'id-b', name: 'Docs_MCP' }
+      ],
+      ['skills', 'assistant', 'agent-memory']
+    )
+    expect(keys.get('id-a')).toBe('Docs MCP')
+    expect(keys.get('id-b')).toBe('id-b')
+  })
+
+  it('keeps hyphenated names distinct and lets an identifier-safe duplicate claim in raw form', () => {
+    // Hyphens survive the SDK's tool-name derivation verbatim, so `my-tools` and `my_tools`
+    // stay distinct callables; only forms that truly normalize together collide.
+    const keys = allocateMountedServerKeys(
+      [
+        { mcpId: 'id-a', name: 'my-tools' },
+        { mcpId: 'id-b', name: 'my_tools' }
+      ],
+      []
+    )
+    expect(keys.get('id-a')).toBe('my-tools')
+    expect(keys.get('id-b')).toBe('my_tools')
   })
 })

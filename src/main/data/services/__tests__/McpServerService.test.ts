@@ -294,6 +294,28 @@ describe('McpServerService', () => {
       expect(agent.disabledTools).toEqual([`mcp__${piForm}__run`, 'mcp__other__run'])
     })
 
+    it('emits the SDK-normalized identity when a rename destination needs underscoring', async () => {
+      // Renaming to `Docs MCP` must persist the identity the SDK actually invokes
+      // (`mcp__Docs_MCP__run`, spaces underscored) alongside the raw-key and camelized forms,
+      // or the previously disabled tool reconnects unblocked.
+      await seedServer({ id: 'srv-1', name: 'docs' })
+      const [keyA] = generateOrderKeySequence(1)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-1',
+        type: 'chat',
+        name: 'with-denial',
+        instructions: '',
+        orderKey: keyA,
+        disabledTools: ['mcp__docs__run']
+      })
+      await dbh.db.insert(agentMcpServerTable).values({ agentId: 'agent-1', mcpServerId: 'srv-1' })
+
+      mcpServerService.update('srv-1', { name: 'Docs MCP' })
+
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-1'))
+      expect(agent.disabledTools).toEqual(['mcp__Docs MCP__run', 'mcp__docsMcp__run', 'mcp__Docs_MCP__run'])
+    })
+
     it('keeps an explicitly submitted disabledTools list on a combined rename update', async () => {
       // A PATCH carrying both name and disabledTools owns the list: migrating the stored rules
       // over it would silently discard the requested denial.

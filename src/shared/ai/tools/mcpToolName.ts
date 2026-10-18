@@ -146,13 +146,14 @@ export type McpFunctionCallToolNameParts = {
 }
 
 /**
- * The Claude Agent SDK derives MCP tool names from the server record key by replacing every
- * character outside `[A-Za-z0-9_]` with an underscore (`Docs MCP` → `Docs_MCP`, hyphenated ids
- * included). Policy identities that name SDK-served tools must use this segment form — an entry
- * spelling the raw key names a tool the SDK never invokes, so an exact-match denial lapses.
+ * The Claude Agent SDK derives MCP tool names from the server record key by replacing only the
+ * characters invalid in a Claude tool name with underscores — hyphens are valid and survive
+ * verbatim (`Docs MCP` → `Docs_MCP`, `my-tools` → `my-tools`). Policy identities that name
+ * SDK-served tools must use this segment form — an entry spelling the raw key names a tool the
+ * SDK never invokes, so an exact-match denial lapses.
  */
 export function toSdkMcpServerSegment(key: string): string {
-  return key.replace(/[^A-Za-z0-9_]/g, '_')
+  return key.replace(/[^A-Za-z0-9_-]/g, '_')
 }
 
 /**
@@ -384,17 +385,27 @@ export interface MountedServerRef {
  * free, id fallback otherwise, allocation order breaking duplicate-name ties). Shared single
  * source so rename migration derives the same old and new identities the runtime will register,
  * instead of re-guessing them from the raw configured names.
+ *
+ * Collisions are checked in the SDK's callable namespace: two distinct keys whose
+ * {@link toSdkMcpServerSegment} forms coincide (`Docs MCP` vs `Docs_MCP`) would both register
+ * `mcp__Docs_MCP__*` tools, so the later claim falls back to its id and every mounted server
+ * keeps its own callable surface.
  */
 export function allocateMountedServerKeys(
   servers: ReadonlyArray<MountedServerRef>,
   reservedKeys: readonly string[]
 ): Map<string, string> {
   const taken = new Set<string>(reservedKeys)
+  const takenSdkSegments = new Set<string>(reservedKeys.map(toSdkMcpServerSegment))
   const keys = new Map<string, string>()
   for (const { mcpId, name } of servers) {
-    const serverName = name && !taken.has(sanitizeAgentServerKey(name)) ? name : mcpId
+    const candidate = name ? sanitizeAgentServerKey(name) : ''
+    const nameFree =
+      candidate.length > 0 && !taken.has(candidate) && !takenSdkSegments.has(toSdkMcpServerSegment(candidate))
+    const serverName = name && nameFree ? name : mcpId
     const key = sanitizeAgentServerKey(serverName) || sanitizeAgentServerKey(mcpId)
     taken.add(key)
+    takenSdkSegments.add(toSdkMcpServerSegment(key))
     keys.set(mcpId, key)
   }
   return keys
@@ -556,11 +567,11 @@ export function migrateAgentDisabledToolsForAllocationChange(
 
 /**
  * Every segment form a mounted server's id registers under: the raw sanitized id (agent-level
- * key forms and Claude's legacy-rule translation) and the SDK/Pi-normalized form (non-identifier
- * characters underscored — Pi names servers by their id and matches the registered tool name
- * verbatim). An entry carrying one of these segments is that server's native registered
- * identity, so a rewrite must never strip it even when the segment also spells another server's
- * old configured-name key.
+ * key forms and Claude's legacy-rule translation) and Pi's native form (Pi names servers by
+ * their id, underscoring every character invalid in its tool names — hyphens included — and
+ * matching the registered name verbatim). An entry carrying one of these segments is that
+ * server's native registered identity, so a rewrite must never strip it even when the segment
+ * also spells another server's old configured-name key.
  *
  * Computed from the PRE-change mount set only: a server entering in the new set has no denial
  * written before it existed, so a segment spelling its id is purely the displaced owner's old
@@ -571,7 +582,7 @@ function collectMountedIdSegments(servers: ReadonlyArray<MountedServerRef>): Set
   const segments = new Set<string>()
   for (const { mcpId } of servers) {
     segments.add(sanitizeAgentServerKey(mcpId))
-    segments.add(toSdkMcpServerSegment(mcpId))
+    segments.add(mcpId.replace(/[^A-Za-z0-9_]/g, '_'))
   }
   return segments
 }
@@ -623,7 +634,12 @@ function applyAgentKeyRewrites(
       if (delimiterIndex > 0) {
         const serverPart = rest.slice(0, delimiterIndex)
         const toolPart = rest.slice(delimiterIndex + 2)
-        const matched = rewrites.find(({ fromKey: key }) => serverPart === key)
+        // A previous migration may have persisted the SDK-normalized key form (`Docs_MCP` for
+        // the key `Docs MCP`), so a rewrite must recognize that form as its owner's — otherwise
+        // the saved denial passes through unmigrated after the next rename.
+        const matched = rewrites.find(
+          ({ fromKey: key }) => serverPart === key || serverPart === toSdkMcpServerSegment(key)
+        )
         const lossyMatched = matched
           ? undefined
           : rewrites.find(({ fromKey: key }) => serverPart === toCamelCase(key) && toCamelCase(key) !== key)
@@ -636,9 +652,13 @@ function applyAgentKeyRewrites(
           // tool segment onto the camelized key emits a string no runtime registered, and the
           // explicitly disabled tool executes. The camelized-tool variant is emitted
           // unconditionally — a plain destination key folds onto itself in the set — because
-          // the key needing no camelization says nothing about the tool segment.
+          // the key needing no camelization says nothing about the tool segment. The
+          // SDK-normalized key segment is emitted alongside the raw form: the SDK invokes
+          // `mcp__Docs_MCP__run` for the key `Docs MCP`, so without it neither surviving copy
+          // names a tool the SDK serves.
           const targets = new Set<string>([`mcp__${matched.toKey}__${toolPart}`])
           targets.add(`mcp__${matched.camelToKey ?? matched.toKey}__${toCamelCase(toolPart)}`)
+          targets.add(`mcp__${toSdkMcpServerSegment(matched.toKey)}__${toolPart}`)
           replacements = [...targets]
           // An id-keyed original is a native registered identity (Pi registers servers under
           // their id and matches `mcp__<id>__tool` verbatim at any tool length), so it must

@@ -139,6 +139,46 @@ describe('buildAgentMcpServers key allocation', () => {
     expect(servers[idA]).toMatchObject({ id: idA })
     expect(servers[idB]).toMatchObject({ id: idB })
   })
+
+  it('falls back to the id when a configured name collapses into another claim SDK namespace', () => {
+    const idA = '22222222-2222-4222-8222-222222222222'
+    const idB = '33333333-3333-4333-8333-333333333333'
+    // `Docs MCP` and `Docs_MCP` are distinct record keys, but the pinned SDK underscores the
+    // space: both would register `mcp__Docs_MCP__*` callables and the SDK advertises only one
+    // server's tool. The later claim must fall back to its id so both servers stay reachable.
+    const servers = build([
+      [idA, { id: idA, name: 'Docs MCP', isActive: true }],
+      [idB, { id: idB, name: 'Docs_MCP', isActive: true }]
+    ])
+
+    expect(servers['Docs MCP']).toMatchObject({ id: idA })
+    expect(servers[idB]).toMatchObject({ id: idB })
+    expect(servers['Docs_MCP']).toBeUndefined()
+    // Policy translation reads the same allocation, so its key map must agree with registration.
+    const keys = resolveAgentMcpServerKeys(
+      agentWithMcps([idA, idB]),
+      new Map([
+        [idA, { id: idA, name: 'Docs MCP', isActive: true }],
+        [idB, { id: idB, name: 'Docs_MCP', isActive: true }]
+      ])
+    )
+    expect(keys.get(idA)).toBe('Docs MCP')
+    expect(keys.get(idB)).toBe(idB)
+  })
+
+  it('keeps hyphenated names distinct because the SDK preserves hyphens verbatim', () => {
+    const idA = '22222222-2222-4222-8222-222222222222'
+    const idB = '33333333-3333-4333-8333-333333333333'
+    // `my-tools` and `my_tools` stay distinct SDK callables: only characters outside
+    // [A-Za-z0-9_-] are underscored, so both names keep their own namespace.
+    const servers = build([
+      [idA, { id: idA, name: 'my-tools', isActive: true }],
+      [idB, { id: idB, name: 'my_tools', isActive: true }]
+    ])
+
+    expect(servers['my-tools']).toMatchObject({ id: idA })
+    expect(servers['my_tools']).toMatchObject({ id: idB })
+  })
 })
 
 describe('resolveAgentMcpServerKeys', () => {

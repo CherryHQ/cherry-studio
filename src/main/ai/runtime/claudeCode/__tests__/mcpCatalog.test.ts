@@ -178,4 +178,21 @@ describe('buildMcpToolMetadata', () => {
     expect(metadata?.['mcp__docs__search__all']).toMatchObject({ serverId: 'id-a', name: 'search__all' })
     expect(metadata?.['mcp__docs_search__all']).toMatchObject({ serverId: 'id-b', name: 'all' })
   })
+
+  it('attributes the SDK-normalized identity to the server the allocator kept on its name', async () => {
+    // `Docs MCP` and `Docs_MCP` collapse onto `mcp__Docs_MCP__run` in the SDK namespace, so the
+    // allocator hands the later claim its id. Metadata must follow that same allocation: the
+    // surviving `mcp__Docs_MCP__run` entry belongs to A, never to the server now keyed by id.
+    const servers = new Map([
+      ['id-a', server('id-a', 'Docs MCP')],
+      ['id-b', server('id-b', 'Docs_MCP')]
+    ])
+    mockFindByIdOrName.mockImplementation((idOrName: string) => servers.get(idOrName))
+    mockListTools.mockImplementation((serverId: string) => [tool(`${serverId}-run`, 'run')])
+
+    const metadata = await buildMcpToolMetadata({ id: 'agent-1', mcps: ['id-a', 'id-b'] } as unknown as AgentEntity)
+
+    expect(metadata?.['mcp__Docs_MCP__run']).toMatchObject({ serverId: 'id-a', name: 'run' })
+    expect(metadata?.['mcp__id-b__run']).toMatchObject({ serverId: 'id-b', name: 'run' })
+  })
 })
