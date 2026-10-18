@@ -1,0 +1,41 @@
+# Agent Note: Continued sub-agent flow identity across reconnects
+
+Status: implemented
+
+English | [中文](2026-10-18-subagent-resume-flow-identity.zh.md)
+
+## Problem
+
+A continued sub-agent's identity lived only in per-process, per-turn maps. Claude Code re-streams a resumed agent under its **original launch tool-use id** while the lifecycle edges describing the continuation carry the **resuming call id**; DSH (retired upstream while this work was in flight) bound a cold-resumed child to its own `send_message` call. Losing that mapping caused several distinct failures: continued content was dropped after a drain or a connection reset; a resume edge could displace the launch root; a fresh process had no mapping at all; delayed output could be buffered behind a row whose persisted marker had been evicted; and the UI showed a resumed child as completed because its status was read from a settled tool group whose parts context is deliberately emptied.
+
+## Decision
+
+The launch tool-use id is the single identity of a sub-agent run, and it survives every boundary.
+
+**Main process.** Flow anchors survive drains and connection resets; a fresh connection recovers the launch root and the host row from the database, with retries spaced out so an outage cannot read per chunk. Task→tool-call registration is first-registration-wins, so a resume edge never displaces the launch root. Detached chunks whose host row is unresolvable are buffered under bounded budgets; an overflow gives up the whole prefix, and the suppression is keyed to the discarded **part** — only that part's own restart re-opens its stream, so a sibling stream's restart cannot admit an orphaned delta that aborts the SDK reader. Evicting a persisted-row marker also drops its anchors, so delayed output re-resolves the row instead of buffering until teardown. The current SDK prints its launch receipt as prose with parenthetical metadata between the prefix and the `agentId:` trailer; that native form is parsed through a shared grammar and pins the receipt's own call id exactly as the structured form does.
+
+**Chat renderer.** A resume receipt presents as a launch-style entry: one shared resolver decides the flow target (adapter stamp → cross-message launch index → the child's retained runtime root, so a later send opens the root the runtime kept the task under); the row stays clickable when its historical launch is outside the loaded window but its own call is a proven root; and its task status is derived from the list-level launch index — where a settled task revives only on a new run's `started` edge — instead of the group's emptied parts.
+
+**Flow pane.** The flow splits rounds by each continuation, ordered by the resume call that opened them rather than by walk position (a cold restart moves resumed content into the launch's row); each round keeps its prompt; the launch result text that duplicated the final report is dropped; a cold-resumed DSH child is its own root; a failed or cancelled send is not a continuation; and the status panel revives a settled run task on a new run's `started` edge.
+
+## Alternatives considered
+
+- Keeping the identity in memory only — rejected: restart and session reopen lose it.
+- Message-wide overflow suppression — rejected: one stream's restart admitted a sibling's orphaned delta.
+- Duplicating the launch-receipt grammar in the main process — rejected: one shared grammar in `src/shared/ai/launchReceipt.ts`, used by the runtime adapter and the renderer.
+- Pinning a resume edge's call id on a launch-root miss — rejected: it misroutes later navigation; only the launch receipt's own call id may fall back.
+- Sorting flow messages after the fact — rejected: a round's content split across rows stays misattributed.
+
+## Consequences
+
+- The database is the recovery source for a fresh process; lookups are throttled.
+- Bounded buffers may drop a stream's prefix; the stream rejoins only through a fresh start of the same part.
+- DSH is retired upstream; the remaining DSH-specific handling serves historical transcripts.
+
+## Verification
+
+- Regression — `pnpm test:main src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`: 216 passed, including overflow suppression past recovery, marker-eviction anchor invalidation, and interleaved roots sharing one host message.
+- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`: 84 passed, including the prose launch receipt registering its own call id.
+- Regression — `pnpm test:shared src/shared/ai/__tests__/launchReceipt.test.ts`: 4 passed (receipt forms and spoof rejections).
+- Regression — `pnpm test:renderer` pane and chat-renderer suites: 196 and 323 passed; `typecheck:node` / `typecheck:web` clean.
+- Regression — every new test was verified to fail before its fix.
