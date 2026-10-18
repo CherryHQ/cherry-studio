@@ -1036,6 +1036,86 @@ After`
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
   })
 
+  // A literal `<` in document text (`1 < 2`) is not a tag opener: entering tag state for it
+  // swallows the real `</html>` as the tag's terminator, so the document never assembles and
+  // its stylesheet leaks through Markdown sanitization.
+  it('keeps the document artifact when a literal < precedes the html close', () => {
+    const source = `<details>
+<summary>Doc</summary>
+
+<html><body>
+<style>p { color: red; }</style>
+
+<p>1 < 2</html>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'code', 'html', 'paragraph'])
+    const document = (tree.children[1] as { value: string }).value
+    expect(document).toContain('<style>p { color: red; }</style>')
+    expect(document).toContain('1 < 2</html>')
+    expect((tree.children[2] as { value: string }).value).toBe('</details>')
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
+  })
+
+  // CommonMark splits `<details>` and `<summary>` into separate nodes when a blank line
+  // separates them. The summary is the disclosure's LABEL, not body content: converting it
+  // into an artifact iframe leaves the native disclosure without a summary element, so the
+  // browser shows its default "Details" label instead of the supplied one.
+  it('keeps a separately parsed summary as the disclosure label', () => {
+    const source = `<details>
+
+<summary>Answer</summary>
+
+Body
+
+</details>`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['html', 'html', 'paragraph', 'html'])
+    expect(tree.children[0]).toMatchObject({ type: 'html', value: '<details>' })
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<summary>Answer</summary>' })
+    expect(tree.children[3]).toMatchObject({ type: 'html', value: '</details>' })
+  })
+
+  // A pairing search starting at a later node must consult the lexical state carried from the
+  // earlier nodes: a `<details>` literal inside a textarea body opened in a previous node is
+  // TEXT, not an opener. Starting fresh treats it as real and consumes the inner disclosure's
+  // close, leaving `After` hidden inside the collapsed outer disclosure.
+  it('does not pair a disclosure literal inside carried raw-text state', () => {
+    const source = `<details><summary>Outer</summary><details><summary>Inner</summary>
+
+<div><textarea>
+
+<details><summary>Literal example</summary>
+
+</textarea></div>
+
+</details>
+
+</details>
+
+After`
+    const tree = parse(source)
+
+    // Every html fragment stays on the artifact path (like base): no native disclosure is
+    // fabricated from the textarea literal, and `After` renders as ordinary prose.
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'code',
+      'code',
+      'code',
+      'paragraph',
+      'code',
+      'code',
+      'paragraph'
+    ])
+    expect(tree.children.some((child) => child.type === 'html')).toBe(false)
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After' }] })
+  })
+
   describe('classifyHtmlArtifactSource', () => {
     it.each([
       ['<div>Fragment</div>', 'fragment'],

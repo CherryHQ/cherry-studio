@@ -17,6 +17,10 @@ const HTML_FRAGMENT_START_REGEX = /^<[a-z][a-z0-9-]*(?:\s[^>]*)?>/i
 // boundaries are exempt — the body keeps the normal processing; unpaired fragments keep the
 // artifact preview path.
 const HTML_CONTAINER_OPEN_REGEX = /^<details(?=[\s>])/i
+// A disclosure's label. CommonMark splits it from the opening boundary when a blank line
+// separates them, and it must stay raw HTML beside the boundary: an artifact iframe leaves the
+// native disclosure without a summary element, so the browser shows its default label.
+const HTML_SUMMARY_OPEN_REGEX = /^<summary(?=[\s>])/i
 
 interface SourceRange {
   start: number
@@ -142,8 +146,15 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
       continue
     }
     // An open tag consumes its attribute list whole (quoted `>` included) and may open a
-    // raw-text body; an unterminated tag dangles into later nodes.
+    // raw-text body; an unterminated tag dangles into later nodes. Only an actual tag opener
+    // (`<` followed by a name, or a `!` declaration / `?` instruction) starts a tag: a literal
+    // `<` in document text (`1 < 2`) advances as text, or it swallows the real `</html>` as
+    // its terminator and the document never assembles.
     const tagName = /^<([a-z][a-z0-9-]*)/i.exec(value.slice(lt))?.[1]?.toLowerCase()
+    if (tagName === undefined && value[lt + 1] !== '!' && value[lt + 1] !== '?') {
+      position = lt + 1
+      continue
+    }
     state.inTag = true
     if (tagName !== undefined && RAW_TEXT_CLOSE_REGEXES.has(tagName)) state.pendingRawText = tagName
     const end = findUnfinishedTagEnd(value, lt + 1, state)
@@ -331,6 +342,27 @@ interface ContainerScanResult {
   closeEnd?: number
 }
 
+// Whether the stream is inside a construct whose contents are literal text (a raw-text body, an
+// unterminated comment, a dangling tag or a CDATA section). A node reached in this state is not
+// markup, so it can neither open a disclosure nor start a pairing search.
+function isInsideLexicalRegion(state: ContainerScanState): boolean {
+  return state.rawText !== undefined || state.inComment === true || state.inTag === true || state.inCDATA === true
+}
+
+// A resolved disclosure boundary ends every open lexical construct at once: the pairing scan
+// can only reach a real `</details>` once the raw-text body, comment, tag and CDATA section are
+// all closed. Reset them so the following nodes start from plain markup.
+function resetStreamState(state: ContainerScanState): void {
+  state.rawText = undefined
+  state.inComment = false
+  state.inTag = false
+  state.pendingQuote = undefined
+  state.inCDATA = false
+  state.pendingRawText = undefined
+  state.scriptEscaped = undefined
+  state.scriptDoubleEscaped = undefined
+}
+
 // Detects a tag OPENer (`<div`, `<details`, …) — close tags (`</div>`) are complete by
 // construction and skipped by the token scan, so only open tags can dangle unterminated.
 const TAG_OPENER_REGEX = /<[a-zA-Z]/g
@@ -372,8 +404,10 @@ function findUnfinishedTagEnd(value: string, from: number, state: ContainerScanS
 
 // Walks every `<details` / `</details` boundary in `value`, continuing the state carried over
 // from the previous nodes; resolves to closed when a closing boundary brings the depth back to
-// zero.
-function scanContainerBoundaries(value: string, state: ContainerScanState): ContainerScanResult {
+// zero. With `trackDepth` false the disclosure tokens are ignored for depth: the scan only
+// advances the lexical state (comments, raw-text bodies, dangling tags, CDATA), which is what
+// a pairing search needs to know about the nodes preceding its own start.
+function scanContainerBoundaries(value: string, state: ContainerScanState, trackDepth = true): ContainerScanResult {
   let position = 0
   while (position < value.length) {
     // An unterminated comment keeps swallowing content — across later nodes — until its `-->`.
@@ -499,6 +533,7 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
       continue
     }
     if (token[1] === '/') {
+      if (!trackDepth) continue
       state.count -= 1
       if (state.count === 0) {
         // The token consumed the complete end tag, quotes included.
@@ -508,6 +543,7 @@ function scanContainerBoundaries(value: string, state: ContainerScanState): Cont
       // HTML parsers ignore the trailing slash on a NON-void element's start tag, so
       // `<details … />` is an opening like any other. The token carries the complete tag
       // (quotes consumed), so no `>` inside a quoted attribute can end it early.
+      if (!trackDepth) continue
       state.count += 1
     }
   }
@@ -760,8 +796,16 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
     // "the next unmatched close is the retained one" — it re-arms only AFTER a resolution, so
     // the depth the body's own nested openings accumulate survives between resolutions.
     const pendingScanState: ContainerScanState = entryState ? { ...entryState, count: 1 } : { count: 1 }
+    // Lexical state of the stream at the CURRENT node's start, carried across the range's html
+    // nodes. A node reached inside a raw-text body, comment, dangling tag or CDATA section is
+    // literal text: its `<details>`/`<html>` are never markup, so it must not start a pairing
+    // search or a document artifact — a fresh scan would treat a textarea literal as a real
+    // opener and consume the next disclosure's close. Only the lexical fields matter here;
+    // disclosure depth is tracked by the pairing/pending scans themselves.
+    const streamState: ContainerScanState = entryState ? { ...entryState, count: 0 } : { count: 0 }
     for (let index = from; index < to; index += 1) {
-      const documentEnd = findHtmlDocumentEnd(items, index, to)
+      const insideLiteralRegion = isInsideLexicalRegion(streamState)
+      const documentEnd = insideLiteralRegion ? undefined : findHtmlDocumentEnd(items, index, to)
       if (documentEnd !== undefined) {
         const documentEndIndex = documentEnd.index
         let documentNodes = items.slice(index, documentEndIndex + 1)
@@ -789,11 +833,16 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         } else {
           children.push(...documentNodes)
         }
+        // The consumed range continues the stream: its last html node may leave a raw-text
+        // body or dangling tag open for the following nodes.
+        for (const node of documentNodes) {
+          if (node.type === 'html') scanContainerBoundaries(node.value, streamState, false)
+        }
         index = resumeIndex
         continue
       }
 
-      const paired = findPairedContainerClose(items, index, to)
+      const paired = insideLiteralRegion ? undefined : findPairedContainerClose(items, index, to)
       if (paired !== undefined) {
         // Exempt only the matched boundaries; the body re-enters normal processing so nested
         // disclosures pair and inner artifacts/documents keep their existing paths.
@@ -805,11 +854,23 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // processing it as a separate single-node range would lose the document start.
         const body: RootContent[] = items.slice(index + 1, paired.index)
         if (paired.closeStart > 0) body.push(sliceHtmlNode(closeNode, 0, paired.closeStart))
+        // CommonMark splits a blank-line-separated `<summary>` from the opening boundary: it is
+        // the disclosure's LABEL, so it stays raw beside the boundary — as an artifact iframe
+        // the native disclosure has no summary element and the browser shows its default label.
+        let bodyStart = 0
+        const firstBody = body[0]
+        if (firstBody?.type === 'html' && HTML_SUMMARY_OPEN_REGEX.test(stripLeadingHtmlMetadata(firstBody.value))) {
+          children.push(firstBody)
+          bodyStart = 1
+        }
         // The paired close closes the outermost opening of the opening node; every opening
         // retained next to it has no matching open inside the body, so its close arrives as an
         // unpaired body node and must stay raw (see the fallback below).
-        processRange(body, 0, body.length, Math.max(paired.retainedOpens - 1, 0), paired.bodyEntryState)
+        processRange(body, bodyStart, body.length, Math.max(paired.retainedOpens - 1, 0), paired.bodyEntryState)
         children.push(sliceHtmlNode(closeNode, paired.closeStart, paired.closeEnd))
+        // At the close the lexical stream is plain: the pairing scan could only resolve a real
+        // `</details>` boundary once every raw-text body, comment, tag and CDATA section ended.
+        resetStreamState(streamState)
         if (paired.closeEnd < closeNode.value.length) {
           // The NEXT disclosure's opening after the boundary (`</details>` and `<details>`
           // merge into one html block when no blank line separates them) re-enters pairing as
@@ -852,6 +913,8 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
           children.push(sliceHtmlNode(child, close.start, close.end))
           pendingCloses -= 1
           pendingScanState.count = 1
+          // The resolved close is a real boundary: the lexical stream is plain after it.
+          resetStreamState(streamState)
           if (close.end < child.value.length) {
             // Adjacent content (`</details>` and a new `<details>` merge into one html block)
             // re-enters pairing as a fresh open. Leading whitespace on the remainder is
@@ -869,6 +932,9 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
           ? createHtmlCodeNode(child)
           : child
       )
+      // The node continues the lexical stream for the NEXT nodes: a raw-text body, comment,
+      // dangling tag or CDATA section opened here holds their literals as text.
+      if (child.type === 'html') scanContainerBoundaries(child.value, streamState, false)
     }
   }
 
