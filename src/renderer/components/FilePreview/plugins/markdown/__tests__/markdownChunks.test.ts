@@ -2603,6 +2603,36 @@ describe('a definition shape inside a type-7 HTML block', () => {
   })
 })
 
+describe('a malformed tag that never closes', () => {
+  // The tag walk restarted one character past an unterminated `<` and rescanned the whole suffix
+  // behind it, so a line of `<a` repeated cost its length squared: the synchronous splitter took
+  // seconds on a document well inside the preview's read ceiling, and the long-line fallback that
+  // would have guarded it is only chosen after this work finishes.
+  it('reads each unterminated tag once instead of rescanning the suffix behind it', () => {
+    const content = `<div>\n${'<a'.repeat(65_536)}\n\n</div>\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    // The `<div>` element never closes, so no boundary may fall and the document stays whole.
+    expect(window.chunks).toHaveLength(1)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('keeps reading tags after an unterminated one on the same block', () => {
+    // The unterminated `<a` is dropped, but the `</div>` behind it still has to close the element
+    // the block opened — a walk that gave up at the first failure would leave `div` on the open
+    // stack and hold every later boundary off, so the document would never window at all.
+    const content = ['<div>', '<a', 'text', '</div>', '', 'para one', '', 'para two'].join('\n')
+
+    const chunks = chunksOf(content, 20)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(joined(chunks)).toContain('para two')
+  })
+})
+
 /**
  * The ids a source's headings render with — the target a `#fragment` link resolves against. Chunks
  * are read with the slugs the splitter assigned, so the whole path from source to rendered id is

@@ -514,6 +514,13 @@ interface HtmlTag {
  * what keeps a line of stray quotes linear instead of exponential.
  */
 function* eachHtmlTag(line: string): Generator<HtmlTag> {
+  /**
+   * The quoted runs the most recent unterminated scan walked over, as `[open, close]` pairs, or
+   * null while no scan has failed yet. A tag opening inside one of them sees a different quote
+   * structure than the scan that read past it, so only such a tag has to be walked again; every
+   * other one starts where the failed scan was already in plain text and reaches the same dead end.
+   */
+  let deadRuns: Array<[number, number]> | null = null
   let index = 0
   while (index < line.length) {
     const at = line.indexOf('<', index)
@@ -524,8 +531,13 @@ function* eachHtmlTag(line: string): Generator<HtmlTag> {
       continue
     }
     const attrsStart = at + named[0].length
+    // The failed scan behind us read this far in plain text without finding a `>`, so a tag whose
+    // own scan starts there walks the same dead suffix. Only a tag opening inside one of that
+    // scan's quoted runs can reach a `>` the scan itself could not.
+    if (deadRuns !== null && !deadRuns.some(([open, close]) => open < attrsStart && attrsStart <= close)) return
     let cursor = attrsStart
     let terminated = false
+    const runs: Array<[number, number]> = []
     while (cursor < line.length) {
       const char = line[cursor]
       if (char === '>') {
@@ -546,19 +558,24 @@ function* eachHtmlTag(line: string): Generator<HtmlTag> {
           terminated = true
           break
         }
+        runs.push([cursor, end])
         cursor = end + 1
         continue
       }
       cursor += 1
     }
     if (terminated) {
+      deadRuns = null
       yield {
         name: named[2].toLowerCase(),
         closing: named[1] === '/',
         selfClosing: /\/\s*$/.test(line.slice(attrsStart, cursor))
       }
+      index = cursor + 1
+      continue
     }
-    index = terminated ? cursor + 1 : at + 1
+    deadRuns = runs
+    index = at + 1
   }
 }
 
