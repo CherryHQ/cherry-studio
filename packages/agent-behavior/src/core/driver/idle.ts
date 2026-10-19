@@ -22,7 +22,7 @@ import {
 } from '../goal/goalState'
 import { goalRecord } from '../goal/goalTools'
 import type { CallInputs } from '../hostFacts'
-import { armSeq, idleDriverGeneration, type Key, keys } from '../keys'
+import { armSeq, idleDriverGeneration, type Key, keys, withdrawGeneration } from '../keys'
 import { budgetStops } from '../subagents/subagentDecisions'
 import {
   awaitingApproval,
@@ -75,7 +75,10 @@ export const goalStop = (facts: Facts, inputs: CallInputs, goal: GoalSnapshot, r
     keys.goalStop(goal.id, goal.revision, armSeq(facts.history, goal.id))
   )
 
-/** The delivery of `items`: quiet (no turn) or as the input of a notification turn; the batch is keyed by content. */
+/**
+ * The delivery of `items`: quiet (no turn) or as the input of a notification turn; the batch is keyed by content and
+ * by the stops so far, since `Turns` answers a withdrawn key with its first admission and never takes the input again.
+ */
 function delivery(facts: Facts, items: readonly PendingResult[], quiet: boolean) {
   const runs = items.map(({ sessionId, run, outcome, stoppedBy }) => ({
     sessionId,
@@ -91,7 +94,8 @@ function delivery(facts: Facts, items: readonly PendingResult[], quiet: boolean)
     input,
     key: keys.subagentNotify(
       facts.thread,
-      items.map(({ sessionId, run }) => ({ child: sessionId, run }))
+      items.map(({ sessionId, run }) => ({ child: sessionId, run })),
+      withdrawGeneration(facts.history)
     )
   }
 }

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { callKeyOf, type GoalSnapshot, type HistoryEntry } from '../../src/core/facts'
-import { armSeq, idleDriverGeneration, keys, nextRun } from '../../src/core/keys'
+import { armSeq, idleDriverGeneration, keys, nextRun, withdrawGeneration } from '../../src/core/keys'
 import { deepFreeze, withoutEnvironment } from './purity'
 
 const thread = (value: string) => value as ThreadId
@@ -73,21 +73,40 @@ describe('keys', () => {
   it('keys a notification batch by its content, not its order', () => {
     const a = { child: thread('c1'), run: 1 }
     const b = { child: thread('c2'), run: 3 }
-    const key = withoutEnvironment(() => keys.subagentNotify(thread('p'), deepFreeze([a, b])))
-    expect(keys.subagentNotify(thread('p'), [b, a])).toBe(key)
-    expect(keys.subagentNotify(thread('p'), [a])).not.toBe(key)
-    expect(keys.subagentNotify(thread('q'), [a, b])).not.toBe(key)
-    expect(key).toMatch(/^subagent-notify:p:[0-9a-f]{64}$/)
+    const key = withoutEnvironment(() => keys.subagentNotify(thread('p'), deepFreeze([a, b]), 0))
+    expect(keys.subagentNotify(thread('p'), [b, a], 0)).toBe(key)
+    expect(keys.subagentNotify(thread('p'), [a], 0)).not.toBe(key)
+    expect(keys.subagentNotify(thread('q'), [a, b], 0)).not.toBe(key)
+    expect(key).toMatch(/^subagent-notify:p:s0:[0-9a-f]{64}$/)
+  })
+
+  // Catches a notification key a stop leaves unchanged (I1): Turns answers the withdrawn key with its first admission
+  // and never takes the input again, so the driver would offer the same batch forever.
+  it('gives a batch a new key after each turn-stop record', () => {
+    const stop = (): HistoryEntry => ({
+      kind: 'record',
+      id: `item-${++ids}` as ItemId,
+      record: { type: 'turn-stop', value: { cause: 'user', at: 0 } }
+    })
+    const history = deepFreeze([runRecord('c1', 1), stop(), goalRecord('g', 1, true), stop()])
+    expect(withoutEnvironment(() => withdrawGeneration(history))).toBe(2)
+    expect(withdrawGeneration(history.slice(0, 2))).toBe(1)
+    const batch = [{ child: thread('c1'), run: 1 }]
+    expect(keys.subagentNotify(thread('p'), batch, 1)).not.toBe(keys.subagentNotify(thread('p'), batch, 0))
   })
 
   // Catches a batch key that joins `child:run` pairs (two runs vs one run of child `a:1:b`), or one goal id for a call key and an equal request key.
   it('stays injective when ids contain the separator', () => {
     expect(
-      keys.subagentNotify(thread('p'), [
-        { child: thread('a'), run: 1 },
-        { child: thread('b'), run: 2 }
-      ])
-    ).not.toBe(keys.subagentNotify(thread('p'), [{ child: thread('a:1:b'), run: 2 }]))
+      keys.subagentNotify(
+        thread('p'),
+        [
+          { child: thread('a'), run: 1 },
+          { child: thread('b'), run: 2 }
+        ],
+        0
+      )
+    ).not.toBe(keys.subagentNotify(thread('p'), [{ child: thread('a:1:b'), run: 2 }], 0))
     expect(keys.goalFromCall(callKeyOf('req-1'))).not.toBe(keys.goalFromCommand('req-1'))
   })
 

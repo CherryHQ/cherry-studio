@@ -7,6 +7,7 @@ import { ensureDriver } from '../../src/core/driver/jobs'
 import { callKeyOf, ENTRY_KINDS } from '../../src/core/facts'
 import { admittedRounds, currentGoal } from '../../src/core/goal/goalHistory'
 import { keys } from '../../src/core/keys'
+import { pendingResults } from '../../src/core/subagents/subagentLedger'
 import type { BoundPorts, StartResult } from '../../src/ports/harness'
 import { markers, records, type World, world, wrapJob } from './world'
 
@@ -191,6 +192,71 @@ describe('idle driver', () => {
     await w.fake.settle()
     expect(answers).toEqual(['queued'])
     expect(markers(await w.read(t), 'subagent-notification')).toHaveLength(1)
+  })
+
+  // Catches a notification a stop withdrew offered again under its spent key once a later turn lifts the suppression
+  // (I1): Turns answers 'queued' for that key without taking the input, so the driver would decide again forever.
+  it('offers a notification a stop withdrew again under a new key', async () => {
+    const hold = holds()
+    const queued = latch()
+    const personBack = latch()
+    let commits = 0
+    const starts: StartResult[] = []
+    const watched = (ports: BoundPorts): BoundPorts => ({
+      ...ports,
+      ledger: {
+        ...ports.ledger,
+        transact: (thread, decide) => {
+          commits += 1
+          if (commits > 30) return Promise.reject(new Error('the driver keeps deciding'))
+          return ports.ledger.transact(thread, decide)
+        }
+      },
+      turns: {
+        ...ports.turns,
+        start: async (thread, input, key) => {
+          const answer = await ports.turns.start(thread, input, key)
+          starts.push(answer)
+          if (answer === 'queued') queued.release()
+          return answer
+        }
+      },
+      // The driver decides again only once the person's next turn is running.
+      waits: {
+        ...ports.waits,
+        untilDone: async (thread, key) => {
+          await ports.waits.untilDone(thread, key)
+          await personBack.promise
+        }
+      }
+    })
+    const w = world({ wrap: wrapJob('idle-driver', watched), extra: (p) => p.tools.register(hold.tool) })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('hold', { id: 'go' }),
+      { error: 'boom' },
+      callTool('hold', { id: 'new' }),
+      reply('answered'),
+      reply('read the result')
+    ])
+    await w.fake.sendUser(t, 'go')
+    await hold.started('go')
+    await w.fake.sendUser(t, 'follow')
+    hold.release('go')
+    await w.enter(t, (_entries, ports) => ports.waits.untilIdle(t))
+    // 'follow' waits behind the failed run, so the notification queues behind it until the stop withdraws both.
+    await finishBackgroundRun(w, t)
+    await queued.promise
+    await w.enter(t, (entries, ports) => entries.userStop(ports, t, 'stop-1'))
+    await w.fake.sendUser(t, 'new')
+    await hold.started('new')
+    personBack.release()
+    hold.release('new')
+    await w.fake.settle()
+    const facts = await w.read(t)
+    expect(starts).toEqual(['queued', 'started'])
+    expect(markers(facts, 'subagent-notification')).toHaveLength(1)
+    expect(pendingResults(facts.history)).toEqual([])
   })
 
   // Catches admission by position (R1): a round reserved before the person edited the goal must not count, and the
