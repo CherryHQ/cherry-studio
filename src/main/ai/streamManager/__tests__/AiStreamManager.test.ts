@@ -293,6 +293,9 @@ describe('AiStreamManager', () => {
     mockAbortPendingTurn.mockReturnValue(false)
     // Default: a user stop resolves like the runtime's graceful-or-close handling.
     mockHandleUserStop.mockImplementation((sessionId: string) => mockCloseSession(sessionId))
+    // `clearAllMocks` keeps implementations, so a test that made `getLiveTurnId` advance would leak
+    // it into every later test that expects the default turn id.
+    mockGetLiveTurnId.mockImplementation(() => 'turn-drain-1')
     mockGetMessageById.mockReset()
     sharedCacheStore.clear()
   })
@@ -2017,6 +2020,9 @@ describe('AiStreamManager', () => {
     it('rejects a duplicate user Stop that lands after the first drain already resolved', async () => {
       vi.useRealTimers()
       const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      // The live turn id advances once the graceful stop resumes the queued successor. A constant
+      // `getLiveTurnId` here would let a turn-id comparison pass for the wrong reason.
+      mockGetLiveTurnId.mockImplementationOnce(() => 'turn-drain-1').mockImplementation(() => 'turn-successor')
       mockHandleUserStop.mockImplementation(async () => {
         // The graceful stop resumes a queued successor while still holding the dispatch lock.
         mgr.startRuntimeTurn({
@@ -2044,6 +2050,80 @@ describe('AiStreamManager', () => {
 
       expect(mockHandleUserStop).toHaveBeenCalledOnce()
       expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
+    it('rejects a duplicate user Stop against the Stop identity, not the successor live turn id', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      // The live turn changes as the drain progresses: turn A while the first Stop drains, turn B
+      // once that Stop's graceful interrupt resumes the queued successor. The duplicate must be
+      // recognised as the same Stop — comparing turn ids here would read B and miss it.
+      const liveTurnIds = ['turn-drain-1', 'turn-successor']
+      let liveTurnCall = 0
+      mockGetLiveTurnId.mockImplementation(() => liveTurnIds[Math.min(liveTurnCall++, liveTurnIds.length - 1)])
+      mockHandleUserStop.mockImplementation(async () => {
+        // The graceful stop resumes a queued successor while still holding the dispatch lock.
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
+
+      // The twin of the same Stop, arriving after the first drain resolved. `getLiveTurnId()` now
+      // returns the resumed successor, so a turn-id comparison cannot see the match — the Stop's
+      // own identity must travel with both requests.
+      await expect(mgr.abortAndDrain('agent-session:session-1', 'user-requested')).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
+    it('still drains a user Stop for a turn the previous Stop did not handle', async () => {
+      vi.useRealTimers()
+      const firstListener = new FakeListener('persistence:first', 'persistence')
+      const secondListener = new FakeListener('persistence:second', 'persistence')
+      // The first Stop drains turn A and resumes nothing; the user then starts turn B and stops it.
+      let liveTurnId: string | undefined = 'turn-a'
+      mockGetLiveTurnId.mockImplementation(() => liveTurnId)
+      mockHandleUserStop.mockResolvedValue(undefined)
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [firstListener]
+      })
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(1)
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-a')
+
+      liveTurnId = 'turn-b'
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [secondListener]
+      })
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+
+      // The new turn is a different Stop target: it must run its own graceful drain, not be
+      // swallowed by the previous Stop's record.
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+      expect(mockHandleUserStop).toHaveBeenLastCalledWith('session-1', 'turn-b')
+      expect(secondListener.pausedResults).toHaveLength(1)
     })
 
     it('runs a queued remote cancellation through its own guard instead of joining a stale drain', async () => {
