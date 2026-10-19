@@ -69,9 +69,11 @@ export function decideGoalCommand(
       const value = input.slice(word.length).trim()
       if (CONTROL_WORDS.has(keyword) && value === '') {
         const current = requireGoal(facts)
-        // Only an active, armed goal drives the running turn; otherwise the turn is the person's to keep.
+        // Only an active, armed goal drives the running turn; otherwise the turn is the person's to keep. Inputs a
+        // failed run left are no run: stopping then would withdraw a person's queued message.
+        const runActive = !facts.live.idle && facts.live.leftoverInputs === 0
         const stopTurn = (cause: 'goal-pause' | 'goal-clear'): { ops: TxOp[]; effects: Effect[] } =>
-          current.phase === 'active' && current.armed && !facts.live.idle
+          current.phase === 'active' && current.armed && runActive
             ? {
                 ops: [
                   {
