@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
+import { getEventListeners } from 'node:events'
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import type * as FsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -313,6 +314,27 @@ describe('MediaFfmpegService dispatch', () => {
     expect(runtime.request).toHaveBeenLastCalledWith('probe', expect.objectContaining({ filePath: '/next.wav' }), {
       signal: undefined
     })
+  })
+
+  it('removes queued abort listeners when completed requests reuse one un-aborted signal', async () => {
+    runtime.request.mockResolvedValue({
+      hasAudio: true,
+      hasVideo: false,
+      durationMs: 1,
+      mime: 'audio/wav',
+      kind: 'audio'
+    })
+    const controller = new AbortController()
+
+    await expect(service!.probe({ filePath: '/first.wav' }, controller.signal)).resolves.toMatchObject({
+      kind: 'audio'
+    })
+    await expect(service!.probe({ filePath: '/second.wav' }, controller.signal)).resolves.toMatchObject({
+      kind: 'audio'
+    })
+
+    expect(controller.signal.aborted).toBe(false)
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0)
   })
 })
 
