@@ -5917,6 +5917,7 @@
   "settings.voice.title": "語音",
   "settings.zoom.title": "縮放",
   "sidebar.account_menu": "帳戶選單",
+  "sidebar.empty_hint": "在{{launchpad}}中以滑鼠右鍵點選應用程式，即可釘選到這裡。",
   "sidebar.resource_missing": "資源不存在",
   "sidebar.resource_unavailable": "資源暫時無法使用",
   "subWindow.back_to_main": "返回主視窗",

@@ -5917,6 +5917,7 @@
   "settings.voice.title": "音声",
   "settings.zoom.title": "ページズーム",
   "sidebar.account_menu": "アカウントメニュー",
+  "sidebar.empty_hint": "{{launchpad}}でアプリを右クリックすると、ここに固定できます。",
   "sidebar.resource_missing": "リソースが見つかりません",
   "sidebar.resource_unavailable": "リソースを一時的に利用できません",
   "subWindow.back_to_main": "メインウィンドウに戻る",

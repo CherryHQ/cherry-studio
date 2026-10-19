@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-19-sidebar-basic-experience.md
+2026-10-19-sidebar-basic-experience.md: 3bc77946785a32f4f2087c6bc2d548bfbd24ef15
+2026-10-19-sidebar-basic-experience.zh.md: 5d8cd5ce03d9bcf63ccf736af574c6d95f0034dc

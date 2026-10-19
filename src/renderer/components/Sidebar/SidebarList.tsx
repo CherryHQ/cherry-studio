@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 
-import { MenuItem } from '@cherrystudio/ui'
+import { Button, MenuItem, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 
-import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
@@ -96,26 +95,21 @@ function IconList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
             key={entry.key}
             content={entry.statusLabel ? `${entry.label} — ${entry.statusLabel}` : entry.label}>
             <EntryContextMenu items={entry.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 aria-label={entry.label}
                 aria-description={entry.statusLabel}
                 aria-disabled={entry.disabled || undefined}
+                aria-current={isActive ? 'page' : undefined}
+                data-active={isActive || undefined}
                 onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
-                className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
-                  entry.disabled ? 'cursor-not-allowed opacity-55' : ''
-                } ${
-                  isActive
-                    ? 'bg-[var(--sidebar-active-bg)] text-foreground'
-                    : entry.disabled
-                      ? 'text-muted-foreground'
-                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                }`}>
-                {isActive && <ActiveIndicator className="rounded-full" />}
+                className="sidebar-action relative flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-150 aria-disabled:cursor-not-allowed [&_svg:not([class*='size-'])]:size-4.5">
                 <SidebarEntryIcon entry={entry} presentation={ICON_ICON_PRESENTATION} />
-              </button>
+              </Button>
             </EntryContextMenu>
           </SidebarTooltip>
         )
@@ -135,24 +129,30 @@ function FullList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
         const isActive = !entry.disabled && entry.isActive
 
         return (
-          <div key={entry.key} className="relative">
-            <EntryContextMenu items={entry.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
-              <MenuItem
-                variant="ghost"
-                icon={<SidebarEntryIcon entry={entry} presentation={FULL_ICON_PRESENTATION} />}
-                label={entry.label}
-                aria-label={entry.label}
-                aria-description={entry.statusLabel}
-                title={entry.statusLabel}
-                active={isActive}
-                aria-disabled={entry.disabled || undefined}
-                onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
-                onMouseDown={preventMiddleClickAutoscroll}
-                onAuxClick={createAuxClickHandler(entry, guardClick)}
-                className="rounded-xl aria-disabled:cursor-not-allowed aria-disabled:text-muted-foreground aria-disabled:opacity-55 aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground data-[active=true]:bg-[var(--sidebar-active-bg)]"
-              />
-            </EntryContextMenu>
-            {isActive && <ActiveIndicator className="rounded-xl" />}
+          <div key={entry.key}>
+            <Tooltip
+              content={entry.statusLabel ? `${entry.label} — ${entry.statusLabel}` : entry.label}
+              placement="right"
+              delay={400}
+              fullWidthTrigger>
+              <EntryContextMenu items={entry.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
+                <MenuItem
+                  variant="ghost"
+                  icon={<SidebarEntryIcon entry={entry} presentation={FULL_ICON_PRESENTATION} />}
+                  label={entry.label}
+                  aria-label={entry.label}
+                  aria-description={entry.statusLabel}
+                  title={entry.statusLabel}
+                  active={isActive}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-disabled={entry.disabled || undefined}
+                  onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
+                  onMouseDown={preventMiddleClickAutoscroll}
+                  onAuxClick={createAuxClickHandler(entry, guardClick)}
+                  className="sidebar-action rounded-full aria-disabled:cursor-not-allowed"
+                />
+              </EntryContextMenu>
+            </Tooltip>
           </div>
         )
       }}

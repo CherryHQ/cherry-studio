@@ -5917,6 +5917,7 @@
   "settings.voice.title": "Voz",
   "settings.zoom.title": "Escala",
   "sidebar.account_menu": "Menu da conta",
+  "sidebar.empty_hint": "Clique com o botão direito numa aplicação no {{launchpad}} para a fixar aqui.",
   "sidebar.resource_missing": "Recurso não encontrado",
   "sidebar.resource_unavailable": "Recurso temporariamente indisponível",
   "subWindow.back_to_main": "Voltar à Janela Principal",

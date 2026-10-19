@@ -5917,6 +5917,7 @@
   "settings.voice.title": "Голос",
   "settings.zoom.title": "Масштаб страницы",
   "sidebar.account_menu": "Меню аккаунта",
+  "sidebar.empty_hint": "Щёлкните приложение в {{launchpad}} правой кнопкой мыши, чтобы закрепить его здесь.",
   "sidebar.resource_missing": "Ресурс не найден",
   "sidebar.resource_unavailable": "Ресурс временно недоступен",
   "subWindow.back_to_main": "Вернуться в главное окно",

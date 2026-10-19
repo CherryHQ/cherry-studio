@@ -5917,6 +5917,7 @@
   "settings.voice.title": "Giọng nói",
   "settings.zoom.title": "Zoom de página",
   "sidebar.account_menu": "Menu tài khoản",
+  "sidebar.empty_hint": "Nhấp chuột phải vào một ứng dụng trong {{launchpad}} để ghim vào đây.",
   "sidebar.resource_missing": "Không tìm thấy tài nguyên",
   "sidebar.resource_unavailable": "Tài nguyên tạm thời không khả dụng",
   "subWindow.back_to_main": "Quay lại Cửa sổ Chính",

@@ -5917,6 +5917,7 @@
   "settings.voice.title": "语音",
   "settings.zoom.title": "缩放",
   "sidebar.account_menu": "账户菜单",
+  "sidebar.empty_hint": "在{{launchpad}}中右键点击应用，即可固定到这里。",
   "sidebar.resource_missing": "资源不存在",
   "sidebar.resource_unavailable": "资源暂时不可用",
   "subWindow.back_to_main": "回到主窗口",

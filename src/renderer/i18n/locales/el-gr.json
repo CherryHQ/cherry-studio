@@ -5917,6 +5917,7 @@
   "settings.voice.title": "Φωνή",
   "settings.zoom.title": "Κλίμακα",
   "sidebar.account_menu": "Μενού λογαριασμού",
+  "sidebar.empty_hint": "Κάντε δεξί κλικ σε μια εφαρμογή στο {{launchpad}} για να την καρφιτσώσετε εδώ.",
   "sidebar.resource_missing": "Ο πόρος δεν βρέθηκε",
   "sidebar.resource_unavailable": "Ο πόρος δεν είναι προσωρινά διαθέσιμος",
   "subWindow.back_to_main": "Επιστροφή στο Κύριο Παράθυρο",
