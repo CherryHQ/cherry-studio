@@ -29,8 +29,8 @@ describe('MiniMax M3.1 Flash catalog', () => {
     })
   })
 
-  it.each(['MiniMax-M3.1-Flash', 'MiniMax-M3'])('marks open-weight %s as not supporting temperature', (id) => {
-    expect(loader.findModel(id)?.parameterSupport?.temperature).toEqual({ supported: false })
+  it.each(['MiniMax-M3.1-Flash', 'MiniMax-M3'])('preserves documented temperature support for %s', (id) => {
+    expect(loader.findModel(id)?.parameterSupport?.temperature).toMatchObject({ supported: true })
   })
 
   it.each(['MiniMax-M3.1-Flash', 'minimax-m3-1-flash', 'MiniMaxAI/MiniMax-M3.1-Flash'])(
@@ -50,5 +50,17 @@ describe('MiniMax M3.1 Flash catalog', () => {
     for (const id of ['MiniMax-M2.7', 'MiniMax-M3', 'MiniMax-M3.2-Flash']) {
       expect(inferReasoningControls(id)).toBeUndefined()
     }
+  })
+
+  it('pins the OpenCode Flash offer to Chat Completions with five-tier reasoning', () => {
+    expect(loader.findOverride('opencode', 'minimax-m3-1-flash')).toMatchObject({
+      apiModelId: 'minimax-m3.1-flash-free',
+      endpointTypes: ['openai-chat-completions'],
+      reasoningContracts: {
+        'openai-chat-completions': {
+          support: { controls: [{ kind: 'effort', values: efforts, default: 'max' }] }
+        }
+      }
+    })
   })
 })

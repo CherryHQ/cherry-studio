@@ -1,9 +1,8 @@
 import type { ReasoningEffort } from '../schemas/enums'
 import { defineCreator } from './types'
 
-// Open-weight MiniMax models ignore temperature.
-const openWeightParams = {
-  temperature: { supported: false },
+const m3Parameters = {
+  temperature: { supported: true },
   topP: { supported: true },
   topK: { supported: false },
   frequencyPenalty: true,
@@ -32,14 +31,14 @@ export default defineCreator({
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
       contextWindow: 1_000_000,
-      parameterSupport: openWeightParams,
+      parameterSupport: m3Parameters,
       reasoning: { controls: [{ kind: 'effort', values: m31Efforts, default: 'max' }] }
     },
     { id: 'minimax-m2-1' },
     {
       id: 'minimax-m3',
       maxOutputTokens: 524288,
-      parameterSupport: openWeightParams
+      parameterSupport: m3Parameters
     },
     {
       id: 'image-01',
