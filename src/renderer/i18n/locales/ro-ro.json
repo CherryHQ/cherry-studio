@@ -3609,7 +3609,6 @@
   "settings.about.diagnostics.report.status_url": "Link de stare",
   "settings.about.diagnostics.report.submitting": "Se trimite raportarea problemei…",
   "settings.about.diagnostics.report.success_title": "Problema a fost raportată",
-  "settings.about.diagnostics.report.update_hint": "Poți verifica aici o versiune mai nouă de Cherry Studio și o poți instala.",
   "settings.about.diagnostics.sources.chat_records.title": "Istoricul conversațiilor",
   "settings.about.diagnostics.sources.inspecting": "Se verifică informațiile disponibile...",
   "settings.about.diagnostics.sources.logs.title": "Jurnalele aplicației",

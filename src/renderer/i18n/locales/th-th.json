@@ -3609,7 +3609,6 @@
   "settings.about.diagnostics.report.status_url": "ลิงก์สถานะ",
   "settings.about.diagnostics.report.submitting": "กำลังส่งรายงานวินิจฉัย…",
   "settings.about.diagnostics.report.success_title": "ส่งรายงานวินิจฉัยแล้ว",
-  "settings.about.diagnostics.report.update_hint": "คุณสามารถตรวจสอบและติดตั้ง Cherry Studio เวอร์ชันใหม่ได้ที่นี่",
   "settings.about.diagnostics.sources.chat_records.title": "ประวัติแชท",
   "settings.about.diagnostics.sources.inspecting": "กำลังตรวจสอบสิ่งที่มี...",
   "settings.about.diagnostics.sources.logs.title": "log แอป",

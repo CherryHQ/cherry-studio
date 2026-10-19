@@ -3609,7 +3609,6 @@
   "settings.about.diagnostics.report.status_url": "Statuslink",
   "settings.about.diagnostics.report.submitting": "Problemmeldung wird übermittelt…",
   "settings.about.diagnostics.report.success_title": "Problemmeldung übermittelt",
-  "settings.about.diagnostics.report.update_hint": "Hier kannst du nach einer neueren Cherry Studio-Version suchen und sie installieren.",
   "settings.about.diagnostics.sources.chat_records.title": "Chatverlauf",
   "settings.about.diagnostics.sources.inspecting": "Verfügbare Daten werden geprüft...",
   "settings.about.diagnostics.sources.logs.title": "App-Protokolle",

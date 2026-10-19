@@ -3609,7 +3609,6 @@
   "settings.about.diagnostics.report.status_url": "Enlace de estado",
   "settings.about.diagnostics.report.submitting": "Enviando la notificación del problema…",
   "settings.about.diagnostics.report.success_title": "Notificación del problema enviada",
-  "settings.about.diagnostics.report.update_hint": "Puedes buscar una versión más reciente de Cherry Studio e instalarla aquí.",
   "settings.about.diagnostics.sources.chat_records.title": "Historial de chats",
   "settings.about.diagnostics.sources.inspecting": "Comprobando qué está disponible...",
   "settings.about.diagnostics.sources.logs.title": "Registros de la aplicación",

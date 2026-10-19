@@ -3609,7 +3609,6 @@
   "settings.about.diagnostics.report.status_url": "Liên kết trạng thái",
   "settings.about.diagnostics.report.submitting": "Đang gửi báo cáo sự cố…",
   "settings.about.diagnostics.report.success_title": "Đã gửi báo cáo sự cố",
-  "settings.about.diagnostics.report.update_hint": "Bạn có thể kiểm tra và cài đặt phiên bản Cherry Studio mới hơn tại đây.",
   "settings.about.diagnostics.sources.chat_records.title": "Lịch sử trò chuyện",
   "settings.about.diagnostics.sources.inspecting": "Đang kiểm tra nội dung có thể xuất...",
   "settings.about.diagnostics.sources.logs.title": "Nhật ký ứng dụng",
