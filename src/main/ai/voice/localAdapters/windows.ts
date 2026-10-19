@@ -18,6 +18,7 @@ import type { TranscriptionModelDefinition, SpeechModelDefinition } from '../voi
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import { getVoiceEnvironment, type VoiceEnvironment } from '../voicePlatform'
 import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { checkAbort, decodeVoiceRecording, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
 
 function supportsWindows(): boolean {
@@ -59,12 +60,17 @@ export function createWindowsTranscriptionModel(options: TranscriptionOptions): 
     provider: 'local-voice',
     modelId: WINDOWS_ASR_MODEL_ID,
     async doGenerate(input) {
-      if (!(input.audio instanceof Uint8Array) || !['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType))
-        throw new VoiceRuntimeError('invalid_audio')
+      if (!(input.audio instanceof Uint8Array)) throw new VoiceRuntimeError('invalid_audio')
+      const audio = input.audio
+      const isWebm = ['audio/webm', 'audio/webm;codecs=opus'].includes(input.mediaType)
+      const wavMetadata = input.mediaType === 'audio/wav' ? inspectCanonicalWav(audio) : undefined
+      if (!isWebm && !wavMetadata) throw new VoiceRuntimeError('invalid_audio')
       const status = await getWindowsAsrStatus(options, input.abortSignal)
       if (status.status !== 'ready') throw new VoiceRuntimeError(status.reason ?? 'operation_failed')
       return withScratch(async (directory) => {
-        const decoded = await decodeVoiceRecording(input.audio as Uint8Array, input.abortSignal)
+        const decoded = wavMetadata
+          ? { wav: audio, durationSeconds: wavMetadata.durationSeconds }
+          : await decodeVoiceRecording(audio, input.abortSignal)
         checkAbort(input.abortSignal)
         const inputPath = join(directory, 'input.wav')
         await writeFile(inputPath, decoded.wav, { mode: 0o600 })

@@ -12,6 +12,7 @@ import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
@@ -133,6 +134,7 @@ export function MainWindowContent(): React.ReactElement {
           <AppErrorRuntime mode="main" />
           <PopupHost />
           <ToastHost />
+          <DictationShortcutHost />
           <VoicePlaybackHost />
           {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
         </MandatoryGateProvider>

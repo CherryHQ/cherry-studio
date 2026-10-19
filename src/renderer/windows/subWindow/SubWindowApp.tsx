@@ -4,6 +4,7 @@ import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
@@ -53,6 +54,7 @@ function SubWindowApp(): React.ReactElement {
                 <AppErrorRuntime mode="local" />
                 <PopupHost />
                 <ToastHost />
+                <DictationShortcutHost />
                 <VoicePlaybackHost />
               </TabsProvider>
             </CommandProvider>
