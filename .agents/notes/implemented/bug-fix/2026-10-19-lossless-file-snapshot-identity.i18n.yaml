@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-19-lossless-file-snapshot-identity.md
+2026-10-19-lossless-file-snapshot-identity.md: 33e0a58003e2ced6c63042c87fc97d84276fc1da
+2026-10-19-lossless-file-snapshot-identity.zh.md: ce90e8d4c5e726843128fef1c8be5d755fa94d14
