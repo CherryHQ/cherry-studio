@@ -4,7 +4,7 @@ import { fieldsOf, numberField, stringField } from '../args'
 import type { ConversationFacts, GoalCleared, GoalSnapshot, GoalStopCode, HistoryEntry, RoundDetails } from '../facts'
 import type { ApprovalOutcome } from '../hostFacts'
 import { armSeq } from '../keys'
-import { startsTurn, type Turn, turnKind } from '../turns'
+import { runActive, startsTurn, type Turn, turnKind } from '../turns'
 import {
   type GoalCounts,
   type GoalProgress,
@@ -67,12 +67,14 @@ export function admittedRounds(history: readonly HistoryEntry[]): ReadonlySet<st
   return admitted
 }
 /**
- * H10: round markers to leave out of model requests. The round that started the latest run is admitted only after
- * it started (R1), so its first requests still see it; only earlier unadmitted rounds are left out.
+ * H10: round markers to leave out of model requests. The round that started the running run is admitted only after it
+ * started (R1), so while that run is active its requests still see it; once no run is going, an unadmitted round is
+ * left out like every earlier one, so a compaction or verifier after a withdrawn round never sees its prompt.
  */
-export function unadmittedRoundItems(history: readonly HistoryEntry[]): ItemId[] {
+export function unadmittedRoundItems(facts: Pick<ConversationFacts, 'history' | 'live'>): ItemId[] {
+  const { history } = facts
   const admitted = admittedRounds(history)
-  const current = lastIndex(history, startsTurn)
+  const current = runActive(facts.live) ? lastIndex(history, startsTurn) : -1
   return history.flatMap((entry, at) => {
     const round = roundOf(entry)
     return round && at !== current && !admitted.has(round.id) ? [entry.id] : []

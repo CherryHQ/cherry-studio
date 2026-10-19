@@ -241,7 +241,7 @@ describe('subagent tools', () => {
   })
 
   // Catches a person's stop that waits on a steer (H3): the steer's call holds the parent's run until the child's next
-  // boundary, and a steer the stop withdrew, decided again, would message the child after the turn stopped.
+  // boundary, and a steer the stop withdrew, decided again without the abort check, spins on its spent key.
   it('a user stop withdraws a waiting steer at once and message_subagent reports it undelivered', async () => {
     const hold = holds()
     const steerSent = latch()
