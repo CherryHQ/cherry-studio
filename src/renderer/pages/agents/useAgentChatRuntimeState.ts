@@ -167,9 +167,8 @@ export function useAgentChatRuntimeState({
   const { t } = useTranslation()
   const errorToastsRef = useRef<ReturnType<typeof useConversationErrorToasts> | null>(null)
   const liveSlashCommands = useAgentSessionSlashCommands(sessionId)
-  const canCompact = (liveSlashCommands ?? (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType].slashCommands : [])).some(
-    (command) => command.command === '/compact'
-  )
+  const slashCommands = liveSlashCommands ?? (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType]?.slashCommands : [])
+  const canCompact = slashCommands?.some((command) => command.command === '/compact') ?? false
   const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
   const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
   const [editPending, setEditPending] = useState(false)
