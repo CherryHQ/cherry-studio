@@ -306,7 +306,12 @@ const SessionSendInputSchema = z.object({
 
 function assertCurrentSessionIdentity(ctx: AutonomyToolsContext): void {
   const session = agentSessionService.getById(ctx.sessionId)
-  if (session.agentId !== ctx.agentId) {
+  // A top-bar switch re-points the row while this turn's connection still serves its own agent, so
+  // the row is authoritative only once that turn is gone. Accepting the connection's owner keeps an
+  // accepted turn's own Session tools working; a genuinely orphaned context (no runtime, or a
+  // connection serving a third agent) still fails closed.
+  const acceptedTurnAgentId = application.get('AgentSessionRuntimeService').getAcceptedTurnAgentId(ctx.sessionId)
+  if (session.agentId !== ctx.agentId && acceptedTurnAgentId !== ctx.agentId) {
     throw new AgentSessionDeliveryRoutingError('SENDER_FORBIDDEN', 'The active runtime no longer owns this Session')
   }
 }

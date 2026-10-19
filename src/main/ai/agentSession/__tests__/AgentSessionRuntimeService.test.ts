@@ -3558,7 +3558,17 @@ describe('AgentSessionRuntimeService', () => {
       )
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
-      // Once the work drains, the attribution override is retired with it.
+      // The work drained but A's autonomous execution is still running, so the session is still
+      // busy executing A's work — the attribution must outlive the drain.
+      expect(getEntry(service).backgroundAuthor).toMatchObject({ agentId: 'agent-1' })
+      expect(service.listSessionIdsByExecutingAgent('agent-1')).toContain('session-1')
+
+      // The execution reaching its terminal persistence boundary is what retires the attribution:
+      // the wake's own turn settles and the deferred follow-up takes the execution over.
+      const wakeTurnId = entry.runtimeState.execution.turn?.turnId
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
+      service.markTurnTerminal('session-1', 'success', wakeTurnId)
+      expect(entry.runtimeState.execution).not.toMatchObject({ kind: 'autonomous-turn' })
       expect(getEntry(service).backgroundAuthor).toBeUndefined()
       void service.closeSession('session-1')
     })
@@ -3674,6 +3684,60 @@ describe('AgentSessionRuntimeService', () => {
         }),
         { publishDataChange: true }
       )
+      void service.closeSession('session-1')
+    })
+
+    it('keeps the executing author while the adopted reply awaits persistence after the work drains', async () => {
+      // The release can arrive after the autonomous reply already has its turn but before its
+      // terminal outcome is persisted. Dropping the author there would take this still-busy session
+      // out of `listSessionIdsByExecutingAgent(A)`, letting A's archive and permanent deletion
+      // proceed without pausing or closing the runtime the reply is still streaming on.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.runtimeState.connection = {
+        kind: 'connected',
+        connection: {
+          agentId: 'agent-1',
+          send: vi.fn(),
+          close: vi.fn(),
+          events: [],
+          reconcile: vi.fn().mockResolvedValue('current')
+        },
+        occupancy: {}
+      }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-2',
+        type: 'test-runtime',
+        name: 'Agent B',
+        model: switchedModelId
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      service.markTurnTerminal('session-1', 'success')
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+      expect(getEntry(service).backgroundAuthor).toMatchObject({ agentId: 'agent-1' })
+
+      // The adopted agent's background work wakes A's autonomous reply, which now owns a turn.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+
+      // Adapter result ordering: the release precedes the driver's turn-complete event, and the
+      // autonomous execution is left holding a turn whose stream has not been persisted yet.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', turn: expect.anything() })
+
+      expect(getEntry(service).backgroundAuthor).toMatchObject({ agentId: 'agent-1' })
+      expect(service.listSessionIdsByExecutingAgent('agent-1')).toContain('session-1')
+
       void service.closeSession('session-1')
     })
 

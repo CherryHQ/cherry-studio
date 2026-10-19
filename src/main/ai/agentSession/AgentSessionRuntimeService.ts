@@ -566,6 +566,23 @@ export class AgentSessionRuntimeService extends BaseService {
     return entry ? this.liveTurn(entry)?.assistantMessageId : undefined
   }
 
+  /**
+   * The agent whose turn the live connection is serving, when that differs from the session row.
+   * A top-bar switch re-points the row at a turn boundary, but a turn already accepted keeps
+   * running on the connection spawned for its own agent — whose frozen instructions, tools and MCP
+   * contexts still identify it. Authorization that reads only the row would reject that turn's own
+   * tool calls, so callers accept this owner alongside the row while the turn is live. Undefined
+   * whenever the row is authoritative: no entry, no connection, or the connection already serves
+   * the row's agent.
+   */
+  getAcceptedTurnAgentId(sessionId: string): string | undefined {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return undefined
+    const connectionAgentId = this.currentConnection(entry)?.agentId
+    if (!connectionAgentId || connectionAgentId === entry.agentId) return undefined
+    return connectionAgentId
+  }
+
   private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
     return getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
   }
@@ -2619,12 +2636,14 @@ export class AgentSessionRuntimeService extends BaseService {
       this.clearIdleTimer(entry)
     } else {
       // The work this author attribution covered has drained; a later wake belongs to whoever the
-      // entry points at now. A receive-only launch still pending its turn for this very work is
-      // the exception: its reply streams on this connection, so the capture must survive until
-      // that execution is gone (see `applyRuntimeStateEvent`).
-      const launchPending =
-        entry.runtimeState.execution.kind === 'autonomous-turn' && !entry.runtimeState.execution.turn
-      if (!launchPending) entry.backgroundAuthor = undefined
+      // entry points at now. An autonomous execution this work spawned is the exception: its reply
+      // still streams on this connection, so the capture must survive until that execution reaches
+      // its terminal persistence boundary — the launch before its turn exists, and the turn until
+      // the state machine retires the execution into a successor or idle (see
+      // `applyRuntimeStateEvent`). Releasing earlier would drop the session out of
+      // `listSessionIdsByExecutingAgent` while it is still busy.
+      const autonomousInFlight = entry.runtimeState.execution.kind === 'autonomous-turn'
+      if (!autonomousInFlight) entry.backgroundAuthor = undefined
       void this.finishBackgroundFlows(entry)
       if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
     }

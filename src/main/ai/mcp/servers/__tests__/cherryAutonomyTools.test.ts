@@ -39,6 +39,7 @@ const mockAcceptSessionDelivery = vi.fn()
 const mockCreateSessionWithDelivery = vi.fn()
 const mockListSessionDeliveries = vi.fn()
 const mockGetInteractionState = vi.fn()
+const mockGetAcceptedTurnAgentId = vi.fn()
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
@@ -96,7 +97,8 @@ vi.mock('@application', async () => {
       deleteTask: mockDeleteTask
     },
     AgentSessionRuntimeService: {
-      getInteractionState: mockGetInteractionState
+      getInteractionState: mockGetInteractionState,
+      getAcceptedTurnAgentId: mockGetAcceptedTurnAgentId
     },
     AgentSessionDeliveryService: {
       accept: mockAcceptSessionDelivery,
@@ -195,6 +197,8 @@ describe('cherry-tools autonomy tools', () => {
     mockSearchSessionMessages.mockReturnValue([])
     mockListSessionDeliveries.mockReturnValue([])
     mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+    // No accepted turn outliving the session row unless a test stages one.
+    mockGetAcceptedTurnAgentId.mockReturnValue(undefined)
   })
 
   afterEach(async () => {
@@ -440,6 +444,40 @@ describe('cherry-tools autonomy tools', () => {
       mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'another-agent' })
 
       const result = await callTool(createServer(), { session_id: 'topic-1' }, 'session_read')
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: false,
+        error: { code: 'SENDER_FORBIDDEN' }
+      })
+      expect(mockReadConversation).not.toHaveBeenCalled()
+    })
+
+    it('keeps a turn whose session was re-pointed authorized for its own session tools', async () => {
+      // A top-bar switch re-points the row at a turn boundary, but this turn was already accepted
+      // and still streams on the connection spawned for its own agent — whose MCP context carries
+      // that agent. The row alone would reject the turn's own calls mid-flight.
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent_test')
+      mockReadConversation.mockReturnValue({
+        source: 'agent',
+        sessionId: 'session-a',
+        message: { id: 'message-1', role: 'assistant', data: { parts: [] } }
+      })
+
+      const result = await callTool(createServer('agent_test'), { session_id: 'session-a' }, 'session_read')
+
+      expect(result.isError).toBeFalsy()
+      expect(mockReadConversation).toHaveBeenCalled()
+    })
+
+    it('still rejects a turn whose connection serves a third agent', async () => {
+      // The accepted-turn escape only covers the agent the connection actually serves: a context
+      // for neither the row's agent nor the connection owner is orphaned and must fail closed.
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent-c')
+
+      const result = await callTool(createServer('agent_test'), { session_id: 'session-a' }, 'session_read')
 
       expect(result.isError).toBe(true)
       expect(JSON.parse(result.content[0].text)).toMatchObject({
