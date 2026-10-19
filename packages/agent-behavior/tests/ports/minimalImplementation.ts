@@ -10,7 +10,7 @@ export const harness: HarnessPorts = {
   turns: { start: unused, retract: unused, stop: unused },
   helpers: { message: unused, awaitAnswer: unused, stop: unused },
   jobs: { register },
-  waits: { untilIdle: unused, untilRunEnd: unused },
+  waits: { untilIdle: unused, untilDone: unused },
   memory: { remember: unused },
   clock: { now: () => 0 },
   tools: { register },

@@ -3,6 +3,7 @@ import { allowRequest } from '../core/subagents/subagentDecisions'
 import type { HarnessPorts } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { type Entries, entries } from './entries'
+import { idleDriver } from './jobs/idleDriver'
 
 /** What the host keeps from `install`: the entries it calls; every handler is registered on the harness. */
 export type Installation = { readonly entries: Entries }
@@ -11,5 +12,6 @@ export type Installation = { readonly entries: Entries }
 export function install(harness: HarnessPorts, host: HostPorts): Installation {
   harness.contextFilter.register({ omit: (_thread, facts) => unadmittedRoundItems(facts.history) })
   harness.requestMeter.register({ allow: (_thread, requestsInRun, lineage) => allowRequest(requestsInRun, lineage) })
+  harness.jobs.register('idle-driver', idleDriver(host))
   return { entries: entries(host) }
 }
