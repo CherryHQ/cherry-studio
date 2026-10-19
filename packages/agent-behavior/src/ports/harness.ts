@@ -270,7 +270,8 @@ export interface ContextFilterHandler {
  * H10. Leave unadmitted round entries out of the next model request.
  *
  * @harness coding-agent The `context` event.
- * @harness durable Never consulted: with idle-driver rounds an unadmitted round never enters history.
+ * @harness durable Never consulted, a declared difference: a round that started and was then withdrawn, or that a
+ * restart cut before its admission, stays in history, and later model requests see its marker.
  * @harness fake Consulted before every model request; the omitted ids are absent from the request it records.
  */
 export interface ContextFilter {
