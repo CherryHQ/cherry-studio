@@ -128,4 +128,30 @@ describe('keys', () => {
     expect(withoutEnvironment(() => nextRun(history, thread('c1')))).toBe(3)
     expect(nextRun(history, thread('c3'))).toBe(1)
   })
+
+  // Catches two Stage B writers sharing a key, so `keysSeen` would drop the second write as a duplicate (design §7.2),
+  // or a format change that strands records written before it.
+  it('derives distinct keys for every Stage B write', () => {
+    const child = thread('c:1')
+    const item = 'item-1' as ItemId
+    const all = [
+      keys.goalFromCall(call),
+      keys.goalCall(call),
+      keys.goalCommand('task-7'),
+      keys.goalNotice('task-7'),
+      keys.turnStop('task-7'),
+      keys.goalStop('g', 1, 1),
+      keys.goalDisarm('g', 1),
+      keys.goalCounts('g', 1, 1),
+      keys.subagentSteer(call),
+      keys.subagentContinue(call),
+      keys.subagentStop(child, 1, 'model'),
+      keys.subagentStop(child, 1, 'user'),
+      keys.subagentStatus(item),
+      keys.reopenStop(item)
+    ]
+    expect(new Set(all).size).toBe(all.length)
+    expect(keys.goalStop('goal:call:k', 2, 3)).toBe('goal-stop:goal:call:k:v2:a3')
+    expect(keys.subagentStop(child, 2, 'budget')).toBe('subagent-stop:c:1:2:budget')
+  })
 })
