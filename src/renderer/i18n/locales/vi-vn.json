@@ -4377,6 +4377,7 @@
   "settings.doctor.agent.model_picker.description": "Chỉ liệt kê các mô hình đã cấu hình và hiện khả dụng trong Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Chưa cấu hình mô hình khả dụng nào",
   "settings.doctor.agent.model_picker.title": "Chọn mô hình để tư vấn",
+  "settings.doctor.agent.operation_incident_disclosure": "Phân tích này đọc thao tác đang thất bại, ngữ cảnh lỗi của nó và thông tin chẩn đoán áp dụng cho lỗi này, rồi gửi chúng đến mô hình bạn chọn.",
   "settings.doctor.agent.proposal_status.applied": "Đã áp dụng",
   "settings.doctor.agent.proposal_status.failed": "Thất bại",
   "settings.doctor.agent.proposal_status.pending": "Đang chờ",

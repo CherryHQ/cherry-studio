@@ -4377,6 +4377,7 @@
   "settings.doctor.agent.model_picker.description": "Εμφανίζονται μόνο μοντέλα που είναι ρυθμισμένα και διαθέσιμα αυτή τη στιγμή στο Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Δεν έχει ρυθμιστεί ακόμη χρησιμοποιήσιμο μοντέλο",
   "settings.doctor.agent.model_picker.title": "Επιλέξτε μοντέλο για τη συμβουλή",
+  "settings.doctor.agent.operation_incident_disclosure": "Αυτή η ανάλυση διαβάζει την τρέχουσα αποτυχημένη λειτουργία, το πλαίσιο του σφάλματος και τις διαγνωστικές πληροφορίες που ισχύουν για αυτή την αποτυχία και τα στέλνει στο μοντέλο που επιλέγετε.",
   "settings.doctor.agent.proposal_status.applied": "Εφαρμόστηκε",
   "settings.doctor.agent.proposal_status.failed": "Απέτυχε",
   "settings.doctor.agent.proposal_status.pending": "Σε αναμονή",

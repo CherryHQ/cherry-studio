@@ -4377,6 +4377,7 @@
   "settings.doctor.agent.model_picker.description": "Yalnızca Cherry Studio'da yapılandırılmış ve şu anda kullanılabilir modeller listelenir.",
   "settings.doctor.agent.model_picker.empty": "Henüz kullanılabilir bir model yapılandırılmadı",
   "settings.doctor.agent.model_picker.title": "Danışma için bir model seçin",
+  "settings.doctor.agent.operation_incident_disclosure": "Bu analiz, başarısız olan mevcut işlemi, hata bağlamını ve bu hataya uygulanan tanılama bilgilerini okur ve seçtiğiniz modele gönderir.",
   "settings.doctor.agent.proposal_status.applied": "Uygulandı",
   "settings.doctor.agent.proposal_status.failed": "Başarısız",
   "settings.doctor.agent.proposal_status.pending": "Beklemede",

@@ -4377,6 +4377,7 @@
   "settings.doctor.agent.model_picker.description": "แสดงเฉพาะโมเดลที่ตั้งค่าไว้และพร้อมใช้ใน Cherry Studio ขณะนี้",
   "settings.doctor.agent.model_picker.empty": "ยังไม่มีโมเดลที่ตั้งค่าไว้ใช้งานได้",
   "settings.doctor.agent.model_picker.title": "เลือกโมเดลสำหรับการปรึกษา",
+  "settings.doctor.agent.operation_incident_disclosure": "การวิเคราะห์นี้จะอ่านการทำงานที่ล้มเหลวในปัจจุบัน บริบทของข้อผิดพลาด และข้อมูลวินิจฉัยที่ใช้กับความล้มเหลวนี้ แล้วส่งไปยังโมเดลที่คุณเลือก",
   "settings.doctor.agent.proposal_status.applied": "ใช้แล้ว",
   "settings.doctor.agent.proposal_status.failed": "ล้มเหลว",
   "settings.doctor.agent.proposal_status.pending": "รอดำเนินการ",

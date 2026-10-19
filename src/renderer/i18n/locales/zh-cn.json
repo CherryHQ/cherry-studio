@@ -4377,6 +4377,7 @@
   "settings.doctor.agent.model_picker.description": "仅显示 Cherry Studio 已配置且当前可用的模型。",
   "settings.doctor.agent.model_picker.empty": "尚未配置可用模型",
   "settings.doctor.agent.model_picker.title": "选择问诊模型",
+  "settings.doctor.agent.operation_incident_disclosure": "本次分析会读取当前失败的操作、其错误上下文，以及适用于该失败的诊断信息，并发送给你选择的模型。",
   "settings.doctor.agent.proposal_status.applied": "已应用",
   "settings.doctor.agent.proposal_status.failed": "失败",
   "settings.doctor.agent.proposal_status.pending": "待应用",

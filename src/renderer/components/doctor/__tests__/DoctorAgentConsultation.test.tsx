@@ -262,8 +262,36 @@ describe('DoctorAgentConsultation', () => {
     expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeDisabled()
   })
 
-  it('tells the user the conversation is sent to the model only when the analysis reads one', () => {
-    const { rerender } = render(
+  it('discloses an operation error context instead of a conversation, and keeps the model picker', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(
+      <DoctorAgentConsultation
+        subject={{ kind: 'operation', operationId: 'voice-1' }}
+        incident={{
+          kind: 'operation',
+          context: {
+            id: 'voice-1',
+            occurredAt: '2026-10-19T00:00:00.000Z',
+            source: 'voice',
+            operation: 'voice.speech.preview',
+            message: 'Preview preparation failed'
+          }
+        }}
+        open
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('settings.doctor.agent.operation_incident_disclosure')).toBeInTheDocument()
+    expect(screen.queryByText('settings.doctor.agent.incident_disclosure')).not.toBeInTheDocument()
+    const model = screen.getByRole('combobox', { name: 'model' })
+    expect(model).toHaveValue('openai::gpt-5')
+    await user.selectOptions(model, 'deepseek::v3')
+    expect(model).toHaveValue('deepseek::v3')
+    expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeEnabled()
+    unmount()
+
+    const conversation = render(
       <DoctorAgentConsultation
         subject={{ kind: 'global' }}
         incident={{ topicId: 'topic-1', messageId: 'msg-1' }}
@@ -272,8 +300,15 @@ describe('DoctorAgentConsultation', () => {
       />
     )
     expect(screen.getByText('settings.doctor.agent.incident_disclosure')).toBeInTheDocument()
-    rerender(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+    expect(screen.queryByText('settings.doctor.agent.operation_incident_disclosure')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'model' })).toHaveValue('openai::gpt-5')
+    expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeEnabled()
+
+    conversation.rerender(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
     expect(screen.queryByText('settings.doctor.agent.incident_disclosure')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.doctor.agent.operation_incident_disclosure')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'model' })).toHaveValue('openai::gpt-5')
+    expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' })).toBeEnabled()
   })
 
   it('shows the last analysis instead of the picker when one exists for this report', () => {

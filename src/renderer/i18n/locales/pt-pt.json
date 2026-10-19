@@ -4377,6 +4377,7 @@
   "settings.doctor.agent.model_picker.description": "Só são listados modelos configurados e atualmente disponíveis no Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Ainda não há nenhum modelo utilizável configurado",
   "settings.doctor.agent.model_picker.title": "Escolha um modelo para a consulta",
+  "settings.doctor.agent.operation_incident_disclosure": "Esta análise lê a operação falhada atual, o seu contexto de erro e a informação de diagnóstico aplicável a esta falha, e envia-os para o modelo que escolher.",
   "settings.doctor.agent.proposal_status.applied": "Aplicado",
   "settings.doctor.agent.proposal_status.failed": "Falhou",
   "settings.doctor.agent.proposal_status.pending": "Pendente",

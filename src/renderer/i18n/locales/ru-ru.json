@@ -4377,6 +4377,7 @@
   "settings.doctor.agent.model_picker.description": "Показаны только модели, настроенные и доступные сейчас в Cherry Studio.",
   "settings.doctor.agent.model_picker.empty": "Пригодная модель ещё не настроена",
   "settings.doctor.agent.model_picker.title": "Выберите модель для консультации",
+  "settings.doctor.agent.operation_incident_disclosure": "Этот анализ читает текущую неудачную операцию, её контекст ошибки и диагностическую информацию, применимую к этому сбою, и отправляет их выбранной вами модели.",
   "settings.doctor.agent.proposal_status.applied": "Применено",
   "settings.doctor.agent.proposal_status.failed": "Ошибка",
   "settings.doctor.agent.proposal_status.pending": "Ожидает",

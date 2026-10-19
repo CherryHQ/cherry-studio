@@ -4377,6 +4377,7 @@
   "settings.doctor.agent.model_picker.description": "Cherry Studio に設定済みで現在利用可能なモデルのみ表示します。",
   "settings.doctor.agent.model_picker.empty": "利用可能なモデルがまだ設定されていません",
   "settings.doctor.agent.model_picker.title": "相談に使うモデルを選択",
+  "settings.doctor.agent.operation_incident_disclosure": "この分析では、現在失敗している操作とそのエラー内容、およびこの失敗に適用される診断情報を読み取り、選択したモデルに送信します。",
   "settings.doctor.agent.proposal_status.applied": "適用済み",
   "settings.doctor.agent.proposal_status.failed": "失敗",
   "settings.doctor.agent.proposal_status.pending": "保留中",

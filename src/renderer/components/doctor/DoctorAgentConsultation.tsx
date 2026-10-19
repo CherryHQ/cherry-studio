@@ -42,7 +42,8 @@ import {
   doctorProposalFailureDetail,
   doctorRunFailureDetail,
   doctorScopeKey,
-  doctorStateCacheKey
+  doctorStateCacheKey,
+  isOperationIncident
 } from '@shared/utils/doctor'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -62,7 +63,7 @@ type ModelCheckState =
 const GENERIC_MODEL_CHECK_ERRORS = new Set(['Error', 'IpcError', 'AI_APICallError'])
 export interface DoctorAgentDialogProps {
   readonly subject: DoctorSubjectRef
-  /** Set when opened from a failed message; the analysis then reads that conversation. */
+  /** A message incident reads that conversation; an operation incident reads its error context and diagnostics. */
   readonly incident?: DoctorAgentIncident
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
@@ -110,7 +111,13 @@ export function DoctorAgentConsultation({
             {showPicker ? t('settings.doctor.agent.model_picker.description') : t('settings.doctor.agent.description')}
           </DialogDescription>
           {showPicker && incident ? (
-            <p className="text-xs text-muted-foreground">{t('settings.doctor.agent.incident_disclosure')}</p>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                isOperationIncident(incident)
+                  ? 'settings.doctor.agent.operation_incident_disclosure'
+                  : 'settings.doctor.agent.incident_disclosure'
+              )}
+            </p>
           ) : null}
           {!showPicker ? (
             <p className="text-xs text-muted-foreground">
