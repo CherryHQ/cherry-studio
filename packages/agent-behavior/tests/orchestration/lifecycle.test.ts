@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { callTool, holds, latch, reply, toolBase } from '../../src/contract/fixtures'
 import { currentGoal } from '../../src/core/goal/goalHistory'
 import { MAX_SUBAGENT_REQUESTS } from '../../src/core/subagents/subagentText'
-import type { HarnessPorts } from '../../src/ports/harness'
+import type { CompactionVerdict, HarnessPorts } from '../../src/ports/harness'
 import { markers, runRecords, world } from './world'
 
 const compactions = async (w: ReturnType<typeof world>, thread: Parameters<ReturnType<typeof world>['read']>[0]) =>
@@ -79,9 +79,26 @@ describe('lifecycle handlers', () => {
     expect(JSON.stringify(w.fake.persistentLog())).toContain(`cherry.summary:${t}:${last}`)
   })
 
-  // Catches a failed or empty summary that compacts anyway, losing the context with nothing in its place (D33).
-  it('declines a compaction whose summary fails or is empty', async () => {
-    const w = world()
+  // Catches a failed or empty summary that compacts anyway, losing the context with nothing in its place (D33), or a
+  // decline without the reason the host shows for the failed compaction (M2).
+  it('declines a compaction whose summary fails or is empty, saying why', async () => {
+    const verdicts: CompactionVerdict[] = []
+    const w = world({
+      wrap: (ports) => ({
+        ...ports,
+        lifecycle: {
+          register: (handlers) =>
+            ports.lifecycle.register({
+              ...handlers,
+              onCompacting: async (thread, request, p) => {
+                const verdict = await handlers.onCompacting(thread, request, p)
+                verdicts.push(verdict)
+                return verdict
+              }
+            })
+        }
+      })
+    })
     const t = await w.fake.createThread()
     w.fake.script(t, [reply('first'), reply('second')])
     await w.fake.sendUser(t, 'go')
@@ -93,6 +110,10 @@ describe('lifecycle handlers', () => {
     await w.fake.compact(t)
     expect(await compactions(w, t)).toHaveLength(0)
     expect(w.host.asked.summaries).toBe(2)
+    expect(verdicts).toEqual([
+      { decline: true, reason: 'no summary scripted' },
+      { decline: true, reason: 'The summary is empty' }
+    ])
   })
 
   // Catches an empty summary kept under the compaction key: a retry of the same compaction would decline again without

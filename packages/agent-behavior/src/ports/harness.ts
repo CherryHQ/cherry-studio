@@ -321,8 +321,11 @@ export type CompactionRequest = {
   readonly instructions?: string
   readonly signal: AbortSignal
 }
-/** The summary to compact with, or a decline that cancels the compaction (D33). */
-export type CompactionVerdict = { readonly summary: string } | { readonly decline: true }
+/**
+ * The summary to compact with, or a decline that cancels the compaction (D33); a decline's `reason` is the summarizer's
+ * error or an empty summary, for the host to show as the compaction's failure.
+ */
+export type CompactionVerdict = { readonly summary: string } | { readonly decline: true; readonly reason: string }
 export interface LifecycleHandlers {
   onOpen(thread: ThreadId, open: { readonly reopened: boolean }, ports: BoundPorts): Promise<void>
   onCompacting(thread: ThreadId, request: CompactionRequest, ports: GatePorts): Promise<CompactionVerdict>
@@ -349,13 +352,14 @@ export interface LifecycleHandlers {
  * `hostCallInFlight` may still be true when it starts. It must not `append-quiet` there: it ensures the idle driver,
  * which writes the compaction status once the conversation is idle.
  *
- * @harness coding-agent `session_start`, `session_before_compact` (cancelled on a decline), the end of the compaction
- * and `session_shutdown`; runs do not resume, so there is no stop before resume.
+ * @harness coding-agent `session_start`, `session_before_compact` (cancelled on a decline, whose `reason` becomes the
+ * `compaction-end` error), the end of the compaction and `session_shutdown`; runs do not resume, so there is no stop
+ * before resume.
  * @harness durable The host calls `onOpen` for every conversation after `Harness.open` and `inspect()` and before
  * `resume()`. Stops there only mark (`abortTask`, `abortSubmission`), because `abort()`, `submit` and the waits enable
- * scheduling; `beforeCompact` returns `onCompacting`'s verdict (`{ summary }` or `{ decline: true }`) and its select
- * phase reruns after a crash under the same task id; compaction completion is observed through a watch; `close()`
- * writes nothing.
+ * scheduling; `beforeCompact` returns `{ summary }`, or `{ decline: true }` with the `reason` reported to the host,
+ * and its select phase reruns after a crash under the same task id; compaction completion is observed through a
+ * watch; `close()` writes nothing.
  * @harness fake `onOpen` at creation and, on every restart, for every conversation before any resumed run or job,
  * with ports that reject every method outside the list above; a stop there only marks the restored run, which resume
  * ends as aborted, and a job ensured there starts after the last `onOpen`; `compact()` asks `onCompacting` under the
