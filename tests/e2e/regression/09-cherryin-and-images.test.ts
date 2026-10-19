@@ -53,11 +53,6 @@ test(...caseDefinition('M-01'), async ({ app, mainWindow: _mainWindow }) => {
     page = await app.mainWindow()
     await page.evaluate(async (assistantId) => {
       try {
-        const archived = (await window.api.ipcApi.request('trash.assistant.archive', {
-          assistantId,
-          deleteTopics: true
-        })) as IpcResult<DeleteAssistantResult>
-        if (!archived.ok || !archived.data.deleted) throw new Error(`Archive failed: ${JSON.stringify(archived)}`)
         const removed = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
           assistantId,
           deleteTopics: true
