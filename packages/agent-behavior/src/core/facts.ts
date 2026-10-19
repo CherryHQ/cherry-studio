@@ -153,10 +153,16 @@ export type MarkerFact =
 
 /** Ordered and full-lineage: entries folded by compaction or hidden by reset are included. */
 export type HistoryEntry =
-  | { readonly kind: 'user'; readonly id: ItemId; readonly text: string }
+  | {
+      readonly kind: 'user'
+      readonly id: ItemId
+      /** The person's message as `vcc_recall` numbers and searches it: an image appears as `[image]`. */
+      readonly text: string
+    }
   | {
       readonly kind: 'assistant'
       readonly id: ItemId
+      /** The reply's text, its thinking left out and an image as `[image]`. */
       readonly text: string
       readonly toolCalls: readonly ToolCallFact[]
       readonly usage: UsageFact

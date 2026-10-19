@@ -289,7 +289,12 @@ Each schema carries the constraints today's tools have. The rules check the argu
 that does not validate against the schema loses nothing.
 
 `Installation.entries` is what the host calls. Each entry takes the ports of one host call (the adapter's `withCall`)
-and, where it takes one, the host's key for the request, which makes a repeated call harmless:
+and, where it takes one, the host's key for the request, which makes a repeated call harmless. Those ports must read,
+transact and stop on any conversation, not only the one the call was opened on: `stopSubagent` reads the child, then
+commits on its parent and stops the child or the parent's turn (on Durable, the handle commits through the
+`Conversation` each call names).
+`goalCommand` answers a person's mistake (a second goal, pausing a completed one) with an error notice, but every entry
+rejects when a port or the wiring fails, and the host reports that rejection as an error instead of a notice:
 
 | Entry                                          | The host calls it when                                                                                                                                                                                                                                                                                                                                                |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -307,6 +312,10 @@ The host must also:
   category in `Approvals.facts`.
 - Answer `Models.current(thread)` with both keys non-empty and whether the conversation's model can call tools.
 - Keep `Settings` cheap to read: every decision reads each setting once.
+- Answer `Settings.attendance`, `Settings.permissionMode` and `Approvals.facts` for a child's thread as for its root
+  conversation: the gate asks with the thread of the conversation that made the call, a child's included, and a
+  child's calls follow the root conversation's interaction state, permission mode and agent tool policy. Return
+  `'unavailable'` only when nobody can respond: it blocks every call that needs approval.
 - Recompute the views with the exported `subagentViews` when a child's approval state changes (an ask starts or is
   answered): the package emits views only after its own steps, and no step of the parent sees that change.
 
@@ -324,7 +333,10 @@ Beyond [What the adapters provide](#what-the-adapters-provide), each adapter mus
 - Contain no product constants or stop-code literals; they come from the package's results.
 
 Not in the package yet: `enter_plan_mode` and `exit_plan_mode` (PR-3d); the shutdown record `onClose` writes for
-running children (PR-3a); worktree isolation and its `Workspaces` port (PR-4).
+running children (PR-3a); worktree isolation and its `Workspaces` port (PR-4). A known gap: while a failed run's
+leftover inputs hold a conversation, the idle driver leaves results it would deliver quietly and a compaction's
+status for later and exits, and a person's later turn does not wake it; they wait for its next wake (a child's run
+ending, a compaction or a reopen).
 
 ## Running the contract in an adapter
 
