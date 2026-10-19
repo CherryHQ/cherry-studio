@@ -16,9 +16,10 @@ import { toast } from '@renderer/services/toast'
 import type * as ToastServiceModule from '@renderer/services/toast'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { ActiveExecution, AiStreamOpenResponse } from '@shared/ai/transport'
-import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { AgentSessionMessageEntity, AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -461,6 +462,43 @@ describe('useAgentChatRuntimeState', () => {
       }
     })
   })
+
+  it.each([
+    { agentType: 'local', liveCommands: undefined, canCompact: false },
+    { agentType: 'claude-code', liveCommands: undefined, canCompact: true },
+    { agentType: 'pi', liveCommands: undefined, canCompact: true },
+    {
+      agentType: 'local',
+      liveCommands: [{ name: 'compact', description: 'Compact context', argumentHint: '' }],
+      canCompact: true
+    },
+    {
+      agentType: 'claude-code',
+      liveCommands: [{ name: 'other', description: 'Other command', argumentHint: '' }],
+      canCompact: false
+    }
+  ])(
+    'exposes context compaction only when supported by $agentType ($canCompact)',
+    async ({ agentType, liveCommands, canCompact }) => {
+      if (liveCommands)
+        MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1'), liveCommands)
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({
+          sessionId: 'session-1',
+          agentType: agentType as AgentType,
+          sessionMessagesEnabled: true,
+          reservedMessages: []
+        })
+      )
+      expect(result.current.sessionId).toBe('session-1')
+      await act(async () => {
+        await mocks.controllerOptions.mock.lastCall![0].onError(new Error('context window exceeded'), { text: 'hello' })
+      })
+      const notification = toast.getToastQueue().toasts[0]
+      expect(notification).toBeDefined()
+      expect(Boolean(notification.action)).toBe(canCompact)
+    }
+  )
 
   it('reports a blocked stream open as not sent', async () => {
     mocks.sendTurn.mockResolvedValueOnce(false)
