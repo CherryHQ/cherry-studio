@@ -1,6 +1,6 @@
 import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
-import { AlertCircle, LoaderCircle } from 'lucide-react'
+import { AlertCircle, FileWarning, LoaderCircle } from 'lucide-react'
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,6 +20,7 @@ const PPTX_PREVIEW_ZOOM_STEP = 10
 const PPTX_PREVIEW_MIN_ZOOM = 50
 const PPTX_PREVIEW_MAX_ZOOM = 200
 const PPTX_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024
+const PPTX_ZIP_LIMIT_ERROR_PREFIX = 'PPTX zip limit exceeded:'
 const EXTERNAL_TARGET_MODE = 'external'
 const EXTERNAL_MEDIA_RELATIONSHIP_TYPES = new Set(['image', 'audio', 'video', 'media'])
 
@@ -42,6 +43,26 @@ function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) {
     throw new DOMException('Preview aborted', 'AbortError')
   }
+}
+
+function isPptxZipLimitError(error: Error): boolean {
+  return error.message.startsWith(PPTX_ZIP_LIMIT_ERROR_PREFIX)
+}
+
+function PowerPointZipLimitFallback() {
+  const { t } = useTranslation()
+  const { onRequestOpen } = usePreviewHost()
+
+  return (
+    <EmptyState
+      icon={FileWarning}
+      title={t('file_preview.powerpoint.zip_limit.title')}
+      description={t('file_preview.powerpoint.zip_limit.description')}
+      actionLabel={onRequestOpen ? t('file_preview.too_large.action') : undefined}
+      onAction={onRequestOpen ? () => onRequestOpen('too_large') : undefined}
+      className="h-full"
+    />
+  )
 }
 
 function getRelationshipTypeName(type: string): string {
@@ -258,8 +279,11 @@ export default function PowerPointFilePreview({
         viewer?.destroy()
         container.innerHTML = ''
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
-        failDocument?.(normalized)
-        setError(normalized)
+        const reported = isPptxZipLimitError(normalized)
+          ? new PreviewError('too_large', normalized.message, { cause: normalized })
+          : normalized
+        failDocument?.(reported)
+        setError(reported)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -384,7 +408,9 @@ export default function PowerPointFilePreview({
           ) : null}
           {error ? (
             <div role="alert" className="absolute inset-0 bg-background">
-              {error instanceof PreviewError && error.code === 'too_large' ? (
+              {error instanceof PreviewError && error.code === 'too_large' && isPptxZipLimitError(error) ? (
+                <PowerPointZipLimitFallback />
+              ) : error instanceof PreviewError && error.code === 'too_large' ? (
                 <FilePreviewTooLarge sizeBytes={previewDocument.size} limitBytes={PPTX_PREVIEW_MAX_SOURCE_BYTES} />
               ) : (
                 <EmptyState

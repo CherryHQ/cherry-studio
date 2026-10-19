@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/server'
+import { type CallToolResult, McpServer } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -10,6 +10,11 @@ import { automationReplDescription, automationReplInput, automationReplResetInpu
 import type { AutomationRun } from '@main/services/automation'
 
 const logger = loggerService.withContext('AutomationReplAdapter')
+
+function toMcpResult({ content, isError }: CallToolResult): CallToolResult {
+  // Claude replaces text content with structuredContent; REPL metadata must not hide observations.
+  return { content, isError }
+}
 
 export function createAutomationReplServer(sessionId: string, agentId: string): McpServer {
   const server = new McpServer({ name: 'automation', version: '1.0.0' })
@@ -65,7 +70,7 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
   server.registerTool(
     'js',
     { description: automationReplDescription, inputSchema: automationReplInput },
-    async ({ code }, context) => (await currentRun()).execute(code, context.mcpReq.signal)
+    async ({ code }, context) => toMcpResult(await (await currentRun()).execute(code, context.mcpReq.signal))
   )
   server.registerTool(
     'reset',
@@ -74,7 +79,7 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
         'Clear persistent automation JS state and release control leases. Does not close user pages/apps or resume user-stopped control.',
       inputSchema: automationReplResetInput
     },
-    async () => (await currentRun()).reset()
+    async () => toMcpResult(await (await currentRun()).reset())
   )
   const close = server.close.bind(server)
   let cleanup: Promise<void> | undefined

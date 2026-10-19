@@ -56,6 +56,7 @@ import {
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import type { ComposerInputFilePreviewAction } from './filePreview'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
@@ -164,6 +165,7 @@ export interface ComposerSurfaceProps {
   onPause: () => void | Promise<void>
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
+  previewInputFile?: ComposerInputFilePreviewAction
   filesCount: number
   isExpanded: boolean
   onExpandedChange: (expanded: boolean) => void
@@ -503,6 +505,7 @@ export default function ComposerSurfaceRuntime({
   onPause,
   supportedExts,
   setFiles,
+  previewInputFile,
   filesCount,
   isExpanded,
   onExpandedChange,
@@ -516,6 +519,7 @@ export default function ComposerSurfaceRuntime({
   onFocus,
   onInputAdapterChange,
   onVoiceTargetInteraction,
+  voiceTarget,
   onActionsChange,
   isInputHistoryActive = false,
   onInputHistoryNavigate,
@@ -1415,6 +1419,16 @@ export default function ComposerSurfaceRuntime({
     [enableQuickPanel, rootSuggestionSources, quickPanelSuggestionSources]
   )
 
+  // Tiptap keeps the node view created with the first renderToken. The activation
+  // function itself stays stable and reads the latest preview action at click time.
+  const previewInputFileRef = useRef(previewInputFile)
+  useLayoutEffect(() => {
+    previewInputFileRef.current = previewInputFile
+  }, [previewInputFile])
+  const activateFilePreview = useCallback<ComposerInputFilePreviewAction>((input) => {
+    return previewInputFileRef.current?.(input)
+  }, [])
+
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
     (token, { selected, nodeViewProps }) => {
       const currentToken = tokenByIdRef.current.get(token.id) ?? token
@@ -1427,6 +1441,7 @@ export default function ComposerSurfaceRuntime({
           token={fileToken}
           selected={selected}
           imageIconPreview
+          onFilePreviewActivate={previewInputFile ? activateFilePreview : undefined}
           onRemove={() => removeToken(fileToken.id)}
           removeLabel={t('common.delete')}
           tooltipActions={
@@ -1435,7 +1450,7 @@ export default function ComposerSurfaceRuntime({
                 type="button"
                 variant="link"
                 size="sm"
-                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-link text-xs leading-4 shadow-none hover:text-link focus-visible:border-0 focus-visible:text-link focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="text-link hover:text-link focus-visible:text-link h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left text-xs leading-4 font-medium shadow-none focus-visible:border-0 focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
                 onMouseDown={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -1452,7 +1467,7 @@ export default function ComposerSurfaceRuntime({
         />
       )
     },
-    [handleShowPastedTextFileInInput, removeToken, t]
+    [activateFilePreview, handleShowPastedTextFileInInput, previewInputFile, removeToken, t]
   )
 
   const editorExtensions = useMemo(
@@ -1491,7 +1506,7 @@ export default function ComposerSurfaceRuntime({
         // Keep the input focusable while a send temporarily makes it read-only.
         tabindex: '0',
         class: cn(
-          'composer-tiptap box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
+          'composer-tiptap box-border block w-full overflow-auto rounded-none break-words whitespace-pre-wrap text-foreground transition-none! outline-none [&::-webkit-scrollbar]:w-[3px]',
           hasCustomHeight && 'h-full'
         ),
         style: `${editorElementStyle}; text-align: start`
@@ -2192,7 +2207,7 @@ export default function ComposerSurfaceRuntime({
       <button
         data-ui="chat.composer.action.pause"
         type="button"
-        className="flex size-7.5 items-center justify-center rounded-full text-error hover:bg-accent"
+        className="text-error flex size-7.5 items-center justify-center rounded-full hover:bg-accent"
         aria-label={t('chat.input.pause')}
         onClick={() => void onPause()}>
         <CirclePause size={20} />
@@ -2213,7 +2228,7 @@ export default function ComposerSurfaceRuntime({
       aria-live="polite"
       aria-label={editingState.description ?? t('chat.input.editing_message')}
       data-composer-editing-header=""
-      className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-muted-foreground text-xs">
+      className="text-muted-foreground flex h-9 shrink-0 items-center justify-between border-b border-border-subtle bg-transparent px-3 text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
         <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
         <span className="min-w-0 font-medium">{editingState.description ?? t('chat.input.editing')}</span>
@@ -2226,7 +2241,7 @@ export default function ComposerSurfaceRuntime({
               onClick={editingState.onLocate}
               variant="ghost"
               size="icon-sm"
-              className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
+              className="text-muted-foreground! shrink-0 rounded-full hover:bg-accent hover:text-foreground!"
               aria-label={t('chat.input.locate_editing_message')}>
               <LocateFixed size={14} />
             </Button>
@@ -2239,7 +2254,7 @@ export default function ComposerSurfaceRuntime({
               onClick={saveEditingDraft}
               variant="ghost"
               size="icon-sm"
-              className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
+              className="text-muted-foreground! shrink-0 rounded-full hover:bg-accent hover:text-foreground!"
               aria-label={t('common.save')}>
               <Check size={14} />
             </Button>
@@ -2252,7 +2267,7 @@ export default function ComposerSurfaceRuntime({
             disabled={editingState.cancelDisabled}
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
+            className="text-muted-foreground! shrink-0 rounded-full hover:bg-accent hover:text-foreground!"
             aria-label={t('chat.input.cancel_editing')}>
             <X size={14} />
           </Button>
@@ -2265,6 +2280,7 @@ export default function ComposerSurfaceRuntime({
       id="inputbar"
       data-ui="chat.composer"
       data-composer-inputbar=""
+      data-voice-target-id={voiceTarget?.targetId}
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
       onPointerDownCapture={onVoiceTargetInteraction}
       onFocusCapture={onVoiceTargetInteraction}
@@ -2274,7 +2290,7 @@ export default function ComposerSurfaceRuntime({
         belowControls ? 'mb-0.5' : 'mb-3',
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
-          "border-2 border-success border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-success/[0.03] before:content-['']",
+          "border-2 border-dashed border-success before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-success/[0.03] before:content-['']",
         isExpanded && 'expanded'
       )}>
       {!isCompact ? (
@@ -2299,14 +2315,14 @@ export default function ComposerSurfaceRuntime({
               <span
                 aria-hidden="true"
                 data-composer-expand-corner-line=""
-                className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-foreground/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0"
+                className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-t-[1.5px] border-r-[1.5px] border-foreground/60 opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0"
               />
               <Button
                 type="button"
                 onClick={handleExpandControlClick}
                 variant="ghost"
                 size="icon-sm"
-                className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-muted-foreground opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
+                className="text-muted-foreground pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 -translate-y-2.5 scale-80 rotate-[-8deg] rounded-full bg-transparent opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:rotate-0 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100 hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:scale-100 focus-visible:rotate-0 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 [&_svg]:!size-3"
                 aria-pressed={hasCustomHeight}
                 aria-label={hasCustomHeight ? t('chat.input.restore') : t('chat.input.expand')}>
                 <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
@@ -2421,7 +2437,7 @@ export default function ComposerSurfaceRuntime({
             </>
           )}
           {showAiDisclaimer ? (
-            <div className="-mt-3 pt-1.5 pb-2.5 text-center text-[11px] text-muted-foreground">
+            <div className="text-muted-foreground -mt-3 pt-1.5 pb-2.5 text-center text-[11px]">
               {t('chat.input.ai_disclaimer')}
             </div>
           ) : null}

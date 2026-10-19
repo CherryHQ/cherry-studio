@@ -1,6 +1,6 @@
 import { Check, Copy, LoaderCircle, X } from 'lucide-react'
 import type { KeyboardEvent, Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Scrollbar } from '@cherrystudio/ui'
@@ -12,8 +12,9 @@ import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import DictationControls from '@renderer/components/DictationControls'
 import { useDrag } from '@renderer/hooks/useDrag'
-import { voiceTargetManager } from '@renderer/services/voice'
+import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { VoiceReplaceRange } from '@renderer/services/voice'
+import { cn } from '@renderer/utils/style'
 
 import IconButton from './IconButton'
 
@@ -54,6 +55,10 @@ const TranslateInputPane = ({
 }: Props) => {
   const { t } = useTranslation()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isDictationIdle = useSyncExternalStore(
+    dictationService.subscribe,
+    () => dictationService.getSnapshot().phase === 'idle'
+  )
 
   useEffect(() => {
     if (disabled) return
@@ -102,19 +107,24 @@ const TranslateInputPane = ({
     if (!textarea) return
     textarea.style.height = 'auto'
     textarea.style.height = `${textarea.scrollHeight}px`
-  }, [text])
+  }, [text, isDictationIdle])
 
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
 
   return (
     <div
       data-ui="translate.input"
+      data-voice-target-id={TARGET_ID}
       className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDropEvent}>
-      <div className="flex shrink-0 items-center justify-end gap-1 px-3 pt-3">
+      <div
+        className={cn(
+          'flex items-center justify-end gap-1',
+          isDictationIdle ? 'absolute top-4 right-3 z-1' : 'shrink-0 px-3 pt-3'
+        )}>
         <div className="min-w-0">
           <DictationControls targetId={TARGET_ID} disabled={disabled} focusInput={() => textareaRef.current?.focus()} />
         </div>
@@ -126,6 +136,7 @@ const TranslateInputPane = ({
         <Scrollbar ref={ref} onScroll={onScroll} className="h-full overflow-x-hidden">
           <textarea
             ref={textareaRef}
+            data-voice-target-id={TARGET_ID}
             value={text}
             onChange={(e) => onTextChange(e.target.value)}
             onKeyDown={onKeyDown}
@@ -135,7 +146,10 @@ const TranslateInputPane = ({
             disabled={disabled}
             spellCheck={false}
             placeholder={t('translate.input.placeholder')}
-            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground"
+            className={cn(
+              'min-h-full w-full resize-none overflow-hidden bg-transparent p-4 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-muted-foreground',
+              isDictationIdle && 'pr-20'
+            )}
           />
         </Scrollbar>
       </div>
@@ -145,7 +159,7 @@ const TranslateInputPane = ({
           onClick={onSelectFile}
           disabled={disabled || selecting}
           aria-label={t('translate.files.upload')}
-          className="mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-border-subtle border-dashed px-4 py-4 text-muted-foreground transition-colors hover:border-border-strong hover:bg-muted/30 hover:text-foreground focus-visible:border-border-strong focus-visible:bg-muted/30 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60">
+          className="text-muted-foreground hover:border-border-strong focus-visible:border-border-strong mx-3 mb-4 flex shrink-0 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border-subtle px-4 py-4 transition-colors hover:bg-muted/30 hover:text-foreground focus-visible:bg-muted/30 focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60">
           <span className="text-sm">{t('translate.files.upload')}</span>
           <span className="flex items-center gap-6">
             {uploadIcons.map((icon) => (
@@ -159,15 +173,15 @@ const TranslateInputPane = ({
           <button
             type="button"
             onClick={handleClear}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none">
+            className="text-muted-foreground flex h-8 items-center gap-1.5 rounded-md px-2 text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none">
             <X size={14} className="lucide-custom" />
             <span>{t('common.clear')}</span>
           </button>
         </div>
       )}
       {isDragging && (
-        <div className="fade-in-0 pointer-events-none absolute inset-0 z-10 flex animate-in items-center justify-center bg-background p-3 duration-150">
-          <div className="flex h-full w-full items-center justify-center rounded-md border border-border-subtle border-dashed">
+        <div className="pointer-events-none absolute inset-0 z-10 flex animate-in items-center justify-center bg-background p-3 duration-150 fade-in-0">
+          <div className="flex h-full w-full items-center justify-center rounded-md border border-dashed border-border-subtle">
             {/* Drawn as a single path so the translucent foreground token paints
                 evenly: lucide's Plus uses two crossing paths, which composites
                 the alpha twice and darkens the center. */}
@@ -188,9 +202,9 @@ const TranslateInputPane = ({
         </div>
       )}
       {ocrProcessing && (
-        <div className="fade-in-0 absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150">
+        <div className="absolute inset-0 z-20 flex animate-in items-center justify-center bg-background/90 p-3 duration-150 fade-in-0">
           <div className="flex flex-col items-center gap-3">
-            <div role="status" aria-live="polite" className="flex items-center gap-2 text-foreground-tertiary text-sm">
+            <div role="status" aria-live="polite" className="text-foreground-tertiary flex items-center gap-2 text-sm">
               <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
               <span>{t('ocr.processing')}</span>
             </div>

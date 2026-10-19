@@ -27,6 +27,7 @@ export const SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS = [
   'darwin-x64',
   'linux-arm64',
   'linux-x64',
+  'win32-arm64',
   'win32-x64'
 ] as const
 export const FUNASR_SUPPORTED_PLATFORM_KEYS = SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS

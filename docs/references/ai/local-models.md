@@ -110,8 +110,10 @@ as another *installed* bundle still requires it.
 ships nothing there, so every bundle requiring it reads as `unsupported` rather than
 offering a download that could only fail. Each entry pins its npm package and tarball digest
 and lists the files extracted for that target. `onnxruntime-node` selects a platform subtree
-from one package and has no Intel Mac build; sherpa-onnx uses one package per platform and
-has no Windows ARM64 build.
+from one package and has no Intel Mac build; sherpa-onnx uses one npm package per platform,
+except Windows ARM64, which downloads a checksum-pinned runtime from the independent
+`CherryHQ/sherpa-onnx` releases. Its tag, archive name, and checksum live in
+`catalog/sherpaRuntimeRelease.json`.
 
 ### Obtaining a checksum
 
@@ -294,8 +296,8 @@ data needed for words absent from the lexicon. Every file is checksummed and fet
 an immutable Hugging Face revision, with hf-mirror as a fallback. The native runtime is
 shared with FunASR; removing either model retains it while the other is installed.
 
-Kokoro runs through `inference.tts` on macOS arm64/x64, Linux arm64/x64 and Windows x64.
-The shared Sherpa artifact does not provide Windows ARM64 binaries. The worker loads both
+Kokoro runs through `inference.tts` on macOS arm64/x64, Linux arm64/x64 and Windows arm64/x64.
+Windows ARM64 shares the verified Sherpa runtime with FunASR. The worker loads both
 lexicons together and leaves the language override unset so a single request can contain
 Chinese and English. Language preferences select a default voice; they do not split mixed
 text into separate synthesis requests. The existing host stops the process before changing

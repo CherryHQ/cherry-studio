@@ -193,6 +193,48 @@ afterEach(() => {
 })
 
 describe('DictationService recording lifecycle', () => {
+  it('does not let a released shortcut stop a newer dictation run', async () => {
+    const harness = createHarness()
+    const first = harness.service.startScoped()
+    await first.result
+    const second = harness.service.startScoped()
+    await second.result
+    await first.stop()
+    expect(harness.service.getSnapshot().phase).toBe('recording')
+    await second.stop()
+    expect(harness.service.getSnapshot().phase).toBe('idle')
+    expect(harness.replaceRange).toHaveBeenCalledWith({ from: 2, to: 5 }, 'hello world')
+  })
+  it('cancels a replacement stopped while the previous recording is still being cleaned up', async () => {
+    const cleanup = deferred<void>()
+    const harness = createHarness()
+    harness.voice.transcribe.mockImplementationOnce(() =>
+      operation('session-1', 'request-asr', Promise.reject({ reason: 'no_speech' }))
+    )
+    harness.voice.discardSession.mockRejectedValueOnce({ reason: 'operation_failed' })
+    await startAndStop(harness.service)
+    expect(harness.service.getSnapshot()).toEqual({
+      phase: 'failed',
+      elapsedMs: 0,
+      recoveryAvailable: false,
+      error: 'operation_failed'
+    })
+
+    harness.voice.discardSession.mockReturnValueOnce(cleanup.promise)
+    const replacement = harness.service.startScoped()
+    await vi.waitFor(() => expect(harness.voice.discardSession).toHaveBeenCalledTimes(2))
+    const stopping = replacement.stop()
+    cleanup.resolve()
+    await Promise.all([replacement.result, stopping])
+    try {
+      expect(harness.voice.startRecording).toHaveBeenCalledOnce()
+      expect(harness.getUserMedia).toHaveBeenCalledOnce()
+      expect(harness.service.getSnapshot().phase).toBe('idle')
+    } finally {
+      await harness.service.cancel()
+    }
+  })
+
   it('preserves interrupted audio until the user explicitly transcribes it', async () => {
     const harness = createHarness()
     await harness.service.start()

@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.2
+
+### Patch Changes
+
+- [#21776](https://github.com/CherryHQ/cherry-studio/pull/21776) [`14d63eb`](https://github.com/CherryHQ/cherry-studio/commit/14d63eb93a65e0ea03df84722317bd9e6ec97404) Thanks [@ousugo](https://github.com/ousugo)! - Add Muse Spark Open BF16 and NVFP4 model recognition with multimodal capabilities and the official reasoning levels and default.
+
 ## 0.2.1
 
 ### Patch Changes
