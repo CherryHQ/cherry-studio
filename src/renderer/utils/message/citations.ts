@@ -37,7 +37,7 @@ import {
 } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
-  CITATION_SNIPPET_MAX_CHARS,
+  citationSnippet,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbGrepOutputSchema,
@@ -166,9 +166,7 @@ function unwrapCitableOutput(output: unknown): unknown {
 }
 
 function toSnippet(content: string): string {
-  const trimmed = content.trim()
-  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
-  return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
+  return citationSnippet(content)
 }
 
 /**
