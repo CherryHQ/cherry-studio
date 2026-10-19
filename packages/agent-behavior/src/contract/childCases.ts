@@ -4,6 +4,7 @@ import type { UsageFact } from '../core/facts'
 import type { ToolDefinition } from '../ports/harness'
 import { check, same } from './assert'
 import {
+  assistantTexts,
   callTool,
   childSpec,
   holds,
@@ -167,6 +168,89 @@ export const childCases: readonly ContractCase[] = [
         [first, usage(23, 9, 0.625)],
         'run usage must sum each run on its own'
       )
+    }
+  },
+  // Catches a run usage list whose length drifts from the runs started (none before the first run, an active or aborted
+  // run left out), so `isLive` and budget accounting misread which runs exist (R3, S-e).
+  {
+    name: 'run usage has one entry per run the child started, active and aborted runs included',
+    covers: ['ledger.read', 'helpers.message', 'helpers.stop', 'helpers.awaitAnswer'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      const child = await spawnBackground(h, t, 'c32')
+      const runs = async () => (await read(h, t)).children.get(child)?.runUsage.length
+      check((await runs()) === 0, 'a child that started no run must have no run usage entry')
+      h.script(child, [
+        callTool('hold', { id: 'c32-1' }, usage(10, 5, 0.25)),
+        callTool('hold', { id: 'c32-2' }, usage(20, 7, 0.5)),
+        reply('two', usage(3, 2, 0.125))
+      ])
+      const send = (label: string) => h.withCall(t, (p) => p.helpers.message(child, message(label), key(label)))
+      same(await send('c32-1'), { run: 1, status: 'started' }, 'an idle child must start run 1')
+      await hold.started('c32-1')
+      check((await runs()) === 1, 'an active run must have its run usage entry')
+      await h.withCall(t, (p) => p.helpers.stop(child, 1))
+      const end = await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c32-1')))
+      check(end.outcome === 'aborted' && (await runs()) === 1, 'an aborted run must keep its run usage entry')
+      same(await send('c32-2'), { run: 2, status: 'started' }, 'a message after run 1 ended must start run 2')
+      await hold.started('c32-2')
+      check((await runs()) === 2, 'the next active run must add exactly one run usage entry')
+      hold.release('c32-2')
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 2, key('c32-2')))
+      check((await runs()) === 2, 'two runs started must leave exactly two run usage entries')
+    }
+  },
+  // Catches a fork that counts the inherited history as runs of its own, which charges the parent's usage to the child
+  // and shifts its run numbers (S-j, R3).
+  {
+    name: 'a forked child counts no inherited entry as its own run or usage',
+    covers: ['ledger.transact', 'ledger.read', 'helpers.message', 'helpers.awaitAnswer'],
+    needs: [],
+    async run(open) {
+      const h = await open(() => {})
+      const t = await h.createThread()
+      h.script(t, [reply('parent answer', usage(100, 50, 2))])
+      await h.sendUser(t, 'go')
+      await h.settle()
+      const at = (await read(h, t)).history.at(-1)!.id
+      const base = childSpec('background', 'c33')
+      const { spawned } = await h.withCall(t, (p) =>
+        p.ledger.transact(t, () =>
+          step(
+            [
+              {
+                type: 'spawn-child',
+                spec: {
+                  ...base,
+                  fork: { from: t, at },
+                  origin: { ...base.origin, fork: true },
+                  record: { ...base.record, fork: true }
+                },
+                key: key('c33')
+              }
+            ],
+            null
+          )
+        )
+      )
+      const child = spawned[0].child
+      check(
+        assistantTexts(await read(h, child)).includes('parent answer'),
+        "a fork must carry the parent's history up to the fork point"
+      )
+      same((await read(h, t)).children.get(child)?.runUsage, [], 'a fork must start with no run of its own')
+      const own = usage(3, 2, 0.125)
+      h.script(child, [reply('child answer', own)])
+      same(
+        await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c33-msg'))),
+        { run: 1, status: 'started' },
+        "a fork's first message must start its run 1"
+      )
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c33-msg')))
+      same((await read(h, t)).children.get(child)?.runUsage, [own], "a fork's run usage must sum only its own entries")
     }
   },
   // Catches an adapter that builds a child's tools by name or not at all, so a 'parent-only' tool runs in the child.
