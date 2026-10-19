@@ -6,7 +6,7 @@ import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-ru
 import type { AgentRuntimeSession } from '../session'
 import { conversationExtension } from './extension'
 import { commit, modelContext, readFacts } from './ledger'
-import { awaitAnswer, messageChild, retract, startTurn, stopRun, submit } from './runs'
+import { awaitAnswer, drain, messageChild, retract, startTurn, stopRun, submit } from './runs'
 import {
   type Adapter,
   type Conversation,
@@ -15,7 +15,8 @@ import {
   newConversation,
   type Owner,
   piIdle,
-  waitFor
+  waitFor,
+  wake
 } from './state'
 
 export type BehaviorSessionRequest = {
@@ -54,7 +55,12 @@ export interface PiBehavior {
   close(): Promise<void>
 }
 
-type Scope = { ended: boolean; readonly owner?: Owner }
+type Scope = {
+  ended: boolean
+  readonly owner?: Owner
+  /** Jobs ensured inside `onOpen`; they start once it has run. */
+  readonly opening?: JobRecord[]
+}
 
 export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   const conversations = new Map<ThreadId, Conversation>()
@@ -105,7 +111,8 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         transact: (thread, decide) =>
           enter(scope, async () => {
             const { step, applied } = commit(adapter, thread, decide, scope.owner)
-            for (const job of applied.jobs) startJob(job)
+            if (scope.opening) scope.opening.push(...applied.jobs)
+            else for (const job of applied.jobs) startJob(job)
             // H1 coding-agent: the commit reserved the children; their sessions are built right after it.
             await Promise.all(
               applied.children.map((child) =>
@@ -152,17 +159,24 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       clock
     }
   }
-  async function withScope<T>(owner: Owner | undefined, body: (ports: BoundPorts) => Promise<T>): Promise<T> {
-    const scope: Scope = { ended: false, owner }
+  async function withScope<T>(
+    owner: Owner | undefined,
+    body: (ports: BoundPorts) => Promise<T>,
+    opening?: JobRecord[]
+  ): Promise<T> {
+    const scope: Scope = { ended: false, owner, opening }
     try {
       return await body(bound(scope))
     } finally {
       scope.ended = true
     }
   }
-  function lifecycle(call: (handlers: LifecycleHandlers, ports: BoundPorts) => Promise<void>): Promise<void> {
+  function lifecycle(
+    call: (handlers: LifecycleHandlers, ports: BoundPorts) => Promise<void>,
+    opening?: JobRecord[]
+  ): Promise<void> {
     const handlers = installation.lifecycle
-    return handlers ? withScope(undefined, (ports) => call(handlers, ports)) : Promise.resolve()
+    return handlers ? withScope(undefined, (ports) => call(handlers, ports), opening) : Promise.resolve()
   }
   /** H4 coding-agent: an in-process promise per job, started from the next microtask. */
   function startJob(job: JobRecord): void {
@@ -183,10 +197,31 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   async function openNative(conv: Conversation): Promise<void> {
     const child =
       conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
-    conv.native = await options.openSession({
+    const native = await options.openSession({
       sessionManager: conv.manager,
       extension: conversationExtension(adapter, conv),
       ...(child && { child })
+    })
+    conv.native = native
+    native.session.subscribe((event) => {
+      if (event.type !== 'compaction_end') return
+      const compacted = event.result !== undefined
+      const awaited = conv.hostCompacts > 0
+      // Outside Pi's dispatch, with Pi idle again: onCompacted's quiet inputs need an idle conversation.
+      conv.compacted = track(
+        Promise.resolve().then(async () => {
+          try {
+            if (compacted) await lifecycle((handlers, ports) => handlers.onCompacted(conv.thread, ports))
+          } catch (error) {
+            // A host compact() rethrows it; an automatic compaction has no caller.
+            if (!awaited) report(error)
+            throw error
+          } finally {
+            drain(adapter, conv)
+            wake(conv)
+          }
+        })
+      )
     })
   }
 
@@ -251,8 +286,14 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       )
       conversations.set(thread, conv)
       await track(openNative(conv))
-      // After Pi's session_start: `onOpen` may stop or start turns, which need the session.
-      await lifecycle((handlers, ports) => handlers.onOpen(thread, { reopened: conv.reopened }, ports))
+      const opening: JobRecord[] = []
+      try {
+        // After Pi's session_start: `onOpen` may stop or start turns, which need the session.
+        await lifecycle((handlers, ports) => handlers.onOpen(thread, { reopened: conv.reopened }, ports), opening)
+      } finally {
+        // H12: a job ensured in onOpen starts once onOpen has run; its commit stands even if onOpen threw.
+        for (const job of opening) startJob(job)
+      }
       return thread
     },
     withCall: (_thread, use) => withScope(undefined, use),
@@ -262,7 +303,18 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       // A person's submissions get adapter-local keys; rules never see them.
       submit(adapter, conversation(thread), `user:${users}`, text)
     },
-    compact: () => Promise.reject(new Error('compact is not implemented yet')),
+    async compact(thread) {
+      const conv = conversation(thread)
+      if (!conv.native) throw new Error(`Conversation ${thread} has no session`)
+      conv.hostCompacts += 1
+      try {
+        await conv.native.compact()
+      } finally {
+        conv.hostCompacts -= 1
+        wake(conv)
+      }
+      await conv.compacted
+    },
     async settled() {
       do {
         await Promise.allSettled([...pending])
