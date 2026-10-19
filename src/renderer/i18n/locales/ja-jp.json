@@ -3609,6 +3609,7 @@
   "settings.about.diagnostics.report.status_url": "ステータスリンク",
   "settings.about.diagnostics.report.submitting": "問題報告を送信中…",
   "settings.about.diagnostics.report.success_title": "問題を報告しました",
+  "settings.about.diagnostics.report.update_hint": "ここで新しい Cherry Studio のバージョンを確認してインストールできます。",
   "settings.about.diagnostics.sources.chat_records.title": "チャット履歴",
   "settings.about.diagnostics.sources.inspecting": "利用可能な内容を確認しています...",
   "settings.about.diagnostics.sources.logs.title": "アプリログ",

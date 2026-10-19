@@ -3609,6 +3609,7 @@
   "settings.about.diagnostics.report.status_url": "Durum bağlantısı",
   "settings.about.diagnostics.report.submitting": "Sorun bildirimi gönderiliyor…",
   "settings.about.diagnostics.report.success_title": "Sorun bildirimi gönderildi",
+  "settings.about.diagnostics.report.update_hint": "Daha yeni bir Cherry Studio sürümünü buradan kontrol edip yükleyebilirsiniz.",
   "settings.about.diagnostics.sources.chat_records.title": "Sohbet geçmişi",
   "settings.about.diagnostics.sources.inspecting": "Kullanılabilir içerikler denetleniyor...",
   "settings.about.diagnostics.sources.logs.title": "Uygulama Günlükleri",

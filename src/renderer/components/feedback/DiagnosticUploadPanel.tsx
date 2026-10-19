@@ -5,10 +5,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Checkbox, DialogFooter, Scrollbar, Textarea } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
+import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import {
@@ -58,6 +60,23 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
   const primaryActionRef = useRef<HTMLButtonElement>(null)
   const retainedBundleIdRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
+  // Portable builds cannot install through the in-app updater, so the action stays hidden unless app info says this build is not portable.
+  const [inAppUpdateSupported, setInAppUpdateSupported] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void ipcApi
+      .request('app.get_info')
+      .then((info) => {
+        if (!cancelled) setInAppUpdateSupported(info?.isPortable === false)
+      })
+      .catch((error: unknown) => {
+        logger.error('Failed to read whether in-app updates are available', error as Error)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     mountedRef.current = true
@@ -239,6 +258,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
       <Scrollbar className="min-h-0 px-6 py-2">
         {result ? (
           <UploadResultContent
+            inAppUpdateSupported={inAppUpdateSupported}
             result={result}
             savedUpload={savedUpload}
             onReveal={revealBundle}
@@ -333,11 +353,13 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
 }
 
 function UploadResultContent({
+  inAppUpdateSupported,
   result,
   savedUpload,
   onReveal,
   onOpenReport
 }: {
+  readonly inAppUpdateSupported: boolean
   readonly result: UploadResult
   readonly savedUpload: SavedUploadResult | null
   readonly onReveal: () => Promise<void>
@@ -346,32 +368,37 @@ function UploadResultContent({
   const { t } = useTranslation()
   if (result.status === 'uploaded') {
     return (
-      <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">
-        <div className="space-y-2">
-          <p className="font-medium">{t('settings.about.diagnostics.report.success_title')}</p>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.feedback_id')}</span>
-            <code className="break-all">{result.reportId}</code>
-            <CopyButton textToCopy={result.reportId} aria-label={t('settings.about.diagnostics.report.copy_id')} />
+      <div className="space-y-4">
+        <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">
+          <div className="space-y-2">
+            <p className="font-medium">{t('settings.about.diagnostics.report.success_title')}</p>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">{t('settings.about.diagnostics.report.feedback_id')}</span>
+              <code className="break-all">{result.reportId}</code>
+              <CopyButton textToCopy={result.reportId} aria-label={t('settings.about.diagnostics.report.copy_id')} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">{t('settings.about.diagnostics.report.status_url')}</span>
+              <code className="min-w-0 break-all">{result.reportUrl}</code>
+              <CopyButton textToCopy={result.reportUrl} aria-label={t('settings.about.diagnostics.report.copy_url')} />
+              <Button variant="link" size="sm" className="h-auto px-0" onClick={() => void onOpenReport()}>
+                <ExternalLink className="mr-1 size-3.5" aria-hidden />
+                {t('settings.about.feedback.history.open')}
+              </Button>
+            </div>
+            <div className="text-sm">
+              <span className="text-muted-foreground">
+                {t('settings.about.diagnostics.report.processing_status')}:{' '}
+              </span>
+              <strong>{t(DIAGNOSTIC_STATUS_TRANSLATION_KEYS[result.processingStatus ?? 'unavailable'])}</strong>
+            </div>
+            {!result.historySaved ? (
+              <p className="text-warning text-xs">{t('settings.about.diagnostics.report.history_save_failed')}</p>
+            ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.status_url')}</span>
-            <code className="min-w-0 break-all">{result.reportUrl}</code>
-            <CopyButton textToCopy={result.reportUrl} aria-label={t('settings.about.diagnostics.report.copy_url')} />
-            <Button variant="link" size="sm" className="h-auto px-0" onClick={() => void onOpenReport()}>
-              <ExternalLink className="mr-1 size-3.5" aria-hidden />
-              {t('settings.about.feedback.history.open')}
-            </Button>
-          </div>
-          <div className="text-sm">
-            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.processing_status')}: </span>
-            <strong>{t(DIAGNOSTIC_STATUS_TRANSLATION_KEYS[result.processingStatus ?? 'unavailable'])}</strong>
-          </div>
-          {!result.historySaved ? (
-            <p className="text-warning text-xs">{t('settings.about.diagnostics.report.history_save_failed')}</p>
-          ) : null}
-        </div>
-      </Alert>
+        </Alert>
+        {inAppUpdateSupported ? <DiagnosticVersionUpdateAction /> : null}
+      </div>
     )
   }
 
@@ -404,6 +431,67 @@ function UploadResultContent({
         </section>
       ) : null}
     </div>
+  )
+}
+
+function openDownloadedUpdate(releaseInfo: CacheAppUpdateState['info']) {
+  void import('@renderer/components/UpdateDialogPopup')
+    .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
+    .catch((error: unknown) => {
+      logger.error('Failed to open update dialog', error as Error)
+    })
+}
+
+function DiagnosticVersionUpdateAction() {
+  const { t } = useTranslation()
+  const hintId = useId()
+  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
+  const checkInFlightRef = useRef(false)
+  const updateBusy = appUpdateState.checking || appUpdateState.downloading
+  const updateReady = appUpdateState.downloaded || appUpdateState.available
+  const updateActionLabel = appUpdateState.downloading
+    ? t('settings.about.downloading')
+    : updateReady
+      ? t('settings.about.checkUpdate.available')
+      : t('settings.about.checkUpdate.label')
+
+  const runUpdateAction = async () => {
+    if (updateBusy || checkInFlightRef.current) return
+    if (appUpdateState.downloaded) {
+      openDownloadedUpdate(appUpdateState.info)
+      return
+    }
+
+    checkInFlightRef.current = true
+    updateAppUpdateState({ checking: true, manualCheck: true })
+    try {
+      await ipcApi.request('app.updater.check_for_update')
+    } catch (error) {
+      updateAppUpdateState({ manualCheck: false })
+      logger.error('Failed to check for a Cherry Studio update', error as Error)
+      toast.error(t('settings.about.updateError'))
+    } finally {
+      checkInFlightRef.current = false
+      updateAppUpdateState({ checking: false })
+    }
+  }
+
+  return (
+    <section className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <p id={hintId} className="min-w-0 text-muted-foreground text-sm">
+        {t('settings.about.diagnostics.report.update_hint')}
+      </p>
+      <Button
+        aria-describedby={hintId}
+        className="shrink-0"
+        variant={appUpdateState.downloaded && !updateBusy ? 'default' : 'outline'}
+        size="sm"
+        loading={appUpdateState.checking}
+        disabled={updateBusy}
+        onClick={() => void runUpdateAction()}>
+        {updateActionLabel}
+      </Button>
+    </section>
   )
 }
 

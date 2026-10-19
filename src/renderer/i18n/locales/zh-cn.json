@@ -3609,6 +3609,7 @@
   "settings.about.diagnostics.report.status_url": "状态链接",
   "settings.about.diagnostics.report.submitting": "正在提交问题报告…",
   "settings.about.diagnostics.report.success_title": "问题报告已提交",
+  "settings.about.diagnostics.report.update_hint": "你可以在这里检查并安装更新的 Cherry Studio 版本。",
   "settings.about.diagnostics.sources.chat_records.title": "聊天记录",
   "settings.about.diagnostics.sources.inspecting": "正在检查可用内容…",
   "settings.about.diagnostics.sources.logs.title": "应用日志",

@@ -1,19 +1,26 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { UpdateInfo } from 'builder-util-runtime'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DefaultUseCache } from '@shared/data/cache/cacheSchemas'
+import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { DIAGNOSTIC_FEEDBACK_FORM_URL } from '@shared/utils/diagnostics'
 
+import enUs from '../../../i18n/locales/en-us.json'
+
 const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   request: vi.fn(),
+  showUpdateDialog: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   translations: {
@@ -43,6 +50,12 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.status_url': 'Status link',
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
+    'settings.about.diagnostics.report.update_hint':
+      'You can check for a newer Cherry Studio version and install it here.',
+    'settings.about.checkUpdate.available': 'Update',
+    'settings.about.checkUpdate.label': 'Check Update',
+    'settings.about.downloading': 'Downloading...',
+    'settings.about.updateError': 'Update error',
     'settings.about.diagnostics.status.pending': 'Pending',
     'settings.about.feedback.history.open': 'Open status page',
     'settings.about.diagnostics.report.saved_locally': 'Saved locally',
@@ -67,6 +80,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: unknown[]) => mocks.request(...args) }
+}))
+
+vi.mock('@renderer/components/UpdateDialogPopup', () => ({
+  default: { show: (...args: unknown[]) => mocks.showUpdateDialog(...args) }
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -166,11 +183,34 @@ function DiagnosticUploadDialog({
   return <TestDiagnosticUploadPanel initialDescription={initialDescription} onClose={() => onOpenChange(false)} />
 }
 
+const updateHint = 'You can check for a newer Cherry Studio version and install it here.'
+const downloadedRelease = {
+  files: [],
+  path: 'Cherry-Studio-9.9.9.dmg',
+  releaseDate: '2026-10-01T00:00:00.000Z',
+  releaseNotes: 'Notes',
+  sha512: 'abc',
+  version: '9.9.9'
+} satisfies UpdateInfo
+
+function setUpdateState(patch: Partial<CacheAppUpdateState> = {}) {
+  MockUseCacheUtils.setCacheValue('app.dist.update_state', {
+    ...DefaultUseCache['app.dist.update_state'],
+    ...patch
+  })
+}
+
+function nonPortableAppInfo() {
+  return { isPortable: false, version: '2.0.0' }
+}
+
 describe('DiagnosticUploadPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setUpdateState()
     mocks.request.mockImplementation(async (route: string) => {
       if (route === 'diagnostics.bundle.upload') return uploadedResult
+      if (route === 'app.get_info') return nonPortableAppInfo()
       return undefined
     })
   })
@@ -559,5 +599,164 @@ describe('DiagnosticUploadPanel', () => {
     expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByText('Diagnostic report submitted')).not.toBeInTheDocument()
+  })
+
+  it('offers an in-app version check after a successful upload and does not describe it as a fix', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+
+    expect(screen.queryByText(updateHint)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Check Update' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    expect(await screen.findByText(updateHint)).toBeInTheDocument()
+    expect(enUs['settings.about.diagnostics.report.update_hint']).toBe(updateHint)
+    const checkUpdate = screen.getByRole('button', { name: 'Check Update' })
+    expect(checkUpdate).toBeEnabled()
+    await user.click(checkUpdate)
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('app.updater.check_for_update'))
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'app.updater.check_for_update')).toHaveLength(1)
+    expect(mocks.request).not.toHaveBeenCalledWith('app.updater.quit_and_install')
+    expect(mocks.showUpdateDialog).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(MockUseCacheUtils.getCacheValue('app.dist.update_state')).toMatchObject({
+        checking: false,
+        manualCheck: true
+      })
+    )
+  })
+
+  it('opens the install dialog for an already downloaded version instead of checking again', async () => {
+    setUpdateState({ available: true, downloaded: true, info: downloadedRelease })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    const installUpdate = await screen.findByRole('button', { name: 'Update' })
+    expect(installUpdate).toBeEnabled()
+    expect(screen.getByText(updateHint)).toBeInTheDocument()
+    await user.click(installUpdate)
+
+    await waitFor(() => expect(mocks.showUpdateDialog).toHaveBeenCalledWith({ releaseInfo: downloadedRelease }))
+    expect(mocks.request).not.toHaveBeenCalledWith('app.updater.check_for_update')
+  })
+
+  it('does not start another update check while a check or download is in progress', async () => {
+    let releaseCheck: () => void = () => undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'diagnostics.bundle.upload') return Promise.resolve(uploadedResult)
+      if (route === 'app.get_info') return Promise.resolve(nonPortableAppInfo())
+      if (route === 'app.updater.check_for_update') {
+        return new Promise<void>((resolve) => {
+          releaseCheck = resolve
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    const user = userEvent.setup()
+    const { unmount } = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    const checkUpdate = await screen.findByRole('button', { name: 'Check Update' })
+    await user.click(checkUpdate)
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'app.updater.check_for_update')).toHaveLength(1)
+    )
+    await user.click(checkUpdate)
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'app.updater.check_for_update')).toHaveLength(1)
+
+    await act(async () => releaseCheck())
+    unmount()
+
+    for (const busy of [
+      { checking: true, downloading: false },
+      { checking: false, downloading: true, downloadProgress: 25 }
+    ] as const) {
+      setUpdateState(busy)
+      mocks.request.mockClear()
+      mocks.request.mockImplementation(async (route: string) => {
+        if (route === 'diagnostics.bundle.upload') return uploadedResult
+        if (route === 'app.get_info') return nonPortableAppInfo()
+        return undefined
+      })
+      const view = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+      await completeReview(user)
+      await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+      const busyUpdate = await screen.findByRole('button', {
+        name: busy.downloading ? 'Downloading...' : 'Check Update'
+      })
+      expect(busyUpdate).toBeDisabled()
+      expect(mocks.request).not.toHaveBeenCalledWith('app.updater.check_for_update')
+      view.unmount()
+    }
+  })
+
+  it('does not offer an app update after a failed or unknown upload', async () => {
+    setUpdateState({ available: true, downloaded: true, info: downloadedRelease })
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.upload') return submissionFailedResult
+      if (route === 'app.get_info') return nonPortableAppInfo()
+      return undefined
+    })
+    const user = userEvent.setup()
+    const failed = render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    expect(await screen.findByText('Diagnostic report was not submitted')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manual feedback' })).toBeInTheDocument()
+    expect(screen.queryByText(updateHint)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Check Update' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument()
+    failed.unmount()
+
+    setUpdateState({ available: true, downloaded: true, info: downloadedRelease })
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.upload') return submissionUnknownResult
+      if (route === 'app.get_info') return nonPortableAppInfo()
+      return undefined
+    })
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    expect(await screen.findByText('Submission result is unknown')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText(updateHint)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Check Update' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer an app update on a portable build', async () => {
+    let resolveInfo: (info: { isPortable: boolean; version: string }) => void = () => undefined
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'diagnostics.bundle.upload') return Promise.resolve(uploadedResult)
+      if (route === 'app.get_info') {
+        return new Promise((resolve) => {
+          resolveInfo = resolve
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    expect(await screen.findByText('Diagnostic report submitted')).toBeInTheDocument()
+    await act(async () => {
+      resolveInfo({ isPortable: true, version: '2.0.0' })
+    })
+
+    expect(screen.queryByText(updateHint)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Check Update' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Update' })).not.toBeInTheDocument()
+    expect(mocks.request).not.toHaveBeenCalledWith('app.updater.check_for_update')
   })
 })
