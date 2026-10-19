@@ -80,10 +80,10 @@ only says what a job kind runs. A Durable adapter still supplies `ContextFilter`
 `PortMethod` names every harness method as `port.method`; the contract must cover each one.
 
 A child's run is what one run-starting input begins: an input that finds the child idle starts a run, and a message to
-a running child (a steer) joins the run in progress. Runs are numbered from 1 in that order, `Helpers.message` reports
-the run a message was accepted into, and `ChildFacts.runUsage[i]` sums the usage of the child's own entries of run
-`i + 1`. `Helpers.awaitAnswer` is bound to the message key: when the harness carries a message that missed its run's
-last boundary into the next run, the answer is that next run's end.
+a running child (a steer) joins the run in progress and never starts one: a steer that misses its run's last boundary,
+or that names a run no longer active, is withdrawn (G-C5). Runs are numbered from 1 in that order, `Helpers.message`
+reports the run a message was accepted into, and `ChildFacts.runUsage[i]` sums the usage of the child's own entries of
+run `i + 1`. `Helpers.awaitAnswer` is bound to the message key.
 
 On reopen the harness restores every conversation with its runs and jobs, and `Lifecycle.onOpen` decides what to stop.
 Inside `onOpen` the package calls only `ledger.*`, `turns.stop`, `helpers.stop` and `clock.now`; a stop there ends the
@@ -146,7 +146,7 @@ containing `:` stay apart.
 | `goalStop(goalId, revision, armSeq)`                       | `goal-stop:<goalId>:v<revision>:a<armSeq>`                             | A stop the core decides outside a call (the idle driver, `onOpen`); a stop disarms and bumps the revision.                                            |
 | `goalDisarm(goalId, armSeq)`                               | `goal-disarm:<goalId>:a<armSeq>`                                       | Disarming that arming of the goal when its conversation reopens.                                                                                      |
 | `goalCounts(goalId, revision, progressRounds)`             | `goal-counts:<goalId>:v<revision>:p<progressRounds>`                   | A record that only refreshes the counts a goal shows.                                                                                                 |
-| `subagentSteer(call)`, `subagentContinue(call)`            | `subagent-steer:<call>`, `subagent-continue:<call>`                    | A `message_subagent` call's message to a running child (its request id), and the record of a continuation.                                            |
+| `subagentSteer(call, run)`, `subagentContinue(call)`       | `subagent-steer:<call>:<run>`, `subagent-continue:<call>`              | A `message_subagent` call's steer for that run of a running child (its request id), and the record of a continuation.                                 |
 | `subagentStop(child, run, by)`                             | `subagent-stop:<child>:<run>:<by>`                                     | The record that the model, the user or the budget stopped that run, written before the child stops.                                                   |
 | `subagentStatus(compaction)`                               | `subagent-status:<compaction item>`                                    | The status message after that compaction.                                                                                                             |
 | `reopenStop(round)`                                        | `reopen-stop:<round item>`                                             | The stop `onOpen` records for the goal round a restart interrupted.                                                                                   |
@@ -291,14 +291,14 @@ included.
 
 The effects of a `Step` run after its commit, in order:
 
-| Effect          | Run as                               |
-| --------------- | ------------------------------------ |
-| `start-turn`    | `Turns.start(thread, input, key)`    |
-| `retract-turn`  | `Turns.retract(thread, key)`         |
-| `stop-turn`     | `Turns.stop(thread, cause)`          |
-| `message-child` | `Helpers.message(child, input, key)` |
-| `stop-child`    | `Helpers.stop(child, run)`           |
-| `emit`          | `Observation.emit(event)`            |
+| Effect          | Run as                                    |
+| --------------- | ----------------------------------------- |
+| `start-turn`    | `Turns.start(thread, input, key)`         |
+| `retract-turn`  | `Turns.retract(thread, key)`              |
+| `stop-turn`     | `Turns.stop(thread, cause)`               |
+| `message-child` | `Helpers.message(child, input, key, run)` |
+| `stop-child`    | `Helpers.stop(child, run)`                |
+| `emit`          | `Observation.emit(event)`                 |
 
 What the caller does with the result of each entry point:
 
@@ -324,12 +324,14 @@ What the caller does with the result of each entry point:
   `Helpers.message(child, input, keys.subagentMessage(child, run))`, and its end through
   `Helpers.awaitAnswer(child, run, thatKey)` and then `decideRunEnd(facts, child, run, answer, runReport(answer))`. The
   `subagent-report` job finds its run with `reportTarget`, which is `undefined` once the end is recorded: exit.
-- `message_subagent` (`decideMessage`): `queued` carries the `message-child` effect; `continued` is answered with
-  `continuedText(from, child)`, where `child` comes from `TransactResult.spawned` under `key` when the result has none
-  (a finished foreground child was forked into a new background child); `stopping` means that run is being stopped:
-  await `Helpers.awaitAnswer(child, run, key)`, then `transact(decideMessage)` again.
+- `message_subagent` (`decideMessage`): `queued` carries the `message-child` effect, a steer for the running run; when
+  `Helpers.message` answers `withdrawn` (that run ended first), `transact(decideMessage)` again. `continued` is
+  answered with `continuedText(from, child)`, where `child` comes from `TransactResult.spawned` under `key` when the
+  result has none (a finished foreground child was forked into a new background child); `stopping` means that run is
+  being stopped: await `Helpers.awaitAnswer(child, run, key)`, then `transact(decideMessage)` again.
 - `stop_subagent` (`decideStop`): `stopping` is answered after `Helpers.awaitAnswer(child, run, key)` with
-  `stoppedResult(child, run, answer)`; `not-running` carries its own result.
+  `stoppedResult(child, run, answer)`; `not-running` and `ended` (no input had reached the run, G-C4) carry their own
+  results.
 - The tool gate's `before` gets `decideApproval`'s answer: `allow` runs the call (with `args` when the host rewrote
   them), `block` stops it with its `reason`, and `ask` asks a person through `Approvals.ask` behind
   `Memory.remember(keys.approvalMemo(call), ...)`, then maps the answer with `answerVerdict(answer, args)`;

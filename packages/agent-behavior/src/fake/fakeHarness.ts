@@ -122,7 +122,16 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         stop: (id) => enter(scope, () => stopRun(host, thread(id)))
       },
       helpers: {
-        message: (child, input, key) => enter(scope, () => message(host, thread(child), input, key)),
+        message: (child, input, key, run) =>
+          enter(scope, async () => {
+            const target = thread(child)
+            const accepted = message(host, target, input, key, run)
+            if (accepted.status !== 'queued') return accepted
+            // A steer answers once a boundary took it, or once its run ended first and withdrew it (G-C5).
+            const submission = target.submissions.get(key)!
+            await waitFor(scope.epoch, child, () => submission.state !== 'queued')
+            return submission.state === 'withdrawn' ? { run: accepted.run, status: 'withdrawn' } : accepted
+          }),
         awaitAnswer: (child, run, key) =>
           enter(scope, async () => {
             const target = thread(child)

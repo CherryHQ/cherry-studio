@@ -72,33 +72,41 @@ export interface Turns {
   stop(thread: ThreadId, cause: StopCause): Promise<void>
 }
 
-export type MessageResult = { readonly run: number; readonly status: 'started' | 'queued' }
+export type MessageResult = { readonly run: number; readonly status: 'started' | 'queued' | 'withdrawn' }
 /**
  * H3. Message a child, wait for its answer, stop it.
  *
  * A child's run is what one run-starting input begins, an input that finds the child idle; a message to a running
- * child (a steer) joins that run. `ChildFacts.runUsage` partitions the child's usage by these runs.
+ * child (a steer) joins that run and never starts one: when that run ends before a boundary takes the steer, the steer
+ * is withdrawn (G-C5). `ChildFacts.runUsage` partitions the child's usage by these runs.
  *
- * @harness coding-agent `message` steers a running child and loads then continues a finished one; `awaitAnswer`
- * follows `message_end` until the run that took the message ends; `stop` aborts the child session only if its active
- * run number is `run`.
- * @harness durable `message` is `conversation(child).submit({ whenBusy: running ? 'steer' : 'followUp', requestId: key })`;
- * `awaitAnswer` refetches that submission by request id, waits and reads the answer entry; `stop` checks that the
- * child's active run is `run`, then calls `conversation(child).abort()`, or before resume marks it as `Turns.stop` does.
- * @harness fake Children are fake conversations; a message to a running child is placed at its next boundary, or
- * carried into the next run when it missed the last one; `awaitAnswer` waits for the run the message actually joined;
- * `stop` aborts only when the fake child's active run is `run`.
- * @keys `message` keys are request ids (`subagent-msg:<child>:<n>`): the same key returns the original result and adds
- * no input, also after its run ended. `awaitAnswer` is bound to the message `key`, not to `run`.
- * @waits `awaitAnswer` keeps no state: after a restart the same key re-establishes the wait, and a run that already ended
- * answers at once. It resolves with the end of the run that took message `key`: `run` is the run the message was
- * accepted into, and when the harness carries the message into the next run, it resolves with that run's end; a message
- * withdrawn before it ran answers with the end of run `run`. `stop` resolves once that run has ended, or at once when it
- * does nothing.
+ * @harness coding-agent `message` steers a running child and loads then continues a finished one; a steer that missed
+ * the run's last boundary is withdrawn, not carried into the next run; `awaitAnswer` follows `message_end` until the run
+ * that took the message ends; `stop` aborts the child session only if its active run number is `run`.
+ * @harness durable `message` is `conversation(child).submit({ whenBusy: 'followUp', requestId: key })` for an idle
+ * child; a steer submits with `whenBusy: 'steer'` only while its run is `pi.live.run`, and aborts the submission when
+ * that run ends before taking it. `awaitAnswer` refetches that submission by request id, waits and reads the answer
+ * entry; `stop` checks that the child's active run is `run`, then calls `conversation(child).abort()`, or before resume
+ * marks it as `Turns.stop` does.
+ * @harness fake Children are fake conversations; a steer waits for the child's next boundary and is withdrawn when the
+ * run ends first; `awaitAnswer` waits for the run the message actually joined; `stop` aborts only when the fake child's
+ * active run is `run`.
+ * @keys `message` keys are request ids (`subagent-msg:<child>:<n>`, `subagent-steer:<call>:<run>`): the same key returns
+ * the original result and adds no input, also after its run ended. `awaitAnswer` is bound to the message `key`, not to
+ * `run`.
+ * @waits A steer's `message` resolves once a boundary of its run took it ('queued') or it was withdrawn ('withdrawn');
+ * a message that starts a run resolves at once. `awaitAnswer` keeps no state: after a restart the same key
+ * re-establishes the wait, and a run that already ended answers at once. It resolves with the end of the run that took
+ * message `key`; a message withdrawn before it ran answers with the end of run `run`. `stop` resolves once that run has
+ * ended, or at once when it does nothing.
  */
 export interface Helpers {
-  /** 'started' with the new run's number when the child is idle; 'queued' with the number of the running run otherwise. */
-  message(child: ThreadId, input: TurnInput, key: Key): Promise<MessageResult>
+  /**
+   * 'started' with the new run's number when the child is idle; a steer otherwise, 'queued' with the number of the
+   * running run once that run took it. With `run`, the message is a steer for run `run` only: 'withdrawn' (and nothing
+   * started) when that is not the child's active run, or when it ends before a boundary takes the steer.
+   */
+  message(child: ThreadId, input: TurnInput, key: Key, run?: number): Promise<MessageResult>
   awaitAnswer(child: ThreadId, run: number, key: Key): Promise<RunEndFacts>
   /**
    * Stops run `run` of `child` if it is the child's active run, otherwise does nothing; a later step re-decides from
