@@ -3128,6 +3128,7 @@
   "provider.ai-gateway": "Vercel AI Gateway",
   "provider.aihubmix": "AiHubMix",
   "provider.aionly": "唯一AI (AiOnly)",
+  "provider.aistupidlevel": "AI Stupid Level",
   "provider.alayanew": "Alaya NeW",
   "provider.anthropic": "Anthropic",
   "provider.aws-bedrock": "AWS Bedrock",

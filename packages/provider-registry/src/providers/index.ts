@@ -1,6 +1,7 @@
 import p_302ai from './302ai'
 import p_aihubmix from './aihubmix'
 import p_aionly from './aionly'
+import p_aistupidlevel from './aistupidlevel'
 import p_alayanew from './alayanew'
 import p_anthropic from './anthropic'
 import p_aws_bedrock from './aws-bedrock'
@@ -92,6 +93,7 @@ export const PROVIDERS: Provider[] = [
   p_new_api,
   p_lmstudio,
   p_litellm,
+  p_aistupidlevel,
   p_anthropic,
   p_claude_code,
   p_openai_codex,
