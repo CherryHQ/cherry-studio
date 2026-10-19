@@ -45,7 +45,7 @@ describe('decideOnOpen', () => {
       inputs(),
       TOOLS
     )
-    expect(open.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1, by: 'user' }])
+    expect(open.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1 }])
     expect(open.ops).toMatchObject([
       { record: { value: { sessionId: 'a', status: 'finished', outcome: 'interrupted' } }, key: 'subagent-end:a:1' },
       { type: 'append-quiet', input: { data: { subagents: [{ sessionId: 'b' }, { sessionId: 'a' }], quiet: true } } }
@@ -68,7 +68,7 @@ describe('decideOnOpen', () => {
     const again = decideOnOpen(facts(apply(history, first), live), inputs(), TOOLS)
     expect(again.effects).toEqual([
       { type: 'stop-turn', thread: 'parent', cause: 'goal-pause' },
-      { type: 'stop-child', child: 'a', run: 1, by: 'user' }
+      { type: 'stop-child', child: 'a', run: 1 }
     ])
     expect(apply(apply(history, first), again)).toHaveLength(apply(history, first).length)
   })

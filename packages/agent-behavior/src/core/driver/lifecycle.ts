@@ -58,7 +58,7 @@ export function decideOnOpen(
   const ended: SubagentRunRecord[] = []
   for (const { child, latest, created } of readSubagents(facts.history)) {
     const running = facts.children.get(child)?.running === true
-    if (latest.background && running) effects.push({ type: 'stop-child', child, run: latest.run, by: 'user' })
+    if (latest.background && running) effects.push({ type: 'stop-child', child, run: latest.run })
     if (latest.status !== 'running') continue
     // A foreground run lives in its calling tool: it ended unrecorded, or it stops with the round stopped above.
     const toolDied = (!running && runStarted(facts, child, latest.run)) || (roundStopped && created > startAt)
