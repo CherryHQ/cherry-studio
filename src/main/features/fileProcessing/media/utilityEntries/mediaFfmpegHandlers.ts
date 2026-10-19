@@ -281,7 +281,7 @@ async function probeJson(
       '-print_format',
       'json',
       '-show_entries',
-      'format=duration,start_time,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,duration,start_time:stream_disposition=attached_pic',
+      'format=duration,start_time,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,duration,start_time:stream_disposition=attached_pic,default',
       '-i',
       filePath
     ],
