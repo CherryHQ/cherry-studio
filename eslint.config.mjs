@@ -1326,7 +1326,20 @@ export default defineConfig([
             "Program > VariableDeclaration[kind!='const'], Program > ExportNamedDeclaration > VariableDeclaration[kind!='const']",
           message: 'Orchestration keeps no module state.'
         },
-        { selector: "NewExpression[callee.name='Promise']", message: 'Orchestration waits only through ports.' }
+        { selector: "NewExpression[callee.name='Promise']", message: 'Orchestration waits only through ports.' },
+        {
+          selector:
+            "Program > VariableDeclaration > VariableDeclarator[init.type='NewExpression'], Program > ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[init.type='NewExpression'], Program > VariableDeclaration > VariableDeclarator[init.type='TSAsExpression'][init.expression.type='NewExpression'], Program > ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[init.type='TSAsExpression'][init.expression.type='NewExpression']",
+          message: 'Orchestration keeps no module state.'
+        },
+        {
+          selector: ':matches(ClassDeclaration, ClassExpression)',
+          message: 'Orchestration keeps no instance state; write functions over ports.'
+        },
+        {
+          selector: "MemberExpression[object.name='Promise'][property.name='withResolvers']",
+          message: 'Orchestration waits only through ports.'
+        }
       ],
       'no-restricted-globals': [
         'error',
