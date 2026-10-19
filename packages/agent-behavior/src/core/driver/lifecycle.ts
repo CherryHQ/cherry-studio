@@ -11,8 +11,6 @@ import { startsTurn } from '../turns'
 import { goalStop, quietDelivery } from './idle'
 import { ensureDriver } from './jobs'
 
-export type OpenDecision = { readonly disarmed: boolean; readonly interrupted: number }
-
 /**
  * `onOpen` (D13, G-f, S-g; H12 stop before resume). `open.supportsTools`: whether the conversation's model can call
  * tools (from the host's `Models.current`). On any open a goal whose model cannot call tools stops. On reopen
@@ -26,7 +24,7 @@ export function decideOnOpen(
   facts: ConversationFacts,
   inputs: CallInputs,
   open: { readonly supportsTools: boolean }
-): Step<OpenDecision> {
+): Step<null> {
   const ops: TxOp[] = []
   const effects: Effect[] = []
   const goal = facts.lineage.kind === 'root' ? currentGoal(facts.history) : undefined
@@ -35,7 +33,7 @@ export function decideOnOpen(
     ops.push(
       goalStop(facts, inputs, goal, { code: 'unsupported_model', message: 'the current model has no tool calling' })
     )
-  if (!facts.live.reopened) return { ops, effects, result: { disarmed: false, interrupted: 0 } }
+  if (!facts.live.reopened) return { ops, effects, result: null }
 
   // A stop disarms too; otherwise an armed goal is disarmed without a stop (the person resumes it).
   const disarm = goal?.armed === true && !unsupported
@@ -88,7 +86,7 @@ export function decideOnOpen(
   const pending = pendingResults(history)
   if (pending.length > 0)
     ops.push(facts.live.idle ? quietDelivery({ ...facts, history }, pending) : ensureDriver(facts))
-  return { ops, effects, result: { disarmed: disarm, interrupted: ended.length } }
+  return { ops, effects, result: null }
 }
 
 /** `entries.userStop` (R5): the stop is recorded before the turn stops, so suppression survives a restart. */
