@@ -1,4 +1,7 @@
-import type { HistoryEntry } from './facts'
+import type { HistoryEntry, LiveFacts } from './facts'
+
+/** A run is going: inputs a failed run left keep a conversation from idling, but they are no run. */
+export const runActive = (live: LiveFacts): boolean => !live.idle && live.leftoverInputs === 0
 
 /** An input that starts a run: a person's message, a goal round, or a notification that wakes the agent. */
 export const startsTurn = (entry: HistoryEntry): boolean =>

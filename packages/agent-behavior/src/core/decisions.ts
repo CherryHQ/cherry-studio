@@ -42,7 +42,7 @@ export type SubagentView = {
   readonly status: 'running' | 'awaiting_approval' | 'finished'
   readonly outcome?: SubagentOutcome
 }
-/** [plan choice] Display-only events for `Observation.emit`; Stage C may add variants. */
+/** [plan choice] Display-only events for `Observation.emit`. */
 export type BehaviorEvent =
   | { readonly type: 'subagents'; readonly thread: ThreadId; readonly views: readonly SubagentView[] }
   | { readonly type: 'goal-notice'; readonly thread: ThreadId; readonly notice: GoalNotice }

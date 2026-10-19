@@ -47,8 +47,7 @@ export type {
   PermissionMode,
   Attendance,
   CompactionReason,
-  HostSettingsSnapshot,
-  CallInputs
+  HostSettingsSnapshot
 } from './core/hostFacts'
 export type { EncodedEntry, RawEntry } from './core/entryCodec'
 export { decodeEntry, encodeEntry } from './core/entryCodec'

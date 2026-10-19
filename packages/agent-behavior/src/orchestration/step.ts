@@ -11,14 +11,14 @@ import type { HostPorts, Settings } from '../ports/host'
 export type Context = { readonly ports: BoundPorts; readonly host: HostPorts }
 
 /** A committed step after its effects ran, with what the ports answered for its start, retract and message effects. */
-export type Executed<R extends JsonValue> = TransactResult<R> & {
+type Executed<R extends JsonValue> = TransactResult<R> & {
   readonly started?: StartResult
   readonly retracted?: RetractResult
   readonly messaged?: MessageResult
 }
 
 /** Design §7.2: drops each operation whose key the facts have seen or an earlier operation of the step carries. */
-export function dedupe<R extends JsonValue>(facts: ConversationFacts, decided: Step<R>): Step<R> {
+function dedupe<R extends JsonValue>(facts: ConversationFacts, decided: Step<R>): Step<R> {
   const seen = new Set<string>(facts.keysSeen)
   const ops: TxOp[] = []
   for (const op of decided.ops) {
@@ -95,7 +95,7 @@ const settingsSnapshot = (settings: Settings, thread: ThreadId): HostSettingsSna
 })
 
 /** L6: the outcomes the host persisted for the thread's calls and for its children's, which show a child waiting. */
-export async function outcomesFor(host: HostPorts, facts: ConversationFacts): Promise<ApprovalOutcome[]> {
+async function outcomesFor(host: HostPorts, facts: ConversationFacts): Promise<ApprovalOutcome[]> {
   const threads = [facts.thread, ...facts.children.keys()]
   const lists = await Promise.all(threads.map((thread) => host.approvals.outcomes(thread, [])))
   return lists.flat()
