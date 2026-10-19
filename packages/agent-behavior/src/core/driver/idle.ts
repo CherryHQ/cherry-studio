@@ -34,6 +34,7 @@ import {
   wakes
 } from '../subagents/subagentLedger'
 import { notificationText, statusMessage } from '../subagents/subagentText'
+import { runActive } from '../turns'
 
 type Facts = ConversationFacts
 export type WaitReason = 'user-first' | 'host-call' | 'busy'
@@ -114,7 +115,7 @@ export function quietDelivery(facts: Facts, items: readonly PendingResult[]): Tx
 export function decideAtIdle(facts: Facts, inputs: CallInputs): Step<IdleDecision> {
   if (facts.lineage.kind === 'subagent') return done(facts, 'in-subagent')
   const { history, live } = facts
-  const runActive = !live.idle && live.leftoverInputs === 0
+  const running = runActive(live)
   const goal = currentGoal(history)
   const counts = goal ? goalCounts(facts, goal.id) : undefined
   if (goal && counts && budgetExceeded(goal, counts.usage)) {
@@ -128,7 +129,7 @@ export function decideAtIdle(facts: Facts, inputs: CallInputs): Step<IdleDecisio
       effects: [],
       result: { kind: 'stop-goal', code: request.code }
     }
-  if (runActive && live.queuedUserInput) return wait('user-first')
+  if (running && live.queuedUserInput) return wait('user-first')
   if (live.hostCallInFlight) return wait('host-call')
 
   const pending = pendingResults(history)
@@ -149,7 +150,7 @@ export function decideAtIdle(facts: Facts, inputs: CallInputs): Step<IdleDecisio
         )
       : undefined
   if (status && compaction) {
-    if (runActive) return wait('busy')
+    if (running) return wait('busy')
     if (live.idle)
       return {
         ops: [
@@ -173,7 +174,7 @@ export function decideAtIdle(facts: Facts, inputs: CallInputs): Step<IdleDecisio
         result: { kind: 'notify' }
       }
     }
-    if (runActive) return wait('busy')
+    if (running) return wait('busy')
     // Leftover inputs of a failed run keep the conversation from idling; quiet results then wait for a later wake.
     if (live.idle) return { ops: [quietDelivery(facts, pending)], effects: [], result: { kind: 'quiet' } }
   }

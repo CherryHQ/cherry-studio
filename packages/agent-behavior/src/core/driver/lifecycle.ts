@@ -7,7 +7,7 @@ import { goalRecord } from '../goal/goalTools'
 import type { CallInputs } from '../hostFacts'
 import { armSeq, keys } from '../keys'
 import { pendingResults, readSubagents, runStarted } from '../subagents/subagentLedger'
-import { startsTurn } from '../turns'
+import { runActive, startsTurn } from '../turns'
 import { goalStop, quietDelivery } from './idle'
 import { ensureDriver } from './jobs'
 
@@ -46,8 +46,7 @@ export function decideOnOpen(
     if (startsTurn(entry)) startAt = at
   })
   const start: HistoryEntry | undefined = facts.history[startAt]
-  const runActive = !facts.live.idle && facts.live.leftoverInputs === 0
-  const roundStopped = start !== undefined && runActive && roundOf(start) !== undefined
+  const roundStopped = start !== undefined && runActive(facts.live) && roundOf(start) !== undefined
   if (roundStopped) {
     ops.push({
       type: 'append-record',
