@@ -125,8 +125,8 @@ export type SummaryRequest = {
 /**
  * P6. Write a compaction summary with the host's model.
  *
- * Its caller is an inbound compaction method Stage C adds; adapters never call `Summarizer` or build the
- * `cherry.summary:` memo name themselves.
+ * Its caller is `LifecycleHandlers.onCompacting`; adapters never call `Summarizer` or build the `cherry.summary:` memo
+ * name themselves.
  *
  * @harness coding-agent Before each compaction; a rejection or an empty summary cancels it.
  * @harness durable `beforeCompact` returns `{ summary }` or `{ decline: true }`; the select phase reruns after a crash.

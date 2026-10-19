@@ -186,7 +186,7 @@ export function decideAtIdle(facts: Facts, inputs: CallInputs): Step<IdleDecisio
   // A cap lowered to the running round leaves no room for a wrap-up either.
   if (goal.wrapUpDone || goal.roundsStarted >= goal.maxGoalRounds)
     return stop(goal.roundsStarted >= goal.maxGoalRounds ? 'round_limit' : 'budget_exhausted')
-  // Background children still at work; their notification starts the next turn (README goal §11.1).
+  // Background children still at work; their notification starts the next turn (agent-runtime-pi README goal §11.1).
   if (runningBackground(facts).length > 0) return done(facts, 'background-running', goal)
 
   const number = goal.roundsStarted + 1
