@@ -352,10 +352,11 @@ export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promis
     }
     const size = Number(handleStat.size)
     if (!Number.isSafeInteger(size)) throw new RangeError('Snapshot source is too large to read safely')
+    const { mtimeMs } = await handle.stat()
     return {
       dev: handleStat.dev,
       ino: handleStat.ino,
-      modifiedAt: Number(handleStat.mtimeMs),
+      modifiedAt: Math.floor(mtimeMs),
       size,
       createReadStream: (bytes = size) => {
         if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > size) {

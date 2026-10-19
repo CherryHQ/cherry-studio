@@ -58,6 +58,26 @@ describe('openReadableFileSnapshot file identity', () => {
     await expect(openReadableFileSnapshot(TARGET)).rejects.toThrow('Snapshot source is too large to read safely')
   })
 
+  it('keeps the existing numeric timestamp normalization at a rounded millisecond boundary', async () => {
+    inspectFile(FILE_ID, FILE_ID, FILE_ID, FILE_ID)
+    vi.mocked(open).mockResolvedValue({
+      stat: async (options?: { bigint?: boolean }) => ({
+        ...stats(FILE_ID, FILE_ID, options?.bigint === true),
+        mtimeMs: options?.bigint ? 1_700_000_000_123n : 1_700_000_000_124
+      }),
+      close: async () => {}
+    } as unknown as FileHandle)
+
+    const snapshot = await openReadableFileSnapshot(TARGET)
+    try {
+      expect(snapshot.modifiedAt).toBe(1_700_000_000_124)
+      expect(snapshot.dev).toBe(FILE_ID)
+      expect(snapshot.ino).toBe(FILE_ID)
+    } finally {
+      await snapshot.close()
+    }
+  })
+
   it('retains exact large identities while keeping stream lengths numeric', async () => {
     inspectFile(FILE_ID + 1n, FILE_ID + 1n, FILE_ID + 1n, FILE_ID + 1n)
 

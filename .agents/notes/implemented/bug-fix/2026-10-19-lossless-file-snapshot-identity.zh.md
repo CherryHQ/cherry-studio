@@ -10,7 +10,7 @@ Status: implemented
 
 ## Decision
 
-路径及句柄 stat 均启用 Node 的 `bigint` 选项，内部快照和诊断源身份始终保留 BigInt 设备号/inode。字节数和修改时间维持数值类型，以兼容现有流和消费者合同。构造数值流长度前，拒绝超出安全整数范围的文件大小。
+路径及句柄 stat 均启用 Node 的 `bigint` 选项，内部快照和诊断源身份始终保留 BigInt 设备号/inode。字节数维持数值类型，以兼容现有流合同。修改时间从同一个句柄的 Number stat 获取并向下取整，与现有乐观写入版本校验保持一致；BigInt `mtimeMs` 的截断可能在毫秒边界与 Number 舍入不同。构造数值流长度前，拒绝超出安全整数范围的文件大小。
 
 ## Alternatives considered
 
@@ -27,5 +27,6 @@ Status: implemented
 ## Verification
 
 - Regression — `src/main/utils/file/__tests__/readableFileSnapshot.test.ts`：拒绝转换成 Number 后碰撞的不同设备号/inode；保留准确大 ID 并正常读取；拒绝不安全的流长度。
+- Regression — `src/main/ai/agents/__tests__/heartbeatDocument.test.ts` 和 `src/main/utils/file/__tests__/fs.test.ts`：亚毫秒时间戳读出的快照版本仍允许保存未被外部改动的文件，同时继续拒绝过期编辑。
 - Regression — `src/main/services/diagnostics/__tests__/sourceCollector.test.ts`：真实文件覆盖替换拒绝、增长日志前缀和记录筛选。
 - Regression — `src/main/services/diagnostics/__tests__/CherryDiagnosticUploadClient.test.ts`：现有文件变更和上传检查覆盖快照消费者。

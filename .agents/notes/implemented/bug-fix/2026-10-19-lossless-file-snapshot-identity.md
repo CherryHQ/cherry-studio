@@ -10,7 +10,7 @@ English | [中文](2026-10-19-lossless-file-snapshot-identity.zh.md)
 
 ## Decision
 
-Read both path and handle stats with Node's `bigint` option, and retain device/inode as BigInt through the internal snapshot and diagnostic source identities. Keep byte counts and modification times numeric for existing stream and consumer contracts. Reject a size outside the safe integer range before constructing a numeric stream length.
+Read both path and handle stats with Node's `bigint` option, and retain device/inode as BigInt through the internal snapshot and diagnostic source identities. Keep byte counts numeric for existing stream contracts. Obtain modification time from a Number-valued stat on the same handle and floor it, matching the existing optimistic-write version check; BigInt `mtimeMs` truncation can disagree with Number rounding at a millisecond boundary. Reject a size outside the safe integer range before constructing a numeric stream length.
 
 ## Alternatives considered
 
@@ -27,5 +27,6 @@ The deterministic large-ID regressions establish the precision defect on any pla
 ## Verification
 
 - Regression — `src/main/utils/file/__tests__/readableFileSnapshot.test.ts`: distinct device/inode values that collide as Numbers are rejected; exact large identities remain readable; unsafe stream lengths are rejected.
+- Regression — `src/main/ai/agents/__tests__/heartbeatDocument.test.ts` and `src/main/utils/file/__tests__/fs.test.ts`: a snapshot version from a sub-millisecond timestamp remains valid for an unchanged-file save, while stale edits remain rejected.
 - Regression — `src/main/services/diagnostics/__tests__/sourceCollector.test.ts`: real files exercise replacement rejection, growing-log prefixes and record filtering.
 - Regression — `src/main/services/diagnostics/__tests__/CherryDiagnosticUploadClient.test.ts`: existing mutation and upload checks exercise snapshot consumers.
