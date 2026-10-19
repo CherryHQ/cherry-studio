@@ -169,6 +169,34 @@ describe('MessageService', () => {
     ])
   })
 
+  it.each(['success', 'error', 'paused'] as const)(
+    'keeps thinking exclusions through backend and replacement finalization: %s',
+    async (status) => {
+      const rootId = await seedTopicWithRoot('recovery-topic')
+      const recovery = [{ endpointKey: 'endpoint-a', identities: ['old-signature', 'redacted'] }]
+      const assistant = messageService.create('recovery-topic', {
+        parentId: rootId,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [], anthropicThinkingRecovery: recovery }
+      })
+      const { MessageServiceBackend } =
+        await import('@main/ai/streamManager/persistence/backends/MessageServiceBackend')
+      await new MessageServiceBackend({ assistantMessageId: assistant.id }).persistAssistant({ status })
+      expect(messageService.getById(assistant.id)?.data.anthropicThinkingRecovery).toEqual(recovery)
+      messageService.finalizeAssistantMessage(assistant.id, { status, data: mainText('replacement') })
+      expect(messageService.getById(assistant.id)?.data).toMatchObject({
+        ...mainText('replacement'),
+        anthropicThinkingRecovery: recovery
+      })
+      expect(messageService.getPathToNode(assistant.id).at(-1)?.data.anthropicThinkingRecovery).toEqual(recovery)
+      if (status !== 'success') {
+        messageService.resetAssistantForRetry(assistant.id)
+        expect(messageService.getById(assistant.id)?.data.anthropicThinkingRecovery).toEqual(recovery)
+      }
+    }
+  )
+
   async function seedTopicWithRoot(topicId: string) {
     await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: null, orderKey: 'a0' })
     return messageService.createRootMessageTx(dbh.db, topicId)
