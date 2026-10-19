@@ -64,6 +64,7 @@ import {
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import type { DeferredDraftDiscard } from '@renderer/types/agent'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { classifyTurn } from '@shared/ai/transport'
@@ -977,7 +978,7 @@ const Sessions = ({
   )
 
   const runPermanentDelete = useCallback(
-    async (id: string) => {
+    async (id: string, grant?: DeferredDraftDiscard) => {
       const latest = sessionItemsRef.current.find((session) => session.id === id)
       if (!latest) {
         await reload().catch(() => undefined)
@@ -987,7 +988,16 @@ const Sessions = ({
       if (isAgentSessionBusy(id)) throw new Error(t('recycle_bin.delete.busy'))
 
       const { replacement, wasActive } = planSessionRemoval(id)
-      const outcome = await deleteSessionWithOutcome(id, { permanent: true, showFeedback: false })
+      const outcome = await deleteSessionWithOutcome(id, {
+        permanent: true,
+        showFeedback: false,
+        onDeleted: () => {
+          const current = activeSessionIdRef.current
+          const clearedDuringDelete = current == null && wasActive
+          if (current !== id && !clearedDuringDelete) return
+          grant?.commitDiscard()
+        }
+      })
       if (outcome.status === 'failed') {
         await reload().catch(() => undefined)
         throw new Error(outcome.error || t('agent.session.delete.error.failed'))
@@ -1012,7 +1022,7 @@ const Sessions = ({
 
   const openPermanentDelete = useCallback(
     (id: string) => {
-      const start = () => {
+      const start = (grant?: DeferredDraftDiscard) => {
         if (permanentDeleteLockRef.current) return Promise.resolve()
         permanentDeleteLockRef.current = true
         setDeletingSessionId(id)
@@ -1021,7 +1031,7 @@ const Sessions = ({
           .show({
             kind: 'conversation',
             name: current?.name || t('common.unnamed'),
-            action: () => runPermanentDelete(id)
+            action: () => runPermanentDelete(id, grant)
           })
           .then(() => undefined)
           .finally(() => {
@@ -1035,12 +1045,16 @@ const Sessions = ({
       if (plan.wasActive && !plan.preservesFileWorkspace && requestFileNavigation) {
         let pending: Promise<void> | undefined
         let synchronous = true
-        requestFileNavigation(() => {
-          if (pending) return
-          const request = start()
-          pending = request
-          if (!synchronous) void request.catch(() => undefined)
-        })
+        requestFileNavigation(
+          (grant) => {
+            if (pending) return pending
+            const request = start(grant)
+            pending = request
+            if (!synchronous) void request.catch(() => undefined)
+            return request
+          },
+          { deferDraftDisposal: true }
+        )
         synchronous = false
         return pending ?? Promise.resolve()
       }

@@ -25,6 +25,11 @@ import {
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import type {
+  AgentFileNavigationOptions,
+  AgentFileNavigationTransition,
+  DeferredDraftDiscard
+} from '@renderer/types/agent'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
@@ -108,10 +113,14 @@ interface AgentHistoryRecordsProps {
   onRecordSelect?: (sessionId: string) => void
   onActiveRecordChange?: (sessionId: string | null) => void
   /**
-   * Runs before the irreversible confirm when the active session is the delete target.
-   * `transition` opens the confirm dialog. Callers may defer it for an unsaved-file guard.
+   * Confirms leaving the active session's dirty file before permanent-delete confirmation.
+   * `transition` opens that confirmation and may receive a deferred `commitDiscard`.
    */
-  requestRecordRemoval?: (nextSessionId: string | null, transition: () => void) => void
+  requestRecordRemoval?: (
+    nextSessionId: string | null,
+    transition: AgentFileNavigationTransition,
+    options?: AgentFileNavigationOptions
+  ) => void
   toolbarLeading?: ReactNode
 }
 
@@ -254,7 +263,7 @@ const AgentHistoryRecords = ({
       const neighborBeforeDelete = pickNeighbourAfterRemoval(orderedBeforeDelete, id)
       const nextSessionId = neighborBeforeDelete?.id ?? null
 
-      const startConfirmation = (): Promise<void> => {
+      const startConfirmation = (grant?: DeferredDraftDiscard): Promise<void> => {
         deferredRemovalIdRef.current = null
         if (permanentDeleteLockRef.current) return Promise.resolve()
         permanentDeleteLockRef.current = true
@@ -271,7 +280,16 @@ const AgentHistoryRecords = ({
                 throw new Error(t('recycle_bin.delete.busy'))
               }
 
-              const outcome = await deleteSessionWithOutcome(id, { permanent: true, showFeedback: false })
+              const outcome = await deleteSessionWithOutcome(id, {
+                permanent: true,
+                showFeedback: false,
+                onDeleted: () => {
+                  const activeId = activeRecordIdRef.current
+                  const clearedDuringDelete = activeId == null && wasActiveAtStart
+                  if (activeId !== id && !clearedDuringDelete) return
+                  grant?.commitDiscard()
+                }
+              })
               if (outcome.status !== 'succeeded') {
                 await reload().catch((refreshError) => {
                   logger.warn('Failed to refresh sessions after permanent delete failed', refreshError as Error, {
@@ -311,13 +329,18 @@ const AgentHistoryRecords = ({
 
       let started = false
       let pending = Promise.resolve()
-      requestRecordRemoval(nextSessionId, () => {
-        started = true
-        pending = startConfirmation().catch((error) => {
-          logger.error('Failed to permanently delete session from history', error as Error, { sessionId: id })
-          toast.error(getErrorMessage(error))
-        })
-      })
+      requestRecordRemoval(
+        nextSessionId,
+        (grant) => {
+          started = true
+          pending = startConfirmation(grant).catch((error) => {
+            logger.error('Failed to permanently delete session from history', error as Error, { sessionId: id })
+            toast.error(getErrorMessage(error))
+          })
+          return pending
+        },
+        { deferDraftDisposal: true }
+      )
       if (started) return pending
 
       deferredRemovalIdRef.current = id

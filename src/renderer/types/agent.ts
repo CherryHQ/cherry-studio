@@ -19,6 +19,24 @@ import {
 import type { AgentBase, AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+/** Granted by the file guard when a caller asks to defer draft disposal. */
+export interface DeferredDraftDiscard {
+  /** Drop the approved draft. No-op when the edit path or draft changed since approval. */
+  commitDiscard: () => void
+}
+
+export interface AgentFileNavigationOptions {
+  /** Confirming the dirty-file guard grants `commitDiscard` instead of discarding immediately. */
+  deferDraftDisposal?: boolean
+}
+
+export type AgentFileNavigationTransition = (grant?: DeferredDraftDiscard) => void | PromiseLike<void>
+
+export type AgentFileNavigationRequest = (
+  transition: AgentFileNavigationTransition,
+  options?: AgentFileNavigationOptions
+) => void
+
 // ------------------ Permission mode ------------------
 // Alias, not a mirror: the renderer's UI cards/forms speak the exact same enum the
 // main process persists, so a second copy here could only ever drift out of date.

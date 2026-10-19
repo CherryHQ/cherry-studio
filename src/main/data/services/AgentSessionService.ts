@@ -1036,6 +1036,27 @@ export class AgentSessionService {
         )
         .all()
 
+      if (options.targetState === 'active' && rows.length > 0) {
+        const pinnedIds = tx
+          .select({ entityId: pinTable.entityId })
+          .from(pinTable)
+          .where(
+            and(
+              eq(pinTable.entityType, 'session'),
+              inArray(
+                pinTable.entityId,
+                rows.map((row) => row.session.id)
+              )
+            )
+          )
+          .all()
+          .map((row) => row.entityId)
+          .sort()
+        if (pinnedIds.length > 0) {
+          throw DataApiErrorFactory.invalidOperation('delete pinned session', pinnedIds.join(','))
+        }
+      }
+
       return {
         ...this.cascadeDeleteSessionRowsTx(tx, rows),
         purgedSystemWorkspacePaths: rows

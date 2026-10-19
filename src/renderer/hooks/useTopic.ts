@@ -15,6 +15,7 @@
 
 import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
@@ -40,6 +41,7 @@ import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
+import { isTrashTopicPinnedError } from '@shared/ipc/errors/trash'
 
 const logger = loggerService.withContext('useTopic')
 
@@ -393,6 +395,7 @@ export function useLatestTopic(opts?: { enabled?: boolean }) {
  * Topic mutations backed by DataApi, with archive commands routed through IpcApi.
  */
 export function useTopicMutations() {
+  const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const writeCache = useWriteCache()
   const closeConversationTabs = useCloseConversationTabs()
@@ -465,6 +468,7 @@ export function useTopicMutations() {
         }
       } catch (error) {
         await refreshTopicsAfterDelete('failed')
+        if (isTrashTopicPinnedError(error)) throw new Error(t('recycle_bin.delete.pinned'))
         throw error
       }
 
@@ -478,7 +482,7 @@ export function useTopicMutations() {
       logger.info(options?.permanent ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id: topicId })
       return outcome
     },
-    [closeConversationTabs, deleteTrigger, invalidate]
+    [closeConversationTabs, deleteTrigger, invalidate, t]
   )
 
   const restoreTopic = useCallback(

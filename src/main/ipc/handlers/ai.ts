@@ -97,6 +97,12 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
         sessionIds: error.sessionIds
       })
     }
+    if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
+      const operation = (error.details as { operation?: string } | undefined)?.operation
+      if (operation === 'delete pinned session') {
+        throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_PINNED, error.message)
+      }
+    }
     throw error
   }
 }

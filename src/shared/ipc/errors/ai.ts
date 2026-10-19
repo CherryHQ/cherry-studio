@@ -27,6 +27,8 @@ export const aiErrorCodes = {
   AI_AGENT_NOT_FOUND: 'AI_AGENT_NOT_FOUND',
   /** Moving Agent Sessions to the Recycle Bin was rejected while generation is unsettled. */
   AI_AGENT_SESSION_ARCHIVE_BUSY: 'AI_AGENT_SESSION_ARCHIVE_BUSY',
+  /** Direct permanent deletion of an active Agent Session was rejected because it is pinned. */
+  AI_AGENT_SESSION_PINNED: 'AI_AGENT_SESSION_PINNED',
   /**
    * An `ai.agent.task.*` command referenced a task that does not exist, is not
    * an `agent.task` schedule, or belongs to another agent (the three cases are
@@ -82,4 +84,8 @@ export function isAgentNotFoundError(e: unknown): e is IpcError {
 
 export function isAgentSessionArchiveBusyError(e: unknown): e is IpcError {
   return e instanceof IpcError && e.code === aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY
+}
+
+export function isAgentSessionPinnedError(e: unknown): e is IpcError {
+  return e instanceof IpcError && e.code === aiErrorCodes.AI_AGENT_SESSION_PINNED
 }

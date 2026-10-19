@@ -2,6 +2,7 @@ import { lazy, type ReactNode, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@cherrystudio/ui'
+import type { AgentFileNavigationOptions, AgentFileNavigationTransition } from '@renderer/types/agent'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 
 import type { HistoryRecordsMode } from './historyRecordsTypes'
@@ -43,8 +44,15 @@ type HistoryRecordsViewProps =
       mode: 'agent'
       onRecordSelect?: (sessionId: string) => void
       onActiveRecordChange?: (sessionId: string | null) => void
-      /** Leave the active session before its permanent-delete confirmation opens. */
-      requestRecordRemoval?: (nextSessionId: string | null, transition: () => void) => void
+      /**
+       * Confirm leaving the active session's dirty file before permanent-delete confirmation.
+       * Draft disposal stays deferred until that deletion succeeds.
+       */
+      requestRecordRemoval?: (
+        nextSessionId: string | null,
+        transition: AgentFileNavigationTransition,
+        options?: AgentFileNavigationOptions
+      ) => void
     })
 
 const HistoryRecordsView = (props: HistoryRecordsViewProps) => {

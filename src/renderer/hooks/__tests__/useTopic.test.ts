@@ -12,9 +12,12 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import i18n from '@renderer/i18n/resolver'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
 import {
   getTopicMessages,
@@ -453,6 +456,24 @@ describe('useTopicMutations', () => {
     })
 
     expect(caught).toBe(staleError)
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('refreshes and throws the pinned-topic message without closing tabs', async () => {
+    mockIpcRequest.mockRejectedValue(new IpcError(trashErrorCodes.TRASH_TOPIC_PINNED, 'Topic is pinned'))
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toEqual(new Error(i18n.t('recycle_bin.delete.pinned')))
     expect(invalidate).toHaveBeenCalledWith('/topics')
     expect(mockCloseConversationTabs).not.toHaveBeenCalled()
   })

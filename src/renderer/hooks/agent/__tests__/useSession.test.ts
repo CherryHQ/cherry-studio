@@ -12,6 +12,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import {
   useActiveSession,
@@ -729,6 +731,73 @@ describe('useSessions', () => {
     expect(mockCloseConversationTabs).not.toHaveBeenCalled()
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('runs onDeleted after the id is deleted and before tabs close or cache refresh', async () => {
+    const order: string[] = []
+    mockIpcRequest.mockImplementation(async () => {
+      order.push('ipc')
+      return { deletedIds: ['session-a'] }
+    })
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+    invalidate.mockImplementation(async () => {
+      order.push('invalidate')
+    })
+    mockCloseConversationTabs.mockImplementation(() => {
+      order.push('close')
+    })
+
+    const outcome = await act(async () =>
+      result.current.deleteSessionWithOutcome('session-a', {
+        permanent: true,
+        showFeedback: false,
+        onDeleted: () => order.push('onDeleted')
+      })
+    )
+
+    expect(outcome).toEqual({ status: 'succeeded' })
+    expect(order).toEqual(['ipc', 'onDeleted', 'close', 'invalidate'])
+  })
+
+  it('does not run onDeleted when deletion is stale or the command fails', async () => {
+    const onDeleted = vi.fn()
+    mockIpcRequest.mockResolvedValueOnce({ deletedIds: [] })
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+
+    const stale = await act(async () =>
+      result.current.deleteSessionWithOutcome('session-a', { permanent: true, showFeedback: false, onDeleted })
+    )
+    expect(stale).toEqual({ status: 'stale' })
+    expect(onDeleted).not.toHaveBeenCalled()
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+
+    mockIpcRequest.mockRejectedValueOnce(new Error('Delete failed'))
+    const failed = await act(async () =>
+      result.current.deleteSessionWithOutcome('session-a', { permanent: true, showFeedback: false, onDeleted })
+    )
+    expect(failed).toEqual({ status: 'failed', error: 'Delete failed' })
+    expect(onDeleted).not.toHaveBeenCalled()
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a pinned rejection as a failed outcome and does not discard or close tabs', async () => {
+    mockIpcRequest.mockRejectedValue(new IpcError(aiErrorCodes.AI_AGENT_SESSION_PINNED, 'Session is pinned'))
+    const onDeleted = vi.fn()
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+
+    const outcome = await act(async () =>
+      result.current.deleteSessionWithOutcome('session-a', { permanent: true, showFeedback: true, onDeleted })
+    )
+
+    expect(outcome).toEqual({ status: 'failed', error: 'recycle_bin.delete.pinned' })
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+    expect(onDeleted).not.toHaveBeenCalled()
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('recycle_bin.delete.pinned')
   })
 
   it('reports the session mutation failure when the following refresh also fails', async () => {

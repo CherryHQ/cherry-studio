@@ -38,6 +38,11 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
+import type {
+  AgentFileNavigationOptions,
+  AgentFileNavigationRequest,
+  AgentFileNavigationTransition
+} from '@renderer/types/agent'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -53,7 +58,6 @@ import type { InstalledSkill } from '@shared/data/types/agent'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentCreateDialog } from './components/AgentCreateDialog'
-import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import { AgentTabRuntime } from './components/AgentTabRuntime'
 import Sessions from './components/Sessions'
 import {
@@ -311,13 +315,13 @@ const AgentPage = () => {
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
   }, [])
-  const requestFileNavigation = useCallback((transition: () => void) => {
+  const requestFileNavigation = useCallback<AgentFileNavigationRequest>((transition, options) => {
     const request = fileNavigationRequestRef.current
     if (request) {
-      request(transition)
+      request(transition, options)
       return
     }
-    transition()
+    void transition()
   }, [])
   const resourceConversationKey = useMemo(() => {
     if (visibleSession?.id) return `session:${visibleSession.id}`
@@ -629,7 +633,7 @@ const AgentPage = () => {
   )
 
   const requestSessionNavigation = useCallback(
-    (sessionId: string | null, transition: () => void) => {
+    (sessionId: string | null, transition: AgentFileNavigationTransition, options?: AgentFileNavigationOptions) => {
       const targetSession = sessionId ? agentSessions.find((session) => session.id === sessionId) : undefined
       const preservesFileWorkspace =
         sessionId === visibleSession?.id ||
@@ -640,10 +644,10 @@ const AgentPage = () => {
             buildAgentFileWorkspaceKey(visibleSession.workspaceId, visibleSession.workspace?.path))
 
       if (preservesFileWorkspace) {
-        transition()
+        void transition()
         return
       }
-      requestFileNavigation(transition)
+      requestFileNavigation(transition, options)
     },
     [agentSessions, requestFileNavigation, visibleSession]
   )

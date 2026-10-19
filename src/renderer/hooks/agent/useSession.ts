@@ -36,6 +36,7 @@ import type {
   SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import { isAgentSessionPinnedError } from '@shared/ipc/errors/ai'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const logger = loggerService.withContext('useSession')
@@ -51,6 +52,11 @@ export type SessionDeleteOutcome = { status: 'succeeded' } | { status: 'stale' }
 type DeleteSessionOutcomeOptions = {
   showFeedback?: boolean
   permanent?: boolean
+  /**
+   * Runs only when this id is in `deletedIds`, before conversation tabs close and
+   * before cache invalidation can recover the route.
+   */
+  onDeleted?: () => void
 }
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
@@ -333,7 +339,7 @@ export const useSessions = (
   const deleteSessionWithOutcome = useCallback(
     async (
       id: string,
-      { showFeedback = true, permanent = false }: DeleteSessionOutcomeOptions = {}
+      { showFeedback = true, permanent = false, onDeleted }: DeleteSessionOutcomeOptions = {}
     ): Promise<SessionDeleteOutcome> => {
       try {
         const result = await ipcApi.request(
@@ -341,7 +347,10 @@ export const useSessions = (
           { sessionIds: [id] }
         )
         const deleted = result.deletedIds.includes(id)
-        if (deleted) closeConversationTabs('agents', result.deletedIds)
+        if (deleted) {
+          onDeleted?.()
+          closeConversationTabs('agents', result.deletedIds)
+        }
         try {
           await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
@@ -358,8 +367,15 @@ export const useSessions = (
         } catch (refreshError) {
           logger.warn('Failed to refresh after Agent Session deletion failed', refreshError as Error, { sessionId: id })
         }
-        if (showFeedback) toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
-        return { status: 'failed', error: getErrorMessage(error) }
+        const pinned = isAgentSessionPinnedError(error)
+        if (showFeedback) {
+          toast.error(
+            pinned
+              ? t('recycle_bin.delete.pinned')
+              : formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed'))
+          )
+        }
+        return { status: 'failed', error: pinned ? t('recycle_bin.delete.pinned') : getErrorMessage(error) }
       }
     },
     [closeConversationTabs, invalidate, t]
