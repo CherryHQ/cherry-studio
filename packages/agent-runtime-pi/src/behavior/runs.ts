@@ -1,9 +1,18 @@
 import type { MessageEndEvent } from '@earendil-works/pi-coding-agent'
 
-import type { RetractResult, StartResult, TurnInput } from '@cherrystudio/agent-behavior'
+import type { MessageResult, RetractResult, RunEndFacts, StartResult, TurnInput } from '@cherrystudio/agent-behavior'
 
 import { addUsage, historyOf, keyOf, keysOf, textOf, usageFact, ZERO_USAGE } from './history'
-import { type Adapter, type Conversation, markerMessage, piIdle, type RunEnding, type RunState, wake } from './state'
+import {
+  type Adapter,
+  type Conversation,
+  markerMessage,
+  piIdle,
+  type RunEnding,
+  type RunState,
+  waitFor,
+  wake
+} from './state'
 
 /** H2 admission: a known key keeps its first answer; while a run is active, 'busy' and nothing recorded. */
 export function startTurn(adapter: Adapter, conv: Conversation, input: TurnInput, key: string): StartResult {
@@ -164,4 +173,52 @@ export function noteMessage(conv: Conversation, message: MessageEndEvent['messag
   submission.state = 'running'
   submission.run = run.run
   conv.steered.delete(key)
+}
+
+/** H3 message: an idle child starts a run with it; a running one takes it into the run in progress. */
+export function messageChild(adapter: Adapter, conv: Conversation, input: TurnInput, key: string): MessageResult {
+  const existing = conv.submissions.get(key)
+  if (existing) return existing.admission as MessageResult
+  const active = conv.active
+  if (!active) {
+    const admission: MessageResult = { run: conv.runs + 1, status: 'started' }
+    conv.submissions.set(key, { input, admission, state: 'queued' })
+    startRun(adapter, conv, key)
+    return admission
+  }
+  const admission: MessageResult = { run: active.run, status: 'queued' }
+  conv.submissions.set(key, { input, admission, state: 'queued' })
+  steer(conv, key)
+  return admission
+}
+
+function steer(conv: Conversation, key: string): void {
+  const session = conv.native!.session
+  // Pi takes a steer only while it streams; otherwise it would start a run of its own with the message.
+  if (!session.isStreaming) {
+    conv.held.push(key)
+    return
+  }
+  conv.steered.add(key)
+  void session.sendCustomMessage(markerMessage(conv.submissions.get(key)!.input as TurnInput, key), {
+    triggerTurn: true
+  })
+}
+
+/** At each turn of the active run: messages Pi could not take earlier go to its steering queue. */
+export function flushHeld(conv: Conversation): void {
+  if (!conv.native?.session.isStreaming) return
+  for (const key of conv.held.splice(0)) steer(conv, key)
+}
+
+/** H3 awaitAnswer: the end of the run that took message `key`; one withdrawn before it ran answers with run `run`. */
+export async function awaitAnswer(conv: Conversation, run: number, key: string): Promise<RunEndFacts> {
+  const submission = conv.submissions.get(key)
+  if (!submission) throw new Error(`No message ${key} was sent to ${conv.thread}`)
+  const answering = () => submission.run ?? (submission.state === 'withdrawn' ? run : undefined)
+  await waitFor(conv, () => {
+    const at = answering()
+    return at !== undefined && conv.ends.has(at)
+  })
+  return conv.ends.get(answering()!)!.answer
 }
