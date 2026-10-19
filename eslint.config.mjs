@@ -1266,13 +1266,22 @@ export default defineConfig([
     files: ['packages/agent-behavior/src/core/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
-        '(?:^|/)(?:ports|orchestration|fake|contract|index)(?:/|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        '(?:^|/)(?:ports|orchestration|fake|contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
         'core/ imports only core/.'
       ),
-      'no-restricted-syntax': ['error', ...AGENT_RUNTIME_SELECTORS, ...KEY_MINT_SELECTORS, ...CORE_SYNC_SELECTORS],
+      'no-restricted-syntax': [
+        'error',
+        ...AGENT_RUNTIME_SELECTORS,
+        ...KEY_MINT_SELECTORS,
+        ...CORE_SYNC_SELECTORS,
+        {
+          selector: 'MemberExpression[property.name=/^(?:localeCompare|toLocale)/]',
+          message: 'Core does not depend on the host locale.'
+        }
+      ],
       'no-restricted-globals': [
         'error',
-        ...['Date', 'crypto', 'performance', 'process', 'fetch', 'globalThis', ...AGENT_BEHAVIOR_TIMERS].map(
+        ...['Date', 'Intl', 'crypto', 'performance', 'process', 'fetch', 'globalThis', ...AGENT_BEHAVIOR_TIMERS].map(
           (name) => ({
             name,
             message: CORE_ENVIRONMENT
@@ -1323,6 +1332,15 @@ export default defineConfig([
         'error',
         ...AGENT_BEHAVIOR_TIMERS.map((name) => ({ name, message: 'Orchestration waits only through ports.' }))
       ]
+    }
+  },
+  {
+    files: ['packages/agent-behavior/src/contract/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
+        '(?:^|/)(?:orchestration|fake|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        'contract/ depends only on core/ and ports/.'
+      )
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
