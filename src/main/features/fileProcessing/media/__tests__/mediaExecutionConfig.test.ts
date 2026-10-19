@@ -5,7 +5,9 @@ import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
 
 const state = vi.hoisted(() => ({
   preferences: new Map<string, unknown>(),
-  resolveProcessor: vi.fn()
+  resolveProcessor: vi.fn(),
+  resolveSdkConfig: vi.fn(),
+  resolveEffectiveEndpoint: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -22,8 +24,13 @@ vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProvi
 vi.mock('@main/features/fileProcessing/config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: state.resolveProcessor
 }))
+vi.mock('@main/ai/provider/sdkConfig', () => ({ resolveSdkConfig: state.resolveSdkConfig }))
+vi.mock('@main/ai/provider/endpoint', () => ({ resolveEffectiveEndpoint: state.resolveEffectiveEndpoint }))
 
 import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import {
   hashMediaExecutionConfig,
@@ -115,6 +122,82 @@ describe('resolveMediaExecutionConfig', () => {
     expect(config.vision).toBeNull()
     expect(config.asr).toEqual({ modelId: APPLE_ASR_MODEL_ID })
   })
+
+  it('freezes vision pricing, billing, and the serving credential', async () => {
+    state.preferences.set('feature.file_processing.default_video_vision_model', 'openai::gpt-4o')
+    vi.mocked(modelService.getByKey).mockReturnValue({
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      apiModelId: 'gpt-4o',
+      name: 'GPT-4o',
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      pricing: {
+        input: { perMillionTokens: 2.5, currency: 'USD' },
+        output: { perMillionTokens: 10, currency: 'USD' }
+      }
+    })
+    vi.mocked(providerService.getByProviderId).mockReturnValue({
+      id: 'openai',
+      name: 'OpenAI',
+      reportsActualCost: true,
+      reportedCostCurrency: 'USD',
+      settings: {
+        billing: {
+          defaultMultiplier: 1,
+          scheduleEnabled: true,
+          timeZone: 'UTC',
+          periods: [
+            {
+              id: 'day',
+              name: 'Day',
+              start: '00:00',
+              end: '24:00',
+              mode: 'prices',
+              models: [
+                {
+                  modelId: 'gpt-4o',
+                  pricing: {
+                    input: { perMillionTokens: 9, currency: 'USD' },
+                    output: { perMillionTokens: 9, currency: 'USD' }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    } as never)
+    state.resolveEffectiveEndpoint.mockReturnValue({
+      endpointType: 'openai-chat-completions',
+      baseUrl: 'https://api.openai.com/v1'
+    })
+    state.resolveSdkConfig.mockResolvedValue({
+      sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret' }, modelId: 'gpt-4o-2024-08-06' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
+    })
+
+    const vision = (await resolveMediaExecutionConfig()).vision
+
+    expect(vision?.usage).toEqual(
+      expect.objectContaining({
+        providerId: 'openai',
+        providerName: 'OpenAI',
+        modelId: 'gpt-4o-2024-08-06',
+        modelName: 'GPT-4o',
+        trustProviderReportedCost: true,
+        reportedCostCurrency: 'USD',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+        pricingSnapshot: expect.objectContaining({
+          inputPerMillionTokens: 9,
+          outputPerMillionTokens: 9,
+          billing: expect.objectContaining({ mode: 'prices', reason: 'period' })
+        })
+      })
+    )
+  })
 })
 
 describe('hashMediaExecutionConfig', () => {
@@ -128,7 +211,12 @@ describe('hashMediaExecutionConfig', () => {
         modelId: 'gpt-4o',
         endpointType: 'openai-chat-completions',
         baseUrl: 'https://api.openai.com/v1',
-        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' }
+        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' },
+        usage: createAiUsageCaptureContext({
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
+        })
       },
       budget: { maxFrames: 24, targetIntervalMs: 4_000, maxEdgePx: 1280, jpegQuality: 75 },
       pipelineVersion: MEDIA_PIPELINE_VERSION
@@ -140,7 +228,19 @@ describe('hashMediaExecutionConfig', () => {
         sdkConfig: { ...config.vision!.sdkConfig, providerSettings: { apiKey: 'secret-b' } }
       }
     }
+    const withAnotherReceipt: MediaExecutionConfig = {
+      ...config,
+      vision: {
+        ...config.vision!,
+        usage: createAiUsageCaptureContext({
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          credentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'sk-b****bbbb' }
+        })
+      }
+    }
     expect(hashMediaExecutionConfig(config)).toBe(hashMediaExecutionConfig(withAnotherSecret))
+    expect(hashMediaExecutionConfig(config)).toBe(hashMediaExecutionConfig(withAnotherReceipt))
     expect(hashMediaExecutionConfig(config)).not.toBe(
       hashMediaExecutionConfig({ ...config, asr: { ...config.asr!, language: 'ja-JP' } })
     )

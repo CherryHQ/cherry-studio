@@ -1729,6 +1729,63 @@ describe('mediaFfmpegHandlers frame destinations', () => {
     }
   })
 
+  it('maps extraction to the audio stream ffmpeg would select', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-audio-map-'))
+    const sourcePath = join(outputDir, 'source.bin')
+    writeFileSync(sourcePath, 'source-audio')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    let ffmpegArgs: string[] = []
+    spawnControl.replacement = (...spawnArgs: unknown[]) => {
+      const call = spawnControl.calls
+      const commandArgs = spawnArgs[1]
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.stdout.emit(
+            'data',
+            JSON.stringify({
+              format: { duration: '10', start_time: '0', format_name: 'mov,mp4' },
+              streams: [
+                { index: 0, codec_type: 'audio', channels: 1, start_time: '2', disposition: { default: 0 } },
+                { index: 1, codec_type: 'audio', channels: 2, start_time: '0', disposition: { default: 0 } }
+              ]
+            })
+          )
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2 && Array.isArray(commandArgs)) {
+          ffmpegArgs = commandArgs.map(String)
+          const outputPath = commandArgs.at(-1)
+          if (typeof outputPath === 'string') writeFileSync(outputPath, Buffer.alloc(64))
+          child.emit('close', 0)
+          return
+        }
+        child.stdout.emit(
+          'data',
+          '{"format":{"duration":"1","format_name":"wav"},"streams":[{"codec_type":"audio","duration":"1"}]}'
+        )
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractAudio(
+        { filePath: sourcePath, outputDir, maxChunkBytes: 100_000 },
+        context()
+      )
+      const mapAt = ffmpegArgs.indexOf('-map')
+      expect(ffmpegArgs[mapAt + 1]).toBe('0:1')
+      expect(ffmpegArgs.indexOf('-i')).toBeLessThan(mapAt)
+      expect(mapAt).toBeLessThan(ffmpegArgs.indexOf('-vn'))
+      expect(result.chunks).toEqual([expect.objectContaining({ startMs: 0, endMs: 1000 })])
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
   it('rejects an oversized normalized WAV when the probe duration is unusable', async () => {
     const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-zero-duration-'))
     const sourcePath = join(outputDir, 'source.bin')
@@ -1743,7 +1800,15 @@ describe('mediaFfmpegHandlers frame destinations', () => {
       const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
       const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
       queueMicrotask(() => {
-        if (call === 1 && Array.isArray(commandArgs)) {
+        if (call === 1) {
+          child.stdout.emit(
+            'data',
+            '{"format":{"duration":"1","format_name":"wav"},"streams":[{"index":0,"codec_type":"audio","channels":1}]}'
+          )
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2 && Array.isArray(commandArgs)) {
           const outputPath = commandArgs.at(-1)
           if (typeof outputPath === 'string') {
             normalizedWav = outputPath
@@ -1752,7 +1817,7 @@ describe('mediaFfmpegHandlers frame destinations', () => {
           child.emit('close', 0)
           return
         }
-        if (call === 2) {
+        if (call === 3) {
           child.stdout.emit(
             'data',
             '{"format":{"duration":"N/A","format_name":"wav"},"streams":[{"codec_type":"audio","duration":"N/A"}]}'
@@ -1790,7 +1855,7 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         rejected: true,
         chunks: null,
         wavPreserved: true,
-        commands: 2
+        commands: 3
       })
       expect(settled.error).toBe(`Audio duration unavailable for oversized WAV (${wavBytes} > ${maxChunkBytes})`)
       expect(statSync(normalizedWav).size).toBe(wavBytes)
