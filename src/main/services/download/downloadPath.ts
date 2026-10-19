@@ -13,7 +13,7 @@ const MAX_FILE_NAME = 120
  * keeps the extension. The result is always a single path segment.
  */
 export function sanitizeDownloadFileName(input: string, fallback = 'download'): string {
-  const withoutSeparators = input.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim()
+  const withoutSeparators = input.replace(/[\\/:*?"<>|\p{Cc}]/gu, '_').trim()
   const withoutLeadingDots = withoutSeparators.replace(/^\.+/, '')
   const candidate = (withoutLeadingDots || fallback).slice(0, MAX_FILE_NAME)
   return WINDOWS_RESERVED.test(candidate) ? `${candidate}_` : candidate

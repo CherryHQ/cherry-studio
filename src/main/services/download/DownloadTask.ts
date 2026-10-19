@@ -104,9 +104,9 @@ export class DownloadTask {
           this.options.store.setState(task.id, 'paused')
           return 'paused'
         }
-        const failure = results.find((result) => result.status === 'rejected')
+        const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
         if (failure) {
-          const reason = (failure as PromiseRejectedResult).reason
+          const reason = failure.reason
           this.flush()
           this.options.store.setState(task.id, 'failed', errorMessage(reason))
           throw reason

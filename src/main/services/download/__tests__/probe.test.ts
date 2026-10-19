@@ -71,7 +71,7 @@ afterAll(async () => {
 
 describe('probeDownload', () => {
   it('reads size, range support and validators from HEAD', async () => {
-    const probe = await probeDownload(`${baseUrl}/range`, fetch as never)
+    const probe = await probeDownload(`${baseUrl}/range`, fetch)
 
     expect(probe.supportsRanges).toBe(true)
     expect(probe.totalBytes).toBe(CONTENT.length)
@@ -80,14 +80,14 @@ describe('probeDownload', () => {
   })
 
   it('falls back to a one-byte range when HEAD is rejected', async () => {
-    const probe = await probeDownload(`${baseUrl}/no-head`, fetch as never)
+    const probe = await probeDownload(`${baseUrl}/no-head`, fetch)
 
     expect(probe.supportsRanges).toBe(true)
     expect(probe.totalBytes).toBe(CONTENT.length)
   })
 
   it('reports that ranges are unsupported when the server serves the whole body', async () => {
-    const probe = await probeDownload(`${baseUrl}/plain`, fetch as never)
+    const probe = await probeDownload(`${baseUrl}/plain`, fetch)
 
     expect(probe.supportsRanges).toBe(false)
     expect(probe.totalBytes).toBe(CONTENT.length)
