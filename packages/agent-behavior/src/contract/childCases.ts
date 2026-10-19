@@ -21,7 +21,8 @@ import {
   spawnBackground,
   step,
   toolBase,
-  toolResults
+  toolResults,
+  transact
 } from './fixtures'
 import type { ContractCase } from './harness'
 
@@ -412,8 +413,8 @@ export const childCases: readonly ContractCase[] = [
       )
     }
   },
-  // Catches a run started on a child whose last reply has calls without results (I4, H3; S-j forks a whole history):
-  // the run's first model request would carry those calls unanswered.
+  // Catches a run started on a child whose last reply has calls without results (I4, H3): the run's first model
+  // request would carry those calls unanswered.
   {
     name: 'a message that starts a child run first answers the calls its last reply left open',
     covers: ['helpers.message', 'helpers.awaitAnswer', 'ledger.read'],
@@ -454,6 +455,38 @@ export const childCases: readonly ContractCase[] = [
       check(
         result?.kind === 'tool-result' && result.isError && answer < input,
         'the interrupted result must be an error that precedes the run input'
+      )
+    }
+  },
+  // Catches an S-j fork answered with the fork placeholder (N1): the calls open in the conversation it forks ended with
+  // that conversation's run, so the model would be told they still run and wait for results that never come.
+  {
+    name: 'an S-j fork answers the calls open at its fork point as interrupted, not as still running',
+    covers: ['ledger.transact', 'helpers.message', 'helpers.awaitAnswer'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      const source = await spawnBackground(h, t, 'c39-source')
+      h.script(source, [callTool('hold', { id: 'c39' }), reply('source done')])
+      await h.withCall(t, (p) => p.helpers.message(source, message('work'), key('c39-work')))
+      await hold.started('c39')
+      // The source ends in the reply whose call is still open, the shape S-j forks after a cut run.
+      const at = (await read(h, source)).history.findLast((e) => e.kind === 'assistant')!.id
+      const { spawned } = await transact(h, t, () =>
+        step([{ type: 'spawn-child', spec: forkSpec('c39', source, at), key: key('c39') }], null)
+      )
+      const fork = spawned[0].child
+      hold.release('c39')
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(source, 1, key('c39-work')))
+      h.script(fork, [reply('fork answer')])
+      await h.withCall(t, (p) => p.helpers.message(fork, message('go on'), key('c39-msg')))
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(fork, 1, key('c39-msg')))
+      same(
+        answersTo(await read(h, fork), 'hold'),
+        [{ answered: INTERRUPTED_CALL_RESULT }],
+        'an S-j fork must answer the calls open at its fork point as interrupted'
       )
     }
   },
