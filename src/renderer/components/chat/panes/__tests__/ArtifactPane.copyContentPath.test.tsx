@@ -12,6 +12,7 @@ const BS = String.fromCharCode(0x5c)
 const OVERSIZED = ARTIFACT_PREVIEW_MAX_SIZE_BYTES + 1
 
 vi.mock('@renderer/components/FilePreview', () => ({
+  useOptionalOpenFilePreviewTab: () => undefined,
   FilePreview: () => <div data-testid="file-preview" />,
   FilePreviewModeToolbarPortalHost: () => null,
   FilePreviewModeToolbarPortalProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
