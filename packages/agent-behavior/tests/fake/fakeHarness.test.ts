@@ -176,12 +176,10 @@ describe('fake harness', () => {
   })
 
   // Catches real time leaking into fixtures, which would make Stage B's replay comparisons flaky.
-  it('keeps a manual clock', async () => {
-    const fake = createFakeHarness({ now: 1000 })
+  it('keeps a fixed clock', async () => {
+    const fake = createFakeHarness()
     const t = await fake.createThread()
-    expect(await fake.withCall(t, async (p) => p.clock.now())).toBe(1000)
-    fake.advanceClock(250)
-    expect(await fake.withCall(t, async (p) => p.clock.now())).toBe(1250)
+    expect(await fake.withCall(t, async (p) => p.clock.now())).toBe(0)
   })
 
   // Catches a job ensured inside onOpen running twice, or before reopen completes (Durable runs no task before resume).

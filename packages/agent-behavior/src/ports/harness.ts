@@ -170,7 +170,7 @@ export interface Memory {
  *
  * @harness coding-agent `Date.now()`.
  * @harness durable `runtime.now()`, the harness clock.
- * @harness fake A manual clock that moves only when the test advances it.
+ * @harness fake A fixed clock that always reads 0.
  */
 export interface Clock {
   /** Whole milliseconds since the epoch, non-decreasing. */
