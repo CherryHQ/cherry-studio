@@ -683,6 +683,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // background content opening a successor generation, whose lifetime must not decide the verdict.
     const interruptedGeneration = adapter.turnGeneration
     logger.info('Gracefully interrupting Claude Code turn', { sessionId: this.input.sessionId })
+    let ackTimeout: ReturnType<typeof setTimeout> | undefined
     const acknowledged = await Promise.race([
       query.interrupt().then(
         () => true,
@@ -691,8 +692,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           return false
         }
       ),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), GRACEFUL_INTERRUPT_TIMEOUT_MS))
+      new Promise<boolean>((resolve) => {
+        ackTimeout = setTimeout(() => resolve(false), GRACEFUL_INTERRUPT_TIMEOUT_MS)
+      })
     ])
+    // A settling interrupt leaves the timeout scheduled and referenced for its full period.
+    clearTimeout(ackTimeout)
     if (!acknowledged) return false
     // The interrupt control response only says the CLI took the request; wait (bounded) for the
     // SDK's interrupt-truncated result so the host only trusts a turn that actually settled.
