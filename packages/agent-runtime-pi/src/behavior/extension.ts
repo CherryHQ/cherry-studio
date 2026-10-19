@@ -28,6 +28,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
     pi.on('agent_settled', (event) => {
       if (conv.active && !conv.active.pending) finishRun(adapter, conv, endingOf(conv.active, event.aborted))
     })
+    pi.on('session_shutdown', () => adapter.lifecycle((handlers, ports) => handlers.onClose(conv.thread, ports)))
   }
 }
 

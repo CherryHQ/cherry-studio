@@ -118,4 +118,55 @@ describe('coding-agent behavior adapter', () => {
     )
     expect(copied).toEqual(['user', 'one', 'record'])
   })
+
+  // Catches onCompacted running while Pi still compacts, where the quiet input it adds (the subagent status after a
+  // compaction) is refused as written into a busy conversation.
+  it('lets onCompacted add a quiet input once the compaction is over', async () => {
+    const pi = await openPiHarness((ports) =>
+      ports.lifecycle.register({
+        onOpen: async () => {},
+        onClose: async () => {},
+        onCompacted: async (thread, bound) => {
+          await bound.ledger.transact(thread, () => ({
+            ops: [{ type: 'append-quiet', thread, input: input('status'), key: key('after-compaction') }],
+            effects: [],
+            result: null
+          }))
+        }
+      })
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: 'first' }])
+    await pi.harness.sendUser(t, 'before')
+    await pi.harness.settle()
+    await pi.harness.compact(t)
+    expect((await read(pi, t)).keysSeen.has(key('after-compaction'))).toBe(true)
+  })
+
+  // Catches a job ensured in onOpen that starts while onOpen is still deciding, instead of once it has run (H12).
+  it('starts a job ensured in onOpen only once onOpen has run', async () => {
+    const order: string[] = []
+    const pi = await openPiHarness((ports) => {
+      ports.jobs.register('subagent-report', async () => {
+        order.push('job')
+      })
+      ports.lifecycle.register({
+        onOpen: async (thread, _open, bound) => {
+          const job = { kind: 'subagent-report', scope: thread, input: null, onRestart: 'resume' } as const
+          await bound.ledger.transact(thread, () => ({
+            ops: [{ type: 'ensure-job', job, key: key('open-job') }],
+            effects: [],
+            result: null
+          }))
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          order.push('open')
+        },
+        onCompacted: async () => {},
+        onClose: async () => {}
+      })
+    })
+    await pi.harness.createThread()
+    await pi.harness.settle()
+    expect(order).toEqual(['open', 'job'])
+  })
 })
