@@ -23,7 +23,7 @@ export type ApprovalRequest = { readonly call: CallRef; readonly tool: ToolCallF
  * P1. Ask a person whether a call may run; tell the rules how people answered before.
  *
  * @harness coding-agent Cherry's tool approval registry and approval card, asked from the `tool_call` event; `Memory`
- * is whatever store the adapter chooses, e.g. an in-session store, since a restart drops the pending call.
+ * is H6's in-session store, since a restart drops the pending call.
  * @harness durable `beforeTool` waits before the intent and reruns after a crash; `Memory` is `api.memo`, and the host
  * deduplicates a repeated ask by `CallRef`.
  * @harness fake Scripted answers; an ask with none queued stays pending and shows as 'pending' in `outcomes`; `Memory`
@@ -110,6 +110,9 @@ export type SummaryRequest = {
 }
 /**
  * P6. Write a compaction summary with the host's model.
+ *
+ * Its caller is an inbound compaction method Stage C adds; adapters never call `Summarizer` or build the
+ * `cherry.summary:` memo name themselves.
  *
  * @harness coding-agent Before each compaction; a rejection or an empty summary cancels it.
  * @harness durable `beforeCompact` returns `{ summary }` or `{ decline: true }`; the select phase reruns after a crash.

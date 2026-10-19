@@ -100,7 +100,8 @@ export function retract(host: RunHost, thread: ThreadState, key: string): Retrac
 
 /**
  * Withdraws queued input, aborts the active run together with the foreground children its calls own, and resolves
- * once that run ended. A run a restart cut and has not resumed yet ends here, its open calls aborted.
+ * once that run ended. A restored run that has not resumed yet (H12's stop before resume) ends here as aborted, its open
+ * calls aborted and none rerun.
  */
 export async function stopRun(host: RunHost, thread: ThreadState): Promise<void> {
   const epoch = host.epoch()

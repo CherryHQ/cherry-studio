@@ -210,6 +210,55 @@ export const inboundCases: readonly ContractCase[] = [
       check(facts.live.runEnd?.outcome === 'aborted', 'the run stopped in onOpen must end aborted')
     }
   },
+  // Catches a stop in onOpen that enables scheduling (Durable's `abort()`), resuming other conversations before their own onOpen (H12).
+  {
+    name: "a stop in one conversation's onOpen resumes no other conversation before its own onOpen",
+    covers: ['lifecycle.register', 'turns.stop'],
+    needs: ['restart'],
+    async run(open) {
+      const hold = holds()
+      const holdOf = new Map<ThreadId, string>()
+      const callsAtOpen = new Map<ThreadId, number>()
+      let stopped: ThreadId | undefined
+      const handlers = lifecycle({
+        async onOpen(thread, { reopened }, ports) {
+          if (!reopened) return
+          callsAtOpen.set(thread, hold.invocations(holdOf.get(thread)!))
+          if (stopped !== undefined) return
+          stopped = thread
+          await ports.turns.stop(thread, 'goal-pause')
+        }
+      })
+      const h = await open((p) => {
+        p.tools.register(hold.tool)
+        p.lifecycle.register(handlers)
+      })
+      const threads = [await h.createThread(), await h.createThread()]
+      for (const [i, t] of threads.entries()) {
+        holdOf.set(t, `c28-${i}`)
+        h.script(t, [callTool('hold', { id: `c28-${i}` }), reply(`c28-${i} done`)])
+        await h.sendUser(t, 'go')
+      }
+      await Promise.all(threads.map((t) => hold.started(holdOf.get(t)!)))
+      await h.restart()
+      const first = stopped!
+      const other = threads.find((t) => t !== first)!
+      check(
+        callsAtOpen.get(other) === 1,
+        "a conversation's interrupted run must not resume before its own onOpen, whatever another onOpen stopped"
+      )
+      for (const t of threads) hold.release(holdOf.get(t)!)
+      await h.settle()
+      check(
+        hold.invocations(holdOf.get(first)!) === 1 && (await read(h, first)).live.runEnd?.outcome === 'aborted',
+        'the run stopped in onOpen must end aborted without rerunning its tool'
+      )
+      check(
+        (await read(h, other)).live.runEnd?.outcome === 'completed',
+        'a run its onOpen left alone must resume and complete'
+      )
+    }
+  },
   // Catches a close that skips a conversation, so its shutdown record is never written (S-f).
   {
     name: 'onClose runs for every open conversation',

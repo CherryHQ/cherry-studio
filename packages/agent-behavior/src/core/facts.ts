@@ -29,7 +29,8 @@ export const ENTRY_KINDS = {
   subagentStatus: 'cherry.subagent-status',
   subagentMessage: 'cherry.subagent-message',
   plan: 'cherry.plan',
-  turnStop: 'cherry.turn-stop'
+  turnStop: 'cherry.turn-stop',
+  idleDriverExit: 'cherry.idle-driver-exit'
 } as const
 export type EntryKind = (typeof ENTRY_KINDS)[keyof typeof ENTRY_KINDS]
 
@@ -131,6 +132,8 @@ export type PolicyRecord =
   | { readonly type: 'subagent-origin'; readonly value: SubagentOrigin }
   | { readonly type: 'plan'; readonly value: PlanState }
   | { readonly type: 'turn-stop'; readonly value: { readonly by: 'user'; readonly at: number } }
+  /** The idle driver of `generation` stopped; written by the transaction that decided it (H4). */
+  | { readonly type: 'idle-driver-exit'; readonly value: { readonly generation: number } }
 /** Enters the model context. */
 export type MarkerFact =
   | { readonly type: 'goal-round'; readonly round: RoundDetails }
@@ -181,6 +184,11 @@ export interface ChildFacts {
 export interface LiveFacts {
   /** No active run and an empty inbox (Durable: no `pi.live.run`, empty `pi.inbox`). */
   readonly idle: boolean
+  /**
+   * Inputs still queued while no run is active, left by a run that ended without starting the next (Durable: `pi.inbox`
+   * items with no `pi.live.run`, after a failed run); 0 while a run is active. `Waits.untilIdle` does not wait for them.
+   */
+  readonly leftoverInputs: number
   readonly queuedUserInput: boolean
   /** Only coding-agent can report true. */
   readonly hostCallInFlight: boolean

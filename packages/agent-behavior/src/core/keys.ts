@@ -16,8 +16,8 @@ const byChildThenRun = ([childA, runA]: readonly [string, number], [childB, runB
 
 /** Design §7.3 keys. In each format the one free-form id comes first and only colon-free numbers or a hash follow, so ids containing `:` stay apart. */
 export const keys = {
-  goalFromCall: (call: CallKey): Key => mint(`goal:${call}`),
-  goalFromCommand: (requestKey: string): Key => mint(`goal:${requestKey}`),
+  goalFromCall: (call: CallKey): Key => mint(`goal:call:${call}`),
+  goalFromCommand: (requestKey: string): Key => mint(`goal:cmd:${requestKey}`),
   goalRound: (goalId: string, round: number, revision: number, armSeq: number): Key =>
     mint(`goal-round:${goalId}:r${round}:v${revision}:a${armSeq}`),
   goalAdmit: (roundKey: Key): Key => mint(`goal-admit:${roundKey}`),
@@ -30,8 +30,10 @@ export const keys = {
     return mint(`subagent-notify:${parent}:${sha256Hex(JSON.stringify(pairs))}`)
   },
   turnStop: (requestKey: string): Key => mint(`turn-stop:${requestKey}`),
-  /** [plan choice] Job key; design §7.3 lists none. */
-  idleDriver: (thread: ThreadId): Key => mint(`idle-driver:${thread}`),
+  /** [plan choice] Job key of the thread's idle driver of `generation` (`idleDriverGeneration`); design §7.3 lists none. */
+  idleDriver: (thread: ThreadId, generation: number): Key => mint(`idle-driver:${thread}:g${generation}`),
+  /** The exit record that driver writes in the transaction that decides it stops (H4). */
+  idleDriverExit: (thread: ThreadId, generation: number): Key => mint(`idle-driver-exit:${thread}:g${generation}`),
   /** [plan choice] `runKey` is the new run's spawn key or the continuation's message key: a spawn's commit has no child id yet. */
   subagentReport: (runKey: Key): Key => mint(`subagent-report:${runKey}`),
   approvalMemo: (call: CallKey): Key => mint(`cherry.approval:${call}`),
@@ -52,6 +54,11 @@ export function armSeq(history: readonly HistoryEntry[], goalId: string): number
     armed = goal.armed
   }
   return count
+}
+
+/** How many idle drivers of the thread have exited: the generation of its live driver, or of the next one. */
+export function idleDriverGeneration(history: readonly HistoryEntry[]): number {
+  return history.filter((entry) => entry.kind === 'record' && entry.record.type === 'idle-driver-exit').length
 }
 
 /** The next run number for `child`: one past the highest run recorded for it, or 1 when none is. */

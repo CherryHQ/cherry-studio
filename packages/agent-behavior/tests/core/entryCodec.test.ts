@@ -44,7 +44,8 @@ const records: PolicyRecord[] = [
   },
   { type: 'subagent-origin', value: { parentToolCallId: 'call-1', fork: false, description: 'scan', modelKey: 'p/m' } },
   { type: 'plan', value: { active: true, at: 7 } },
-  { type: 'turn-stop', value: { by: 'user', at: 9 } }
+  { type: 'turn-stop', value: { by: 'user', at: 9 } },
+  { type: 'idle-driver-exit', value: { generation: 2 } }
 ]
 const markers: MarkerFact[] = [
   {
@@ -58,7 +59,7 @@ const markers: MarkerFact[] = [
 
 describe('entry kinds', () => {
   // Catches a renamed kind (every stored session entry of the old name is orphaned) or a pi.* kind Durable refuses.
-  it('keeps today’s cherry.* kinds and adds plan and turn-stop', () => {
+  it('keeps today’s cherry.* kinds and adds plan, turn-stop and idle-driver-exit', () => {
     expect(ENTRY_KINDS).toEqual({
       goal: 'cherry.goal',
       goalRound: 'cherry.goal-round',
@@ -69,7 +70,8 @@ describe('entry kinds', () => {
       subagentStatus: 'cherry.subagent-status',
       subagentMessage: 'cherry.subagent-message',
       plan: 'cherry.plan',
-      turnStop: 'cherry.turn-stop'
+      turnStop: 'cherry.turn-stop',
+      idleDriverExit: 'cherry.idle-driver-exit'
     })
   })
 })
@@ -166,7 +168,16 @@ describe('entry codec', () => {
     ['a goal without id', { kind: 'cherry.goal', data: { revision: 1, phase: 'active', armed: true } }],
     ['a notice with an unknown level', { kind: 'cherry.goal-notice', data: { text: 'x', level: 'loud' } }],
     ['a non-string key', { kind: 'cherry.plan', data: { active: true, at: 1, key: 5 } }],
-    ['a notification without a run list', { kind: 'cherry.subagent-notification', data: { subagents: 'all' } }]
+    ['a notification without a run list', { kind: 'cherry.subagent-notification', data: { subagents: 'all' } }],
+    // Catches an outcome or stopper outside its union decoded as one, which the rules would then trust.
+    [
+      'a notified run with an unknown outcome',
+      { kind: 'cherry.subagent-notification', data: { subagents: [{ sessionId: 'c', run: 1, outcome: 'exploded' }] } }
+    ],
+    [
+      'a run record with an unknown stopper',
+      { kind: 'cherry.subagent-state', data: { sessionId: 'c', run: 1, status: 'finished', stoppedBy: 'cat' } }
+    ]
   ] as const)('skips %s without throwing', (_name, raw) => {
     expect(decodeEntry({ id, ...raw })).toBeUndefined()
   })
