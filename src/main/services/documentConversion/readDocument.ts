@@ -226,12 +226,20 @@ function officeBlocks(
       visit(block.content ?? [])
       flush()
     } else if (block.kind === 'list') {
+      // A leading nested list is not this item's marker. Open the pending parent once.
+      if (itemState?.open) result.push({ type: 'text', text: '', ...placement(true) })
       let number = block.list?.start ?? 1
+      const ordered = block.list?.marker !== 'bullet'
       for (const item of block.list?.items ?? []) {
         const children = officeBlocks(item.blocks, document, images, warnings, depth + 1, { open: true })
-        if (block.list?.marker !== 'bullet') {
-          const first = children.find((child) => child.type !== 'columns' && child.bullet === depth + 1)
-          if (first && first.type !== 'columns') first.orderedNumber = number++
+        let first = children.find((child) => child.type !== 'columns' && child.bullet === depth + 1)
+        if (!first) {
+          first = { type: 'text', text: '', bullet: depth + 1, listDepth: depth + 1 }
+          children.unshift(first)
+        }
+        if (ordered && first.type !== 'columns') {
+          first.orderedNumber = number
+          number += 1
           if (block.list?.marker !== 'decimal') warnings.add('complex_layout')
         }
         result.push(...children)
@@ -242,11 +250,25 @@ function officeBlocks(
         row.map((slot): DocumentCell => {
           if (slot.kind === 'covered') return { runs: [], covered: true }
           const content = officeBlocks(slot.cell?.blocks ?? [], document, images, warnings)
-          const textual = content.filter((child) => 'text' in child && child.type !== 'image')
-          const runs = textual.flatMap((child, index) => [
-            ...(index > 0 ? [{ text: '\n' }] : []),
-            ...('runs' in child && child.runs ? child.runs : [{ text: child.text }])
-          ])
+          const parts: DocumentTextRun[][] = []
+          const pushPart = (runs: DocumentTextRun[]) => {
+            if (runs.some((run) => run.text !== '')) parts.push(runs)
+          }
+          for (const child of content) {
+            if (child.type === 'image' || child.type === 'columns') continue
+            if (child.type === 'table') {
+              warnings.add('complex_layout')
+              for (const nestedRow of child.cells ?? []) {
+                for (const nestedCell of nestedRow) {
+                  if (nestedCell.covered) continue
+                  pushPart(nestedCell.runs)
+                }
+              }
+              continue
+            }
+            pushPart('runs' in child && child.runs ? child.runs : [{ text: child.text }])
+          }
+          const runs = parts.flatMap((part, index) => [...(index > 0 ? [{ text: '\n' }] : []), ...part])
           for (const child of content) if (child.type === 'image') cellImages.push(child)
           return { runs, rowSpan: slot.cell?.rowSpan, colSpan: slot.cell?.colSpan }
         })
