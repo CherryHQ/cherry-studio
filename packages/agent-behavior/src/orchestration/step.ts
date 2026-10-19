@@ -4,16 +4,17 @@ import type { Effect, Step, TxOp } from '../core/decisions'
 import type { ConversationFacts } from '../core/facts'
 import type { ApprovalOutcome, CallInputs, HostSettingsSnapshot } from '../core/hostFacts'
 import { subagentViews } from '../core/subagents/subagentLedger'
-import type { BoundPorts, RetractResult, StartResult, TransactResult } from '../ports/harness'
+import type { BoundPorts, MessageResult, RetractResult, StartResult, TransactResult } from '../ports/harness'
 import type { HostPorts, Settings } from '../ports/host'
 
 /** The ports of one tool call, job run, lifecycle callback or host entry, with the host's. */
 export type Context = { readonly ports: BoundPorts; readonly host: HostPorts }
 
-/** A committed step after its effects ran, with what `Turns` answered for its start and retract effects. */
+/** A committed step after its effects ran, with what the ports answered for its start, retract and message effects. */
 export type Executed<R extends JsonValue> = TransactResult<R> & {
   readonly started?: StartResult
   readonly retracted?: RetractResult
+  readonly messaged?: MessageResult
 }
 
 /** Design §7.2: drops each operation whose key the facts have seen or an earlier operation of the step carries. */
@@ -33,14 +34,14 @@ const touchesChildren = (decided: Step): boolean =>
     (op) => op.type === 'spawn-child' || (op.type === 'append-record' && op.record.type === 'subagent-run')
   ) || decided.effects.some((effect) => effect.type === 'stop-child' || effect.type === 'message-child')
 
-async function execute(context: Context, effect: Exclude<Effect, { type: 'start-turn' | 'retract-turn' }>) {
+async function execute(
+  context: Context,
+  effect: Exclude<Effect, { type: 'start-turn' | 'retract-turn' | 'message-child' }>
+) {
   const { ports, host } = context
   switch (effect.type) {
     case 'stop-turn':
       return ports.turns.stop(effect.thread, effect.cause)
-    case 'message-child':
-      await ports.helpers.message(effect.child, effect.input, effect.key)
-      return
     case 'stop-child':
       return ports.helpers.stop(effect.child, effect.run)
     case 'emit':
@@ -65,16 +66,21 @@ export async function step<R extends JsonValue>(
   })
   let started: StartResult | undefined
   let retracted: RetractResult | undefined
+  let messaged: MessageResult | undefined
+  const { turns, helpers } = context.ports
   for (const effect of committed.effects) {
-    if (effect.type === 'start-turn') started = await context.ports.turns.start(effect.thread, effect.input, effect.key)
-    else if (effect.type === 'retract-turn') retracted = await context.ports.turns.retract(effect.thread, effect.key)
+    if (effect.type === 'start-turn') started = await turns.start(effect.thread, effect.input, effect.key)
+    else if (effect.type === 'retract-turn') retracted = await turns.retract(effect.thread, effect.key)
+    else if (effect.type === 'message-child')
+      messaged = await helpers.message(effect.child, effect.input, effect.key, effect.run)
     else await execute(context, effect)
   }
   if (touched) await emitViews(context, thread)
   return {
     ...committed,
     ...(started === undefined ? {} : { started }),
-    ...(retracted === undefined ? {} : { retracted })
+    ...(retracted === undefined ? {} : { retracted }),
+    ...(messaged === undefined ? {} : { messaged })
   }
 }
 
