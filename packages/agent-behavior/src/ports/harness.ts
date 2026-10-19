@@ -183,7 +183,7 @@ export interface ToolCall {
   readonly args: JsonValue
   readonly signal: AbortSignal
 }
-export type ToolOutcome = { readonly text: string; readonly isError: boolean; readonly details?: JsonValue }
+export type ToolOutcome = ToolResultFact
 export interface ToolDefinition {
   readonly name: string
   /** [plan choice] Not in the design's draft; every harness hands it to the model. */
