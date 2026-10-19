@@ -4828,6 +4828,8 @@
   "settings.messages.show_message_outline": "Afficher le plan du message",
   "settings.messages.title": "Paramètres des messages",
   "settings.messages.use_serif_font": "Utiliser une police serif",
+  "settings.messages.user_content.default_expanded.hint": "Afficher les longs messages utilisateur en entier par défaut. Les messages développés ou réduits manuellement conservent votre choix pour cette session.",
+  "settings.messages.user_content.default_expanded.label": "Développer les longs messages utilisateur par défaut",
   "settings.messages.wide_mode": "Mode d'agencement large",
   "settings.miniApps.cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
   "settings.miniApps.cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
