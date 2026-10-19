@@ -236,5 +236,26 @@ export const turnCases: readonly ContractCase[] = [
       hold.release('e-2')
       await h.settle()
     }
+  },
+  // Catches a person's input that waits behind a run missing from the facts (Stage A review M10): the driver's
+  // "the person first" rule reads it.
+  {
+    name: 'input a person sends during a run shows as queued until it runs',
+    covers: ['ledger.read', 'tools.register'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      h.script(t, [callTool('hold', { id: 'm10' }), reply('first done'), reply('second done')])
+      await h.sendUser(t, 'first')
+      await hold.started('m10')
+      check(!(await read(h, t)).live.queuedUserInput, 'the message that started the run is not queued')
+      await h.sendUser(t, 'second')
+      check((await read(h, t)).live.queuedUserInput, 'a message sent during a run must show as queued user input')
+      hold.release('m10')
+      await h.settle()
+      check(!(await read(h, t)).live.queuedUserInput, 'queued user input must stop showing once it ran')
+    }
   }
 ]

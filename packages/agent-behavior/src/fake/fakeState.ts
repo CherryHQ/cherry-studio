@@ -186,8 +186,16 @@ export function modelEntries(thread: ThreadState): StoredEntry[] {
   const start = thread.entries.findLastIndex(({ entry }) => entry.kind === 'compaction') + 1
   return thread.entries.slice(start).filter(({ entry }) => MODEL_KINDS.has(entry.kind))
 }
-export const modelContext = (thread: ThreadState): JsonValue[] =>
-  modelEntries(thread).map(({ entry }) => ({ kind: entry.kind, text: 'text' in entry ? entry.text : '' }))
+/** What the model sees next: its entries without those the context filter omits (H10). */
+export function visibleEntries(state: FakeState, epoch: Epoch, thread: ThreadState): StoredEntry[] {
+  const omitted = new Set(epoch.filter?.omit(thread.id, buildFacts(state, thread.id)))
+  return modelEntries(thread).filter(({ entry }) => !omitted.has(entry.id))
+}
+export const modelContext = (state: FakeState, epoch: Epoch, thread: ThreadState): JsonValue[] =>
+  visibleEntries(state, epoch, thread).map(({ entry }) => ({
+    kind: entry.kind,
+    text: 'text' in entry ? entry.text : ''
+  }))
 
 const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({
   input: a.input + b.input,

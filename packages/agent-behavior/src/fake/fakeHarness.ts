@@ -114,7 +114,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       ledger: {
         read: (id) => enter(scope, () => buildFacts(state, id)),
         transact: (id, decide) => enter(scope, () => commit(scope, id, decide)),
-        modelContext: (id) => enter(scope, () => modelContext(thread(id)))
+        modelContext: (id) => enter(scope, () => modelContext(state, scope.epoch, thread(id)))
       },
       turns: {
         start: (id, input, key) => enter(scope, () => start(host, thread(id), input, key)),
@@ -293,7 +293,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         const request = {
           key,
           reason: 'manual',
-          messages: modelContext(target),
+          messages: modelContext(state, epoch, target),
           signal: new AbortController().signal
         } as const
         if ('decline' in (await within((ports) => handlers.onCompacting(thread, request, ports)))) return

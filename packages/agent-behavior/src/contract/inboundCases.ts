@@ -24,9 +24,11 @@ import {
   read,
   reply,
   spawnBackground,
+  status,
   step,
   toolBase,
-  toolResults
+  toolResults,
+  transact
 } from './fixtures'
 import type { ContractCase } from './harness'
 
@@ -417,6 +419,34 @@ export const inboundCases: readonly ContractCase[] = [
       await h.sendUser(t, 'go')
       await h.settle()
       same(consulted, [t, t], 'the filter must be consulted before each of the two model requests')
+    }
+  },
+  // Catches a filter whose answer is ignored (Stage A review M7): what it omits must be gone from what the model sees.
+  {
+    name: 'entries the context filter omits are left out of the model context',
+    covers: ['contextFilter.register', 'ledger.modelContext'],
+    needs: ['context-filter'],
+    async run(open) {
+      const hidden = key('m7-hidden')
+      const h = await open((p) =>
+        p.contextFilter.register({
+          omit: (_thread, facts) =>
+            facts.history.flatMap((e) => (e.kind === 'marker' && e.key === hidden ? [e.id] : []))
+        })
+      )
+      const t = await h.createThread()
+      await transact(h, t, () =>
+        step(
+          [
+            { type: 'append-quiet', thread: t, input: status('kept for the model'), key: key('m7-kept') },
+            { type: 'append-quiet', thread: t, input: status('left out'), key: hidden }
+          ],
+          null
+        )
+      )
+      const context = JSON.stringify(await h.withCall(t, (p) => p.ledger.modelContext(t)))
+      check(context.includes('kept for the model'), 'the model context must keep what the filter does not omit')
+      check(!context.includes('left out'), 'the model context must leave out what the filter omits')
     }
   },
   // Catches a meter that sees the wrong count or lineage (a child's cap applied to the root conversation), or whose
