@@ -244,6 +244,21 @@
       },
       "default": "./dist/providers/deepseek.mjs"
     },
+    "./providers/desearch": {
+      "react-native": {
+        "types": "./dist/providers/desearch.d.mts",
+        "default": "./dist/providers/desearch.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/desearch.d.mts",
+        "default": "./dist/providers/desearch.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/desearch.d.cts",
+        "default": "./dist/providers/desearch.cjs"
+      },
+      "default": "./dist/providers/desearch.mjs"
+    },
     "./tools/config": {
       "react-native": {
         "types": "./dist/tools/config.d.mts",

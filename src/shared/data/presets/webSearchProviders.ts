@@ -119,7 +119,8 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   crawl4ai: ['fetchUrls'],
   parallel: ['searchKeywords'],
   serply: ['searchKeywords'],
-  deepseek: ['searchKeywords', 'fetchUrls']
+  deepseek: ['searchKeywords', 'fetchUrls'],
+  desearch: ['searchKeywords']
 }
 
 const remotePresets = Object.fromEntries(
