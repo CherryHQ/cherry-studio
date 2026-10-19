@@ -16,18 +16,21 @@
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
+import { isFallbackEligibleForRequestShape } from '@main/ai/utils/fallbackEligibility'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isAbortError } from '@main/utils/error'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
+import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
+import { composeHooks } from '../params/composeHooks'
 import type { RequestFeature } from '../params/feature'
 import type { NativeFileSupport } from '../params/nativeFileSupport'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
@@ -49,6 +52,8 @@ export interface BuildFallbackModelsArgs {
   requiredNativeFileSupport: NativeFileSupport
   extraFeatures: readonly RequestFeature[]
   retryPolicy: RetryPolicy
+  /** Frozen when attachments were budgeted; avoids re-sampling Ollama RAM on activation. */
+  fallbackOllamaSnapshots?: ReadonlyMap<UniqueModelId, OllamaNumCtxRequestSnapshot>
   createUsagePlugin: (input: {
     provider: Provider
     model: Model
@@ -133,34 +138,29 @@ async function resolveFallback(
     return null
   }
 
-  const required = args.requiredNativeFileSupport
-  if (required.image && !isVisionModel(model)) {
-    logger.info('skipping fallback without vision for an image request', { uniqueModelId })
-    return null
-  }
-  if (required.video && !isVideoModel(model)) {
-    logger.info('skipping fallback without video input for a video request', { uniqueModelId })
-    return null
-  }
-  if (required.audio && !isAudioModel(model)) {
-    logger.info('skipping fallback without audio input for an audio request', { uniqueModelId })
-    return null
-  }
-  if (args.primaryHasTools && !isFunctionCallingModel(model)) {
-    logger.info('skipping non-function-calling fallback for a tool request', { uniqueModelId })
+  if (
+    !isFallbackEligibleForRequestShape({
+      fallbackModel: model,
+      primaryHasTools: args.primaryHasTools,
+      requiredNativeFileSupport: args.requiredNativeFileSupport
+    })
+  ) {
+    logger.info('skipping fallback incompatible with request media or tools', { uniqueModelId })
     return null
   }
 
   const repairUsagePlugins: { current?: AiPlugin[] } = {}
-  const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
+  const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport, hookParts } = await buildAgentParams({
     request: args.request,
     signal: args.signal,
     provider,
     model,
     assistant: args.assistant,
     extraFeatures: args.extraFeatures,
-    getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
+    getRepairUsagePlugins: () => repairUsagePlugins.current ?? [],
+    frozenOllamaNumCtx: args.fallbackOllamaSnapshots?.get(uniqueModelId)
   })
+  const required = args.requiredNativeFileSupport
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
     (type) => required[type] && !nativeFileSupport[type]
   )
@@ -180,5 +180,13 @@ async function resolveFallback(
     sdkConfig.modelId,
     [...plugins, usagePlugin]
   )
-  return { model: resolved, options: pickFallbackCallOptions(options), repairToolCall: options.repairToolCall }
+  const requestContext = options.context as RequestContext | undefined
+  const fallbackHooks = composeHooks(hookParts)
+  return {
+    model: resolved,
+    options: pickFallbackCallOptions(options),
+    repairToolCall: options.repairToolCall,
+    streamErrorSerialization: requestContext?.ollamaNumCtx ? { ollamaNumCtx: requestContext.ollamaNumCtx } : null,
+    prepareStep: fallbackHooks.prepareStep
+  }
 }

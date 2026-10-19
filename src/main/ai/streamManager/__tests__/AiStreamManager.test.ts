@@ -3169,7 +3169,7 @@ describe('AiStreamManager', () => {
   // A provider can emit a terminal `{ type: 'error', errorText }` chunk
   // instead of throwing. `pipeStreamLoop` captures it as `streamErrorText`,
   // and `runExecutionLoop` routes it through `onExecutionError` with the
-  // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
+  // chunk text serialized via `serializeStreamError` (name: 'StreamError').
 
   describe('stream errors', () => {
     it.each(['clean', 'provider-error', 'source-error', 'abort'] as const)(
@@ -3383,8 +3383,7 @@ describe('AiStreamManager', () => {
       // Let the tee → broadcast → terminal chain drain.
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      // `errorFromStreamChunk('boom')` → { name: 'StreamError', message: 'boom', stack: null }.
-      expect(listener.errorResults[0].error).toEqual({ name: 'StreamError', message: 'boom', stack: null })
+      expect(listener.errorResults[0].error).toMatchObject({ name: 'StreamError', message: 'boom' })
       expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
     })

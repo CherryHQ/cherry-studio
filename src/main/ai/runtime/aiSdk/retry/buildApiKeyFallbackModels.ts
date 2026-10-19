@@ -23,6 +23,18 @@ export interface BuildApiKeyFallbackModelsArgs {
   createUsagePlugin: (credentialReceipt: ServingCredentialReceipt) => AiPlugin
 }
 
+export function hasApiKeyFallbackCandidates(
+  args: Pick<BuildApiKeyFallbackModelsArgs, 'request' | 'provider' | 'primaryCredentialReceipt'>
+): boolean {
+  if (args.request.apiKeyOverride !== undefined || !('id' in args.primaryCredentialReceipt)) return false
+  return (
+    resolveApiKeyFallbacks(
+      providerService.getApiKeys(args.provider.id, { enabled: true }),
+      args.primaryCredentialReceipt
+    ).length > 0
+  )
+}
+
 /** Lazily builds the same provider/model with each remaining enabled key. */
 export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): FallbackResolver[] {
   if (args.request.apiKeyOverride !== undefined || !('id' in args.primaryCredentialReceipt)) return []

@@ -1,3 +1,4 @@
+import os from 'node:os'
 import path from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -12,6 +13,7 @@ import * as z from 'zod'
 
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
@@ -1720,6 +1722,11 @@ describe('buildAgentParams assistant-less reasoning', () => {
   }
 
   it('applies the Ollama context-window default without an assistant', async () => {
+    const freeMemoryBytes = 8_000_000_000
+    const totalMemoryBytes = 16_000_000_000
+    vi.spyOn(os, 'freemem').mockReturnValue(freeMemoryBytes)
+    vi.spyOn(os, 'totalmem').mockReturnValue(totalMemoryBytes)
+
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'ollama', providerSettings: {} },
       credentialReceipt: { attribution: 'unknown' }
@@ -1744,7 +1751,98 @@ describe('buildAgentParams assistant-less reasoning', () => {
       model
     })
 
-    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: 131072 } })
+    // 8 GiB free × 50% → 4 GiB budget → floor(4e9 / 96_000) tokens → round down to 32_768.
+    const expectedNumCtx = 32_768
+    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: expectedNumCtx } })
+    expect((result.options.context as RequestContext | undefined)?.ollamaNumCtx).toEqual({
+      uniqueModelId: 'ollama::qwen3',
+      trainedContextWindow: 131072,
+      numCtx: expectedNumCtx
+    })
+  })
+
+  it('preserves a smaller explicit ollama num_ctx when applying the automatic memory cap', async () => {
+    vi.spyOn(os, 'freemem').mockReturnValue(8_000_000_000)
+    vi.spyOn(os, 'totalmem').mockReturnValue(16_000_000_000)
+
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ollama', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({
+      id: 'ollama::qwen3',
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131072
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant: makeAssistant({
+        settings: {
+          customParameters: [{ name: 'ollama', type: 'json', value: JSON.stringify({ options: { num_ctx: 8192 } }) }]
+        }
+      })
+    })
+
+    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: 8192 } })
+    expect((result.options.context as RequestContext | undefined)?.ollamaNumCtx?.numCtx).toBe(8192)
+  })
+
+  it('uses one Ollama RAM sample so wire num_ctx matches compaction budgets when free memory fluctuates', async () => {
+    let freememCalls = 0
+    vi.spyOn(os, 'freemem').mockImplementation(() => {
+      freememCalls++
+      return freememCalls === 1 ? 12_600_000_000 : 12_580_000_000
+    })
+    vi.spyOn(os, 'totalmem').mockReturnValue(32_000_000_000)
+
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ollama', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({
+      id: 'ollama::qwen3',
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131072
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant: makeAssistant({
+        settings: {
+          contextSettings: {
+            ...DEFAULT_CONTEXT_SETTINGS,
+            enabled: true,
+            compress: { enabled: true, thresholdPercent: 80 }
+          }
+        }
+      })
+    })
+
+    const wireNumCtx = (result.options.providerOptions?.ollama as { options?: { num_ctx?: number } })?.options?.num_ctx
+    const snapshotNumCtx = (result.options.context as RequestContext | undefined)?.ollamaNumCtx?.numCtx
+    expect(wireNumCtx).toBe(65_536)
+    expect(snapshotNumCtx).toBe(wireNumCtx)
   })
 
   it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {

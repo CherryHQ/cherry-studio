@@ -28,8 +28,10 @@ import {
 import { and, createRetryableModel, error, not } from 'ai-retry/language-model'
 
 import { loggerService } from '@logger'
+import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
+import type { AgentLoopHooks } from '../loop/types'
 import type { RetryPolicy } from './retryPolicy'
 
 const logger = loggerService.withContext('ModelRetry')
@@ -47,6 +49,14 @@ export interface RetryFallback {
   model: LanguageModelV3
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
+  /**
+   * Cross-model fallback: replaces the request's stream error-serialization
+   * context while this fallback is active (`null` clears provider context, e.g.
+   * a non-Ollama fallback). Absent leaves the primary's context untouched.
+   */
+  streamErrorSerialization?: SerializeErrorContext | null
+  /** Applied while this fallback is active so compaction uses its effective window. */
+  prepareStep?: AgentLoopHooks['prepareStep']
 }
 
 /**
