@@ -151,6 +151,8 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
+  /** The response id of the message currently streaming in, so its blocks share one marker. */
+  streamMessageId?: string
 }
 
 /**
@@ -519,6 +521,9 @@ export class ClaudeCodeStreamAdapter {
    *  (survives idle flow-context clears) and only-overwrite: resumed content arrives after the
    *  turn's result, so clearing would strip markers from the bulk of a continued round. */
   private readonly resumeMarkers = new Map<string, string>()
+
+  /** The resume marker each observed response started under, keyed by its message id. */
+  private readonly responseResumeMarkers = new Map<string, string | null>()
   /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
    *  main agent's counters. Their sink is detached from the turn when that turn completes. */
   private readonly flowContexts: FlowContext[] = []
@@ -810,7 +815,12 @@ export class ClaudeCodeStreamAdapter {
         this.handleMessageDelta(event, ctx)
         break
       case 'message_start':
+        ctx.streamMessageId = event.message.id
+        this.observeResponse(event.message.id, message.parent_tool_use_id)
+        break
       case 'message_stop':
+        // A response without its own start must not inherit the previous response's id.
+        ctx.streamMessageId = undefined
         break
     }
   }
@@ -881,7 +891,7 @@ export class ClaudeCodeStreamAdapter {
     this.mergeToolDisplayMetadata(state)
 
     if (!state.inputStarted) {
-      this.captureToolResumeMarker(state)
+      this.captureToolResumeMarker(state, ctx.streamMessageId)
       ctx.sink.enqueue({
         type: 'tool-input-start',
         toolCallId: toolId,
@@ -907,7 +917,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({
       type: 'text-start',
       id: partId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId, ctx.streamMessageId)
     })
     ctx.textStreamedViaContentBlock = true
   }
@@ -925,7 +935,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({
       type: 'reasoning-start',
       id: reasoningPartId,
-      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId, ctx.streamMessageId)
     })
   }
 
@@ -1053,6 +1063,8 @@ export class ClaudeCodeStreamAdapter {
       logger.warn('Assistant message was truncated by an interrupt')
     }
 
+    const messageId = message.message?.id
+    this.observeResponse(messageId, message.parent_tool_use_id)
     if (!message.message?.content) return
 
     const sdkParentToolUseId = message.parent_tool_use_id
@@ -1065,7 +1077,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     for (const tool of tools) {
-      this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
+      this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx, messageId)
     }
 
     for (const result of results) {
@@ -1075,14 +1087,15 @@ export class ClaudeCodeStreamAdapter {
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
 
     if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+      this.handleAssistantText(text, sdkParentToolUseId, ctx, messageId)
     }
   }
 
   private handleAssistantToolUse(
     tool: ClaudeToolUseBlock,
     sdkParentToolUseId: SdkParentToolUseId,
-    ctx: StreamContext
+    ctx: StreamContext,
+    messageId?: string
   ): void {
     const toolId = tool.id
     let state = ctx.toolStates.get(toolId)
@@ -1107,7 +1120,7 @@ export class ClaudeCodeStreamAdapter {
     this.mergeToolDisplayMetadata(state)
 
     if (!state.inputStarted) {
-      this.captureToolResumeMarker(state)
+      this.captureToolResumeMarker(state, messageId)
       ctx.sink.enqueue({
         type: 'tool-input-start',
         toolCallId: toolId,
@@ -1147,8 +1160,13 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
-    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+  private handleAssistantText(
+    text: string,
+    sdkParentToolUseId: SdkParentToolUseId,
+    ctx: StreamContext,
+    messageId?: string
+  ): void {
+    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId, messageId)
     if (ctx.hasReceivedStreamEvents) {
       const newTextStart = ctx.streamedTextLength
       const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
@@ -1895,9 +1913,12 @@ export class ClaudeCodeStreamAdapter {
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
-  private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
+  private buildParentProviderMetadata(
+    sdkParentToolUseId: SdkParentToolUseId,
+    messageId?: string
+  ): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
-    const resumedViaCallId = this.resumeMarkers.get(sdkParentToolUseId)
+    const resumedViaCallId = this.resolveResponseResumeMarker(messageId, sdkParentToolUseId)
     return {
       'claude-code': {
         parentToolCallId: sdkParentToolUseId
@@ -1909,10 +1930,31 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  /**
+   * Record the marker a response is first observed under: blocks sharing an already-observed
+   * response id keep it, so a receipt landing mid-response cannot re-tag the response's blocks.
+   */
+  private observeResponse(messageId: string | undefined, parentToolCallId: string | null | undefined): void {
+    if (!messageId || this.responseResumeMarkers.has(messageId)) return
+    this.responseResumeMarkers.set(
+      messageId,
+      parentToolCallId ? (this.resumeMarkers.get(parentToolCallId) ?? null) : null
+    )
+  }
+
+  private resolveResponseResumeMarker(
+    messageId: string | undefined,
+    parentToolCallId: string | null | undefined
+  ): string | undefined {
+    if (!messageId) return parentToolCallId ? this.resumeMarkers.get(parentToolCallId) : undefined
+    this.observeResponse(messageId, parentToolCallId)
+    return this.responseResumeMarkers.get(messageId) ?? undefined
+  }
+
   /** Freeze the marker a tool starts under; its result must keep the round the tool began in. */
-  private captureToolResumeMarker(state: ToolStreamState): void {
+  private captureToolResumeMarker(state: ToolStreamState, messageId?: string): void {
     if (state.resumedViaCallId !== undefined) return
-    state.resumedViaCallId = state.parentToolCallId ? (this.resumeMarkers.get(state.parentToolCallId) ?? null) : null
+    state.resumedViaCallId = this.resolveResponseResumeMarker(messageId, state.parentToolCallId) ?? null
   }
 
   private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
