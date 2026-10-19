@@ -4,7 +4,7 @@ import { fieldsOf, numberField, stringField } from '../args'
 import type { ConversationFacts, GoalCleared, GoalSnapshot, GoalStopCode, HistoryEntry, RoundDetails } from '../facts'
 import type { ApprovalOutcome } from '../hostFacts'
 import { armSeq } from '../keys'
-import { startsTurn } from '../turns'
+import { startsTurn, type Turn, turnKind } from '../turns'
 import {
   type GoalCounts,
   type GoalProgress,
@@ -14,7 +14,6 @@ import {
   toolCallKey
 } from './goalState'
 
-export type Turn = 'human' | 'round' | 'notification'
 export type StopRequest = { readonly code: GoalStopCode; readonly message?: string }
 type Entry<K extends HistoryEntry['kind']> = Extract<HistoryEntry, { kind: K }>
 
@@ -25,8 +24,6 @@ const snapshotOf = (value: GoalSnapshot | GoalCleared | undefined): GoalSnapshot
   value && !('cleared' in value) ? value : undefined
 export const roundOf = (entry: HistoryEntry): RoundDetails | undefined =>
   entry.kind === 'marker' && entry.marker.type === 'goal-round' ? entry.marker.round : undefined
-const isNotification = (entry: HistoryEntry): boolean =>
-  entry.kind === 'marker' && entry.marker.type === 'subagent-notification'
 /** The last thing a run did, ignoring records and quiet markers written while idle. */
 const isActivity = (entry: HistoryEntry): boolean =>
   entry.kind === 'assistant' || entry.kind === 'tool-result' || startsTurn(entry)
@@ -45,9 +42,9 @@ export function turnStarter(history: readonly HistoryEntry[]): Turn {
   let notification = false
   for (let i = history.length - 1; i >= 0; i--) {
     const entry = history[i]
-    if (roundOf(entry)) return 'round'
-    if (isNotification(entry)) notification = true
-    else if (entry.kind === 'user') return 'human'
+    const kind = turnKind(entry)
+    if (kind === 'round' || kind === 'human') return kind
+    if (kind === 'notification') notification = true
     else if ((entry.kind === 'assistant' || entry.kind === 'tool-result') && notification) return 'notification'
   }
   return notification ? 'notification' : 'human'
@@ -129,18 +126,19 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
         branch.counted.push({ goalId: requestGoal, tokens: input + output + cacheRead + cacheWrite, usd: costUsd })
       continue
     }
+    const kind = turnKind(entry)
     const details = roundOf(entry)
-    if (details) {
+    if (kind === 'round' && details) {
       turn = 'round'
       round = admitted.has(details.id) ? details.goalId : undefined
       starting = true
-    } else if (isNotification(entry)) {
+    } else if (kind === 'notification') {
       if (!starting) {
         turn = 'notification'
         round = undefined
         starting = true
       }
-    } else if (entry.kind === 'user') {
+    } else if (kind === 'human') {
       turn = 'human'
       round = undefined
       starting = true
@@ -206,6 +204,7 @@ export function goalProgress(history: readonly HistoryEntry[], goalId: string): 
   for (const entry of history) {
     const goal = goalOf(entry)
     const details = roundOf(entry)
+    const kind = turnKind(entry)
     if (goal !== undefined) {
       if (goal.id !== goalId) continue
       const snapshot = snapshotOf(goal)
@@ -216,14 +215,14 @@ export function goalProgress(history: readonly HistoryEntry[], goalId: string): 
         noProgressRounds = 0
       }
       running = nowRunning
-    } else if (details) {
+    } else if (kind === 'round' && details) {
       endRound(true)
       starting = true
       if (details.goalId === goalId && admitted.has(details.id)) round = { tools: false, text: undefined }
-    } else if (isNotification(entry)) {
+    } else if (kind === 'notification') {
       if (!starting) endRound(true)
       starting = true
-    } else if (entry.kind === 'user') {
+    } else if (kind === 'human') {
       starting = true
       endRound(true)
       noProgressRounds = 0
