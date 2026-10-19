@@ -18,9 +18,9 @@ export type StopCause = 'goal-withdraw' | 'goal-pause' | 'goal-clear' | 'user'
 export type ChildSpec = {
   readonly boundary: 'foreground' | 'background'
   /**
-   * Fork from `from`'s history up to and including `at` (a fork subagent, or design §8.3 S-j). An adapter that can
-   * re-own `from` in the background in place may return `from`'s own id as the child (coding-agent may; Durable cannot
-   * and must fork); orchestration treats the returned id as the new child's either way.
+   * Fork from `from`'s history up to and including `at` (a fork subagent, or design §8.3 S-j). A fork always creates a
+   * new conversation with a new id on every harness: run numbers and end-record keys are per conversation, so re-owning
+   * `from` in place would collide with its earlier runs.
    */
   readonly fork?: { readonly from: ThreadId; readonly at: ItemId }
   readonly origin: SubagentOrigin
