@@ -573,7 +573,7 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-1', { approved: true })).toBe(true)
+      expect(service.respondToolApproval('approval-1', { approved: true }, {})).toBe('accepted')
       expect(resolve).toHaveBeenCalledWith({ approved: true })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
     })
@@ -592,9 +592,9 @@ describe('AgentSessionRuntimeService', () => {
       const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')).toBe(
-        true
-      )
+      expect(
+        service.respondToolApproval('approval-bg', { approved: true, updatedInput }, { anchorId: 'approval-message-1' })
+      ).toBe('accepted')
 
       expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
         approvalId: 'approval-bg',
@@ -619,14 +619,16 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toBe(false)
+      expect(service.respondToolApproval('approval-bg', { approved: true }, { anchorId: 'wrong-message' })).toBe(
+        'rejected'
+      )
       expect(resolve).not.toHaveBeenCalled()
       expect(toolApprovalRegistry.peek('approval-bg')).toBeDefined()
     })
 
     it('leaves stream status untouched for an unknown approval', () => {
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
+      expect(service.respondToolApproval('missing', { approved: true }, {})).toBe('not-agent')
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
   })
@@ -2683,6 +2685,15 @@ describe('AgentSessionRuntimeService', () => {
       const entry = getEntry(service)
       const input = { questions: [{ question: 'Choose a database' }] }
 
+      toolApprovalRegistry.register({
+        approvalId: 'approval-bg',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-bg',
+        toolName: 'AskUserQuestion',
+        originalInput: {},
+        presentation: 'message',
+        resolve: vi.fn()
+      })
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'tool-approval-request',
         request: {
@@ -2736,6 +2747,15 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
       const entry = getEntry(service)
 
+      toolApprovalRegistry.register({
+        approvalId: 'approval-bg',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-bg',
+        toolName: 'AskUserQuestion',
+        originalInput: {},
+        presentation: 'message',
+        resolve: vi.fn()
+      })
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'tool-approval-request',
         request: {
@@ -2759,6 +2779,15 @@ describe('AgentSessionRuntimeService', () => {
       const enqueue = vi.fn()
       entry.currentTurn.controller = { enqueue } as never
 
+      toolApprovalRegistry.register({
+        approvalId: 'approval-live',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-live',
+        toolName: 'Bash',
+        originalInput: {},
+        presentation: 'stream',
+        resolve: vi.fn()
+      })
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'tool-approval-request',
         request: {

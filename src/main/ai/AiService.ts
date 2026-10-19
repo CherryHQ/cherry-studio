@@ -463,9 +463,17 @@ export class AiService extends BaseService {
         reason: payload.reason,
         updatedInput: payload.updatedInput
       },
-      payload.anchorId
+      { topicId: payload.topicId, anchorId: payload.anchorId }
     )
-    if (dispatched) return { ok: true }
+    if (dispatched === 'accepted') return { ok: true }
+    if (dispatched === 'rejected') {
+      logger.warn('Agent tool approval response did not match a pending request', {
+        approvalId: payload.approvalId,
+        topicId: payload.topicId,
+        anchorId: payload.anchorId
+      })
+      return { ok: false }
+    }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
     if (!payload.topicId || !payload.anchorId) {

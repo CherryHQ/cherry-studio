@@ -222,6 +222,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   return (
     <div
+      data-ui="chat.permission-request-composer"
       data-composer-viewport-inset-target=""
       // pointer-events-auto: the composer dock stack is click-through; override
       // composers re-enable interaction on their own root.

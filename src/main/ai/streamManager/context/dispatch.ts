@@ -23,8 +23,7 @@ import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
 
 /**
  * Resume an assistant turn paused on a tool-approval-request. Synthesised
- * inside `AiService.respondToolApproval` after `ToolApprovalRegistry` reports
- * no live entry for `approvalId`. Not on the renderer↔main IPC contract.
+ * inside `AiService.respondToolApproval` for non-agent chat approvals. Not on the renderer↔main IPC contract.
  */
 export interface MainContinueConversationRequest {
   trigger: 'continue-conversation'
