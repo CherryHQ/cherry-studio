@@ -136,8 +136,17 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
         applied.children.push(conv)
       }
     }
-    case 'ensure-job':
-      throw new Error(`${op.type} is not implemented yet`)
+    case 'ensure-job': {
+      if (!adapter.installation.jobs.has(op.job.kind))
+        throw new Error(`No job handler is registered for ${op.job.kind}`)
+      return (applied) => {
+        // H4: deduplicated by key, never by kind; a live job keeps its key, an ended one frees it.
+        if (adapter.jobs.get(op.key)?.state === 'live') return
+        const job: JobRecord = { key: op.key, spec: op.job, thread, state: 'live' }
+        adapter.jobs.set(op.key, job)
+        applied.jobs.push(job)
+      }
+    }
   }
 }
 
