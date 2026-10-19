@@ -1,5 +1,5 @@
 import { existsSync, statSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -151,7 +151,10 @@ it('rejects a missing user workspace with the actionable error without recreatin
   await expect(new PiRuntimeConnection(input).start()).rejects.toSatisfy((error: unknown) => {
     expect(error).toBeInstanceOf(AgentSessionWorkspaceError)
     expect(error).toMatchObject({
-      message: t('agent.session.workspace_status.missing', { path: workspacePath }),
+      message: t('agent.session.workspace_status.check_failed', {
+        sessionId: input.sessionId,
+        detail: t('agent.session.workspace_status.missing', { path: workspacePath })
+      }),
       retryable: false
     })
     return true
@@ -194,4 +197,20 @@ it('rejects workspace drift during prompt construction before creating an SDK se
     `Pi connection materialization changed during startup: ${input.sessionId}`
   )
   expect(mocks.createAgentSession).not.toHaveBeenCalled()
+})
+
+it('passes the original ancestor-alias cwd to the SDK after physical containment succeeds', async () => {
+  await mkdir(path.join(root, 'system'), { recursive: true })
+  const alias = path.join(root, 'alias-profile')
+  await symlink(root, alias, 'junction')
+  workspacePath = path.join(alias, 'system', '2026-10-15', input.sessionId)
+  snapshot.session.workspace.path = workspacePath
+  const createSession = mocks.createAgentSession.getMockImplementation()!
+  mocks.createAgentSession.mockImplementation(async (options) => {
+    expect(options.cwd).toBe(workspacePath)
+    expect(statSync(options.cwd).isDirectory()).toBe(true)
+    return createSession(options)
+  })
+  const connection = await new PiRuntimeConnection(input).start()
+  await connection.close()
 })
