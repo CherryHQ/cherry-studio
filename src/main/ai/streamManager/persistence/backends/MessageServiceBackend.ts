@@ -36,7 +36,6 @@ export class MessageServiceBackend implements PersistenceBackend {
     messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data: {
         parts,
-        anthropicThinkingRecovery: messageService.getById(this.opts.assistantMessageId)?.data.anthropicThinkingRecovery,
         ...(this.opts.turnOptions ? { turnOptions: this.opts.turnOptions } : {})
       },
       status,
