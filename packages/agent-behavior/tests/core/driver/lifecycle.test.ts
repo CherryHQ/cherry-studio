@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { decideAtIdle } from '../../../src/core/driver/idle'
-import { decideOnOpen, decideUserStop } from '../../../src/core/driver/lifecycle'
+import { decideOnOpen, decidePermissionModeChanged, decideUserStop } from '../../../src/core/driver/lifecycle'
 import { currentGoal } from '../../../src/core/goal/goalHistory'
 import { keys } from '../../../src/core/keys'
 import { apply, assistant, facts, goal, goalEntry, inputs, marker, run, runEntry, usage, user } from '../history'
@@ -120,5 +120,15 @@ describe('decideUserStop (R5)', () => {
       effects: [{ type: 'stop-turn', thread: 'parent', cause: 'user' }],
       result: null
     })
+  })
+})
+
+describe('decidePermissionModeChanged (D37)', () => {
+  // Catches a driver woken on every permission switch: with nothing to do it exits at once and leaves a record each
+  // time; or an armed goal plan mode held still that is never woken.
+  it('wakes the driver only for an armed goal', () => {
+    expect(decidePermissionModeChanged(facts([])).ops).toEqual([])
+    expect(decidePermissionModeChanged(facts([goalEntry(goal({ armed: false }))])).ops).toEqual([])
+    expect(decidePermissionModeChanged(facts([goalEntry(goal())])).ops).toMatchObject([{ type: 'ensure-job' }])
   })
 })
