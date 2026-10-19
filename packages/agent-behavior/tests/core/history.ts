@@ -140,7 +140,7 @@ export const inputs = (patch: Partial<CallInputs> = {}): CallInputs => ({
   ...patch
 })
 export const turnStop = (cause: 'user' | 'goal-command' | 'reopen' = 'user') =>
-  record({ type: 'turn-stop', value: { by: 'user', cause, at: 1 } })
+  record({ type: 'turn-stop', value: { cause, at: 1 } })
 
 export type FactsOptions = {
   live?: Partial<LiveFacts>
