@@ -1,6 +1,6 @@
 // Catches a port that no adapter can implement through the public barrel: a member type the barrel does not export,
 // or a signature no implementation can satisfy. Checked by the package typecheck.
-import type { HarnessPorts, HostPorts } from '../../src'
+import type { GateHandlers, HarnessPorts, HostPorts } from '../../src'
 
 const unused = (): Promise<never> => Promise.reject(new Error('unused'))
 const register = (): void => {}
@@ -22,7 +22,7 @@ export const harness: HarnessPorts = {
 export const host: HostPorts = {
   approvals: { facts: unused, ask: unused, outcomes: unused },
   questions: { ask: unused },
-  models: { find: unused, supportsTools: unused },
+  models: { find: unused, supportsTools: unused, keysFor: unused },
   verifier: { verify: unused },
   outputStore: { save: unused },
   summarizer: { summarize: unused },
@@ -36,3 +36,5 @@ export const host: HostPorts = {
     offloadThreshold: () => 0
   }
 }
+// `after` gets the call's `nested` flag, as `before` does.
+export const gate: GateHandlers = { before: unused, after: async (call, result) => (call.nested ? undefined : result) }

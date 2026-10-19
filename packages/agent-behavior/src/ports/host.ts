@@ -11,6 +11,7 @@ import type {
   CallRef,
   CompactionReason,
   GoalDefaults,
+  ModelFacts,
   PermissionMode,
   QuestionAnswer,
   QuestionItem,
@@ -54,15 +55,22 @@ export interface Questions {
 }
 
 /**
- * P3. Find models by the name a person said; tell whether a conversation's model can call tools.
+ * P3. Find models by the name a person said; tell whether a conversation's model can call tools; name that model and
+ * the model a child gets by default.
  *
- * @harness coding-agent Cherry's model catalog (today's `findModels` and model tool support).
+ * @harness coding-agent Cherry's model catalog (today's `findModels` and model tool support) and the conversation's
+ * model settings.
  * @harness durable The same catalog; configuring a child's run stays with the adapter (today's `SubagentPort.configure`).
- * @harness fake A fixed candidate list and a fixed tool-support answer.
+ * @harness fake A fixed candidate list, a fixed tool-support answer and fixed model keys.
  */
 export interface Models {
   find(query: string): Promise<readonly SubagentModelCandidate[]>
   supportsTools(thread: ThreadId): Promise<boolean>
+  /**
+   * The model keys `ModelFacts` carries for a call on `thread`, both non-empty. The subagent spawn tool calls it before
+   * deciding, to fill `CallInputs.models`.
+   */
+  keysFor(thread: ThreadId): Promise<Pick<ModelFacts, 'parentModelKey' | 'defaultChildModelKey'>>
 }
 
 export type VerifyRequest = {

@@ -6,6 +6,7 @@ import type {
   ApprovalOutcome,
   CallRef,
   HostSettingsSnapshot,
+  ModelFacts,
   QuestionAnswer,
   SubagentModelCandidate,
   VerifierVerdict
@@ -16,6 +17,7 @@ export type ScriptedHostOptions = {
   readonly settings: HostSettingsSnapshot
   readonly models?: readonly SubagentModelCandidate[]
   readonly supportsTools?: boolean
+  readonly modelKeys?: Pick<ModelFacts, 'parentModelKey' | 'defaultChildModelKey'>
   readonly approvalFacts?: (call: CallRef, tool: ToolCallFact) => ApprovalHostFacts
 }
 export interface ScriptedHost extends HostPorts {
@@ -40,8 +42,10 @@ const DEFAULT_APPROVAL_FACTS: ApprovalHostFacts = {
   autoApproved: false,
   approvalRequired: false,
   nonBypassable: false,
-  withinAllowedRoots: false
+  withinAllowedRoots: false,
+  destructive: false
 }
+const DEFAULT_MODEL_KEYS = { parentModelKey: 'scripted/parent-model', defaultChildModelKey: 'scripted/child-model' }
 
 /** Scripted answers, first in, first out; a request with none queued waits until one is given or its signal aborts. */
 function createAnswers<T>() {
@@ -127,7 +131,8 @@ export function createScriptedHost(options: ScriptedHostOptions): ScriptedHost {
     },
     models: {
       find: async () => options.models ?? [],
-      supportsTools: async () => options.supportsTools ?? true
+      supportsTools: async () => options.supportsTools ?? true,
+      keysFor: async () => options.modelKeys ?? DEFAULT_MODEL_KEYS
     },
     verifier: {
       verify: (_request, signal) => {
