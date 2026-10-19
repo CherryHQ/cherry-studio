@@ -106,7 +106,7 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
   if (named && fork) return refuse({ kind: 'refused', text: FORK_WITH_MODEL })
   const models = inputs.models
   if (!models)
-    throw new Error('decideSpawn needs CallInputs.models (Models.keysFor and, with a named model, Models.find)')
+    throw new Error('decideSpawn needs CallInputs.models (Models.current and, with a named model, Models.find)')
   const model = named ? resolveModel(named, models.candidates) : undefined
   if (model && 'text' in model) return refuse({ kind: 'refused', text: model.text })
   const refusal = background ? backgroundRefusal(facts, inputs) : undefined

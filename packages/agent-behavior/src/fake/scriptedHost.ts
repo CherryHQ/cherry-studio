@@ -131,8 +131,10 @@ export function createScriptedHost(options: ScriptedHostOptions): ScriptedHost {
     },
     models: {
       find: async () => options.models ?? [],
-      supportsTools: async () => options.supportsTools ?? true,
-      keysFor: async () => options.modelKeys ?? DEFAULT_MODEL_KEYS
+      current: async () => ({
+        supportsTools: options.supportsTools ?? true,
+        ...(options.modelKeys ?? DEFAULT_MODEL_KEYS)
+      })
     },
     verifier: {
       verify: (_request, signal) => {

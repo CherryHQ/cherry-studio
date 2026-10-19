@@ -4,22 +4,10 @@ import { decideAtIdle } from '../../../src/core/driver/idle'
 import { decideOnOpen, decideUserStop } from '../../../src/core/driver/lifecycle'
 import { currentGoal } from '../../../src/core/goal/goalHistory'
 import { keys } from '../../../src/core/keys'
-import {
-  apply,
-  assistant,
-  facts,
-  goal,
-  goalEntry,
-  inputs,
-  marker,
-  MODELS,
-  run,
-  runEntry,
-  usage,
-  user
-} from '../history'
+import { apply, assistant, facts, goal, goalEntry, inputs, marker, run, runEntry, usage, user } from '../history'
 
 const reopened = (live = {}) => ({ live: { reopened: true, ...live } })
+const TOOLS = { supportsTools: true }
 
 describe('decideOnOpen', () => {
   // Catches a reopened armed goal starting work on its own (AC11, fixture 7): it is disarmed, its interrupted round is
@@ -36,7 +24,7 @@ describe('decideOnOpen', () => {
       goalEntry(goal({ revision: 2, roundsStarted: 1, admittedRound: roundKey })),
       assistant('x')
     ]
-    const open = decideOnOpen(facts(history, reopened({ idle: false })), inputs())
+    const open = decideOnOpen(facts(history, reopened({ idle: false })), inputs(), TOOLS)
     expect(open.effects).toEqual([{ type: 'stop-turn', thread: 'parent', cause: 'goal-pause' }])
     expect(open.ops).toContainEqual(
       expect.objectContaining({ record: { type: 'turn-stop', value: { cause: 'reopen', at: 1000 } } })
@@ -54,14 +42,15 @@ describe('decideOnOpen', () => {
     const history = [user(), runEntry(run('a')), runEntry(run('b', { status: 'finished', outcome: 'completed' }))]
     const open = decideOnOpen(
       facts(history, { ...reopened(), children: { a: { running: true, runUsage: [usage(1)] } } }),
-      inputs()
+      inputs(),
+      TOOLS
     )
     expect(open.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1, by: 'user' }])
     expect(open.ops).toMatchObject([
       { record: { value: { sessionId: 'a', status: 'finished', outcome: 'interrupted' } }, key: 'subagent-end:a:1' },
       { type: 'append-quiet', input: { data: { subagents: [{ sessionId: 'b' }, { sessionId: 'a' }], quiet: true } } }
     ])
-    const busy = decideOnOpen(facts(history, reopened({ idle: false })), inputs())
+    const busy = decideOnOpen(facts(history, reopened({ idle: false })), inputs(), TOOLS)
     expect(busy.ops.at(-1)).toMatchObject({ type: 'ensure-job', job: { kind: 'idle-driver' } })
   })
 
@@ -75,8 +64,8 @@ describe('decideOnOpen', () => {
     )
     const history = [goalEntry(goal()), round, assistant('spawn'), runEntry(run('a'))]
     const live = { ...reopened({ idle: false }), children: { a: { running: true, runUsage: [usage(1)] } } }
-    const first = decideOnOpen(facts(history, live), inputs())
-    const again = decideOnOpen(facts(apply(history, first), live), inputs())
+    const first = decideOnOpen(facts(history, live), inputs(), TOOLS)
+    const again = decideOnOpen(facts(apply(history, first), live), inputs(), TOOLS)
     expect(again.effects).toEqual([
       { type: 'stop-turn', thread: 'parent', cause: 'goal-pause' },
       { type: 'stop-child', child: 'a', run: 1, by: 'user' }
@@ -95,7 +84,8 @@ describe('decideOnOpen', () => {
     ]
     const open = decideOnOpen(
       facts(history, { ...reopened(), children: { f: { running: false, runUsage: [usage(1)] }, g: { runUsage: [] } } }),
-      inputs()
+      inputs(),
+      TOOLS
     )
     expect(open).toMatchObject({
       ops: [
@@ -108,7 +98,7 @@ describe('decideOnOpen', () => {
 
   // Catches a model without tool calling leaving an active goal to drive rounds it cannot act in (X2).
   it('stops an active goal whose model cannot call tools, on any open', () => {
-    const open = decideOnOpen(facts([goalEntry(goal())]), inputs({ models: { ...MODELS, supportsTools: false } }))
+    const open = decideOnOpen(facts([goalEntry(goal())]), inputs(), { supportsTools: false })
     expect(currentGoal(apply([goalEntry(goal())], open))).toMatchObject({
       phase: 'blocked',
       lastStop: { code: 'unsupported_model' }
