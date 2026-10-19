@@ -72,12 +72,12 @@ describe('Computer Use permission settings', () => {
     expect(screen.queryByRole('button', { name: 'Manage Accessibility permission' })).not.toBeInTheDocument()
   })
 
-  it('shows a query failure and allows an explicit refresh to recover', async () => {
+  it('shows a query failure and allows an explicit permission recheck to recover', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('runtime missing')).mockResolvedValue({ permissions: [] })
     showSettings()
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not check or request helper permissions')
-    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    await user.click(screen.getByRole('button', { name: 'Recheck permissions' }))
     expect(await screen.findByText(/This runtime has no system permission request flow/)).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByText('Granted')).not.toBeInTheDocument()
@@ -97,7 +97,7 @@ describe('Computer Use permission settings', () => {
     await user.click(await screen.findByRole('button', { name: 'Manage Screen Recording permission' }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     fireEvent.focus(window)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Recheck permissions' })).toBeEnabled())
     expect(
       vi.mocked(ipcApi.request).mock.calls.filter(([route]) => route === 'computer_use.request_permissions')
     ).toHaveLength(1)

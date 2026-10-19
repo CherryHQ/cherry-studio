@@ -226,7 +226,7 @@ patchedDependencies:
   '@ai-sdk/google@3.0.132': 0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821
   '@ai-sdk/open-responses@1.0.34': 83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
-  '@ai-sdk/openai@3.0.109': 20f56d97d97f666e8356fde783cde3f9e5bae2cb02af1c17e2644c184c306a5b
+  '@ai-sdk/openai@3.0.109': 5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
   '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
   '@earendil-works/pi-ai@1.0.0': 5efd52ee4fcf7309c209fa6135c915d0e138b2d4f8517af46e8222763e938ae0
@@ -264,8 +264,8 @@ importers:
         specifier: 0.3.284
         version: 0.3.284(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.4.3))(zod@4.4.3)
       '@cherrystudio/computer-use':
-        specifier: 0.1.7
-        version: 0.1.7
+        specifier: 0.1.9
+        version: 0.1.9
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
@@ -461,7 +461,7 @@ importers:
         version: 1.0.34(patch_hash=83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=20f56d97d97f666e8356fde783cde3f9e5bae2cb02af1c17e2644c184c306a5b)(zod@4.4.3)
+        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
@@ -504,6 +504,12 @@ importers:
       '@changesets/cli':
         specifier: ^3.0.3
         version: 3.0.3
+      '@changesets/config':
+        specifier: ^4.0.1
+        version: 4.0.1
+      '@changesets/read':
+        specifier: ^1.0.1
+        version: 1.0.1
       '@cherrystudio/ai-core':
         specifier: workspace:*
         version: link:packages/aiCore
@@ -528,6 +534,9 @@ importers:
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:packages/ui
+      '@cherrystudio/web-search':
+        specifier: workspace:*
+        version: link:packages/web-search
       '@codemirror/lang-json':
         specifier: 6.0.2
         version: 6.0.2
@@ -1153,8 +1162,8 @@ importers:
         specifier: ^2.2.0
         version: 2.3.0
       isbinaryfile:
-        specifier: 5.0.4
-        version: 5.0.4
+        specifier: 5.0.7
+        version: 5.0.7
       jaison:
         specifier: ^2.0.2
         version: 2.0.2
@@ -1626,7 +1635,7 @@ importers:
         version: 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=20f56d97d97f666e8356fde783cde3f9e5bae2cb02af1c17e2644c184c306a5b)(zod@4.4.3)
+        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
@@ -1663,7 +1672,7 @@ importers:
         version: 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 3.0.109
-        version: 3.0.109(patch_hash=20f56d97d97f666e8356fde783cde3f9e5bae2cb02af1c17e2644c184c306a5b)(zod@4.4.3)
+        version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
@@ -2169,6 +2178,34 @@ importers:
       vitest:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/web-search:
+    dependencies:
+      eventsource-parser:
+        specifier: 3.1.1
+        version: 3.1.1
+      js-base64:
+        specifier: 3.7.7
+        version: 3.7.7
+      tokenx:
+        specifier: ^1.1.0
+        version: 1.2.1
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.2
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
 
 packages:
 
@@ -2897,38 +2934,38 @@ packages:
       typescript:
         optional: true
 
-  '@cherrystudio/computer-use-darwin-arm64@0.1.7':
-    resolution: {integrity: sha512-q/BfxVmRkOhuMVxB/y2manV6jqGdLcmbE9T/C6MbyBwDIMU1EDE5vACBQk2gUdp0vtj0kREy9ZHDLDrzR308yA==}
+  '@cherrystudio/computer-use-darwin-arm64@0.1.9':
+    resolution: {integrity: sha512-H9MlNSctA6OnkCy0B40YgOtd6g9ziKvJPnQYi13FbNs+2yvYht6kYK2bNzynp9yyQyyIOrJ36O9ihC2nO2YcZg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@cherrystudio/computer-use-darwin-x64@0.1.7':
-    resolution: {integrity: sha512-Eu+WP4HqkplEid5w9/TxPtUB465mJJK2PUwKx52b9kM5ftf7ownDHk9jfJsMXJCXn70ElYRmfn9oky6Gzag/6A==}
+  '@cherrystudio/computer-use-darwin-x64@0.1.9':
+    resolution: {integrity: sha512-RuIYs1JbA0qmm0jaFSlmkbtIdDCRKiVK8Fzo5Oo0Rk03D4DmJaubkMi64tU0FtedW8E9LjfPY6l+BQRiz/vvtw==}
     cpu: [x64]
     os: [darwin]
 
-  '@cherrystudio/computer-use-linux-arm64@0.1.7':
-    resolution: {integrity: sha512-LLY0LyAhpr0IAiXAoQKH9QVaQ7zRU0qw5EdFmYqVjSkjKGemURlXGHcGz8LaiMAgnNkl0uMsjJOIraAc4c7tpw==}
+  '@cherrystudio/computer-use-linux-arm64@0.1.9':
+    resolution: {integrity: sha512-0FbiIxU8hvoLq74+FI4K2gDZjWzNEdwI38JwFLnXetBuKdtsV/hbjgj1Oz6yfZSxkhvn8yeuILZSkiOkO2RflA==}
     cpu: [arm64]
     os: [linux]
 
-  '@cherrystudio/computer-use-linux-x64@0.1.7':
-    resolution: {integrity: sha512-wspvns1dMlSAHWPZb22ywMShLuliPU/eYd+bXmMEN7BQO2HprJIfnsW+8pk0OS6HEJFqwSUzhH4wv00NCgvGFg==}
+  '@cherrystudio/computer-use-linux-x64@0.1.9':
+    resolution: {integrity: sha512-VmeMuoe/c+0fjnvFbieqpfRIttPS5sIQ3sz3tL5BnsrF13GFwgheLZzF1SBKF4mEsDe0KvZV5pv2Mx/9wgBNaA==}
     cpu: [x64]
     os: [linux]
 
-  '@cherrystudio/computer-use-win32-arm64@0.1.7':
-    resolution: {integrity: sha512-uy/FZhX1NjxHsI8kpmuicpPYA4FHbuxLCBmXOiMl9zoUuEHlXuqBaKl69Th6HfzUV+J78kW5A786vvLUHKkWDg==}
+  '@cherrystudio/computer-use-win32-arm64@0.1.9':
+    resolution: {integrity: sha512-n565AKwRjftp7/4OaWe14Hf0VlhJsMdZ9ZtAgwkzbEQEA7qP69rfcIAxCVe55ncOWCF1mWDgJU6xGBPnb3bo+g==}
     cpu: [arm64]
     os: [win32]
 
-  '@cherrystudio/computer-use-win32-x64@0.1.7':
-    resolution: {integrity: sha512-Fmws+ugFG1Aick8VrMNKoURqvj2hiJmsEnxhQIXJom+DfoWGG4GtqOgpP7ECZVGB0MOFgbL7MfeqqxdYVKlvvQ==}
+  '@cherrystudio/computer-use-win32-x64@0.1.9':
+    resolution: {integrity: sha512-dWB/BWscDoBW/CGYbCR8cqgjrpF2SrD+S1+3fIVuNzq4/xS1YpsUkr3Ni1Sun8yBU2ZYd54hbTT+DqlEzdH5Yw==}
     cpu: [x64]
     os: [win32]
 
-  '@cherrystudio/computer-use@0.1.7':
-    resolution: {integrity: sha512-5QVQ9saKVtuY3oMfSGOTYtRo5GE4rcRlWg8EAFUoPoCQM3aj60lMLZmzUK/WDDOHwqI9m6W1IQNuxpeTk6QqjQ==}
+  '@cherrystudio/computer-use@0.1.9':
+    resolution: {integrity: sha512-CNZqlyYOdr9Rl+SSygMuV9EZOomlrualFl5AYzTYJDkj4lbu8ro95bJlEiG/ZSgD1HnKZfbUc3ucj2L/ck6C+w==}
     engines: {node: '>=24'}
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts':
@@ -11569,8 +11606,8 @@ packages:
     resolution: {integrity: sha512-iHrqe5shvBUcFbmZq9zOQHBoeOhZJu6RQGrDpBgenUm/Am+F3JM2MgQj+rK3Z601fzrL5gLZWtAPH2OBaSVcyw==}
     engines: {node: '>= 8.0.0'}
 
-  isbinaryfile@5.0.4:
-    resolution: {integrity: sha512-YKBKVkKhty7s8rxddb40oOkuP0NbaeXrQvLin6QMHL7Ypiy2RW9LwOVrVgZRyOrhQlayMd9t+D8yDy8MKFTSDQ==}
+  isbinaryfile@5.0.7:
+    resolution: {integrity: sha512-gnWD14Jh3FzS3CPhF0AxNOJ8CxqeblPTADzI38r0wt8ZyQl5edpy75myt08EG2oKvpyiqSqsx+Wkz9vtkbTqYQ==}
     engines: {node: '>= 18.0.0'}
 
   isbot@5.1.37:
@@ -15724,7 +15761,7 @@ snapshots:
   '@ai-sdk/azure@3.0.116(zod@4.4.3)':
     dependencies:
       '@ai-sdk/deepseek': 2.0.62(zod@4.4.3)
-      '@ai-sdk/openai': 3.0.109(patch_hash=20f56d97d97f666e8356fde783cde3f9e5bae2cb02af1c17e2644c184c306a5b)(zod@4.4.3)
+      '@ai-sdk/openai': 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
@@ -15816,7 +15853,7 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@3.0.109(patch_hash=20f56d97d97f666e8356fde783cde3f9e5bae2cb02af1c17e2644c184c306a5b)(zod@4.4.3)':
+  '@ai-sdk/openai@3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
@@ -16921,32 +16958,32 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  '@cherrystudio/computer-use-darwin-arm64@0.1.7':
+  '@cherrystudio/computer-use-darwin-arm64@0.1.9':
     optional: true
 
-  '@cherrystudio/computer-use-darwin-x64@0.1.7':
+  '@cherrystudio/computer-use-darwin-x64@0.1.9':
     optional: true
 
-  '@cherrystudio/computer-use-linux-arm64@0.1.7':
+  '@cherrystudio/computer-use-linux-arm64@0.1.9':
     optional: true
 
-  '@cherrystudio/computer-use-linux-x64@0.1.7':
+  '@cherrystudio/computer-use-linux-x64@0.1.9':
     optional: true
 
-  '@cherrystudio/computer-use-win32-arm64@0.1.7':
+  '@cherrystudio/computer-use-win32-arm64@0.1.9':
     optional: true
 
-  '@cherrystudio/computer-use-win32-x64@0.1.7':
+  '@cherrystudio/computer-use-win32-x64@0.1.9':
     optional: true
 
-  '@cherrystudio/computer-use@0.1.7':
+  '@cherrystudio/computer-use@0.1.9':
     optionalDependencies:
-      '@cherrystudio/computer-use-darwin-arm64': 0.1.7
-      '@cherrystudio/computer-use-darwin-x64': 0.1.7
-      '@cherrystudio/computer-use-linux-arm64': 0.1.7
-      '@cherrystudio/computer-use-linux-x64': 0.1.7
-      '@cherrystudio/computer-use-win32-arm64': 0.1.7
-      '@cherrystudio/computer-use-win32-x64': 0.1.7
+      '@cherrystudio/computer-use-darwin-arm64': 0.1.9
+      '@cherrystudio/computer-use-darwin-x64': 0.1.9
+      '@cherrystudio/computer-use-linux-arm64': 0.1.9
+      '@cherrystudio/computer-use-linux-x64': 0.1.9
+      '@cherrystudio/computer-use-win32-arm64': 0.1.9
+      '@cherrystudio/computer-use-win32-x64': 0.1.9
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts': {}
 
@@ -23173,7 +23210,7 @@ snapshots:
       electron-publish: 26.15.3(supports-color@8.1.1)
       fs-extra: 10.1.0
       hosted-git-info: 4.1.0
-      isbinaryfile: 5.0.4
+      isbinaryfile: 5.0.7
       jiti: 2.7.0
       js-yaml: 4.3.0
       json5: 2.2.3
@@ -26367,7 +26404,7 @@ snapshots:
 
   isbinaryfile@4.0.10: {}
 
-  isbinaryfile@5.0.4: {}
+  isbinaryfile@5.0.7: {}
 
   isbot@5.1.37: {}
 
