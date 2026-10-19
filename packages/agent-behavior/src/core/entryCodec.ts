@@ -28,6 +28,7 @@ export type RawEntry = {
 }
 
 type Fields = { readonly [field: string]: JsonValue }
+type TurnStop = Extract<PolicyRecord, { readonly type: 'turn-stop' }>['value']
 
 /** Every member of a union as a key, so a member added to the union fails to compile until the decoder accepts it. */
 type Members<T extends string> = { readonly [member in T]: true }
@@ -45,6 +46,7 @@ const OUTCOMES: Members<SubagentOutcome> = {
   interrupted: true
 }
 const STOPPERS: Members<SubagentStopper> = { model: true, user: true, budget: true }
+const STOP_CAUSES: Members<TurnStop['cause']> = { user: true, 'goal-command': true, reopen: true }
 
 const isMember = (value: JsonValue, members: object): boolean =>
   typeof value === 'string' && Object.hasOwn(members, value)
@@ -130,8 +132,9 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         ? { type: 'plan', value: f as PlanState }
         : undefined
     case ENTRY_KINDS.turnStop:
-      return f.by === 'user' && typeof f.at === 'number'
-        ? { type: 'turn-stop', value: f as { readonly by: 'user'; readonly at: number } }
+      // A stop stored before `cause` existed was a person's.
+      return f.by === 'user' && typeof f.at === 'number' && isOptionalMember(f.cause, STOP_CAUSES)
+        ? { type: 'turn-stop', value: { ...f, cause: f.cause ?? 'user' } as TurnStop }
         : undefined
     case ENTRY_KINDS.idleDriverExit:
       return typeof f.generation === 'number'

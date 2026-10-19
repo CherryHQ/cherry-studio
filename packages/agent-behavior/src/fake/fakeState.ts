@@ -34,8 +34,8 @@ export type Seed = (thread: ThreadId, lineage: Lineage) => readonly ScriptedRepl
 export type Owner = { readonly thread: ThreadId; readonly run: number }
 /** How a run ended: what the conversation reports as `live.runEnd` and what `awaitAnswer` answers. */
 export type RunEnding = { readonly live: NonNullable<LiveFacts['runEnd']>['outcome']; readonly answer: RunEndFacts }
-/** A history entry with the run that wrote it and, for a person's input, its text. */
-export type StoredEntry = { readonly entry: HistoryEntry; readonly run?: number; readonly text?: string }
+/** A history entry with the run that wrote it. */
+export type StoredEntry = { readonly entry: HistoryEntry; readonly run?: number }
 export type Submission = {
   readonly input: TurnInput
   readonly admission: StartResult | MessageResult
@@ -153,8 +153,8 @@ export function addThread(state: FakeState, lineage: Lineage, seed: Seed, owner?
   return thread
 }
 
-export function append(thread: ThreadState, entry: HistoryEntry, text?: string): void {
-  thread.entries.push({ entry, run: thread.active?.run, text })
+export function append(thread: ThreadState, entry: HistoryEntry): void {
+  thread.entries.push({ entry, run: thread.active?.run })
 }
 
 type MarkerEntry = Extract<HistoryEntry, { kind: 'marker' }>
@@ -175,7 +175,7 @@ export function appendInput(state: FakeState, thread: ThreadState, key: string):
   const id = nextItem(state)
   const marker = markerOf(submission.input, key)
   if (marker) append(thread, { ...marker, id })
-  else append(thread, { kind: 'user', id }, submission.input.text)
+  else append(thread, { kind: 'user', id, text: submission.input.text })
 }
 
 export const isIdle = (thread: ThreadState): boolean => thread.active === undefined && thread.inbox.length === 0
@@ -187,10 +187,7 @@ export function modelEntries(thread: ThreadState): StoredEntry[] {
   return thread.entries.slice(start).filter(({ entry }) => MODEL_KINDS.has(entry.kind))
 }
 export const modelContext = (thread: ThreadState): JsonValue[] =>
-  modelEntries(thread).map(({ entry, text }) => ({
-    kind: entry.kind,
-    text: 'text' in entry ? entry.text : (text ?? '')
-  }))
+  modelEntries(thread).map(({ entry }) => ({ kind: entry.kind, text: 'text' in entry ? entry.text : '' }))
 
 const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({
   input: a.input + b.input,
@@ -213,7 +210,13 @@ export function buildFacts(state: FakeState, id: ThreadId): ConversationFacts {
   const children = new Map<ThreadId, ChildFacts>()
   for (const child of state.threads.values())
     if (child.lineage.kind === 'subagent' && child.lineage.parent === id)
-      children.set(child.id, { thread: child.id, running: child.active !== undefined, runUsage: runUsage(child) })
+      children.set(child.id, {
+        thread: child.id,
+        running: child.active !== undefined,
+        runUsage: runUsage(child),
+        // Never empty: a child's origin record is written with it.
+        lastItem: child.entries.at(-1)!.entry.id
+      })
   const keysSeen = new Set<string>()
   for (const { entry } of thread.entries)
     if ((entry.kind === 'record' || entry.kind === 'marker') && entry.key !== undefined) keysSeen.add(entry.key)
@@ -241,7 +244,7 @@ export function gateFacts(thread: ThreadState, window: readonly ToolCallFact[]):
   for (const { entry } of thread.entries)
     if (entry.kind === 'record' && entry.record.type === 'plan') plan = entry.record.value
   const goalRound = thread.active?.goalRound === true
-  return { lineage: thread.lineage, plan, goalRound, callWindow: goalRound ? [...window] : [], nested: false }
+  return { lineage: thread.lineage, plan, goalRound, callWindow: goalRound ? [...window] : [] }
 }
 
 export type CommitContext = {
@@ -294,7 +297,7 @@ function prepare(state: FakeState, thread: ThreadId, op: TxOp, context: CommitCo
         const lineage: Lineage = { kind: 'subagent', parent: thread, origin: spec.origin }
         const owner = spec.boundary === 'foreground' ? context.owner : undefined
         const child = addThread(state, lineage, context.seed, owner)
-        for (const { entry, text } of copied) append(child, { ...entry, id: nextItem(state) }, text)
+        for (const { entry } of copied) append(child, { ...entry, id: nextItem(state) })
         append(child, recordEntry(state, { type: 'subagent-origin', value: spec.origin }, key))
         const record = { ...spec.record, sessionId: child.id }
         append(parent, recordEntry(state, { type: 'subagent-run', value: record }, key))
