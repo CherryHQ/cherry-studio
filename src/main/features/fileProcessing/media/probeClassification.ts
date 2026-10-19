@@ -3,6 +3,7 @@ export interface FfprobeStream {
   codec_type?: string
   channels?: number
   duration?: string
+  nb_read_packets?: string
   disposition?: { attached_pic?: number | string; default?: number | string }
   start_time?: string
 }
@@ -61,10 +62,26 @@ function audioSelectionScore(stream: FfprobeStream): number {
   return channelCount(stream) + (dispositionEnabled(stream.disposition?.default) ? DEFAULT_AUDIO_DISPOSITION_SCORE : 0)
 }
 
+/** Finite non-negative `nb_read_packets`. Missing or non-numeric metadata stays unknown. */
+function knownPacketCount(stream: FfprobeStream): number | undefined {
+  const raw = stream.nb_read_packets
+  if (raw == null || raw === '' || raw === 'N/A') return undefined
+  const count = Number(raw)
+  return Number.isFinite(count) && count >= 0 ? count : undefined
+}
+
+function audioPacketPriority(stream: FfprobeStream): number {
+  const packets = knownPacketCount(stream)
+  return packets == null ? 1 : packets > 0 ? 2 : 0
+}
+
 function selectedAudioStream(streams: readonly FfprobeStream[]): FfprobeStream | undefined {
   const audio = streams.filter((stream) => stream.codec_type === 'audio')
   return audio.reduce<FfprobeStream | undefined>((best, stream) => {
-    if (!best || audioSelectionScore(stream) > audioSelectionScore(best)) return stream
+    if (!best) return stream
+    const packetPriority = audioPacketPriority(stream) - audioPacketPriority(best)
+    if (packetPriority !== 0) return packetPriority > 0 ? stream : best
+    if (audioSelectionScore(stream) > audioSelectionScore(best)) return stream
     return best
   }, undefined)
 }

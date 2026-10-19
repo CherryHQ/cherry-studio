@@ -124,9 +124,15 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
   })
 
   it('probes audio and splits normalized WAV output below the requested byte limit', async () => {
-    const probe = await mediaFfmpegHandlers.probe({ filePath: tonePath, fallbackExt: 'wav' }, context())
-    expect(probe).toMatchObject({ hasAudio: true, hasVideo: false, mime: 'audio/wav', kind: 'audio' })
-    expect(probe.durationMs).toBeGreaterThanOrEqual(2_900)
+    spawnControl.recordedArgs = []
+    try {
+      const probe = await mediaFfmpegHandlers.probe({ filePath: tonePath, fallbackExt: 'wav' }, context())
+      expect(probe).toMatchObject({ hasAudio: true, hasVideo: false, mime: 'audio/wav', kind: 'audio' })
+      expect(probe.durationMs).toBeGreaterThanOrEqual(2_900)
+      expect(spawnControl.recordedArgs.some((args) => args.includes('-count_packets'))).toBe(false)
+    } finally {
+      spawnControl.recordedArgs = null
+    }
 
     const outputDir = join(root, 'audio-chunks')
     const result = await mediaFfmpegHandlers.extractAudio(
@@ -277,8 +283,14 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     expect(stereoOffsetMs).toBeGreaterThan(surroundOffsetMs)
     expect(surroundOffsetMs).toBe(0)
 
-    const probe = await mediaFfmpegHandlers.probe({ filePath: sourcePath, fallbackExt: 'm4a' }, context())
-    expect(probe.audioStartMs).toBe(stereoOffsetMs)
+    spawnControl.recordedArgs = []
+    try {
+      const probe = await mediaFfmpegHandlers.probe({ filePath: sourcePath, fallbackExt: 'm4a' }, context())
+      expect(probe.audioStartMs).toBe(stereoOffsetMs)
+      expect(spawnControl.recordedArgs.some((args) => args.includes('-count_packets'))).toBe(true)
+    } finally {
+      spawnControl.recordedArgs = null
+    }
 
     const autoPath = join(outputDir, 'auto.wav')
     const surroundPath = join(outputDir, 'surround.wav')
@@ -1873,21 +1885,35 @@ describe('mediaFfmpegHandlers frame destinations', () => {
       const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
       const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
       queueMicrotask(() => {
-        if (call === 1) {
+        if (call === 1 || call === 2) {
           child.stdout.emit(
             'data',
             JSON.stringify({
               format: { duration: '10', start_time: '0', format_name: 'mov,mp4' },
               streams: [
-                { index: 0, codec_type: 'audio', channels: 1, start_time: '2', disposition: { default: 0 } },
-                { index: 1, codec_type: 'audio', channels: 2, start_time: '0', disposition: { default: 0 } }
+                {
+                  index: 0,
+                  codec_type: 'audio',
+                  channels: 2,
+                  start_time: '0',
+                  nb_read_packets: call === 2 ? '0' : undefined,
+                  disposition: { default: 1 }
+                },
+                {
+                  index: 1,
+                  codec_type: 'audio',
+                  channels: 1,
+                  start_time: '2',
+                  nb_read_packets: call === 2 ? '42' : undefined,
+                  disposition: { default: 0 }
+                }
               ]
             })
           )
           child.emit('close', 0)
           return
         }
-        if (call === 2 && Array.isArray(commandArgs)) {
+        if (call === 3 && Array.isArray(commandArgs)) {
           ffmpegArgs = commandArgs.map(String)
           const outputPath = commandArgs.at(-1)
           if (typeof outputPath === 'string') writeFileSync(outputPath, Buffer.alloc(64))

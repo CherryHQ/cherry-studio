@@ -128,6 +128,50 @@ describe('classifyFfprobeResult', () => {
     expect(audioExtractStreamMap([])).toBeUndefined()
   })
 
+  it('maps a populated audio track instead of an empty default track and uses its timeline', () => {
+    const probe = {
+      format: { duration: '10', start_time: '0', format_name: 'mov,mp4' },
+      streams: [
+        { index: 0, codec_type: 'video' },
+        {
+          index: 1,
+          codec_type: 'audio',
+          channels: 2,
+          start_time: '0.25',
+          nb_read_packets: '0',
+          disposition: { default: 1 }
+        },
+        {
+          index: 2,
+          codec_type: 'audio',
+          channels: 1,
+          start_time: '1.5',
+          nb_read_packets: '42',
+          disposition: { default: 0 }
+        }
+      ]
+    }
+
+    expect(audioExtractStreamMap(probe.streams)).toBe('0:2')
+    expect(classifyFfprobeResult(probe).audioStartMs).toBe(1_500)
+  })
+
+  it('keeps packet availability ordering stable when some tracks lack counts', () => {
+    expect(
+      audioExtractStreamMap([
+        { index: 0, codec_type: 'audio', channels: 1, nb_read_packets: '2' },
+        { index: 1, codec_type: 'audio', channels: 2, disposition: { default: 1 } },
+        { index: 2, codec_type: 'audio', channels: 2, nb_read_packets: '0', disposition: { default: 1 } }
+      ])
+    ).toBe('0:0')
+    expect(
+      audioExtractStreamMap([
+        { index: 0, codec_type: 'audio', channels: 1 },
+        { index: 1, codec_type: 'audio', channels: 2, disposition: { default: 1 } }
+      ])
+    ).toBe('0:1')
+  })
+
   it('sniffs WebM and Matroska DocType elements from bounded headers', () => {
     expect(sniffEbmlDocType(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x82, 0x84, ...Buffer.from('webm')]))).toBe(
       'webm'
