@@ -240,7 +240,6 @@ export type GateCall = {
   readonly nested: boolean
 }
 export type GateFacts = {
-  readonly lineage: ConversationFacts['lineage']
   readonly plan: PlanState | undefined
   readonly goalRound: boolean
   /** [plan choice] In a goal round: that round's calls in call order, up to and including this one; otherwise empty (C16). */

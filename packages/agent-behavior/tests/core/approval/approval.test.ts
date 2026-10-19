@@ -117,7 +117,6 @@ describe('answers and repeats', () => {
   it('blocks the third identical call in a row within a goal round', () => {
     const same = callTo('read', { p: 1 })
     const facts = (window: GateFacts['callWindow'], extra: Partial<GateFacts> = {}): GateFacts => ({
-      lineage: { kind: 'root' },
       plan: undefined,
       goalRound: true,
       callWindow: window,

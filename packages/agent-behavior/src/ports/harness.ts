@@ -228,7 +228,7 @@ export interface GateHandlers {
  * its result.
  *
  * @harness coding-agent The `tool_call` and `tool_result` events; window and plan state come from the branch.
- * @harness durable `beforeTool` and `afterTool`; plan and lineage from mirrored documents; the call window from the
+ * @harness durable `beforeTool` and `afterTool`; plan from mirrored documents; the call window from the
  * late-bound `Conversation.entries()`, or an in-process window that resets on restart (harness-limited row 5).
  * @harness fake Called by the run loop with facts computed from its log; the window is kept in memory.
  * @keys The call key is `callKeyOf` applied to Durable's tool task id or to coding-agent's `<sessionId>:<toolCallId>`;
