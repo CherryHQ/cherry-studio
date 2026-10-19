@@ -555,7 +555,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // The shared policy snapshot is refreshed by writers that do not know a turn is live (the
     // bounded-warm callback, the MCP catalog refresh). Freezing the admitted mode on it keeps a save
     // landing mid-backoff from widening the gate this turn is decided against.
-    this.toolPolicySnapshot?.pinPermissionMode(this.connectionConfig?.live.toolPolicy.permissionMode)
+    this.toolPolicySnapshot?.pinPermissionMode(
+      (this.connectionConfig?.live.toolPolicy.permissionMode ?? undefined) as AgentPermissionMode | undefined
+    )
     this.lastSdkUserMessageSupportsImages = supportsImages
   }
 
