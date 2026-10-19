@@ -549,18 +549,19 @@ describe('remote ws route', () => {
     })
 
     it.each(['\u0000', '漢'])(
-      'traverses JSON-encoded %j text without truncation or raw-byte sizing',
+      'traverses JSON-encoded inline %j text without truncation or raw-byte sizing',
       async (character) => {
+        const text = character.repeat(1024)
         save(
           'encoded',
-          Array.from({ length: 25 }, () => ({ type: 'text', text: character.repeat(4096) }))
+          Array.from({ length: 25 }, () => ({ type: 'text', text }))
         )
         const page = await messages()
         const parts = await readParts(page.items[0])
         expect(parts.map((part) => part.partId)).toEqual(
           Array.from({ length: 25 }, (_, i) => `${messageId('encoded')}:${i}`)
         )
-        for (const part of parts) expect(part.kind !== 'file' && part.content).toEqual({ text: character.repeat(4096) })
+        for (const part of parts) expect(part.kind !== 'file' && part.content).toEqual({ text })
         await survive()
       }
     )

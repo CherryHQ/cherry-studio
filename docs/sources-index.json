@@ -339,7 +339,7 @@
     },
     {
       "path": "docs/references/file/upload-integrity.md",
-      "sources": ["packages/remote-protocol/src/agent/methods.ts","packages/remote-protocol/src/agent/uploads.ts","packages/remote-protocol/src/connection.ts","src/main/services/file/FileIntakeService.ts","src/main/services/file/internal/IntakeStore.ts","src/main/services/remoteAccess/RemoteUploads.ts"]
+      "sources": ["packages/remote-protocol/src/agent/methods.ts","packages/remote-protocol/src/connection.ts","packages/remote-protocol/src/uploads.ts","src/main/services/file/FileIntakeService.ts","src/main/services/file/internal/IntakeStore.ts","src/main/services/remoteAccess/RemoteUploads.ts"]
     },
     {
       "path": "docs/references/i18n/README.md",
