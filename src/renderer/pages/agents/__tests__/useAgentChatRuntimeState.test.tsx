@@ -14,6 +14,7 @@ import { useConversationErrorToasts } from '@renderer/hooks/useConversationError
 import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
 import { toast } from '@renderer/services/toast'
 import type * as ToastServiceModule from '@renderer/services/toast'
+import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { ActiveExecution, AiStreamOpenResponse } from '@shared/ai/transport'
@@ -45,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn(),
+  autoReadUpdate: vi.fn(),
   autoReadConsume: vi.fn(async () => ({ status: 'started' })),
   autoReadEnabled: true
 }))
@@ -89,6 +91,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/services/voice', () => ({
   autoReadService: {
+    update: mocks.autoReadUpdate,
     consume: mocks.autoReadConsume
   }
 }))
@@ -408,6 +411,7 @@ describe('useAgentChatRuntimeState', () => {
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadUpdate.mockReset()
     mocks.autoReadConsume.mockClear()
     mocks.autoReadEnabled = true
     mocks.useAgentSessionParts.mockReturnValue({
@@ -893,6 +897,52 @@ describe('useAgentChatRuntimeState', () => {
       { key: originals[0].key, type: 'error' },
       { key: originals[1].key, type: 'success' }
     ])
+  })
+
+  it('reads a live manual Agent answer while excluding autonomous turns', async () => {
+    const spoken: string[] = []
+    const coordinator = new AutoReadService({
+      supportsStreaming: async () => true,
+      playback: {
+        start: async (input) => {
+          spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      }
+    })
+    mocks.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
+    renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    const onUpdate = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onUpdate
+    await act(async () => {
+      onUpdate?.('provider::model', {
+        attemptId: 8,
+        message: {
+          ...assistantMessage,
+          id: 'background',
+          parts: [{ type: 'text', text: 'Background.' }],
+          metadata: { turnOrigin: { kind: 'background-work' } }
+        }
+      })
+      onUpdate?.('provider::model', {
+        attemptId: 9,
+        message: {
+          ...assistantMessage,
+          id: 'manual',
+          parts: [
+            { type: 'reasoning', text: 'Secret.' },
+            { type: 'text', text: 'Manual answer. ' }
+          ]
+        }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(spoken).toEqual(['Manual answer.'])
+    await coordinator.setEnabled(true)
+    await coordinator.setEnabled(false)
   })
 
   it('wires auto-read to overlay finish without taking over the terminal refresh handoff', () => {
