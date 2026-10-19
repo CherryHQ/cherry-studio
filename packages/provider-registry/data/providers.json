@@ -1500,7 +1500,15 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Github Copilot - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.githubcopilot.com/v1"
+        },
         "openai-chat-completions": {
+          "adapterFamily": "github-copilot-openai-compatible",
+          "baseUrl": "https://api.githubcopilot.com/"
+        },
+        "openai-responses": {
           "adapterFamily": "github-copilot-openai-compatible",
           "baseUrl": "https://api.githubcopilot.com/"
         }
@@ -2726,5 +2734,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "1b44511badb438e6"
+  "version": "0a0a6d5920d1a45f"
 }

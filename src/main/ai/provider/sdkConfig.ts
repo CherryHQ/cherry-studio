@@ -28,22 +28,29 @@ export async function resolveSdkConfig(
   provider: Provider,
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string
-): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
-  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
+  apiKeyOverride?: string,
+  signal?: AbortSignal
+): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt; resolvedEndpoint: ResolvedEndpoint }> {
+  const {
+    config,
+    credentialReceipt,
+    resolvedEndpoint: effectiveEndpoint
+  } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
-    resolvedEndpoint
+    resolvedEndpoint,
+    signal
   })
   return {
     sdkConfig: {
       ...config,
       providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
         actualProviderId: provider.id,
-        endpointType: resolvedEndpoint.endpointType,
-        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
+        endpointType: effectiveEndpoint.endpointType,
+        gatewayProviderOptionsKey: effectiveEndpoint.providerOptionsKey
       }),
-      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
+      modelId: resolveWireModelId(model, effectiveEndpoint.endpointType)
     },
-    credentialReceipt
+    credentialReceipt,
+    resolvedEndpoint: effectiveEndpoint
   }
 }

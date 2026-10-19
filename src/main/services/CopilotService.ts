@@ -80,6 +80,12 @@ class CopilotServiceError extends Error {
 }
 
 class CopilotService {
+  private _authRevision = 0
+
+  get authRevision(): number {
+    return this._authRevision
+  }
+
   // Memoized backing field for the lazy `tokenFilePath` getter below.
   // `undefined` until first access; resolved exactly once and cached.
   private _tokenFilePath: string | undefined
@@ -243,6 +249,7 @@ class CopilotService {
    * 保存Copilot令牌到本地文件
    */
   public saveCopilotToken = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<void> => {
+    this._authRevision++
     try {
       const encryptedToken = safeStorage.encryptString(token)
       // 确保目录存在
@@ -255,6 +262,8 @@ class CopilotService {
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CopilotServiceError('无法保存访问令牌', error)
+    } finally {
+      this._authRevision++
     }
   }
 
@@ -291,6 +300,7 @@ class CopilotService {
    * 退出登录，删除本地token文件
    */
   public logout = async (): Promise<void> => {
+    this._authRevision++
     try {
       try {
         await fs.promises.access(this.tokenFilePath)
@@ -303,6 +313,8 @@ class CopilotService {
     } catch (error) {
       logger.error('Failed to logout:', error as Error)
       throw new CopilotServiceError('无法完成退出登录操作', error)
+    } finally {
+      this._authRevision++
     }
   }
 

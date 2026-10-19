@@ -49,6 +49,7 @@ export const CopilotModelsResponseSchema = z.object({
       version: z.string().optional(),
       preview: z.boolean().optional(),
       model_picker_enabled: z.boolean().optional(),
+      supported_endpoints: z.array(z.string()).nullish(),
       policy: z
         .looseObject({
           state: z.string().optional(),

@@ -44,6 +44,11 @@ Callers (chat, agent session, translate, prompt-only) shape their own
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
 passthrough is required.
 
+Endpoint-dependent reasoning, tools and file support use the effective endpoint
+returned by `resolveSdkConfig`. This includes Copilot capability resolution; the
+initial endpoint derived from the saved model is only the starting point. The
+request abort signal also covers the capability lookup.
+
 ## RequestFeature
 
 The composition unit is `RequestFeature`

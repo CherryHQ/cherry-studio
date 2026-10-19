@@ -19,7 +19,11 @@ vi.mock('fs', () => ({
   default: {
     existsSync: existsSyncMock,
     promises: {
-      readFile: readFileMock
+      readFile: readFileMock,
+      mkdir: vi.fn(),
+      writeFile: vi.fn(),
+      access: vi.fn(),
+      unlink: vi.fn()
     }
   }
 }))
@@ -160,4 +164,13 @@ describe('CopilotService headers', () => {
     expect(new Headers(getRequestHeaders(COPILOT_TOKEN_URL)).get('x-request')).toBe('copilot-token')
     expect(new Headers(getRequestHeaders(GITHUB_ACCESS_TOKEN_URL)).get('x-request')).toBe('polling')
   })
+})
+
+it('invalidates in-flight capabilities when saving credentials and logging out', async () => {
+  const revision = copilotService.authRevision
+  await copilotService.saveCopilotToken(IPC_EVENT, 'new-account-token')
+  expect(copilotService.authRevision).toBeGreaterThan(revision)
+  const savedRevision = copilotService.authRevision
+  await copilotService.logout()
+  expect(copilotService.authRevision).toBeGreaterThan(savedRevision)
 })
