@@ -3761,6 +3761,8 @@
   "settings.browser.search": "Поиск истории по заголовку или URL",
   "settings.browser.site_data": "Данные сайтов",
   "settings.browser.source": "Браузер",
+  "settings.browser.spellcheck": "Проверка орфографии на страницах браузера",
+  "settings.browser.spellcheckHelp": "Проверять орфографию на страницах, открытых встроенным браузером. По умолчанию выключено, что также не даёт сессиям webview загружать словари.",
   "settings.browser.title": "Браузер",
   "settings.browser.unsupported": "Часть данных не поддерживается",
   "settings.channels.title": "Каналы",

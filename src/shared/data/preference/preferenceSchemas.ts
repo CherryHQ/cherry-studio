@@ -53,6 +53,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'app.browser.open_links_in_browser': boolean
     // target-key-definitions/complex/complex
+    'app.browser.spellcheck': boolean
+    // target-key-definitions/complex/complex
     'app.computer_use.agent_control.enabled': boolean
     // redux/settings/enableDeveloperMode
     'app.developer_mode.enabled': boolean
@@ -634,6 +636,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'agent.session.position': 'left',
     'app.browser.agent_control.enabled': true,
     'app.browser.open_links_in_browser': true,
+    'app.browser.spellcheck': false,
     'app.computer_use.agent_control.enabled': false,
     'app.developer_mode.enabled': false,
     'app.dist.auto_update.enabled': true,

@@ -3761,6 +3761,8 @@
   "settings.browser.search": "Tìm lịch sử theo tiêu đề hoặc URL",
   "settings.browser.site_data": "Dữ liệu trang web",
   "settings.browser.source": "Trình duyệt",
+  "settings.browser.spellcheck": "Kiểm tra chính tả trên trang trình duyệt",
+  "settings.browser.spellcheckHelp": "Kiểm tra chính tả trên các trang do trình duyệt tích hợp mở. Mặc định tắt, điều này cũng ngăn các phiên webview tải từ điển chính tả xuống.",
   "settings.browser.title": "Trình duyệt",
   "settings.browser.unsupported": "Một số dữ liệu không được hỗ trợ",
   "settings.channels.title": "Kênh",

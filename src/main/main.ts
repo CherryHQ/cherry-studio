@@ -27,6 +27,7 @@ import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
 import { configureRemoteDebugging } from '@main/services/remoteDebugging'
 import { initSentry } from '@main/services/sentry'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
+import { installWebviewSpellcheckGate } from '@main/services/webviewSpellcheck'
 import { getApplicationId } from '@main/utils/appEdition'
 
 // should be the first to resolveUserDataLocation()
@@ -34,6 +35,9 @@ resolveUserDataLocation()
 requireSingleInstance()
 configureChromiumFlags()
 configureRemoteDebugging()
+// Must precede every webview session: the spellcheck dictionary fetch starts at
+// session construction and cannot be stopped afterwards.
+installWebviewSpellcheckGate()
 initCrashTelemetry()
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()

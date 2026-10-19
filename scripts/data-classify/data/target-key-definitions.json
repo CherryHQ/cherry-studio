@@ -41,6 +41,13 @@
       "description": "Open website links in shared built-in browser tabs"
     },
     {
+      "targetKey": "app.browser.spellcheck",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Run Chromium's spellchecker in built-in browser pages (v2 new feature, no v1 source). Off by default so webview sessions never download spelling dictionaries"
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,

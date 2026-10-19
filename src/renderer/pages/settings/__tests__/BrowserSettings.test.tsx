@@ -112,6 +112,7 @@ beforeEach(() => {
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
   MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
+  MockUsePreferenceUtils.setPreferenceValue('app.browser.spellcheck', false)
   openTab.mockReset()
   MockUseDataApiUtils.resetMocks()
   mockUseInfiniteQuery.mockReset()
@@ -548,5 +549,16 @@ describe('Browser preferences', () => {
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(false)
     )
     await waitForBrowserSwitchSave(en['settings.browser.control'])
+  })
+
+  it('persists the browser spellcheck preference', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    const toggle = screen.getByRole('switch', { name: en['settings.browser.spellcheck'] })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    await waitFor(() => expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.spellcheck']).toBe(true))
+    await waitFor(() => expect(toggle).not.toBeDisabled())
   })
 })
