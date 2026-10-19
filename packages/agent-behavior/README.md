@@ -361,10 +361,6 @@ Beyond [History projection](#history-projection):
 - When `Waits.untilIdle` resolves, `LiveFacts.runEnd` is already the run that just ended; `ChildFacts.lastItem` is the
   child's last history entry.
 
-Not in the contract yet: `ApprovalRequest` is `{ call, tool }`, but `decideApproval` answers `ask` with a
-`presentation` (`'stream'` or `'message'`), so the ask has no way to pass it to the host until the contract adds the
-field.
-
 ## Running the contract in an adapter
 
 `harnessContract` is the list of cases every harness must pass. A case is a plain async function over an opened harness
