@@ -185,7 +185,8 @@ describe('messaging and stopping', () => {
     expect(continuedText('a', 'b')).toContain('use id b from now on')
   })
 
-  // Catches continuing a child the user stopped (README subagents), or stop_subagent on a finished child aborting nothing.
+  // Catches continuing a child the user stopped (agent-runtime-pi README subagents), or stop_subagent on a finished
+  // child aborting nothing.
   it('refuses to continue a user-stopped child and reports a child that is not running', () => {
     const stopped = [runEntry(run('a', { status: 'finished', outcome: 'stopped', stoppedBy: 'user' }))]
     expect(message(stopped).result).toMatchObject({
