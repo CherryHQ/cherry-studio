@@ -934,6 +934,52 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
     })
 
+    it('applies the default expansion preference live to untouched user messages', () => {
+      const parts: CherryMessagePart[] = [{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }]
+      const message = msg({ role: 'user' })
+      const { rerender } = renderParts(parts, message)
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText(/six/)).toBeNull()
+
+      rerender(renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, userMessageDefaultExpanded: true }))
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText(/six/)).toBeInTheDocument()
+
+      rerender(renderPartsTree(parts, message))
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText(/six/)).toBeNull()
+    })
+
+    it('retains manual collapse across remounts without collapsing other messages when default expansion is on', async () => {
+      const user = userEvent.setup()
+      const parts: CherryMessagePart[] = [{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }]
+      const config = { ...defaultMessageRenderConfig, userMessageDefaultExpanded: true }
+      const first = renderParts(parts, msg({ role: 'user' }), {}, config)
+      await user.click(screen.getByRole('button', { name: 'Collapse' }))
+      expect(screen.queryByText(/six/)).toBeNull()
+      first.unmount()
+
+      const restored = renderParts(parts, msg({ role: 'user' }), {}, config)
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText(/six/)).toBeNull()
+      restored.unmount()
+
+      renderParts(parts, msg({ id: 'untouched-user-message', role: 'user' }), {}, config)
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText(/six/)).toBeInTheDocument()
+    })
+
+    it('uses the preference when short user content becomes long without a manual disclosure choice', () => {
+      const message = msg({ role: 'user' })
+      const config = { ...defaultMessageRenderConfig, userMessageDefaultExpanded: true }
+      const { rerender } = renderParts([{ type: 'text', text: 'one' }], message, {}, config)
+      expect(screen.queryByRole('button', { name: /Expand|Collapse/ })).toBeNull()
+
+      rerender(renderPartsTree([{ type: 'text', text: 'one\ntwo\nthree\nfour\nfive\nsix' }], message, {}, config))
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText(/six/)).toBeInTheDocument()
+    })
+
     it('keeps sent images rendered when the user text is collapsed', () => {
       renderParts(
         [
