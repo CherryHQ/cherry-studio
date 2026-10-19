@@ -1,4 +1,4 @@
-import type { ThreadId } from '@cherrystudio/agent-runtime'
+import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { sha256Hex } from './digest'
 import type { CallKey, HistoryEntry } from './facts'
@@ -14,7 +14,7 @@ type NotifiedRun = { readonly child: ThreadId; readonly run: number }
 const byChildThenRun = ([childA, runA]: readonly [string, number], [childB, runB]: readonly [string, number]) =>
   childA < childB ? -1 : childA > childB ? 1 : runA - runB
 
-/** Design §7.3 keys. In each format the one free-form id comes first and only colon-free numbers or a hash follow, so ids containing `:` stay apart. */
+/** Design §7.3 keys. In each format the one free-form id comes first and only colon-free numbers, fixed words or a hash follow, so ids containing `:` stay apart. */
 export const keys = {
   goalFromCall: (call: CallKey): Key => mint(`goal:call:${call}`),
   goalFromCommand: (requestKey: string): Key => mint(`goal:cmd:${requestKey}`),
@@ -36,6 +36,29 @@ export const keys = {
   idleDriverExit: (thread: ThreadId, generation: number): Key => mint(`idle-driver-exit:${thread}:g${generation}`),
   /** [plan choice] `runKey` is the new run's spawn key or the continuation's message key: a spawn's commit has no child id yet. */
   subagentReport: (runKey: Key): Key => mint(`subagent-report:${runKey}`),
+  /** The goal record a goal tool call writes (create_goal, update_goal); one per call. */
+  goalCall: (call: CallKey): Key => mint(`goal-call:${call}`),
+  /** The goal record a `/goal` command writes, and its notice. */
+  goalCommand: (requestKey: string): Key => mint(`goal-cmd:${requestKey}`),
+  goalNotice: (requestKey: string): Key => mint(`goal-notice:${requestKey}`),
+  /** A stop the core decides outside a call; a stop always disarms and bumps the revision, so the pair is spent. */
+  goalStop: (goalId: string, revision: number, armSeq: number): Key =>
+    mint(`goal-stop:${goalId}:v${revision}:a${armSeq}`),
+  /** Disarming arming `armSeq` of a goal when its conversation reopens (D13). */
+  goalDisarm: (goalId: string, armSeq: number): Key => mint(`goal-disarm:${goalId}:a${armSeq}`),
+  /** A record that only refreshes the counts a goal shows, once per value. */
+  goalCounts: (goalId: string, revision: number, progressRounds: number): Key =>
+    mint(`goal-counts:${goalId}:v${revision}:p${progressRounds}`),
+  /** A `message_subagent` call's message to a running child, and the record of a continuation it starts. */
+  subagentSteer: (call: CallKey): Key => mint(`subagent-steer:${call}`),
+  subagentContinue: (call: CallKey): Key => mint(`subagent-continue:${call}`),
+  /** The record that run `run` of `child` was stopped by `by`. */
+  subagentStop: (child: ThreadId, run: number, by: 'model' | 'user' | 'budget'): Key =>
+    mint(`subagent-stop:${child}:${run}:${by}`),
+  /** The status message after the compaction entry `compaction`. */
+  subagentStatus: (compaction: ItemId): Key => mint(`subagent-status:${compaction}`),
+  /** The stop `onOpen` records for the goal round interrupted at `round` (the round's marker entry). */
+  reopenStop: (round: ItemId): Key => mint(`reopen-stop:${round}`),
   approvalMemo: (call: CallKey): Key => mint(`cherry.approval:${call}`),
   askMemo: (call: CallKey): Key => mint(`cherry.ask:${call}`),
   verdictMemo: (call: CallKey): Key => mint(`cherry.verdict:${call}`),
