@@ -19,7 +19,8 @@ import { ensureDriver } from './jobs'
  * person); running background children stop. Background runs whose record is still running end as interrupted, and so
  * do foreground runs whose calling tool died with the restart or with the stopped round. Results not delivered yet
  * land quietly when the conversation is idle, otherwise the driver delivers them. Stops follow the live facts, not
- * what this open writes, so a rerun after a crash between the commit and the stops stops again.
+ * what this open writes, so a rerun after a crash between the commit and the stops stops again. A child's reopen
+ * decides nothing: its parent's `onOpen` decides about its runs, and any round or run record it holds came with a fork.
  */
 export function decideOnOpen(
   facts: ConversationFacts,
@@ -34,7 +35,7 @@ export function decideOnOpen(
     ops.push(
       goalStop(facts, inputs, goal, { code: 'unsupported_model', message: 'the current model has no tool calling' })
     )
-  if (!open.reopened) return { ops, effects, result: null }
+  if (!open.reopened || facts.lineage.kind === 'subagent') return { ops, effects, result: null }
 
   // A stop disarms too; otherwise an armed goal is disarmed without a stop (the person resumes it).
   const disarm = goal?.armed === true && !unsupported
