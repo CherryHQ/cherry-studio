@@ -17,6 +17,7 @@ import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
 import { doctorHandlers } from './doctor'
 import { doctorAgentHandlers } from './doctorAgent'
+import { downloadsHandlers } from './downloads'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
@@ -77,6 +78,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...diagnosticsHandlers,
   ...doctorHandlers,
   ...doctorAgentHandlers,
+  ...downloadsHandlers,
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,

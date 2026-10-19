@@ -48,6 +48,55 @@
       "description": "Open website links in shared built-in browser tabs"
     },
     {
+      "targetKey": "app.browser.downloads.dir",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Directory the built-in browser saves downloads to; empty means the system Downloads folder"
+    },
+    {
+      "targetKey": "app.browser.downloads.ask_where_to_save",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Ask for a destination on every browser download instead of saving silently"
+    },
+    {
+      "targetKey": "app.browser.downloads.max_concurrent_tasks",
+      "type": "number",
+      "defaultValue": 3,
+      "status": "classified",
+      "description": "How many downloads run at the same time"
+    },
+    {
+      "targetKey": "app.browser.downloads.connections_per_task",
+      "type": "number",
+      "defaultValue": 8,
+      "status": "classified",
+      "description": "Parallel Range connections per download (1-16)"
+    },
+    {
+      "targetKey": "app.browser.downloads.auto_resume",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Resume unfinished downloads after the app restarts"
+    },
+    {
+      "targetKey": "app.browser.downloads.conflict_policy",
+      "type": "string",
+      "defaultValue": "uniquify",
+      "status": "classified",
+      "description": "What to do when the target file exists: uniquify, overwrite or fail"
+    },
+    {
+      "targetKey": "app.browser.downloads.notify_on_complete",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show a system notification when a download finishes or fails"
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,
@@ -296,11 +345,26 @@
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [
-        { "id": "agents", "type": "app" },
-        { "id": "assistants", "type": "app" },
-        { "id": "translate", "type": "app" },
-        { "id": "paintings", "type": "app" },
-        { "id": "knowledge", "type": "app" }
+        {
+          "id": "agents",
+          "type": "app"
+        },
+        {
+          "id": "assistants",
+          "type": "app"
+        },
+        {
+          "id": "translate",
+          "type": "app"
+        },
+        {
+          "id": "paintings",
+          "type": "app"
+        },
+        {
+          "id": "knowledge",
+          "type": "app"
+        }
       ],
       "status": "classified",
       "description": "Legacy sidebar favorites, preserved as the source for shortcut migration"
@@ -311,27 +375,57 @@
       "defaultValue": [
         {
           "id": "sidebar-shortcut:core.app:agents",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "agents" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "agents"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:assistants",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "assistants" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "assistants"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:translate",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "translate"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:paintings",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "paintings" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "paintings"
+            }
+          },
           "type": "shortcut"
         },
         {
           "id": "sidebar-shortcut:core.app:knowledge",
-          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "knowledge" } },
+          "target": {
+            "kind": "resource",
+            "locator": {
+              "providerId": "core.app",
+              "resourceId": "knowledge"
+            }
+          },
           "type": "shortcut"
         }
       ],
@@ -689,7 +783,10 @@
       "targetKey": "shortcut.chat.input.focus",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
-        "binding": ["CommandOrControl", "I"],
+        "binding": [
+          "CommandOrControl",
+          "I"
+        ],
         "enabled": true
       },
       "status": "classified",
