@@ -56,7 +56,14 @@ export type Effect =
   | { readonly type: 'start-turn'; readonly thread: ThreadId; readonly input: TurnInput; readonly key: Key }
   | { readonly type: 'retract-turn'; readonly thread: ThreadId; readonly key: Key }
   | { readonly type: 'stop-turn'; readonly thread: ThreadId; readonly cause: StopCause }
-  | { readonly type: 'message-child'; readonly child: ThreadId; readonly input: TurnInput; readonly key: Key }
+  /** A steer for run `run` of `child`: it joins that run or is withdrawn, never starting one (G-C5). */
+  | {
+      readonly type: 'message-child'
+      readonly child: ThreadId
+      readonly input: TurnInput
+      readonly key: Key
+      readonly run: number
+    }
   | { readonly type: 'stop-child'; readonly child: ThreadId; readonly run: number }
   | { readonly type: 'emit'; readonly event: BehaviorEvent }
 export type Step<R extends JsonValue = JsonValue> = {
