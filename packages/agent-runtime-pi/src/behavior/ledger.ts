@@ -108,9 +108,10 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
         'marker'
       )
         throw new Error(`append-quiet needs a marker input, got ${op.input.kind}`)
-      // Sent idle without a turn trigger, Pi appends it before `sendCustomMessage` first awaits.
+      // Sent idle without a turn trigger, Pi appends it before `sendCustomMessage` first awaits; a failure there (the
+      // disk, a subscriber) only rejects that promise, which no caller awaits.
       return () => {
-        void target.native!.session.sendCustomMessage(message, { triggerTurn: false })
+        target.native!.session.sendCustomMessage(message, { triggerTurn: false }).catch(adapter.report)
       }
     }
     case 'spawn-child': {
