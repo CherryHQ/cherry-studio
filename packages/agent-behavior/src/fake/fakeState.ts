@@ -324,8 +324,9 @@ function prepare(state: FakeState, thread: ThreadId, op: TxOp, context: CommitCo
         const owner = spec.boundary === 'foreground' ? context.owner : undefined
         const child = addThread(state, lineage, context.seed, owner)
         for (const { entry } of copied) append(child, { ...entry, id: nextItem(state) })
-        // The fork point's calls run on in the parent (`ChildSpec.fork`).
-        for (const call of unansweredCalls(copied, copied.length - 1))
+        // A fork subagent's fork point holds calls that run on in the parent; an S-j fork's open calls ended (H3).
+        const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
+        for (const call of placeholders)
           append(child, resultEntry(nextItem(state), call, { text: FORK_PLACEHOLDER_RESULT, isError: false }))
         append(child, recordEntry(state, { type: 'subagent-origin', value: spec.origin }, key))
         const record = { ...spec.record, sessionId: child.id }
