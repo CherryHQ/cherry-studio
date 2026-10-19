@@ -52,6 +52,10 @@ describe('knowledge ordering migrate-forward', () => {
     dbh.sqlite.exec(
       'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
     )
+    // Replaying from 0027 also replays everything after it, so their objects must
+    // be gone first or the migrator hits "table already exists". 0028 creates the
+    // download tables; a later migration that adds objects belongs in this list.
+    dbh.sqlite.exec('DROP TABLE download_segment; DROP TABLE download_task')
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
     applyMigrations(dbh.db, migrationsFolder)
     new SeedRunner(dbh.db).runAll([new KnowledgeBaseOrderSeeder()])
