@@ -266,6 +266,9 @@ importers:
       '@cherrystudio/computer-use':
         specifier: 0.1.9
         version: 0.1.9
+      '@cherrystudio/mlx-asr':
+        specifier: github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr
+        version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
@@ -2967,6 +2970,10 @@ packages:
   '@cherrystudio/computer-use@0.1.9':
     resolution: {integrity: sha512-CNZqlyYOdr9Rl+SSygMuV9EZOomlrualFl5AYzTYJDkj4lbu8ro95bJlEiG/ZSgD1HnKZfbUc3ucj2L/ck6C+w==}
     engines: {node: '>=24'}
+
+  '@cherrystudio/mlx-asr@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr':
+    resolution: {gitHosted: true, integrity: sha512-oUswcywFB8j5sfDyKfn+QICE4ax0mwE/VgsN22if1ipkd8nsQ2FOyq3C3kzlZjMUjqgUgyPktyhCsceWhLaaKA==, path: distribution/asr, tarball: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac}
+    version: 0.0.16-cherry.1
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts':
     resolution: {commit: f4c21043f557965345b527bc04179ad26d08378f, path: distribution/tts, repo: https://github.com/CherryHQ/mlx-node.git, type: git}
@@ -16984,6 +16991,8 @@ snapshots:
       '@cherrystudio/computer-use-linux-x64': 0.1.9
       '@cherrystudio/computer-use-win32-arm64': 0.1.9
       '@cherrystudio/computer-use-win32-x64': 0.1.9
+
+  '@cherrystudio/mlx-asr@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr': {}
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts': {}
 
