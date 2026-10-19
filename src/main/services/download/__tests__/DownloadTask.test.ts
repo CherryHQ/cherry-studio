@@ -125,7 +125,7 @@ describe('DownloadTask', () => {
       segments,
       probe: { finalUrl: task.url, totalBytes: CONTENT.length, supportsRanges: true, etag: '"v1"' },
       store,
-      fetchImpl: fetch as never,
+      fetchImpl: fetch,
       retryDelayMs: 0,
       progressFlushBytes: 1
     })
@@ -169,7 +169,7 @@ describe('DownloadTask', () => {
       segments: paused.segments,
       probe,
       store,
-      fetchImpl: fetch as never,
+      fetchImpl: fetch,
       retryDelayMs: 0,
       progressFlushBytes: 1
     })

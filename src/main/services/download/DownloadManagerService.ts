@@ -140,8 +140,8 @@ export class DownloadManagerService extends BaseService {
 
   async start(input: StartDownloadInput): Promise<DownloadTaskRecord> {
     const preferenceService = application.get('PreferenceService')
-    const connections = clamp(preferenceService.get(PREF.connections) as number, 1, MAX_SEGMENT_CONNECTIONS)
-    const policy = parsePolicy(preferenceService.get(PREF.conflict) as string)
+    const connections = clamp(preferenceService.get(PREF.connections), 1, MAX_SEGMENT_CONNECTIONS)
+    const policy = parsePolicy(preferenceService.get(PREF.conflict))
     const baseDir = preferenceService.get(PREF.dir) || app.getPath('downloads')
     let fileName = sanitizeDownloadFileName(input.fileName || fileNameFromUrl(input.url))
     let dir = baseDir
@@ -293,7 +293,7 @@ export class DownloadManagerService extends BaseService {
   }
 
   private pump(): void {
-    const max = clamp(application.get('PreferenceService').get(PREF.maxTasks) as number, 1, 10)
+    const max = clamp(application.get('PreferenceService').get(PREF.maxTasks), 1, 10)
     while (this.active < max && this.queue.length > 0) {
       const taskId = this.queue.shift()!
       void this.runTask(taskId)
