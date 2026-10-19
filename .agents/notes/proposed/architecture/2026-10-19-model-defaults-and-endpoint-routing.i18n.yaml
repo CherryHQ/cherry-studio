@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-19-model-defaults-and-endpoint-routing.md
+2026-10-19-model-defaults-and-endpoint-routing.md: 72db5f5be4aa897206d093bfaa4c4d093ca42d82
+2026-10-19-model-defaults-and-endpoint-routing.zh.md: b9877a3d07e7861b7f9e01538b1c4a70f57274d4
