@@ -1030,7 +1030,11 @@ const Sessions = ({
         return permanentDeletePopup
           .show({
             kind: 'conversation',
-            name: current?.name || t('common.unnamed'),
+            name: current
+              ? !current.isNameManuallyEdited && !current.name.trim()
+                ? t('agent.session.new')
+                : current.name
+              : t('common.unnamed'),
             action: () => runPermanentDelete(id, grant)
           })
           .then(() => undefined)

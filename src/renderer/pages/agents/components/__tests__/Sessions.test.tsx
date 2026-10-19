@@ -3163,6 +3163,42 @@ describe('Sessions', () => {
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { storedName: '', visibleName: 'New task', isNameManuallyEdited: false },
+    { storedName: '   ', visibleName: 'New task', isNameManuallyEdited: false },
+    { storedName: '   ', visibleName: '   ', isNameManuallyEdited: true },
+    { storedName: 'Named session', visibleName: 'Named session', isNameManuallyEdited: true }
+  ])(
+    'permanent delete names the visible session label ($storedName, manual=$isNameManuallyEdited) and cancel keeps it',
+    async ({ storedName, visibleName, isNameManuallyEdited }) => {
+      setupSessions({
+        sessions: [createSession({ id: 'session-blank', name: storedName, isNameManuallyEdited })]
+      })
+      render(<SessionsForTest activeSessionId="session-blank" />)
+
+      const row = screen.getByRole('option')
+      const exactText = { exact: true, normalizer: (text: string) => text }
+      expect(within(row).getByText(visibleName, exactText)).toBeInTheDocument()
+
+      fireEvent.contextMenu(within(row).getByText(visibleName, exactText))
+      const menu = row.closest('[data-testid="context-menu"]') ?? row
+      const item = within(menu)
+        .getAllByRole('menuitem', { name: /Delete Permanently|common\.delete_permanently/ })
+        .find((candidate) => candidate.getAttribute('data-slot') !== 'dropdown-menu-item')
+      if (!item) throw new Error('missing permanent delete item')
+      fireEvent.click(item)
+      await flushDeferredMenuAction()
+      await vi.waitFor(() => expect(permanentDeletePopupMocks.show).toHaveBeenCalled())
+
+      expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'conversation', name: visibleName })
+      )
+      expect(sessionDataMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+      expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+      expect(within(row).getByText(visibleName, exactText)).toBeInTheDocument()
+    }
+  )
+
   it('permanently deletes only after confirmation and selects the adjacent session', async () => {
     const setActiveSessionId = vi.fn()
     permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {

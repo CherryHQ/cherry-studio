@@ -184,6 +184,10 @@ const AgentHistoryRecords = ({
   streamStatusBySessionIdRef.current = streamStatusBySessionId
 
   const unknownAgentLabel = t('agent.session.group.unknown_agent')
+  const historySessionLabel = useCallback(
+    (name: string | null | undefined) => (name?.trim() ? name : t('common.unnamed')),
+    [t]
+  )
   const statusItems = useMemo(() => buildAgentStatusItems(t), [t])
   const agentSources = useMemo(
     () => buildAgentSources(sessionItems, agentById, agentRankById, unknownAgentLabel, t),
@@ -271,7 +275,7 @@ const AgentHistoryRecords = ({
         return permanentDeletePopup
           .show({
             kind: 'conversation',
-            name: current?.name?.trim() || t('common.unnamed'),
+            name: historySessionLabel(current?.name),
             action: async () => {
               if (pinIdBySessionIdRef.current.has(id)) {
                 throw new Error(t('recycle_bin.delete.pinned'))
@@ -346,7 +350,7 @@ const AgentHistoryRecords = ({
       deferredRemovalIdRef.current = id
       return Promise.resolve()
     },
-    [deleteSessionWithOutcome, onActiveSessionChange, reload, requestRecordRemoval, t]
+    [deleteSessionWithOutcome, historySessionLabel, onActiveSessionChange, reload, requestRecordRemoval, t]
   )
 
   const handleBulkDeleteSessions = useCallback(
@@ -469,7 +473,7 @@ const AgentHistoryRecords = ({
   )
   const rowDescriptor = useMemo(
     () => ({
-      getName: (session: SessionListItem) => session.name || t('common.unnamed'),
+      getName: (session: SessionListItem) => historySessionLabel(session.name),
       getUpdatedAt: (session: SessionListItem) => session.lastActivityAt,
       getSourceLabel: (session: SessionListItem) =>
         (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? unknownAgentLabel,
@@ -484,7 +488,7 @@ const AgentHistoryRecords = ({
         )
       },
       rowHeight: 32,
-      getSelectLabel: (session: SessionListItem) => `${t('common.select')} ${session.name || t('common.unnamed')}`,
+      getSelectLabel: (session: SessionListItem) => `${t('common.select')} ${historySessionLabel(session.name)}`,
       renderRowState: (session: SessionListItem, render: (state: HistoryRowState) => ReactElement) => (
         <AgentHistoryRowState sessionId={session.id}>{render}</AgentHistoryRowState>
       ),
@@ -507,7 +511,15 @@ const AgentHistoryRecords = ({
           row
         )
     }),
-    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t, unknownAgentLabel]
+    [
+      agentById,
+      handleSessionSelect,
+      handleToggleSessionPin,
+      historySessionLabel,
+      sessionMenuPreset,
+      t,
+      unknownAgentLabel
+    ]
   )
 
   const descriptor: HistoryRecordDescriptor<SessionListItem> = {

@@ -1361,6 +1361,41 @@ describe('HistoryRecordsView agent mode', () => {
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { storedName: '', visibleName: 'Untitled' },
+    { storedName: '   ', visibleName: 'Untitled' },
+    { storedName: '  Padded name  ', visibleName: '  Padded name  ' }
+  ])(
+    'permanent delete uses the same history label as the row ($storedName) and cancel keeps it',
+    async ({ storedName, visibleName }) => {
+      const user = userEvent.setup()
+      setupAgentHistory({
+        sessions: [createSession({ id: 'session-blank', name: storedName })]
+      })
+
+      const exactText = { exact: true, normalizer: (text: string) => text }
+      const title = screen.getByText(visibleName, exactText)
+      const row = title.closest('[role="row"]') as HTMLElement
+      expect(within(row).getByRole('checkbox')).toHaveAttribute('aria-label', `Select ${visibleName}`)
+      const menu = title.closest('[data-testid="context-menu"]')
+      const deleteButton = within(menu?.querySelector('[data-testid="context-menu-content"]') as HTMLElement).getByRole(
+        'button',
+        { name: /Delete Permanently/ }
+      )
+
+      await user.click(deleteButton)
+      await act(async () => {
+        await flushCommandMenuAction()
+      })
+
+      expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'conversation', name: visibleName, action: expect.any(Function) })
+      )
+      expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+      expect(screen.getByText(visibleName, exactText)).toBeInTheDocument()
+    }
+  )
+
   it('permanently deletes the confirmed session, keeps the pre-delete neighbor, and offers no Undo', async () => {
     const user = userEvent.setup()
     permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
