@@ -427,7 +427,9 @@ export function canDropSessionItemInDisplayGroup({
   sourceGroupId: string
   targetGroupId: string
 }) {
-  return mode !== 'time' && sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
+  // Same-group only, so allowing the pinned group cannot move a row out of it:
+  // both sides must already be pinned.
+  return mode !== 'time' && sourceGroupId === targetGroupId
 }
 
 export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(
