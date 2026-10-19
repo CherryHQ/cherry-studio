@@ -58,6 +58,11 @@ const consumers = {
 function scopeFor(file) {
   if (file.startsWith('resources/')) return 'all'
   if (
+    file === 'CONTRIBUTING.i18n.yaml' ||
+    ((file.startsWith('docs/') || file.startsWith('.agents/notes/')) && file.endsWith('.i18n.yaml'))
+  )
+    return 'docs'
+  if (
     (file.startsWith('docs/') || file.startsWith('.agents/notes/') || file.startsWith('.changeset/')) &&
     file.endsWith('.md')
   )
