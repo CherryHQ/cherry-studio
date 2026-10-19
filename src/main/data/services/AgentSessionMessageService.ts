@@ -2096,10 +2096,15 @@ export class AgentSessionMessageService {
                 // Interrupted history retains the ID without the user decision required by the SDK's terminal type.
                 approval: decision ? { id: approvalId, approved: true } : part.approval
               } as CherryMessagePart)
+        const updatedAt = Date.now()
         tx.update(sessionMessagesTable)
-          .set({ data: { ...row.data, parts: nextParts }, updatedAt: Date.now() })
+          .set({ data: { ...row.data, parts: nextParts }, updatedAt })
           .where(and(eq(sessionMessagesTable.id, row.id), eq(sessionMessagesTable.sessionId, sessionId)))
           .run()
+        if (decision) {
+          agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+          agentSessionService.advanceLastActivityAtTx(tx, sessionId, updatedAt)
+        }
         return row.id
       }
       return undefined

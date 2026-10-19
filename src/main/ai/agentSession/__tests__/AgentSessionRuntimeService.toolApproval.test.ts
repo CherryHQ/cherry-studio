@@ -5,11 +5,15 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentSessionHandlers } from '@data/api/handlers/agentSessions'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle'
+import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 
@@ -95,6 +99,155 @@ describe('Agent approval cancellation and historical settlement', () => {
   }
   const respond = (approvalId: string, anchorId: string, approved = true, reason?: string) =>
     runtime.respondToolApproval(approvalId, { approved, reason }, { topicId, anchorId })
+
+  const sessionRow = () => dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).get()!
+  const latest = () =>
+    agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: 'activity-agent' } } as never)
+
+  function seedActivityFixture() {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'activity-agent',
+        type: 'pi',
+        name: 'Agent',
+        instructions: 'test',
+        orderKey: 'a0',
+        createdAt: 1_000,
+        updatedAt: 1_000
+      })
+      .run()
+    dbh.db
+      .update(agentSessionTable)
+      .set({
+        agentId: 'activity-agent',
+        createdAt: 1_000,
+        updatedAt: 1_000,
+        lastActivityAt: 1_000
+      })
+      .where(eq(agentSessionTable.id, sessionId))
+      .run()
+    const id = save('activity')
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ createdAt: 1_000, updatedAt: 1_000 })
+      .where(eq(agentSessionMessageTable.id, id))
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'newer-session',
+        agentId: 'activity-agent',
+        workspaceId: 'workspace',
+        name: 'Newer',
+        orderKey: 'a1',
+        createdAt: 2_000,
+        updatedAt: 2_000,
+        lastActivityAt: 2_000
+      })
+      .run()
+    expect(row(id)).toMatchObject({ createdAt: 1_000, updatedAt: 1_000 })
+    expect(sessionRow()).toMatchObject({ createdAt: 1_000, updatedAt: 1_000, lastActivityAt: 1_000 })
+    expect(
+      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'newer-session')).get()
+    ).toMatchObject({ createdAt: 2_000, updatedAt: 2_000, lastActivityAt: 2_000 })
+    return { id, now }
+  }
+
+  it.each([true, false])(
+    'makes an older orphan session latest after approved=%s, but not after a repeat',
+    async (approved) => {
+      const { id, now } = seedActivityFixture()
+      expect(await latest()).toMatchObject({ session: { id: 'newer-session' } })
+      now.mockReturnValue(3_000)
+      expect(respond('activity', id, approved, 'Please skip')).toBe('accepted')
+      expect(row(id)).toMatchObject({
+        updatedAt: 3_000,
+        data: {
+          parts: [
+            {
+              state: approved ? 'output-error' : 'output-denied',
+              approval: { id: 'activity', approved, ...(!approved && { reason: 'Please skip' }) }
+            }
+          ]
+        }
+      })
+      expect(sessionRow()).toMatchObject({ updatedAt: 3_000, lastActivityAt: 3_000 })
+      expect(await latest()).toMatchObject({ session: { id: sessionId } })
+      const settled = row(id)
+      const settledSession = sessionRow()
+      now.mockReturnValue(4_000)
+      expect(respond('activity', id, !approved)).toBe('rejected')
+      expect(row(id)).toEqual(settled)
+      expect(sessionRow()).toEqual(settledSession)
+    }
+  )
+
+  it('does not make an older session latest when a real cancellation cleans up its card', async () => {
+    const { id, now } = seedActivityFixture()
+    const result = register('activity')
+    expect(await latest()).toMatchObject({ session: { id: 'newer-session' } })
+    now.mockReturnValue(3_000)
+    expect(toolApprovalRegistry.abort(sessionId, 'closed')).toBe(1)
+    await expect(result).resolves.toEqual({ approved: false, reason: 'closed' })
+    expect(row(id)).toMatchObject({
+      updatedAt: 3_000,
+      data: {
+        parts: [
+          {
+            state: 'output-error',
+            approval: { id: 'activity' }
+          }
+        ]
+      }
+    })
+    expect(row(id).data.parts![0]).not.toHaveProperty('approval.approved')
+    expect(sessionRow()).toMatchObject({ updatedAt: 1_000, lastActivityAt: 1_000 })
+    expect(await latest()).toMatchObject({ session: { id: 'newer-session' } })
+  })
+
+  it.each([true, false])(
+    'rolls back an orphan decision approved=%s for a soft-deleted session, but permits cleanup',
+    async (approved) => {
+      const { id, now } = seedActivityFixture()
+      now.mockReturnValue(2_500)
+      agentSessionService.delete(sessionId)
+      const beforeMessage = row(id)
+      const beforeSession = sessionRow()
+      expect(beforeSession.deletedAt).toBe(2_500)
+      expect(beforeMessage.data.parts![0]).toMatchObject({ state: 'approval-requested' })
+      now.mockReturnValue(3_000)
+      const settle = () => respond('activity', id, approved)
+      expect(settle).toThrowError(
+        expect.objectContaining({
+          ...DataApiErrorFactory.notFound('Session', sessionId),
+          constructor: DataApiError
+        })
+      )
+      expect(row(id)).toEqual(beforeMessage)
+      expect(sessionRow()).toEqual(beforeSession)
+      expect(await latest()).toMatchObject({ session: { id: 'newer-session' } })
+      now.mockReturnValue(4_000)
+      expect(
+        agentSessionMessageService.finalizeInterruptedToolApproval(sessionId, 'activity', { errorText: 'closed' })
+      ).toBe(true)
+      expect(row(id)).toMatchObject({
+        updatedAt: 4_000,
+        data: {
+          parts: [
+            {
+              state: 'output-error',
+              approval: { id: 'activity' }
+            }
+          ]
+        }
+      })
+      expect(row(id).data.parts![0]).not.toHaveProperty('approval.approved')
+      expect(sessionRow()).toEqual(beforeSession)
+      expect(await latest()).toMatchObject({ session: { id: 'newer-session' } })
+    }
+  )
 
   it.each(['signal', 'session'] as const)(
     'terminalizes only the cancelled message part on %s cancellation',
