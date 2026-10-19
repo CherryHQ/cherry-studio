@@ -53,7 +53,6 @@ import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { createContentHasher } from './contentHash'
-
 const logger = loggerService.withContext('utils/file/fs')
 
 const notImplemented = (op: string): never => {
@@ -63,25 +62,41 @@ const notImplemented = (op: string): never => {
 /** Read file content as text with optional encoding detection. */
 export async function read(
   path: AbsoluteFilePath,
-  options?: { encoding?: 'text'; detectEncoding?: boolean }
+  options?: { encoding?: 'text'; detectEncoding?: boolean; maxBytes?: number; signal?: AbortSignal }
 ): Promise<string>
 export async function read(
   path: AbsoluteFilePath,
-  options: { encoding: 'base64' }
+  options: { encoding: 'base64'; signal?: AbortSignal }
 ): Promise<{ data: string; mime: string }>
 export async function read(
   path: AbsoluteFilePath,
-  options: { encoding: 'binary' }
+  options: { encoding: 'binary'; signal?: AbortSignal }
 ): Promise<{ data: Uint8Array; mime: string }>
 export async function read(
   path: AbsoluteFilePath,
-  options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean }
+  options?: {
+    encoding?: 'text' | 'base64' | 'binary'
+    detectEncoding?: boolean
+    maxBytes?: number
+    signal?: AbortSignal
+  }
 ): Promise<unknown> {
   const encoding = options?.encoding ?? 'text'
   if (encoding === 'text') {
-    return readFile(path, 'utf-8')
+    if (options?.maxBytes !== undefined) {
+      const maxBytes = options.maxBytes
+      if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes >= Number.MAX_SAFE_INTEGER) {
+        throw new RangeError('maxBytes must be a non-negative safe integer below Number.MAX_SAFE_INTEGER')
+      }
+      const bounded = await readChunk(path, 0, maxBytes + 1, options.signal)
+      if (bounded.byteLength > maxBytes) {
+        throw new RangeError(`File exceeds read limit of ${maxBytes} bytes`)
+      }
+      return Buffer.from(bounded).toString('utf8')
+    }
+    return readFile(path, { encoding: 'utf-8', signal: options?.signal })
   }
-  const buf = await readFile(path)
+  const buf = await readFile(path, { signal: options?.signal })
   const inferredMime = mime.getType(path) ?? 'application/octet-stream'
   if (encoding === 'base64') {
     return { data: buf.toString('base64'), mime: inferredMime }
@@ -93,26 +108,83 @@ export async function read(
 export async function readChunk(
   path: AbsoluteFilePath,
   offset: number,
-  length: number
+  length: number,
+  signal?: AbortSignal
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const fileHandle = await fsOpen(path, 'r')
+  const fileHandle = await openReadHandle(path, signal)
+  let closeInBackground = false
   try {
+    signal?.throwIfAborted()
     const buffer = new Uint8Array(length)
     let totalBytesRead = 0
     while (totalBytesRead < length) {
-      const { bytesRead } = await fileHandle.read(
-        buffer,
-        totalBytesRead,
-        length - totalBytesRead,
-        offset + totalBytesRead
-      )
+      signal?.throwIfAborted()
+      const readOperation = fileHandle.read(buffer, totalBytesRead, length - totalBytesRead, offset + totalBytesRead)
+      const { bytesRead } = await waitForAbort(readOperation, signal)
+      signal?.throwIfAborted()
       if (bytesRead === 0) break
       totalBytesRead += bytesRead
     }
     return totalBytesRead === buffer.byteLength ? buffer : buffer.slice(0, totalBytesRead)
+  } catch (error) {
+    // FileHandle.close waits for uncancellable reads; cancellation must not wait for it.
+    if (signal?.aborted) {
+      closeInBackground = true
+      void fileHandle.close().catch((closeError) => {
+        logger.warn('readChunk: failed to close an aborted file handle', { path, closeError })
+      })
+    }
+    throw error
   } finally {
-    await fileHandle.close()
+    if (!closeInBackground) await fileHandle.close()
   }
+}
+
+async function openReadHandle(path: AbsoluteFilePath, signal?: AbortSignal): Promise<FileHandle> {
+  signal?.throwIfAborted()
+  const openOperation = fsOpen(path, 'r')
+  try {
+    return await waitForAbort(openOperation, signal)
+  } catch (error) {
+    // Ownership transfers only on success; otherwise close any late-opened handle.
+    if (signal?.aborted) {
+      void openOperation.then(
+        (lateHandle) =>
+          lateHandle.close().catch((closeError) => {
+            logger.warn('Failed to close a late-opened file handle', { path, closeError })
+          }),
+        () => undefined
+      )
+    }
+    throw error
+  }
+}
+
+/** Await an operation without pinning a cancelled caller; the operation is still observed for cleanup. */
+function waitForAbort<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation
+  if (signal.aborted) {
+    void operation.catch(() => undefined)
+    return Promise.reject(signal.reason)
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void): void => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', handleAbort)
+      callback()
+    }
+    const handleAbort = (): void => finish(() => reject(signal.reason))
+
+    signal.addEventListener('abort', handleAbort, { once: true })
+    operation.then(
+      (value) => finish(() => resolve(value)),
+      (error) => finish(() => reject(error))
+    )
+    if (signal.aborted) handleAbort()
+  })
 }
 
 /** Returns true iff the path exists and is readable by the current process. */
@@ -340,13 +412,19 @@ export interface ReadableFileSnapshot {
  * stream reads through the already-open handle and never follows a later path
  * replacement.
  */
-export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promise<ReadableFileSnapshot> {
-  const pathStat = await fsLstat(target)
+export async function openReadableFileSnapshot(
+  target: AbsoluteFilePath,
+  signal?: AbortSignal
+): Promise<ReadableFileSnapshot> {
+  signal?.throwIfAborted()
+  const pathStat = await waitForAbort(fsLstat(target), signal)
   if (!pathStat.isFile()) throw new Error('Snapshot source is not a regular file')
 
-  const handle: FileHandle = await fsOpen(target, 'r')
+  const handle = await openReadHandle(target, signal)
   try {
-    const handleStat = await handle.stat()
+    signal?.throwIfAborted()
+    const handleStat = await waitForAbort(handle.stat(), signal)
+    signal?.throwIfAborted()
     if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
       throw new Error('Snapshot source changed before it could be opened')
     }
@@ -367,8 +445,59 @@ export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promis
       close: () => handle.close()
     }
   } catch (error) {
-    await handle.close().catch(() => undefined)
+    const closing = handle.close().catch((closeError) => {
+      logger.warn('Failed to close a snapshot file handle', { target, closeError })
+    })
+    if (!signal?.aborted) await closing
     throw error
+  }
+}
+
+/**
+ * Compare paths that have already gone through realpath.  realpath gives us the
+ * filesystem's canonical spelling, so this exact comparison preserves the
+ * actual mount's case semantics instead of assuming every macOS volume is
+ * case-insensitive.
+ */
+function isSameOrInsideResolved(candidate: AbsoluteFilePath, container: AbsoluteFilePath): boolean {
+  const relative = path.relative(container, candidate)
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+}
+
+/**
+ * Read a fixed regular-file snapshot after a best-effort resolved-root filter.
+ * This is not an authorization boundary: concurrent ancestor replacement can
+ * redirect pathname resolution outside the roots before the file is opened.
+ */
+export async function readTextFileWithinRoots(
+  target: AbsoluteFilePath,
+  roots: readonly AbsoluteFilePath[],
+  options: { maxBytes: number; signal?: AbortSignal }
+): Promise<string | null> {
+  const { maxBytes, signal } = options
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes >= Number.MAX_SAFE_INTEGER) {
+    throw new RangeError('maxBytes must be a non-negative safe integer below Number.MAX_SAFE_INTEGER')
+  }
+  signal?.throwIfAborted()
+
+  const resolvedBefore = AbsoluteFilePathSchema.parse(await waitForAbort(fsRealpath(target), signal))
+  if (!roots.some((root) => isSameOrInsideResolved(resolvedBefore, root))) return null
+
+  const source = await openReadableFileSnapshot(resolvedBefore, signal)
+  try {
+    if (source.size > maxBytes) return null
+
+    signal?.throwIfAborted()
+    const stream = source.createReadStream()
+    if (signal) addAbortSignal(signal, stream)
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      signal?.throwIfAborted()
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    return Buffer.concat(chunks).toString('utf8')
+  } finally {
+    await source.close()
   }
 }
 
@@ -732,13 +861,14 @@ export async function assertPathVersionUnchanged(
 /** Get file/directory stats. */
 export async function stat(
   path: AbsoluteFilePath
-): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean }> {
+): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean; isFile: boolean }> {
   const s = await fsStat(path)
   return {
     size: s.size,
     createdAt: Math.floor(s.birthtimeMs),
     modifiedAt: Math.floor(s.mtimeMs),
-    isDirectory: s.isDirectory()
+    isDirectory: s.isDirectory(),
+    isFile: s.isFile()
   }
 }
 
