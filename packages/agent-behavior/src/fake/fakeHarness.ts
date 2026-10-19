@@ -279,7 +279,26 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
     },
     async compact(thread) {
       assertOpen()
-      append(threadOf(state, thread), { kind: 'compaction', id: nextItem(state) })
+      const target = threadOf(state, thread)
+      const active = target.active
+      if (active) {
+        // A compaction during a run is one of its model requests (H12, H11).
+        const lineage = target.lineage.kind === 'subagent' ? 'child' : 'root'
+        if (!(epoch.meter?.allow(thread, active.requests, lineage).ok ?? true)) return
+        active.requests += 1
+      }
+      const handlers = epoch.lifecycle
+      if (handlers) {
+        const key = `${thread}:${target.entries.at(-1)?.entry.id ?? 'start'}`
+        const request = {
+          key,
+          reason: 'manual',
+          messages: modelContext(target),
+          signal: new AbortController().signal
+        } as const
+        if ('decline' in (await within((ports) => handlers.onCompacting(thread, request, ports)))) return
+      }
+      append(target, { kind: 'compaction', id: nextItem(state) })
       await lifecycle((handlers, ports) => handlers.onCompacted(thread, ports))
     },
     async settle() {

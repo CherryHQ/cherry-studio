@@ -2,6 +2,7 @@ import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { Effect, JobKind, JobSpec, Step, StopCause, TurnInput } from '../core/decisions'
 import type { CallKey, ConversationFacts, GateCall, GateFacts, RunEndFacts, ToolResultFact } from '../core/facts'
+import type { CompactionReason } from '../core/hostFacts'
 import type { Key } from '../core/keys'
 
 export type TransactResult<R extends JsonValue> = {
@@ -48,9 +49,9 @@ export type RetractResult = 'withdrawn' | 'already-started' | 'settled' | 'not-f
  * H2. Give the agent a turn, take back one that has not started, stop the current one.
  *
  * @harness coding-agent `start` sends the input with a turn trigger and deduplicates by scanning history for
- * `data.key`; a `start` during settle begins a new run rather than continuing the settling one, whose waits (H5) resolve
- * at `agent_settled`, not at `agent_before_settle` or `agent_end`. `retract` withdraws the reservation; `stop` aborts
- * the session.
+ * `data.key`; a `start` while a run settles answers 'busy' and records nothing, like any `start` while a run is active,
+ * so nothing continues the settling run: the caller starts again once `Waits.untilIdle` resolves at `agent_settled`.
+ * `retract` withdraws the reservation; `stop` aborts the session.
  * @harness durable `submit({ type: 'input', whenBusy: 'reject', entry: { kind, data: { ...data, key } }, requestId: key })`:
  * `ConversationBusy` is 'busy'; an idle conversation with inbox items queues the input behind them; `retract` aborts the
  * submission; `stop` is `conversation(id).abort()`, except before resume (H12), where it is
@@ -226,6 +227,7 @@ export interface Tools {
 }
 
 export type GateVerdict = { readonly block?: string; readonly args?: JsonValue }
+/** For handlers that run where the harness cannot commit (Durable's hooks): the gate and `onCompacting`. */
 export type GatePorts = Pick<HarnessPorts, 'memory' | 'clock'>
 export interface GateHandlers {
   /**
@@ -301,13 +303,26 @@ export interface RequestMeter {
   register(handler: RequestMeterHandler): void
 }
 
+/** A compaction about to happen: what the summary must cover, under a key a rerun of this compaction keeps. */
+export type CompactionRequest = {
+  /** Durable: the compaction task id; coding-agent: `<sessionId>:<id of the entry the compaction follows>`. */
+  readonly key: string
+  readonly reason: CompactionReason
+  readonly messages: readonly JsonValue[]
+  readonly previousSummary?: string
+  readonly instructions?: string
+  readonly signal: AbortSignal
+}
+/** The summary to compact with, or a decline that cancels the compaction (D33). */
+export type CompactionVerdict = { readonly summary: string } | { readonly decline: true }
 export interface LifecycleHandlers {
   onOpen(thread: ThreadId, open: { readonly reopened: boolean }, ports: BoundPorts): Promise<void>
+  onCompacting(thread: ThreadId, request: CompactionRequest, ports: GatePorts): Promise<CompactionVerdict>
   onCompacted(thread: ThreadId, ports: BoundPorts): Promise<void>
   onClose(thread: ThreadId, ports: BoundPorts): Promise<void>
 }
 /**
- * H12. Let the package settle a conversation when it opens, after it is compacted, and when it closes.
+ * H12. Let the package settle a conversation when it opens, before and after it is compacted, and when it closes.
  *
  * On reopen the harness restores every conversation with its runs and jobs, and `onOpen` decides what to stop; the
  * rules stay in the package. `onOpen` calls only `ledger.*`, `turns.stop`, `helpers.stop` and `clock.now`: no submits,
@@ -317,18 +332,27 @@ export interface LifecycleHandlers {
  * the stopped run and its foreground children may still appear active in the facts, so `onOpen` must not decide on
  * facts read after its own stop. No conversation's interrupted run resumes before its own `onOpen` has run.
  *
+ * `onCompacting` decides a compaction before it happens: the package summarizes with the host's `Summarizer` and
+ * answers with the summary or a decline, and the harness compacts only with a summary. Adapters never call
+ * `Summarizer` themselves. A compaction during a run is one model request of that run: the harness asks
+ * `RequestMeter.allow` first, counts it, and a refusal cancels the compaction without asking `onCompacting`.
+ *
  * `onCompacted` may be called while a run is active (coding-agent's automatic compaction fires inside a run), and
  * `hostCallInFlight` may still be true when it starts. It must not `append-quiet` there: it ensures the idle driver,
  * which writes the compaction status once the conversation is idle.
  *
- * @harness coding-agent `session_start`, `session_compact` and `session_shutdown`; runs do not resume, so there is no
- * stop before resume.
+ * @harness coding-agent `session_start`, `session_before_compact` (cancelled on a decline), the end of the compaction
+ * and `session_shutdown`; runs do not resume, so there is no stop before resume.
  * @harness durable The host calls `onOpen` for every conversation after `Harness.open` and `inspect()` and before
  * `resume()`. Stops there only mark (`abortTask`, `abortSubmission`), because `abort()`, `submit` and the waits enable
- * scheduling; compaction completion is observed through a watch; `close()` writes nothing.
+ * scheduling; `beforeCompact` returns `onCompacting`'s verdict (`{ summary }` or `{ decline: true }`) and its select
+ * phase reruns after a crash under the same task id; compaction completion is observed through a watch; `close()`
+ * writes nothing.
  * @harness fake `onOpen` at creation and, on every restart, for every conversation before any resumed run or job,
  * with ports that reject every method outside the list above; a stop there only marks the restored run, which resume
- * ends as aborted, and a job ensured there starts after the last `onOpen`; `onClose` on close.
+ * ends as aborted, and a job ensured there starts after the last `onOpen`; `compact()` asks `onCompacting` under the
+ * key `<thread>:<id of its last entry>`; `onClose` on close.
+ * @keys `onCompacting` memoizes a non-empty summary under `cherry.summary:<CompactionRequest.key>`.
  */
 export interface Lifecycle {
   /** Called during install. */

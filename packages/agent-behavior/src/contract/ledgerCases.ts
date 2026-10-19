@@ -27,6 +27,7 @@ const U1: UsageFact = { input: 10, output: 5, cacheRead: 1, cacheWrite: 0, total
 const U2: UsageFact = { input: 20, output: 7, cacheRead: 2, cacheWrite: 1, totalTokens: 30, costUsd: 0.5 }
 const noLifecycle = (onCompacted: LifecycleHandlers['onCompacted']): LifecycleHandlers => ({
   onOpen: async () => {},
+  onCompacting: async () => ({ summary: 'summary' }),
   onCompacted,
   onClose: async () => {}
 })
