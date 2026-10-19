@@ -84,6 +84,7 @@ vi.mock('@application', async () => {
 vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FileUtils>()),
   getPathStatus: mockGetPathStatus,
+  realpath: mockRealpath,
   canonicalizePathForContainment: async (targetPath: string, { allowMissing }: { allowMissing: boolean }) => {
     try {
       return await mockRealpath(targetPath)

@@ -5,7 +5,14 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { assertAgentStoragePath, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { t } from '@main/i18n'
-import { canonicalizePathForContainment, getPathStatus, isOutsidePath, lstat, type PathStatus } from '@main/utils/file'
+import {
+  canonicalizePathForContainment,
+  getPathStatus,
+  isOutsidePath,
+  lstat,
+  type PathStatus,
+  realpath
+} from '@main/utils/file'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -63,12 +70,12 @@ async function ensureSystemWorkspaceDirectory(sessionId: string, cwd: string): P
     stage = 'prepare-root'
     await ensureAgentStorageDirectory(root, root)
     stage = 'canonicalize'
-    canonicalRoot = await canonicalizePathForContainment(root, { allowMissing: false })
+    canonicalRoot = await canonicalizeExistingPath(root)
     if (canonicalRoot === undefined) throw unconfirmed()
     canonicalTarget = await canonicalizePathForContainment(target, { allowMissing: true })
     stage = 'find-source-root'
     for (let candidate = path.dirname(target); ; candidate = path.dirname(candidate)) {
-      const canonicalCandidate = await canonicalizePathForContainment(candidate, { allowMissing: false })
+      const canonicalCandidate = await canonicalizeExistingPath(candidate)
       if (canonicalCandidate === canonicalRoot || (await hasSameDirectoryIdentity(candidate, root))) {
         sourceRoot = candidate
       } else if (canonicalCandidate === undefined) {
@@ -122,6 +129,16 @@ async function ensureSystemWorkspaceDirectory(sessionId: string, cwd: string): P
       ),
       retryable
     )
+  }
+}
+
+async function canonicalizeExistingPath(target: string): Promise<string | undefined> {
+  try {
+    return await realpath(AbsoluteFilePathSchema.parse(target))
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return undefined
+    throw error
   }
 }
 

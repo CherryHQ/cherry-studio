@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import type * as FsPromises from 'node:fs/promises'
-import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -20,14 +20,13 @@ import {
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof FsPromises>()
-  return { ...original, stat: vi.fn(original.stat) }
+  return { ...original, stat: vi.fn(original.stat), realpath: vi.fn(original.realpath) }
 })
 
 vi.mock('@main/utils/file', async (importOriginal) => {
   const original = await importOriginal<typeof file>()
   return {
     ...original,
-    canonicalizePathForContainment: vi.fn(original.canonicalizePathForContainment),
     getPathStatus: vi.fn(original.getPathStatus)
   }
 })
@@ -47,9 +46,7 @@ const outsideMessage = (cwd: string) =>
 beforeEach(async () => {
   vi.clearAllMocks()
   vi.mocked(stat).mockReset().mockImplementation(actualFs.stat)
-  vi.mocked(file.canonicalizePathForContainment)
-    .mockReset()
-    .mockImplementation(actualFile.canonicalizePathForContainment)
+  vi.mocked(realpath).mockReset().mockImplementation(actualFs.realpath)
   vi.mocked(file.getPathStatus).mockReset().mockImplementation(actualFile.getPathStatus)
   MockMainPreferenceServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
@@ -100,6 +97,39 @@ it('R6 rejects a root-below symlink even when it re-reaches the root', async () 
   })
   expect(existsSync(path.dirname(cwd))).toBe(false)
   expect(existsSync(cwd)).toBe(false)
+})
+
+it.each(['EIO', 'EMFILE', 'ESTALE'])(
+  'classifies a transient realpath failure while canonicalizing the root as retryable: %s',
+  async (code) => {
+    const cwd = path.join(root, '2026-10-19', sessionId)
+    vi.mocked(realpath).mockImplementation(async (candidate, options) => {
+      if (candidate === root) throw Object.assign(new Error(code), { code })
+      return actualFs.realpath(candidate, options)
+    })
+    const preparation = prepare(cwd)
+    await expect(preparation).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
+    await expect(preparation).rejects.toMatchObject({
+      retryable: true,
+      message: t('agent.session.workspace_status.check_failed', {
+        sessionId,
+        detail: t('agent.session.workspace_status.inaccessible', { path: cwd })
+      })
+    })
+    expect(existsSync(path.dirname(cwd))).toBe(false)
+  }
+)
+
+it('rejects an unconfirmed ancestor after an EACCES realpath failure', async () => {
+  const cwd = path.join(root, '2026-10-19', sessionId)
+  vi.mocked(realpath).mockImplementation(async (candidate, options) => {
+    if (candidate === path.dirname(cwd)) throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+    return actualFs.realpath(candidate, options)
+  })
+  const preparation = prepare(cwd)
+  await expect(preparation).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
+  await expect(preparation).rejects.toMatchObject({ retryable: false, message: outsideMessage(cwd) })
+  expect(existsSync(path.dirname(cwd))).toBe(false)
 })
 
 it.each([
@@ -213,7 +243,10 @@ it('rejects a relative SYSTEM cwd', async () => {
 })
 
 it('fails closed when the managed root cannot be canonicalized', async () => {
-  vi.mocked(file.canonicalizePathForContainment).mockResolvedValueOnce(undefined)
+  vi.mocked(realpath).mockImplementation(async (candidate, options) => {
+    if (candidate === root) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+    return actualFs.realpath(candidate, options)
+  })
   const cwd = path.join(root, 'unknown', sessionId)
   await expect(prepare(cwd)).rejects.toMatchObject({ message: outsideMessage(cwd), retryable: false })
   expect(existsSync(cwd)).toBe(false)
@@ -230,10 +263,9 @@ it('does not report success when directory identity cannot be confirmed after cr
 it.each(['canonical', 'identity'])('R2 accepts ancestor spellings proven by %s', async (proof) => {
   const alias = path.join(profile, 'SHORT~1', 'Data', 'Agents', 'system')
   const cwd = path.join(alias, 'date', sessionId)
-  const originalCanonicalize = vi.mocked(file.canonicalizePathForContainment).getMockImplementation()!
-  const canonicalRoot = await originalCanonicalize(root, { allowMissing: false })
-  vi.mocked(file.canonicalizePathForContainment).mockImplementation(async (candidate, options) =>
-    candidate === alias ? (proof === 'canonical' ? canonicalRoot : alias) : originalCanonicalize(candidate, options)
+  const canonicalRoot = await actualFs.realpath(root)
+  vi.mocked(realpath).mockImplementation(async (candidate, options) =>
+    candidate === alias ? (proof === 'canonical' ? canonicalRoot : alias) : actualFs.realpath(candidate, options)
   )
   vi.mocked(stat).mockImplementation((async (candidate, options) =>
     actualFs.stat(
