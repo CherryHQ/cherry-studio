@@ -156,7 +156,7 @@ describe('production Anthropic thinking recovery HTTP boundary', () => {
     }
   )
 
-  it.each([false, true])('handles Cherry-timed thinking-only history (valid prefix: %s)', async (validPrefix) => {
+  it.each([false, true])('handles mixed Cherry-timed reasoning (valid prefix: %s)', async (validPrefix) => {
     const signedPrefix = [{ role: 'user', content: [{ type: 'text', text: 'original prefix' }] }]
     const signature = createHash('sha256').update(JSON.stringify(signedPrefix)).digest('hex')
     const chunks: UIMessageChunk[] = [
@@ -165,7 +165,8 @@ describe('production Anthropic thinking recovery HTTP boundary', () => {
       { type: 'reasoning-delta', id: 'r1', delta: 'Thinking through the question' },
       { type: 'reasoning-delta', id: 'r1', delta: '', providerMetadata: { anthropic: { signature } } },
       { type: 'reasoning-end', id: 'r1' },
-      { type: 'finish' }
+      { type: 'reasoning-start', id: 'r2' },
+      { type: 'reasoning-delta', id: 'r2', delta: 'Interrupted before the signature arrived' }
     ]
     const accumulated = await pipeStreamLoop(
       withReasoningTimingMetadata(
@@ -185,11 +186,13 @@ describe('production Anthropic thinking recovery HTTP boundary', () => {
       dropEmptyContentParts(stripTransientStatusParts(accumulated.finalMessage!.parts)),
       'paused'
     )
-    const prompt = (await toModelMessages([
+    const history: Parameters<typeof toModelMessages>[0] = [
       { id: 'u1', role: 'user', parts: [{ type: 'text', text: validPrefix ? 'original prefix' : 'edited prefix' }] },
       { ...accumulated.finalMessage!, parts },
       { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'next question' }] }
-    ])) as LanguageModelV3CallOptions['prompt']
+    ]
+    const originalHistory = structuredClone(history)
+    const prompt = (await toModelMessages(history)) as LanguageModelV3CallOptions['prompt']
     expect(prompt[1].content).toEqual([
       {
         type: 'reasoning',
@@ -198,6 +201,11 @@ describe('production Anthropic thinking recovery HTTP boundary', () => {
           anthropic: { signature },
           cherry: { startedAt: expect.any(Number), thinkingMs: expect.any(Number) }
         }
+      },
+      {
+        type: 'reasoning',
+        text: 'Interrupted before the signature arrived',
+        providerOptions: { cherry: { startedAt: expect.any(Number), thinkingMs: expect.any(Number) } }
       }
     ])
     const original = structuredClone(prompt)
@@ -209,10 +217,13 @@ describe('production Anthropic thinking recovery HTTP boundary', () => {
         const body = JSON.parse(String(init?.body))
         bodies.push(body)
         const assistants = body.messages.filter((message: any) => message.role === 'assistant')
-        expect(
-          assistants.every((message: any) => message.content.length > 0),
-          'synthetic empty-assistant request guard'
-        ).toBe(true)
+        if (assistants.some((message: any) => message.content.length === 0)) {
+          statuses.push(400)
+          return Response.json(
+            { type: 'error', error: { type: 'invalid_request_error', message: 'Synthetic empty assistant content' } },
+            { status: 400 }
+          )
+        }
         const replay = assistants
           .flatMap((message: any) => message.content)
           .find((part: any) => part.type === 'thinking')
@@ -237,7 +248,9 @@ describe('production Anthropic thinking recovery HTTP boundary', () => {
       provider: makeProvider({
         id: 'custom',
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://test' } }
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://test' }
+        }
       }),
       model: makeModel({ id: 'custom::claude-sonnet-5-5', providerId: 'custom' }),
       aiSdkProviderId: 'anthropic',
@@ -268,6 +281,7 @@ describe('production Anthropic thinking recovery HTTP boundary', () => {
         content: [{ type: 'thinking', thinking: 'Thinking through the question', signature }]
       })
       expect(prompt).toEqual(original)
+      expect(history).toEqual(originalHistory)
     }
     expect(bodies).toHaveLength(validPrefix ? 1 : 2)
     expect(statuses).toEqual(validPrefix ? [200] : [400, 200])
@@ -291,6 +305,36 @@ describe('production Anthropic thinking recovery HTTP boundary', () => {
           identities: [signature]
         }
       ])
+      expect(requestScope.request.anthropicThinkingRecovery?.records).toEqual(records)
+      const replayRecords: unknown[] = []
+      const replayScope: RequestScope = {
+        ...requestScope,
+        request: {
+          ...requestScope.request,
+          requestOptions: { maxRetries: 0 },
+          anthropicThinkingRecovery: {
+            records: structuredClone(requestScope.request.anthropicThinkingRecovery!.records),
+            record: (record) => replayRecords.push(record)
+          }
+        }
+      }
+      const replayContext = { middlewares: [] as LanguageModelMiddleware[] } as AiRequestContext
+      for (const plugin of collectFromFeatures(replayScope, INTERNAL_FEATURES).modelAdapters)
+        await plugin.configureContext?.(replayContext)
+      const replayModel = wrapLanguageModel({ model: sdkModel, middleware: replayContext.middlewares! })
+      const replayResult = await replayModel.doStream({ prompt: original })
+      const replayAnswer: string[] = []
+      for await (const chunk of replayResult.stream) {
+        expect(chunk.type).not.toBe('error')
+        if (chunk.type === 'text-delta') replayAnswer.push(chunk.delta)
+      }
+      expect(replayAnswer).toEqual(['Completed.'])
+      expect(bodies.slice(2)).toHaveLength(1)
+      expect(statuses.slice(2)).toEqual([200])
+      expect(bodies[2].messages).toEqual(bodies[1].messages)
+      expect(replayRecords).toEqual([])
+      expect(original).toEqual(prompt)
+      expect(history).toEqual(originalHistory)
     }
   })
 })

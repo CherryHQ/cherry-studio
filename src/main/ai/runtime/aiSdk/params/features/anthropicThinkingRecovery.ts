@@ -47,7 +47,17 @@ export function excludeAnthropicThinking(
       if (!identities(part).some((id) => excluded.has(id))) return [part]
       return []
     })
-    return content.length ? [{ ...message, content }] : []
+    const matched = content.length !== message.content.length
+    const omit =
+      content.length === 0 ||
+      (matched &&
+        content.every(
+          (part) =>
+            part.type === 'reasoning' &&
+            part.providerOptions?.anthropic?.signature === undefined &&
+            part.providerOptions?.anthropic?.redactedData === undefined
+        ))
+    return omit ? [] : [{ ...message, content }]
   })
 }
 

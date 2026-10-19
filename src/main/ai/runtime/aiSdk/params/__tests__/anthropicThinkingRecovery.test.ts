@@ -160,6 +160,64 @@ describe('Anthropic thinking recovery', () => {
     }
   )
 
+  it.each([{ signature: 'old' }, { redactedData: 'old' }])(
+    'omits an assistant left with only unsigned reasoning after a match: %j',
+    (anthropic) => {
+      const history: LanguageModelV3CallOptions['prompt'] = [
+        prompt[0],
+        {
+          role: 'assistant',
+          content: [
+            { type: 'reasoning', text: 'signed', providerOptions: { anthropic } },
+            { type: 'reasoning', text: 'interrupted', providerOptions: { cherry: { thinkingMs: 50 } } }
+          ]
+        },
+        prompt[0]
+      ]
+      const original = structuredClone(history)
+      expect(excludeAnthropicThinking(history, new Set(['old']))).toEqual([history[0], history[2]])
+      expect(history).toEqual(original)
+    }
+  )
+
+  it.each([
+    { type: 'text', text: 'answer' },
+    { type: 'tool-call', toolCallId: 'call', toolName: 'lookup', input: { q: 'query' } },
+    { type: 'reasoning', text: 'signed', providerOptions: { anthropic: { signature: '' } } },
+    { type: 'reasoning', text: '', providerOptions: { anthropic: { redactedData: '' } } }
+  ] as const)('preserves every surviving part when a %j remains after a match', (retained) => {
+    const assistant: Extract<LanguageModelV3CallOptions['prompt'][number], { role: 'assistant' }> = {
+      role: 'assistant',
+      providerOptions: { other: { messageTag: 'kept' } },
+      content: [
+        { type: 'reasoning', text: 'stale', providerOptions: { anthropic: { signature: 'old' } } },
+        retained,
+        { type: 'reasoning', text: 'interrupted', providerOptions: { cherry: { thinkingMs: 50 } } }
+      ]
+    }
+    const history: LanguageModelV3CallOptions['prompt'] = [prompt[0], assistant]
+    const original = structuredClone(history)
+    expect(excludeAnthropicThinking(history, new Set(['old']))).toEqual([
+      history[0],
+      { ...assistant, content: assistant.content.slice(1) }
+    ])
+    expect(history).toEqual(original)
+  })
+
+  it('preserves an unsigned-only assistant when exclusions match a different assistant', () => {
+    const history: LanguageModelV3CallOptions['prompt'] = [
+      {
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'stale', providerOptions: { anthropic: { signature: 'old' } } }]
+      },
+      prompt[0],
+      { role: 'assistant', content: [{ type: 'reasoning', text: 'interrupted' }] }
+    ]
+    const original = structuredClone(history)
+    expect(excludeAnthropicThinking(history, new Set(['old']))).toEqual(history.slice(1))
+    expect(history).toEqual(original)
+  })
+
   it('repairs generation once and remembers exclusions for subsequent calls with newly generated thinking', async () => {
     const requestScope = scope()
     let attempts = 0
