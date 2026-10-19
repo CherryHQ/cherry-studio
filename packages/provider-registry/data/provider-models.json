@@ -15045,6 +15045,10 @@
       "apiModelId": "minimax/minimax-m3.1-flash",
       "modelId": "minimax-m3-1-flash",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0
@@ -41409,5 +41413,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "bb13b4a6c4e809cc"
+  "version": "40f7a97c43483a3a"
 }
