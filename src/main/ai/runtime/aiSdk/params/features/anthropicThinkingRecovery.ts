@@ -45,12 +45,7 @@ export function excludeAnthropicThinking(
     if (message.role !== 'assistant') return [message]
     const content = message.content.flatMap((part) => {
       if (!identities(part).some((id) => excluded.has(id))) return [part]
-      const { anthropic, ...foreign } = part.providerOptions ?? {}
-      if (!Object.keys(foreign).length) return []
-      const options = { ...anthropic }
-      delete options.signature
-      delete options.redactedData
-      return [{ ...part, providerOptions: { ...foreign, anthropic: options } }]
+      return []
     })
     return content.length ? [{ ...message, content }] : []
   })

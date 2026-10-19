@@ -116,8 +116,7 @@ describe('Anthropic thinking recovery', () => {
     expect(repaired[2]).toEqual(prompt[2])
     expect(repaired[3].content).toEqual([
       { type: 'reasoning', text: 'new', providerOptions: { anthropic: { signature: 'new' } } },
-      { type: 'reasoning', text: 'foreign', providerOptions: { google: { thoughtSignature: 'old' } } },
-      { type: 'reasoning', text: 'shared', providerOptions: { anthropic: {}, other: { signature: 'foreign' } } }
+      { type: 'reasoning', text: 'foreign', providerOptions: { google: { thoughtSignature: 'old' } } }
     ])
     expect(extra).toEqual(original)
     expect(
@@ -132,6 +131,34 @@ describe('Anthropic thinking recovery', () => {
       )
     ).toEqual([])
   })
+
+  it.each([{ signature: 'old' }, { redactedData: 'old' }])(
+    'removes excluded Cherry-timed reasoning as a whole without mutating history: %j',
+    (anthropic) => {
+      const assistant: Extract<LanguageModelV3CallOptions['prompt'][number], { role: 'assistant' }> = {
+        role: 'assistant',
+        providerOptions: { other: { messageTag: 'kept' } },
+        content: [
+          {
+            type: 'reasoning',
+            text: 'completed thought',
+            providerOptions: { cherry: { startedAt: 1000, thinkingMs: 50 }, anthropic }
+          },
+          { type: 'text', text: 'answer', providerOptions: { other: { tag: 'kept' } } }
+        ]
+      }
+      const history: LanguageModelV3CallOptions['prompt'] = [prompt[0], assistant]
+      const original = structuredClone(history)
+      expect(excludeAnthropicThinking(history, new Set(['old']))).toEqual([
+        history[0],
+        { ...assistant, content: [assistant.content[1]] }
+      ])
+      expect(
+        excludeAnthropicThinking([history[0], { ...assistant, content: [assistant.content[0]] }], new Set(['old']))
+      ).toEqual([history[0]])
+      expect(history).toEqual(original)
+    }
+  )
 
   it('repairs generation once and remembers exclusions for subsequent calls with newly generated thinking', async () => {
     const requestScope = scope()
