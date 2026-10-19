@@ -1274,6 +1274,50 @@ describe('AgentToolRenderer', () => {
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
     })
 
+    // A failed delivery resumed nothing, so the row must stay a failed tool row: its reason is in
+    // errorText, which the flow's part.output projection can never surface.
+    it('keeps a failed send on its diagnostic disclosure instead of a resume entry', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const errorText = 'No agent named agent-77 is registered, so the message was not delivered.'
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'error',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { isError: true, content: [{ type: 'text', text: errorText }] }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.queryByText('Continue handling')).toBeNull()
+      expect(screen.getAllByTestId('tooltip-content').some((element) => element.textContent === errorText)).toBe(true)
+      // No flow-button branch: the row is not an entry, so nothing can open its empty flow.
+      expect(screen.queryByRole('button')).toBeNull()
+      expect(openAgentToolFlow).not.toHaveBeenCalled()
+    })
+
+    // The entry gates on the delivery outcome, not the response shape: the same row delivered is
+    // still a receipt that roots its own flow.
+    it('keeps a delivered receipt as an entry with the same response shape', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const toolResponse = createToolResponse({
+        tool: { id: 'SendMessage', name: 'SendMessage', description: 'Message an agent', type: 'provider' },
+        status: 'done',
+        arguments: { to: 'agent-77', summary: 'Continue the review', message: 'please continue' },
+        response: { isError: true, content: [{ type: 'text', text: 'delivered' }] }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /Continue the review/ }))
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'SendMessage',
+        title: 'Continue the review'
+      })
+    })
+
     // The resumed agent keeps streaming under its launch tool-call id, so the SendMessage receipt's
     // entry must open that flow — not an empty SendMessage-rooted one.
     it('opens the resumed subagent flow from a SendMessage receipt', () => {

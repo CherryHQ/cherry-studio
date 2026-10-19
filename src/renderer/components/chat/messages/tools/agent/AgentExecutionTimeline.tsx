@@ -42,9 +42,12 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   // Hooks stay above every early return below: a tool flipping out of its approval wait must not
   // change this component's hook count (React #310).
   const listActions = useOptionalMessageListActions()
+  // A failed delivery resumed nothing, so its row keeps the diagnostic disclosure instead of a
+  // resume entry: the reason lives in errorText, which the flow's part.output projection cannot see.
+  const deliveryResolved = status !== 'error' && status !== 'cancelled'
   const resumeState = useMemo(
     () =>
-      tool?.name === AgentToolsType.SendMessage
+      deliveryResolved && tool?.name === AgentToolsType.SendMessage
         ? resolveResumeReceiptState(
             response,
             getPartLaunchToolCallId(toolResponse),
@@ -52,13 +55,15 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
             Boolean(listActions?.openAgentToolFlow)
           )
         : undefined,
-    [tool?.name, response, toolResponse, launchIndex, listActions]
+    [deliveryResolved, tool?.name, response, toolResponse, launchIndex, listActions]
   )
   // A cold-resumed child streams under its own receipt, so that receipt is the flow's root:
   // redirecting to the launch root would drop everything the resume produced. The index is read
   // rather than the parts map, which a settled tool group deliberately empties, and the target
   // comes from the shared resolver so the row, the disclosure and the pane agree on it.
-  const flowTarget = resolveAgentToolFlowTarget(toolResponse, launchIndex, Boolean(listActions?.openAgentToolFlow))
+  const flowTarget = deliveryResolved
+    ? resolveAgentToolFlowTarget(toolResponse, launchIndex, Boolean(listActions?.openAgentToolFlow))
+    : undefined
   const receiptRootsItsFlow = flowTarget !== undefined && flowTarget === toolResponse.toolCallId
 
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
