@@ -74,6 +74,27 @@ and Agent catalog entries. A message records its producing model; the catalog re
 configuration (`null` for unconfigured, omitted for older hosts). Neither carries provider secrets
 or requires the receiving device to have the model installed.
 
+## Paged message summaries
+
+`connection.hello.agentMessageSummariesVersion: 1` advertises the optional
+`agent.messages.list` parameter `partsMode: 'paged'`. Only send this parameter
+after observing the capability. Without it, responses retain complete `partIds`.
+
+Paged responses contain `AgentMessageSummary` items: message identity, revision,
+role, status and optional usage/model/failure metadata, with `partsMode: 'paged'`
+and no `partIds`. Enumerate every part through `agent.parts.list` using the message
+ID and revision, following `nextCursor` until null. An omitted index is not an
+empty message. History and part revision checks remain unchanged.
+
+`AgentMessageListItem` is the full-message/summary union. Summaries are list-only;
+events, checkpoints and reducers still require complete `AgentMessage` snapshots.
+Peers without the capability keep the existing request and response shapes.
+
+An indivisible list item over the response budget returns `RESOURCE_EXHAUSTED`
+with `details: { kind: 'ITEM_TOO_LARGE', itemBytes, budgetBytes, retryable: false }`.
+The same request and data cannot recover by waiting. Other resource-exhaustion
+errors retain their semantics; legacy clients may ignore the additional details.
+
 ## Resumable Agent attachments
 
 `connection.hello.agentUploadsVersion: 1` advertises prepare/get/resume/complete/cancel and binary DATA/ACK records.
