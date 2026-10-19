@@ -216,6 +216,25 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     }
     expect(readSamples(3).every((sample) => sample === 0)).toBe(true)
     expect(readSamples(6.2).some((sample) => sample !== 0)).toBe(true)
+  it('probes and extracts a 24-track MKV whose packet-count JSON exceeds the default stdio cap', async () => {
+    const outputDir = join(root, 'twenty-four-audio')
+    mkdirSync(outputDir)
+    const sourcePath = join(outputDir, 'twenty-four.mkv')
+    const maps = Array.from({ length: 24 }, () => ['-map', '0:a'] as const).flat()
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=0.2', ...maps, '-c:a', 'pcm_s16le', sourcePath])
+    ).toBe(0)
+
+    const probe = await mediaFfmpegHandlers.probe({ filePath: sourcePath, fallbackExt: 'mkv' }, context())
+    expect(probe).toMatchObject({ hasAudio: true, kind: 'audio' })
+
+    const extracted = await mediaFfmpegHandlers.extractAudio(
+      { filePath: sourcePath, outputDir, maxChunkBytes: 1_000_000 },
+      context()
+    )
+    expect(extracted.chunks.length).toBeGreaterThan(0)
+  })
+
   it('maps default stereo ahead of a non-default 5.1 track and keeps that stream offset', async () => {
     const outputDir = join(root, 'dual-default-stereo')
     mkdirSync(outputDir)
