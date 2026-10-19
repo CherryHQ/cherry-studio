@@ -136,10 +136,10 @@ describe('replay invariants', () => {
     }
   })
 
-  // I2. Catches a rule that reads a field the stored form drops or rewrites (a stop's `cause`, a run's `report`, a
-  // snapshot's `admittedRound`): the history as an adapter stores and reads it back across a restart gives the same
+  // I2 as the core can check it. Catches a rule that reads a field the stored form drops or rewrites (a stop's `cause`,
+  // a run's `report`, a snapshot's `admittedRound`): the history as an adapter stores and reads it back gives the same
   // decision, with clock and randomness unavailable, on each path the seeds reach.
-  it('I2: the same facts give the same decision after a restart', () => {
+  it('decides the same after the storage round trip, with clock and randomness unavailable', () => {
     const stored = (entry: HistoryEntry): HistoryEntry => {
       const wire = (value: unknown) => JSON.parse(JSON.stringify(value))
       if (entry.kind !== 'record' && entry.kind !== 'marker') return wire(entry)
@@ -170,9 +170,9 @@ describe('replay invariants', () => {
     expect([...decided].sort()).toEqual(['notify', 'quiet', 'stop-goal'])
   })
 
-  // I3. Stage B keeps no incremental cache: readers fold the whole history. Catches a fold that judges admission by
-  // position, which any cache would also get wrong: moving an admission later within its round changes nothing.
-  it('I3: where an admission lands within its round does not change the usage', () => {
+  // Not I3 itself: there is no incremental cache to compare until G-a (PR-3b), and readers fold the whole history.
+  // Catches a fold that judges admission by position: moving an admission later within its round changes nothing.
+  it('bills a round the same wherever its admission lands within it', () => {
     for (let seed = 1; seed <= 25; seed++) {
       const { history } = drive(seed)
       const usageOf = (h: readonly HistoryEntry[]) => goalUsage(facts(h, { children: children(h) }), 'goal:call:k')
