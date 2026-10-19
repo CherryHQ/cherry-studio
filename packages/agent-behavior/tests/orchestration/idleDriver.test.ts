@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ThreadId } from '@cherrystudio/agent-runtime'
+import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { callTool, childSpec, holds, type Holds, latch, reply } from '../../src/contract/fixtures'
 import { ensureDriver } from '../../src/core/driver/jobs'
@@ -257,6 +257,52 @@ describe('idle driver', () => {
     expect(starts).toEqual(['queued', 'started'])
     expect(markers(facts, 'subagent-notification')).toHaveLength(1)
     expect(pendingResults(facts.history)).toEqual([])
+  })
+
+  // Catches the current round's exemption outliving its run (N3): a round paused before its admission stays the latest
+  // run's starter, so a compaction afterwards would write that withdrawn round's prompt into the summary.
+  it('leaves a round withdrawn before its admission out of a later compaction', async () => {
+    const hold = holds()
+    let pause: (() => Promise<unknown>) | undefined
+    const pauseAfterStart = (ports: BoundPorts): BoundPorts => ({
+      ...ports,
+      turns: {
+        ...ports.turns,
+        start: async (thread, input, key) => {
+          const started = await ports.turns.start(thread, input, key)
+          const run = input.kind === ENTRY_KINDS.goalRound ? pause : undefined
+          pause = undefined
+          await run?.()
+          return started
+        }
+      }
+    })
+    const summarized: (readonly JsonValue[])[] = []
+    const w = world({
+      settings: ONE_ROUND,
+      wrap: wrapJob('idle-driver', pauseAfterStart),
+      extra: (p) => p.tools.register(hold.tool),
+      patchHost: (host) => ({
+        ...host,
+        summarizer: {
+          summarize: (request, signal) => {
+            summarized.push(request.messages)
+            return host.summarizer.summarize(request, signal)
+          }
+        }
+      })
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('hold', { id: 'r1' }), reply('never')])
+    pause = () => w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'pause', 'cmd-pause'))
+    await w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'ship it', 'cmd-1'))
+    await w.fake.settle()
+    const [round] = markers(await w.read(t), 'goal-round')
+    expect([...admittedRounds((await w.read(t)).history)]).not.toContain(round.marker.round.id)
+    w.host.giveSummary('summary')
+    await w.fake.compact(t)
+    expect(summarized).toHaveLength(1)
+    expect(summarized[0].map((message) => (message as { readonly text: string }).text)).not.toContain(round.text)
   })
 
   // Catches admission by position (R1): a round reserved before the person edited the goal must not count, and the
